@@ -20,6 +20,8 @@
 package org.elasticsearch.common.xcontent.cbor;
 
 import com.fasterxml.jackson.core.JsonGenerator;
+import com.fasterxml.jackson.dataformat.cbor.CBORGenerator;
+
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContentGenerator;
 
@@ -32,6 +34,10 @@ public class CborXContentGenerator extends JsonXContentGenerator {
 
     public CborXContentGenerator(JsonGenerator jsonGenerator, OutputStream os, String... filters) {
         super(jsonGenerator, os, filters);
+    }
+
+    public CborXContentGenerator(JsonGenerator jsonGenerator, OutputStream os, boolean inclusiveFilters, String[] filters) {
+        super(jsonGenerator, os, inclusiveFilters, filters);
     }
 
     @Override

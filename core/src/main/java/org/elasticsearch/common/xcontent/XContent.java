@@ -49,6 +49,11 @@ public interface XContent {
     XContentGenerator createGenerator(OutputStream os, String[] filters) throws IOException;
 
     /**
+     * Creates a new generator using the provided output stream and some
+     * filters.
+     */
+    XContentGenerator createGenerator(OutputStream os, String[] filters, boolean inclusiveFilters) throws IOException;
+    /**
      * Creates a parser over the provided string content.
      */
     XContentParser createParser(String content) throws IOException;
@@ -77,4 +82,5 @@ public interface XContent {
      * Creates a parser over the provided reader.
      */
     XContentParser createParser(Reader reader) throws IOException;
+
 }

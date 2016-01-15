@@ -121,5 +121,8 @@ public interface XContentGenerator extends Closeable {
 
     void flush() throws IOException;
 
+    @Override
     void close() throws IOException;
+
+    void writeStartObject(String name) throws IOException;
 }

@@ -30,6 +30,7 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentBuilder.FieldCaseConversion;
 import org.joda.time.DateTimeZone;
 import org.joda.time.ReadableInstant;
 import org.joda.time.format.DateTimeFormatter;
@@ -102,13 +103,26 @@ public final class XContentBuilder implements BytesStream, Releasable {
     }
 
     /**
-     * Constructs a new builder using the provided xcontent, an OutputStream and some filters. The
-     * filters are used to filter fields that won't be written to the OutputStream. Make sure
-     * to call {@link #close()} when the builder is done with.
+     * Constructs a new builder using the provided xcontent, an OutputStream and
+     * some filters. If filters are specified, only those values matching a
+     * filter will be written to the output stream. Make sure to call
+     * {@link #close()} when the builder is done with.
      */
     public XContentBuilder(XContent xContent, OutputStream bos, String[] filters) throws IOException {
         this.bos = bos;
         this.generator = xContent.createGenerator(bos, filters);
+    }
+
+    /**
+     * Constructs a new builder using the provided xcontent, an OutputStream and
+     * some filters. If filters are specified and inclusiveFilters is true, only
+     * those values matching a filter will be written to the output stream. If
+     * inclusiveFilters is false, those matching will be excluded. Make sure to
+     * call {@link #close()} when the builder is done with.
+     */
+    public XContentBuilder(XContent xContent, OutputStream bos, boolean inclusiveFilters, String[] filters) throws IOException {
+        this.bos = bos;
+        this.generator = xContent.createGenerator(bos, filters, inclusiveFilters);
     }
 
     public XContentBuilder fieldCaseConversion(FieldCaseConversion fieldCaseConversion) {
@@ -158,7 +172,7 @@ public final class XContentBuilder implements BytesStream, Releasable {
     }
 
     public XContentBuilder startObject(String name, FieldCaseConversion conversion) throws IOException {
-        field(name, conversion);
+        field(name);
         startObject();
         return this;
     }

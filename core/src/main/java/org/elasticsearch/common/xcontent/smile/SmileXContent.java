@@ -78,6 +78,11 @@ public class SmileXContent implements XContent {
     }
 
     @Override
+    public XContentGenerator createGenerator(OutputStream os, String[] filters, boolean inclusiveFilters) throws IOException {
+        return new SmileXContentGenerator(smileFactory.createGenerator(os, JsonEncoding.UTF8), os, inclusiveFilters, filters);
+    }
+
+    @Override
     public XContentParser createParser(String content) throws IOException {
         return new SmileXContentParser(smileFactory.createParser(new FastStringReader(content)));
     }

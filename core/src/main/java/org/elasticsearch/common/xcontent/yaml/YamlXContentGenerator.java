@@ -20,6 +20,7 @@
 package org.elasticsearch.common.xcontent.yaml;
 
 import com.fasterxml.jackson.core.JsonGenerator;
+
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContentGenerator;
 
@@ -32,6 +33,10 @@ public class YamlXContentGenerator extends JsonXContentGenerator {
 
     public YamlXContentGenerator(JsonGenerator jsonGenerator, OutputStream os, String... filters) {
         super(jsonGenerator, os, filters);
+    }
+
+    public YamlXContentGenerator(JsonGenerator jsonGenerator, OutputStream os, boolean inclusiveFilters, String[] filters) {
+        super(jsonGenerator, os, inclusiveFilters, filters);
     }
 
     @Override

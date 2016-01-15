@@ -77,6 +77,11 @@ public class CborXContent implements XContent {
     }
 
     @Override
+    public XContentGenerator createGenerator(OutputStream os, String[] filters, boolean inclusiveFilters) throws IOException {
+        return new CborXContentGenerator(cborFactory.createGenerator(os, JsonEncoding.UTF8), os, inclusiveFilters, filters);
+    }
+
+    @Override
     public XContentParser createParser(String content) throws IOException {
         return new CborXContentParser(cborFactory.createParser(new FastStringReader(content)));
     }
@@ -108,4 +113,5 @@ public class CborXContent implements XContent {
     public XContentParser createParser(Reader reader) throws IOException {
         return new CborXContentParser(cborFactory.createParser(reader));
     }
+
 }

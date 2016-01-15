@@ -281,7 +281,7 @@ public class IndexStatsIT extends ESIntegTestCase {
                                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "1")
                                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0")
                                 .put(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING.getKey(), "2")
-                                .put(MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER, "2")
+                                .put(MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING.getKey(), "2")
                                 .put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), "1")
                                 .put(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.getKey(), "10000")
                 ));
@@ -313,7 +313,7 @@ public class IndexStatsIT extends ESIntegTestCase {
                                  .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "1")
                                  .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0")
                                  .put(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING.getKey(), "2")
-                                 .put(MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER, "2")
+                                 .put(MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING.getKey(), "2")
                                  .put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), "1")
                                  .put(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.getKey(), "1")
                                  .put("index.merge.policy.type", "tiered")

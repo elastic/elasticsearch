@@ -34,6 +34,7 @@ import static org.hamcrest.Matchers.lessThan;
  * Basic Tests for {@link GeoDistance}
  */
 public class GeoDistanceTests extends ESTestCase {
+
     public void testGeoDistanceSerialization() throws IOException  {
         // make sure that ordinals don't change, because we rely on then in serialization
         assertThat(GeoDistance.PLANE.ordinal(), equalTo(0));

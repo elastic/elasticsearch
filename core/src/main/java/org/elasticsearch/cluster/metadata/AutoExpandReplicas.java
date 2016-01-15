@@ -21,6 +21,11 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.settings.Setting;
 
+/**
+ * This class acts as a functional wrapper around the <tt>index.auto_expand_replicas</tt> setting.
+ * This setting or rather it's value is expanded into a min and max value which requires special handling
+ * based on the number of datanodes in the cluster. This class handels all the parsing and streamlines the access to these values.
+ */
 final class AutoExpandReplicas {
     // the value we recognize in the "max" position to mean all the nodes
     private static final String ALL_NODES_VALUE = "all";
@@ -32,13 +37,13 @@ final class AutoExpandReplicas {
         }
         final int dash = value.indexOf('-');
         if (-1 == dash) {
-            throw new IllegalArgumentException("Can't parse auto expand clause from " + dash);
+            throw new IllegalArgumentException("failed to parse [" + IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS + "] form [" + value + "] at index " + dash);
         }
         final String sMin = value.substring(0, dash);
         try {
             min = Integer.parseInt(sMin);
         } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("Can't parse auto expand clause from " + dash, e);
+            throw new IllegalArgumentException("failed to parse [" + IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS + "] form [" + value + "] at index "  + dash, e);
         }
         String sMax = value.substring(dash + 1);
         if (sMax.equals(ALL_NODES_VALUE)) {
@@ -47,29 +52,30 @@ final class AutoExpandReplicas {
             try {
                 max = Integer.parseInt(sMax);
             } catch (NumberFormatException e) {
-                throw new IllegalArgumentException("Can't parse auto expand clause from " + dash, e);
+                throw new IllegalArgumentException("failed to parse [" + IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS + "] form [" + value + "] at index "  + dash, e);
             }
         }
         return new AutoExpandReplicas(min, max, true);
     }, true, Setting.Scope.INDEX);
+
     private final int minReplicas;
     private final int maxReplicas;
     private final boolean enabled;
 
-    public AutoExpandReplicas(int minReplicas, int maxReplicas, boolean enabled) {
+    AutoExpandReplicas(int minReplicas, int maxReplicas, boolean enabled) {
         if (minReplicas > maxReplicas) {
-            throw new IllegalArgumentException("min must be >= max");
+            throw new IllegalArgumentException("[" + IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS + "] minReplicas must be =< maxReplicas but wasn't " + minReplicas + " > "  + maxReplicas);
         }
         this.minReplicas = minReplicas;
         this.maxReplicas = maxReplicas;
         this.enabled = enabled;
     }
 
-    public int getMinReplicas() {
+    int getMinReplicas() {
         return minReplicas;
     }
 
-    public int getMaxReplicas(int numDataNodes) {
+    int getMaxReplicas(int numDataNodes) {
         return Math.min(maxReplicas, numDataNodes-1);
     }
 
@@ -78,7 +84,7 @@ final class AutoExpandReplicas {
         return enabled == false ? Boolean.toString(enabled) : minReplicas + "-" + maxReplicas;
     }
 
-    public boolean isEnabled() {
+    boolean isEnabled() {
         return enabled;
     }
 }

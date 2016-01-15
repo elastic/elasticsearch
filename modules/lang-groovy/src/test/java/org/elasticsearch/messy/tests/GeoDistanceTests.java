@@ -40,6 +40,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.InternalSettingsPluging;
 import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
@@ -72,7 +73,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class GeoDistanceTests extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(GroovyPlugin.class);
+        return pluginList(GroovyPlugin.class, InternalSettingsPluging.class);
     }
 
     public void testSimpleDistance() throws Exception {

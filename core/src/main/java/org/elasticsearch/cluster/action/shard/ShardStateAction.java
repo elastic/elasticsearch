@@ -137,12 +137,15 @@ public class ShardStateAction extends AbstractComponent {
         observer.waitForNextChange(new ClusterStateObserver.Listener() {
             @Override
             public void onNewClusterState(ClusterState state) {
+                if (logger.isTraceEnabled()) {
+                    logger.trace("new cluster state [{}] after waiting for master election to fail shard [{}]", shardRoutingEntry.getShardRouting().shardId(), state.prettyPrint(), shardRoutingEntry);
+                }
                 sendShardFailed(observer, shardRoutingEntry, listener);
             }
 
             @Override
             public void onClusterServiceClose() {
-                logger.error("{} node closed while handling failed shard [{}]", shardRoutingEntry.failure, shardRoutingEntry.getShardRouting().getId(), shardRoutingEntry.getShardRouting());
+                logger.warn("{} node closed while handling failed shard [{}]", shardRoutingEntry.failure, shardRoutingEntry.getShardRouting().getId(), shardRoutingEntry.getShardRouting());
                 listener.onShardFailedFailure(new NodeClosedException(clusterService.localNode()));
             }
 

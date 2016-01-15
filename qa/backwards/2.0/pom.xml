@@ -15,7 +15,7 @@
     <description>Backwards compatibility tests against 2.0</description>
 
     <properties>
-        <tests.bwc.version>2.0.1</tests.bwc.version>
+        <tests.bwc.version>2.0.2</tests.bwc.version>
         <skip.integ.tests>${skipTests}</skip.integ.tests>
     </properties>
     <build>

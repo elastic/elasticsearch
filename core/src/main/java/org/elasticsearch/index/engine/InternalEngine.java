@@ -352,35 +352,7 @@ public class InternalEngine extends Engine {
     }
 
     private final Searcher acquireInternalSearcher(String source) throws EngineException {
-        boolean success = false;
-         /* Acquire order here is store -> manager since we need
-          * to make sure that the store is not closed before
-          * the searcher is acquired. */
-        store.incRef();
-        try {
-            /* This might throw NPE but that's fine we will run ensureOpen()
-            *  in the catch block and throw the right exception */
-            final IndexSearcher searcher = internalSearcherManager.acquire();
-            try {
-                final Searcher retVal = newSearcher(source, searcher, internalSearcherManager);
-                success = true;
-                return retVal;
-            } finally {
-                if (!success) {
-                    internalSearcherManager.release(searcher);
-                }
-            }
-        } catch (EngineClosedException ex) {
-            throw ex;
-        } catch (Throwable ex) {
-            ensureOpen(); // throw EngineCloseException here if we are already closed
-            logger.error("failed to acquire searcher, source {}", ex, source);
-            throw new EngineException(shardId, "failed to acquire searcher, source " + source, ex);
-        } finally {
-            if (!success) {  // release the ref in the case of an error...
-                store.decRef();
-            }
-        }
+        return acquireSearcher(source, internalSearcherManager);
     }
 
     @Override

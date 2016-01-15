@@ -336,13 +336,25 @@ public abstract class Engine implements Closeable {
      * @see Searcher#close()
      */
     public final Searcher acquireSearcher(String source) throws EngineException {
+        return acquireSearcher(source, getSearcherManager());
+    }
+
+    /**
+     * Returns a new searcher instance from the specified {@link SearcherManager}. The consumer of this
+     * API is responsible for releasing the returned seacher in a
+     * safe manner, preferably in a try/finally block.
+     *
+     * @see Searcher#close()
+     */
+    protected final Searcher acquireSearcher(String source, SearcherManager manager) throws EngineException {
+        assert manager != null;
+
         boolean success = false;
          /* Acquire order here is store -> manager since we need
           * to make sure that the store is not closed before
           * the searcher is acquired. */
         store.incRef();
         try {
-            final SearcherManager manager = getSearcherManager(); // can never be null
             /* This might throw NPE but that's fine we will run ensureOpen()
             *  in the catch block and throw the right exception */
             final IndexSearcher searcher = manager.acquire();

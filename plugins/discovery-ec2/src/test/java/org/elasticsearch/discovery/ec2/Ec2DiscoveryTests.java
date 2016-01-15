@@ -20,7 +20,6 @@
 package org.elasticsearch.discovery.ec2;
 
 import com.amazonaws.services.ec2.model.Tag;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.cloud.aws.AwsEc2Service;
 import org.elasticsearch.cloud.aws.AwsEc2Service.DISCOVERY_EC2;

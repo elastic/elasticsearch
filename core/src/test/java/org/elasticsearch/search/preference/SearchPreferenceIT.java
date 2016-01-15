@@ -19,9 +19,9 @@
 
 package org.elasticsearch.search.preference;
 
-import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 

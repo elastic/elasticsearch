@@ -34,6 +34,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.mapper.internal.TTLFieldMapper;
 import org.elasticsearch.index.mapper.internal.VersionFieldMapper;
 import org.elasticsearch.script.ScriptService;
@@ -218,7 +219,7 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         @Override
         protected void scriptChangedTTL(IndexRequest index, Object to) {
             if (to == null) {
-                index.ttl(null);
+                index.ttl((TimeValue) null);
                 return;
             }
             index.ttl(asLong(to, TTLFieldMapper.NAME));

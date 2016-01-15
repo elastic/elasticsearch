@@ -20,14 +20,16 @@
 package org.elasticsearch.repositories.azure;
 
 import org.apache.lucene.util.LuceneTestCase;
-import org.elasticsearch.cloud.azure.storage.AzureStorageService.Storage;
 import org.elasticsearch.cloud.azure.storage.AzureStorageSettings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 
 import java.util.Map;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class AzureSettingsParserTest extends LuceneTestCase {
 
@@ -54,19 +56,6 @@ public class AzureSettingsParserTest extends LuceneTestCase {
         Settings settings = Settings.builder()
                 .put("cloud.azure.storage.azure1.account", "myaccount1")
                 .put("cloud.azure.storage.azure1.key", "mykey1")
-                .build();
-
-        Tuple<AzureStorageSettings, Map<String, AzureStorageSettings>> tuple = AzureStorageSettings.parse(settings);
-        assertThat(tuple.v1(), notNullValue());
-        assertThat(tuple.v1().getAccount(), is("myaccount1"));
-        assertThat(tuple.v1().getKey(), is("mykey1"));
-        assertThat(tuple.v2().keySet(), hasSize(0));
-    }
-
-    public void testDeprecatedSettings() {
-        Settings settings = Settings.builder()
-                .put(Storage.ACCOUNT, "myaccount1")
-                .put(Storage.KEY, "mykey1")
                 .build();
 
         Tuple<AzureStorageSettings, Map<String, AzureStorageSettings>> tuple = AzureStorageSettings.parse(settings);

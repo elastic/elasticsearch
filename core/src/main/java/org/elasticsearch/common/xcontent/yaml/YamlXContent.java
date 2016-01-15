@@ -24,9 +24,16 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.FastStringReader;
-import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.common.xcontent.XContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentGenerator;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 
-import java.io.*;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.Reader;
 
 /**
  * A YAML based content implementation using Jackson.
@@ -60,17 +67,12 @@ public class YamlXContent implements XContent {
 
     @Override
     public XContentGenerator createGenerator(OutputStream os) throws IOException {
-        return new YamlXContentGenerator(yamlFactory.createGenerator(os, JsonEncoding.UTF8));
+        return new YamlXContentGenerator(yamlFactory.createGenerator(os, JsonEncoding.UTF8), os);
     }
 
     @Override
     public XContentGenerator createGenerator(OutputStream os, String[] filters) throws IOException {
-        return new YamlXContentGenerator(yamlFactory.createGenerator(os, JsonEncoding.UTF8), filters);
-    }
-
-    @Override
-    public XContentGenerator createGenerator(Writer writer) throws IOException {
-        return new YamlXContentGenerator(yamlFactory.createGenerator(writer));
+        return new YamlXContentGenerator(yamlFactory.createGenerator(os, JsonEncoding.UTF8), os, filters);
     }
 
     @Override

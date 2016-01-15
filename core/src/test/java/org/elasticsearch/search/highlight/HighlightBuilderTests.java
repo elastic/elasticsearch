@@ -19,24 +19,55 @@
 
 package org.elasticsearch.search.highlight;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperBuilders;
+import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.index.query.IdsQueryBuilder;
+import org.elasticsearch.index.query.IdsQueryParser;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.MatchAllQueryParser;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.QueryParser;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.index.query.TermQueryParser;
+import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.highlight.HighlightBuilder.Field;
+import org.elasticsearch.search.highlight.HighlightBuilder.Order;
+import org.elasticsearch.search.highlight.SearchContextHighlight.FieldOptions;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.IndexSettingsModule;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -45,23 +76,26 @@ public class HighlightBuilderTests extends ESTestCase {
 
     private static final int NUMBER_OF_TESTBUILDERS = 20;
     private static NamedWriteableRegistry namedWriteableRegistry;
+    private static IndicesQueriesRegistry indicesQueriesRegistry;
 
     /**
      * setup for the whole base test class
      */
     @BeforeClass
     public static void init() {
-        if (namedWriteableRegistry == null) {
-            namedWriteableRegistry = new NamedWriteableRegistry();
-            namedWriteableRegistry.registerPrototype(QueryBuilder.class, new MatchAllQueryBuilder());
-            namedWriteableRegistry.registerPrototype(QueryBuilder.class, new IdsQueryBuilder());
-            namedWriteableRegistry.registerPrototype(QueryBuilder.class, new TermQueryBuilder("field", "value"));
-        }
+        namedWriteableRegistry = new NamedWriteableRegistry();
+        @SuppressWarnings("rawtypes")
+        Set<QueryParser> injectedQueryParsers = new HashSet<>();
+        injectedQueryParsers.add(new MatchAllQueryParser());
+        injectedQueryParsers.add(new IdsQueryParser());
+        injectedQueryParsers.add(new TermQueryParser());
+        indicesQueriesRegistry = new IndicesQueriesRegistry(Settings.settingsBuilder().build(), injectedQueryParsers, namedWriteableRegistry);
     }
 
     @AfterClass
     public static void afterClass() throws Exception {
         namedWriteableRegistry = null;
+        indicesQueriesRegistry = null;
     }
 
     /**
@@ -108,9 +142,317 @@ public class HighlightBuilderTests extends ESTestCase {
     }
 
     /**
-     * create random shape that is put under test
+     *  creates random highlighter, renders it to xContent and back to new instance that should be equal to original
      */
-    private static HighlightBuilder randomHighlighterBuilder() {
+    public void testFromXContent() throws IOException {
+        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
+        context.parseFieldMatcher(new ParseFieldMatcher(Settings.EMPTY));
+        for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
+            HighlightBuilder highlightBuilder = randomHighlighterBuilder();
+            XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
+            if (randomBoolean()) {
+                builder.prettyPrint();
+            }
+            builder.startObject();
+            highlightBuilder.innerXContent(builder);
+            builder.endObject();
+
+            XContentParser parser = XContentHelper.createParser(builder.bytes());
+            context.reset(parser);
+            parser.nextToken();
+            HighlightBuilder secondHighlightBuilder = HighlightBuilder.PROTOTYPE.fromXContent(context);
+            assertNotSame(highlightBuilder, secondHighlightBuilder);
+            assertEquals(highlightBuilder, secondHighlightBuilder);
+            assertEquals(highlightBuilder.hashCode(), secondHighlightBuilder.hashCode());
+        }
+    }
+
+    /**
+     * test that unknown array fields cause exception
+     */
+    public void testUnknownArrayNameExpection() throws IOException {
+        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
+        context.parseFieldMatcher(new ParseFieldMatcher(Settings.EMPTY));
+        String highlightElement = "{\n" +
+                "    \"bad_fieldname\" : [ \"field1\" 1 \"field2\" ]\n" +
+                "}\n";
+        XContentParser parser = XContentFactory.xContent(highlightElement).createParser(highlightElement);
+
+        context.reset(parser);
+        try {
+            HighlightBuilder.PROTOTYPE.fromXContent(context);
+            fail("expected a parsing exception");
+        } catch (ParsingException e) {
+            assertEquals("cannot parse array with name [bad_fieldname]", e.getMessage());
+        }
+
+        highlightElement = "{\n" +
+                "  \"fields\" : {\n" +
+                "     \"body\" : {\n" +
+                "        \"bad_fieldname\" : [ \"field1\" , \"field2\" ]\n" +
+                "     }\n" +
+                "   }\n" +
+                "}\n";
+        parser = XContentFactory.xContent(highlightElement).createParser(highlightElement);
+
+        context.reset(parser);
+        try {
+            HighlightBuilder.PROTOTYPE.fromXContent(context);
+            fail("expected a parsing exception");
+        } catch (ParsingException e) {
+            assertEquals("cannot parse array with name [bad_fieldname]", e.getMessage());
+        }
+    }
+
+    /**
+     * test that unknown field name cause exception
+     */
+    public void testUnknownFieldnameExpection() throws IOException {
+        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
+        context.parseFieldMatcher(new ParseFieldMatcher(Settings.EMPTY));
+        String highlightElement = "{\n" +
+                "    \"bad_fieldname\" : \"value\"\n" +
+                "}\n";
+        XContentParser parser = XContentFactory.xContent(highlightElement).createParser(highlightElement);
+
+        context.reset(parser);
+        try {
+            HighlightBuilder.PROTOTYPE.fromXContent(context);
+            fail("expected a parsing exception");
+        } catch (ParsingException e) {
+            assertEquals("unexpected fieldname [bad_fieldname]", e.getMessage());
+        }
+
+        highlightElement = "{\n" +
+                "  \"fields\" : {\n" +
+                "     \"body\" : {\n" +
+                "        \"bad_fieldname\" : \"value\"\n" +
+                "     }\n" +
+                "   }\n" +
+                "}\n";
+        parser = XContentFactory.xContent(highlightElement).createParser(highlightElement);
+
+        context.reset(parser);
+        try {
+            HighlightBuilder.PROTOTYPE.fromXContent(context);
+            fail("expected a parsing exception");
+        } catch (ParsingException e) {
+            assertEquals("unexpected fieldname [bad_fieldname]", e.getMessage());
+        }
+    }
+
+    /**
+     * test that unknown field name cause exception
+     */
+    public void testUnknownObjectFieldnameExpection() throws IOException {
+        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
+        context.parseFieldMatcher(new ParseFieldMatcher(Settings.EMPTY));
+        String highlightElement = "{\n" +
+                "    \"bad_fieldname\" :  { \"field\" : \"value\" }\n \n" +
+                "}\n";
+        XContentParser parser = XContentFactory.xContent(highlightElement).createParser(highlightElement);
+
+        context.reset(parser);
+        try {
+            HighlightBuilder.PROTOTYPE.fromXContent(context);
+            fail("expected a parsing exception");
+        } catch (ParsingException e) {
+            assertEquals("cannot parse object with name [bad_fieldname]", e.getMessage());
+        }
+
+        highlightElement = "{\n" +
+                "  \"fields\" : {\n" +
+                "     \"body\" : {\n" +
+                "        \"bad_fieldname\" : { \"field\" : \"value\" }\n" +
+                "     }\n" +
+                "   }\n" +
+                "}\n";
+        parser = XContentFactory.xContent(highlightElement).createParser(highlightElement);
+
+        context.reset(parser);
+        try {
+            HighlightBuilder.PROTOTYPE.fromXContent(context);
+            fail("expected a parsing exception");
+        } catch (ParsingException e) {
+            assertEquals("cannot parse object with name [bad_fieldname]", e.getMessage());
+        }
+     }
+
+     /**
+     * test that build() outputs a {@link SearchContextHighlight} that is similar to the one
+     * we would get when parsing the xContent the test highlight builder is rendering out
+     */
+    public void testBuildSearchContextHighlight() throws IOException {
+        Settings indexSettings = Settings.settingsBuilder()
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
+        Index index = new Index(randomAsciiOfLengthBetween(1, 10));
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index, indexSettings);
+        // shard context will only need indicesQueriesRegistry for building Query objects nested in highlighter
+        QueryShardContext mockShardContext = new QueryShardContext(idxSettings, null, null, null, null, null, null, indicesQueriesRegistry) {
+            @Override
+            public MappedFieldType fieldMapper(String name) {
+                StringFieldMapper.Builder builder = MapperBuilders.stringField(name);
+                return builder.build(new Mapper.BuilderContext(idxSettings.getSettings(), new ContentPath(1))).fieldType();
+            }
+        };
+        mockShardContext.setMapUnmappedFieldAsString(true);
+
+        for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
+            HighlightBuilder highlightBuilder = randomHighlighterBuilder();
+            SearchContextHighlight highlight = highlightBuilder.build(mockShardContext);
+            XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
+            if (randomBoolean()) {
+                builder.prettyPrint();
+            }
+            builder.startObject();
+            highlightBuilder.innerXContent(builder);
+            builder.endObject();
+            XContentParser parser = XContentHelper.createParser(builder.bytes());
+
+            SearchContextHighlight parsedHighlight = new HighlighterParseElement().parse(parser, mockShardContext);
+            assertNotSame(highlight, parsedHighlight);
+            assertEquals(highlight.globalForceSource(), parsedHighlight.globalForceSource());
+            assertEquals(highlight.fields().size(), parsedHighlight.fields().size());
+
+            Iterator<org.elasticsearch.search.highlight.SearchContextHighlight.Field> iterator = parsedHighlight.fields().iterator();
+            for (org.elasticsearch.search.highlight.SearchContextHighlight.Field field : highlight.fields()) {
+                org.elasticsearch.search.highlight.SearchContextHighlight.Field otherField = iterator.next();
+                assertEquals(field.field(), otherField.field());
+                FieldOptions options = field.fieldOptions();
+                FieldOptions otherOptions = otherField.fieldOptions();
+                assertArrayEquals(options.boundaryChars(), options.boundaryChars());
+                assertEquals(options.boundaryMaxScan(), otherOptions.boundaryMaxScan());
+                assertEquals(options.encoder(), otherOptions.encoder());
+                assertEquals(options.fragmentCharSize(), otherOptions.fragmentCharSize());
+                assertEquals(options.fragmenter(), otherOptions.fragmenter());
+                assertEquals(options.fragmentOffset(), otherOptions.fragmentOffset());
+                assertEquals(options.highlighterType(), otherOptions.highlighterType());
+                assertEquals(options.highlightFilter(), otherOptions.highlightFilter());
+                assertEquals(options.highlightQuery(), otherOptions.highlightQuery());
+                assertEquals(options.matchedFields(), otherOptions.matchedFields());
+                assertEquals(options.noMatchSize(), otherOptions.noMatchSize());
+                assertEquals(options.numberOfFragments(), otherOptions.numberOfFragments());
+                assertEquals(options.options(), otherOptions.options());
+                assertEquals(options.phraseLimit(), otherOptions.phraseLimit());
+                assertArrayEquals(options.preTags(), otherOptions.preTags());
+                assertArrayEquals(options.postTags(), otherOptions.postTags());
+                assertEquals(options.requireFieldMatch(), otherOptions.requireFieldMatch());
+                assertEquals(options.scoreOrdered(), otherOptions.scoreOrdered());
+            }
+        }
+    }
+
+    /**
+     * `tags_schema` is not produced by toXContent in the builder but should be parseable, so this
+     * adds a simple json test for this.
+     */
+    public void testParsingTagsSchema() throws IOException {
+        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
+        context.parseFieldMatcher(new ParseFieldMatcher(Settings.EMPTY));
+        String highlightElement = "{\n" +
+                "    \"tags_schema\" : \"styled\"\n" +
+                "}\n";
+        XContentParser parser = XContentFactory.xContent(highlightElement).createParser(highlightElement);
+
+        context.reset(parser);
+        HighlightBuilder highlightBuilder = HighlightBuilder.PROTOTYPE.fromXContent(context);
+        assertArrayEquals("setting tags_schema 'styled' should alter pre_tags", HighlightBuilder.DEFAULT_STYLED_PRE_TAG,
+                highlightBuilder.preTags());
+        assertArrayEquals("setting tags_schema 'styled' should alter post_tags", HighlightBuilder.DEFAULT_STYLED_POST_TAGS,
+                highlightBuilder.postTags());
+
+        highlightElement = "{\n" +
+                "    \"tags_schema\" : \"default\"\n" +
+                "}\n";
+        parser = XContentFactory.xContent(highlightElement).createParser(highlightElement);
+
+        context.reset(parser);
+        highlightBuilder = HighlightBuilder.PROTOTYPE.fromXContent(context);
+        assertArrayEquals("setting tags_schema 'default' should alter pre_tags", HighlightBuilder.DEFAULT_PRE_TAGS,
+                highlightBuilder.preTags());
+        assertArrayEquals("setting tags_schema 'default' should alter post_tags", HighlightBuilder.DEFAULT_POST_TAGS,
+                highlightBuilder.postTags());
+
+        highlightElement = "{\n" +
+                "    \"tags_schema\" : \"somthing_else\"\n" +
+                "}\n";
+        parser = XContentFactory.xContent(highlightElement).createParser(highlightElement);
+
+        context.reset(parser);
+        try {
+            HighlightBuilder.PROTOTYPE.fromXContent(context);
+            fail("setting unknown tag schema should throw exception");
+        } catch (IllegalArgumentException e) {
+            assertEquals("Unknown tag schema [somthing_else]", e.getMessage());
+        }
+    }
+
+    /**
+     * test parsing empty highlight or empty fields blocks
+     */
+    public void testParsingEmptyStructure() throws IOException {
+        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
+        context.parseFieldMatcher(new ParseFieldMatcher(Settings.EMPTY));
+        String highlightElement = "{ }";
+        XContentParser parser = XContentFactory.xContent(highlightElement).createParser(highlightElement);
+
+        context.reset(parser);
+        HighlightBuilder highlightBuilder = HighlightBuilder.PROTOTYPE.fromXContent(context);
+        assertEquals("expected plain HighlightBuilder", new HighlightBuilder(), highlightBuilder);
+
+        highlightElement = "{ \"fields\" : { } }";
+        parser = XContentFactory.xContent(highlightElement).createParser(highlightElement);
+
+        context.reset(parser);
+        highlightBuilder = HighlightBuilder.PROTOTYPE.fromXContent(context);
+        assertEquals("defining no field should return plain HighlightBuilder", new HighlightBuilder(), highlightBuilder);
+
+        highlightElement = "{ \"fields\" : { \"foo\" : { } } }";
+        parser = XContentFactory.xContent(highlightElement).createParser(highlightElement);
+
+        context.reset(parser);
+        highlightBuilder = HighlightBuilder.PROTOTYPE.fromXContent(context);
+        assertEquals("expected HighlightBuilder with field", new HighlightBuilder().field(new Field("foo")), highlightBuilder);
+        System.out.println(Math.log(1/(double)(1+1)) + 1.0);
+    }
+
+    /**
+     * test ordinals of {@link Order}, since serialization depends on it
+     */
+    public void testValidOrderOrdinals() {
+        assertThat(Order.NONE.ordinal(), equalTo(0));
+        assertThat(Order.SCORE.ordinal(), equalTo(1));
+    }
+
+    public void testOrderSerialization() throws Exception {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            Order.NONE.writeTo(out);
+            try (StreamInput in = StreamInput.wrap(out.bytes())) {
+                assertThat(in.readVInt(), equalTo(0));
+            }
+        }
+
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            Order.SCORE.writeTo(out);
+            try (StreamInput in = StreamInput.wrap(out.bytes())) {
+                assertThat(in.readVInt(), equalTo(1));
+            }
+        }
+    }
+
+    protected static XContentBuilder toXContent(HighlightBuilder highlight, XContentType contentType) throws IOException {
+        XContentBuilder builder = XContentFactory.contentBuilder(contentType);
+        if (randomBoolean()) {
+            builder.prettyPrint();
+        }
+        highlight.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        return builder;
+    }
+
+    /**
+     * create random highlight builder that is put under test
+     */
+    public static HighlightBuilder randomHighlighterBuilder() {
         HighlightBuilder testHighlighter = new HighlightBuilder();
         setRandomCommonOptions(testHighlighter);
         testHighlighter.useExplicitFieldOrder(randomBoolean());
@@ -132,11 +474,11 @@ public class HighlightBuilderTests extends ESTestCase {
         return testHighlighter;
     }
 
+    @SuppressWarnings({ "rawtypes", "unchecked" })
     private static void setRandomCommonOptions(AbstractHighlighterBuilder highlightBuilder) {
         if (randomBoolean()) {
+            // need to set this together, otherwise parsing will complain
             highlightBuilder.preTags(randomStringArray(0, 3));
-        }
-        if (randomBoolean()) {
             highlightBuilder.postTags(randomStringArray(0, 3));
         }
         if (randomBoolean()) {
@@ -169,7 +511,12 @@ public class HighlightBuilderTests extends ESTestCase {
             highlightBuilder.highlightQuery(highlightQuery);
         }
         if (randomBoolean()) {
-            highlightBuilder.order(randomAsciiOfLengthBetween(1, 10));
+            if (randomBoolean()) {
+                highlightBuilder.order(randomFrom(Order.values()));
+            } else {
+                // also test the string setter
+                highlightBuilder.order(randomFrom(Order.values()).toString());
+            }
         }
         if (randomBoolean()) {
             highlightBuilder.highlightFilter(randomBoolean());
@@ -213,7 +560,7 @@ public class HighlightBuilderTests extends ESTestCase {
         }
     }
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     private static void mutateCommonOptions(AbstractHighlighterBuilder highlightBuilder) {
         switch (randomIntBetween(1, 16)) {
         case 1:
@@ -238,10 +585,15 @@ public class HighlightBuilderTests extends ESTestCase {
             highlightBuilder.highlightQuery(new TermQueryBuilder(randomAsciiOfLengthBetween(11, 20), randomAsciiOfLengthBetween(11, 20)));
             break;
         case 8:
-            highlightBuilder.order(randomAsciiOfLengthBetween(11, 20));
+            if (highlightBuilder.order() == Order.NONE) {
+                highlightBuilder.order(Order.SCORE);
+            } else {
+                highlightBuilder.order(Order.NONE);
+            }
             break;
         case 9:
             highlightBuilder.highlightFilter(toggleOrSet(highlightBuilder.highlightFilter()));
+            break;
         case 10:
             highlightBuilder.forceSource(toggleOrSet(highlightBuilder.forceSource()));
             break;
@@ -316,6 +668,7 @@ public class HighlightBuilderTests extends ESTestCase {
                             fieldToChange.matchedFields(randomStringArray(5, 10));
                         }
                     }
+                    break;
             }
         }
         return mutation;

@@ -19,14 +19,14 @@
 
 package org.elasticsearch.plugin.reindex;
 
-import java.io.IOException;
-
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
+
+import java.io.IOException;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.index.VersionType.INTERNAL;
@@ -73,7 +73,7 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
                 e = addValidationError("unsupported version for internal versioning [" + destination.version() + ']', e);
             }
         }
-        if (destination.ttl() != -1) {
+        if (destination.ttl() != null) {
             e = addValidationError("setting ttl on destination isn't supported. use scripts instead.", e);
         }
         if (destination.timestamp() != null) {

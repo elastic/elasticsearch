@@ -36,7 +36,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -120,23 +119,18 @@ public class TransportIndexAction extends TransportReplicationAction<IndexReques
     }
 
     @Override
-    protected void resolveRequest(ClusterState state, InternalRequest request, ActionListener<IndexResponse> indexResponseActionListener) {
-        MetaData metaData = clusterService.state().metaData();
-
+    protected void resolveRequest(MetaData metaData, String concreteIndex, IndexRequest request) {
         MappingMetaData mappingMd = null;
-        if (metaData.hasIndex(request.concreteIndex())) {
-            mappingMd = metaData.index(request.concreteIndex()).mappingOrDefault(request.request().type());
+        if (metaData.hasIndex(concreteIndex)) {
+            mappingMd = metaData.index(concreteIndex).mappingOrDefault(request.type());
         }
-        request.request().process(metaData, mappingMd, allowIdGeneration, request.concreteIndex());
+        request.process(metaData, mappingMd, allowIdGeneration, concreteIndex);
+        ShardId shardId = clusterService.operationRouting().shardId(clusterService.state(), concreteIndex, request.id(), request.routing());
+        request.setShardId(shardId);
     }
 
     private void innerExecute(final IndexRequest request, final ActionListener<IndexResponse> listener) {
         super.doExecute(request, listener);
-    }
-
-    @Override
-    protected boolean checkWriteConsistency() {
-        return true;
     }
 
     @Override
@@ -145,49 +139,91 @@ public class TransportIndexAction extends TransportReplicationAction<IndexReques
     }
 
     @Override
-    protected ShardIterator shards(ClusterState clusterState, InternalRequest request) {
-        return clusterService.operationRouting()
-                .indexShards(clusterService.state(), request.concreteIndex(), request.request().type(), request.request().id(), request.request().routing());
-    }
-
-    @Override
-    protected Tuple<IndexResponse, IndexRequest> shardOperationOnPrimary(ClusterState clusterState, PrimaryOperationRequest shardRequest) throws Throwable {
-        final IndexRequest request = shardRequest.request;
+    protected Tuple<IndexResponse, IndexRequest> shardOperationOnPrimary(MetaData metaData, IndexRequest request) throws Throwable {
 
         // validate, if routing is required, that we got routing
-        IndexMetaData indexMetaData = clusterState.metaData().index(shardRequest.shardId.getIndex());
+        IndexMetaData indexMetaData = metaData.index(request.shardId().getIndex());
         MappingMetaData mappingMd = indexMetaData.mappingOrDefault(request.type());
         if (mappingMd != null && mappingMd.routing().required()) {
             if (request.routing() == null) {
-                throw new RoutingMissingException(shardRequest.shardId.getIndex(), request.type(), request.id());
+                throw new RoutingMissingException(request.shardId().getIndex(), request.type(), request.id());
             }
         }
 
-        IndexService indexService = indicesService.indexServiceSafe(shardRequest.shardId.getIndex());
-        IndexShard indexShard = indexService.getShard(shardRequest.shardId.id());
+        IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
+        IndexShard indexShard = indexService.getShard(request.shardId().id());
 
-        final WriteResult<IndexResponse> result = executeIndexRequestOnPrimary(null, request, indexShard);
+        final WriteResult<IndexResponse> result = executeIndexRequestOnPrimary(request, indexShard, mappingUpdatedAction);
 
         final IndexResponse response = result.response;
         final Translog.Location location = result.location;
-        processAfter(request.refresh(), indexShard, location);
-        return new Tuple<>(response, shardRequest.request);
+        processAfterWrite(request.refresh(), indexShard, location);
+        return new Tuple<>(response, request);
     }
 
     @Override
-    protected void shardOperationOnReplica(ShardId shardId, IndexRequest request) {
+    protected void shardOperationOnReplica(IndexRequest request) {
+        final ShardId shardId = request.shardId();
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         IndexShard indexShard = indexService.getShard(shardId.id());
+        final Engine.Index operation = executeIndexRequestOnReplica(request, indexShard);
+        processAfterWrite(request.refresh(), indexShard, operation.getTranslogLocation());
+    }
+
+    /**
+     * Execute the given {@link IndexRequest} on a replica shard, throwing a
+     * {@link RetryOnReplicaException} if the operation needs to be re-tried.
+     */
+    public static Engine.Index executeIndexRequestOnReplica(IndexRequest request, IndexShard indexShard) {
+        final ShardId shardId = indexShard.shardId();
         SourceToParse sourceToParse = SourceToParse.source(SourceToParse.Origin.REPLICA, request.source()).index(shardId.getIndex()).type(request.type()).id(request.id())
                 .routing(request.routing()).parent(request.parent()).timestamp(request.timestamp()).ttl(request.ttl());
 
-        final Engine.Index operation = indexShard.prepareIndex(sourceToParse, request.version(), request.versionType(), Engine.Operation.Origin.REPLICA);
+        final Engine.Index operation = indexShard.prepareIndexOnReplica(sourceToParse, request.version(), request.versionType());
         Mapping update = operation.parsedDoc().dynamicMappingsUpdate();
         if (update != null) {
             throw new RetryOnReplicaException(shardId, "Mappings are not available on the replica yet, triggered update: " + update);
         }
         indexShard.index(operation);
-        processAfter(request.refresh(), indexShard, operation.getTranslogLocation());
+        return operation;
+    }
+
+    /** Utility method to prepare an index operation on primary shards */
+    public static Engine.Index prepareIndexOperationOnPrimary(IndexRequest request, IndexShard indexShard) {
+        SourceToParse sourceToParse = SourceToParse.source(SourceToParse.Origin.PRIMARY, request.source()).index(request.index()).type(request.type()).id(request.id())
+            .routing(request.routing()).parent(request.parent()).timestamp(request.timestamp()).ttl(request.ttl());
+        return indexShard.prepareIndexOnPrimary(sourceToParse, request.version(), request.versionType());
+    }
+
+    /**
+     * Execute the given {@link IndexRequest} on a primary shard, throwing a
+     * {@link RetryOnPrimaryException} if the operation needs to be re-tried.
+     */
+    public static WriteResult<IndexResponse> executeIndexRequestOnPrimary(IndexRequest request, IndexShard indexShard, MappingUpdatedAction mappingUpdatedAction) throws Throwable {
+        Engine.Index operation = prepareIndexOperationOnPrimary(request, indexShard);
+        Mapping update = operation.parsedDoc().dynamicMappingsUpdate();
+        final ShardId shardId = indexShard.shardId();
+        if (update != null) {
+            final String indexName = shardId.getIndex();
+            mappingUpdatedAction.updateMappingOnMasterSynchronously(indexName, request.type(), update);
+            operation = prepareIndexOperationOnPrimary(request, indexShard);
+            update = operation.parsedDoc().dynamicMappingsUpdate();
+            if (update != null) {
+                throw new RetryOnPrimaryException(shardId,
+                    "Dynamic mappings are not available on the node that holds the primary yet");
+            }
+        }
+        final boolean created = indexShard.index(operation);
+
+        // update the version on request so it will happen on the replicas
+        final long version = operation.version();
+        request.version(version);
+        request.versionType(request.versionType().versionTypeForReplicationAndRecovery());
+
+        assert request.versionType().validateVersionForWrites(request.version());
+
+        return new WriteResult<>(new IndexResponse(shardId, request.type(), request.id(), request.version(), created), operation.getTranslogLocation());
     }
 
 }
+

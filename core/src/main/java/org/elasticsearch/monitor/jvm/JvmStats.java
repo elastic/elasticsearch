@@ -29,7 +29,15 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
-import java.lang.management.*;
+import java.lang.management.BufferPoolMXBean;
+import java.lang.management.ClassLoadingMXBean;
+import java.lang.management.GarbageCollectorMXBean;
+import java.lang.management.ManagementFactory;
+import java.lang.management.MemoryMXBean;
+import java.lang.management.MemoryPoolMXBean;
+import java.lang.management.MemoryUsage;
+import java.lang.management.RuntimeMXBean;
+import java.lang.management.ThreadMXBean;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;

@@ -421,7 +421,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * @return this for chaining
      */
     public SearchRequestBuilder addRescorer(RescoreBuilder.Rescorer rescorer) {
-        sourceBuilder().addRescorer(new RescoreBuilder().rescorer(rescorer));
+        sourceBuilder().addRescorer(new RescoreBuilder(rescorer));
         return this;
     }
 
@@ -433,7 +433,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * @return this for chaining
      */
     public SearchRequestBuilder addRescorer(RescoreBuilder.Rescorer rescorer, int window) {
-        sourceBuilder().addRescorer(new RescoreBuilder().rescorer(rescorer).windowSize(window));
+        sourceBuilder().addRescorer(new RescoreBuilder(rescorer).windowSize(window));
         return this;
     }
 
@@ -470,6 +470,14 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      */
     public SearchRequestBuilder setRequestCache(Boolean requestCache) {
         request.requestCache(requestCache);
+        return this;
+    }
+
+    /**
+     * Should the query be profiled. Defaults to <code>false</code>
+     */
+    public SearchRequestBuilder setProfile(boolean profile) {
+        sourceBuilder().profile(profile);
         return this;
     }
 

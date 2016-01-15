@@ -19,6 +19,7 @@
 
 package org.elasticsearch.plugin.repository.s3;
 
+import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.cloud.aws.S3Module;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
@@ -27,6 +28,8 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesModule;
 import org.elasticsearch.repositories.s3.S3Repository;
 
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -35,6 +38,26 @@ import java.util.Collections;
  *
  */
 public class S3RepositoryPlugin extends Plugin {
+
+    // ClientConfiguration clinit has some classloader problems
+    // TODO: fix that
+    static {
+        SecurityManager sm = System.getSecurityManager();
+        if (sm != null) {
+            sm.checkPermission(new SpecialPermission());
+        }
+        AccessController.doPrivileged(new PrivilegedAction<Void>() {
+            @Override
+            public Void run() {
+                try {
+                    Class.forName("com.amazonaws.ClientConfiguration");
+                } catch (ClassNotFoundException e) {
+                    throw new RuntimeException(e);
+                }
+                return null;
+            }
+        });
+    }
 
     @Override
     public String name() {
@@ -54,6 +77,7 @@ public class S3RepositoryPlugin extends Plugin {
     }
 
     @Override
+    @SuppressWarnings("rawtypes") // Supertype declaration has raw types
     public Collection<Class<? extends LifecycleComponent>> nodeServices() {
         return Collections.<Class<? extends LifecycleComponent>>singleton(S3Module.getS3ServiceImpl());
     }

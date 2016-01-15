@@ -23,7 +23,14 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.DisjunctionMaxQuery;
+import org.apache.lucene.search.FuzzyQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.MultiPhraseQuery;
+import org.apache.lucene.search.PhraseQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -35,7 +42,12 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.lucene.search.Queries.fixNegativeQueryIfNeeded;
@@ -54,7 +66,6 @@ public class MapperQueryParser extends QueryParser {
     static {
         Map<String, FieldQueryExtension> fieldQueryExtensions = new HashMap<>();
         fieldQueryExtensions.put(ExistsFieldQueryExtension.NAME, new ExistsFieldQueryExtension());
-        fieldQueryExtensions.put(MissingFieldQueryExtension.NAME, new MissingFieldQueryExtension());
         FIELD_QUERY_EXTENSIONS = unmodifiableMap(fieldQueryExtensions);
     }
 
@@ -131,19 +142,19 @@ public class MapperQueryParser extends QueryParser {
                 return getFieldQuerySingle(fields.iterator().next(), queryText, quoted);
             }
             if (settings.useDisMax()) {
-                DisjunctionMaxQuery disMaxQuery = new DisjunctionMaxQuery(settings.tieBreaker());
+                List<Query> queries = new ArrayList<>();
                 boolean added = false;
                 for (String mField : fields) {
                     Query q = getFieldQuerySingle(mField, queryText, quoted);
                     if (q != null) {
                         added = true;
-                        disMaxQuery.add(applyBoost(mField, q));
+                        queries.add(applyBoost(mField, q));
                     }
                 }
                 if (!added) {
                     return null;
                 }
-                return disMaxQuery;
+                return new DisjunctionMaxQuery(queries, settings.tieBreaker());
             } else {
                 List<BooleanClause> clauses = new ArrayList<>();
                 for (String mField : fields) {
@@ -215,7 +226,7 @@ public class MapperQueryParser extends QueryParser {
                         }
                     }
                     if (query == null) {
-                        query = super.getFieldQuery(currentFieldType.names().indexName(), queryText, quoted);
+                        query = super.getFieldQuery(currentFieldType.name(), queryText, quoted);
                     }
                     return query;
                 }
@@ -231,20 +242,20 @@ public class MapperQueryParser extends QueryParser {
         Collection<String> fields = extractMultiFields(field);
         if (fields != null) {
             if (settings.useDisMax()) {
-                DisjunctionMaxQuery disMaxQuery = new DisjunctionMaxQuery(settings.tieBreaker());
+                List<Query> queries = new ArrayList<>();
                 boolean added = false;
                 for (String mField : fields) {
                     Query q = super.getFieldQuery(mField, queryText, slop);
                     if (q != null) {
                         added = true;
                         q = applySlop(q, slop);
-                        disMaxQuery.add(applyBoost(mField, q));
+                        queries.add(applyBoost(mField, q));
                     }
                 }
                 if (!added) {
                     return null;
                 }
-                return disMaxQuery;
+                return new DisjunctionMaxQuery(queries, settings.tieBreaker());
             } else {
                 List<BooleanClause> clauses = new ArrayList<>();
                 for (String mField : fields) {
@@ -284,19 +295,19 @@ public class MapperQueryParser extends QueryParser {
         }
 
         if (settings.useDisMax()) {
-            DisjunctionMaxQuery disMaxQuery = new DisjunctionMaxQuery(settings.tieBreaker());
+            List<Query> queries = new ArrayList<>();
             boolean added = false;
             for (String mField : fields) {
                 Query q = getRangeQuerySingle(mField, part1, part2, startInclusive, endInclusive);
                 if (q != null) {
                     added = true;
-                    disMaxQuery.add(applyBoost(mField, q));
+                    queries.add(applyBoost(mField, q));
                 }
             }
             if (!added) {
                 return null;
             }
-            return disMaxQuery;
+            return new DisjunctionMaxQuery(queries, settings.tieBreaker());
         } else {
             List<BooleanClause> clauses = new ArrayList<>();
             for (String mField : fields) {
@@ -348,19 +359,19 @@ public class MapperQueryParser extends QueryParser {
                 return getFuzzyQuerySingle(fields.iterator().next(), termStr, minSimilarity);
             }
             if (settings.useDisMax()) {
-                DisjunctionMaxQuery disMaxQuery = new DisjunctionMaxQuery(settings.tieBreaker());
+                List<Query> queries = new ArrayList<>();
                 boolean added = false;
                 for (String mField : fields) {
                     Query q = getFuzzyQuerySingle(mField, termStr, minSimilarity);
                     if (q != null) {
                         added = true;
-                        disMaxQuery.add(applyBoost(mField, q));
+                        queries.add(applyBoost(mField, q));
                     }
                 }
                 if (!added) {
                     return null;
                 }
-                return disMaxQuery;
+                return new DisjunctionMaxQuery(queries, settings.tieBreaker());
             } else {
                 List<BooleanClause> clauses = new ArrayList<>();
                 for (String mField : fields) {
@@ -411,19 +422,19 @@ public class MapperQueryParser extends QueryParser {
                 return getPrefixQuerySingle(fields.iterator().next(), termStr);
             }
             if (settings.useDisMax()) {
-                DisjunctionMaxQuery disMaxQuery = new DisjunctionMaxQuery(settings.tieBreaker());
+                List<Query> queries = new ArrayList<>();
                 boolean added = false;
                 for (String mField : fields) {
                     Query q = getPrefixQuerySingle(mField, termStr);
                     if (q != null) {
                         added = true;
-                        disMaxQuery.add(applyBoost(mField, q));
+                        queries.add(applyBoost(mField, q));
                     }
                 }
                 if (!added) {
                     return null;
                 }
-                return disMaxQuery;
+                return new DisjunctionMaxQuery(queries, settings.tieBreaker());
             } else {
                 List<BooleanClause> clauses = new ArrayList<>();
                 for (String mField : fields) {
@@ -455,7 +466,7 @@ public class MapperQueryParser extends QueryParser {
                     query = currentFieldType.prefixQuery(termStr, multiTermRewriteMethod, context);
                 }
                 if (query == null) {
-                    query = getPossiblyAnalyzedPrefixQuery(currentFieldType.names().indexName(), termStr);
+                    query = getPossiblyAnalyzedPrefixQuery(currentFieldType.name(), termStr);
                 }
                 return query;
             }
@@ -541,19 +552,19 @@ public class MapperQueryParser extends QueryParser {
                 return getWildcardQuerySingle(fields.iterator().next(), termStr);
             }
             if (settings.useDisMax()) {
-                DisjunctionMaxQuery disMaxQuery = new DisjunctionMaxQuery(settings.tieBreaker());
+                List<Query> queries = new ArrayList<>();
                 boolean added = false;
                 for (String mField : fields) {
                     Query q = getWildcardQuerySingle(mField, termStr);
                     if (q != null) {
                         added = true;
-                        disMaxQuery.add(applyBoost(mField, q));
+                        queries.add(applyBoost(mField, q));
                     }
                 }
                 if (!added) {
                     return null;
                 }
-                return disMaxQuery;
+                return new DisjunctionMaxQuery(queries, settings.tieBreaker());
             } else {
                 List<BooleanClause> clauses = new ArrayList<>();
                 for (String mField : fields) {
@@ -581,7 +592,7 @@ public class MapperQueryParser extends QueryParser {
                 if (!settings.forceAnalyzer()) {
                     setAnalyzer(context.getSearchAnalyzer(currentFieldType));
                 }
-                indexedNameField = currentFieldType.names().indexName();
+                indexedNameField = currentFieldType.name();
                 return getPossiblyAnalyzedWildcardQuery(indexedNameField, termStr);
             }
             return getPossiblyAnalyzedWildcardQuery(indexedNameField, termStr);
@@ -670,19 +681,19 @@ public class MapperQueryParser extends QueryParser {
                 return getRegexpQuerySingle(fields.iterator().next(), termStr);
             }
             if (settings.useDisMax()) {
-                DisjunctionMaxQuery disMaxQuery = new DisjunctionMaxQuery(settings.tieBreaker());
+                List<Query> queries = new ArrayList<>();
                 boolean added = false;
                 for (String mField : fields) {
                     Query q = getRegexpQuerySingle(mField, termStr);
                     if (q != null) {
                         added = true;
-                        disMaxQuery.add(applyBoost(mField, q));
+                        queries.add(applyBoost(mField, q));
                     }
                 }
                 if (!added) {
                     return null;
                 }
-                return disMaxQuery;
+                return new DisjunctionMaxQuery(queries, settings.tieBreaker());
             } else {
                 List<BooleanClause> clauses = new ArrayList<>();
                 for (String mField : fields) {

@@ -604,14 +604,14 @@ public abstract class QueryBuilders {
      * Facilitates creating template query requests using an inline script
      */
     public static TemplateQueryBuilder templateQuery(String template, Map<String, Object> vars) {
-        return new TemplateQueryBuilder(template, vars);
+        return new TemplateQueryBuilder(new Template(template, ScriptService.ScriptType.INLINE, null, null, vars));
     }
 
     /**
      * Facilitates creating template query requests
      */
     public static TemplateQueryBuilder templateQuery(String template, ScriptService.ScriptType templateType, Map<String, Object> vars) {
-        return new TemplateQueryBuilder(template, templateType, vars);
+        return new TemplateQueryBuilder(new Template(template, templateType, null, null, vars));
     }
 
     /**
@@ -808,27 +808,6 @@ public abstract class QueryBuilders {
      */
     public static ExistsQueryBuilder existsQuery(String name) {
         return new ExistsQueryBuilder(name);
-    }
-
-    /**
-     * A filter to filter only documents where a field does not exists in them.
-     * @param name the field to query
-     */
-    public static MissingQueryBuilder missingQuery(String name) {
-        return missingQuery(name, MissingQueryBuilder.DEFAULT_NULL_VALUE, MissingQueryBuilder.DEFAULT_EXISTENCE_VALUE);
-    }
-
-    /**
-     * A filter to filter only documents where a field does not exists in them.
-     * @param name the field to query
-     * @param nullValue should the missing filter automatically include fields with null value configured in the
-     * mappings. Defaults to <tt>false</tt>.
-     * @param existence should the missing filter include documents where the field doesn't exist in the docs.
-     * Defaults to <tt>true</tt>.
-     * @throws IllegalArgumentException when both <tt>existence</tt> and <tt>nullValue</tt> are set to false
-     */
-    public static MissingQueryBuilder missingQuery(String name, boolean nullValue, boolean existence) {
-        return new MissingQueryBuilder(name, nullValue, existence);
     }
 
     private QueryBuilders() {

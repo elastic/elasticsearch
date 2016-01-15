@@ -29,7 +29,8 @@ import org.elasticsearch.http.netty.NettyHttpServerTransport;
 import org.elasticsearch.plugins.PluginInfo;
 import org.elasticsearch.transport.netty.NettyTransport;
 
-import java.io.*;
+import java.io.FilePermission;
+import java.io.IOException;
 import java.net.SocketPermission;
 import java.net.URISyntaxException;
 import java.net.URL;
@@ -49,7 +50,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/** 
+/**
  * Initializes SecurityManager with necessary permissions.
  * <br>
  * <h1>Initialization</h1>
@@ -105,8 +106,8 @@ import java.util.Map;
 final class Security {
     /** no instantiation */
     private Security() {}
-       
-    /** 
+
+    /**
      * Initializes SecurityManager for the environment
      * Can only happen once!
      * @param environment configuration for generating dynamic permissions
@@ -131,34 +132,48 @@ final class Security {
     @SuppressForbidden(reason = "proper use of URL")
     static Map<String,Policy> getPluginPermissions(Environment environment) throws IOException, NoSuchAlgorithmException {
         Map<String,Policy> map = new HashMap<>();
+        // collect up lists of plugins and modules
+        List<Path> pluginsAndModules = new ArrayList<>();
         if (Files.exists(environment.pluginsFile())) {
             try (DirectoryStream<Path> stream = Files.newDirectoryStream(environment.pluginsFile())) {
                 for (Path plugin : stream) {
-                    Path policyFile = plugin.resolve(PluginInfo.ES_PLUGIN_POLICY);
-                    if (Files.exists(policyFile)) {
-                        // first get a list of URLs for the plugins' jars:
-                        // we resolve symlinks so map is keyed on the normalize codebase name
-                        List<URL> codebases = new ArrayList<>();
-                        try (DirectoryStream<Path> jarStream = Files.newDirectoryStream(plugin, "*.jar")) {
-                            for (Path jar : jarStream) {
-                                codebases.add(jar.toRealPath().toUri().toURL());
-                            }
-                        }
-                        
-                        // parse the plugin's policy file into a set of permissions
-                        Policy policy = readPolicy(policyFile.toUri().toURL(), codebases.toArray(new URL[codebases.size()]));
-                        
-                        // consult this policy for each of the plugin's jars:
-                        for (URL url : codebases) {
-                            if (map.put(url.getFile(), policy) != null) {
-                                // just be paranoid ok?
-                                throw new IllegalStateException("per-plugin permissions already granted for jar file: " + url);
-                            }
-                        }
+                    pluginsAndModules.add(plugin);
+                }
+            }
+        }
+        if (Files.exists(environment.modulesFile())) {
+            try (DirectoryStream<Path> stream = Files.newDirectoryStream(environment.modulesFile())) {
+                for (Path plugin : stream) {
+                    pluginsAndModules.add(plugin);
+                }
+            }
+        }
+        // now process each one
+        for (Path plugin : pluginsAndModules) {
+            Path policyFile = plugin.resolve(PluginInfo.ES_PLUGIN_POLICY);
+            if (Files.exists(policyFile)) {
+                // first get a list of URLs for the plugins' jars:
+                // we resolve symlinks so map is keyed on the normalize codebase name
+                List<URL> codebases = new ArrayList<>();
+                try (DirectoryStream<Path> jarStream = Files.newDirectoryStream(plugin, "*.jar")) {
+                    for (Path jar : jarStream) {
+                        codebases.add(jar.toRealPath().toUri().toURL());
+                    }
+                }
+
+                // parse the plugin's policy file into a set of permissions
+                Policy policy = readPolicy(policyFile.toUri().toURL(), codebases.toArray(new URL[codebases.size()]));
+
+                // consult this policy for each of the plugin's jars:
+                for (URL url : codebases) {
+                    if (map.put(url.getFile(), policy) != null) {
+                        // just be paranoid ok?
+                        throw new IllegalStateException("per-plugin permissions already granted for jar file: " + url);
                     }
                 }
             }
         }
+
         return Collections.unmodifiableMap(map);
     }
 
@@ -228,6 +243,7 @@ final class Security {
         // read-only dirs
         addPath(policy, "path.home", environment.binFile(), "read,readlink");
         addPath(policy, "path.home", environment.libFile(), "read,readlink");
+        addPath(policy, "path.home", environment.modulesFile(), "read,readlink");
         addPath(policy, "path.plugins", environment.pluginsFile(), "read,readlink");
         addPath(policy, "path.conf", environment.configFile(), "read,readlink");
         addPath(policy, "path.scripts", environment.scriptsFile(), "read,readlink");
@@ -251,11 +267,11 @@ final class Security {
             policy.add(new FilePermission(environment.pidFile().toString(), "delete"));
         }
     }
-    
+
     static void addBindPermissions(Permissions policy, Settings settings) throws IOException {
         // http is simple
-        String httpRange = settings.get("http.netty.port", 
-                               settings.get("http.port", 
+        String httpRange = settings.get("http.netty.port",
+                               settings.get("http.port",
                                        NettyHttpServerTransport.DEFAULT_PORT_RANGE));
         // listen is always called with 'localhost' but use wildcard to be sure, no name service is consulted.
         // see SocketPermission implies() code
@@ -272,8 +288,8 @@ final class Security {
         for (Map.Entry<String, Settings> entry : profiles.entrySet()) {
             Settings profileSettings = entry.getValue();
             String name = entry.getKey();
-            String transportRange = profileSettings.get("port", 
-                                        settings.get("transport.tcp.port", 
+            String transportRange = profileSettings.get("port",
+                                        settings.get("transport.tcp.port",
                                                 NettyTransport.DEFAULT_PORT_RANGE));
 
             // a profile is only valid if its the default profile, or if it has an actual name and specifies a port
@@ -285,7 +301,7 @@ final class Security {
             }
         }
     }
-    
+
     /**
      * Add access to path (and all files underneath it)
      * @param policy current policy to add permissions to
@@ -305,7 +321,7 @@ final class Security {
         policy.add(new FilePermission(path.toString(), permissions));
         policy.add(new FilePermission(path.toString() + path.getFileSystem().getSeparator() + "-", permissions));
     }
-    
+
     /**
      * Ensures configured directory {@code path} exists.
      * @throws IOException if {@code path} exists, but is not a directory, not accessible, or broken symbolic link.

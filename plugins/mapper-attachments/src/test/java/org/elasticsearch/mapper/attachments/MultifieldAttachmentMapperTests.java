@@ -20,15 +20,16 @@
 package org.elasticsearch.mapper.attachments;
 
 import org.elasticsearch.common.Base64;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
-import org.elasticsearch.mapper.attachments.AttachmentMapper;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
@@ -36,7 +37,10 @@ import org.junit.Before;
 import java.nio.charset.StandardCharsets;
 
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 /**
  *
@@ -48,7 +52,7 @@ public class MultifieldAttachmentMapperTests extends AttachmentUnitTestCase {
 
     @Before
     public void setupMapperParser() throws Exception {
-        mapperParser = MapperTestUtils.newMapperService(createTempDir(), Settings.EMPTY).documentMapperParser();
+        mapperParser = MapperTestUtils.newMapperService(createTempDir(), Settings.EMPTY, getIndicesModuleWithRegisteredAttachmentMapper()).documentMapperParser();
 
     }
 
@@ -59,7 +63,7 @@ public class MultifieldAttachmentMapperTests extends AttachmentUnitTestCase {
 
     public void testSimpleMappings() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/attachment/test/unit/multifield/multifield-mapping.json");
-        DocumentMapper docMapper = mapperParser.parse(mapping);
+        DocumentMapper docMapper = mapperParser.parse("person", new CompressedXContent(mapping));
 
 
         assertThat(docMapper.mappers().getMapper("file.content"), instanceOf(StringFieldMapper.class));
@@ -91,11 +95,11 @@ public class MultifieldAttachmentMapperTests extends AttachmentUnitTestCase {
         String bytes = Base64.encodeBytes(originalText.getBytes(StandardCharsets.ISO_8859_1));
         threadPool = new ThreadPool("testing-only");
 
-        MapperService mapperService = MapperTestUtils.newMapperService(createTempDir(), Settings.EMPTY);
+        MapperService mapperService = MapperTestUtils.newMapperService(createTempDir(), Settings.EMPTY, getIndicesModuleWithRegisteredAttachmentMapper());
 
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/attachment/test/unit/multifield/multifield-mapping.json");
 
-        DocumentMapper documentMapper = mapperService.documentMapperParser().parse(mapping);
+        DocumentMapper documentMapper = mapperService.documentMapperParser().parse("person", new CompressedXContent(mapping));
 
         ParsedDocument doc = documentMapper.parse("person", "person", "1", XContentFactory.jsonBuilder()
                 .startObject()

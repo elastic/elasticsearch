@@ -39,8 +39,13 @@ import org.elasticsearch.test.ESAllocationTestCase;
 import java.util.Collections;
 import java.util.EnumSet;
 
-import static org.elasticsearch.cluster.routing.ShardRoutingState.*;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  */

@@ -328,7 +328,6 @@ public class HeadersAndContextCopyClientTests extends ESTestCase {
                     client.admin().indices().prepareCreate("test"),
                     client.admin().indices().prepareAliases(),
                     client.admin().indices().prepareAnalyze("text"),
-                    client.admin().indices().prepareDeleteWarmer(),
                     client.admin().indices().prepareTypesExists("type"),
                     client.admin().indices().prepareClose()
             };

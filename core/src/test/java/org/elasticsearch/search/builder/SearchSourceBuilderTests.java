@@ -34,7 +34,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.AbstractQueryTestCase;
 import org.elasticsearch.index.query.EmptyQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -47,7 +51,7 @@ import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsBuilder;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsBuilder.InnerHit;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
-import org.elasticsearch.search.highlight.HighlightBuilder;
+import org.elasticsearch.search.highlight.HighlightBuilderTests;
 import org.elasticsearch.search.rescore.RescoreBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
@@ -251,8 +255,7 @@ public class SearchSourceBuilderTests extends ESTestCase {
             }
         }
         if (randomBoolean()) {
-            // NORELEASE need a random highlight builder method
-            builder.highlighter(new HighlightBuilder().field(randomAsciiOfLengthBetween(5, 20)));
+            builder.highlighter(HighlightBuilderTests.randomHighlighterBuilder());
         }
         if (randomBoolean()) {
             // NORELEASE need a random suggest builder method
@@ -271,8 +274,7 @@ public class SearchSourceBuilderTests extends ESTestCase {
             int numRescores = randomIntBetween(1, 5);
             for (int i = 0; i < numRescores; i++) {
                 // NORELEASE need a random rescore builder method
-                RescoreBuilder rescoreBuilder = new RescoreBuilder();
-                rescoreBuilder.rescorer(RescoreBuilder.queryRescorer(QueryBuilders.termQuery(randomAsciiOfLengthBetween(5, 20),
+                RescoreBuilder rescoreBuilder = new RescoreBuilder(RescoreBuilder.queryRescorer(QueryBuilders.termQuery(randomAsciiOfLengthBetween(5, 20),
                         randomAsciiOfLengthBetween(5, 20))));
                 builder.addRescorer(rescoreBuilder);
             }

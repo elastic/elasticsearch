@@ -23,15 +23,22 @@ import com.amazonaws.AmazonClientException;
 import com.amazonaws.AmazonWebServiceRequest;
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.Protocol;
-import com.amazonaws.auth.*;
+import com.amazonaws.auth.AWSCredentialsProvider;
+import com.amazonaws.auth.AWSCredentialsProviderChain;
+import com.amazonaws.auth.BasicAWSCredentials;
+import com.amazonaws.auth.EnvironmentVariableCredentialsProvider;
+import com.amazonaws.auth.InstanceProfileCredentialsProvider;
+import com.amazonaws.auth.SystemPropertiesCredentialsProvider;
 import com.amazonaws.internal.StaticCredentialsProvider;
 import com.amazonaws.retry.RetryPolicy;
 import com.amazonaws.services.ec2.AmazonEC2;
 import com.amazonaws.services.ec2.AmazonEC2Client;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cloud.aws.network.Ec2NameResolver;
 import org.elasticsearch.cloud.aws.node.Ec2CustomNodeAttributes;
 import org.elasticsearch.cluster.node.DiscoveryNodeService;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.network.NetworkService;
@@ -56,13 +63,16 @@ public class AwsEc2ServiceImpl extends AbstractLifecycleComponent<AwsEc2Service>
         // Filter global settings
         settingsFilter.addFilter(CLOUD_AWS.KEY);
         settingsFilter.addFilter(CLOUD_AWS.SECRET);
+        settingsFilter.addFilter(CLOUD_AWS.PROXY_PASSWORD);
         settingsFilter.addFilter(CLOUD_EC2.KEY);
         settingsFilter.addFilter(CLOUD_EC2.SECRET);
+        settingsFilter.addFilter(CLOUD_EC2.PROXY_PASSWORD);
         // add specific ec2 name resolver
         networkService.addCustomNameResolver(new Ec2NameResolver(settings));
         discoveryNodeService.addCustomAttributeProvider(new Ec2CustomNodeAttributes(settings));
     }
 
+    @Override
     public synchronized AmazonEC2 client() {
         if (client != null) {
             return client;
@@ -83,16 +93,25 @@ public class AwsEc2ServiceImpl extends AbstractLifecycleComponent<AwsEc2Service>
         String account = settings.get(CLOUD_EC2.KEY, settings.get(CLOUD_AWS.KEY));
         String key = settings.get(CLOUD_EC2.SECRET, settings.get(CLOUD_AWS.SECRET));
 
-        String proxyHost = settings.get(CLOUD_EC2.PROXY_HOST, settings.get(CLOUD_AWS.PROXY_HOST));
+        String proxyHost = settings.get(CLOUD_AWS.PROXY_HOST);
+        proxyHost = settings.get(CLOUD_EC2.PROXY_HOST, proxyHost);
         if (proxyHost != null) {
-            String portString = settings.get(CLOUD_EC2.PROXY_PORT, settings.get(CLOUD_AWS.PROXY_PORT, "80"));
+            String portString = settings.get(CLOUD_AWS.PROXY_PORT, "80");
+            portString = settings.get(CLOUD_EC2.PROXY_PORT, portString);
             Integer proxyPort;
             try {
                 proxyPort = Integer.parseInt(portString, 10);
             } catch (NumberFormatException ex) {
                 throw new IllegalArgumentException("The configured proxy port value [" + portString + "] is invalid", ex);
             }
-            clientConfiguration.withProxyHost(proxyHost).setProxyPort(proxyPort);
+            String proxyUsername = settings.get(CLOUD_EC2.PROXY_USERNAME, settings.get(CLOUD_AWS.PROXY_USERNAME));
+            String proxyPassword = settings.get(CLOUD_EC2.PROXY_PASSWORD, settings.get(CLOUD_AWS.PROXY_PASSWORD));
+
+            clientConfiguration
+                .withProxyHost(proxyHost)
+                .withProxyPort(proxyPort)
+                .withProxyUsername(proxyUsername)
+                .withProxyPassword(proxyPassword);
         }
 
         // #155: we might have 3rd party users using older EC2 API version
@@ -108,7 +127,7 @@ public class AwsEc2ServiceImpl extends AbstractLifecycleComponent<AwsEc2Service>
         }
 
         // Increase the number of retries in case of 5xx API responses
-        final Random rand = new Random();
+        final Random rand = Randomness.get();
         RetryPolicy retryPolicy = new RetryPolicy(
                 RetryPolicy.RetryCondition.NO_RETRY_CONDITION,
                 new RetryPolicy.BackoffStrategy() {
@@ -118,7 +137,7 @@ public class AwsEc2ServiceImpl extends AbstractLifecycleComponent<AwsEc2Service>
                                                      int retriesAttempted) {
                         // with 10 retries the max delay time is 320s/320000ms (10 * 2^5 * 1 * 1000)
                         logger.warn("EC2 API request failed, retry again. Reason was:", exception);
-                        return 1000L * (long) (10d * Math.pow(2, ((double) retriesAttempted) / 2.0d) * (1.0d + rand.nextDouble()));
+                        return 1000L * (long) (10d * Math.pow(2, retriesAttempted / 2.0d) * (1.0d + rand.nextDouble()));
                     }
                 },
                 10,

@@ -24,7 +24,11 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.IgnoreOnRecoveryEngineException;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.DocumentMapperForType;
+import org.elasticsearch.index.mapper.MapperException;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.Mapping;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.translog.Translog;
 
 import java.io.IOException;
@@ -66,6 +70,7 @@ public class TranslogRecoveryPerformer {
                 performRecoveryOperation(engine, operation, false);
                 numOps++;
             }
+            engine.getTranslog().sync();
         } catch (Throwable t) {
             throw new BatchOperationException(shardId, "failed to apply batch translog operation", numOps, t);
         }
@@ -110,7 +115,7 @@ public class TranslogRecoveryPerformer {
         if (currentUpdate == null) {
             recoveredTypes.put(type, update);
         } else {
-            MapperUtils.merge(currentUpdate, update);
+            currentUpdate = currentUpdate.merge(update, false);
         }
     }
 

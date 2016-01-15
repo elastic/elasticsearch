@@ -19,15 +19,14 @@
 
 package org.elasticsearch.index;
 
-import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.zen.fd.FaultDetection;
 import org.elasticsearch.plugins.Plugin;
@@ -56,7 +55,7 @@ public class TransportIndexFailuresIT extends ESIntegTestCase {
             .put("discovery.type", "zen") // <-- To override the local setting if set externally
             .put(FaultDetection.SETTING_PING_TIMEOUT, "1s") // <-- for hitting simulated network failures quickly
             .put(FaultDetection.SETTING_PING_RETRIES, "1") // <-- for hitting simulated network failures quickly
-            .put(DiscoverySettings.PUBLISH_TIMEOUT, "1s") // <-- for hitting simulated network failures quickly
+            .put(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(), "1s") // <-- for hitting simulated network failures quickly
             .put("discovery.zen.minimum_master_nodes", 1)
             .build();
 

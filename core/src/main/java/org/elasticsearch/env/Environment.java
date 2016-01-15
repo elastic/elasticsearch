@@ -40,7 +40,7 @@ import static org.elasticsearch.common.Strings.cleanPath;
  * The environment of where things exists.
  */
 @SuppressForbidden(reason = "configures paths for the system")
-// TODO: move PathUtils to be package-private here instead of 
+// TODO: move PathUtils to be package-private here instead of
 // public+forbidden api!
 public class Environment {
 
@@ -58,6 +58,8 @@ public class Environment {
 
     private final Path pluginsFile;
 
+    private final Path modulesFile;
+
     private final Path sharedDataFile;
 
     /** location of bin/, used by plugin manager */
@@ -70,7 +72,7 @@ public class Environment {
 
     /** Path to the PID file (can be null if no PID file is configured) **/
     private final Path pidFile;
-    
+
     /** Path to the temporary file directory used by the JDK */
     private final Path tmpFile = PathUtils.get(System.getProperty("java.io.tmpdir"));
 
@@ -157,6 +159,7 @@ public class Environment {
 
         binFile = homeFile.resolve("bin");
         libFile = homeFile.resolve("lib");
+        modulesFile = homeFile.resolve("modules");
     }
 
     /**
@@ -275,6 +278,10 @@ public class Environment {
         return libFile;
     }
 
+    public Path modulesFile() {
+        return modulesFile;
+    }
+
     public Path logsFile() {
         return logsFile;
     }
@@ -285,7 +292,7 @@ public class Environment {
     public Path pidFile() {
         return pidFile;
     }
-    
+
     /** Path to the default temp directory used by the JDK */
     public Path tmpFile() {
         return tmpFile;
@@ -310,7 +317,7 @@ public class Environment {
     public static FileStore getFileStore(Path path) throws IOException {
         return ESFileStore.getMatchingFileStore(path, fileStores);
     }
-    
+
     /**
      * Returns true if the path is writable.
      * Acts just like {@link Files#isWritable(Path)}, except won't

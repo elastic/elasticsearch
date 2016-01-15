@@ -17,6 +17,9 @@
             match_all: {}
 
   - do:
+        indices.refresh: {}
+
+  - do:
       mpercolate:
         body:
           - percolate:
@@ -33,8 +36,7 @@
               index:  percolator_index
               type:   my_type
               id:     1
-          - doc:
-              foo: bar
+          - {}
 
   - match:  { responses.0.total:     1  }
   - match:  { responses.1.error.root_cause.0.type: index_not_found_exception }

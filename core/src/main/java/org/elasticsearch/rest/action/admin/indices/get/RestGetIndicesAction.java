@@ -19,14 +19,12 @@
 package org.elasticsearch.rest.action.admin.indices.get;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest.Feature;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -42,7 +40,6 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
-import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 
 import java.io.IOException;
 import java.util.List;
@@ -102,9 +99,6 @@ public class RestGetIndicesAction extends BaseRestHandler {
                         case SETTINGS:
                             writeSettings(response.settings().get(index), builder, request);
                             break;
-                        case WARMERS:
-                            writeWarmers(response.warmers().get(index), builder, request);
-                            break;
                         default:
                             throw new IllegalStateException("feature [" + feature + "] is not valid");
                         }
@@ -144,15 +138,6 @@ public class RestGetIndicesAction extends BaseRestHandler {
                 builder.endObject();
             }
 
-            private void writeWarmers(List<IndexWarmersMetaData.Entry> warmers, XContentBuilder builder, Params params) throws IOException {
-                builder.startObject(Fields.WARMERS);
-                if (warmers != null) {
-                    for (IndexWarmersMetaData.Entry warmer : warmers) {
-                        IndexWarmersMetaData.toXContent(warmer, builder, params);
-                    }
-                }
-                builder.endObject();
-            }
         });
     }
 

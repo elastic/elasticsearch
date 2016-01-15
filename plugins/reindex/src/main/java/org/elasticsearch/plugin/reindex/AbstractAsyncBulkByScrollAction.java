@@ -168,8 +168,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
 
                 @Override
                 public void onFailure(Throwable e) {
-                    logger.error("failed while executing the initial scroll request", e);
-                    listener.onFailure(e);
+                    finishHim(e);
                 }
             });
         } catch (Throwable t) {

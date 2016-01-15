@@ -20,8 +20,8 @@
 package org.elasticsearch.plugin.reindex;
 
 import org.elasticsearch.action.ActionModule;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.rest.RestModule;
 
 public class ReindexPlugin extends Plugin {
     public static final String NAME = "reindex";
@@ -41,8 +41,8 @@ public class ReindexPlugin extends Plugin {
         actionModule.registerAction(UpdateByQueryAction.INSTANCE, TransportUpdateByQueryAction.class);
     }
 
-    public void onModule(RestModule restModule) {
-        restModule.addRestAction(RestReindexAction.class);
-        restModule.addRestAction(RestUpdateByQueryAction.class);
+    public void onModule(NetworkModule restModule) {
+        restModule.registerRestHandler(RestReindexAction.class);
+        restModule.registerRestHandler(RestUpdateByQueryAction.class);
     }
 }

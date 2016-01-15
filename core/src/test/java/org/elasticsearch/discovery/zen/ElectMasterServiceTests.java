@@ -53,7 +53,7 @@ public class ElectMasterServiceTests extends ESTestCase {
             nodes.add(node);
         }
 
-        Collections.shuffle(nodes, getRandom());
+        Collections.shuffle(nodes, random());
         return nodes;
     }
 

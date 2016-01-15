@@ -20,7 +20,6 @@
 package org.elasticsearch.action.bulk;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-
 import org.elasticsearch.action.get.MultiGetItemResponse;
 import org.elasticsearch.action.get.MultiGetRequestBuilder;
 import org.elasticsearch.action.get.MultiGetResponse;
@@ -105,7 +104,7 @@ public class BulkProcessorIT extends ESIntegTestCase {
     public void testBulkProcessorConcurrentRequests() throws Exception {
         int bulkActions = randomIntBetween(10, 100);
         int numDocs = randomIntBetween(bulkActions, bulkActions + 100);
-        int concurrentRequests = randomIntBetween(0, 10);
+        int concurrentRequests = randomIntBetween(0, 7);
 
         int expectedBulkActions = numDocs / bulkActions;
 
@@ -141,7 +140,7 @@ public class BulkProcessorIT extends ESIntegTestCase {
 
         Set<String> ids = new HashSet<>();
         for (BulkItemResponse bulkItemResponse : listener.bulkItems) {
-            assertThat(bulkItemResponse.isFailed(), equalTo(false));
+            assertThat(bulkItemResponse.getFailureMessage(), bulkItemResponse.isFailed(), equalTo(false));
             assertThat(bulkItemResponse.getIndex(), equalTo("test"));
             assertThat(bulkItemResponse.getType(), equalTo("test"));
             //with concurrent requests > 1 we can't rely on the order of the bulk requests

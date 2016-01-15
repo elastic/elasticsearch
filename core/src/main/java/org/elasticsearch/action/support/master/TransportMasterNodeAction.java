@@ -26,10 +26,10 @@ import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.ThreadedActionListener;
-import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
+import org.elasticsearch.cluster.MasterNodeChangePredicate;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -39,6 +39,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.node.NodeClosedException;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportException;
@@ -50,20 +51,6 @@ import java.util.function.Supplier;
  * A base class for operations that needs to be performed on the master node.
  */
 public abstract class TransportMasterNodeAction<Request extends MasterNodeRequest, Response extends ActionResponse> extends HandledTransportAction<Request, Response> {
-    private static final ClusterStateObserver.ChangePredicate masterNodeChangedPredicate = new ClusterStateObserver.ChangePredicate() {
-        @Override
-        public boolean apply(ClusterState previousState, ClusterState.ClusterStateStatus previousStatus,
-                             ClusterState newState, ClusterState.ClusterStateStatus newStatus) {
-            // The condition !newState.nodes().masterNodeId().equals(previousState.nodes().masterNodeId()) is not sufficient as the same master node might get reelected after a disruption.
-            return newState.nodes().masterNodeId() != null && newState != previousState;
-        }
-
-        @Override
-        public boolean apply(ClusterChangedEvent event) {
-            return event.nodesDelta().masterNodeChanged();
-        }
-    };
-
     protected final TransportService transportService;
     protected final ClusterService clusterService;
 
@@ -84,6 +71,13 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
 
     protected abstract void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception;
 
+    /**
+     * Override this operation if access to the task parameter is needed
+     */
+    protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
+        masterOperation(request, state, listener);
+    }
+
     protected boolean localExecute(Request request) {
         return false;
     }
@@ -91,8 +85,14 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
     protected abstract ClusterBlockException checkBlock(Request request, ClusterState state);
 
     @Override
-    protected void doExecute(final Request request, ActionListener<Response> listener) {
-        new AsyncSingleAction(request, listener).start();
+    protected final void doExecute(final Request request, ActionListener<Response> listener) {
+        logger.warn("attempt to execute a master node operation without task");
+        throw new UnsupportedOperationException("task parameter is required for this operation");
+    }
+
+    @Override
+    protected void doExecute(Task task, final Request request, ActionListener<Response> listener) {
+        new AsyncSingleAction(task, request, listener).start();
     }
 
     class AsyncSingleAction {
@@ -100,6 +100,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
         private final ActionListener<Response> listener;
         private final Request request;
         private volatile ClusterStateObserver observer;
+        private final Task task;
 
         private final ClusterStateObserver.ChangePredicate retryableOrNoBlockPredicate = new ClusterStateObserver.ValidationPredicate() {
             @Override
@@ -109,7 +110,8 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
             }
         };
 
-        AsyncSingleAction(Request request, ActionListener<Response> listener) {
+        AsyncSingleAction(Task task, Request request, ActionListener<Response> listener) {
+            this.task = task;
             this.request = request;
             // TODO do we really need to wrap it in a listener? the handlers should be cheap
             if ((listener instanceof ThreadedActionListener) == false) {
@@ -148,7 +150,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                             if (t instanceof Discovery.FailedToCommitClusterStateException
                                     || (t instanceof NotMasterException)) {
                                 logger.debug("master could not publish cluster state or stepped down before publishing action [{}], scheduling a retry", t, actionName);
-                                retry(t, masterNodeChangedPredicate);
+                                retry(t, MasterNodeChangePredicate.INSTANCE);
                             } else {
                                 listener.onFailure(t);
                             }
@@ -157,14 +159,14 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                     threadPool.executor(executor).execute(new ActionRunnable(delegate) {
                         @Override
                         protected void doRun() throws Exception {
-                            masterOperation(request, clusterService.state(), delegate);
+                            masterOperation(task, request, clusterService.state(), delegate);
                         }
                     });
                 }
             } else {
                 if (nodes.masterNode() == null) {
                     logger.debug("no known master node, scheduling a retry");
-                    retry(null, masterNodeChangedPredicate);
+                    retry(null, MasterNodeChangePredicate.INSTANCE);
                 } else {
                     transportService.sendRequest(nodes.masterNode(), actionName, request, new ActionListenerResponseHandler<Response>(listener) {
                         @Override
@@ -179,7 +181,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                                 // we want to retry here a bit to see if a new master is elected
                                 logger.debug("connection exception while trying to forward request with action name [{}] to master node [{}], scheduling a retry. Error: [{}]",
                                         actionName, nodes.masterNode(), exp.getDetailedMessage());
-                                retry(cause, masterNodeChangedPredicate);
+                                retry(cause, MasterNodeChangePredicate.INSTANCE);
                             } else {
                                 listener.onFailure(exp);
                             }

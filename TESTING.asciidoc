@@ -290,14 +290,14 @@ The REST tests are run automatically when executing the "gradle check" command. 
 REST tests use the following command:
 
 ---------------------------------------------------------------------------
-gradle :distribution:tar:integTest   \
+gradle :distribution:integ-test-zip:integTest   \
   -Dtests.class=org.elasticsearch.test.rest.RestIT
 ---------------------------------------------------------------------------
 
 A specific test case can be run with
 
 ---------------------------------------------------------------------------
-gradle :distribution:tar:integTest \
+gradle :distribution:integ-test-zip:integTest \
   -Dtests.class=org.elasticsearch.test.rest.RestIT \
   -Dtests.method="test {p0=cat.shards/10_basic/Help}"
 ---------------------------------------------------------------------------

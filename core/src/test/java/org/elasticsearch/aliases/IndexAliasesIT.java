@@ -759,7 +759,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
             admin().indices().prepareAliases().addAliasAction(AliasAction.newAddAliasAction("index1", null)).get();
             fail("Expected ActionRequestValidationException");
         } catch (ActionRequestValidationException e) {
-            assertThat(e.getMessage(), containsString("requires an [alias] to be set"));
+            assertThat(e.getMessage(), containsString("[alias] may not be empty string"));
         }
     }
 
@@ -768,7 +768,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
             admin().indices().prepareAliases().addAliasAction(AliasAction.newAddAliasAction("index1", "")).get();
             fail("Expected ActionRequestValidationException");
         } catch (ActionRequestValidationException e) {
-            assertThat(e.getMessage(), containsString("requires an [alias] to be set"));
+            assertThat(e.getMessage(), containsString("[alias] may not be empty string"));
         }
     }
 
@@ -865,7 +865,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test")
                 .addMapping("type", "field", "type=string")
                 .addAlias(new Alias("alias1"))
-                .addAlias(new Alias("alias2").filter(QueryBuilders.missingQuery("field")))
+                .addAlias(new Alias("alias2").filter(QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery("field"))))
                 .addAlias(new Alias("alias3").indexRouting("index").searchRouting("search")));
 
         checkAliases();

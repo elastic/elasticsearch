@@ -20,7 +20,6 @@
 package org.elasticsearch.action.percolate;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.IndicesRequest;
@@ -37,8 +36,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.text.StringText;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.percolator.PercolatorService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -163,12 +160,8 @@ public class TransportShardMultiPercolateAction extends TransportSingleShardActi
             items = new ArrayList<>(size);
             for (int i = 0; i < size; i++) {
                 int slot = in.readVInt();
-                OriginalIndices originalIndices = OriginalIndices.readOriginalIndices(in);
-                PercolateShardRequest shardRequest = new PercolateShardRequest(new ShardId(index, shardId), originalIndices);
-                shardRequest.documentType(in.readString());
-                shardRequest.source(in.readBytesReference());
-                shardRequest.docSource(in.readBytesReference());
-                shardRequest.onlyCount(in.readBoolean());
+                PercolateShardRequest shardRequest = new PercolateShardRequest();
+                shardRequest.readFrom(in);
                 Item item = new Item(slot, shardRequest);
                 items.add(item);
             }
@@ -182,11 +175,7 @@ public class TransportShardMultiPercolateAction extends TransportSingleShardActi
             out.writeVInt(items.size());
             for (Item item : items) {
                 out.writeVInt(item.slot);
-                OriginalIndices.writeOriginalIndices(item.request.originalIndices(), out);
-                out.writeString(item.request.documentType());
-                out.writeBytesReference(item.request.source());
-                out.writeBytesReference(item.request.docSource());
-                out.writeBoolean(item.request.onlyCount());
+                item.request.writeTo(out);
             }
         }
 

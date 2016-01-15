@@ -36,11 +36,19 @@ public class CircleBuilder extends ShapeBuilder {
     public static final String FIELD_RADIUS = "radius";
     public static final GeoShapeType TYPE = GeoShapeType.CIRCLE;
 
-    public static final CircleBuilder PROTOTYPE = new CircleBuilder();
+    static final CircleBuilder PROTOTYPE = new CircleBuilder();
 
-    private DistanceUnit unit;
+    private DistanceUnit unit = DistanceUnit.DEFAULT;
     private double radius;
     private Coordinate center;
+
+    /**
+     * Creates a circle centered at [0.0, 0.0].
+     * Center can be changed by calling {@link #center(Coordinate)} later.
+     */
+    public CircleBuilder() {
+        this.center = ZERO_ZERO;
+    }
 
     /**
      * Set the center of the circle

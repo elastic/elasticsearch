@@ -19,39 +19,66 @@
 
 package org.elasticsearch.common.geo.builders;
 
+import com.spatial4j.core.shape.Shape;
+import com.vividsolutions.jts.geom.Coordinate;
+
+import org.elasticsearch.common.geo.XShapeCollection;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-
-import org.elasticsearch.common.geo.XShapeCollection;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-
-import com.spatial4j.core.shape.Shape;
-import com.vividsolutions.jts.geom.Coordinate;
+import java.util.Locale;
+import java.util.Objects;
 
 public class MultiPolygonBuilder extends ShapeBuilder {
 
     public static final GeoShapeType TYPE = GeoShapeType.MULTIPOLYGON;
+    static final MultiPolygonBuilder PROTOTYPE = new MultiPolygonBuilder();
 
-    protected final ArrayList<PolygonBuilder> polygons = new ArrayList<>();
+    private final ArrayList<PolygonBuilder> polygons = new ArrayList<>();
+
+    private Orientation orientation = Orientation.RIGHT;
 
     public MultiPolygonBuilder() {
         this(Orientation.RIGHT);
     }
 
     public MultiPolygonBuilder(Orientation orientation) {
-        super(orientation);
+        this.orientation = orientation;
     }
 
+    public Orientation orientation() {
+        return this.orientation;
+    }
+
+    /**
+     * Add a shallow copy of the polygon to the multipolygon. This will apply the orientation of the
+     * {@link MultiPolygonBuilder} to the polygon if polygon has different orientation.
+     */
     public MultiPolygonBuilder polygon(PolygonBuilder polygon) {
-        this.polygons.add(polygon);
+        PolygonBuilder pb = new PolygonBuilder(new CoordinatesBuilder().coordinates(polygon.shell().coordinates(false)), this.orientation);
+        for (LineStringBuilder hole : polygon.holes()) {
+            pb.hole(hole);
+        }
+        this.polygons.add(pb);
         return this;
+    }
+
+    /**
+     * get the list of polygons
+     */
+    public ArrayList<PolygonBuilder> polygons() {
+        return polygons;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(FIELD_TYPE, TYPE.shapeName());
+        builder.field(FIELD_ORIENTATION, orientation.name().toLowerCase(Locale.ROOT));
         builder.startArray(FIELD_COORDINATES);
         for(PolygonBuilder polygon : polygons) {
             builder.startArray();
@@ -90,5 +117,40 @@ public class MultiPolygonBuilder extends ShapeBuilder {
         //note: ShapeCollection is probably faster than a Multi* geom.
     }
 
+    @Override
+    public int hashCode() {
+        return Objects.hash(polygons, orientation);
+    }
 
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        MultiPolygonBuilder other = (MultiPolygonBuilder) obj;
+        return Objects.equals(polygons, other.polygons) &&
+                Objects.equals(orientation, other.orientation);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        orientation.writeTo(out);
+        out.writeVInt(polygons.size());
+        for (PolygonBuilder polygon : polygons) {
+            polygon.writeTo(out);
+        }
+    }
+
+    @Override
+    public MultiPolygonBuilder readFrom(StreamInput in) throws IOException {
+        MultiPolygonBuilder polyBuilder = new MultiPolygonBuilder(Orientation.readFrom(in));
+        int holes = in.readVInt();
+        for (int i = 0; i < holes; i++) {
+            polyBuilder.polygon(PolygonBuilder.PROTOTYPE.readFrom(in));
+        }
+        return polyBuilder;
+    }
 }

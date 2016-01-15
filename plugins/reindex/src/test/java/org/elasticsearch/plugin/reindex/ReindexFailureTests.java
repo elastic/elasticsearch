@@ -19,14 +19,14 @@
 
 package org.elasticsearch.plugin.reindex;
 
+import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
+import org.elasticsearch.action.index.IndexRequestBuilder;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
-
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
-import org.elasticsearch.action.index.IndexRequestBuilder;
 
 import static org.elasticsearch.action.index.IndexRequest.OpType.CREATE;
 import static org.hamcrest.Matchers.both;
@@ -36,7 +36,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
- * Tests failure capturing and abort-on-failure behavior of index-by-search.
+ * Tests failure capturing and abort-on-failure behavior of reindex.
  */
 public class ReindexFailureTests extends ReindexTestCase {
     public void testFailuresCauseAbortDefault() throws Exception {

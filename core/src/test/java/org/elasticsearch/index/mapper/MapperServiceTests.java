@@ -19,24 +19,29 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Rule;
 import org.junit.rules.ExpectedException;
-
-import static org.elasticsearch.test.VersionUtils.getFirstVersion;
-import static org.elasticsearch.test.VersionUtils.getPreviousVersion;
-import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
-import static org.hamcrest.CoreMatchers.containsString;
-import static org.hamcrest.Matchers.hasToString;
 
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.concurrent.ExecutionException;
+
+import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasToString;
 
 public class MapperServiceTests extends ESSingleNodeTestCase {
     @Rule
@@ -55,23 +60,6 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
                 .addMapping(type, field, "type=string")
                 .execute()
                 .actionGet();
-    }
-
-    public void testThatLongTypeNameIsNotRejectedOnPreElasticsearchVersionTwo() {
-        String index = "text-index";
-        String field = "field";
-        String type = new String(new char[256]).replace("\0", "a");
-
-        CreateIndexResponse response =
-                client()
-                        .admin()
-                        .indices()
-                        .prepareCreate(index)
-                        .setSettings(settings(randomVersionBetween(random(), getFirstVersion(), getPreviousVersion(Version.V_2_0_0_beta1))))
-                        .addMapping(type, field, "type=string")
-                        .execute()
-                        .actionGet();
-        assertNotNull(response);
     }
 
     public void testTypeNameTooLong() {
@@ -117,8 +105,9 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
             if (t instanceof ExecutionException) {
                 t = ((ExecutionException) t).getCause();
             }
-            if (t instanceof IllegalArgumentException) {
-                assertEquals("It is forbidden to index into the default mapping [_default_]", t.getMessage());
+            final Throwable throwable = ExceptionsHelper.unwrapCause(t);
+            if (throwable instanceof IllegalArgumentException) {
+                assertEquals("It is forbidden to index into the default mapping [_default_]", throwable.getMessage());
             } else {
                 throw t;
             }
@@ -133,12 +122,31 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
             if (t instanceof ExecutionException) {
                 t = ((ExecutionException) t).getCause();
             }
-            if (t instanceof IllegalArgumentException) {
-                assertEquals("It is forbidden to index into the default mapping [_default_]", t.getMessage());
+            final Throwable throwable = ExceptionsHelper.unwrapCause(t);
+            if (throwable instanceof IllegalArgumentException) {
+                assertEquals("It is forbidden to index into the default mapping [_default_]", throwable.getMessage());
             } else {
                 throw t;
             }
         }
         assertFalse(indexService.mapperService().hasMapping(MapperService.DEFAULT_MAPPING));
+    }
+
+    public void testSearchFilter() {
+        IndexService indexService = createIndex("index1", client().admin().indices().prepareCreate("index1")
+            .addMapping("type1", "field1", "type=nested")
+            .addMapping("type2", new Object[0])
+        );
+
+        Query searchFilter = indexService.mapperService().searchFilter("type1", "type3");
+        Query expectedQuery = new BooleanQuery.Builder()
+            .add(new BooleanQuery.Builder()
+                .add(new ConstantScoreQuery(new TermQuery(new Term(TypeFieldMapper.NAME, "type1"))), BooleanClause.Occur.SHOULD)
+                .add(new TermQuery(new Term(TypeFieldMapper.NAME, "type3")), BooleanClause.Occur.SHOULD)
+                .build(), BooleanClause.Occur.MUST
+            )
+            .add(Queries.newNonNestedFilter(), BooleanClause.Occur.MUST)
+            .build();
+        assertThat(searchFilter, equalTo(new ConstantScoreQuery(expectedQuery)));
     }
 }

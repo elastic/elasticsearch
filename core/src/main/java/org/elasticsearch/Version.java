@@ -25,7 +25,6 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 
@@ -268,19 +267,26 @@ public class Version {
     public static final int V_2_0_1_ID = 2000199;
     public static final Version V_2_0_1 = new Version(V_2_0_1_ID, false, org.apache.lucene.util.Version.LUCENE_5_2_1);
     public static final int V_2_0_2_ID = 2000299;
-    public static final Version V_2_0_2 = new Version(V_2_0_2_ID, true, org.apache.lucene.util.Version.LUCENE_5_2_1);
+    public static final Version V_2_0_2 = new Version(V_2_0_2_ID, false, org.apache.lucene.util.Version.LUCENE_5_2_1);
+    public static final int V_2_0_3_ID = 2000399;
+    public static final Version V_2_0_3 = new Version(V_2_0_3_ID, true, org.apache.lucene.util.Version.LUCENE_5_2_1);
     public static final int V_2_1_0_ID = 2010099;
     public static final Version V_2_1_0 = new Version(V_2_1_0_ID, false, org.apache.lucene.util.Version.LUCENE_5_3_1);
     public static final int V_2_1_1_ID = 2010199;
-    public static final Version V_2_1_1 = new Version(V_2_1_1_ID, true, org.apache.lucene.util.Version.LUCENE_5_3_1);
+    public static final Version V_2_1_1 = new Version(V_2_1_1_ID, false, org.apache.lucene.util.Version.LUCENE_5_3_1);
+    public static final int V_2_1_2_ID = 2010299;
+    public static final Version V_2_1_2 = new Version(V_2_1_2_ID, true, org.apache.lucene.util.Version.LUCENE_5_3_1);
     public static final int V_2_2_0_ID = 2020099;
     public static final Version V_2_2_0 = new Version(V_2_2_0_ID, true, org.apache.lucene.util.Version.LUCENE_5_4_0);
+    public static final int V_2_3_0_ID = 2030099;
+    public static final Version V_2_3_0 = new Version(V_2_3_0_ID, true, org.apache.lucene.util.Version.LUCENE_5_4_0);
     public static final int V_3_0_0_ID = 3000099;
-    public static final Version V_3_0_0 = new Version(V_3_0_0_ID, true, org.apache.lucene.util.Version.LUCENE_5_4_0);
+    public static final Version V_3_0_0 = new Version(V_3_0_0_ID, true, org.apache.lucene.util.Version.LUCENE_5_5_0);
     public static final Version CURRENT = V_3_0_0;
 
     static {
-        assert CURRENT.luceneVersion.equals(Lucene.VERSION) : "Version must be upgraded to [" + Lucene.VERSION + "] is still set to [" + CURRENT.luceneVersion + "]";
+        assert CURRENT.luceneVersion.equals(org.apache.lucene.util.Version.LATEST) : "Version must be upgraded to ["
+                + org.apache.lucene.util.Version.LATEST + "] is still set to [" + CURRENT.luceneVersion + "]";
     }
 
     public static Version readVersion(StreamInput in) throws IOException {
@@ -291,12 +297,18 @@ public class Version {
         switch (id) {
             case V_3_0_0_ID:
                 return V_3_0_0;
+            case V_2_3_0_ID:
+                return V_2_3_0;
             case V_2_2_0_ID:
                 return V_2_2_0;
+            case V_2_1_2_ID:
+                return V_2_1_2;
             case V_2_1_1_ID:
                 return V_2_1_1;
             case V_2_1_0_ID:
                 return V_2_1_0;
+            case V_2_0_3_ID:
+                return V_2_0_3;
             case V_2_0_2_ID:
                 return V_2_0_2;
             case V_2_0_1_ID:
@@ -445,7 +457,6 @@ public class Version {
                 return V_0_90_0_RC1;
             case V_0_90_0_Beta1_ID:
                 return V_0_90_0_Beta1;
-
             case V_0_20_7_ID:
                 return V_0_20_7;
             case V_0_20_6_ID:
@@ -464,7 +475,6 @@ public class Version {
                 return V_0_20_0;
             case V_0_20_0_RC1_ID:
                 return V_0_20_0_RC1;
-
             case V_0_19_0_RC1_ID:
                 return V_0_19_0_RC1;
             case V_0_19_0_RC2_ID:
@@ -499,7 +509,6 @@ public class Version {
                 return V_0_19_12;
             case V_0_19_13_ID:
                 return V_0_19_13;
-
             case V_0_18_0_ID:
                 return V_0_18_0;
             case V_0_18_1_ID:
@@ -518,9 +527,8 @@ public class Version {
                 return V_0_18_7;
             case V_0_18_8_ID:
                 return V_0_18_8;
-
             default:
-                return new Version(id, false, Lucene.VERSION);
+                return new Version(id, false, org.apache.lucene.util.Version.LATEST);
         }
     }
 

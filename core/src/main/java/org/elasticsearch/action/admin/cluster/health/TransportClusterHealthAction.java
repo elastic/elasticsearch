@@ -23,7 +23,11 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
-import org.elasticsearch.cluster.*;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateObserver;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -34,6 +38,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -71,7 +76,13 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
     }
 
     @Override
-    protected void masterOperation(final ClusterHealthRequest request, final ClusterState unusedState, final ActionListener<ClusterHealthResponse> listener) {
+    protected final void masterOperation(ClusterHealthRequest request, ClusterState state, ActionListener<ClusterHealthResponse> listener) throws Exception {
+        logger.warn("attempt to execute a cluster health operation without a task");
+        throw new UnsupportedOperationException("task parameter is required for this operation");
+    }
+
+    @Override
+    protected void masterOperation(Task task, final ClusterHealthRequest request, final ClusterState unusedState, final ActionListener<ClusterHealthResponse> listener) {
         if (request.waitForEvents() != null) {
             final long endTimeMS = TimeValue.nsecToMSec(System.nanoTime()) + request.timeout().millis();
             clusterService.submitStateUpdateTask("cluster_health (wait_for_events [" + request.waitForEvents() + "])", new ClusterStateUpdateTask(request.waitForEvents()) {
@@ -91,7 +102,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
                 @Override
                 public void onNoLongerMaster(String source) {
                     logger.trace("stopped being master while waiting for events with priority [{}]. retrying.", request.waitForEvents());
-                    doExecute(request, listener);
+                    doExecute(task, request, listener);
                 }
 
                 @Override

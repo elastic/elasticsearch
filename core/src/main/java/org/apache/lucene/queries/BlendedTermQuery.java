@@ -18,14 +18,25 @@
  */
 package org.apache.lucene.queries;
 
-import org.apache.lucene.index.*;
-import org.apache.lucene.search.*;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.index.TermContext;
+import org.apache.lucene.index.TermState;
+import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.DisjunctionMaxQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.InPlaceMergeSorter;
 import org.apache.lucene.util.ToStringUtils;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
@@ -44,7 +55,7 @@ import java.util.Objects;
  * While aggregating the total term frequency is trivial since it
  * can be summed up not every {@link org.apache.lucene.search.similarities.Similarity}
  * makes use of this statistic. The document frequency which is used in the
- * {@link org.apache.lucene.search.similarities.DefaultSimilarity}
+ * {@link org.apache.lucene.search.similarities.ClassicSimilarity}
  * can only be estimated as an lower-bound since it is a document based statistic. For
  * the document frequency the maximum frequency across all fields per term is used
  * which is the minimum number of documents the terms occurs in.
@@ -316,7 +327,7 @@ public abstract class BlendedTermQuery extends Query {
                     }
                     if ((maxTermFrequency >= 1f && docFreqs[i] > maxTermFrequency)
                             || (docFreqs[i] > (int) Math.ceil(maxTermFrequency
-                            * (float) maxDoc))) {
+                            * maxDoc))) {
                         highBuilder.add(query, BooleanClause.Occur.SHOULD);
                     } else {
                         lowBuilder.add(query, BooleanClause.Occur.SHOULD);
@@ -352,15 +363,15 @@ public abstract class BlendedTermQuery extends Query {
         return new BlendedTermQuery(terms, boosts) {
             @Override
             protected Query topLevelQuery(Term[] terms, TermContext[] ctx, int[] docFreqs, int maxDoc) {
-                DisjunctionMaxQuery disMaxQuery = new DisjunctionMaxQuery(tieBreakerMultiplier);
+                List<Query> queries = new ArrayList<>(ctx.length);
                 for (int i = 0; i < terms.length; i++) {
                     Query query = new TermQuery(terms[i], ctx[i]);
                     if (boosts != null && boosts[i] != 1f) {
                         query = new BoostQuery(query, boosts[i]);
                     }
-                    disMaxQuery.add(query);
+                    queries.add(query);
                 }
-                return disMaxQuery;
+                return new DisjunctionMaxQuery(queries, tieBreakerMultiplier);
             }
         };
     }

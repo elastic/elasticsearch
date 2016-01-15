@@ -20,7 +20,12 @@
 package org.elasticsearch.search.internal;
 
 import org.apache.lucene.search.BooleanClause.Occur;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Sort;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
@@ -35,7 +40,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
-import org.elasticsearch.index.cache.query.QueryCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -57,13 +61,18 @@ import org.elasticsearch.search.fetch.script.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.highlight.SearchContextHighlight;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QueryPhaseExecutionException;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  *
@@ -116,7 +125,20 @@ public class DefaultSearchContext extends SearchContext {
     private Sort sort;
     private Float minimumScore;
     private boolean trackScores = false; // when sorting, track scores as well...
+    /**
+     * The original query as sent by the user without the types and aliases
+     * applied. Putting things in here leaks them into highlighting so don't add
+     * things like the type filter or alias filters.
+     */
     private ParsedQuery originalQuery;
+    /**
+     * Just like originalQuery but with the filters from types and aliases
+     * applied.
+     */
+    private ParsedQuery filteredQuery;
+    /**
+     * The query to actually execute.
+     */
     private Query query;
     private ParsedQuery postFilter;
     private Query aliasFilter;
@@ -129,10 +151,10 @@ public class DefaultSearchContext extends SearchContext {
     private List<RescoreSearchContext> rescore;
     private SearchLookup searchLookup;
     private volatile long keepAlive;
-    private ScoreDoc lastEmittedDoc;
     private final long originNanoTime = System.nanoTime();
     private volatile long lastAccessTime = -1;
     private InnerHitsContext innerHitsContext;
+    private Profilers profilers;
 
     private final Map<String, FetchSubPhaseContext> subPhaseContexts = new HashMap<>();
     private final Map<Class<?>, Collector> queryCollectors = new HashMap<>();
@@ -158,7 +180,7 @@ public class DefaultSearchContext extends SearchContext {
         this.fetchResult = new FetchSearchResult(id, shardTarget);
         this.indexShard = indexShard;
         this.indexService = indexService;
-        this.searcher = new ContextIndexSearcher(this, engineSearcher);
+        this.searcher = new ContextIndexSearcher(engineSearcher, indexService.cache().query(), indexShard.getQueryCachingPolicy());
         this.timeEstimateCounter = timeEstimateCounter;
         this.timeoutInMillis = timeout.millis();
     }
@@ -200,27 +222,32 @@ public class DefaultSearchContext extends SearchContext {
         if (queryBoost() != AbstractQueryBuilder.DEFAULT_BOOST) {
             parsedQuery(new ParsedQuery(new FunctionScoreQuery(query(), new WeightFactorFunction(queryBoost)), parsedQuery()));
         }
-        Query searchFilter = searchFilter(types());
-        if (searchFilter != null) {
-            if (Queries.isConstantMatchAllQuery(query())) {
-                Query q = new ConstantScoreQuery(searchFilter);
-                if (query().getBoost() != AbstractQueryBuilder.DEFAULT_BOOST) {
-                    q = new BoostQuery(q, query().getBoost());
-                }
-                parsedQuery(new ParsedQuery(q, parsedQuery()));
-            } else {
-                BooleanQuery filtered = new BooleanQuery.Builder()
-                    .add(query(), Occur.MUST)
-                    .add(searchFilter, Occur.FILTER)
-                    .build();
-                parsedQuery(new ParsedQuery(filtered, parsedQuery()));
-            }
-        }
+        filteredQuery(buildFilteredQuery());
         try {
             this.query = searcher().rewrite(this.query);
         } catch (IOException e) {
             throw new QueryPhaseExecutionException(this, "Failed to rewrite main query", e);
         }
+    }
+
+    private ParsedQuery buildFilteredQuery() {
+        Query searchFilter = searchFilter(types());
+        if (searchFilter == null) {
+            return originalQuery;
+        }
+        Query result;
+        if (Queries.isConstantMatchAllQuery(query())) {
+            result = new ConstantScoreQuery(searchFilter);
+            if (query().getBoost() != AbstractQueryBuilder.DEFAULT_BOOST) {
+                result = new BoostQuery(result, query().getBoost());
+            }
+        } else {
+            result = new BooleanQuery.Builder()
+                    .add(query, Occur.MUST)
+                    .add(searchFilter, Occur.FILTER)
+                    .build();
+        }
+        return new ParsedQuery(result, originalQuery);
     }
 
     @Override
@@ -537,6 +564,15 @@ public class DefaultSearchContext extends SearchContext {
         return this;
     }
 
+    public ParsedQuery filteredQuery() {
+        return filteredQuery;
+    }
+
+    private void filteredQuery(ParsedQuery filteredQuery) {
+        this.filteredQuery = filteredQuery;
+        this.query = filteredQuery.query();
+    }
+
     @Override
     public ParsedQuery parsedQuery() {
         return this.originalQuery;
@@ -690,17 +726,12 @@ public class DefaultSearchContext extends SearchContext {
 
     @Override
     public MappedFieldType smartNameFieldType(String name) {
-        return mapperService().smartNameFieldType(name, request.types());
-    }
-
-    @Override
-    public MappedFieldType smartNameFieldTypeFromAnyType(String name) {
-        return mapperService().smartNameFieldType(name);
+        return mapperService().fullName(name);
     }
 
     @Override
     public ObjectMapper getObjectMapper(String name) {
-        return mapperService().getObjectMapper(name, request.types());
+        return mapperService().getObjectMapper(name);
     }
 
     @Override
@@ -724,5 +755,11 @@ public class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public QueryCache getQueryCache() { return indexService.cache().query();}
+    public Profilers getProfilers() {
+        return profilers;
+    }
+
+    public void setProfilers(Profilers profilers) {
+        this.profilers = profilers;
+    }
 }

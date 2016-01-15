@@ -23,28 +23,26 @@ esplugin {
 }
 
 versions << [
-  'azure': '0.7.0',
+  'azure': '0.9.0',
   'jersey': '1.13'
 ]
 
 dependencies {
-  compile "com.microsoft.azure:azure-management-compute:${versions.azure}"
-  compile "com.microsoft.azure:azure-management:${versions.azure}"
+  compile "com.microsoft.azure:azure-svc-mgmt-compute:${versions.azure}"
   compile "com.microsoft.azure:azure-core:${versions.azure}"
   compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"
   compile "org.apache.httpcomponents:httpcore:${versions.httpcore}"
   compile "commons-logging:commons-logging:${versions.commonslogging}"
   compile "commons-codec:commons-codec:${versions.commonscodec}"
+  compile "commons-lang:commons-lang:2.6"
+  compile "commons-io:commons-io:2.4"
   compile 'javax.mail:mail:1.4.5'
-  compile 'javax.activation:activation:1.1'
   compile 'javax.inject:javax.inject:1'
   compile "com.sun.jersey:jersey-client:${versions.jersey}"
   compile "com.sun.jersey:jersey-core:${versions.jersey}"
   compile "com.sun.jersey:jersey-json:${versions.jersey}"
   compile 'org.codehaus.jettison:jettison:1.1' 
   compile 'com.sun.xml.bind:jaxb-impl:2.2.3-1'
-  compile 'javax.xml.bind:jaxb-api:2.2.2'
-  compile 'javax.xml.stream:stax-api:1.0-2'
   compile 'org.codehaus.jackson:jackson-core-asl:1.9.2'
   compile 'org.codehaus.jackson:jackson-mapper-asl:1.9.2'
   compile 'org.codehaus.jackson:jackson-jaxrs:1.9.2'
@@ -56,12 +54,42 @@ dependencyLicenses {
   mapping from: /jackson-.*/, to: 'jackson'
   mapping from: /jersey-.*/, to: 'jersey'
   mapping from: /jaxb-.*/, to: 'jaxb'
-  mapping from: /stax-.*/, to: 'stax'
 }
 
-compileJava.options.compilerArgs << '-Xlint:-path,-serial,-static,-unchecked'
-// TODO: why is deprecation needed here but not in maven....?
-compileJava.options.compilerArgs << '-Xlint:-deprecation'
-// TODO: and why does this static not show up in maven...
-compileTestJava.options.compilerArgs << '-Xlint:-static'
+compileJava.options.compilerArgs << '-Xlint:-path,-unchecked'
 
+thirdPartyAudit.excludes = [
+  // classes are missing
+  'javax.servlet.ServletContextEvent', 
+  'javax.servlet.ServletContextListener', 
+  'org.apache.avalon.framework.logger.Logger', 
+  'org.apache.log.Hierarchy', 
+  'org.apache.log.Logger', 
+  'org.eclipse.persistence.descriptors.ClassDescriptor', 
+  'org.eclipse.persistence.internal.oxm.MappingNodeValue', 
+  'org.eclipse.persistence.internal.oxm.TreeObjectBuilder', 
+  'org.eclipse.persistence.internal.oxm.XPathFragment', 
+  'org.eclipse.persistence.internal.oxm.XPathNode', 
+  'org.eclipse.persistence.internal.queries.ContainerPolicy', 
+  'org.eclipse.persistence.jaxb.JAXBContext', 
+  'org.eclipse.persistence.jaxb.JAXBHelper', 
+  'org.eclipse.persistence.mappings.DatabaseMapping', 
+  'org.eclipse.persistence.mappings.converters.TypeConversionConverter', 
+  'org.eclipse.persistence.mappings.foundation.AbstractCompositeDirectCollectionMapping', 
+  'org.eclipse.persistence.oxm.XMLContext', 
+  'org.eclipse.persistence.oxm.XMLDescriptor', 
+  'org.eclipse.persistence.oxm.XMLField', 
+  'org.eclipse.persistence.oxm.mappings.XMLCompositeCollectionMapping', 
+  'org.eclipse.persistence.sessions.DatabaseSession', 
+  'org.jvnet.fastinfoset.VocabularyApplicationData', 
+  'org.jvnet.staxex.Base64Data', 
+  'org.jvnet.staxex.XMLStreamReaderEx', 
+  'org.jvnet.staxex.XMLStreamWriterEx', 
+  'org.osgi.framework.Bundle', 
+  'org.osgi.framework.BundleActivator', 
+  'org.osgi.framework.BundleContext', 
+  'org.osgi.framework.BundleEvent', 
+  'org.osgi.framework.SynchronousBundleListener',
+  'com.sun.xml.fastinfoset.stax.StAXDocumentParser', 
+  'com.sun.xml.fastinfoset.stax.StAXDocumentSerializer',
+]

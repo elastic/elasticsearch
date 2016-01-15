@@ -21,14 +21,19 @@ package org.elasticsearch.search.suggest.completion;
 import org.apache.lucene.search.suggest.Lookup;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.suggest.Suggest;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * Suggestion response for {@link CompletionSuggester} results

@@ -21,13 +21,20 @@ package org.elasticsearch.search.highlight;
 
 import org.apache.lucene.search.highlight.SimpleFragmenter;
 import org.apache.lucene.search.highlight.SimpleSpanFragmenter;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.search.highlight.HighlightBuilder.Order;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -35,7 +42,29 @@ import java.util.Objects;
  * This abstract class holds parameters shared by {@link HighlightBuilder} and {@link HighlightBuilder.Field}
  * and provides the common setters, equality, hashCode calculation and common serialization
  */
-public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterBuilder> {
+public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterBuilder<?>> {
+
+    public static final ParseField PRE_TAGS_FIELD = new ParseField("pre_tags");
+    public static final ParseField POST_TAGS_FIELD = new ParseField("post_tags");
+    public static final ParseField FIELDS_FIELD = new ParseField("fields");
+    public static final ParseField ORDER_FIELD = new ParseField("order");
+    public static final ParseField TAGS_SCHEMA_FIELD = new ParseField("tags_schema");
+    public static final ParseField HIGHLIGHT_FILTER_FIELD = new ParseField("highlight_filter");
+    public static final ParseField FRAGMENT_SIZE_FIELD = new ParseField("fragment_size");
+    public static final ParseField FRAGMENT_OFFSET_FIELD = new ParseField("fragment_offset");
+    public static final ParseField NUMBER_OF_FRAGMENTS_FIELD = new ParseField("number_of_fragments");
+    public static final ParseField ENCODER_FIELD = new ParseField("encoder");
+    public static final ParseField REQUIRE_FIELD_MATCH_FIELD = new ParseField("require_field_match");
+    public static final ParseField BOUNDARY_MAX_SCAN_FIELD = new ParseField("boundary_max_scan");
+    public static final ParseField BOUNDARY_CHARS_FIELD = new ParseField("boundary_chars");
+    public static final ParseField TYPE_FIELD = new ParseField("type");
+    public static final ParseField FRAGMENTER_FIELD = new ParseField("fragmenter");
+    public static final ParseField NO_MATCH_SIZE_FIELD = new ParseField("no_match_size");
+    public static final ParseField FORCE_SOURCE_FIELD = new ParseField("force_source");
+    public static final ParseField PHRASE_LIMIT_FIELD = new ParseField("phrase_limit");
+    public static final ParseField OPTIONS_FIELD = new ParseField("options");
+    public static final ParseField HIGHLIGHT_QUERY_FIELD = new ParseField("highlight_query");
+    public static final ParseField MATCHED_FIELDS_FIELD = new ParseField("matched_fields");
 
     protected String[] preTags;
 
@@ -49,9 +78,9 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
 
     protected String fragmenter;
 
-    protected QueryBuilder highlightQuery;
+    protected QueryBuilder<?> highlightQuery;
 
-    protected String order;
+    protected Order order;
 
     protected Boolean highlightFilter;
 
@@ -102,7 +131,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
     }
 
     /**
-     * Set the fragment size in characters, defaults to {@link HighlighterParseElement#DEFAULT_FRAGMENT_CHAR_SIZE}
+     * Set the fragment size in characters, defaults to {@link HighlightBuilder#DEFAULT_FRAGMENT_CHAR_SIZE}
      */
     @SuppressWarnings("unchecked")
     public HB fragmentSize(Integer fragmentSize) {
@@ -118,7 +147,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
     }
 
     /**
-     * Set the number of fragments, defaults to {@link HighlighterParseElement#DEFAULT_NUMBER_OF_FRAGMENTS}
+     * Set the number of fragments, defaults to {@link HighlightBuilder#DEFAULT_NUMBER_OF_FRAGMENTS}
      */
     @SuppressWarnings("unchecked")
     public HB numOfFragments(Integer numOfFragments) {
@@ -175,7 +204,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
      * Sets a query to be used for highlighting instead of the search query.
      */
     @SuppressWarnings("unchecked")
-    public HB highlightQuery(QueryBuilder highlightQuery) {
+    public HB highlightQuery(QueryBuilder<?> highlightQuery) {
         this.highlightQuery = highlightQuery;
         return (HB) this;
     }
@@ -183,25 +212,33 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
     /**
      * @return the value set by {@link #highlightQuery(QueryBuilder)}
      */
-    public QueryBuilder highlightQuery() {
+    public QueryBuilder<?> highlightQuery() {
         return this.highlightQuery;
     }
 
     /**
      * The order of fragments per field. By default, ordered by the order in the
      * highlighted text. Can be <tt>score</tt>, which then it will be ordered
-     * by score of the fragments.
+     * by score of the fragments, or <tt>none</TT>.
+     */
+    public HB order(String order) {
+        return order(Order.fromString(order));
+    }
+
+    /**
+     * By default, fragments of a field are ordered by the order in the highlighted text.
+     * If set to {@link Order#SCORE}, this changes order to score of the fragments.
      */
     @SuppressWarnings("unchecked")
-    public HB order(String order) {
-        this.order = order;
+    public HB order(Order scoreOrdered) {
+        this.order = scoreOrdered;
         return (HB) this;
     }
 
     /**
-     * @return the value set by {@link #order(String)}
+     * @return the value set by {@link #order(Order)}
      */
-    public String order() {
+    public Order order() {
         return this.order;
     }
 
@@ -347,54 +384,148 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
 
     void commonOptionsToXContent(XContentBuilder builder) throws IOException {
         if (preTags != null) {
-            builder.array("pre_tags", preTags);
+            builder.array(PRE_TAGS_FIELD.getPreferredName(), preTags);
         }
         if (postTags != null) {
-            builder.array("post_tags", postTags);
+            builder.array(POST_TAGS_FIELD.getPreferredName(), postTags);
         }
         if (fragmentSize != null) {
-            builder.field("fragment_size", fragmentSize);
+            builder.field(FRAGMENT_SIZE_FIELD.getPreferredName(), fragmentSize);
         }
         if (numOfFragments != null) {
-            builder.field("number_of_fragments", numOfFragments);
+            builder.field(NUMBER_OF_FRAGMENTS_FIELD.getPreferredName(), numOfFragments);
         }
         if (highlighterType != null) {
-            builder.field("type", highlighterType);
+            builder.field(TYPE_FIELD.getPreferredName(), highlighterType);
         }
         if (fragmenter != null) {
-            builder.field("fragmenter", fragmenter);
+            builder.field(FRAGMENTER_FIELD.getPreferredName(), fragmenter);
         }
         if (highlightQuery != null) {
-            builder.field("highlight_query", highlightQuery);
+            builder.field(HIGHLIGHT_QUERY_FIELD.getPreferredName(), highlightQuery);
         }
         if (order != null) {
-            builder.field("order", order);
+            builder.field(ORDER_FIELD.getPreferredName(), order.toString());
         }
         if (highlightFilter != null) {
-            builder.field("highlight_filter", highlightFilter);
+            builder.field(HIGHLIGHT_FILTER_FIELD.getPreferredName(), highlightFilter);
         }
         if (boundaryMaxScan != null) {
-            builder.field("boundary_max_scan", boundaryMaxScan);
+            builder.field(BOUNDARY_MAX_SCAN_FIELD.getPreferredName(), boundaryMaxScan);
         }
         if (boundaryChars != null) {
-            builder.field("boundary_chars", boundaryChars);
+            builder.field(BOUNDARY_CHARS_FIELD.getPreferredName(), new String(boundaryChars));
         }
         if (options != null && options.size() > 0) {
-            builder.field("options", options);
+            builder.field(OPTIONS_FIELD.getPreferredName(), options);
         }
         if (forceSource != null) {
-            builder.field("force_source", forceSource);
+            builder.field(FORCE_SOURCE_FIELD.getPreferredName(), forceSource);
         }
         if (requireFieldMatch != null) {
-            builder.field("require_field_match", requireFieldMatch);
+            builder.field(REQUIRE_FIELD_MATCH_FIELD.getPreferredName(), requireFieldMatch);
         }
         if (noMatchSize != null) {
-            builder.field("no_match_size", noMatchSize);
+            builder.field(NO_MATCH_SIZE_FIELD.getPreferredName(), noMatchSize);
         }
         if (phraseLimit != null) {
-            builder.field("phrase_limit", phraseLimit);
+            builder.field(PHRASE_LIMIT_FIELD.getPreferredName(), phraseLimit);
         }
     }
+
+    /**
+     * Creates a new {@link HighlightBuilder} from the highlighter held by the {@link QueryParseContext}
+     * in {@link org.elasticsearch.common.xcontent.XContent} format
+     *
+     * @param parseContext containing the parser positioned at the structure to be parsed from.
+     * the state on the parser contained in this context will be changed as a side effect of this
+     * method call
+     * @return the new {@link AbstractHighlighterBuilder}
+     */
+    public HB fromXContent(QueryParseContext parseContext) throws IOException {
+        XContentParser parser = parseContext.parser();
+        XContentParser.Token token = parser.currentToken();
+        String currentFieldName = null;
+        HB highlightBuilder = createInstance(parser);
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token == XContentParser.Token.START_ARRAY) {
+                if (parseContext.parseFieldMatcher().match(currentFieldName, PRE_TAGS_FIELD)) {
+                    List<String> preTagsList = new ArrayList<>();
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        preTagsList.add(parser.text());
+                    }
+                    highlightBuilder.preTags(preTagsList.toArray(new String[preTagsList.size()]));
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, POST_TAGS_FIELD)) {
+                    List<String> postTagsList = new ArrayList<>();
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        postTagsList.add(parser.text());
+                    }
+                    highlightBuilder.postTags(postTagsList.toArray(new String[postTagsList.size()]));
+                } else if (false == highlightBuilder.doFromXContent(parseContext, currentFieldName, token)) {
+                    throw new ParsingException(parser.getTokenLocation(), "cannot parse array with name [{}]", currentFieldName);
+                }
+            } else if (token.isValue()) {
+                if (parseContext.parseFieldMatcher().match(currentFieldName, ORDER_FIELD)) {
+                    highlightBuilder.order(Order.fromString(parser.text()));
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, HIGHLIGHT_FILTER_FIELD)) {
+                    highlightBuilder.highlightFilter(parser.booleanValue());
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, FRAGMENT_SIZE_FIELD)) {
+                    highlightBuilder.fragmentSize(parser.intValue());
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, NUMBER_OF_FRAGMENTS_FIELD)) {
+                    highlightBuilder.numOfFragments(parser.intValue());
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, REQUIRE_FIELD_MATCH_FIELD)) {
+                    highlightBuilder.requireFieldMatch(parser.booleanValue());
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, BOUNDARY_MAX_SCAN_FIELD)) {
+                    highlightBuilder.boundaryMaxScan(parser.intValue());
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, BOUNDARY_CHARS_FIELD)) {
+                    highlightBuilder.boundaryChars(parser.text().toCharArray());
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, TYPE_FIELD)) {
+                    highlightBuilder.highlighterType(parser.text());
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, FRAGMENTER_FIELD)) {
+                    highlightBuilder.fragmenter(parser.text());
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, NO_MATCH_SIZE_FIELD)) {
+                    highlightBuilder.noMatchSize(parser.intValue());
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, FORCE_SOURCE_FIELD)) {
+                    highlightBuilder.forceSource(parser.booleanValue());
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, PHRASE_LIMIT_FIELD)) {
+                    highlightBuilder.phraseLimit(parser.intValue());
+                } else if (false == highlightBuilder.doFromXContent(parseContext, currentFieldName, token)) {
+                    throw new ParsingException(parser.getTokenLocation(), "unexpected fieldname [{}]", currentFieldName);
+                }
+            } else if (token == XContentParser.Token.START_OBJECT && currentFieldName != null) {
+                if (parseContext.parseFieldMatcher().match(currentFieldName, OPTIONS_FIELD)) {
+                    highlightBuilder.options(parser.map());
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, HIGHLIGHT_QUERY_FIELD)) {
+                    highlightBuilder.highlightQuery(parseContext.parseInnerQueryBuilder());
+                } else if (false == highlightBuilder.doFromXContent(parseContext, currentFieldName, token)) {
+                    throw new ParsingException(parser.getTokenLocation(), "cannot parse object with name [{}]", currentFieldName);
+                }
+            } else if (currentFieldName != null) {
+                throw new ParsingException(parser.getTokenLocation(), "unexpected token [{}] after [{}]", token, currentFieldName);
+            }
+        }
+
+        if (highlightBuilder.preTags() != null && highlightBuilder.postTags() == null) {
+            throw new ParsingException(parser.getTokenLocation(), "Highlighter global preTags are set, but global postTags are not set");
+        }
+        return highlightBuilder;
+    }
+
+    /**
+     * @param parser the input parser. Implementing classes might advance the parser depending on the
+     * information they need to instantiate a new instance
+     * @return a new instance
+     */
+    protected abstract HB createInstance(XContentParser parser) throws IOException;
+
+    /**
+     * Implementing subclasses can handle parsing special options depending on the
+     * current token, field name and the parse context.
+     * @return <tt>true</tt> if an option was found and successfully parsed, otherwise <tt>false</tt>
+     */
+    protected abstract boolean doFromXContent(QueryParseContext parseContext, String currentFieldName, XContentParser.Token endMarkerToken) throws IOException;
 
     @Override
     public final int hashCode() {
@@ -405,7 +536,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
     }
 
     /**
-     * internal hashCode calculation to overwrite for the implementing classes.
+     * fields only present in subclass should contribute to hashCode in the implementation
      */
     protected abstract int doHashCode();
 
@@ -439,7 +570,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
     }
 
     /**
-     * internal equals to overwrite for the implementing classes.
+     * fields only present in subclass should be checked for equality in the implementation
      */
     protected abstract boolean doEquals(HB other);
 
@@ -457,7 +588,9 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         if (in.readBoolean()) {
             highlightQuery(in.readQuery());
         }
-        order(in.readOptionalString());
+        if (in.readBoolean()) {
+            order(Order.PROTOTYPE.readFrom(in));
+        }
         highlightFilter(in.readOptionalBoolean());
         forceSource(in.readOptionalBoolean());
         boundaryMaxScan(in.readOptionalVInt());
@@ -488,7 +621,11 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         if (hasQuery) {
             out.writeQuery(highlightQuery);
         }
-        out.writeOptionalString(order);
+        boolean hasSetOrder = order != null;
+        out.writeBoolean(hasSetOrder);
+        if (hasSetOrder) {
+            order.writeTo(out);
+        }
         out.writeOptionalBoolean(highlightFilter);
         out.writeOptionalBoolean(forceSource);
         out.writeOptionalVInt(boundaryMaxScan);

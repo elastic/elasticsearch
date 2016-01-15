@@ -201,7 +201,7 @@ public class RecoveryStateTests extends ESTestCase {
             }
         }
 
-        Collections.shuffle(Arrays.asList(files));
+        Collections.shuffle(Arrays.asList(files), random());
         final RecoveryState.Index index = new RecoveryState.Index();
 
         if (randomBoolean()) {

@@ -19,12 +19,18 @@
 
 package org.elasticsearch.action.support;
 
-import org.elasticsearch.action.*;
+import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.concurrent.atomic.AtomicInteger;
@@ -41,15 +47,17 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
     private final ActionFilter[] filters;
     protected final ParseFieldMatcher parseFieldMatcher;
     protected final IndexNameExpressionResolver indexNameExpressionResolver;
+    protected final TaskManager taskManager;
 
     protected TransportAction(Settings settings, String actionName, ThreadPool threadPool, ActionFilters actionFilters,
-                              IndexNameExpressionResolver indexNameExpressionResolver) {
+                              IndexNameExpressionResolver indexNameExpressionResolver, TaskManager taskManager) {
         super(settings);
         this.threadPool = threadPool;
         this.actionName = actionName;
         this.filters = actionFilters.filters();
         this.parseFieldMatcher = new ParseFieldMatcher(settings);
         this.indexNameExpressionResolver = indexNameExpressionResolver;
+        this.taskManager = taskManager;
     }
 
     public final ActionFuture<Response> execute(Request request) {
@@ -59,6 +67,28 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
     }
 
     public final void execute(Request request, ActionListener<Response> listener) {
+        Task task = taskManager.register("transport", actionName, request);
+        if (task == null) {
+            execute(null, request, listener);
+        } else {
+            execute(task, request, new ActionListener<Response>() {
+                @Override
+                public void onResponse(Response response) {
+                    taskManager.unregister(task);
+                    listener.onResponse(response);
+                }
+
+                @Override
+                public void onFailure(Throwable e) {
+                    taskManager.unregister(task);
+                    listener.onFailure(e);
+                }
+            });
+        }
+    }
+
+    private final void execute(Task task, Request request, ActionListener<Response> listener) {
+
         ActionRequestValidationException validationException = request.validate();
         if (validationException != null) {
             listener.onFailure(validationException);
@@ -67,15 +97,19 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
 
         if (filters.length == 0) {
             try {
-                doExecute(request, listener);
+                doExecute(task, request, listener);
             } catch(Throwable t) {
                 logger.trace("Error during transport action execution.", t);
                 listener.onFailure(t);
             }
         } else {
             RequestFilterChain requestFilterChain = new RequestFilterChain<>(this, logger);
-            requestFilterChain.proceed(actionName, request, listener);
+            requestFilterChain.proceed(task, actionName, request, listener);
         }
+    }
+
+    protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
+        doExecute(request, listener);
     }
 
     protected abstract void doExecute(Request request, ActionListener<Response> listener);
@@ -92,13 +126,13 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
         }
 
         @Override @SuppressWarnings("unchecked")
-        public void proceed(String actionName, ActionRequest request, ActionListener listener) {
+        public void proceed(Task task, String actionName, ActionRequest request, ActionListener listener) {
             int i = index.getAndIncrement();
             try {
                 if (i < this.action.filters.length) {
-                    this.action.filters[i].apply(actionName, request, listener, this);
+                    this.action.filters[i].apply(task, actionName, request, listener, this);
                 } else if (i == this.action.filters.length) {
-                    this.action.doExecute((Request) request, new FilteredActionListener<Response>(actionName, listener, new ResponseFilterChain(this.action.filters, logger)));
+                    this.action.doExecute(task, (Request) request, new FilteredActionListener<Response>(actionName, listener, new ResponseFilterChain(this.action.filters, logger)));
                 } else {
                     listener.onFailure(new IllegalStateException("proceed was called too many times"));
                 }
@@ -127,7 +161,7 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
         }
 
         @Override
-        public void proceed(String action, ActionRequest request, ActionListener listener) {
+        public void proceed(Task task, String action, ActionRequest request, ActionListener listener) {
             assert false : "response filter chain should never be called on the request side";
         }
 

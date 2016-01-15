@@ -32,7 +32,6 @@ import org.joda.time.format.PeriodFormat;
 import org.joda.time.format.PeriodFormatter;
 
 import java.io.IOException;
-import java.io.Serializable;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
@@ -229,6 +228,30 @@ public class TimeValue implements Streamable {
         return Strings.format1Decimals(value, suffix);
     }
 
+    public String getStringRep() {
+        if (duration < 0) {
+            return Long.toString(duration);
+        }
+        switch (timeUnit) {
+            case NANOSECONDS:
+                return Strings.format1Decimals(duration, "nanos");
+            case MICROSECONDS:
+                return Strings.format1Decimals(duration, "micros");
+            case MILLISECONDS:
+                return Strings.format1Decimals(duration, "ms");
+            case SECONDS:
+                return Strings.format1Decimals(duration, "s");
+            case MINUTES:
+                return Strings.format1Decimals(duration, "m");
+            case HOURS:
+                return Strings.format1Decimals(duration, "h");
+            case DAYS:
+                return Strings.format1Decimals(duration, "d");
+            default:
+                throw new IllegalArgumentException("unknown time unit: " + timeUnit.name());
+        }
+    }
+
     public static TimeValue parseTimeValue(String sValue, TimeValue defaultValue, String settingName) {
         settingName = Objects.requireNonNull(settingName);
         assert settingName.startsWith("index.") == false || MetaDataIndexUpgradeService.INDEX_TIME_SETTINGS.contains(settingName) : settingName;
@@ -257,13 +280,8 @@ public class TimeValue implements Streamable {
                 // Allow this special value to be unit-less:
                 millis = 0;
             } else {
-                if (Settings.getSettingsRequireUnits()) {
-                    // Missing units:
-                    throw new ElasticsearchParseException("Failed to parse setting [{}] with value [{}] as a time value: unit is missing or unrecognized", settingName, sValue);
-                } else {
-                    // Leniency default to msec for bwc:
-                    millis = Long.parseLong(sValue);
-                }
+                // Missing units:
+                throw new ElasticsearchParseException("Failed to parse setting [{}] with value [{}] as a time value: unit is missing or unrecognized", settingName, sValue);
             }
             return new TimeValue(millis, TimeUnit.MILLISECONDS);
         } catch (NumberFormatException e) {

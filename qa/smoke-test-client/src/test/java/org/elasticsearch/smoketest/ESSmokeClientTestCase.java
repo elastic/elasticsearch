@@ -34,7 +34,10 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
+import java.io.IOException;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.URL;
 import java.net.UnknownHostException;
 import java.nio.file.Path;
 import java.util.Locale;
@@ -103,20 +106,14 @@ public abstract class ESSmokeClientTestCase extends LuceneTestCase {
         return client;
     }
 
-    private static Client startClient() throws UnknownHostException {
+    private static Client startClient() throws IOException {
         String[] stringAddresses = clusterAddresses.split(",");
         TransportAddress[] transportAddresses = new TransportAddress[stringAddresses.length];
         int i = 0;
         for (String stringAddress : stringAddresses) {
-            String[] split = stringAddress.split(":");
-            if (split.length < 2) {
-                throw new IllegalArgumentException("address [" + clusterAddresses + "] not valid");
-            }
-            try {
-                transportAddresses[i++] = new InetSocketTransportAddress(InetAddress.getByName(split[0]), Integer.valueOf(split[1]));
-            } catch (NumberFormatException e) {
-                throw new IllegalArgumentException("port is not valid, expected number but was [" + split[1] + "]");
-            }
+            URL url = new URL("http://" + stringAddress);
+            InetAddress inetAddress = InetAddress.getByName(url.getHost());
+            transportAddresses[i++] = new InetSocketTransportAddress(new InetSocketAddress(inetAddress, url.getPort()));
         }
         return startClient(createTempDir(), transportAddresses);
     }
@@ -125,7 +122,7 @@ public abstract class ESSmokeClientTestCase extends LuceneTestCase {
         if (client == null) {
             try {
                 client = startClient();
-            } catch (UnknownHostException e) {
+            } catch (IOException e) {
                 logger.error("can not start the client", e);
             }
             assertThat(client, notNullValue());

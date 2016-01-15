@@ -23,19 +23,33 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BytesRestResponse;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
+
+import java.io.IOException;
 
 /**
  */
 public class RestClusterGetSettingsAction extends BaseRestHandler {
 
+    private final ClusterSettings clusterSettings;
+
     @Inject
-    public RestClusterGetSettingsAction(Settings settings, RestController controller, Client client) {
+    public RestClusterGetSettingsAction(Settings settings, RestController controller, Client client, ClusterSettings clusterSettings) {
         super(settings, controller, client);
+        this.clusterSettings = clusterSettings;
         controller.registerHandler(RestRequest.Method.GET, "/_cluster/settings", this);
     }
 
@@ -44,24 +58,34 @@ public class RestClusterGetSettingsAction extends BaseRestHandler {
         ClusterStateRequest clusterStateRequest = Requests.clusterStateRequest()
                 .routingTable(false)
                 .nodes(false);
+        final boolean renderDefaults = request.paramAsBoolean("defaults", false);
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
         client.admin().cluster().state(clusterStateRequest, new RestBuilderListener<ClusterStateResponse>(channel) {
             @Override
             public RestResponse buildResponse(ClusterStateResponse response, XContentBuilder builder) throws Exception {
-                builder.startObject();
-
-                builder.startObject("persistent");
-                response.getState().metaData().persistentSettings().toXContent(builder, request);
-                builder.endObject();
-
-                builder.startObject("transient");
-                response.getState().metaData().transientSettings().toXContent(builder, request);
-                builder.endObject();
-
-                builder.endObject();
-
-                return new BytesRestResponse(RestStatus.OK, builder);
+                return new BytesRestResponse(RestStatus.OK, renderResponse(response.getState(), renderDefaults, builder, request));
             }
         });
+    }
+
+    private XContentBuilder renderResponse(ClusterState state, boolean renderDefaults, XContentBuilder builder, ToXContent.Params params) throws IOException {
+        builder.startObject();
+
+        builder.startObject("persistent");
+        state.metaData().persistentSettings().toXContent(builder, params);
+        builder.endObject();
+
+        builder.startObject("transient");
+        state.metaData().transientSettings().toXContent(builder, params);
+        builder.endObject();
+
+        if (renderDefaults) {
+            builder.startObject("defaults");
+            clusterSettings.diff(state.metaData().settings(), this.settings).toXContent(builder, params);
+            builder.endObject();
+        }
+
+        builder.endObject();
+        return builder;
     }
 }

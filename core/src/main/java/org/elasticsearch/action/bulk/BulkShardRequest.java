@@ -40,10 +40,8 @@ public class BulkShardRequest extends ReplicationRequest<BulkShardRequest> {
     public BulkShardRequest() {
     }
 
-    BulkShardRequest(BulkRequest bulkRequest, String index, int shardId, boolean refresh, BulkItemRequest[] items) {
-        super(bulkRequest);
-        this.index = index;
-        this.setShardId(new ShardId(index, shardId));
+    BulkShardRequest(BulkRequest bulkRequest, ShardId shardId, boolean refresh, BulkItemRequest[] items) {
+        super(bulkRequest, shardId);
         this.items = items;
         this.refresh = refresh;
     }
@@ -54,17 +52,6 @@ public class BulkShardRequest extends ReplicationRequest<BulkShardRequest> {
 
     BulkItemRequest[] items() {
         return items;
-    }
-
-    @Override
-    public String toString() {
-        // This is included in error messages so we'll try to make it somewhat user friendly.
-        StringBuilder b = new StringBuilder("BulkShardRequest to [");
-        b.append(index).append("] containing [").append(items.length).append("] requests");
-        if (refresh) {
-            b.append(" and a refresh");
-        }
-        return b.toString();
     }
 
     @Override
@@ -103,5 +90,16 @@ public class BulkShardRequest extends ReplicationRequest<BulkShardRequest> {
             }
         }
         refresh = in.readBoolean();
+    }
+
+    @Override
+    public String toString() {
+        // This is included in error messages so we'll try to make it somewhat user friendly.
+        StringBuilder b = new StringBuilder("BulkShardRequest to [");
+        b.append(index).append("] containing [").append(items.length).append("] requests");
+        if (refresh) {
+            b.append(" and a refresh");
+        }
+        return b.toString();
     }
 }

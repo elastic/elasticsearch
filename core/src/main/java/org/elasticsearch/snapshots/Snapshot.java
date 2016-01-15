@@ -22,7 +22,11 @@ package org.elasticsearch.snapshots;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.common.xcontent.FromXContentBuilder;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilderString;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;

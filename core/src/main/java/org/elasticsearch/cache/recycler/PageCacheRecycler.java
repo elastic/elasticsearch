@@ -32,7 +32,10 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.Arrays;
 import java.util.Locale;
 
-import static org.elasticsearch.common.recycler.Recyclers.*;
+import static org.elasticsearch.common.recycler.Recyclers.concurrent;
+import static org.elasticsearch.common.recycler.Recyclers.concurrentDeque;
+import static org.elasticsearch.common.recycler.Recyclers.dequeFactory;
+import static org.elasticsearch.common.recycler.Recyclers.none;
 
 /** A recycler of fixed-size pages. */
 public class PageCacheRecycler extends AbstractComponent {

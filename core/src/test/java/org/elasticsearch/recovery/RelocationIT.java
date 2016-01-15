@@ -21,7 +21,6 @@ package org.elasticsearch.recovery;
 
 import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.procedures.IntProcedure;
-
 import org.apache.lucene.index.IndexFileNames;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -387,7 +386,7 @@ public class RelocationIT extends ESIntegTestCase {
 
         logger.info("--> stopping replica assignment");
         assertAcked(client().admin().cluster().prepareUpdateSettings()
-                .setTransientSettings(Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, "none")));
+                .setTransientSettings(Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none")));
 
         logger.info("--> wait for all replica shards to be removed, on all nodes");
         assertBusy(new Runnable() {

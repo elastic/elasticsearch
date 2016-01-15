@@ -29,7 +29,7 @@
           dest:
             index: dest
   - match:
-      failures.0.cause.reason: /Not.enough.active.copies.to.meet.write.consistency.of.\[QUORUM\].\(have.1,.needed.4\)\..Timeout\:.\[1s\],.request:.BulkShardRequest.to.\[dest\].containing.\[1\].requests/
+      failures.0.cause.reason: /Not.enough.active.copies.to.meet.write.consistency.of.\[QUORUM\].\(have.1,.needed.4\)\..Timeout\:.\[1s\],.request:.\[BulkShardRequest.to.\[dest\].containing.\[1\].requests\]/
 
   - do:
       reindex:

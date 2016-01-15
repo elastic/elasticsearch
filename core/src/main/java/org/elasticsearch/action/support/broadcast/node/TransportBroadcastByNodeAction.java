@@ -19,8 +19,16 @@
 
 package org.elasticsearch.action.support.broadcast.node;
 
-import org.elasticsearch.action.*;
-import org.elasticsearch.action.support.*;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.NoShardAvailableActionException;
+import org.elasticsearch.action.ShardOperationFailedException;
+import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.DefaultShardOperationFailedException;
+import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
@@ -37,7 +45,14 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.*;
+import org.elasticsearch.transport.BaseTransportResponseHandler;
+import org.elasticsearch.transport.NodeShouldNotConnectException;
+import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestHandler;
+import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -223,7 +238,9 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
                 throw requestBlockException;
             }
 
-            logger.trace("resolving shards for [{}] based on cluster state version [{}]", actionName, clusterState.version());
+            if (logger.isTraceEnabled()) {
+                logger.trace("resolving shards for [{}] based on cluster state version [{}]", actionName, clusterState.version());
+            }
             ShardsIterator shardIt = shards(clusterState, request, concreteIndices);
             nodeIds = new HashMap<>();
 
@@ -300,7 +317,9 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
         }
 
         protected void onNodeResponse(DiscoveryNode node, int nodeIndex, NodeResponse response) {
-            logger.trace("received response for [{}] from node [{}]", actionName, node.id());
+            if (logger.isTraceEnabled()) {
+                logger.trace("received response for [{}] from node [{}]", actionName, node.id());
+            }
 
             // this is defensive to protect against the possibility of double invocation
             // the current implementation of TransportService#sendRequest guards against this
@@ -351,7 +370,9 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
         public void messageReceived(final NodeRequest request, TransportChannel channel) throws Exception {
             List<ShardRouting> shards = request.getShards();
             final int totalShards = shards.size();
-            logger.trace("[{}] executing operation on [{}] shards", actionName, totalShards);
+            if (logger.isTraceEnabled()) {
+                logger.trace("[{}] executing operation on [{}] shards", actionName, totalShards);
+            }
             final Object[] shardResultOrExceptions = new Object[totalShards];
 
             int shardIndex = -1;
@@ -375,16 +396,28 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
 
         private void onShardOperation(final NodeRequest request, final Object[] shardResults, final int shardIndex, final ShardRouting shardRouting) {
             try {
-                logger.trace("[{}]  executing operation for shard [{}]", actionName, shardRouting.shortSummary());
+                if (logger.isTraceEnabled()) {
+                    logger.trace("[{}]  executing operation for shard [{}]", actionName, shardRouting.shortSummary());
+                }
                 ShardOperationResult result = shardOperation(request.indicesLevelRequest, shardRouting);
                 shardResults[shardIndex] = result;
-                logger.trace("[{}]  completed operation for shard [{}]", actionName, shardRouting.shortSummary());
+                if (logger.isTraceEnabled()) {
+                    logger.trace("[{}]  completed operation for shard [{}]", actionName, shardRouting.shortSummary());
+                }
             } catch (Throwable t) {
                 BroadcastShardOperationFailedException e = new BroadcastShardOperationFailedException(shardRouting.shardId(), "operation " + actionName + " failed", t);
                 e.setIndex(shardRouting.getIndex());
                 e.setShard(shardRouting.shardId());
                 shardResults[shardIndex] = e;
-                logger.debug("[{}] failed to execute operation for shard [{}]", e, actionName, shardRouting.shortSummary());
+                if (TransportActions.isShardNotAvailableException(t)) {
+                    if (logger.isTraceEnabled()) {
+                        logger.trace("[{}] failed to execute operation for shard [{}]", t, actionName, shardRouting.shortSummary());
+                    }
+                } else {
+                    if (logger.isDebugEnabled()) {
+                        logger.debug("[{}] failed to execute operation for shard [{}]", t, actionName, shardRouting.shortSummary());
+                    }
+                }
             }
         }
     }

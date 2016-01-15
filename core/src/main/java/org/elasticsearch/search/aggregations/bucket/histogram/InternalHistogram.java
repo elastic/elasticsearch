@@ -23,7 +23,6 @@ import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.rounding.Rounding;
-import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
@@ -151,7 +150,7 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             if (formatter != ValueFormatter.RAW) {
-                Text keyTxt = new StringText(formatter.format(key));
+                Text keyTxt = new Text(formatter.format(key));
                 if (keyed) {
                     builder.startObject(keyTxt.string());
                 } else {
@@ -392,12 +391,14 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
         return reducedBuckets;
     }
 
-    private void addEmptyBuckets(List<B> list) {
+    private void addEmptyBuckets(List<B> list, ReduceContext reduceContext) {
         B lastBucket = null;
         ExtendedBounds bounds = emptyBucketInfo.bounds;
         ListIterator<B> iter = list.listIterator();
 
         // first adding all the empty buckets *before* the actual data (based on th extended_bounds.min the user requested)
+        InternalAggregations reducedEmptySubAggs = InternalAggregations.reduce(Collections.singletonList(emptyBucketInfo.subAggregations),
+                reduceContext);
         if (bounds != null) {
             B firstBucket = iter.hasNext() ? list.get(iter.nextIndex()) : null;
             if (firstBucket == null) {
@@ -405,7 +406,9 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
                     long key = bounds.min;
                     long max = bounds.max;
                     while (key <= max) {
-                        iter.add(getFactory().createBucket(key, 0, emptyBucketInfo.subAggregations, keyed, formatter));
+                        iter.add(getFactory().createBucket(key, 0,
+                                reducedEmptySubAggs,
+                                keyed, formatter));
                         key = emptyBucketInfo.rounding.nextRoundingValue(key);
                     }
                 }
@@ -414,7 +417,9 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
                     long key = bounds.min;
                     if (key < firstBucket.key) {
                         while (key < firstBucket.key) {
-                            iter.add(getFactory().createBucket(key, 0, emptyBucketInfo.subAggregations, keyed, formatter));
+                            iter.add(getFactory().createBucket(key, 0,
+                                    reducedEmptySubAggs,
+                                    keyed, formatter));
                             key = emptyBucketInfo.rounding.nextRoundingValue(key);
                         }
                     }
@@ -429,7 +434,9 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
             if (lastBucket != null) {
                 long key = emptyBucketInfo.rounding.nextRoundingValue(lastBucket.key);
                 while (key < nextBucket.key) {
-                    iter.add(getFactory().createBucket(key, 0, emptyBucketInfo.subAggregations, keyed, formatter));
+                    iter.add(getFactory().createBucket(key, 0,
+                            reducedEmptySubAggs, keyed,
+                            formatter));
                     key = emptyBucketInfo.rounding.nextRoundingValue(key);
                 }
                 assert key == nextBucket.key;
@@ -442,7 +449,9 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
             long key = emptyBucketInfo.rounding.nextRoundingValue(lastBucket.key);
             long max = bounds.max;
             while (key <= max) {
-                iter.add(getFactory().createBucket(key, 0, emptyBucketInfo.subAggregations, keyed, formatter));
+                iter.add(getFactory().createBucket(key, 0,
+                        reducedEmptySubAggs, keyed,
+                        formatter));
                 key = emptyBucketInfo.rounding.nextRoundingValue(key);
             }
         }
@@ -454,7 +463,7 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
 
         // adding empty buckets if needed
         if (minDocCount == 0) {
-            addEmptyBuckets(reducedBuckets);
+            addEmptyBuckets(reducedBuckets, reduceContext);
         }
 
         if (order == InternalOrder.KEY_ASC) {

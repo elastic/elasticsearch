@@ -28,7 +28,6 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.index.engine.CommitStats;
-import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardPath;
 
 import java.io.IOException;

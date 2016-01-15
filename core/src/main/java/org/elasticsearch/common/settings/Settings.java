@@ -76,19 +76,6 @@ public final class Settings implements ToXContent {
     public static final Settings EMPTY = new Builder().build();
     private static final Pattern ARRAY_PATTERN = Pattern.compile("(.*)\\.\\d+$");
 
-    /** Name of the setting to use to disable required units for byte size, time settings. */
-    public static final String SETTINGS_REQUIRE_UNITS = "settings_require_units";
-
-    private static boolean settingsRequireUnits = true;
-
-    public static void setSettingsRequireUnits(boolean v) {
-        settingsRequireUnits = v;
-    }
-
-    public static boolean getSettingsRequireUnits() {
-        return settingsRequireUnits;
-    }
-
     private final Map<String, String> forcedUnderscoreSettings;
     private SortedMap<String, String> settings;
 
@@ -597,6 +584,8 @@ public final class Settings implements ToXContent {
         return result.toArray(new String[result.size()]);
     }
 
+
+
     /**
      * Returns group settings for the given setting prefix.
      */
@@ -614,6 +603,9 @@ public final class Settings implements ToXContent {
         if (settingPrefix.charAt(settingPrefix.length() - 1) != '.') {
             settingPrefix = settingPrefix + ".";
         }
+        return getGroupsInternal(settingPrefix, ignoreNonGrouped);
+    }
+    private Map<String, Settings> getGroupsInternal(String settingPrefix, boolean ignoreNonGrouped) throws SettingsException {
         // we don't really care that it might happen twice
         Map<String, Map<String, String>> map = new LinkedHashMap<>();
         for (Object o : settings.keySet()) {
@@ -642,6 +634,16 @@ public final class Settings implements ToXContent {
             retVal.put(entry.getKey(), new Settings(Collections.unmodifiableMap(entry.getValue())));
         }
         return Collections.unmodifiableMap(retVal);
+    }
+    /**
+     * Returns group settings for the given setting prefix.
+     */
+    public Map<String, Settings> getAsGroups() throws SettingsException {
+        return getAsGroups(false);
+    }
+
+    public Map<String, Settings> getAsGroups(boolean ignoreNonGrouped) throws SettingsException {
+        return getGroupsInternal("", ignoreNonGrouped);
     }
 
     /**
@@ -706,7 +708,7 @@ public final class Settings implements ToXContent {
         Builder builder = new Builder();
         int numberOfSettings = in.readVInt();
         for (int i = 0; i < numberOfSettings; i++) {
-            builder.put(in.readString(), in.readString());
+            builder.put(in.readString(), in.readOptionalString());
         }
         return builder.build();
     }
@@ -715,7 +717,7 @@ public final class Settings implements ToXContent {
         out.writeVInt(settings.getAsMap().size());
         for (Map.Entry<String, String> entry : settings.getAsMap().entrySet()) {
             out.writeString(entry.getKey());
-            out.writeString(entry.getValue());
+            out.writeOptionalString(entry.getValue());
         }
     }
 
@@ -816,6 +818,10 @@ public final class Settings implements ToXContent {
         public Builder put(String key, String value) {
             map.put(key, value);
             return this;
+        }
+
+        public Builder putNull(String key) {
+            return put(key, (String) null);
         }
 
         /**

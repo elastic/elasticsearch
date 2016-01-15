@@ -23,7 +23,6 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.MoreLikeThisQueryParser.Field;
 import org.elasticsearch.index.search.MatchQuery;
 
 import java.io.IOException;

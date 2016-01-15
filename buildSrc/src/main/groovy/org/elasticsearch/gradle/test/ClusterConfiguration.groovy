@@ -23,20 +23,22 @@ import org.gradle.api.Project
 import org.gradle.api.file.FileCollection
 import org.gradle.api.tasks.Input
 
+import java.time.LocalDateTime
+
 /** Configuration for an elasticsearch cluster, used for integration tests. */
 class ClusterConfiguration {
 
     @Input
-    String distribution = 'zip'
+    String distribution = 'integ-test-zip'
 
     @Input
     int numNodes = 1
 
     @Input
-    int baseHttpPort = 9400
+    int httpPort = 0
 
     @Input
-    int baseTransportPort = 9500
+    int transportPort = 0
 
     @Input
     boolean daemonize = true
@@ -55,7 +57,7 @@ class ClusterConfiguration {
     @Input
     Closure waitCondition = { NodeInfo node, AntBuilder ant ->
         File tmpFile = new File(node.cwd, 'wait.success')
-        ant.get(src: "http://localhost:${node.httpPort()}",
+        ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes=${numNodes}",
                 dest: tmpFile.toString(),
                 ignoreerrors: true, // do not fail on error, so logging buffers can be flushed by the wait task
                 retries: 10)
@@ -70,6 +72,8 @@ class ClusterConfiguration {
     Map<String, Object> extraConfigFiles = new HashMap<>()
 
     LinkedHashMap<String, Object> plugins = new LinkedHashMap<>()
+
+    List<Project> modules = new ArrayList<>()
 
     LinkedHashMap<String, Object[]> setupCommands = new LinkedHashMap<>()
 
@@ -91,6 +95,12 @@ class ClusterConfiguration {
     @Input
     void plugin(String name, Project pluginProject) {
         plugins.put(name, pluginProject)
+    }
+
+    /** Add a module to the cluster. The project must be an esplugin and have a single zip default artifact. */
+    @Input
+    void module(Project moduleProject) {
+        modules.add(moduleProject)
     }
 
     @Input

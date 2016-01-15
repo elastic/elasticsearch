@@ -42,6 +42,4 @@ integTest {
   enabled = new File('/bin/rpm').exists() ||   // Standard location
       new File('/usr/bin/rpm').exists() ||     // Debian location
       new File('/usr/local/bin/rpm').exists()  // Homebrew location
-  dependsOn buildRpm
-  clusterConfig.distribution = 'rpm'
 }

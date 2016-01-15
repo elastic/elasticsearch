@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.action.admin;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodeHotThreads;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRequestBuilder;
@@ -40,6 +41,7 @@ import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.Matchers.lessThan;
 
 public class HotThreadsIT extends ESIntegTestCase {
+
     public void testHotThreadsDontFail() throws ExecutionException, InterruptedException {
         /**
          * This test just checks if nothing crashes or gets stuck etc.
@@ -125,6 +127,7 @@ public class HotThreadsIT extends ESIntegTestCase {
     }
 
     public void testIgnoreIdleThreads() throws ExecutionException, InterruptedException {
+        assumeTrue("no support for hot_threads on FreeBSD", Constants.FREE_BSD == false);
 
         // First time, don't ignore idle threads:
         NodesHotThreadsRequestBuilder builder = client().admin().cluster().prepareNodesHotThreads();
@@ -158,12 +161,19 @@ public class HotThreadsIT extends ESIntegTestCase {
 
         NodesHotThreadsResponse response = client().admin().cluster().prepareNodesHotThreads().execute().get();
 
-        for (NodeHotThreads node : response.getNodesMap().values()) {
-            String result = node.getHotThreads();
-            assertTrue(result.indexOf("Hot threads at") != -1);
-            assertTrue(result.indexOf("interval=500ms") != -1);
-            assertTrue(result.indexOf("busiestThreads=3") != -1);
-            assertTrue(result.indexOf("ignoreIdleThreads=true") != -1);
+        if (Constants.FREE_BSD) {
+            for (NodeHotThreads node : response.getNodesMap().values()) {
+                String result = node.getHotThreads();
+                assertTrue(result.indexOf("hot_threads is not supported") != -1);
+            }
+        } else {
+            for (NodeHotThreads node : response.getNodesMap().values()) {
+                String result = node.getHotThreads();
+                assertTrue(result.indexOf("Hot threads at") != -1);
+                assertTrue(result.indexOf("interval=500ms") != -1);
+                assertTrue(result.indexOf("busiestThreads=3") != -1);
+                assertTrue(result.indexOf("ignoreIdleThreads=true") != -1);
+            }
         }
     }
 }

@@ -30,7 +30,11 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.index.FilterableTermsEnum;
 import org.elasticsearch.common.lucene.index.FreqTermsEnum;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.search.aggregations.*;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.NonCollectingAggregator;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
@@ -198,7 +202,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                     pipelineAggregators, metaData);
         }
 
-        
+
         if ((includeExclude != null) && (includeExclude.isRegexBased())) {
             throw new AggregationExecutionException("Aggregation [" + name + "] cannot support regular expression style include/exclude " +
                     "settings as they can only be applied to string fields. Use an array of numeric values for include/exclude clauses used to filter numeric fields");
@@ -223,12 +227,12 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
 
     /**
      * Creates the TermsEnum (if not already created) and must be called before any calls to getBackgroundFrequency
-     * @param context The aggregation context 
+     * @param context The aggregation context
      * @return The number of documents in the index (after an optional filter might have been applied)
      */
     public long prepareBackground(AggregationContext context) {
         if (termsEnum != null) {
-            // already prepared - return 
+            // already prepared - return
             return termsEnum.getNumDocs();
         }
         SearchContext searchContext = context.searchContext();
@@ -238,7 +242,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                 // Setup a termsEnum for sole use by one aggregator
                 termsEnum = new FilterableTermsEnum(reader, indexedFieldName, PostingsEnum.NONE, filter);
             } else {
-                // When we have > 1 agg we have possibility of duplicate term frequency lookups 
+                // When we have > 1 agg we have possibility of duplicate term frequency lookups
                 // and so use a TermsEnum that caches results of all term lookups
                 termsEnum = new FreqTermsEnum(reader, indexedFieldName, true, false, filter, searchContext.bigArrays());
             }

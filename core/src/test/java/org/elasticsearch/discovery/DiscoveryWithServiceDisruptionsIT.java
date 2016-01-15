@@ -25,7 +25,11 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.*;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -55,7 +59,16 @@ import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.discovery.ClusterDiscoveryConfiguration;
-import org.elasticsearch.test.disruption.*;
+import org.elasticsearch.test.disruption.BlockClusterStateProcessing;
+import org.elasticsearch.test.disruption.IntermittentLongGCDisruption;
+import org.elasticsearch.test.disruption.LongGCDisruption;
+import org.elasticsearch.test.disruption.NetworkDelaysPartition;
+import org.elasticsearch.test.disruption.NetworkDisconnectPartition;
+import org.elasticsearch.test.disruption.NetworkPartition;
+import org.elasticsearch.test.disruption.NetworkUnresponsivePartition;
+import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
+import org.elasticsearch.test.disruption.SingleNodeDisruption;
+import org.elasticsearch.test.disruption.SlowClusterStateProcessing;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportException;
@@ -65,15 +78,31 @@ import org.elasticsearch.transport.TransportService;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, transportClientRatio = 0)
 @ESIntegTestCase.SuppressLocalMode
@@ -132,7 +161,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
             .put(FaultDetection.SETTING_PING_TIMEOUT, "1s") // for hitting simulated network failures quickly
             .put(FaultDetection.SETTING_PING_RETRIES, "1") // for hitting simulated network failures quickly
             .put("discovery.zen.join_timeout", "10s")  // still long to induce failures but to long so test won't time out
-            .put(DiscoverySettings.PUBLISH_TIMEOUT, "1s") // <-- for hitting simulated network failures quickly
+            .put(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(), "1s") // <-- for hitting simulated network failures quickly
             .put("http.enabled", false) // just to make test quicker
             .put("gateway.local.list_timeout", "10s") // still long to induce failures but to long so test won't time out
             .build();
@@ -150,7 +179,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         // TODO: Rarely use default settings form some of these
         Settings nodeSettings = Settings.builder()
                 .put(DEFAULT_SETTINGS)
-                .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, minimumMasterNode)
+                .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), minimumMasterNode)
                 .build();
 
         if (discoveryConfig == null) {
@@ -217,7 +246,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
 
         logger.info("--> reducing min master nodes to 2");
         assertAcked(client().admin().cluster().prepareUpdateSettings()
-                .setTransientSettings(Settings.builder().put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, 2)).get());
+                .setTransientSettings(Settings.builder().put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), 2)).get());
 
         String master = internalCluster().getMasterName();
         String nonMaster = null;
@@ -293,9 +322,9 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         // Wait until the master node sees al 3 nodes again.
         ensureStableCluster(3, new TimeValue(DISRUPTION_HEALING_OVERHEAD.millis() + networkPartition.expectedTimeToHeal().millis()));
 
-        logger.info("Verify no master block with {} set to {}", DiscoverySettings.NO_MASTER_BLOCK, "all");
+        logger.info("Verify no master block with {} set to {}", DiscoverySettings.NO_MASTER_BLOCK_SETTING.getKey(), "all");
         client().admin().cluster().prepareUpdateSettings()
-                .setTransientSettings(Settings.builder().put(DiscoverySettings.NO_MASTER_BLOCK, "all"))
+                .setTransientSettings(Settings.builder().put(DiscoverySettings.NO_MASTER_BLOCK_SETTING.getKey(), "all"))
                 .get();
 
         networkPartition.startDisrupting();
@@ -473,7 +502,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
                 docsPerIndexer = 1 + randomInt(5);
                 logger.info("indexing " + docsPerIndexer + " docs per indexer during partition");
                 countDownLatchRef.set(new CountDownLatch(docsPerIndexer * indexers.size()));
-                Collections.shuffle(semaphores);
+                Collections.shuffle(semaphores, random());
                 for (Semaphore semaphore : semaphores) {
                     assertThat(semaphore.availablePermits(), equalTo(0));
                     semaphore.release(docsPerIndexer);
@@ -683,7 +712,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         ensureGreen("test");
 
         nodes = new ArrayList<>(nodes);
-        Collections.shuffle(nodes, getRandom());
+        Collections.shuffle(nodes, random());
         String isolatedNode = nodes.get(0);
         String notIsolatedNode = nodes.get(1);
 
@@ -863,7 +892,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         internalCluster().startNodesAsync(3,
                 Settings.builder()
                         .put(DiscoveryService.SETTING_INITIAL_STATE_TIMEOUT, "1ms")
-                        .put(DiscoverySettings.PUBLISH_TIMEOUT, "3s")
+                        .put(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(), "3s")
                         .build()).get();
 
         logger.info("applying disruption while cluster is forming ...");
@@ -1038,7 +1067,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
                 new NetworkDisconnectPartition(getRandom()),
                 new SlowClusterStateProcessing(getRandom())
         );
-        Collections.shuffle(list);
+        Collections.shuffle(list, random());
         setDisruptionScheme(list.get(0));
         return list.get(0);
     }

@@ -35,6 +35,7 @@ public class UpdateShasTask extends DefaultTask {
 
     public UpdateShasTask() {
         description = 'Updates the sha files for the dependencyLicenses check'
+        onlyIf { parentTask.licensesDir.exists() }
     }
 
     @TaskAction
@@ -42,13 +43,13 @@ public class UpdateShasTask extends DefaultTask {
         Set<File> shaFiles = new HashSet<File>()
         parentTask.licensesDir.eachFile {
             String name = it.getName()
-            if (name.endsWith(SHA_EXTENSION)) {
+            if (name.endsWith(DependencyLicensesTask.SHA_EXTENSION)) {
                 shaFiles.add(it)
             }
         }
         for (File dependency : parentTask.dependencies) {
             String jarName = dependency.getName()
-            File shaFile = new File(parentTask.licensesDir, jarName + SHA_EXTENSION)
+            File shaFile = new File(parentTask.licensesDir, jarName + DependencyLicensesTask.SHA_EXTENSION)
             if (shaFile.exists() == false) {
                 logger.lifecycle("Adding sha for ${jarName}")
                 String sha = MessageDigest.getInstance("SHA-1").digest(dependency.getBytes()).encodeHex().toString()

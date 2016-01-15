@@ -20,7 +20,7 @@
 package org.elasticsearch.plugin.reindex;
 
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.common.text.StringText;
+import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.mapper.internal.TTLFieldMapper;
 import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
 import org.elasticsearch.search.SearchShardTarget;
@@ -29,21 +29,18 @@ import org.elasticsearch.search.internal.InternalSearchHitField;
 
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
+import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 
 public abstract class AbstractAsyncBulkIndexbyScrollActionMetadataTestCase<Request extends AbstractBulkIndexByScrollRequest<Request>, Response extends BulkIndexByScrollResponse>
         extends AbstractAsyncBulkIndexByScrollActionTestCase<Request, Response> {
 
     /**
      * Create a doc with some metadata.
-     * @param field
-     * @param value
-     * @return
      */
     protected InternalSearchHit doc(String field, Object value) {
-        InternalSearchHit doc = new InternalSearchHit(0, "id", new StringText("type"), singletonMap(field,
+        InternalSearchHit doc = new InternalSearchHit(0, "id", new Text("type"), singletonMap(field,
                 new InternalSearchHitField(field, singletonList(value))));
         doc.shardTarget(new SearchShardTarget("node", "shard", 0));
-//        doc.sourceRef(new BytesArray("{\"foo\": \"bar\"}"));
         return doc;
     }
 
@@ -56,7 +53,6 @@ public abstract class AbstractAsyncBulkIndexbyScrollActionMetadataTestCase<Reque
     public void testTTL() throws Exception {
         IndexRequest index = new IndexRequest();
         action().copyMetadata(index, doc(TTLFieldMapper.NAME, 10L));
-        assertEquals(10, index.ttl());
+        assertEquals(timeValueMillis(10), index.ttl());
     }
-
 }

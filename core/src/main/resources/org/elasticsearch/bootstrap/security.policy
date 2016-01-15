@@ -31,10 +31,12 @@ grant codeBase "${codebase.securesm-1.0.jar}" {
 //// Very special jar permissions:
 //// These are dangerous permissions that we don't want to grant to everything.
 
-grant codeBase "${codebase.lucene-core-5.4.0-snapshot-1715952.jar}" {
+grant codeBase "${codebase.lucene-core-5.5.0-snapshot-1721183.jar}" {
   // needed to allow MMapDirectory's "unmap hack"
   permission java.lang.RuntimePermission "accessClassInPackage.sun.misc";
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
+  // NOTE: also needed for RAMUsageEstimator size calculations
+  permission java.lang.RuntimePermission "accessDeclaredMembers";
 };
 
 //// Everything else:
@@ -84,9 +86,6 @@ grant {
   // the bug says it only happened rarely, and that its fixed, but apparently it still happens rarely!
   permission java.util.PropertyPermission "sun.nio.ch.bugLevel", "write";
 
-  // needed by lucene SPI currently 
-  permission java.lang.RuntimePermission "getClassLoader";
-
   // needed by Settings
   permission java.lang.RuntimePermission "getenv.*";
 
@@ -100,9 +99,6 @@ grant {
   // (TODO: clean this up?)
   permission java.lang.RuntimePermission "getProtectionDomain";
   
-  // likely not low hanging fruit...
-  permission java.lang.RuntimePermission "accessDeclaredMembers";
-
   // needed by HotThreads and potentially more
   // otherwise can be provided only to test libraries
   permission java.lang.RuntimePermission "getStackTrace";
@@ -119,4 +115,10 @@ grant {
 
   // needed by JDKESLoggerTests
   permission java.util.logging.LoggingPermission "control";
+
+  // load averages on Linux
+  permission java.io.FilePermission "/proc/loadavg", "read";
+
+  // load averages on FreeBSD
+  permission java.io.FilePermission "/compat/linux/proc/loadavg", "read";
 };

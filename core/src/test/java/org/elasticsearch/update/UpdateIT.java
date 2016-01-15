@@ -36,7 +36,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
-import org.elasticsearch.index.shard.MergePolicyConfig;
+import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
@@ -120,7 +120,7 @@ public class UpdateIT extends ESIntegTestCase {
         }
 
         @Override
-        public Object compile(String script) {
+        public Object compile(String script, Map<String, String> params) {
             return new Object(); // unused
         }
 
@@ -218,7 +218,7 @@ public class UpdateIT extends ESIntegTestCase {
         }
 
         @Override
-        public Object compile(String script) {
+        public Object compile(String script, Map<String, String> params) {
             return script;
         }
 
@@ -309,7 +309,7 @@ public class UpdateIT extends ESIntegTestCase {
         }
 
         @Override
-        public Object compile(String script) {
+        public Object compile(String script, Map<String, String> params) {
             return new Object(); // unused
         }
 
@@ -400,7 +400,7 @@ public class UpdateIT extends ESIntegTestCase {
         }
 
         @Override
-        public Object compile(String script) {
+        public Object compile(String script, Map<String, String> params) {
             return new Object(); // unused
         }
 

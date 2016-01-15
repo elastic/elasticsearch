@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -36,7 +37,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ThreadLocalRandom;
 
 import static java.util.Collections.emptyMap;
 
@@ -73,7 +73,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
 
     IndexShardRoutingTable(ShardId shardId, List<ShardRouting> shards) {
         this.shardId = shardId;
-        this.shuffler = new RotationShardShuffler(ThreadLocalRandom.current().nextInt());
+        this.shuffler = new RotationShardShuffler(Randomness.get().nextInt());
         this.shards = Collections.unmodifiableList(shards);
 
         ShardRouting primary = null;
@@ -106,7 +106,6 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
             }
         }
         this.allShardsStarted = allShardsStarted;
-
         this.primary = primary;
         if (primary != null) {
             this.primaryAsList = Collections.singletonList(primary);

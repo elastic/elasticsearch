@@ -22,7 +22,11 @@ package org.apache.lucene.search.vectorhighlight;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.BlendedTermQuery;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.MultiPhraseQuery;
+import org.apache.lucene.search.PhraseQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery;
@@ -72,10 +76,10 @@ public class CustomFieldQuery extends FieldQuery {
             super.flatten(sourceQuery, reader, flatQueries, boost);
         }
     }
-    
+
     private void convertMultiPhraseQuery(int currentPos, int[] termsIdx, MultiPhraseQuery orig, List<Term[]> terms, int[] pos, IndexReader reader, Collection<Query> flatQueries) throws IOException {
         if (currentPos == 0) {
-            // if we have more than 16 terms 
+            // if we have more than 16 terms
             int numTerms = 0;
             for (Term[] currentPosTerm : terms) {
                 numTerms += currentPosTerm.length;
@@ -83,7 +87,7 @@ public class CustomFieldQuery extends FieldQuery {
             if (numTerms > 16) {
                 for (Term[] currentPosTerm : terms) {
                     for (Term term : currentPosTerm) {
-                        super.flatten(new TermQuery(term), reader, flatQueries, orig.getBoost());    
+                        super.flatten(new TermQuery(term), reader, flatQueries, orig.getBoost());
                     }
                 }
                 return;

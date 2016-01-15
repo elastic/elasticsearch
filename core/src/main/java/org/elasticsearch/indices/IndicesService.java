@@ -36,17 +36,23 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FileSystemUtils;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.gateway.MetaDataStateFormat;
-import org.elasticsearch.index.*;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.NodeServicesProvider;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.get.GetStats;
-import org.elasticsearch.index.indexing.IndexingStats;
+import org.elasticsearch.index.shard.IndexingStats;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
@@ -58,12 +64,19 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.IndexStoreConfig;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
-import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.nio.file.Files;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -93,6 +106,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
     private final OldShardsStats oldShardsStats = new OldShardsStats();
     private final IndexStoreConfig indexStoreConfig;
     private final MapperRegistry mapperRegistry;
+    private final IndexingMemoryController indexingMemoryController;
 
     @Override
     protected void doStart() {
@@ -100,9 +114,9 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
 
     @Inject
     public IndicesService(Settings settings, PluginsService pluginsService, NodeEnvironment nodeEnv,
-            NodeSettingsService nodeSettingsService, AnalysisRegistry analysisRegistry,
-            IndicesQueriesRegistry indicesQueriesRegistry, IndexNameExpressionResolver indexNameExpressionResolver,
-            ClusterService clusterService, MapperRegistry mapperRegistry) {
+                          ClusterSettings clusterSettings, AnalysisRegistry analysisRegistry,
+                          IndicesQueriesRegistry indicesQueriesRegistry, IndexNameExpressionResolver indexNameExpressionResolver,
+                          ClusterService clusterService, MapperRegistry mapperRegistry, ThreadPool threadPool) {
         super(settings);
         this.pluginsService = pluginsService;
         this.nodeEnv = nodeEnv;
@@ -113,7 +127,9 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         this.clusterService = clusterService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.mapperRegistry = mapperRegistry;
-        nodeSettingsService.addListener(indexStoreConfig);
+        clusterSettings.addSettingsUpdateConsumer(IndexStoreConfig.INDICES_STORE_THROTTLE_TYPE_SETTING, indexStoreConfig::setRateLimitingType);
+        clusterSettings.addSettingsUpdateConsumer(IndexStoreConfig.INDICES_STORE_THROTTLE_MAX_BYTES_PER_SEC_SETTING, indexStoreConfig::setRateLimitingThrottle);
+        indexingMemoryController = new IndexingMemoryController(settings, threadPool, this);
     }
 
     @Override
@@ -147,7 +163,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
 
     @Override
     protected void doClose() {
-        IOUtils.closeWhileHandlingException(analysisRegistry);
+        IOUtils.closeWhileHandlingException(analysisRegistry, indexingMemoryController);
     }
 
     /**
@@ -283,7 +299,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         indexModule.addIndexEventListener(oldShardsStats);
         final IndexEventListener listener = indexModule.freeze();
         listener.beforeIndexCreated(index, idxSettings.getSettings());
-        final IndexService indexService = indexModule.newIndexService(nodeEnv, this, nodeServicesProvider, mapperRegistry);
+        final IndexService indexService = indexModule.newIndexService(nodeEnv, this, nodeServicesProvider, mapperRegistry, indexingMemoryController);
         boolean success = false;
         try {
             assert indexService.getIndexEventListener() == listener;
@@ -461,7 +477,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
 
     /**
      * This method deletes the shard contents on disk for the given shard ID. This method will fail if the shard deleting
-     * is prevented by {@link #canDeleteShardContent(org.elasticsearch.index.shard.ShardId, org.elasticsearch.cluster.metadata.IndexMetaData)}
+     * is prevented by {@link #canDeleteShardContent(ShardId, IndexSettings)}
      * of if the shards lock can not be acquired.
      *
      * On data nodes, if the deleted shard is the last shard folder in its index, the method will attempt to remove the index folder as well.
@@ -529,18 +545,10 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
      * </ul>
      *
      * @param shardId the shard to delete.
-     * @param metaData the shards index metadata. This is required to access the indexes settings etc.
+     * @param indexSettings the shards's relevant {@link IndexSettings}. This is required to access the indexes settings etc.
      */
-    public boolean canDeleteShardContent(ShardId shardId, IndexMetaData metaData) {
-        // we need the metadata here since we have to build the complete settings
-        // to decide where the shard content lives. In the future we might even need more info here ie. for shadow replicas
-        // The plan was to make it harder to miss-use and ask for metadata instead of simple settings
-        assert shardId.getIndex().equals(metaData.getIndex());
-        final IndexSettings indexSettings = buildIndexSettings(metaData);
-        return canDeleteShardContent(shardId, indexSettings);
-    }
-
-    private boolean canDeleteShardContent(ShardId shardId, IndexSettings indexSettings) {
+    public boolean canDeleteShardContent(ShardId shardId, IndexSettings indexSettings) {
+        assert shardId.getIndex().equals(indexSettings.getIndex().name());
         final IndexService indexService = this.indices.get(shardId.getIndex());
         if (indexSettings.isOnSharedFilesystem() == false) {
             if (indexService != null && nodeEnv.hasNodeFile()) {

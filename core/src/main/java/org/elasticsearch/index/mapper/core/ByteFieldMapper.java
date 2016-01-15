@@ -28,6 +28,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
@@ -41,6 +42,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
+
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
@@ -77,8 +79,7 @@ public class ByteFieldMapper extends NumberFieldMapper {
             setupFieldType(context);
             ByteFieldMapper fieldMapper = new ByteFieldMapper(name, fieldType, defaultFieldType, ignoreMalformed(context),
                     coerce(context), context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
-            fieldMapper.includeInAll(includeInAll);
-            return fieldMapper;
+            return (ByteFieldMapper) fieldMapper.includeInAll(includeInAll);
         }
 
         @Override
@@ -161,7 +162,7 @@ public class ByteFieldMapper extends NumberFieldMapper {
 
         @Override
         public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper) {
-            return NumericRangeQuery.newIntRange(names().indexName(), numericPrecisionStep(),
+            return NumericRangeQuery.newIntRange(name(), numericPrecisionStep(),
                 lowerTerm == null ? null : (int)parseValue(lowerTerm),
                 upperTerm == null ? null : (int)parseValue(upperTerm),
                 includeLower, includeUpper);
@@ -171,7 +172,7 @@ public class ByteFieldMapper extends NumberFieldMapper {
         public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions) {
             byte iValue = parseValue(value);
             byte iSim = fuzziness.asByte();
-            return NumericRangeQuery.newIntRange(names().indexName(), numericPrecisionStep(),
+            return NumericRangeQuery.newIntRange(name(), numericPrecisionStep(),
                 iValue - iSim,
                 iValue + iSim,
                 true, true);
@@ -238,7 +239,7 @@ public class ByteFieldMapper extends NumberFieldMapper {
                 value = ((Number) externalValue).byteValue();
             }
             if (context.includeInAll(includeInAll, this)) {
-                context.allEntries().addText(fieldType().names().fullName(), Byte.toString(value), boost);
+                context.allEntries().addText(fieldType().name(), Byte.toString(value), boost);
             }
         } else {
             XContentParser parser = context.parser();
@@ -249,9 +250,10 @@ public class ByteFieldMapper extends NumberFieldMapper {
                 }
                 value = fieldType().nullValue();
                 if (fieldType().nullValueAsString() != null && (context.includeInAll(includeInAll, this))) {
-                    context.allEntries().addText(fieldType().names().fullName(), fieldType().nullValueAsString(), boost);
+                    context.allEntries().addText(fieldType().name(), fieldType().nullValueAsString(), boost);
                 }
-            } else if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
+            } else if (parser.currentToken() == XContentParser.Token.START_OBJECT
+                    && Version.indexCreated(context.indexSettings()).before(Version.V_3_0_0)) {
                 XContentParser.Token token;
                 String currentFieldName = null;
                 Byte objValue = fieldType().nullValue();
@@ -278,7 +280,7 @@ public class ByteFieldMapper extends NumberFieldMapper {
             } else {
                 value = (byte) parser.shortValue(coerce.value());
                 if (context.includeInAll(includeInAll, this)) {
-                    context.allEntries().addText(fieldType().names().fullName(), parser.text(), boost);
+                    context.allEntries().addText(fieldType().name(), parser.text(), boost);
                 }
             }
         }

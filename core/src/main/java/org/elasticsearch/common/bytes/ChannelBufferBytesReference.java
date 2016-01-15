@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.common.bytes;
 
-import java.nio.charset.StandardCharsets;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -28,6 +27,7 @@ import org.jboss.netty.buffer.ChannelBuffer;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.channels.GatheringByteChannel;
+import java.nio.charset.StandardCharsets;
 
 /**
  */

@@ -19,21 +19,15 @@
 package org.elasticsearch.script;
 
 import org.elasticsearch.common.ContextAndHeaderHolder;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
-
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.hamcrest.Matchers.containsString;
 
 // TODO: these really should just be part of ScriptService tests, there is nothing special about them
 public class FileScriptTests extends ESTestCase {
@@ -60,7 +54,7 @@ public class FileScriptTests extends ESTestCase {
             .put("script.engine." + MockScriptEngine.NAME + ".file.aggs", false).build();
         ScriptService scriptService = makeScriptService(settings);
         Script script = new Script("script1", ScriptService.ScriptType.FILE, MockScriptEngine.NAME, null);
-        assertNotNull(scriptService.compile(script, ScriptContext.Standard.SEARCH, contextAndHeaders));
+        assertNotNull(scriptService.compile(script, ScriptContext.Standard.SEARCH, contextAndHeaders, Collections.emptyMap()));
     }
 
     public void testAllOpsDisabled() throws Exception {
@@ -74,7 +68,7 @@ public class FileScriptTests extends ESTestCase {
         Script script = new Script("script1", ScriptService.ScriptType.FILE, MockScriptEngine.NAME, null);
         for (ScriptContext context : ScriptContext.Standard.values()) {
             try {
-                scriptService.compile(script, context, contextAndHeaders);
+                scriptService.compile(script, context, contextAndHeaders, Collections.emptyMap());
                 fail(context.getKey() + " script should have been rejected");
             } catch(Exception e) {
                 assertTrue(e.getMessage(), e.getMessage().contains("scripts of type [file], operation [" + context.getKey() + "] and lang [" + MockScriptEngine.NAME + "] are disabled"));

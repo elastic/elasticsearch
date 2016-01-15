@@ -21,9 +21,9 @@
 
 package org.elasticsearch.index.query.functionscore.script;
 
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionParser;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.Script.ScriptField;

@@ -20,7 +20,6 @@
 package org.elasticsearch.client.transport;
 
 import com.carrotsearch.randomizedtesting.generators.RandomInts;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.node.liveness.LivenessResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -28,7 +27,14 @@ import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.transport.*;
+import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportResponseHandler;
+import org.elasticsearch.transport.TransportServiceAdapter;
 
 import java.io.IOException;
 import java.util.Collections;

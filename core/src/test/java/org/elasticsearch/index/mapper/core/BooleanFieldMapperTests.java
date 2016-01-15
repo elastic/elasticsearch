@@ -28,6 +28,8 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -57,7 +59,7 @@ public class BooleanFieldMapperTests extends ESSingleNodeTestCase {
                 .startObject("properties").startObject("field").field("type", "boolean").endObject().endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = parser.parse(mapping);
+        DocumentMapper defaultMapper = parser.parse("type", new CompressedXContent(mapping));
 
         ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -86,7 +88,7 @@ public class BooleanFieldMapperTests extends ESSingleNodeTestCase {
                 .startObject("properties").startObject("field").field("type", "boolean").endObject().endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = parser.parse(mapping);
+        DocumentMapper defaultMapper = parser.parse("type", new CompressedXContent(mapping));
         FieldMapper mapper = defaultMapper.mappers().getMapper("field");
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
         mapper.toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -102,11 +104,34 @@ public class BooleanFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject()
                 .endObject().endObject().string();
 
-        defaultMapper = parser.parse(mapping);
+        defaultMapper = parser.parse("type", new CompressedXContent(mapping));
         mapper = defaultMapper.mappers().getMapper("field");
         builder = XContentFactory.jsonBuilder().startObject();
         mapper.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
         assertEquals("{\"field\":{\"type\":\"boolean\",\"doc_values\":false,\"null_value\":true}}", builder.string());
+    }
+
+    public void testMultiFields() throws IOException {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties")
+                    .startObject("field")
+                        .field("type", "boolean")
+                        .startObject("fields")
+                            .startObject("as_string")
+                                .field("type", "string")
+                                .field("index", "not_analyzed")
+                            .endObject()
+                        .endObject()
+                    .endObject().endObject()
+                .endObject().endObject().string();
+        DocumentMapper mapper = indexService.mapperService().merge("type", new CompressedXContent(mapping), true, false);
+        assertEquals(mapping, mapper.mappingSource().toString());
+        BytesReference source = XContentFactory.jsonBuilder()
+                .startObject()
+                    .field("field", false)
+                .endObject().bytes();
+        ParsedDocument doc = mapper.parse("test", "type", "1", source);
+        assertNotNull(doc.rootDoc().getField("field.as_string"));
     }
 }

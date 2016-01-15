@@ -19,6 +19,8 @@
 
 package org.elasticsearch.transport;
 
+import org.elasticsearch.tasks.Task;
+
 /**
  */
 public abstract class TransportRequest extends TransportMessage<TransportRequest> {
@@ -41,6 +43,16 @@ public abstract class TransportRequest extends TransportMessage<TransportRequest
 
     protected TransportRequest(TransportRequest request) {
         super(request);
+    }
+
+    public Task createTask(long id, String type, String action) {
+        return new Task(id, type, action, this::getDescription);
+    }
+    /**
+     * Returns optional description of the request to be displayed by the task manager
+     */
+    public String getDescription() {
+        return this.toString();
     }
 
 }

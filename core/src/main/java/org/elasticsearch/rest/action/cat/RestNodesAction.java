@@ -41,7 +41,7 @@ import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.fielddata.FieldDataStats;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.get.GetStats;
-import org.elasticsearch.index.indexing.IndexingStats;
+import org.elasticsearch.index.shard.IndexingStats;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.percolator.PercolateStats;
 import org.elasticsearch.index.refresh.RefreshStats;
@@ -53,7 +53,10 @@ import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.jvm.JvmStats;
 import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.monitor.process.ProcessStats;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestActionListener;
 import org.elasticsearch.rest.action.support.RestResponseListener;
 import org.elasticsearch.rest.action.support.RestTable;
@@ -131,7 +134,9 @@ public class RestNodesAction extends AbstractCatAction {
         table.addCell("file_desc.max", "default:false;alias:fdm,fileDescriptorMax;text-align:right;desc:max file descriptors");
 
         table.addCell("cpu", "alias:cpu;text-align:right;desc:recent cpu usage");
-        table.addCell("load", "alias:l;text-align:right;desc:most recent load avg");
+        table.addCell("load_1m", "alias:l;text-align:right;desc:1m load avg");
+        table.addCell("load_5m", "alias:l;text-align:right;desc:5m load avg");
+        table.addCell("load_15m", "alias:l;text-align:right;desc:15m load avg");
         table.addCell("uptime", "default:false;alias:u;text-align:right;desc:node uptime");
         table.addCell("node.role", "alias:r,role,dc,nodeRole;desc:d:data node, c:client node");
         table.addCell("master", "alias:m;desc:m:master-eligible, *:current master");
@@ -260,7 +265,10 @@ public class RestNodesAction extends AbstractCatAction {
             table.addCell(processStats == null ? null : processStats.getMaxFileDescriptors());
 
             table.addCell(osStats == null ? null : Short.toString(osStats.getCpu().getPercent()));
-            table.addCell(osStats == null ? null : String.format(Locale.ROOT, "%.2f", osStats.getCpu().getLoadAverage()));
+            boolean hasLoadAverage = osStats != null && osStats.getCpu().getLoadAverage() != null;
+            table.addCell(!hasLoadAverage ? null : String.format(Locale.ROOT, "%.2f", osStats.getCpu().getLoadAverage()[0]));
+            table.addCell(!hasLoadAverage ? null : String.format(Locale.ROOT, "%.2f", osStats.getCpu().getLoadAverage()[1]));
+            table.addCell(!hasLoadAverage ? null : String.format(Locale.ROOT, "%.2f", osStats.getCpu().getLoadAverage()[2]));
             table.addCell(jvmStats == null ? null : jvmStats.getUptime());
             table.addCell(node.clientNode() ? "c" : node.dataNode() ? "d" : "-");
             table.addCell(masterId == null ? "x" : masterId.equals(node.id()) ? "*" : node.masterNode() ? "m" : "-");

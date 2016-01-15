@@ -21,7 +21,6 @@ package org.elasticsearch.common.xcontent;
 
 import com.fasterxml.jackson.dataformat.cbor.CBORConstants;
 import com.fasterxml.jackson.dataformat.smile.SmileConstants;
-
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
@@ -97,17 +96,25 @@ public class XContentFactoryTests extends ESTestCase {
         is = new ByteArrayInputStream(new byte[] {(byte) 1});
         assertNull(XContentFactory.xContentType(is));
     }
-    
+
+    public void testInvalidStream() throws Exception {
+        byte[] bytes = new byte[] { (byte) '"' };
+        assertNull(XContentFactory.xContentType(bytes));
+
+        bytes = new byte[] { (byte) 'x' };
+        assertNull(XContentFactory.xContentType(bytes));
+    }
+
     public void testJsonFromBytesOptionallyPrecededByUtf8Bom() throws Exception {
         byte[] bytes = new byte[] {(byte) '{', (byte) '}'};
         assertThat(XContentFactory.xContentType(bytes), equalTo(XContentType.JSON));
-        
+
         bytes = new byte[] {(byte) 0x20, (byte) '{', (byte) '}'};
         assertThat(XContentFactory.xContentType(bytes), equalTo(XContentType.JSON));
-        
+
         bytes = new byte[] {(byte) 0xef, (byte) 0xbb, (byte) 0xbf, (byte) '{', (byte) '}'};
         assertThat(XContentFactory.xContentType(bytes), equalTo(XContentType.JSON));
-        
+
         bytes = new byte[] {(byte) 0xef, (byte) 0xbb, (byte) 0xbf, (byte) 0x20, (byte) '{', (byte) '}'};
         assertThat(XContentFactory.xContentType(bytes), equalTo(XContentType.JSON));
     }

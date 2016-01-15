@@ -26,7 +26,6 @@ import com.sun.jna.NativeLong;
 import com.sun.jna.Pointer;
 import com.sun.jna.Structure;
 import com.sun.jna.ptr.PointerByReference;
-
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.logging.ESLogger;
@@ -43,7 +42,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/** 
+/**
  * Installs a limited form of secure computing mode,
  * to filters system calls to block process execution.
  * <p>
@@ -54,7 +53,7 @@ import java.util.Map;
  * <p>
  * On Linux BPF Filters are installed using either {@code seccomp(2)} (3.17+) or {@code prctl(2)} (3.5+). {@code seccomp(2)}
  * is preferred, as it allows filters to be applied to any existing threads in the process, and one motivation
- * here is to protect against bugs in the JVM. Otherwise, code will fall back to the {@code prctl(2)} method 
+ * here is to protect against bugs in the JVM. Otherwise, code will fall back to the {@code prctl(2)} method
  * which will at least protect elasticsearch application threads.
  * <p>
  * Linux BPF filters will return {@code EACCES} (Access Denied) for the following system calls:
@@ -99,13 +98,13 @@ final class Seccomp {
 
     /** Access to non-standard Linux libc methods */
     static interface LinuxLibrary extends Library {
-        /** 
-         * maps to prctl(2) 
+        /**
+         * maps to prctl(2)
          */
         int prctl(int option, NativeLong arg2, NativeLong arg3, NativeLong arg4, NativeLong arg5);
-        /** 
-         * used to call seccomp(2), its too new... 
-         * this is the only way, DONT use it on some other architecture unless you know wtf you are doing 
+        /**
+         * used to call seccomp(2), its too new...
+         * this is the only way, DONT use it on some other architecture unless you know wtf you are doing
          */
         NativeLong syscall(NativeLong number, Object... args);
     };
@@ -124,7 +123,7 @@ final class Seccomp {
         }
         linux_libc = lib;
     }
-    
+
     /** the preferred method is seccomp(2), since we can apply to all threads of the process */
     static final int SECCOMP_SET_MODE_FILTER   =   1;   // since Linux 3.17
     static final int SECCOMP_FILTER_FLAG_TSYNC =   1;   // since Linux 3.17
@@ -135,7 +134,7 @@ final class Seccomp {
     static final int PR_GET_SECCOMP            =  21;   // since Linux 2.6.23
     static final int PR_SET_SECCOMP            =  22;   // since Linux 2.6.23
     static final long SECCOMP_MODE_FILTER      =   2;   // since Linux Linux 3.5
-    
+
     /** corresponds to struct sock_filter */
     static final class SockFilter {
         short code; // insn
@@ -150,12 +149,12 @@ final class Seccomp {
             this.k = k;
         }
     }
-    
+
     /** corresponds to struct sock_fprog */
     public static final class SockFProg extends Structure implements Structure.ByReference {
         public short   len;           // number of filters
         public Pointer filter;        // filters
-        
+
         public SockFProg(SockFilter filters[]) {
             len = (short) filters.length;
             // serialize struct sock_filter * explicitly, its less confusing than the JNA magic we would need
@@ -170,13 +169,13 @@ final class Seccomp {
             }
             this.filter = filter;
         }
-        
+
         @Override
         protected List<String> getFieldOrder() {
             return Arrays.asList(new String[] { "len", "filter" });
         }
     }
-    
+
     // BPF "macros" and constants
     static final int BPF_LD  = 0x00;
     static final int BPF_W   = 0x00;
@@ -187,15 +186,15 @@ final class Seccomp {
     static final int BPF_JGT = 0x20;
     static final int BPF_RET = 0x06;
     static final int BPF_K   = 0x00;
-    
+
     static SockFilter BPF_STMT(int code, int k) {
         return new SockFilter((short) code, (byte) 0, (byte) 0, k);
     }
-    
+
     static SockFilter BPF_JUMP(int code, int k, int jt, int jf) {
         return new SockFilter((short) code, (byte) jt, (byte) jf, k);
     }
-    
+
     static final int SECCOMP_RET_ERRNO = 0x00050000;
     static final int SECCOMP_RET_DATA  = 0x0000FFFF;
     static final int SECCOMP_RET_ALLOW = 0x7FFF0000;
@@ -260,13 +259,13 @@ final class Seccomp {
     /** try to install our BPF filters via seccomp() or prctl() to block execution */
     private static int linuxImpl() {
         // first be defensive: we can give nice errors this way, at the very least.
-        // also, some of these security features get backported to old versions, checking kernel version here is a big no-no! 
+        // also, some of these security features get backported to old versions, checking kernel version here is a big no-no!
         final Arch arch = ARCHITECTURES.get(Constants.OS_ARCH);
         boolean supported = Constants.LINUX && arch != null;
         if (supported == false) {
             throw new UnsupportedOperationException("seccomp unavailable: '" + Constants.OS_ARCH + "' architecture unsupported");
         }
-        
+
         // we couldn't link methods, could be some really ancient kernel (e.g. < 2.1.57) or some bug
         if (linux_libc == null) {
             throw new UnsupportedOperationException("seccomp unavailable: could not link methods. requires kernel 3.5+ with CONFIG_SECCOMP and CONFIG_SECCOMP_FILTER compiled in");
@@ -364,12 +363,12 @@ final class Seccomp {
         if (linux_prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) != 0) {
             throw new UnsupportedOperationException("prctl(PR_SET_NO_NEW_PRIVS): " + JNACLibrary.strerror(Native.getLastError()));
         }
-        
+
         // check it worked
         if (linux_prctl(PR_GET_NO_NEW_PRIVS, 0, 0, 0, 0) != 1) {
             throw new UnsupportedOperationException("seccomp filter did not really succeed: prctl(PR_GET_NO_NEW_PRIVS): " + JNACLibrary.strerror(Native.getLastError()));
         }
-        
+
         // BPF installed to check arch, limit, then syscall. See https://www.kernel.org/doc/Documentation/prctl/seccomp_filter.txt for details.
         SockFilter insns[] = {
           /* 1  */ BPF_STMT(BPF_LD  + BPF_W   + BPF_ABS, SECCOMP_DATA_ARCH_OFFSET),             //
@@ -399,11 +398,11 @@ final class Seccomp {
             }
             if (linux_prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, pointer, 0, 0) != 0) {
                 int errno2 = Native.getLastError();
-                throw new UnsupportedOperationException("seccomp(SECCOMP_SET_MODE_FILTER): " + JNACLibrary.strerror(errno1) + 
+                throw new UnsupportedOperationException("seccomp(SECCOMP_SET_MODE_FILTER): " + JNACLibrary.strerror(errno1) +
                                                         ", prctl(PR_SET_SECCOMP): " + JNACLibrary.strerror(errno2));
             }
         }
-        
+
         // now check that the filter was really installed, we should be in filter mode.
         if (linux_prctl(PR_GET_SECCOMP, 0, 0, 0, 0) != 2) {
             throw new UnsupportedOperationException("seccomp filter installation did not really succeed. seccomp(PR_GET_SECCOMP): " + JNACLibrary.strerror(Native.getLastError()));
@@ -486,12 +485,12 @@ final class Seccomp {
             }
         }
     }
-    
+
     // Solaris implementation via priv_set(3C)
 
     /** Access to non-standard Solaris libc methods */
     static interface SolarisLibrary extends Library {
-        /** 
+        /**
          * see priv_set(3C), a convenience method for setppriv(2).
          */
         int priv_set(int op, String which, String... privs);
@@ -511,7 +510,7 @@ final class Seccomp {
         }
         libc_solaris = lib;
     }
-    
+
     // constants for priv_set(2)
     static final int PRIV_OFF = 1;
     static final String PRIV_ALLSETS = null;
@@ -531,7 +530,7 @@ final class Seccomp {
             throw new UnsupportedOperationException("priv_set unavailable: could not link methods. requires Solaris 10+");
         }
 
-        // drop a null-terminated list of privileges 
+        // drop a null-terminated list of privileges
         if (libc_solaris.priv_set(PRIV_OFF, PRIV_ALLSETS, PRIV_PROC_FORK, PRIV_PROC_EXEC, null) != 0) {
             throw new UnsupportedOperationException("priv_set unavailable: priv_set(): " + JNACLibrary.strerror(Native.getLastError()));
         }

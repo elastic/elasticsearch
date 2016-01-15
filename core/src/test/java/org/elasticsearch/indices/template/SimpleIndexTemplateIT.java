@@ -560,7 +560,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                 .setOrder(0)
                 .addAlias(new Alias("alias1"))
                 .addAlias(new Alias("{index}-alias"))
-                .addAlias(new Alias("alias3").filter(QueryBuilders.missingQuery("test")))
+                .addAlias(new Alias("alias3").filter(QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery("test"))))
                 .addAlias(new Alias("alias4")).get();
 
         client().admin().indices().preparePutTemplate("template2")

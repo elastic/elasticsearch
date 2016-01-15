@@ -18,8 +18,8 @@
  */
 package org.elasticsearch.common.util;
 
+import org.apache.lucene.util.ThreadInterruptedException;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 
@@ -84,7 +84,7 @@ public class CancellableThreads {
         RuntimeException throwable = null;
         try {
             interruptable.run();
-        } catch (InterruptedException e) {
+        } catch (InterruptedException | ThreadInterruptedException e) {
             // assume this is us and ignore
         } catch (RuntimeException t) {
             throwable = t;

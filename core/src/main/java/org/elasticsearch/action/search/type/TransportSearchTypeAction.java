@@ -20,7 +20,6 @@
 package org.elasticsearch.action.search.type;
 
 import com.carrotsearch.hppc.IntArrayList;
-
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.action.ActionListener;
@@ -55,7 +54,9 @@ import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.ShardSearchTransportRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.QuerySearchResultProvider;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportService;
 
 import java.util.List;
 import java.util.Map;
@@ -78,7 +79,7 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
     public TransportSearchTypeAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
                                      SearchServiceTransportAction searchService, SearchPhaseController searchPhaseController,
                                      ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, SearchAction.NAME, threadPool, actionFilters, indexNameExpressionResolver);
+        super(settings, SearchAction.NAME, threadPool, actionFilters, indexNameExpressionResolver, clusterService.getTaskManager());
         this.clusterService = clusterService;
         this.searchService = searchService;
         this.searchPhaseController = searchPhaseController;

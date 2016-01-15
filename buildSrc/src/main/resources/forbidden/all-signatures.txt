@@ -45,6 +45,7 @@ org.apache.lucene.search.NumericRangeFilter
 org.apache.lucene.search.PrefixFilter
 org.apache.lucene.search.QueryWrapperFilter
 org.apache.lucene.search.join.BitDocIdSetCachingWrapperFilter
+org.apache.lucene.index.IndexWriter#isLocked(org.apache.lucene.store.Directory)
 
 java.nio.file.Paths @ Use org.elasticsearch.common.io.PathUtils.get() instead.
 java.nio.file.FileSystems#getDefault() @ use org.elasticsearch.common.io.PathUtils.getDefaultFileSystem() instead.
@@ -92,6 +93,13 @@ java.net.InetAddress#getCanonicalHostName()
 java.net.InetSocketAddress#getHostName() @ Use getHostString() instead, which avoids a DNS lookup
 
 @defaultMessage Do not violate java's access system
+java.lang.Class#getDeclaredClasses() @ Do not violate java's access system: Use getClasses() instead
+java.lang.Class#getDeclaredConstructor(java.lang.Class[]) @ Do not violate java's access system: Use getConstructor() instead
+java.lang.Class#getDeclaredConstructors() @ Do not violate java's access system: Use getConstructors() instead
+java.lang.Class#getDeclaredField(java.lang.String) @ Do not violate java's access system: Use getField() instead
+java.lang.Class#getDeclaredFields() @ Do not violate java's access system: Use getFields() instead
+java.lang.Class#getDeclaredMethod(java.lang.String, java.lang.Class[]) @ Do not violate java's access system: Use getMethod() instead
+java.lang.Class#getDeclaredMethods() @ Do not violate java's access system: Use getMethods() instead
 java.lang.reflect.AccessibleObject#setAccessible(boolean)
 java.lang.reflect.AccessibleObject#setAccessible(java.lang.reflect.AccessibleObject[], boolean)
 
@@ -116,3 +124,8 @@ java.lang.System#getProperties() @ Use BootstrapInfo.getSystemProperties for a r
 java.util.Collections#EMPTY_LIST
 java.util.Collections#EMPTY_MAP
 java.util.Collections#EMPTY_SET
+
+java.util.Collections#shuffle(java.util.List) @ Use java.util.Collections#shuffle(java.util.List, java.util.Random) with a reproducible source of randomness
+@defaultMessage Use org.elasticsearch.common.Randomness#get for reproducible sources of randomness
+java.util.Random#<init>()
+java.util.concurrent.ThreadLocalRandom

@@ -22,7 +22,6 @@ package org.elasticsearch.rest.action.cat;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
-import org.elasticsearch.plugins.PluginInfo;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.client.Client;
@@ -31,7 +30,11 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.plugins.PluginInfo;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestActionListener;
 import org.elasticsearch.rest.action.support.RestResponseListener;
 import org.elasticsearch.rest.action.support.RestTable;
@@ -95,7 +98,7 @@ public class RestPluginsAction extends AbstractCatAction {
         for (DiscoveryNode node : nodes) {
             NodeInfo info = nodesInfo.getNodesMap().get(node.id());
 
-            for (PluginInfo pluginInfo : info.getPlugins().getInfos()) {
+            for (PluginInfo pluginInfo : info.getPlugins().getPluginInfos()) {
                 table.startRow();
                 table.addCell(node.id());
                 table.addCell(node.name());

@@ -98,7 +98,7 @@ public class ShardStateActionTests extends ESTestCase {
         AtomicBoolean noMaster = new AtomicBoolean();
         assert !noMaster.get();
 
-        shardStateAction.shardFailed(getRandomShardRouting(index), indexUUID, "test", getSimulatedFailure(), new ShardStateAction.Listener() {
+        shardStateAction.shardFailed(clusterService.state(), getRandomShardRouting(index), indexUUID, "test", getSimulatedFailure(), new ShardStateAction.Listener() {
             @Override
             public void onShardFailedNoMaster() {
                 noMaster.set(true);
@@ -123,7 +123,7 @@ public class ShardStateActionTests extends ESTestCase {
         AtomicBoolean failure = new AtomicBoolean();
         assert !failure.get();
 
-        shardStateAction.shardFailed(getRandomShardRouting(index), indexUUID, "test", getSimulatedFailure(), new ShardStateAction.Listener() {
+        shardStateAction.shardFailed(clusterService.state(), getRandomShardRouting(index), indexUUID, "test", getSimulatedFailure(), new ShardStateAction.Listener() {
             @Override
             public void onShardFailedNoMaster() {
 
@@ -135,8 +135,7 @@ public class ShardStateActionTests extends ESTestCase {
             }
         });
 
-        final CapturingTransport.CapturedRequest[] capturedRequests = transport.capturedRequests();
-        transport.clear();
+        final CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
         assertThat(capturedRequests.length, equalTo(1));
         assert !failure.get();
         transport.handleResponse(capturedRequests[0].requestId, new TransportException("simulated"));
@@ -156,7 +155,7 @@ public class ShardStateActionTests extends ESTestCase {
 
         TimeValue timeout = new TimeValue(1, TimeUnit.MILLISECONDS);
         CountDownLatch latch = new CountDownLatch(1);
-        shardStateAction.shardFailed(getRandomShardRouting(index), indexUUID, "test", getSimulatedFailure(), timeout, new ShardStateAction.Listener() {
+        shardStateAction.shardFailed(clusterService.state(), getRandomShardRouting(index), indexUUID, "test", getSimulatedFailure(), timeout, new ShardStateAction.Listener() {
             @Override
             public void onShardFailedFailure(DiscoveryNode master, TransportException e) {
                 if (e instanceof ReceiveTimeoutTransportException) {
@@ -171,8 +170,7 @@ public class ShardStateActionTests extends ESTestCase {
         progress.set(true);
         assertTrue(timedOut.get());
 
-        final CapturingTransport.CapturedRequest[] capturedRequests = transport.capturedRequests();
-        transport.clear();
+        final CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
         assertThat(capturedRequests.length, equalTo(1));
     }
 

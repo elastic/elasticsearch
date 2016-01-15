@@ -20,11 +20,25 @@
 package org.elasticsearch.common.joda;
 
 import org.elasticsearch.common.Strings;
-import org.joda.time.*;
+import org.joda.time.Chronology;
+import org.joda.time.DateTime;
+import org.joda.time.DateTimeField;
+import org.joda.time.DateTimeFieldType;
+import org.joda.time.DateTimeZone;
+import org.joda.time.DurationField;
+import org.joda.time.DurationFieldType;
+import org.joda.time.ReadablePartial;
 import org.joda.time.field.DividedDateTimeField;
 import org.joda.time.field.OffsetDateTimeField;
 import org.joda.time.field.ScaledDurationField;
-import org.joda.time.format.*;
+import org.joda.time.format.DateTimeFormat;
+import org.joda.time.format.DateTimeFormatter;
+import org.joda.time.format.DateTimeFormatterBuilder;
+import org.joda.time.format.DateTimeParser;
+import org.joda.time.format.DateTimeParserBucket;
+import org.joda.time.format.DateTimePrinter;
+import org.joda.time.format.ISODateTimeFormat;
+import org.joda.time.format.StrictISODateTimeFormat;
 
 import java.io.IOException;
 import java.io.Writer;
@@ -282,8 +296,6 @@ public class Joda {
 
 
     public static final DurationFieldType Quarters = new DurationFieldType("quarters") {
-        private static final long serialVersionUID = -8167713675442491871L;
-
         @Override
         public DurationField getField(Chronology chronology) {
             return new ScaledDurationField(chronology.months(), Quarters, 3);
@@ -291,8 +303,6 @@ public class Joda {
     };
 
     public static final DateTimeFieldType QuarterOfYear = new DateTimeFieldType("quarterOfYear") {
-        private static final long serialVersionUID = -5677872459807379123L;
-
         @Override
         public DurationFieldType getDurationType() {
             return Quarters;

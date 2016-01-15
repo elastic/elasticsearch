@@ -25,7 +25,11 @@ import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  *
@@ -34,24 +38,24 @@ public abstract class AbstractXContentParser implements XContentParser {
 
     private ParseFieldMatcher matcher = ParseFieldMatcher.STRICT;
 
-    //Currently this is not a setting that can be changed and is a policy 
+    //Currently this is not a setting that can be changed and is a policy
     // that relates to how parsing of things like "boost" are done across
     // the whole of Elasticsearch (eg if String "1.0" is a valid float).
     // The idea behind keeping it as a constant is that we can track
     // references to this policy decision throughout the codebase and find
     // and change any code that needs to apply an alternative policy.
     public static final boolean DEFAULT_NUMBER_COEERCE_POLICY = true;
-    
+
     private static void checkCoerceString(boolean coeerce, Class<? extends Number> clazz) {
         if (!coeerce) {
-            //Need to throw type IllegalArgumentException as current catch logic in 
+            //Need to throw type IllegalArgumentException as current catch logic in
             //NumberFieldMapper.parseCreateField relies on this for "malformed" value detection
             throw new IllegalArgumentException(clazz.getSimpleName() + " value passed as String");
         }
     }
 
 
-    
+
     // The 3rd party parsers we rely on are known to silently truncate fractions: see
     //   http://fasterxml.github.io/jackson-core/javadoc/2.3.0/com/fasterxml/jackson/core/JsonParser.html#getShortValue()
     // If this behaviour is flagged as undesirable and any truncation occurs
@@ -120,7 +124,7 @@ public abstract class AbstractXContentParser implements XContentParser {
         return intValue(DEFAULT_NUMBER_COEERCE_POLICY);
     }
 
-    
+
     @Override
     public int intValue(boolean coerce) throws IOException {
         Token token = currentToken();
@@ -130,7 +134,7 @@ public abstract class AbstractXContentParser implements XContentParser {
         }
         int result = doIntValue();
         ensureNumberConversion(coerce, result, Integer.class);
-        return result;        
+        return result;
     }
 
     protected abstract int doIntValue() throws IOException;
@@ -139,7 +143,7 @@ public abstract class AbstractXContentParser implements XContentParser {
     public long longValue() throws IOException {
         return longValue(DEFAULT_NUMBER_COEERCE_POLICY);
     }
-    
+
     @Override
     public long longValue(boolean coerce) throws IOException {
         Token token = currentToken();
@@ -149,7 +153,7 @@ public abstract class AbstractXContentParser implements XContentParser {
         }
         long result = doLongValue();
         ensureNumberConversion(coerce, result, Long.class);
-        return result;        
+        return result;
     }
 
     protected abstract long doLongValue() throws IOException;
@@ -158,7 +162,7 @@ public abstract class AbstractXContentParser implements XContentParser {
     public float floatValue() throws IOException {
         return floatValue(DEFAULT_NUMBER_COEERCE_POLICY);
     }
-    
+
     @Override
     public float floatValue(boolean coerce) throws IOException {
         Token token = currentToken();
@@ -171,7 +175,7 @@ public abstract class AbstractXContentParser implements XContentParser {
 
     protected abstract float doFloatValue() throws IOException;
 
-    
+
     @Override
     public double doubleValue() throws IOException {
         return doubleValue(DEFAULT_NUMBER_COEERCE_POLICY);
@@ -190,7 +194,7 @@ public abstract class AbstractXContentParser implements XContentParser {
     protected abstract double doDoubleValue() throws IOException;
 
     @Override
-    public String textOrNull() throws IOException {
+    public final String textOrNull() throws IOException {
         if (currentToken() == Token.VALUE_NULL) {
             return null;
         }

@@ -19,7 +19,7 @@
   - match:
       $body: |
                /# epoch     timestamp              count
-               ^  \d+   \s  \d{2}:\d{2}:\d{2}  \s  0     \s+  \n  $/
+               ^  \d+   \s  \d{2}:\d{2}:\d{2}  \s  0  \n$/
 
   - do:
       index:
@@ -35,7 +35,7 @@
   - match:
       $body: |
                /# epoch     timestamp              count
-               ^  \d+   \s  \d{2}:\d{2}:\d{2}  \s  1     \s+  \n  $/
+               ^  \d+   \s  \d{2}:\d{2}:\d{2}  \s  1  \n  $/
 
   - do:
       index:
@@ -52,7 +52,7 @@
   - match:
       $body: |
                /# count
-               ^  2     \s+  \n  $/
+               ^  2     \n  $/
 
 
   - do:
@@ -62,7 +62,7 @@
   - match:
       $body: |
                /# epoch     timestamp              count
-               ^  \d+   \s  \d{2}:\d{2}:\d{2}  \s  1  \s+  \n  $/
+               ^  \d+   \s  \d{2}:\d{2}:\d{2}  \s  1  \n  $/
 
   - do:
       cat.count:
@@ -71,5 +71,5 @@
 
   - match:
       $body: |
-               /^  epoch  \s+  timestamp          \s+  count  \s+  \n
-                   \d+    \s+  \d{2}:\d{2}:\d{2}  \s+  \d+    \s+  \n  $/
+               /^  epoch  \s+  timestamp          \s+  count  \n
+                   \d+    \s+  \d{2}:\d{2}:\d{2}  \s+  \d+ \n  $/

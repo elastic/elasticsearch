@@ -33,10 +33,11 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.text.StringAndBytesText;
+import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
+import org.elasticsearch.search.rescore.RescoreBuilder.Rescorer;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
@@ -46,13 +47,21 @@ import java.io.FileNotFoundException;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.AccessDeniedException;
+import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.DirectoryNotEmptyException;
+import java.nio.file.FileAlreadyExistsException;
+import java.nio.file.FileSystemException;
+import java.nio.file.FileSystemLoopException;
 import java.nio.file.NoSuchFileException;
+import java.nio.file.NotDirectoryException;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.ElasticsearchException.readException;
@@ -256,13 +265,13 @@ public abstract class StreamInput extends InputStream {
         if (length == -1) {
             return null;
         }
-        return new StringAndBytesText(readBytesReference(length));
+        return new Text(readBytesReference(length));
     }
 
     public Text readText() throws IOException {
         // use StringAndBytes so we can cache the string if its ever converted to it
         int length = readInt();
-        return new StringAndBytesText(readBytesReference(length));
+        return new Text(readBytesReference(length));
     }
 
     @Nullable
@@ -592,11 +601,41 @@ public abstract class StreamInput extends InputStream {
                 case 13:
                     return (T) readStackTrace(new FileNotFoundException(readOptionalString()), this);
                 case 14:
+                    final int subclass = readVInt();
                     final String file = readOptionalString();
                     final String other = readOptionalString();
                     final String reason = readOptionalString();
                     readOptionalString(); // skip the msg - it's composed from file, other and reason
-                    return (T) readStackTrace(new NoSuchFileException(file, other, reason), this);
+                    final Throwable throwable;
+                    switch (subclass) {
+                        case 0:
+                            throwable = new NoSuchFileException(file, other, reason);
+                            break;
+                        case 1:
+                            throwable = new NotDirectoryException(file);
+                            break;
+                        case 2:
+                            throwable = new DirectoryNotEmptyException(file);
+                            break;
+                        case 3:
+                            throwable = new AtomicMoveNotSupportedException(file, other, reason);
+                            break;
+                        case 4:
+                            throwable = new FileAlreadyExistsException(file, other, reason);
+                            break;
+                        case 5:
+                            throwable = new AccessDeniedException(file, other, reason);
+                            break;
+                        case 6:
+                            throwable = new FileSystemLoopException(file);
+                            break;
+                        case 7:
+                            throwable = new FileSystemException(file, other, reason);
+                            break;
+                        default:
+                            throw new IllegalStateException("unknown FileSystemException with index " + subclass);
+                    }
+                    return (T) readStackTrace(throwable, this);
                 case 15:
                     return (T) readStackTrace(new OutOfMemoryError(readOptionalString()), this);
                 case 16:
@@ -605,6 +644,8 @@ public abstract class StreamInput extends InputStream {
                     return (T) readStackTrace(new LockObtainFailedException(readOptionalString(), readThrowable()), this);
                 case 18:
                     return (T) readStackTrace(new InterruptedException(readOptionalString()), this);
+                case 19:
+                    return (T) readStackTrace(new IOException(readOptionalString(), readThrowable()), this);
                 default:
                     assert false : "no such exception for id: " + key;
             }
@@ -630,10 +671,36 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
+     * Reads a {@link ShapeBuilder} from the current stream
+     */
+    public ShapeBuilder readShape() throws IOException {
+        return readNamedWriteable(ShapeBuilder.class);
+    }
+
+    /**
+     * Reads a {@link QueryBuilder} from the current stream
+     */
+    public Rescorer readRescorer() throws IOException {
+        return readNamedWriteable(Rescorer.class);
+    }
+
+    /**
      * Reads a {@link org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder} from the current stream
      */
     public ScoreFunctionBuilder<?> readScoreFunction() throws IOException {
         return readNamedWriteable(ScoreFunctionBuilder.class);
+    }
+
+    /**
+     * Reads a list of objects
+     */
+    public <T> List<T> readList(StreamInputReader<T> reader) throws IOException {
+        int count = readVInt();
+        List<T> builder = new ArrayList<>(count);
+        for (int i=0; i<count; i++) {
+            builder.add(reader.read(this));
+        }
+        return builder;
     }
 
     public static StreamInput wrap(BytesReference reference) {

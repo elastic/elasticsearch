@@ -78,19 +78,19 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             indices(indices);
             aliases(aliases);
         }
-        
+
         public AliasActions(AliasAction.Type type, String index, String alias) {
             aliasAction = new AliasAction(type);
             indices(index);
             aliases(alias);
         }
-        
+
         AliasActions(AliasAction.Type type, String[] index, String alias) {
             aliasAction = new AliasAction(type);
             indices(index);
             aliases(alias);
         }
-        
+
         public AliasActions(AliasAction action) {
             this.aliasAction = action;
             indices(action.index());
@@ -110,7 +110,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             aliasAction.filter(filter);
             return this;
         }
-        
+
         public AliasActions filter(QueryBuilder filter) {
             aliasAction.filter(filter);
             return this;
@@ -197,7 +197,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             aliasAction = readAliasAction(in);
             return this;
         }
-        
+
         public void writeTo(StreamOutput out) throws IOException {
             out.writeStringArray(indices);
             out.writeStringArray(aliases);
@@ -225,7 +225,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
         addAliasAction(new AliasActions(action));
         return this;
     }
-    
+
     /**
      * Adds an alias to the index.
      * @param alias  The alias
@@ -247,8 +247,8 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
         addAliasAction(new AliasActions(AliasAction.Type.ADD, indices, alias).filter(filterBuilder));
         return this;
     }
-    
-    
+
+
     /**
      * Removes an alias to the index.
      *
@@ -259,7 +259,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
         addAliasAction(new AliasActions(AliasAction.Type.REMOVE, indices, aliases));
         return this;
     }
-    
+
     /**
      * Removes an alias to the index.
      *
@@ -286,25 +286,14 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             return addValidationError("Must specify at least one alias action", validationException);
         }
         for (AliasActions aliasAction : allAliasActions) {
-            if (aliasAction.actionType() == AliasAction.Type.ADD) {
-                if (aliasAction.aliases.length != 1) {
+            if (aliasAction.aliases.length == 0) {
+                validationException = addValidationError("Alias action [" + aliasAction.actionType().name().toLowerCase(Locale.ENGLISH)
+                        + "]: aliases may not be empty", validationException);
+            }
+            for (String alias : aliasAction.aliases) {
+                if (!Strings.hasText(alias)) {
                     validationException = addValidationError("Alias action [" + aliasAction.actionType().name().toLowerCase(Locale.ENGLISH)
-                            + "] requires exactly one [alias] to be set", validationException);
-                }
-                if (!Strings.hasText(aliasAction.aliases[0])) {
-                    validationException = addValidationError("Alias action [" + aliasAction.actionType().name().toLowerCase(Locale.ENGLISH)
-                            + "] requires an [alias] to be set", validationException);
-                }
-            } else {
-                if (aliasAction.aliases.length == 0) {
-                    validationException = addValidationError("Alias action [" + aliasAction.actionType().name().toLowerCase(Locale.ENGLISH)
-                            + "]: aliases may not be empty", validationException);
-                }
-                for (String alias : aliasAction.aliases) {
-                    if (!Strings.hasText(alias)) {
-                        validationException = addValidationError("Alias action [" + aliasAction.actionType().name().toLowerCase(Locale.ENGLISH)
-                                + "]: [alias] may not be empty string", validationException);
-                    }
+                            + "]: [alias] may not be empty string", validationException);
                 }
             }
             if (CollectionUtils.isEmpty(aliasAction.indices)) {
@@ -345,7 +334,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
     public IndicesOptions indicesOptions() {
         return INDICES_OPTIONS;
     }
-    
+
     private static AliasActions readAliasActions(StreamInput in) throws IOException {
         AliasActions actions = new AliasActions();
         return actions.readFrom(in);

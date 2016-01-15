@@ -22,6 +22,7 @@ package org.elasticsearch.search.builder;
 import com.carrotsearch.hppc.ObjectFloatHashMap;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
@@ -91,6 +92,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
     public static final ParseField RESCORE_FIELD = new ParseField("rescore");
     public static final ParseField STATS_FIELD = new ParseField("stats");
     public static final ParseField EXT_FIELD = new ParseField("ext");
+    public static final ParseField PROFILE_FIELD = new ParseField("profile");
 
     private static final SearchSourceBuilder PROTOTYPE = new SearchSourceBuilder();
 
@@ -144,7 +146,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
 
     private List<BytesReference> aggregations;
 
-    private BytesReference highlightBuilder;
+    private HighlightBuilder highlightBuilder;
 
     private BytesReference suggestBuilder;
 
@@ -157,6 +159,9 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
     private List<String> stats;
 
     private BytesReference ext = null;
+
+    private boolean profile = false;
+
 
     /**
      * Constructs a new search source builder.
@@ -405,22 +410,14 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
      * Adds highlight to perform as part of the search.
      */
     public SearchSourceBuilder highlighter(HighlightBuilder highlightBuilder) {
-        try {
-            XContentBuilder builder = XContentFactory.jsonBuilder();
-            builder.startObject();
-            highlightBuilder.innerXContent(builder);
-            builder.endObject();
-            this.highlightBuilder = builder.bytes();
-            return this;
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+        this.highlightBuilder = highlightBuilder;
+        return this;
     }
 
     /**
-     * Gets the bytes representing the hightlighter builder for this request.
+     * Gets the hightlighter builder for this request.
      */
-    public BytesReference highlighter() {
+    public HighlightBuilder highlighter() {
         return highlightBuilder;
     }
 
@@ -481,6 +478,22 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
     public SearchSourceBuilder clearRescorers() {
         rescoreBuilders = null;
         return this;
+    }
+
+    /**
+     * Should the query be profiled. Defaults to <tt>false</tt>
+     */
+    public SearchSourceBuilder profile(boolean profile) {
+        this.profile = profile;
+        return this;
+    }
+
+    /**
+     * Return whether to profile query execution, or {@code null} if
+     * unspecified.
+     */
+    public boolean profile() {
+        return profile;
     }
 
     /**
@@ -737,11 +750,11 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                 } else if (context.parseFieldMatcher().match(currentFieldName, _SOURCE_FIELD)) {
                     fetchSourceContext = FetchSourceContext.parse(parser, context);
                 } else if (context.parseFieldMatcher().match(currentFieldName, FIELDS_FIELD)) {
-                    fieldNames = new ArrayList<>();
                     fieldNames.add(parser.text());
                 } else if (context.parseFieldMatcher().match(currentFieldName, SORT_FIELD)) {
-                    sorts = new ArrayList<>();
                     sort(parser.text());
+                } else if (context.parseFieldMatcher().match(currentFieldName, PROFILE_FIELD)) {
+                    profile = parser.booleanValue();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token + " in [" + currentFieldName + "].",
                             parser.getTokenLocation());
@@ -821,8 +834,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                         }
                     }
                 } else if (context.parseFieldMatcher().match(currentFieldName, HIGHLIGHT_FIELD)) {
-                    XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().copyCurrentStructure(parser);
-                    highlightBuilder = xContentBuilder.bytes();
+                    highlightBuilder = HighlightBuilder.PROTOTYPE.fromXContent(context);
                 } else if (context.parseFieldMatcher().match(currentFieldName, INNER_HITS_FIELD)) {
                     XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().copyCurrentStructure(parser);
                     innerHitsBuilder = xContentBuilder.bytes();
@@ -941,6 +953,10 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
             builder.field(EXPLAIN_FIELD.getPreferredName(), explain);
         }
 
+        if (profile) {
+            builder.field("profile", true);
+        }
+
         if (fetchSourceContext != null) {
             builder.field(_SOURCE_FIELD.getPreferredName(), fetchSourceContext);
         }
@@ -1013,10 +1029,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         }
 
         if (highlightBuilder != null) {
-            builder.field(HIGHLIGHT_FIELD.getPreferredName());
-            XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(highlightBuilder);
-            parser.nextToken();
-            builder.copyCurrentStructure(parser);
+            this.highlightBuilder.toXContent(builder, params);
         }
 
         if (innerHitsBuilder != null) {
@@ -1159,7 +1172,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         }
         builder.from = in.readVInt();
         if (in.readBoolean()) {
-            builder.highlightBuilder = in.readBytesReference();
+            builder.highlightBuilder = HighlightBuilder.PROTOTYPE.readFrom(in);
         }
         boolean hasIndexBoost = in.readBoolean();
         if (hasIndexBoost) {
@@ -1225,6 +1238,11 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         if (in.readBoolean()) {
             builder.ext = in.readBytesReference();
         }
+        if (in.getVersion().onOrAfter(Version.V_2_2_0)) {
+            builder.profile = in.readBoolean();
+        } else {
+            builder.profile = false;
+        }
         return builder;
     }
 
@@ -1260,7 +1278,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         boolean hasHighlightBuilder = highlightBuilder != null;
         out.writeBoolean(hasHighlightBuilder);
         if (hasHighlightBuilder) {
-            out.writeBytesReference(highlightBuilder);
+            highlightBuilder.writeTo(out);
         }
         boolean hasIndexBoost = indexBoost != null;
         out.writeBoolean(hasIndexBoost);
@@ -1338,13 +1356,16 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         if (hasExt) {
             out.writeBytesReference(ext);
         }
+        if (out.getVersion().onOrAfter(Version.V_2_2_0)) {
+            out.writeBoolean(profile);
+        }
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(aggregations, explain, fetchSourceContext, fieldDataFields, fieldNames, from,
                 highlightBuilder, indexBoost, innerHitsBuilder, minScore, postQueryBuilder, queryBuilder, rescoreBuilders, scriptFields,
-                size, sorts, stats, suggestBuilder, terminateAfter, timeoutInMillis, trackScores, version);
+                size, sorts, stats, suggestBuilder, terminateAfter, timeoutInMillis, trackScores, version, profile);
     }
 
     @Override
@@ -1377,6 +1398,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                 && Objects.equals(terminateAfter, other.terminateAfter)
                 && Objects.equals(timeoutInMillis, other.timeoutInMillis)
                 && Objects.equals(trackScores, other.trackScores)
-                && Objects.equals(version, other.version);
+                && Objects.equals(version, other.version)
+                && Objects.equals(profile, other.profile);
     }
 }

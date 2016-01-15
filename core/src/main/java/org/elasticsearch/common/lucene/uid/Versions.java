@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.lucene.uid;
 
-import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReader.CoreClosedListener;

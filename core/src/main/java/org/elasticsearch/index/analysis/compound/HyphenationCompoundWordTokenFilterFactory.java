@@ -24,8 +24,8 @@ import org.apache.lucene.analysis.compound.HyphenationCompoundWordTokenFilter;
 import org.apache.lucene.analysis.compound.Lucene43HyphenationCompoundWordTokenFilter;
 import org.apache.lucene.analysis.compound.hyphenation.HyphenationTree;
 import org.apache.lucene.util.Version;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.xml.sax.InputSource;
 
@@ -61,10 +61,10 @@ public class HyphenationCompoundWordTokenFilterFactory extends AbstractCompoundW
     @Override
     public TokenStream create(TokenStream tokenStream) {
         if (version.onOrAfter(Version.LUCENE_4_4_0)) {
-            return new HyphenationCompoundWordTokenFilter(tokenStream, hyphenationTree, wordList, minWordSize, 
+            return new HyphenationCompoundWordTokenFilter(tokenStream, hyphenationTree, wordList, minWordSize,
                                                           minSubwordSize, maxSubwordSize, onlyLongestMatch);
         } else {
-            return new Lucene43HyphenationCompoundWordTokenFilter(tokenStream, hyphenationTree, wordList, minWordSize, 
+            return new Lucene43HyphenationCompoundWordTokenFilter(tokenStream, hyphenationTree, wordList, minWordSize,
                     minSubwordSize, maxSubwordSize, onlyLongestMatch);
         }
     }

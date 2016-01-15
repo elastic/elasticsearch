@@ -21,17 +21,16 @@ package org.elasticsearch.search.child;
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.explain.ExplainResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexModule;
-import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.query.HasChildQueryBuilder;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -1176,8 +1175,8 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
                     .startObject("_parent").field("type", "parent").endObject()
                     .endObject().endObject()).get();
             fail();
-        } catch (MergeMappingException e) {
-            assertThat(e.toString(), containsString("Merge failed with failures {[The _parent field's type option can't be changed: [null]->[parent]"));
+        } catch (IllegalArgumentException e) {
+            assertThat(e.toString(), containsString("The _parent field's type option can't be changed: [null]->[parent]"));
         }
     }
 

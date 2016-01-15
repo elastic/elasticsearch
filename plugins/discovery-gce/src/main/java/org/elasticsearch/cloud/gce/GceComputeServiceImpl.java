@@ -30,9 +30,8 @@ import com.google.api.client.json.jackson2.JacksonFactory;
 import com.google.api.services.compute.Compute;
 import com.google.api.services.compute.model.Instance;
 import com.google.api.services.compute.model.InstanceList;
-
-import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.cloud.gce.network.GceNameResolver;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -45,9 +44,14 @@ import java.io.IOException;
 import java.net.URL;
 import java.security.AccessController;
 import java.security.GeneralSecurityException;
+import java.security.PrivilegedAction;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 
 public class GceComputeServiceImpl extends AbstractLifecycleComponent<GceComputeService>
     implements GceComputeService {
@@ -103,15 +107,25 @@ public class GceComputeServiceImpl extends AbstractLifecycleComponent<GceCompute
     public String metadata(String metadataPath) throws IOException {
         String urlMetadataNetwork = GCE_METADATA_URL + "/" + metadataPath;
         logger.debug("get metadata from [{}]", urlMetadataNetwork);
-        URL url = new URL(urlMetadataNetwork);
+        final URL url = new URL(urlMetadataNetwork);
         HttpHeaders headers;
         try {
             // hack around code messiness in GCE code
             // TODO: get this fixed
+            SecurityManager sm = System.getSecurityManager();
+            if (sm != null) {
+                sm.checkPermission(new SpecialPermission());
+            }
             headers = AccessController.doPrivileged(new PrivilegedExceptionAction<HttpHeaders>() {
                 @Override
                 public HttpHeaders run() throws IOException {
                     return new HttpHeaders();
+                }
+            });
+            GenericUrl genericUrl = AccessController.doPrivileged(new PrivilegedAction<GenericUrl>() {
+                @Override
+                public GenericUrl run() {
+                    return new GenericUrl(url);
                 }
             });
 
@@ -119,7 +133,7 @@ public class GceComputeServiceImpl extends AbstractLifecycleComponent<GceCompute
             headers.put("Metadata-Flavor", "Google");
             HttpResponse response;
             response = getGceHttpTransport().createRequestFactory()
-                    .buildGetRequest(new GenericUrl(url))
+                    .buildGetRequest(genericUrl)
                     .setHeaders(headers)
                     .execute();
             String metadata = response.parseAsString();

@@ -20,7 +20,12 @@ package org.elasticsearch.snapshots;
 
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
-import org.elasticsearch.cluster.*;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.SnapshotId;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.service.PendingClusterTask;
@@ -56,7 +61,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         return settingsBuilder().put(super.nodeSettings(nodeOrdinal))
             // Rebalancing is causing some checks after restore to randomly fail
             // due to https://github.com/elastic/elasticsearch/issues/9421
-            .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE, EnableAllocationDecider.Rebalance.NONE)
+            .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
             .build();
     }
 
@@ -171,7 +176,10 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         private long stopWaitingAt = -1;
 
         public BlockingClusterStateListener(ClusterService clusterService, String blockOn, String countOn, Priority passThroughPriority) {
-            this(clusterService, blockOn, countOn, passThroughPriority, TimeValue.timeValueMinutes(1));
+            // Waiting for the 70 seconds here to make sure that the last check at 65 sec mark in assertBusyPendingTasks has a chance
+            // to finish before we timeout on the cluster state block. Otherwise the last check in assertBusyPendingTasks kicks in
+            // after the cluster state block clean up takes place and it's assert doesn't reflect the actual failure
+            this(clusterService, blockOn, countOn, passThroughPriority, TimeValue.timeValueSeconds(70));
         }
 
         public BlockingClusterStateListener(ClusterService clusterService, final String blockOn, final String countOn, Priority passThroughPriority, TimeValue timeout) {

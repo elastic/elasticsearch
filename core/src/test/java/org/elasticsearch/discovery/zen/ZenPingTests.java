@@ -62,7 +62,7 @@ public class ZenPingTests extends ESTestCase {
         }
 
         // shuffle
-        Collections.shuffle(pings);
+        Collections.shuffle(pings, random());
 
         ZenPing.PingCollection collection = new ZenPing.PingCollection();
         collection.addPings(pings.toArray(new ZenPing.PingResponse[pings.size()]));

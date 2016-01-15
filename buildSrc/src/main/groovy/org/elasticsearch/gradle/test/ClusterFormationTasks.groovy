@@ -23,11 +23,18 @@ import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.plugin.PluginBuildPlugin
-import org.gradle.api.*
+import org.gradle.api.AntBuilder
+import org.gradle.api.DefaultTask
+import org.gradle.api.GradleException
+import org.gradle.api.InvalidUserDataException
+import org.gradle.api.Project
+import org.gradle.api.Task
 import org.gradle.api.artifacts.Configuration
 import org.gradle.api.file.FileCollection
 import org.gradle.api.logging.Logger
-import org.gradle.api.tasks.*
+import org.gradle.api.tasks.Copy
+import org.gradle.api.tasks.Delete
+import org.gradle.api.tasks.Exec
 
 import java.nio.file.Paths
 
@@ -38,8 +45,10 @@ class ClusterFormationTasks {
 
     /**
      * Adds dependent tasks to the given task to start and stop a cluster with the given configuration.
+     *
+     * Returns an object that will resolve at execution time of the given task to a uri for the cluster.
      */
-    static void setup(Project project, Task task, ClusterConfiguration config) {
+    static Object setup(Project project, Task task, ClusterConfiguration config) {
         if (task.getEnabled() == false) {
             // no need to add cluster formation tasks if the task won't run!
             return
@@ -55,12 +64,20 @@ class ClusterFormationTasks {
 
         Task wait = configureWaitTask("${task.name}#wait", project, nodes, startTasks)
         task.dependsOn(wait)
+
+        // delay the resolution of the uri by wrapping in a closure, so it is not used until read for tests
+        return "${-> nodes[0].transportUri()}"
     }
 
     /** Adds a dependency on the given distribution */
     static void configureDistributionDependency(Project project, String distro) {
         String elasticsearchVersion = VersionProperties.elasticsearch
-        String packaging = distro == 'tar' ? 'tar.gz' : distro
+        String packaging = distro
+        if (distro == 'tar') {
+            packaging = 'tar.gz'
+        } else if (distro == 'integ-test-zip') {
+            packaging = 'zip'
+        }
         project.configurations {
             elasticsearchDistro
         }
@@ -103,6 +120,12 @@ class ClusterFormationTasks {
         setup = configureExtraConfigFilesTask(taskName(task, node, 'extraConfig'), project, setup, node)
         setup = configureCopyPluginsTask(taskName(task, node, 'copyPlugins'), project, setup, node)
 
+        // install modules
+        for (Project module : node.config.modules) {
+            String actionName = pluginTaskName('install', module.name, 'Module')
+            setup = configureInstallModuleTask(taskName(task, node, actionName), project, setup, node, module)
+        }
+
         // install plugins
         for (Map.Entry<String, Object> plugin : node.config.plugins.entrySet()) {
             String actionName = pluginTaskName('install', plugin.getKey(), 'Plugin')
@@ -138,6 +161,7 @@ class ClusterFormationTasks {
           by the source tree. If it isn't then Bad Things(TM) will happen. */
         Task extract
         switch (node.config.distribution) {
+            case 'integ-test-zip':
             case 'zip':
                 extract = project.tasks.create(name: name, type: Copy, dependsOn: extractDependsOn) {
                     from { project.zipTree(project.configurations.elasticsearchDistro.singleFile) }
@@ -188,17 +212,24 @@ class ClusterFormationTasks {
     /** Adds a task to write elasticsearch.yml for the given node configuration */
     static Task configureWriteConfigTask(String name, Project project, Task setup, NodeInfo node) {
         Map esConfig = [
-            'cluster.name'                    : node.clusterName,
-            'http.port'                       : node.httpPort(),
-            'transport.tcp.port'              : node.transportPort(),
-            'pidfile'                         : node.pidFile,
-            'discovery.zen.ping.unicast.hosts': (0..<node.config.numNodes).collect{"127.0.0.1:${node.config.baseTransportPort + it}"}.join(','),
-            'path.repo'                       : "${node.homeDir}/repo",
-            'path.shared_data'                : "${node.homeDir}/../",
-            // Define a node attribute so we can test that it exists
-            'node.testattr'                   : 'test',
-            'repositories.url.allowed_urls'   : 'http://snapshot.test*'
+                'cluster.name'                 : node.clusterName,
+                'pidfile'                      : node.pidFile,
+                'path.repo'                    : "${node.homeDir}/repo",
+                'path.shared_data'             : "${node.homeDir}/../",
+                // Define a node attribute so we can test that it exists
+                'node.testattr'                : 'test',
+                'repositories.url.allowed_urls': 'http://snapshot.test*'
         ]
+        if (node.config.numNodes == 1) {
+            esConfig['http.port'] = node.config.httpPort
+            esConfig['transport.tcp.port'] =  node.config.transportPort
+        } else {
+            // TODO: fix multi node so it doesn't use hardcoded prots
+            esConfig['http.port'] = 9400 + node.nodeNum
+            esConfig['transport.tcp.port'] =  9500 + node.nodeNum
+            esConfig['discovery.zen.ping.unicast.hosts'] = (0..<node.config.numNodes).collect{"localhost:${9500 + it}"}.join(',')
+
+        }
         esConfig.putAll(node.config.settings)
 
         Task writeConfig = project.tasks.create(name: name, type: DefaultTask, dependsOn: setup)
@@ -284,6 +315,20 @@ class ClusterFormationTasks {
         copyPlugins.into(node.pluginsTmpDir)
         copyPlugins.from(pluginFiles)
         return copyPlugins
+    }
+
+    static Task configureInstallModuleTask(String name, Project project, Task setup, NodeInfo node, Project module) {
+        if (node.config.distribution != 'integ-test-zip') {
+            throw new GradleException("Module ${module.path} not allowed be installed distributions other than integ-test-zip because they should already have all modules bundled!")
+        }
+        if (module.plugins.hasPlugin(PluginBuildPlugin) == false) {
+            throw new GradleException("Task ${name} cannot include module ${module.path} which is not an esplugin")
+        }
+        Copy installModule = project.tasks.create(name, Copy.class)
+        installModule.dependsOn(setup)
+        installModule.into(new File(node.homeDir, "modules/${module.name}"))
+        installModule.from({ project.zipTree(module.tasks.bundlePlugin.outputs.files.singleFile) })
+        return installModule
     }
 
     static Task configureInstallPluginTask(String name, Project project, Task setup, NodeInfo node, Object plugin) {
@@ -374,7 +419,12 @@ class ClusterFormationTasks {
                             resourceexists {
                                 file(file: node.pidFile.toString())
                             }
-                            socket(server: '127.0.0.1', port: node.httpPort())
+                            resourceexists {
+                                file(file: node.httpPortsFile.toString())
+                            }
+                            resourceexists {
+                                file(file: node.transportPortsFile.toString())
+                            }
                         }
                     }
                 }
@@ -418,6 +468,8 @@ class ClusterFormationTasks {
             logger.error("|-----------------------------------------")
             logger.error("|  failure marker exists: ${node.failedMarker.exists()}")
             logger.error("|  pid file exists: ${node.pidFile.exists()}")
+            logger.error("|  http ports file exists: ${node.httpPortsFile.exists()}")
+            logger.error("|  transport ports file exists: ${node.transportPortsFile.exists()}")
             // the waitfor failed, so dump any output we got (if info logging this goes directly to stdout)
             logger.error("|\n|  [ant output]")
             node.buffer.toString('UTF-8').eachLine { line -> logger.error("|    ${line}") }
@@ -499,7 +551,7 @@ class ClusterFormationTasks {
         }
     }
 
-    static String pluginTaskName(String action, String name, String suffix) {
+    public static String pluginTaskName(String action, String name, String suffix) {
         // replace every dash followed by a character with just the uppercase character
         String camelName = name.replaceAll(/-(\w)/) { _, c -> c.toUpperCase(Locale.ROOT) }
         return action + camelName[0].toUpperCase(Locale.ROOT) + camelName.substring(1) + suffix

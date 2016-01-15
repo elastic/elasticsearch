@@ -23,12 +23,22 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
-import org.elasticsearch.cluster.metadata.*;
+import org.elasticsearch.cluster.metadata.AliasMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
+import org.elasticsearch.cluster.metadata.SnapshotId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.*;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -38,7 +48,6 @@ import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Collections;
@@ -481,9 +490,6 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                 builder.settings(settingsBuilder);
                 builder.numberOfShards(randomIntBetween(1, 10)).numberOfReplicas(randomInt(10));
                 int aliasCount = randomInt(10);
-                if (randomBoolean()) {
-                    builder.putCustom(IndexWarmersMetaData.TYPE, randomWarmers());
-                }
                 for (int i = 0; i < aliasCount; i++) {
                     builder.putAlias(randomAlias());
                 }
@@ -493,7 +499,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
             @Override
             public IndexMetaData randomChange(IndexMetaData part) {
                 IndexMetaData.Builder builder = IndexMetaData.builder(part);
-                switch (randomIntBetween(0, 3)) {
+                switch (randomIntBetween(0, 2)) {
                     case 0:
                         builder.settings(Settings.builder().put(part.getSettings()).put(randomSettings(Settings.EMPTY)));
                         break;
@@ -507,32 +513,12 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                     case 2:
                         builder.settings(Settings.builder().put(part.getSettings()).put(IndexMetaData.SETTING_INDEX_UUID, Strings.randomBase64UUID()));
                         break;
-                    case 3:
-                        builder.putCustom(IndexWarmersMetaData.TYPE, randomWarmers());
-                        break;
                     default:
                         throw new IllegalArgumentException("Shouldn't be here");
                 }
                 return builder.build();
             }
         });
-    }
-
-    /**
-     * Generates a random warmer
-     */
-    private IndexWarmersMetaData randomWarmers() {
-        if (randomBoolean()) {
-            return new IndexWarmersMetaData(
-                    new IndexWarmersMetaData.Entry(
-                            randomName("warm"),
-                            new String[]{randomName("type")},
-                            randomBoolean(),
-                            new IndexWarmersMetaData.SearchSource(new BytesArray(randomAsciiOfLength(1000))))
-            );
-        } else {
-            return new IndexWarmersMetaData();
-        }
     }
 
     /**
@@ -564,9 +550,6 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                 int aliasCount = randomIntBetween(0, 10);
                 for (int i = 0; i < aliasCount; i++) {
                     builder.putAlias(randomAlias());
-                }
-                if (randomBoolean()) {
-                    builder.putCustom(IndexWarmersMetaData.TYPE, randomWarmers());
                 }
                 return builder.build();
             }

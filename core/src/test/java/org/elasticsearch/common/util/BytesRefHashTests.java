@@ -22,7 +22,6 @@ package org.elasticsearch.common.util;
 import com.carrotsearch.hppc.ObjectLongHashMap;
 import com.carrotsearch.hppc.ObjectLongMap;
 import com.carrotsearch.hppc.cursors.ObjectLongCursor;
-
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.TestUtil;

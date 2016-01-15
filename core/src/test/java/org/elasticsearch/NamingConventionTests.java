@@ -19,7 +19,6 @@
 package org.elasticsearch;
 
 import junit.framework.TestCase;
-
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.test.ESIntegTestCase;

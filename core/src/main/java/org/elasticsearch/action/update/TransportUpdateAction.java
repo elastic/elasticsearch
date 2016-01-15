@@ -101,7 +101,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
 
     @Override
     protected boolean resolveRequest(ClusterState state, UpdateRequest request, ActionListener<UpdateResponse> listener) {
-        request.routing((state.metaData().resolveIndexRouting(request.routing(), request.index())));
+        request.routing((state.metaData().resolveIndexRouting(request.parent(), request.routing(), request.index())));
         // Fail fast on the node that received the request, rather than failing when translating on the index or delete request.
         if (request.routing() == null && state.getMetaData().routingRequired(request.concreteIndex(), request.type())) {
             throw new RoutingMissingException(request.concreteIndex(), request.type(), request.id());
@@ -175,7 +175,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 indexAction.execute(upsertRequest, new ActionListener<IndexResponse>() {
                     @Override
                     public void onResponse(IndexResponse response) {
-                        UpdateResponse update = new UpdateResponse(response.getShardInfo(), response.getIndex(), response.getType(), response.getId(), response.getVersion(), response.isCreated());
+                        UpdateResponse update = new UpdateResponse(response.getShardInfo(), response.getShardId(), response.getType(), response.getId(), response.getVersion(), response.isCreated());
                         if (request.fields() != null && request.fields().length > 0) {
                             Tuple<XContentType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(upsertSourceBytes, true);
                             update.setGetResult(updateHelper.extractGetResult(request, request.concreteIndex(), response.getVersion(), sourceAndContent.v2(), sourceAndContent.v1(), upsertSourceBytes));
@@ -212,7 +212,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 indexAction.execute(indexRequest, new ActionListener<IndexResponse>() {
                     @Override
                     public void onResponse(IndexResponse response) {
-                        UpdateResponse update = new UpdateResponse(response.getShardInfo(), response.getIndex(), response.getType(), response.getId(), response.getVersion(), response.isCreated());
+                        UpdateResponse update = new UpdateResponse(response.getShardInfo(), response.getShardId(), response.getType(), response.getId(), response.getVersion(), response.isCreated());
                         update.setGetResult(updateHelper.extractGetResult(request, request.concreteIndex(), response.getVersion(), result.updatedSourceAsMap(), result.updateSourceContentType(), indexSourceBytes));
                         listener.onResponse(update);
                     }
@@ -240,7 +240,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 deleteAction.execute(deleteRequest, new ActionListener<DeleteResponse>() {
                     @Override
                     public void onResponse(DeleteResponse response) {
-                        UpdateResponse update = new UpdateResponse(response.getShardInfo(), response.getIndex(), response.getType(), response.getId(), response.getVersion(), false);
+                        UpdateResponse update = new UpdateResponse(response.getShardInfo(), response.getShardId(), response.getType(), response.getId(), response.getVersion(), false);
                         update.setGetResult(updateHelper.extractGetResult(request, request.concreteIndex(), response.getVersion(), result.updatedSourceAsMap(), result.updateSourceContentType(), null));
                         listener.onResponse(update);
                     }
@@ -269,7 +269,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 if (indexServiceOrNull !=  null) {
                     IndexShard shard = indexService.getShardOrNull(request.shardId());
                     if (shard != null) {
-                        shard.indexingService().noopUpdate(request.type());
+                        shard.noopUpdate(request.type());
                     }
                 }
                 listener.onResponse(update);

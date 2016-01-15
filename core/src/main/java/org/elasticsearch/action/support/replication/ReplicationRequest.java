@@ -38,11 +38,16 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  *
  */
-public class ReplicationRequest<T extends ReplicationRequest> extends ActionRequest<T> implements IndicesRequest {
+public class ReplicationRequest<Request extends ReplicationRequest<Request>> extends ActionRequest<Request> implements IndicesRequest {
 
     public static final TimeValue DEFAULT_TIMEOUT = new TimeValue(1, TimeUnit.MINUTES);
 
-    ShardId internalShardId;
+    /**
+     * Target shard the request should execute on. In case of index and delete requests,
+     * shard id gets resolved by the transport action before performing request operation
+     * and at request creation time for shard-level bulk, refresh and flush requests.
+     */
+    protected ShardId shardId;
 
     protected TimeValue timeout = DEFAULT_TIMEOUT;
     protected String index;
@@ -56,14 +61,23 @@ public class ReplicationRequest<T extends ReplicationRequest> extends ActionRequ
     /**
      * Creates a new request that inherits headers and context from the request provided as argument.
      */
-    public ReplicationRequest(ActionRequest request) {
+    public ReplicationRequest(ActionRequest<?> request) {
         super(request);
+    }
+
+    /**
+     * Creates a new request with resolved shard id
+     */
+    public ReplicationRequest(ActionRequest<?> request, ShardId shardId) {
+        super(request);
+        this.index = shardId.getIndex();
+        this.shardId = shardId;
     }
 
     /**
      * Copy constructor that creates a new request that is a copy of the one provided as an argument.
      */
-    protected ReplicationRequest(T request) {
+    protected ReplicationRequest(Request request) {
         this(request, request);
     }
 
@@ -71,7 +85,7 @@ public class ReplicationRequest<T extends ReplicationRequest> extends ActionRequ
      * Copy constructor that creates a new request that is a copy of the one provided as an argument.
      * The new request will inherit though headers and context from the original request that caused it.
      */
-    protected ReplicationRequest(T request, ActionRequest originalRequest) {
+    protected ReplicationRequest(Request request, ActionRequest<?> originalRequest) {
         super(originalRequest);
         this.timeout = request.timeout();
         this.index = request.index();
@@ -82,15 +96,15 @@ public class ReplicationRequest<T extends ReplicationRequest> extends ActionRequ
      * A timeout to wait if the index operation can't be performed immediately. Defaults to <tt>1m</tt>.
      */
     @SuppressWarnings("unchecked")
-    public final T timeout(TimeValue timeout) {
+    public final Request timeout(TimeValue timeout) {
         this.timeout = timeout;
-        return (T) this;
+        return (Request) this;
     }
 
     /**
      * A timeout to wait if the index operation can't be performed immediately. Defaults to <tt>1m</tt>.
      */
-    public final T timeout(String timeout) {
+    public final Request timeout(String timeout) {
         return timeout(TimeValue.parseTimeValue(timeout, null, getClass().getSimpleName() + ".timeout"));
     }
 
@@ -103,9 +117,9 @@ public class ReplicationRequest<T extends ReplicationRequest> extends ActionRequ
     }
 
     @SuppressWarnings("unchecked")
-    public final T index(String index) {
+    public final Request index(String index) {
         this.index = index;
-        return (T) this;
+        return (Request) this;
     }
 
     @Override
@@ -124,21 +138,21 @@ public class ReplicationRequest<T extends ReplicationRequest> extends ActionRequ
 
     /**
      * @return the shardId of the shard where this operation should be executed on.
-     * can be null in case the shardId is determined by a single document (index, type, id) for example for index or delete request.
+     * can be null if the shardID has not yet been resolved
      */
     public
     @Nullable
     ShardId shardId() {
-        return internalShardId;
+        return shardId;
     }
 
     /**
      * Sets the consistency level of write. Defaults to {@link org.elasticsearch.action.WriteConsistencyLevel#DEFAULT}
      */
     @SuppressWarnings("unchecked")
-    public final T consistencyLevel(WriteConsistencyLevel consistencyLevel) {
+    public final Request consistencyLevel(WriteConsistencyLevel consistencyLevel) {
         this.consistencyLevel = consistencyLevel;
-        return (T) this;
+        return (Request) this;
     }
 
     @Override
@@ -154,9 +168,9 @@ public class ReplicationRequest<T extends ReplicationRequest> extends ActionRequ
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         if (in.readBoolean()) {
-            internalShardId = ShardId.readShardId(in);
+            shardId = ShardId.readShardId(in);
         } else {
-            internalShardId = null;
+            shardId = null;
         }
         consistencyLevel = WriteConsistencyLevel.fromId(in.readByte());
         timeout = TimeValue.readTimeValue(in);
@@ -166,9 +180,9 @@ public class ReplicationRequest<T extends ReplicationRequest> extends ActionRequ
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (internalShardId != null) {
+        if (shardId != null) {
             out.writeBoolean(true);
-            internalShardId.writeTo(out);
+            shardId.writeTo(out);
         } else {
             out.writeBoolean(false);
         }
@@ -177,9 +191,22 @@ public class ReplicationRequest<T extends ReplicationRequest> extends ActionRequ
         out.writeString(index);
     }
 
-    public T setShardId(ShardId shardId) {
-        this.internalShardId = shardId;
-        this.index = shardId.getIndex();
-        return (T) this;
+    /**
+     * Sets the target shard id for the request. The shard id is set when a
+     * index/delete request is resolved by the transport action
+     */
+    @SuppressWarnings("unchecked")
+    public Request setShardId(ShardId shardId) {
+        this.shardId = shardId;
+        return (Request) this;
+    }
+
+    @Override
+    public String toString() {
+        if (shardId != null) {
+            return shardId.toString();
+        } else {
+            return index;
+        }
     }
 }

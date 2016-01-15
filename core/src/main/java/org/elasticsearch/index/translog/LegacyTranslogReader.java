@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.translog;
 
-import org.elasticsearch.common.io.stream.StreamInput;
-
 import java.io.IOException;
 
 /**

@@ -144,7 +144,7 @@ In the future we will also provide plural versions to allow putting multiple map
 See <<indices-put-mapping,`put-mapping`>>, <<indices-get-mapping,`get-
 mapping`>>, <<indices-get-field-mapping,`get-field-mapping`>>,
 <<indices-update-settings,`update-settings`>>, <<indices-get-settings,`get-settings`>>,
-<<indices-warmers,`warmers`>>, and <<indices-aliases,`aliases`>> for more details.
+`warmers`, and <<indices-aliases,`aliases`>> for more details.
 
 === Index request
 

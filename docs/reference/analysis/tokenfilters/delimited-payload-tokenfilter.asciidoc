@@ -3,9 +3,7 @@
 
 Named `delimited_payload_filter`. Splits tokens into tokens and payload whenever a delimiter character is found.
 
-Example: "the|1 quick|2 fox|3" is split per default int to tokens `fox`, `quick` and `the` with payloads `1`, `2` and `3` respectively.
-
-
+Example: "the|1 quick|2 fox|3" is split by default into tokens `the`, `quick`, and `fox` with payloads `1`, `2`, and `3` respectively.
 
 Parameters:
 

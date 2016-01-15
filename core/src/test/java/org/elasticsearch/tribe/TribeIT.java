@@ -21,13 +21,13 @@ package org.elasticsearch.tribe;
 
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Priority;
@@ -37,7 +37,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.discovery.zen.ping.unicast.UnicastZenPing;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.node.NodeBuilder;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.NodeConfigurationSource;
@@ -48,6 +48,7 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 
@@ -81,13 +82,18 @@ public class TribeIT extends ESIntegTestCase {
             }
 
             @Override
+            public Collection<Class<? extends Plugin>> nodePlugins() {
+                return Collections.emptyList();
+            }
+
+            @Override
             public Settings transportClientSettings() {
                 return null;
             }
 
         };
         cluster2 = new InternalTestCluster(InternalTestCluster.configuredNodeMode(), randomLong(), createTempDir(), 2, 2,
-                Strings.randomBase64UUID(getRandom()), nodeConfigurationSource, 0, false, SECOND_CLUSTER_NODE_PREFIX, true);
+                Strings.randomBase64UUID(getRandom()), nodeConfigurationSource, 0, false, SECOND_CLUSTER_NODE_PREFIX, Collections.emptyList());
 
         cluster2.beforeTest(getRandom(), 0.1);
         cluster2.ensureAtLeastNumDataNodes(2);
@@ -143,9 +149,7 @@ public class TribeIT extends ESIntegTestCase {
                 .put("node.name", "tribe_node") // make sure we can identify threads from this node
                 .build();
 
-        tribeNode = NodeBuilder.nodeBuilder()
-                .settings(merged)
-                .node();
+        tribeNode = new Node(merged).start();
         tribeClient = tribeNode.client();
     }
 

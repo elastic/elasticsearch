@@ -19,6 +19,10 @@
 
 package org.elasticsearch.index.mapper.murmur3;
 
+import java.io.IOException;
+import java.util.List;
+import java.util.Map;
+
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.util.BytesRef;
@@ -34,10 +38,6 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.core.LongFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
-
-import java.io.IOException;
-import java.util.List;
-import java.util.Map;
 
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseNumberField;
 
@@ -66,8 +66,7 @@ public class Murmur3FieldMapper extends LongFieldMapper {
             Murmur3FieldMapper fieldMapper = new Murmur3FieldMapper(name, fieldType, defaultFieldType,
                     ignoreMalformed(context), coerce(context),
                     context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
-            fieldMapper.includeInAll(includeInAll);
-            return fieldMapper;
+            return (Murmur3FieldMapper) fieldMapper.includeInAll(includeInAll);
         }
 
         @Override
@@ -94,8 +93,7 @@ public class Murmur3FieldMapper extends LongFieldMapper {
 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
-        @SuppressWarnings("unchecked")
-        public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public Mapper.Builder<?, ?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             Builder builder = new Builder(name);
 
             // tweaking these settings is no longer allowed, the entire purpose of murmur3 fields is to store a hash

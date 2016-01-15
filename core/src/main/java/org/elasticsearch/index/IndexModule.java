@@ -29,16 +29,22 @@ import org.elasticsearch.index.cache.query.none.NoneQueryCache;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexSearcherWrapper;
+import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.similarity.BM25SimilarityProvider;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.IndexStoreConfig;
+import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.indices.cache.query.IndicesQueryCache;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
@@ -237,7 +243,8 @@ public final class IndexModule {
         IndexSearcherWrapper newWrapper(final IndexService indexService);
     }
 
-    public IndexService newIndexService(NodeEnvironment environment, IndexService.ShardStoreDeleter shardStoreDeleter, NodeServicesProvider servicesProvider, MapperRegistry mapperRegistry) throws IOException {
+    public IndexService newIndexService(NodeEnvironment environment, IndexService.ShardStoreDeleter shardStoreDeleter, NodeServicesProvider servicesProvider, MapperRegistry mapperRegistry,
+                                        IndexingOperationListener... listeners) throws IOException {
         final IndexSettings settings = indexSettings.newWithListener(settingsConsumers);
         IndexSearcherWrapperFactory searcherWrapperFactory = indexSearcherWrapper.get() == null ? (shard) -> null : indexSearcherWrapper.get();
         IndexEventListener eventListener = freeze();
@@ -259,6 +266,6 @@ public final class IndexModule {
         final BiFunction<IndexSettings, IndicesQueryCache, QueryCache> queryCacheProvider = queryCaches.get(queryCacheType);
         final QueryCache queryCache = queryCacheProvider.apply(settings, servicesProvider.getIndicesQueryCache());
         return new IndexService(settings, environment, new SimilarityService(settings, similarities), shardStoreDeleter, analysisRegistry, engineFactory.get(),
-                servicesProvider, queryCache, store, eventListener, searcherWrapperFactory, mapperRegistry);
+                servicesProvider, queryCache, store, eventListener, searcherWrapperFactory, mapperRegistry, listeners);
     }
 }

@@ -19,11 +19,10 @@
 
 package org.elasticsearch.node.internal;
 
-import java.nio.charset.StandardCharsets;
-
 import org.elasticsearch.bootstrap.BootstrapInfo;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.cli.Terminal;
 import org.elasticsearch.common.collect.Tuple;
@@ -35,6 +34,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -42,7 +42,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ThreadLocalRandom;
 
 import static org.elasticsearch.common.Strings.cleanPath;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
@@ -169,11 +168,6 @@ public class InternalSettingsPreparer {
             output.put(ClusterName.SETTING, ClusterName.DEFAULT.value());
         }
 
-        String v = output.get(Settings.SETTINGS_REQUIRE_UNITS);
-        if (v != null) {
-            Settings.setSettingsRequireUnits(Booleans.parseBoolean(v, true));
-        }
-
         replacePromptPlaceholders(output, terminal);
         // all settings placeholders have been resolved. resolve the value for the name setting by checking for name,
         // then looking for node.name, and finally generate one if needed
@@ -208,7 +202,7 @@ public class InternalSettingsPreparer {
                     name = reader.readLine();
                 }
             }
-            int index = ThreadLocalRandom.current().nextInt(names.size());
+            int index = Randomness.get().nextInt(names.size());
             return names.get(index);
         } catch (IOException e) {
             throw new RuntimeException("Could not read node names list", e);

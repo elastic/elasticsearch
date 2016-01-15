@@ -7,6 +7,7 @@
 :jdk:           1.8.0_25
 :defguide:      https://www.elastic.co/guide/en/elasticsearch/guide/current
 :plugins:       https://www.elastic.co/guide/en/elasticsearch/plugins/master
+:javaclient:    https://www.elastic.co/guide/en/elasticsearch/client/java-api/master/
 :issue:         https://github.com/elastic/elasticsearch/issues/
 :pull:          https://github.com/elastic/elasticsearch/pull/
 

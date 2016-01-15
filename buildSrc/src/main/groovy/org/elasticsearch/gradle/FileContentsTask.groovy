@@ -19,8 +19,9 @@
 package org.elasticsearch.gradle
 
 import org.gradle.api.DefaultTask
-import org.gradle.api.tasks.*
-import java.io.File
+import org.gradle.api.tasks.Input
+import org.gradle.api.tasks.OutputFile
+import org.gradle.api.tasks.TaskAction
 
 /**
  * Creates a file and sets it contents to something.

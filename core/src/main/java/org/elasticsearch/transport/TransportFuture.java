@@ -19,8 +19,6 @@
 
 package org.elasticsearch.transport;
 
-import org.elasticsearch.ElasticsearchException;
-
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 

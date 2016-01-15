@@ -21,8 +21,12 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.search.aggregations.*;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.NonCollectingAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -90,7 +94,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
                     throws IOException {
                 final IncludeExclude.OrdinalsFilter filter = includeExclude == null ? null : includeExclude.convertToOrdinalsFilter();
                 return new GlobalOrdinalsStringTermsAggregator.WithHash(name, factories,
-                        (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource, order, bucketCountThresholds, filter, aggregationContext,
+                        (ValuesSource.Bytes.WithOrdinals) valuesSource, order, bucketCountThresholds, filter, aggregationContext,
                         parent, subAggCollectMode, showTermDocCountError, pipelineAggregators, metaData);
             }
 
@@ -107,7 +111,10 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
                     AggregationContext aggregationContext, Aggregator parent, SubAggCollectionMode subAggCollectMode,
                     boolean showTermDocCountError, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
                     throws IOException {
-                if (includeExclude != null || factories.count() > 0) {
+                if (includeExclude != null || factories.count() > 0
+                        // we need the FieldData impl to be able to extract the
+                        // segment to global ord mapping
+                        || valuesSource.getClass() != ValuesSource.Bytes.FieldData.class) {
                     return GLOBAL_ORDINALS.create(name, factories, valuesSource, order, bucketCountThresholds, includeExclude,
                             aggregationContext, parent, subAggCollectMode, showTermDocCountError, pipelineAggregators, metaData);
                 }

@@ -148,13 +148,14 @@ PUT my_index/my_type/1
 [[match-pattern]]
 ==== `match_pattern`
 
-The `match_pattern` parameter behaves just like the `match` parameter, but
-supports full Java regular expression matching on the field name instead of
-simple wildcards, for instance:
+The `match_pattern` parameter adjusts the behavior of the `match` parameter
+such that it supports full Java regular expression matching on the field name
+instead of simple wildcards, for instance:
 
 [source,js]
 --------------------------------------------------
-  "match_pattern": "^profit_\d+$"
+  "match_pattern": "regex",
+  "match": "^profit_\d+$"
 --------------------------------------------------
 
 [[path-match-unmatch]]
@@ -249,3 +250,36 @@ PUT my_index/my_type/1
 <1> The `english` field is mapped as a `string` field with the `english` analyzer.
 <2> The `count` field is mapped as a `long` field with `doc_values` disabled
 
+
+[[override-default-template]]
+=== Override default template
+
+You can override the default mappings for all indices and all types
+by specifying a `_default_` type mapping in an index template
+which matches all indices.
+
+For example, to disable the `_all` field by default for all types in all
+new indices, you could create the following index template:
+
+[source,js]
+--------------------------------------------------
+PUT _template/disable_all_field
+{
+  "disable_all_field": {
+    "order": 0,
+    "template": "*", <1>
+    "mappings": {
+      "_default_": { <2>
+        "_all": { <3>
+          "enabled": false
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// AUTOSENSE
+<1> Applies the mappings to an `index` which matches the pattern `*`, in other
+    words, all new indices.
+<2> Defines the `_default_` type mapping types within the index.
+<3> Disables the `_all` field by default.

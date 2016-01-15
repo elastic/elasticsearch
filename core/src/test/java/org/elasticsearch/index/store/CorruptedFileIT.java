@@ -19,19 +19,18 @@
 package org.elasticsearch.index.store;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.IndexFileNames;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
@@ -48,11 +47,15 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.discovery.Discovery;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.gateway.PrimaryShardAllocator;
-import org.elasticsearch.index.shard.*;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.shard.IndexEventListener;
+import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardState;
+import org.elasticsearch.index.MergePolicyConfig;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.recovery.RecoveryFileChunkRequest;
-import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.plugins.Plugin;
@@ -111,9 +114,8 @@ public class CorruptedFileIT extends ESIntegTestCase {
                 // and we need to make sure primaries are not just trashed if we don't have replicas
                 .put(super.nodeSettings(nodeOrdinal))
                         // speed up recoveries
-                .put(RecoverySettings.INDICES_RECOVERY_CONCURRENT_STREAMS, 10)
-                .put(RecoverySettings.INDICES_RECOVERY_CONCURRENT_SMALL_FILE_STREAMS, 10)
-                .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES, 5)
+                .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 5)
+                .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 5)
                 .build();
     }
 
@@ -140,7 +142,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
                         .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "1")
                         .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
                         .put(MockFSIndexStore.CHECK_INDEX_ON_CLOSE, false) // no checkindex - we corrupt shards on purpose
-                        .put(IndexShard.INDEX_TRANSLOG_DISABLE_FLUSH, true) // no translog based flush - it might change the .liv / segments.N files
+                        .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE, new ByteSizeValue(1, ByteSizeUnit.PB)) // no translog based flush - it might change the .liv / segments.N files
                         .put("indices.recovery.concurrent_streams", 10)
         ));
         ensureGreen();
@@ -245,7 +247,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
                         .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0")
                         .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
                         .put(MockFSIndexStore.CHECK_INDEX_ON_CLOSE, false) // no checkindex - we corrupt shards on purpose
-                        .put(IndexShard.INDEX_TRANSLOG_DISABLE_FLUSH, true) // no translog based flush - it might change the .liv / segments.N files
+                        .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE, new ByteSizeValue(1, ByteSizeUnit.PB)) // no translog based flush - it might change the .liv / segments.N files
                         .put("indices.recovery.concurrent_streams", 10)
         ));
         ensureGreen();
@@ -320,7 +322,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
         }
 
         assertThat(dataNodeStats.size(), greaterThanOrEqualTo(2));
-        Collections.shuffle(dataNodeStats, getRandom());
+        Collections.shuffle(dataNodeStats, random());
         NodeStats primariesNode = dataNodeStats.get(0);
         NodeStats unluckyNode = dataNodeStats.get(1);
         assertAcked(prepareCreate("test").setSettings(Settings.builder()
@@ -380,7 +382,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
         }
 
         assertThat(dataNodeStats.size(), greaterThanOrEqualTo(2));
-        Collections.shuffle(dataNodeStats, getRandom());
+        Collections.shuffle(dataNodeStats, random());
         NodeStats primariesNode = dataNodeStats.get(0);
         NodeStats unluckyNode = dataNodeStats.get(1);
 
@@ -471,7 +473,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
                         .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0") // no replicas for this test
                         .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
                         .put(MockFSIndexStore.CHECK_INDEX_ON_CLOSE, false) // no checkindex - we corrupt shards on purpose
-                        .put(IndexShard.INDEX_TRANSLOG_DISABLE_FLUSH, true) // no translog based flush - it might change the .liv / segments.N files
+                        .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE, new ByteSizeValue(1, ByteSizeUnit.PB)) // no translog based flush - it might change the .liv / segments.N files
                         .put("indices.recovery.concurrent_streams", 10)
         ));
         ensureGreen();
@@ -526,7 +528,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
                         .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, cluster().numDataNodes() - 1)
                         .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
                         .put(MockFSIndexStore.CHECK_INDEX_ON_CLOSE, false) // no checkindex - we corrupt shards on purpose
-                        .put(IndexShard.INDEX_TRANSLOG_DISABLE_FLUSH, true) // no translog based flush - it might change the .liv / segments.N files
+                        .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE, new ByteSizeValue(1, ByteSizeUnit.PB)) // no translog based flush - it might change the .liv / segments.N files
                         .put("indices.recovery.concurrent_streams", 10)
         ));
         ensureGreen();

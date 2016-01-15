@@ -45,10 +45,21 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.RecoveryEngineException;
 import org.elasticsearch.index.mapper.MapperException;
-import org.elasticsearch.index.shard.*;
+import org.elasticsearch.index.shard.IllegalIndexShardStateException;
+import org.elasticsearch.index.shard.IndexEventListener;
+import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardClosedException;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardNotFoundException;
+import org.elasticsearch.index.shard.TranslogRecoveryPerformer;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.*;
+import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.FutureTransportResponseHandler;
+import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportRequestHandler;
+import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -134,12 +145,12 @@ public class RecoveryTarget extends AbstractComponent implements IndexEventListe
         logger.trace("will retry recovery with id [{}] in [{}]", reason, recoveryStatus.recoveryId(), retryAfter);
         retryRecovery(recoveryStatus, retryAfter, currentRequest);
     }
-    
+
     protected void retryRecovery(final RecoveryStatus recoveryStatus, final String reason, TimeValue retryAfter, final StartRecoveryRequest currentRequest) {
         logger.trace("will retry recovery with id [{}] in [{}] (reason [{}])", recoveryStatus.recoveryId(), retryAfter, reason);
         retryRecovery(recoveryStatus, retryAfter, currentRequest);
     }
-    
+
     private void retryRecovery(final RecoveryStatus recoveryStatus, TimeValue retryAfter, final StartRecoveryRequest currentRequest) {
         try {
             recoveryStatus.resetRecovery();
@@ -208,11 +219,15 @@ public class RecoveryTarget extends AbstractComponent implements IndexEventListe
         } catch (CancellableThreads.ExecutionCancelledException e) {
             logger.trace("recovery cancelled", e);
         } catch (Throwable e) {
-
             if (logger.isTraceEnabled()) {
                 logger.trace("[{}][{}] Got exception on recovery", e, request.shardId().index().name(), request.shardId().id());
             }
             Throwable cause = ExceptionsHelper.unwrapCause(e);
+            if (cause instanceof CancellableThreads.ExecutionCancelledException) {
+                // this can also come from the source wrapped in a RemoteTransportException
+                onGoingRecoveries.failRecovery(recoveryStatus.recoveryId(), new RecoveryFailedException(request, "source has canceled the recovery", cause), false);
+                return;
+            }
             if (cause instanceof RecoveryEngineException) {
                 // unwrap an exception that was thrown as part of the recovery
                 cause = cause.getCause();

@@ -30,7 +30,6 @@ import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
@@ -138,21 +137,25 @@ public class IndexRecoveryIT extends ESIntegTestCase {
     }
 
     private void slowDownRecovery(ByteSizeValue shardSize) {
-        long chunkSize = shardSize.bytes() / 10;
+        long chunkSize = Math.max(1, shardSize.bytes() / 10);
+        for(RecoverySettings settings : internalCluster().getInstances(RecoverySettings.class)) {
+            setChunkSize(settings, new ByteSizeValue(chunkSize, ByteSizeUnit.BYTES));
+        }
         assertTrue(client().admin().cluster().prepareUpdateSettings()
                 .setTransientSettings(Settings.builder()
                                 // one chunk per sec..
-                                .put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC, chunkSize, ByteSizeUnit.BYTES)
-                                .put(RecoverySettings.INDICES_RECOVERY_FILE_CHUNK_SIZE, chunkSize, ByteSizeUnit.BYTES)
+                                .put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), chunkSize, ByteSizeUnit.BYTES)
                 )
                 .get().isAcknowledged());
     }
 
     private void restoreRecoverySpeed() {
+        for(RecoverySettings settings : internalCluster().getInstances(RecoverySettings.class)) {
+            setChunkSize(settings, RecoverySettings.DEFAULT_CHUNK_SIZE);
+        }
         assertTrue(client().admin().cluster().prepareUpdateSettings()
                 .setTransientSettings(Settings.builder()
-                                .put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC, "20mb")
-                                .put(RecoverySettings.INDICES_RECOVERY_FILE_CHUNK_SIZE, "512kb")
+                                .put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), "20mb")
                 )
                 .get().isAcknowledged());
     }
@@ -525,8 +528,8 @@ public class IndexRecoveryIT extends ESIntegTestCase {
     public void testDisconnectsWhileRecovering() throws Exception {
         final String indexName = "test";
         final Settings nodeSettings = Settings.builder()
-                .put(RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_NETWORK, "100ms")
-                .put(RecoverySettings.INDICES_RECOVERY_INTERNAL_ACTION_TIMEOUT, "1s")
+                .put(RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_NETWORK_SETTING.getKey(), "100ms")
+                .put(RecoverySettings.INDICES_RECOVERY_INTERNAL_ACTION_TIMEOUT_SETTING.getKey(), "1s")
                 .put(MockFSDirectoryService.RANDOM_PREVENT_DOUBLE_WRITE, false) // restarted recoveries will delete temp files and write them again
                 .build();
         // start a master node
@@ -630,5 +633,9 @@ public class IndexRecoveryIT extends ESIntegTestCase {
             }
             transport.sendRequest(node, requestId, action, request, options);
         }
+    }
+
+    public static void setChunkSize(RecoverySettings recoverySettings, ByteSizeValue chunksSize) {
+        recoverySettings.setChunkSize(chunksSize);
     }
 }

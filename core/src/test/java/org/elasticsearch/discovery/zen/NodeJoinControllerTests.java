@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.FailedRerouteAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.common.transport.LocalTransportAddress;
@@ -38,14 +39,22 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.BaseFuture;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.zen.membership.MembershipAction;
-import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.cluster.TestClusterService;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Before;
 
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.BrokenBarrierException;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -67,7 +76,7 @@ public class NodeJoinControllerTests extends ESTestCase {
         // make sure we have a master
         clusterService.setState(ClusterState.builder(clusterService.state()).nodes(DiscoveryNodes.builder(initialNodes).masterNodeId(localNode.id())));
         nodeJoinController = new NodeJoinController(clusterService, new NoopRoutingService(Settings.EMPTY),
-                new DiscoverySettings(Settings.EMPTY, new NodeSettingsService(Settings.EMPTY)), Settings.EMPTY);
+                new DiscoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)), Settings.EMPTY);
     }
 
     public void testSimpleJoinAccumulation() throws InterruptedException, ExecutionException {
@@ -244,7 +253,7 @@ public class NodeJoinControllerTests extends ESTestCase {
 
         // add
 
-        Collections.shuffle(nodesToJoin);
+        Collections.shuffle(nodesToJoin, random());
         logger.debug("--> joining [{}] unique master nodes. Total of [{}] join requests", initialJoins, nodesToJoin.size());
         for (DiscoveryNode node : nodesToJoin) {
             pendingJoins.add(joinNodeAsync(node));
@@ -269,7 +278,7 @@ public class NodeJoinControllerTests extends ESTestCase {
             }
         }
 
-        Collections.shuffle(nodesToJoin);
+        Collections.shuffle(nodesToJoin, random());
         logger.debug("--> joining [{}] nodes, with repetition a total of [{}]", finalJoins, nodesToJoin.size());
         for (DiscoveryNode node : nodesToJoin) {
             pendingJoins.add(joinNodeAsync(node));
@@ -316,7 +325,7 @@ public class NodeJoinControllerTests extends ESTestCase {
                 nodesToJoin.add(node);
             }
         }
-        Collections.shuffle(nodesToJoin);
+        Collections.shuffle(nodesToJoin, random());
         logger.debug("--> joining [{}] nodes, with repetition a total of [{}]", initialJoins, nodesToJoin.size());
         for (DiscoveryNode node : nodesToJoin) {
             pendingJoins.add(joinNodeAsync(node));
@@ -488,17 +497,17 @@ public class NodeJoinControllerTests extends ESTestCase {
 
         @Override
         public RoutingAllocation.Result applyStartedShards(ClusterState clusterState, List<? extends ShardRouting> startedShards, boolean withReroute) {
-            return new RoutingAllocation.Result(false, clusterState.routingTable());
+            return new RoutingAllocation.Result(false, clusterState.routingTable(), clusterState.metaData());
         }
 
         @Override
         public RoutingAllocation.Result applyFailedShards(ClusterState clusterState, List<FailedRerouteAllocation.FailedShard> failedShards) {
-            return new RoutingAllocation.Result(false, clusterState.routingTable());
+            return new RoutingAllocation.Result(false, clusterState.routingTable(), clusterState.metaData());
         }
 
         @Override
         protected RoutingAllocation.Result reroute(ClusterState clusterState, String reason, boolean debug) {
-            return new RoutingAllocation.Result(false, clusterState.routingTable());
+            return new RoutingAllocation.Result(false, clusterState.routingTable(), clusterState.metaData());
         }
     }
 

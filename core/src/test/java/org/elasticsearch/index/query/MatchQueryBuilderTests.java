@@ -20,12 +20,22 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.queries.ExtendedCommonTermsQuery;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.FuzzyQuery;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.NumericRangeQuery;
+import org.apache.lucene.search.PhraseQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.search.MatchQuery;
 import org.elasticsearch.index.search.MatchQuery.ZeroTermsQuery;
+import org.hamcrest.Matcher;
+import org.joda.time.format.ISODateTimeFormat;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -114,15 +124,15 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         switch (queryBuilder.type()) {
         case BOOLEAN:
             assertThat(query, either(instanceOf(BooleanQuery.class)).or(instanceOf(ExtendedCommonTermsQuery.class))
-                    .or(instanceOf(TermQuery.class)).or(instanceOf(FuzzyQuery.class)));
+                    .or(instanceOf(TermQuery.class)).or(instanceOf(FuzzyQuery.class)).or(instanceOf(NumericRangeQuery.class)));
             break;
         case PHRASE:
             assertThat(query, either(instanceOf(BooleanQuery.class)).or(instanceOf(PhraseQuery.class))
-                    .or(instanceOf(TermQuery.class)).or(instanceOf(FuzzyQuery.class)));
+                    .or(instanceOf(TermQuery.class)).or(instanceOf(FuzzyQuery.class)).or(instanceOf(NumericRangeQuery.class)));
             break;
         case PHRASE_PREFIX:
             assertThat(query, either(instanceOf(BooleanQuery.class)).or(instanceOf(MultiPhrasePrefixQuery.class))
-                    .or(instanceOf(TermQuery.class)).or(instanceOf(FuzzyQuery.class)));
+                    .or(instanceOf(TermQuery.class)).or(instanceOf(FuzzyQuery.class)).or(instanceOf(NumericRangeQuery.class)));
             break;
         }
 
@@ -167,9 +177,44 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
             // compare lowercased terms here
             String originalTermLc = queryBuilder.value().toString().toLowerCase(Locale.ROOT);
             String actualTermLc = fuzzyQuery.getTerm().text().toLowerCase(Locale.ROOT);
-            assertThat(actualTermLc, equalTo(originalTermLc));
+            Matcher<String> termLcMatcher = equalTo(originalTermLc);
+            if ("false".equals(originalTermLc) || "true".equals(originalTermLc)) {
+                // Booleans become t/f when querying a boolean field
+                termLcMatcher = either(termLcMatcher).or(equalTo(originalTermLc.substring(0, 1)));
+            }
+            assertThat(actualTermLc, termLcMatcher);
             assertThat(queryBuilder.prefixLength(), equalTo(fuzzyQuery.getPrefixLength()));
             assertThat(queryBuilder.fuzzyTranspositions(), equalTo(fuzzyQuery.getTranspositions()));
+        }
+
+        if (query instanceof NumericRangeQuery) {
+            // These are fuzzy numeric queries
+            assertTrue(queryBuilder.fuzziness() != null);
+            @SuppressWarnings("unchecked")
+            NumericRangeQuery<Number> numericRangeQuery = (NumericRangeQuery<Number>) query;
+            assertTrue(numericRangeQuery.includesMin());
+            assertTrue(numericRangeQuery.includesMax());
+
+            double value;
+            try {
+                value = Double.parseDouble(queryBuilder.value().toString());
+            } catch (NumberFormatException e) {
+                // Maybe its a date
+                value = ISODateTimeFormat.dateTimeParser().parseMillis(queryBuilder.value().toString());
+            }
+            double width;
+            if (queryBuilder.fuzziness().equals(Fuzziness.AUTO)) {
+                width = 1;
+            } else {
+                try {
+                    width = queryBuilder.fuzziness().asDouble();
+                } catch (NumberFormatException e) {
+                    // Maybe a time value?
+                    width = queryBuilder.fuzziness().asTimeValue().getMillis();
+                }
+            }
+            assertEquals(value - width, numericRangeQuery.getMin().doubleValue(), width * .1);
+            assertEquals(value + width, numericRangeQuery.getMax().doubleValue(), width * .1);
         }
     }
 
@@ -237,86 +282,86 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
     }
 
     public void testPhrasePrefixMatchQuery() throws IOException {
-        String json1 = "{\n" + 
-                "    \"match_phrase_prefix\" : {\n" + 
-                "        \"message\" : \"this is a test\"\n" + 
-                "    }\n" + 
+        String json1 = "{\n" +
+                "    \"match_phrase_prefix\" : {\n" +
+                "        \"message\" : \"this is a test\"\n" +
+                "    }\n" +
                 "}";
 
-        String expected = "{\n" + 
-                "  \"match\" : {\n" + 
-                "    \"message\" : {\n" + 
-                "      \"query\" : \"this is a test\",\n" + 
-                "      \"type\" : \"phrase_prefix\",\n" + 
-                "      \"operator\" : \"OR\",\n" + 
-                "      \"slop\" : 0,\n" + 
-                "      \"prefix_length\" : 0,\n" + 
-                "      \"max_expansions\" : 50,\n" + 
-                "      \"fuzzy_transpositions\" : true,\n" + 
-                "      \"lenient\" : false,\n" + 
-                "      \"zero_terms_query\" : \"NONE\",\n" + 
-                "      \"boost\" : 1.0\n" + 
-                "    }\n" + 
-                "  }\n" + 
+        String expected = "{\n" +
+                "  \"match\" : {\n" +
+                "    \"message\" : {\n" +
+                "      \"query\" : \"this is a test\",\n" +
+                "      \"type\" : \"phrase_prefix\",\n" +
+                "      \"operator\" : \"OR\",\n" +
+                "      \"slop\" : 0,\n" +
+                "      \"prefix_length\" : 0,\n" +
+                "      \"max_expansions\" : 50,\n" +
+                "      \"fuzzy_transpositions\" : true,\n" +
+                "      \"lenient\" : false,\n" +
+                "      \"zero_terms_query\" : \"NONE\",\n" +
+                "      \"boost\" : 1.0\n" +
+                "    }\n" +
+                "  }\n" +
                 "}";
         MatchQueryBuilder qb = (MatchQueryBuilder) parseQuery(json1);
         checkGeneratedJson(expected, qb);
-        
-        String json2 = "{\n" + 
-                "    \"match\" : {\n" + 
-                "        \"message\" : {\n" + 
-                "            \"query\" : \"this is a test\",\n" + 
-                "            \"type\" : \"phrase_prefix\"\n" + 
-                "        }\n" + 
-                "    }\n" + 
+
+        String json2 = "{\n" +
+                "    \"match\" : {\n" +
+                "        \"message\" : {\n" +
+                "            \"query\" : \"this is a test\",\n" +
+                "            \"type\" : \"phrase_prefix\"\n" +
+                "        }\n" +
+                "    }\n" +
                 "}";
         qb = (MatchQueryBuilder) parseQuery(json2);
         checkGeneratedJson(expected, qb);
 
-        String json3 = "{\n" + 
-                "    \"match_phrase_prefix\" : {\n" + 
-                "        \"message\" : {\n" + 
-                "            \"query\" : \"this is a test\",\n" + 
-                "            \"max_expansions\" : 10\n" + 
-                "        }\n" + 
-                "    }\n" + 
+        String json3 = "{\n" +
+                "    \"match_phrase_prefix\" : {\n" +
+                "        \"message\" : {\n" +
+                "            \"query\" : \"this is a test\",\n" +
+                "            \"max_expansions\" : 10\n" +
+                "        }\n" +
+                "    }\n" +
                 "}";
-        expected = "{\n" + 
-                "  \"match\" : {\n" + 
-                "    \"message\" : {\n" + 
-                "      \"query\" : \"this is a test\",\n" + 
-                "      \"type\" : \"phrase_prefix\",\n" + 
-                "      \"operator\" : \"OR\",\n" + 
-                "      \"slop\" : 0,\n" + 
-                "      \"prefix_length\" : 0,\n" + 
-                "      \"max_expansions\" : 10,\n" + 
-                "      \"fuzzy_transpositions\" : true,\n" + 
-                "      \"lenient\" : false,\n" + 
-                "      \"zero_terms_query\" : \"NONE\",\n" + 
-                "      \"boost\" : 1.0\n" + 
-                "    }\n" + 
-                "  }\n" + 
+        expected = "{\n" +
+                "  \"match\" : {\n" +
+                "    \"message\" : {\n" +
+                "      \"query\" : \"this is a test\",\n" +
+                "      \"type\" : \"phrase_prefix\",\n" +
+                "      \"operator\" : \"OR\",\n" +
+                "      \"slop\" : 0,\n" +
+                "      \"prefix_length\" : 0,\n" +
+                "      \"max_expansions\" : 10,\n" +
+                "      \"fuzzy_transpositions\" : true,\n" +
+                "      \"lenient\" : false,\n" +
+                "      \"zero_terms_query\" : \"NONE\",\n" +
+                "      \"boost\" : 1.0\n" +
+                "    }\n" +
+                "  }\n" +
                 "}";
         qb = (MatchQueryBuilder) parseQuery(json3);
         checkGeneratedJson(expected, qb);
     }
 
     public void testSimpleMatchQuery() throws IOException {
-        String json = "{\n" + 
-                "  \"match\" : {\n" + 
-                "    \"message\" : {\n" + 
-                "      \"query\" : \"to be or not to be\",\n" + 
-                "      \"type\" : \"boolean\",\n" + 
-                "      \"operator\" : \"AND\",\n" + 
-                "      \"slop\" : 0,\n" + 
-                "      \"prefix_length\" : 0,\n" + 
-                "      \"max_expansions\" : 50,\n" + 
-                "      \"fuzzy_transpositions\" : true,\n" + 
-                "      \"lenient\" : false,\n" + 
-                "      \"zero_terms_query\" : \"ALL\",\n" + 
-                "      \"boost\" : 1.0\n" + 
-                "    }\n" + 
-                "  }\n" + 
+        String json = "{\n" +
+                "  \"match\" : {\n" +
+                "    \"message\" : {\n" +
+                "      \"query\" : \"to be or not to be\",\n" +
+                "      \"type\" : \"boolean\",\n" +
+                "      \"operator\" : \"AND\",\n" +
+                "      \"slop\" : 0,\n" +
+                "      \"prefix_length\" : 0,\n" +
+                "      \"max_expansions\" : 50,\n" +
+                "      \"fuzzy_transpositions\" : true,\n" +
+                "      \"lenient\" : false,\n" +
+                "      \"zero_terms_query\" : \"ALL\",\n" +
+                "      \"boost\" : 1.0\n" +
+                "    }\n" +
+                "  }\n" +
                 "}";
         MatchQueryBuilder qb = (MatchQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, qb);

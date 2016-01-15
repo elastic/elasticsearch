@@ -20,7 +20,6 @@
 package org.elasticsearch.action.search.type;
 
 import com.carrotsearch.hppc.IntArrayList;
-
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.ReduceSearchPhaseException;

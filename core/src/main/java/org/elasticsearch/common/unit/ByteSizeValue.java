@@ -213,12 +213,7 @@ public class ByteSizeValue implements Streamable {
                 bytes = 0;
             } else {
                 // Missing units:
-                if (Settings.getSettingsRequireUnits()) {
-                    throw new ElasticsearchParseException("failed to parse setting [{}] with value [{}] as a size in bytes: unit is missing or unrecognized", settingName, sValue);
-                } else {
-                    // Leniency default to bytes:
-                    bytes = Long.parseLong(sValue);
-                }
+                throw new ElasticsearchParseException("failed to parse setting [{}] with value [{}] as a size in bytes: unit is missing or unrecognized", settingName, sValue);
             }
         } catch (NumberFormatException e) {
             throw new ElasticsearchParseException("failed to parse [{}]", e, sValue);

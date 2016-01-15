@@ -128,7 +128,7 @@ public class ParsedDocument {
         if (dynamicMappingsUpdate == null) {
             dynamicMappingsUpdate = update;
         } else {
-            MapperUtils.merge(dynamicMappingsUpdate, update);
+            dynamicMappingsUpdate = dynamicMappingsUpdate.merge(update, false);
         }
     }
 

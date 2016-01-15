@@ -69,7 +69,14 @@ import java.io.IOException;
 import java.io.Reader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 
 import static java.util.Collections.unmodifiableMap;
 
@@ -82,12 +89,12 @@ public class Analysis {
         // check for explicit version on the specific analyzer component
         String sVersion = settings.get("version");
         if (sVersion != null) {
-            return Lucene.parseVersion(sVersion, Lucene.ANALYZER_VERSION, logger);
+            return Lucene.parseVersion(sVersion, Version.LATEST, logger);
         }
         // check for explicit version on the index itself as default for all analysis components
         sVersion = indexSettings.get("index.analysis.version");
         if (sVersion != null) {
-            return Lucene.parseVersion(sVersion, Lucene.ANALYZER_VERSION, logger);
+            return Lucene.parseVersion(sVersion, Version.LATEST, logger);
         }
         // resolve the analysis version based on the version the index was created with
         return org.elasticsearch.Version.indexCreated(indexSettings).luceneVersion;

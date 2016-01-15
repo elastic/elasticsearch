@@ -34,8 +34,13 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 
-import static org.elasticsearch.common.cli.CliTool.ExitStatus.*;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.common.cli.CliTool.ExitStatus.OK;
+import static org.elasticsearch.common.cli.CliTool.ExitStatus.OK_AND_EXIT;
+import static org.elasticsearch.common.cli.CliTool.ExitStatus.USAGE;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 @SuppressForbidden(reason = "modifies system properties intentionally")
 public class BootstrapCliParserTests extends CliToolTestCase {

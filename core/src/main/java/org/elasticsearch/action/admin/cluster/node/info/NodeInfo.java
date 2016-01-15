@@ -72,14 +72,14 @@ public class NodeInfo extends BaseNodeResponse {
     private HttpInfo http;
 
     @Nullable
-    private PluginsInfo plugins;
+    private PluginsAndModules plugins;
 
     NodeInfo() {
     }
 
     public NodeInfo(Version version, Build build, DiscoveryNode node, @Nullable Map<String, String> serviceAttributes, @Nullable Settings settings,
                     @Nullable OsInfo os, @Nullable ProcessInfo process, @Nullable JvmInfo jvm, @Nullable ThreadPoolInfo threadPool,
-                    @Nullable TransportInfo transport, @Nullable HttpInfo http, @Nullable PluginsInfo plugins) {
+                    @Nullable TransportInfo transport, @Nullable HttpInfo http, @Nullable PluginsAndModules plugins) {
         super(node);
         this.version = version;
         this.build = build;
@@ -172,7 +172,7 @@ public class NodeInfo extends BaseNodeResponse {
     }
 
     @Nullable
-    public PluginsInfo getPlugins() {
+    public PluginsAndModules getPlugins() {
         return this.plugins;
     }
 
@@ -217,7 +217,8 @@ public class NodeInfo extends BaseNodeResponse {
             http = HttpInfo.readHttpInfo(in);
         }
         if (in.readBoolean()) {
-            plugins = PluginsInfo.readPluginsInfo(in);
+            plugins = new PluginsAndModules();
+            plugins.readFrom(in);
         }
     }
 

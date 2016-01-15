@@ -53,6 +53,10 @@ public class SearchContextHighlight {
         this.globalForceSource = globalForceSource;
     }
 
+    boolean globalForceSource() {
+        return this.globalForceSource;
+    }
+
     public boolean forceSource(Field field) {
         if (globalForceSource) {
             return true;

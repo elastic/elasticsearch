@@ -40,7 +40,11 @@ import java.nio.file.Path;
 import java.nio.file.attribute.FileAttributeView;
 import java.nio.file.attribute.FileStoreAttributeView;
 import java.nio.file.spi.FileSystemProvider;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 /** Separate test class from ShardPathTests because we need static (BeforeClass) setup to install mock filesystems... */
 public class NewPathForShardTests extends ESTestCase {
@@ -71,7 +75,7 @@ public class NewPathForShardTests extends ESTestCase {
 
     /** Mock file system that fakes usable space for each FileStore */
     static class MockUsableSpaceFileSystemProvider extends FilterFileSystemProvider {
-    
+
         public MockUsableSpaceFileSystemProvider(FileSystem inner) {
             super("mockusablespace://", inner);
             final List<FileStore> fileStores = new ArrayList<>();
@@ -98,7 +102,7 @@ public class NewPathForShardTests extends ESTestCase {
         public MockFileStore(String desc) {
             this.desc = desc;
         }
-    
+
         @Override
         public String type() {
             return "mock";
@@ -204,7 +208,7 @@ public class NewPathForShardTests extends ESTestCase {
         // had the most free space, never using the other drive unless new shards arrive
         // after the first shards started using storage:
         assertNotEquals(result1.getDataPath(), result2.getDataPath());
-        
+
         nodeEnv.close();
     }
 }

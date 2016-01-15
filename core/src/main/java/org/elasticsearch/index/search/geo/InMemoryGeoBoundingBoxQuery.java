@@ -57,7 +57,7 @@ public class InMemoryGeoBoundingBoxQuery extends Query {
     }
 
     public String fieldName() {
-        return indexFieldData.getFieldNames().indexName();
+        return indexFieldData.getFieldName();
     }
 
     @Override
@@ -79,7 +79,7 @@ public class InMemoryGeoBoundingBoxQuery extends Query {
 
     @Override
     public String toString(String field) {
-        return "GeoBoundingBoxFilter(" + indexFieldData.getFieldNames().indexName() + ", " + topLeft + ", " + bottomRight + ")";
+        return "GeoBoundingBoxFilter(" + indexFieldData.getFieldName() + ", " + topLeft + ", " + bottomRight + ")";
     }
 
     @Override

@@ -22,8 +22,14 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.script.*;
+import org.elasticsearch.script.CompiledScript;
+import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.LeafSearchScript;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptEngineService;
+import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService.ScriptType;
+import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCount;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
@@ -31,7 +37,10 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -244,7 +253,7 @@ public class ValueCountIT extends ESIntegTestCase {
         }
 
         @Override
-        public Object compile(String script) {
+        public Object compile(String script, Map<String, String> params) {
             return script;
         }
 

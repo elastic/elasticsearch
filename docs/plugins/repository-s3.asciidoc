@@ -67,16 +67,19 @@ cloud:
             protocol: https
 ----
 
-In addition, a proxy can be configured with the `proxy_host` and `proxy_port` settings (note that protocol can be
-`http` or `https`):
+In addition, a proxy can be configured with the `proxy.host`, `proxy.port`, `proxy.username` and `proxy.password` settings
+(note that protocol can be `http` or `https`):
 
 [source,yaml]
 ----
 cloud:
     aws:
         protocol: https
-        proxy_host: proxy1.company.com
-        proxy_port: 8083
+        proxy:
+            host: proxy1.company.com
+            port: 8083
+            username: myself
+            password: theBestPasswordEver!
 ----
 
 You can also set different proxies for `ec2` and `s3`:
@@ -86,11 +89,17 @@ You can also set different proxies for `ec2` and `s3`:
 cloud:
     aws:
         s3:
-            proxy_host: proxy1.company.com
-            proxy_port: 8083
+            proxy:
+                host: proxy1.company.com
+                port: 8083
+                username: myself1
+                password: theBestPasswordEver1!
         ec2:
-            proxy_host: proxy2.company.com
-            proxy_port: 8083
+            proxy:
+                host: proxy2.company.com
+                port: 8083
+                username: myself2
+                password: theBestPasswordEver2!
 ----
 
 [[repository-s3-usage-region]]
@@ -343,6 +352,14 @@ to your URL provider. Note that this setting will be used for all S3 repositorie
 Different `endpoint`, `region` and `protocol` settings can be set on a per-repository basis
 See <<repository-s3-repository>> for details.
 
+[[repository-s3-aws-vpc]]
+[float]
+==== AWS VPC Bandwidth Settings
+
+AWS instances resolve S3 endpoints to a public IP. If the elasticsearch instances reside in a private subnet in an AWS VPC then all traffic to S3 will go through that VPC's NAT instance. If your VPC's NAT instance is a smaller instance size (e.g. a t1.micro) or is handling a high volume of network traffic your bandwidth to S3 may be limited by that NAT instance's networking bandwidth limitations.
+
+Instances residing in a public subnet in an AWS VPC will connect to S3 via the VPC's internet gateway and not be bandwidth limited by the VPC's NAT instance.
+
 [[repository-s3-testing]]
 ==== Testing AWS
 
@@ -387,4 +404,3 @@ To run test:
 ----
 mvn -Dtests.aws=true -Dtests.config=/path/to/config/file/elasticsearch.yml clean test
 ----
-

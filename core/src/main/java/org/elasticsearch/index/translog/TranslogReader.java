@@ -138,18 +138,18 @@ public abstract class TranslogReader implements Closeable, Comparable<TranslogRe
     abstract protected void readBytes(ByteBuffer buffer, long position) throws IOException;
 
     @Override
-    public void close() throws IOException {
+    public final void close() throws IOException {
         if (closed.compareAndSet(false, true)) {
-            doClose();
+            channelReference.decRef();
         }
     }
 
-    protected void doClose() throws IOException {
-        channelReference.decRef();
+    protected final boolean isClosed() {
+        return closed.get();
     }
 
     protected void ensureOpen() {
-        if (closed.get()) {
+        if (isClosed()) {
             throw new AlreadyClosedException("translog [" + getGeneration() + "] is already closed");
         }
     }

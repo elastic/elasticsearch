@@ -24,6 +24,7 @@ import org.elasticsearch.common.lucene.uid.Versions;
 
 import java.util.Map;
 
+import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 import static org.hamcrest.Matchers.containsString;
 
 /**
@@ -110,9 +111,9 @@ public class ReindexScriptTests extends AbstractAsyncBulkIndexByScrollActionScri
         Number ttl = randomFrom(new Number[] { null, 1233214, 134143797143L });
         IndexRequest index = applyScript((Map<String, Object> ctx) -> ctx.put("_ttl", ttl));
         if (ttl == null) {
-            assertEquals(-1, index.ttl());
+            assertEquals(null, index.ttl());
         } else {
-            assertEquals(ttl.longValue(), index.ttl());
+            assertEquals(timeValueMillis(ttl.longValue()), index.ttl());
         }
     }
 

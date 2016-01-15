@@ -39,13 +39,15 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.shard.MergePolicyConfig;
-import org.elasticsearch.index.shard.MergeSchedulerConfig;
+import org.elasticsearch.index.MergePolicyConfig;
+import org.elasticsearch.index.MergeSchedulerConfig;
 import org.elasticsearch.index.store.IndexStore;
+import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.cache.request.IndicesRequestCache;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -301,7 +303,7 @@ public class IndexStatsIT extends ESIntegTestCase {
         //nodesStats = client().admin().cluster().prepareNodesStats().setIndices(true).get();
 
         stats = client().admin().indices().prepareStats().execute().actionGet();
-        assertThat(stats.getPrimaries().getIndexing().getTotal().getThrottleTimeInMillis(), equalTo(0l));
+        assertThat(stats.getPrimaries().getIndexing().getTotal().getThrottleTime().millis(), equalTo(0l));
     }
 
     public void testThrottleStats() throws Exception {
@@ -315,7 +317,7 @@ public class IndexStatsIT extends ESIntegTestCase {
                                  .put(MergeSchedulerConfig.MAX_THREAD_COUNT, "1")
                                  .put(MergeSchedulerConfig.MAX_MERGE_COUNT, "1")
                                  .put("index.merge.policy.type", "tiered")
-
+                                 .put(IndexSettings.INDEX_TRANSLOG_DURABILITY, Translog.Durability.ASYNC.name())
                                  ));
         ensureGreen();
         long termUpto = 0;
@@ -339,7 +341,7 @@ public class IndexStatsIT extends ESIntegTestCase {
             refresh();
             stats = client().admin().indices().prepareStats().execute().actionGet();
             //nodesStats = client().admin().cluster().prepareNodesStats().setIndices(true).get();
-            done = stats.getPrimaries().getIndexing().getTotal().getThrottleTimeInMillis() > 0;
+            done = stats.getPrimaries().getIndexing().getTotal().getThrottleTime().millis() > 0;
             if (System.currentTimeMillis() - start > 300*1000) { //Wait 5 minutes for throttling to kick in
                 fail("index throttling didn't kick in after 5 minutes of intense merging");
             }
@@ -374,7 +376,7 @@ public class IndexStatsIT extends ESIntegTestCase {
         assertThat(stats.getPrimaries().getIndexing().getTotal().getIndexCount(), equalTo(3l));
         assertThat(stats.getPrimaries().getIndexing().getTotal().getIndexFailedCount(), equalTo(0l));
         assertThat(stats.getPrimaries().getIndexing().getTotal().isThrottled(), equalTo(false));
-        assertThat(stats.getPrimaries().getIndexing().getTotal().getThrottleTimeInMillis(), equalTo(0l));
+        assertThat(stats.getPrimaries().getIndexing().getTotal().getThrottleTime().millis(), equalTo(0l));
         assertThat(stats.getTotal().getIndexing().getTotal().getIndexCount(), equalTo(totalExpectedWrites));
         assertThat(stats.getTotal().getStore(), notNullValue());
         assertThat(stats.getTotal().getMerge(), notNullValue());

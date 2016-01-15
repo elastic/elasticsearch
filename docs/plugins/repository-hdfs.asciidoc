@@ -1,0 +1,65 @@
+[[repository-hdfs]]
+=== Hadoop HDFS Repository Plugin
+
+The HDFS repository plugin adds support for using HDFS File System as a repository for
+{ref}/modules-snapshots.html[Snapshot/Restore].
+
+[[repository-hdfs-install]]
+[float]
+==== Installation
+
+This plugin can be installed through the plugin manager:
+
+[source,sh]
+----------------------------------------------------------------
+sudo bin/plugin install repository-hdfs
+----------------------------------------------------------------
+
+The plugin must be installed on _every_ node in the cluster, and each node must
+be restarted after installation.
+
+[[repository-hdfs-remove]]
+[float]
+==== Removal
+
+The plugin can be removed by specifying the _installed_ package:
+
+[source,sh]
+----------------------------------------------------------------
+sudo bin/plugin remove repository-hdfs
+----------------------------------------------------------------
+
+The node must be stopped before removing the plugin.
+
+[[repository-hdfs-usage]]
+==== Getting started with HDFS
+
+The HDFS snapshot/restore plugin is built against the latest Apache Hadoop 2.x (currently 2.7.1). If the distro you are using is not protocol
+compatible with Apache Hadoop, consider replacing the Hadoop libraries inside the plugin folder with your own (you might have to adjust the security permissions required).
+
+Even if Hadoop is already installed on the Elasticsearch nodes, for security reasons, the required libraries need to be placed under the plugin folder. Note that in most cases, if the distro is compatible, one simply needs to configure the repository with the appropriate Hadoop configuration files (see below).
+
+Windows Users::
+Using Apache Hadoop on Windows is problematic and thus it is not recommended. For those _really_ wanting to use it, make sure you place the elusive `winutils.exe` under the
+plugin folder and point `HADOOP_HOME` variable to it; this should minimize the amount of permissions Hadoop requires (though one would still have to add some more).
+
+[[repository-hdfs-config]]
+==== Configuration Properties
+
+Once installed, define the configuration for the `hdfs` repository through `elasticsearch.yml` or the
+{ref}/modules-snapshots.html[REST API]:
+
+[source,yaml]
+----
+repositories
+  hdfs:
+    uri: "hdfs://<host>:<port>/"    \# required - HDFS address only
+    path: "some/path"               \# required - path within the file-system where data is stored/loaded
+    load_defaults: "true"           \# optional - whether to load the default Hadoop configuration (default) or not
+    conf_location: "extra-cfg.xml"  \# optional - Hadoop configuration XML to be loaded (use commas for multi values)
+    conf.<key> : "<value>"          \# optional - 'inlined' key=value added to the Hadoop configuration
+    concurrent_streams: 5           \# optional - the number of concurrent streams (defaults to 5)
+    compress: "false"               \# optional - whether to compress the metadata or not (default)
+    chunk_size: "10mb"              \# optional - chunk size (disabled by default)
+    
+----

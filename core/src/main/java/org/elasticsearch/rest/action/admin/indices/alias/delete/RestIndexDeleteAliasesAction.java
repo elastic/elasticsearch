@@ -24,7 +24,10 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;

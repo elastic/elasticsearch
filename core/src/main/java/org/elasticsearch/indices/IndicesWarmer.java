@@ -19,7 +19,6 @@
 
 package org.elasticsearch.indices;
 
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;

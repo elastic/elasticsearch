@@ -30,8 +30,6 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
@@ -40,8 +38,6 @@ import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeMappingException;
-import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.Uid;
@@ -50,8 +46,6 @@ import org.elasticsearch.index.query.QueryShardContext;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-
-import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
 
 /**
  *
@@ -74,7 +68,7 @@ public class TypeFieldMapper extends MetadataFieldMapper {
             FIELD_TYPE.setOmitNorms(true);
             FIELD_TYPE.setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
             FIELD_TYPE.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
-            FIELD_TYPE.setNames(new MappedFieldType.Names(NAME));
+            FIELD_TYPE.setName(NAME);
             FIELD_TYPE.freeze();
         }
     }
@@ -82,13 +76,13 @@ public class TypeFieldMapper extends MetadataFieldMapper {
     public static class Builder extends MetadataFieldMapper.Builder<Builder, TypeFieldMapper> {
 
         public Builder(MappedFieldType existing) {
-            super(Defaults.NAME, existing == null ? Defaults.FIELD_TYPE : existing);
+            super(Defaults.NAME, existing == null ? Defaults.FIELD_TYPE : existing, Defaults.FIELD_TYPE);
             indexName = Defaults.NAME;
         }
 
         @Override
         public TypeFieldMapper build(BuilderContext context) {
-            fieldType.setNames(buildNames(context));
+            fieldType.setName(buildFullName(context));
             return new TypeFieldMapper(fieldType, context.indexSettings());
         }
     }
@@ -96,12 +90,7 @@ public class TypeFieldMapper extends MetadataFieldMapper {
     public static class TypeParser implements MetadataFieldMapper.TypeParser {
         @Override
         public MetadataFieldMapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            if (parserContext.indexVersionCreated().onOrAfter(Version.V_2_0_0_beta1)) {
-                throw new MapperParsingException(NAME + " is not configurable");
-            }
-            Builder builder = new Builder(parserContext.mapperService().fullName(NAME));
-            parseField(builder, builder.name, node, parserContext);
-            return builder;
+            throw new MapperParsingException(NAME + " is not configurable");
         }
 
         @Override
@@ -190,9 +179,9 @@ public class TypeFieldMapper extends MetadataFieldMapper {
         if (fieldType().indexOptions() == IndexOptions.NONE && !fieldType().stored()) {
             return;
         }
-        fields.add(new Field(fieldType().names().indexName(), context.type(), fieldType()));
+        fields.add(new Field(fieldType().name(), context.type(), fieldType()));
         if (fieldType().hasDocValues()) {
-            fields.add(new SortedSetDocValuesField(fieldType().names().indexName(), new BytesRef(context.type())));
+            fields.add(new SortedSetDocValuesField(fieldType().name(), new BytesRef(context.type())));
         }
     }
 
@@ -203,30 +192,11 @@ public class TypeFieldMapper extends MetadataFieldMapper {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        if (indexCreatedBefore2x == false) {
-            return builder;
-        }
-        boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
-
-        // if all are defaults, no sense to write it at all
-        boolean indexed = fieldType().indexOptions() != IndexOptions.NONE;
-        boolean defaultIndexed = Defaults.FIELD_TYPE.indexOptions() != IndexOptions.NONE;
-        if (!includeDefaults && fieldType().stored() == Defaults.FIELD_TYPE.stored() && indexed == defaultIndexed) {
-            return builder;
-        }
-        builder.startObject(CONTENT_TYPE);
-        if (includeDefaults || fieldType().stored() != Defaults.FIELD_TYPE.stored()) {
-            builder.field("store", fieldType().stored());
-        }
-        if (includeDefaults || indexed != defaultIndexed) {
-            builder.field("index", indexTokenizeOptionToString(indexed, fieldType().tokenized()));
-        }
-        builder.endObject();
         return builder;
     }
 
     @Override
-    public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
+    protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
         // do nothing here, no merging, but also no exception
     }
 }

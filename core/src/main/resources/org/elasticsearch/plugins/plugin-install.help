@@ -43,15 +43,15 @@ OFFICIAL PLUGINS
     - discovery-ec2
     - discovery-gce
     - discovery-multicast
-    - lang-expression
-    - lang-groovy
     - lang-javascript
+    - lang-plan-a
     - lang-python
     - mapper-attachments
     - mapper-murmur3
     - mapper-size
     - reindex
     - repository-azure
+    - repository-hdfs
     - repository-s3
     - store-smb
 

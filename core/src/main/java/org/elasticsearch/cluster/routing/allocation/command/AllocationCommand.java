@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster.routing.allocation.command;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.routing.allocation.RerouteExplanation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.Nullable;
@@ -44,12 +43,12 @@ public interface AllocationCommand {
 
         /**
          * Reads an {@link AllocationCommand} of type <code>T</code> from a {@link StreamInput}
-         * @param in {@link StreamInput} to read the {@link AllocationCommand} from 
+         * @param in {@link StreamInput} to read the {@link AllocationCommand} from
          * @return {@link AllocationCommand} read from the {@link StreamInput}
          * @throws IOException if something happens during reading
          */
         T readFrom(StreamInput in) throws IOException;
-        
+
         /**
          * Writes an {@link AllocationCommand} to a {@link StreamOutput}
          * @param command {@link AllocationCommand} to write
@@ -57,7 +56,7 @@ public interface AllocationCommand {
          * @throws IOException if something happens during writing the command
          */
         void writeTo(T command, StreamOutput out) throws IOException;
-        
+
         /**
          * Reads an {@link AllocationCommand} of type <code>T</code> from a {@link XContentParser}
          * @param parser {@link XContentParser} to use
@@ -65,7 +64,7 @@ public interface AllocationCommand {
          * @throws IOException if something happens during reading
          */
         T fromXContent(XContentParser parser) throws IOException;
-        
+
         /**
          * Writes an {@link AllocationCommand} using an {@link XContentBuilder}
          * @param command {@link AllocationCommand} to write

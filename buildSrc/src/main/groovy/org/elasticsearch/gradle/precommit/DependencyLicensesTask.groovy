@@ -18,7 +18,9 @@
  */
 package org.elasticsearch.gradle.precommit
 
-import org.gradle.api.*
+import org.gradle.api.DefaultTask
+import org.gradle.api.GradleException
+import org.gradle.api.InvalidUserDataException
 import org.gradle.api.file.FileCollection
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.InputDirectory
@@ -69,7 +71,7 @@ import java.util.regex.Pattern
  * </pre>
  */
 public class DependencyLicensesTask extends DefaultTask {
-    private static final String SHA_EXTENSION = '.sha1'
+    static final String SHA_EXTENSION = '.sha1'
 
     // TODO: we should be able to default this to eg compile deps, but we need to move the licenses
     // check from distribution to core (ie this should only be run on java projects)

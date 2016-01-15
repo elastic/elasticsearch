@@ -23,6 +23,5 @@ integTest {
   cluster {
     systemProperty 'es.script.inline', 'on'
     plugin 'reindex', project(':plugins:reindex')
-    plugin 'groovy', project(':plugins:lang-groovy')
   }
 }

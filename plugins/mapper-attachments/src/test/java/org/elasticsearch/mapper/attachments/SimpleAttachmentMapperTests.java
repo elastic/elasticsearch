@@ -19,22 +19,22 @@
 
 package org.elasticsearch.mapper.attachments;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParseContext;
-import org.junit.Test;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.StreamsUtils.copyToBytesFromClasspath;
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.startsWith;
 
 /**
  *
@@ -42,73 +42,58 @@ import static org.hamcrest.Matchers.*;
 public class SimpleAttachmentMapperTests extends AttachmentUnitTestCase {
 
     public void testSimpleMappings() throws Exception {
-        DocumentMapperParser mapperParser = MapperTestUtils.newMapperService(createTempDir(), Settings.EMPTY).documentMapperParser();
+        DocumentMapperParser mapperParser = MapperTestUtils.newMapperService(createTempDir(), Settings.EMPTY, getIndicesModuleWithRegisteredAttachmentMapper()).documentMapperParser();
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/attachment/test/unit/simple/test-mapping.json");
-        DocumentMapper docMapper = mapperParser.parse(mapping);
+        DocumentMapper docMapper = mapperParser.parse("person", new CompressedXContent(mapping));
         byte[] html = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/attachment/test/sample-files/testXHTML.html");
 
         BytesReference json = jsonBuilder().startObject().field("file", html).endObject().bytes();
         ParseContext.Document doc = docMapper.parse("person", "person", "1", json).rootDoc();
 
-        assertThat(doc.get(docMapper.mappers().getMapper("file.content_type").fieldType().names().indexName()), startsWith("application/xhtml+xml"));
-        assertThat(doc.get(docMapper.mappers().getMapper("file.title").fieldType().names().indexName()), equalTo("XHTML test document"));
-        assertThat(doc.get(docMapper.mappers().getMapper("file.content").fieldType().names().indexName()), containsString("This document tests the ability of Apache Tika to extract content"));
+        assertThat(doc.get(docMapper.mappers().getMapper("file.content_type").fieldType().name()), startsWith("application/xhtml+xml"));
+        assertThat(doc.get(docMapper.mappers().getMapper("file.title").fieldType().name()), equalTo("XHTML test document"));
+        assertThat(doc.get(docMapper.mappers().getMapper("file.content").fieldType().name()), containsString("This document tests the ability of Apache Tika to extract content"));
 
         // re-parse it
         String builtMapping = docMapper.mappingSource().string();
-        docMapper = mapperParser.parse(builtMapping);
+        docMapper = mapperParser.parse("person", new CompressedXContent(builtMapping));
 
         json = jsonBuilder().startObject().field("file", html).endObject().bytes();
 
         doc = docMapper.parse("person", "person", "1", json).rootDoc();
 
-        assertThat(doc.get(docMapper.mappers().getMapper("file.content_type").fieldType().names().indexName()), startsWith("application/xhtml+xml"));
-        assertThat(doc.get(docMapper.mappers().getMapper("file.title").fieldType().names().indexName()), equalTo("XHTML test document"));
-        assertThat(doc.get(docMapper.mappers().getMapper("file.content").fieldType().names().indexName()), containsString("This document tests the ability of Apache Tika to extract content"));
-    }
-
-    public void testContentBackcompat() throws Exception {
-        DocumentMapperParser mapperParser = MapperTestUtils.newMapperService(createTempDir(),
-            Settings.builder()
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id)
-            .build()).documentMapperParser();
-        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/attachment/test/unit/simple/test-mapping.json");
-        DocumentMapper docMapper = mapperParser.parse(mapping);
-        byte[] html = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/attachment/test/sample-files/testXHTML.html");
-
-        BytesReference json = jsonBuilder().startObject().field("file", html).endObject().bytes();
-
-        ParseContext.Document doc = docMapper.parse("person", "person", "1", json).rootDoc();
-        assertThat(doc.get("file"), containsString("This document tests the ability of Apache Tika to extract content"));
+        assertThat(doc.get(docMapper.mappers().getMapper("file.content_type").fieldType().name()), startsWith("application/xhtml+xml"));
+        assertThat(doc.get(docMapper.mappers().getMapper("file.title").fieldType().name()), equalTo("XHTML test document"));
+        assertThat(doc.get(docMapper.mappers().getMapper("file.content").fieldType().name()), containsString("This document tests the ability of Apache Tika to extract content"));
     }
 
     /**
      * test for https://github.com/elastic/elasticsearch-mapper-attachments/issues/179
      */
     public void testSimpleMappingsWithAllFields() throws Exception {
-        DocumentMapperParser mapperParser = MapperTestUtils.newMapperService(createTempDir(), Settings.EMPTY).documentMapperParser();
+        DocumentMapperParser mapperParser = MapperTestUtils.newMapperService(createTempDir(), Settings.EMPTY, getIndicesModuleWithRegisteredAttachmentMapper()).documentMapperParser();
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/attachment/test/unit/simple/test-mapping-all-fields.json");
-        DocumentMapper docMapper = mapperParser.parse(mapping);
+        DocumentMapper docMapper = mapperParser.parse("person", new CompressedXContent(mapping));
         byte[] html = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/attachment/test/sample-files/testXHTML.html");
 
         BytesReference json = jsonBuilder().startObject().field("file", html).endObject().bytes();
         ParseContext.Document doc = docMapper.parse("person", "person", "1", json).rootDoc();
 
-        assertThat(doc.get(docMapper.mappers().getMapper("file.content_type").fieldType().names().indexName()), startsWith("application/xhtml+xml"));
-        assertThat(doc.get(docMapper.mappers().getMapper("file.title").fieldType().names().indexName()), equalTo("XHTML test document"));
-        assertThat(doc.get(docMapper.mappers().getMapper("file.content").fieldType().names().indexName()), containsString("This document tests the ability of Apache Tika to extract content"));
+        assertThat(doc.get(docMapper.mappers().getMapper("file.content_type").fieldType().name()), startsWith("application/xhtml+xml"));
+        assertThat(doc.get(docMapper.mappers().getMapper("file.title").fieldType().name()), equalTo("XHTML test document"));
+        assertThat(doc.get(docMapper.mappers().getMapper("file.content").fieldType().name()), containsString("This document tests the ability of Apache Tika to extract content"));
 
         // re-parse it
         String builtMapping = docMapper.mappingSource().string();
-        docMapper = mapperParser.parse(builtMapping);
+        docMapper = mapperParser.parse("person", new CompressedXContent(builtMapping));
 
         json = jsonBuilder().startObject().field("file", html).endObject().bytes();
 
         doc = docMapper.parse("person", "person", "1", json).rootDoc();
 
-        assertThat(doc.get(docMapper.mappers().getMapper("file.content_type").fieldType().names().indexName()), startsWith("application/xhtml+xml"));
-        assertThat(doc.get(docMapper.mappers().getMapper("file.title").fieldType().names().indexName()), equalTo("XHTML test document"));
-        assertThat(doc.get(docMapper.mappers().getMapper("file.content").fieldType().names().indexName()), containsString("This document tests the ability of Apache Tika to extract content"));
+        assertThat(doc.get(docMapper.mappers().getMapper("file.content_type").fieldType().name()), startsWith("application/xhtml+xml"));
+        assertThat(doc.get(docMapper.mappers().getMapper("file.title").fieldType().name()), equalTo("XHTML test document"));
+        assertThat(doc.get(docMapper.mappers().getMapper("file.content").fieldType().name()), containsString("This document tests the ability of Apache Tika to extract content"));
     }
 
     /**
@@ -131,7 +116,7 @@ public class SimpleAttachmentMapperTests extends AttachmentUnitTestCase {
                 .endObject();
 
         byte[] mapping = mappingBuilder.bytes().toBytes();
-        MapperService mapperService = MapperTestUtils.newMapperService(createTempDir(), Settings.EMPTY);
+        MapperService mapperService = MapperTestUtils.newMapperService(createTempDir(), Settings.EMPTY, getIndicesModuleWithRegisteredAttachmentMapper());
         DocumentMapper docMapper = mapperService.parse("mail", new CompressedXContent(mapping), true);
         // this should not throw an exception
         mapperService.parse("mail", new CompressedXContent(docMapper.mapping().toString()), true);

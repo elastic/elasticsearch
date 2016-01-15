@@ -111,7 +111,7 @@ public class RandomExceptionCircuitBreakerIT extends ESIntegTestCase {
                 .put(indexSettings())
                 .put(EXCEPTION_TOP_LEVEL_RATIO_KEY, topLevelRate)
                 .put(EXCEPTION_LOW_LEVEL_RATIO_KEY, lowLevelRate)
-                .put(MockEngineSupport.WRAP_READER_RATIO, 1.0d);
+                .put(MockEngineSupport.WRAP_READER_RATIO.getKey(), 1.0d);
         logger.info("creating index: [test] using settings: [{}]", settings.build().getAsMap());
         client().admin().indices().prepareCreate("test")
                 .setSettings(settings)
@@ -151,18 +151,10 @@ public class RandomExceptionCircuitBreakerIT extends ESIntegTestCase {
 
         for (int i = 0; i < numSearches; i++) {
             SearchRequestBuilder searchRequestBuilder = client().prepareSearch().setQuery(QueryBuilders.matchAllQuery());
-            switch (randomIntBetween(0, 5)) {
-                case 5:
-                case 4:
-                case 3:
-                    searchRequestBuilder.addSort("test-str", SortOrder.ASC);
-                    // fall through - sometimes get both fields
-                case 2:
-                case 1:
-                default:
-                    searchRequestBuilder.addSort("test-num", SortOrder.ASC);
-
+            if (random().nextBoolean()) {
+                searchRequestBuilder.addSort("test-str", SortOrder.ASC);
             }
+            searchRequestBuilder.addSort("test-num", SortOrder.ASC);
             boolean success = false;
             try {
                 // Sort by the string and numeric fields, to load them into field data
@@ -249,6 +241,7 @@ public class RandomExceptionCircuitBreakerIT extends ESIntegTestCase {
                         if (random.nextDouble() < topLevelRatio) {
                             throw new IOException("Forced top level Exception on [" + flag.name() + "]");
                         }
+                        break;
                     case Intersect:
                         break;
                     case Norms:

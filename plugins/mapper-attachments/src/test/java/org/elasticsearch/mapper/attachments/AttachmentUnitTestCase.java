@@ -22,13 +22,20 @@ package org.elasticsearch.mapper.attachments;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
 public class AttachmentUnitTestCase extends ESTestCase {
 
     protected Settings testSettings;
-    
+
+    protected static IndicesModule getIndicesModuleWithRegisteredAttachmentMapper() {
+        IndicesModule indicesModule = new IndicesModule();
+        indicesModule.registerMapper(AttachmentMapper.CONTENT_TYPE, new AttachmentMapper.TypeParser());
+        return indicesModule;
+    }
+
     @Before
     public void createSettings() throws Exception {
       testSettings = Settings.builder()

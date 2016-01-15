@@ -45,17 +45,13 @@ final class QueriesLoaderCollector extends SimpleCollector {
     private final Map<BytesRef, Query> queries = new HashMap<>();
     private final FieldsVisitor fieldsVisitor = new FieldsVisitor(true);
     private final PercolatorQueriesRegistry percolator;
-    private final IndexFieldData<?> uidFieldData;
     private final ESLogger logger;
 
-    private SortedBinaryDocValues uidValues;
     private LeafReader reader;
 
-    QueriesLoaderCollector(PercolatorQueriesRegistry percolator, ESLogger logger, MapperService mapperService, IndexFieldDataService indexFieldDataService) {
+    QueriesLoaderCollector(PercolatorQueriesRegistry percolator, ESLogger logger) {
         this.percolator = percolator;
         this.logger = logger;
-        final MappedFieldType uidMapper = mapperService.smartNameFieldType(UidFieldMapper.NAME);
-        this.uidFieldData = indexFieldDataService.getForField(uidMapper);
     }
 
     public Map<BytesRef, Query> queries() {
@@ -64,35 +60,27 @@ final class QueriesLoaderCollector extends SimpleCollector {
 
     @Override
     public void collect(int doc) throws IOException {
-        // the _source is the query
+        fieldsVisitor.reset();
+        reader.document(doc, fieldsVisitor);
+        final Uid uid = fieldsVisitor.uid();
 
-        uidValues.setDocument(doc);
-        if (uidValues.count() > 0) {
-            assert uidValues.count() == 1;
-            final BytesRef uid = uidValues.valueAt(0);
-            final BytesRef id = Uid.splitUidIntoTypeAndId(uid)[1];
-            fieldsVisitor.reset();
-            reader.document(doc, fieldsVisitor);
-
-            try {
-                // id is only used for logging, if we fail we log the id in the catch statement
-                final Query parseQuery = percolator.parsePercolatorDocument(null, fieldsVisitor.source());
-                if (parseQuery != null) {
-                    queries.put(BytesRef.deepCopyOf(id), parseQuery);
-                } else {
-                    logger.warn("failed to add query [{}] - parser returned null", id);
-                }
-
-            } catch (Exception e) {
-                logger.warn("failed to add query [{}]", e, id.utf8ToString());
+        try {
+            // id is only used for logging, if we fail we log the id in the catch statement
+            final Query parseQuery = percolator.parsePercolatorDocument(null, fieldsVisitor.source());
+            if (parseQuery != null) {
+                queries.put(new BytesRef(uid.id()), parseQuery);
+            } else {
+                logger.warn("failed to add query [{}] - parser returned null", uid);
             }
+
+        } catch (Exception e) {
+            logger.warn("failed to add query [{}]", e, uid);
         }
     }
 
     @Override
     protected void doSetNextReader(LeafReaderContext context) throws IOException {
         reader = context.reader();
-        uidValues = uidFieldData.load(context).getBytesValues();
     }
 
     @Override

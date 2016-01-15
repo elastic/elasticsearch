@@ -45,7 +45,7 @@ public final class Types {
      * Returns a new parameterized type, applying {@code typeArguments} to
      * {@code rawType}. The returned type does not have an owner type.
      *
-     * @return a {@link java.io.Serializable serializable} parameterized type.
+     * @return a parameterized type.
      */
     public static ParameterizedType newParameterizedType(Type rawType, Type... typeArguments) {
         return newParameterizedTypeWithOwner(null, rawType, typeArguments);
@@ -55,7 +55,7 @@ public final class Types {
      * Returns a new parameterized type, applying {@code typeArguments} to
      * {@code rawType} and enclosed by {@code ownerType}.
      *
-     * @return a {@link java.io.Serializable serializable} parameterized type.
+     * @return a parameterized type.
      */
     public static ParameterizedType newParameterizedTypeWithOwner(
             Type ownerType, Type rawType, Type... typeArguments) {
@@ -66,7 +66,7 @@ public final class Types {
      * Returns an array type whose elements are all instances of
      * {@code componentType}.
      *
-     * @return a {@link java.io.Serializable serializable} generic array type.
+     * @return a generic array type.
      */
     public static GenericArrayType arrayOf(Type componentType) {
         return new GenericArrayTypeImpl(componentType);
@@ -95,7 +95,7 @@ public final class Types {
      * Returns a type modelling a {@link List} whose elements are of type
      * {@code elementType}.
      *
-     * @return a {@link java.io.Serializable serializable} parameterized type.
+     * @return a parameterized type.
      */
     public static ParameterizedType listOf(Type elementType) {
         return newParameterizedType(List.class, elementType);
@@ -105,7 +105,7 @@ public final class Types {
      * Returns a type modelling a {@link Set} whose elements are of type
      * {@code elementType}.
      *
-     * @return a {@link java.io.Serializable serializable} parameterized type.
+     * @return a parameterized type.
      */
     public static ParameterizedType setOf(Type elementType) {
         return newParameterizedType(Set.class, elementType);
@@ -115,7 +115,7 @@ public final class Types {
      * Returns a type modelling a {@link Map} whose keys are of type
      * {@code keyType} and whose values are of type {@code valueType}.
      *
-     * @return a {@link java.io.Serializable serializable} parameterized type.
+     * @return a parameterized type.
      */
     public static ParameterizedType mapOf(Type keyType, Type valueType) {
         return newParameterizedType(Map.class, keyType, valueType);
@@ -127,7 +127,7 @@ public final class Types {
      * Returns a type modelling a {@link Provider} that provides elements of type
      * {@code elementType}.
      *
-     * @return a {@link java.io.Serializable serializable} parameterized type.
+     * @return a parameterized type.
      */
     public static ParameterizedType providerOf(Type providedType) {
         return newParameterizedType(Provider.class, providedType);

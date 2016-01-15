@@ -200,6 +200,7 @@ public class CreateIndexIT extends ESIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/14932,https://github.com/elastic/elasticsearch/pull/15853" )
     public void testCreateAndDeleteIndexConcurrently() throws InterruptedException {
         createIndex("test");
         final AtomicInteger indexVersion = new AtomicInteger(0);
@@ -284,5 +285,12 @@ public class CreateIndexIT extends ESIntegTestCase {
             }
             assertThat(messages.toString(), containsString("mapper [text] is used by multiple types"));
         }
+    }
+
+    public void testRestartIndexCreationAfterFullClusterRestart() throws Exception {
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put("cluster.routing.allocation.enable", "none")).get();
+        client().admin().indices().prepareCreate("test").setSettings(indexSettings()).get();
+        internalCluster().fullRestart();
+        ensureGreen("test");
     }
 }

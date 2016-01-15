@@ -32,7 +32,10 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
-import static org.elasticsearch.search.suggest.completion.context.GeoContextMapping.*;
+import static org.elasticsearch.search.suggest.completion.context.GeoContextMapping.CONTEXT_BOOST;
+import static org.elasticsearch.search.suggest.completion.context.GeoContextMapping.CONTEXT_NEIGHBOURS;
+import static org.elasticsearch.search.suggest.completion.context.GeoContextMapping.CONTEXT_PRECISION;
+import static org.elasticsearch.search.suggest.completion.context.GeoContextMapping.CONTEXT_VALUE;
 
 /**
  * Defines the query context for {@link GeoContextMapping}

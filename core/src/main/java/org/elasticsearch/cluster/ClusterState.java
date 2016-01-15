@@ -19,9 +19,9 @@
 
 package org.elasticsearch.cluster;
 
+import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import org.elasticsearch.cluster.DiffableUtils.KeyedReader;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -30,7 +30,12 @@ import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.*;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.RoutingNodes;
+import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.service.InternalClusterService;
 import org.elasticsearch.common.Nullable;
@@ -51,7 +56,11 @@ import org.elasticsearch.discovery.local.LocalDiscovery;
 import org.elasticsearch.discovery.zen.publish.PublishClusterStateAction;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * Represents the current state of the cluster.
@@ -129,7 +138,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
         @SuppressWarnings("unchecked")
         T proto = (T)customPrototypes.get(type);
         if (proto == null) {
-            throw new IllegalArgumentException("No custom state prototype registered for type [" + type + "]");
+            throw new IllegalArgumentException("No custom state prototype registered for type [" + type + "], node likely missing plugins");
         }
         return proto;
     }
@@ -469,6 +478,16 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
                 }
                 builder.endArray();
 
+                builder.startObject(IndexMetaData.KEY_ACTIVE_ALLOCATIONS);
+                for (IntObjectCursor<Set<String>> cursor : indexMetaData.getActiveAllocationIds()) {
+                    builder.startArray(String.valueOf(cursor.key));
+                    for (String allocationId : cursor.value) {
+                        builder.value(allocationId);
+                    }
+                    builder.endArray();
+                }
+                builder.endObject();
+
                 builder.endObject();
             }
             builder.endObject();
@@ -584,6 +603,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
 
         public Builder routingResult(RoutingAllocation.Result routingResult) {
             this.routingTable = routingResult.routingTable();
+            this.metaData = routingResult.metaData();
             return this;
         }
 
@@ -759,7 +779,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
             nodes = after.nodes.diff(before.nodes);
             metaData = after.metaData.diff(before.metaData);
             blocks = after.blocks.diff(before.blocks);
-            customs = DiffableUtils.diff(before.customs, after.customs);
+            customs = DiffableUtils.diff(before.customs, after.customs, DiffableUtils.getStringKeySerializer());
         }
 
         public ClusterStateDiff(StreamInput in, ClusterState proto) throws IOException {
@@ -771,14 +791,15 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
             nodes = proto.nodes.readDiffFrom(in);
             metaData = proto.metaData.readDiffFrom(in);
             blocks = proto.blocks.readDiffFrom(in);
-            customs = DiffableUtils.readImmutableOpenMapDiff(in, new KeyedReader<Custom>() {
+            customs = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(),
+                    new DiffableUtils.DiffableValueSerializer<String, Custom>() {
                 @Override
-                public Custom readFrom(StreamInput in, String key) throws IOException {
+                public Custom read(StreamInput in, String key) throws IOException {
                     return lookupPrototypeSafe(key).readFrom(in);
                 }
 
                 @Override
-                public Diff<Custom> readDiffFrom(StreamInput in, String key) throws IOException {
+                public Diff<Custom> readDiff(StreamInput in, String key) throws IOException {
                     return lookupPrototypeSafe(key).readDiffFrom(in);
                 }
             });

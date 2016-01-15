@@ -18,8 +18,8 @@
  */
 package org.elasticsearch.search.aggregations.bucket.significant.heuristics;
 
-import org.elasticsearch.common.collect.CopyOnWriteHashMap;
 import org.elasticsearch.common.io.stream.StreamInput;
+
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;

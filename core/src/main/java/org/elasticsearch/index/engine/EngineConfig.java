@@ -26,20 +26,17 @@ import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.similarities.Similarity;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.CodecService;
-import org.elasticsearch.index.indexing.ShardIndexingService;
-import org.elasticsearch.index.shard.MergeSchedulerConfig;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.TranslogRecoveryPerformer;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.TranslogConfig;
-import org.elasticsearch.indices.memory.IndexingMemoryController;
+import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.threadpool.ThreadPool;
-
-import java.util.concurrent.TimeUnit;
 
 /*
  * Holds all the configuration that is used to create an {@link Engine}.
@@ -50,21 +47,15 @@ public final class EngineConfig {
     private final ShardId shardId;
     private final TranslogRecoveryPerformer translogRecoveryPerformer;
     private final IndexSettings indexSettings;
-    private volatile ByteSizeValue indexingBufferSize;
-    private volatile ByteSizeValue versionMapSize;
-    private volatile String versionMapSizeSetting;
-    private volatile boolean compoundOnFlush = true;
-    private long gcDeletesInMillis = DEFAULT_GC_DELETES.millis();
+    private final ByteSizeValue indexingBufferSize;
     private volatile boolean enableGcDeletes = true;
     private final TimeValue flushMergesAfter;
     private final String codecName;
     private final ThreadPool threadPool;
-    private final ShardIndexingService indexingService;
     private final Engine.Warmer warmer;
     private final Store store;
     private final SnapshotDeletionPolicy deletionPolicy;
     private final MergePolicy mergePolicy;
-    private final MergeSchedulerConfig mergeSchedulerConfig;
     private final Analyzer analyzer;
     private final Similarity similarity;
     private final CodecService codecService;
@@ -74,37 +65,13 @@ public final class EngineConfig {
     private final QueryCachingPolicy queryCachingPolicy;
 
     /**
-     * Index setting for compound file on flush. This setting is realtime updateable.
-     */
-    public static final String INDEX_COMPOUND_ON_FLUSH = "index.compound_on_flush";
-
-    /**
-     * Index setting to enable / disable deletes garbage collection.
-     * This setting is realtime updateable
-     */
-    public static final String INDEX_GC_DELETES_SETTING = "index.gc_deletes";
-
-    /**
      * Index setting to change the low level lucene codec used for writing new segments.
      * This setting is <b>not</b> realtime updateable.
      */
     public static final String INDEX_CODEC_SETTING = "index.codec";
 
-    /**
-     * The maximum size the version map should grow to before issuing a refresh. Can be an absolute value or a percentage of
-     * the current index memory buffer (defaults to 25%)
-     */
-    public static final String INDEX_VERSION_MAP_SIZE = "index.version_map_size";
-
-
     /** if set to true the engine will start even if the translog id in the commit point can not be found */
     public static final String INDEX_FORCE_NEW_TRANSLOG = "index.engine.force_new_translog";
-
-
-    public static final TimeValue DEFAULT_REFRESH_INTERVAL = new TimeValue(1, TimeUnit.SECONDS);
-    public static final TimeValue DEFAULT_GC_DELETES = TimeValue.timeValueSeconds(60);
-
-    public static final String DEFAULT_VERSION_MAP_SIZE = "25%";
 
     private static final String DEFAULT_CODEC_NAME = "default";
     private TranslogConfig translogConfig;
@@ -113,32 +80,28 @@ public final class EngineConfig {
     /**
      * Creates a new {@link org.elasticsearch.index.engine.EngineConfig}
      */
-    public EngineConfig(ShardId shardId, ThreadPool threadPool, ShardIndexingService indexingService,
+    public EngineConfig(ShardId shardId, ThreadPool threadPool,
                         IndexSettings indexSettings, Engine.Warmer warmer, Store store, SnapshotDeletionPolicy deletionPolicy,
-                        MergePolicy mergePolicy, MergeSchedulerConfig mergeSchedulerConfig, Analyzer analyzer,
+                        MergePolicy mergePolicy,Analyzer analyzer,
                         Similarity similarity, CodecService codecService, Engine.EventListener eventListener,
                         TranslogRecoveryPerformer translogRecoveryPerformer, QueryCache queryCache, QueryCachingPolicy queryCachingPolicy, TranslogConfig translogConfig, TimeValue flushMergesAfter) {
         this.shardId = shardId;
         final Settings settings = indexSettings.getSettings();
         this.indexSettings = indexSettings;
         this.threadPool = threadPool;
-        this.indexingService = indexingService;
         this.warmer = warmer == null ? (a,b) -> {} : warmer;
         this.store = store;
         this.deletionPolicy = deletionPolicy;
         this.mergePolicy = mergePolicy;
-        this.mergeSchedulerConfig = mergeSchedulerConfig;
         this.analyzer = analyzer;
         this.similarity = similarity;
         this.codecService = codecService;
         this.eventListener = eventListener;
-        this.compoundOnFlush = settings.getAsBoolean(EngineConfig.INDEX_COMPOUND_ON_FLUSH, compoundOnFlush);
         codecName = settings.get(EngineConfig.INDEX_CODEC_SETTING, EngineConfig.DEFAULT_CODEC_NAME);
-        // We start up inactive and rely on IndexingMemoryController to give us our fair share once we start indexing:
-        indexingBufferSize = IndexingMemoryController.INACTIVE_SHARD_INDEXING_BUFFER;
-        gcDeletesInMillis = settings.getAsTime(INDEX_GC_DELETES_SETTING, EngineConfig.DEFAULT_GC_DELETES).millis();
-        versionMapSizeSetting = settings.get(INDEX_VERSION_MAP_SIZE, DEFAULT_VERSION_MAP_SIZE);
-        updateVersionMapSize();
+        // We give IndexWriter a "huge" (256 MB) buffer, so it won't flush on its own unless the ES indexing buffer is also huge and/or
+        // there are not too many shards allocated to this node.  Instead, IndexingMemoryController periodically checks
+        // and refreshes the most heap-consuming shards when total indexing heap usage across all shards is too high:
+        indexingBufferSize = new ByteSizeValue(256, ByteSizeUnit.MB);
         this.translogRecoveryPerformer = translogRecoveryPerformer;
         this.forceNewTranslog = settings.getAsBoolean(INDEX_FORCE_NEW_TRANSLOG, false);
         this.queryCache = queryCache;
@@ -147,49 +110,9 @@ public final class EngineConfig {
         this.flushMergesAfter = flushMergesAfter;
     }
 
-    /** updates {@link #versionMapSize} based on current setting and {@link #indexingBufferSize} */
-    private void updateVersionMapSize() {
-        if (versionMapSizeSetting.endsWith("%")) {
-            double percent = Double.parseDouble(versionMapSizeSetting.substring(0, versionMapSizeSetting.length() - 1));
-            versionMapSize = new ByteSizeValue((long) ((double) indexingBufferSize.bytes() * (percent / 100)));
-        } else {
-            versionMapSize = ByteSizeValue.parseBytesSizeValue(versionMapSizeSetting, INDEX_VERSION_MAP_SIZE);
-        }
-    }
-
-    /**
-     * Settings the version map size that should trigger a refresh. See {@link #INDEX_VERSION_MAP_SIZE} for details.
-     */
-    public void setVersionMapSizeSetting(String versionMapSizeSetting) {
-        this.versionMapSizeSetting = versionMapSizeSetting;
-        updateVersionMapSize();
-    }
-
-    /**
-     * current setting for the version map size that should trigger a refresh. See {@link #INDEX_VERSION_MAP_SIZE} for details.
-     */
-    public String getVersionMapSizeSetting() {
-        return versionMapSizeSetting;
-    }
-
     /** if true the engine will start even if the translog id in the commit point can not be found */
     public boolean forceNewTranslog() {
         return forceNewTranslog;
-    }
-
-    /**
-     * returns the size of the version map that should trigger a refresh
-     */
-    public ByteSizeValue getVersionMapSize() {
-        return versionMapSize;
-    }
-
-    /**
-     * Sets the indexing buffer
-     */
-    public void setIndexingBufferSize(ByteSizeValue indexingBufferSize) {
-        this.indexingBufferSize = indexingBufferSize;
-        updateVersionMapSize();
     }
 
     /**
@@ -202,24 +125,10 @@ public final class EngineConfig {
     }
 
     /**
-     * Returns the initial index buffer size. This setting is only read on startup and otherwise controlled by {@link org.elasticsearch.indices.memory.IndexingMemoryController}
+     * Returns the initial index buffer size. This setting is only read on startup and otherwise controlled by {@link IndexingMemoryController}
      */
     public ByteSizeValue getIndexingBufferSize() {
         return indexingBufferSize;
-    }
-
-    /**
-     * Returns <code>true</code> iff flushed segments should be written as compound file system. Defaults to <code>true</code>
-     */
-    public boolean isCompoundOnFlush() {
-        return compoundOnFlush;
-    }
-
-    /**
-     * Returns the GC deletes cycle in milliseconds.
-     */
-    public long getGcDeletesInMillis() {
-        return gcDeletesInMillis;
     }
 
     /**
@@ -227,7 +136,7 @@ public final class EngineConfig {
      * in realtime and forces a volatile read. Consumers can safely read this value directly go fetch it's latest value. The default is <code>true</code>
      * <p>
      *     Engine GC deletion if enabled collects deleted documents from in-memory realtime data structures after a certain amount of
-     *     time ({@link #getGcDeletesInMillis()} if enabled. Before deletes are GCed they will cause re-adding the document that was deleted
+     *     time ({@link IndexSettings#getGcDeletesInMillis()} if enabled. Before deletes are GCed they will cause re-adding the document that was deleted
      *     to fail.
      * </p>
      */
@@ -251,18 +160,6 @@ public final class EngineConfig {
      */
     public ThreadPool getThreadPool() {
         return threadPool;
-    }
-
-    /**
-     * Returns a {@link org.elasticsearch.index.indexing.ShardIndexingService} used inside the engine to inform about
-     * pre and post index. The operations are used for statistic purposes etc.
-     *
-     * @see org.elasticsearch.index.indexing.ShardIndexingService#postIndex(Engine.Index)
-     * @see org.elasticsearch.index.indexing.ShardIndexingService#preIndex(Engine.Index)
-     *
-     */
-    public ShardIndexingService getIndexingService() {
-        return indexingService;
     }
 
     /**
@@ -300,13 +197,6 @@ public final class EngineConfig {
     }
 
     /**
-     * Returns the {@link MergeSchedulerConfig}
-     */
-    public MergeSchedulerConfig getMergeSchedulerConfig() {
-        return mergeSchedulerConfig;
-    }
-
-    /**
      * Returns a listener that should be called on engine failure
      */
     public Engine.EventListener getEventListener() {
@@ -337,20 +227,6 @@ public final class EngineConfig {
      */
     public Similarity getSimilarity() {
         return similarity;
-    }
-
-    /**
-     * Sets the GC deletes cycle in milliseconds.
-     */
-    public void setGcDeletesInMillis(long gcDeletesInMillis) {
-        this.gcDeletesInMillis = gcDeletesInMillis;
-    }
-
-    /**
-     * Sets if flushed segments should be written as compound file system. Defaults to <code>true</code>
-     */
-    public void setCompoundOnFlush(boolean compoundOnFlush) {
-        this.compoundOnFlush = compoundOnFlush;
     }
 
     /**

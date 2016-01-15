@@ -22,7 +22,11 @@ package org.elasticsearch.cloud.azure.storage;
 import com.microsoft.azure.storage.CloudStorageAccount;
 import com.microsoft.azure.storage.LocationMode;
 import com.microsoft.azure.storage.StorageException;
-import com.microsoft.azure.storage.blob.*;
+import com.microsoft.azure.storage.blob.BlobProperties;
+import com.microsoft.azure.storage.blob.CloudBlobClient;
+import com.microsoft.azure.storage.blob.CloudBlobContainer;
+import com.microsoft.azure.storage.blob.CloudBlockBlob;
+import com.microsoft.azure.storage.blob.ListBlobItem;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
@@ -47,7 +51,7 @@ public class AzureStorageServiceImpl extends AbstractLifecycleComponent<AzureSto
     final Map<String, AzureStorageSettings> secondariesStorageSettings;
 
     final Map<String, CloudBlobClient> clients;
-    
+
     @Inject
     public AzureStorageServiceImpl(Settings settings) {
         super(settings);
@@ -81,13 +85,13 @@ public class AzureStorageServiceImpl extends AbstractLifecycleComponent<AzureSto
             logger.error("can not create azure storage client: {}", e.getMessage());
         }
     }
-    
+
     CloudBlobClient getSelectedClient(String account, LocationMode mode) {
         logger.trace("selecting a client for account [{}], mode [{}]", account, mode.name());
         AzureStorageSettings azureStorageSettings = null;
 
-        if (this.primaryStorageSettings == null || this.secondariesStorageSettings.isEmpty()) {
-            throw new IllegalArgumentException("No azure storage can be found. Check your elasticsearch.yml.");
+        if (this.primaryStorageSettings == null) {
+            throw new IllegalArgumentException("No primary azure storage can be found. Check your elasticsearch.yml.");
         }
 
         if (account != null) {
@@ -115,9 +119,17 @@ public class AzureStorageServiceImpl extends AbstractLifecycleComponent<AzureSto
         // NOTE: for now, just set the location mode in case it is different;
         // only one mode per storage account can be active at a time
         client.getDefaultRequestOptions().setLocationMode(mode);
+
+        // Set timeout option. Defaults to 5mn. See cloud.azure.storage.timeout or cloud.azure.storage.xxx.timeout
+        try {
+            int timeout = (int) azureStorageSettings.getTimeout().getMillis();
+            client.getDefaultRequestOptions().setTimeoutIntervalInMs(timeout);
+        } catch (ClassCastException e) {
+            throw new IllegalArgumentException("Can not cast [" + azureStorageSettings.getTimeout() + "] to int.");
+        }
         return client;
     }
-    
+
     @Override
     public boolean doesContainerExist(String account, LocationMode mode, String container) {
         try {
@@ -217,9 +229,9 @@ public class AzureStorageServiceImpl extends AbstractLifecycleComponent<AzureSto
     @Override
     public Map<String, BlobMetaData> listBlobsByPrefix(String account, LocationMode mode, String container, String keyPath, String prefix) throws URISyntaxException, StorageException {
         // NOTE: this should be here: if (prefix == null) prefix = "";
-        // however, this is really inefficient since deleteBlobsByPrefix enumerates everything and 
+        // however, this is really inefficient since deleteBlobsByPrefix enumerates everything and
         // then does a prefix match on the result; it should just call listBlobsByPrefix with the prefix!
-        
+
         logger.debug("listing container [{}], keyPath [{}], prefix [{}]", container, keyPath, prefix);
         MapBuilder<String, BlobMetaData> blobsBuilder = MapBuilder.newMapBuilder();
 

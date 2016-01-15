@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper.internal;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -31,7 +32,7 @@ public class TypeFieldMapperTests extends ESSingleNodeTestCase {
     public void testDocValues() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
 
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
         TypeFieldMapper typeMapper = docMapper.metadataMapper(TypeFieldMapper.class);
         assertTrue(typeMapper.fieldType().hasDocValues());
     }
@@ -41,7 +42,7 @@ public class TypeFieldMapperTests extends ESSingleNodeTestCase {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
         Settings bwcSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_2_0_0_beta1.id).build();
 
-        DocumentMapper docMapper = createIndex("test", bwcSettings).mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper docMapper = createIndex("test", bwcSettings).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
         TypeFieldMapper typeMapper = docMapper.metadataMapper(TypeFieldMapper.class);
         assertFalse(typeMapper.fieldType().hasDocValues());
     }

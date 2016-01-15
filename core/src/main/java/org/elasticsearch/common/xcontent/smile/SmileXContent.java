@@ -24,9 +24,16 @@ import com.fasterxml.jackson.dataformat.smile.SmileFactory;
 import com.fasterxml.jackson.dataformat.smile.SmileGenerator;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.FastStringReader;
-import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.common.xcontent.XContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentGenerator;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 
-import java.io.*;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.Reader;
 
 /**
  * A Smile based content implementation using Jackson.
@@ -62,17 +69,12 @@ public class SmileXContent implements XContent {
 
     @Override
     public XContentGenerator createGenerator(OutputStream os) throws IOException {
-        return new SmileXContentGenerator(smileFactory.createGenerator(os, JsonEncoding.UTF8));
+        return new SmileXContentGenerator(smileFactory.createGenerator(os, JsonEncoding.UTF8), os);
     }
 
     @Override
     public XContentGenerator createGenerator(OutputStream os, String[] filters) throws IOException {
-        return new SmileXContentGenerator(smileFactory.createGenerator(os, JsonEncoding.UTF8), filters);
-    }
-
-    @Override
-    public XContentGenerator createGenerator(Writer writer) throws IOException {
-        return new SmileXContentGenerator(smileFactory.createGenerator(writer));
+        return new SmileXContentGenerator(smileFactory.createGenerator(os, JsonEncoding.UTF8), os, filters);
     }
 
     @Override

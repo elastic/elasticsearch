@@ -19,9 +19,7 @@
 package org.elasticsearch.search.fetch.fielddata;
 
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.fetch.FetchSubPhase;
-import org.elasticsearch.search.fetch.FetchSubPhaseContext;
 import org.elasticsearch.search.fetch.FetchSubPhaseParseElement;
 import org.elasticsearch.search.internal.SearchContext;
 

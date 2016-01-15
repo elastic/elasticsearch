@@ -19,23 +19,29 @@
 
 package org.elasticsearch.common.geo.builders;
 
-import java.io.IOException;
-import java.util.Objects;
+import com.spatial4j.core.shape.Point;
+import com.vividsolutions.jts.geom.Coordinate;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
-import com.spatial4j.core.shape.Point;
-import com.vividsolutions.jts.geom.Coordinate;
+import java.io.IOException;
+import java.util.Objects;
 
 public class PointBuilder extends ShapeBuilder {
 
     public static final GeoShapeType TYPE = GeoShapeType.POINT;
-
-    public static final PointBuilder PROTOTYPE = new PointBuilder();
+    static final PointBuilder PROTOTYPE = new PointBuilder();
 
     private Coordinate coordinate;
+
+    /**
+     * Create a point at [0.0,0.0]
+     */
+    public PointBuilder() {
+        this.coordinate = ZERO_ZERO;
+    }
 
     public PointBuilder coordinate(Coordinate coordinate) {
         this.coordinate = coordinate;

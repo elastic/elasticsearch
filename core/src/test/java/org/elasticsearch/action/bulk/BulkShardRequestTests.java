@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.apache.lucene.util.TestUtil.randomSimpleString;
@@ -27,9 +28,9 @@ public class BulkShardRequestTests extends ESTestCase {
     public void testToString() {
         String index = randomSimpleString(getRandom(), 10);
         int count = between(1, 100);
-        BulkShardRequest r = new BulkShardRequest(null, index, 0, false, new BulkItemRequest[count]);
+        BulkShardRequest r = new BulkShardRequest(null, new ShardId(index, 0), false, new BulkItemRequest[count]);
         assertEquals("BulkShardRequest to [" + index + "] containing [" + count + "] requests", r.toString());
-        r = new BulkShardRequest(null, index, 0, true, new BulkItemRequest[count]);
+        r = new BulkShardRequest(null, new ShardId(index, 0), true, new BulkItemRequest[count]);
         assertEquals("BulkShardRequest to [" + index + "] containing [" + count + "] requests and a refresh", r.toString());
     }
 }

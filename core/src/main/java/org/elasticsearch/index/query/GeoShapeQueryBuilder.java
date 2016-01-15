@@ -31,19 +31,16 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.ShapesAvailability;
 import org.elasticsearch.common.geo.SpatialStrategy;
+import org.elasticsearch.common.geo.builders.PointBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.geo.GeoShapeFieldMapper;
 import org.elasticsearch.search.internal.SearchContext;
@@ -61,13 +58,11 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
     public static final String DEFAULT_SHAPE_FIELD_NAME = "shape";
     public static final ShapeRelation DEFAULT_SHAPE_RELATION = ShapeRelation.INTERSECTS;
 
-    static final GeoShapeQueryBuilder PROTOTYPE = new GeoShapeQueryBuilder("field", new BytesArray(new byte[1]));
+    static final GeoShapeQueryBuilder PROTOTYPE = new GeoShapeQueryBuilder("field", new PointBuilder());
 
     private final String fieldName;
 
-    // TODO make the ShapeBuilder and subclasses Writable and implement hashCode
-    // and Equals so ShapeBuilder can be used here
-    private BytesReference shapeBytes;
+    private ShapeBuilder shape;
 
     private SpatialStrategy strategy;
 
@@ -88,7 +83,7 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
      * @param shape
      *            Shape used in the Query
      */
-    public GeoShapeQueryBuilder(String fieldName, ShapeBuilder shape) throws IOException {
+    public GeoShapeQueryBuilder(String fieldName, ShapeBuilder shape) {
         this(fieldName, shape, null, null);
     }
 
@@ -105,37 +100,21 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
      *            Index type of the indexed Shapes
      */
     public GeoShapeQueryBuilder(String fieldName, String indexedShapeId, String indexedShapeType) {
-        this(fieldName, (BytesReference) null, indexedShapeId, indexedShapeType);
+        this(fieldName, (ShapeBuilder) null, indexedShapeId, indexedShapeType);
     }
 
-    GeoShapeQueryBuilder(String fieldName, BytesReference shapeBytes) {
-        this(fieldName, shapeBytes, null, null);
-    }
-
-    private GeoShapeQueryBuilder(String fieldName, ShapeBuilder shape, String indexedShapeId, String indexedShapeType) throws IOException {
-        this(fieldName, new BytesArray(new byte[1]), indexedShapeId, indexedShapeType);
-        if (shape != null) {
-            this.shapeBytes = shape.buildAsBytes(XContentType.JSON);
-            if (this.shapeBytes.length() == 0) {
-                throw new IllegalArgumentException("shape must not be empty");
-            }
-        } else {
-            throw new IllegalArgumentException("shape must not be null");
-        }
-    }
-
-    private GeoShapeQueryBuilder(String fieldName, BytesReference shapeBytes, String indexedShapeId, String indexedShapeType) {
+    private GeoShapeQueryBuilder(String fieldName, ShapeBuilder shape, String indexedShapeId, String indexedShapeType) {
         if (fieldName == null) {
             throw new IllegalArgumentException("fieldName is required");
         }
-        if ((shapeBytes == null || shapeBytes.length() == 0) && indexedShapeId == null) {
+        if (shape == null && indexedShapeId == null) {
             throw new IllegalArgumentException("either shapeBytes or indexedShapeId and indexedShapeType are required");
         }
         if (indexedShapeId != null && indexedShapeType == null) {
             throw new IllegalArgumentException("indexedShapeType is required if indexedShapeId is specified");
         }
         this.fieldName = fieldName;
-        this.shapeBytes = shapeBytes;
+        this.shape = shape;
         this.indexedShapeId = indexedShapeId;
         this.indexedShapeType = indexedShapeType;
     }
@@ -148,10 +127,10 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
     }
 
     /**
-     * @return the JSON bytes for the shape used in the Query
+     * @return the shape used in the Query
      */
-    public BytesReference shapeBytes() {
-        return shapeBytes;
+    public ShapeBuilder shape() {
+        return shape;
     }
 
     /**
@@ -258,15 +237,11 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        ShapeBuilder shape;
-        if (shapeBytes == null) {
+        ShapeBuilder shapeToQuery = shape;
+        if (shapeToQuery == null) {
             GetRequest getRequest = new GetRequest(indexedShapeIndex, indexedShapeType, indexedShapeId);
             getRequest.copyContextAndHeadersFrom(SearchContext.current());
-            shape = fetch(context.getClient(), getRequest, indexedShapePath);
-        } else {
-            XContentParser shapeParser = XContentHelper.createParser(shapeBytes);
-            shapeParser.nextToken();
-            shape = ShapeBuilder.parse(shapeParser);
+            shapeToQuery = fetch(context.getClient(), getRequest, indexedShapePath);
         }
         MappedFieldType fieldType = context.fieldMapper(fieldName);
         if (fieldType == null) {
@@ -291,12 +266,12 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
             // in this case, execute disjoint as exists && !intersects
             BooleanQuery.Builder bool = new BooleanQuery.Builder();
             Query exists = ExistsQueryBuilder.newFilter(context, fieldName);
-            Query intersects = strategy.makeQuery(getArgs(shape, ShapeRelation.INTERSECTS));
+            Query intersects = strategy.makeQuery(getArgs(shapeToQuery, ShapeRelation.INTERSECTS));
             bool.add(exists, BooleanClause.Occur.MUST);
             bool.add(intersects, BooleanClause.Occur.MUST_NOT);
             query = new ConstantScoreQuery(bool.build());
         } else {
-            query = new ConstantScoreQuery(strategy.makeQuery(getArgs(shape, relation)));
+            query = new ConstantScoreQuery(strategy.makeQuery(getArgs(shapeToQuery, relation)));
         }
         return query;
     }
@@ -378,11 +353,9 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
             builder.field(GeoShapeQueryParser.STRATEGY_FIELD.getPreferredName(), strategy.getStrategyName());
         }
 
-        if (shapeBytes != null) {
+        if (shape != null) {
             builder.field(GeoShapeQueryParser.SHAPE_FIELD.getPreferredName());
-            XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(shapeBytes);
-            parser.nextToken();
-            builder.copyCurrentStructure(parser);
+            shape.toXContent(builder, params);
         } else {
             builder.startObject(GeoShapeQueryParser.INDEXED_SHAPE_FIELD.getPreferredName())
                     .field(GeoShapeQueryParser.SHAPE_ID_FIELD.getPreferredName(), indexedShapeId)
@@ -412,8 +385,7 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
         String fieldName = in.readString();
         GeoShapeQueryBuilder builder;
         if (in.readBoolean()) {
-            BytesReference shapeBytes = in.readBytesReference();
-            builder = new GeoShapeQueryBuilder(fieldName, shapeBytes);
+            builder = new GeoShapeQueryBuilder(fieldName, in.readShape());
         } else {
             String indexedShapeId = in.readOptionalString();
             String indexedShapeType = in.readOptionalString();
@@ -437,10 +409,10 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeString(fieldName);
-        boolean hasShapeBytes = shapeBytes != null;
-        out.writeBoolean(hasShapeBytes);
-        if (hasShapeBytes) {
-            out.writeBytesReference(shapeBytes);
+        boolean hasShape = shape != null;
+        out.writeBoolean(hasShape);
+        if (hasShape) {
+            out.writeShape(shape);
         } else {
             out.writeOptionalString(indexedShapeId);
             out.writeOptionalString(indexedShapeType);
@@ -464,14 +436,14 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
                 && Objects.equals(indexedShapePath, other.indexedShapePath)
                 && Objects.equals(indexedShapeType, other.indexedShapeType)
                 && Objects.equals(relation, other.relation)
-                && Objects.equals(shapeBytes, other.shapeBytes)
+                && Objects.equals(shape, other.shape)
                 && Objects.equals(strategy, other.strategy);
     }
 
     @Override
     protected int doHashCode() {
         return Objects.hash(fieldName, indexedShapeId, indexedShapeIndex,
-                indexedShapePath, indexedShapeType, relation, shapeBytes, strategy);
+                indexedShapePath, indexedShapeType, relation, shape, strategy);
     }
 
     @Override

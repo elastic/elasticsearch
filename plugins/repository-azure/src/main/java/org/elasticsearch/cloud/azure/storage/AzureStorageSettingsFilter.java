@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cloud.azure.storage;
 
+import org.elasticsearch.cloud.azure.storage.AzureStorageService.Storage;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -30,6 +31,8 @@ public class AzureStorageSettingsFilter extends AbstractComponent {
     public AzureStorageSettingsFilter(Settings settings, SettingsFilter settingsFilter) {
         super(settings);
         // Cloud storage API settings needed to be hidden
-        settingsFilter.addFilter("cloud.azure.storage.*");
+        settingsFilter.addFilter(Storage.PREFIX + "*.account");
+        settingsFilter.addFilter(Storage.PREFIX + "*.key");
+        settingsFilter.addFilter(Storage.ACCOUNT);
     }
 }

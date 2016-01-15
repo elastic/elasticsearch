@@ -28,8 +28,6 @@ import org.elasticsearch.index.analysis.NumericIntegerAnalyzer;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeMappingException;
-import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.core.IntegerFieldMapper;
@@ -56,7 +54,7 @@ public class SizeFieldMapper extends MetadataFieldMapper {
         static {
             SIZE_FIELD_TYPE.setStored(true);
             SIZE_FIELD_TYPE.setNumericPrecisionStep(Defaults.PRECISION_STEP_32_BIT);
-            SIZE_FIELD_TYPE.setNames(new MappedFieldType.Names(NAME));
+            SIZE_FIELD_TYPE.setName(NAME);
             SIZE_FIELD_TYPE.setIndexAnalyzer(NumericIntegerAnalyzer.buildNamedAnalyzer(Defaults.PRECISION_STEP_32_BIT));
             SIZE_FIELD_TYPE.setSearchAnalyzer(NumericIntegerAnalyzer.buildNamedAnalyzer(Integer.MAX_VALUE));
             SIZE_FIELD_TYPE.freeze();
@@ -68,7 +66,7 @@ public class SizeFieldMapper extends MetadataFieldMapper {
         protected EnabledAttributeMapper enabledState = EnabledAttributeMapper.UNSET_DISABLED;
 
         public Builder(MappedFieldType existing) {
-            super(NAME, existing == null ? Defaults.SIZE_FIELD_TYPE : existing);
+            super(NAME, existing == null ? Defaults.SIZE_FIELD_TYPE : existing, Defaults.SIZE_FIELD_TYPE);
             builder = this;
         }
 
@@ -163,27 +161,22 @@ public class SizeFieldMapper extends MetadataFieldMapper {
         boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
 
         // all are defaults, no need to write it at all
-        if (!includeDefaults && enabledState == Defaults.ENABLED_STATE && (indexCreatedBefore2x == false || fieldType().stored() == false)) {
+        if (!includeDefaults && enabledState == Defaults.ENABLED_STATE) {
             return builder;
         }
         builder.startObject(contentType());
         if (includeDefaults || enabledState != Defaults.ENABLED_STATE) {
             builder.field("enabled", enabledState.enabled);
         }
-        if (indexCreatedBefore2x && (includeDefaults || fieldType().stored() == true)) {
-            builder.field("store", fieldType().stored());
-        }
         builder.endObject();
         return builder;
     }
 
     @Override
-    public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
+    protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
         SizeFieldMapper sizeFieldMapperMergeWith = (SizeFieldMapper) mergeWith;
-        if (!mergeResult.simulate()) {
-            if (sizeFieldMapperMergeWith.enabledState != enabledState && !sizeFieldMapperMergeWith.enabledState.unset()) {
-                this.enabledState = sizeFieldMapperMergeWith.enabledState;
-            }
+        if (sizeFieldMapperMergeWith.enabledState != enabledState && !sizeFieldMapperMergeWith.enabledState.unset()) {
+            this.enabledState = sizeFieldMapperMergeWith.enabledState;
         }
     }
 }

@@ -297,7 +297,7 @@ public class GeohashCellQuery {
 
             while ((token = parser.nextToken()) != Token.END_OBJECT) {
                 if (token == Token.FIELD_NAME) {
-                    String field = parser.text();
+                    String field = parser.currentName();
 
                     if (parseContext.isDeprecatedSetting(field)) {
                         // skip

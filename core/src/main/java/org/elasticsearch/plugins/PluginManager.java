@@ -26,6 +26,7 @@ import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.JarHell;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.cli.Terminal;
 import org.elasticsearch.common.collect.Tuple;
@@ -55,7 +56,6 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Random;
 import java.util.Set;
 import java.util.stream.StreamSupport;
 import java.util.zip.ZipEntry;
@@ -86,6 +86,10 @@ public class PluginManager {
             "plugin.bat",
             "service.bat"));
 
+    static final Set<String> MODULES = unmodifiableSet(newHashSet(
+            "lang-expression",
+            "lang-groovy"));
+
     static final Set<String> OFFICIAL_PLUGINS = unmodifiableSet(newHashSet(
             "analysis-icu",
             "analysis-kuromoji",
@@ -97,15 +101,15 @@ public class PluginManager {
             "discovery-ec2",
             "discovery-gce",
             "discovery-multicast",
-            "lang-expression",
-            "lang-groovy",
             "lang-javascript",
+            "lang-plan-a",
             "lang-python",
             "mapper-attachments",
             "mapper-murmur3",
             "mapper-size",
             "reindex",
             "repository-azure",
+            "repository-hdfs",
             "repository-s3",
             "store-smb"));
 
@@ -141,7 +145,7 @@ public class PluginManager {
             checkForForbiddenName(pluginHandle.name);
         } else {
             // if we have no name but url, use temporary name that will be overwritten later
-            pluginHandle = new PluginHandle("temp_name" + new Random().nextInt(), null, null);
+            pluginHandle = new PluginHandle("temp_name" + Randomness.get().nextInt(), null, null);
         }
 
         Path pluginFile = download(pluginHandle, terminal);
@@ -240,6 +244,12 @@ public class PluginManager {
         // read and validate the plugin descriptor
         PluginInfo info = PluginInfo.readFromProperties(root);
         terminal.println(VERBOSE, "%s", info);
+
+        // don't let luser install plugin as a module...
+        // they might be unavoidably in maven central and are packaged up the same way)
+        if (MODULES.contains(info.getName())) {
+            throw new IOException("plugin '" + info.getName() + "' cannot be installed like this, it is a system module");
+        }
 
         // update name in handle based on 'name' property found in descriptor file
         pluginHandle = new PluginHandle(info.getName(), pluginHandle.version, pluginHandle.user);

@@ -28,9 +28,19 @@ import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.discovery.zen.publish.PendingClusterStatesQueue.ClusterStateContext;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class PendingClusterStatesQueueTests extends ESTestCase {
 

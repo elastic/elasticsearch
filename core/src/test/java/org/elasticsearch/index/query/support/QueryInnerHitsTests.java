@@ -24,7 +24,6 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsBuilder;
 import org.elasticsearch.test.ESTestCase;
 

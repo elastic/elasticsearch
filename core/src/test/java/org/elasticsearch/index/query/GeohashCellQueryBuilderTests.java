@@ -20,7 +20,6 @@
 package org.elasticsearch.index.query;
 
 import com.spatial4j.core.shape.Point;
-
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.Query;
@@ -134,13 +133,13 @@ public class GeohashCellQueryBuilderTests extends AbstractQueryTestCase<Builder>
 
     public void testFromJson() throws IOException {
         String json =
-                "{\n" + 
-                "  \"geohash_cell\" : {\n" + 
-                "    \"neighbors\" : true,\n" + 
-                "    \"precision\" : 3,\n" + 
-                "    \"pin\" : \"t4mk70fgk067\",\n" + 
-                "    \"boost\" : 1.0\n" + 
-                "  }\n" + 
+                "{\n" +
+                "  \"geohash_cell\" : {\n" +
+                "    \"neighbors\" : true,\n" +
+                "    \"precision\" : 3,\n" +
+                "    \"pin\" : \"t4mk70fgk067\",\n" +
+                "    \"boost\" : 1.0\n" +
+                "  }\n" +
                 "}";
         GeohashCellQuery.Builder parsed = (GeohashCellQuery.Builder) parseQuery(json);
         checkGeneratedJson(json, parsed);

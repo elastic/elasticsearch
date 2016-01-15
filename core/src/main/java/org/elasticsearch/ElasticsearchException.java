@@ -30,7 +30,13 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -554,13 +560,13 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         NODE_DISCONNECTED_EXCEPTION(org.elasticsearch.transport.NodeDisconnectedException.class, org.elasticsearch.transport.NodeDisconnectedException::new, 84),
         ALREADY_EXPIRED_EXCEPTION(org.elasticsearch.index.AlreadyExpiredException.class, org.elasticsearch.index.AlreadyExpiredException::new, 85),
         AGGREGATION_EXECUTION_EXCEPTION(org.elasticsearch.search.aggregations.AggregationExecutionException.class, org.elasticsearch.search.aggregations.AggregationExecutionException::new, 86),
-        MERGE_MAPPING_EXCEPTION(org.elasticsearch.index.mapper.MergeMappingException.class, org.elasticsearch.index.mapper.MergeMappingException::new, 87),
+        // 87 used to be for MergeMappingException
         INVALID_INDEX_TEMPLATE_EXCEPTION(org.elasticsearch.indices.InvalidIndexTemplateException.class, org.elasticsearch.indices.InvalidIndexTemplateException::new, 88),
         PERCOLATE_EXCEPTION(org.elasticsearch.percolator.PercolateException.class, org.elasticsearch.percolator.PercolateException::new, 89),
         REFRESH_FAILED_ENGINE_EXCEPTION(org.elasticsearch.index.engine.RefreshFailedEngineException.class, org.elasticsearch.index.engine.RefreshFailedEngineException::new, 90),
         AGGREGATION_INITIALIZATION_EXCEPTION(org.elasticsearch.search.aggregations.AggregationInitializationException.class, org.elasticsearch.search.aggregations.AggregationInitializationException::new, 91),
         DELAY_RECOVERY_EXCEPTION(org.elasticsearch.indices.recovery.DelayRecoveryException.class, org.elasticsearch.indices.recovery.DelayRecoveryException::new, 92),
-        INDEX_WARMER_MISSING_EXCEPTION(org.elasticsearch.search.warmer.IndexWarmerMissingException.class, org.elasticsearch.search.warmer.IndexWarmerMissingException::new, 93),
+        // 93 used to be for IndexWarmerMissingException
         NO_NODE_AVAILABLE_EXCEPTION(org.elasticsearch.client.transport.NoNodeAvailableException.class, org.elasticsearch.client.transport.NoNodeAvailableException::new, 94),
         INVALID_SNAPSHOT_NAME_EXCEPTION(org.elasticsearch.snapshots.InvalidSnapshotNameException.class, org.elasticsearch.snapshots.InvalidSnapshotNameException::new, 96),
         ILLEGAL_INDEX_SHARD_STATE_EXCEPTION(org.elasticsearch.index.shard.IllegalIndexShardStateException.class, org.elasticsearch.index.shard.IllegalIndexShardStateException::new, 97),

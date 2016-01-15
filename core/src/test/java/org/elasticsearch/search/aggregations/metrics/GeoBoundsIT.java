@@ -36,7 +36,13 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.geoBound
 import static org.elasticsearch.search.aggregations.AggregationBuilders.global;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 /**
  *
@@ -232,7 +238,7 @@ public class GeoBoundsIT extends AbstractGeoTestCase {
         for (int i = 0; i < 10; i++) {
             Bucket bucket = buckets.get(i);
             assertThat(bucket, notNullValue());
-            assertThat("Bucket " + bucket.getKey() + " has wrong number of documents", bucket.getDocCount(), equalTo(1l));
+            assertThat("InternalBucket " + bucket.getKey() + " has wrong number of documents", bucket.getDocCount(), equalTo(1l));
             GeoBounds geoBounds = bucket.getAggregations().get(aggName);
             assertThat(geoBounds, notNullValue());
             assertThat(geoBounds.getName(), equalTo(aggName));

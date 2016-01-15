@@ -22,7 +22,6 @@ package org.elasticsearch.index.query;
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
-
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
@@ -47,6 +46,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.geo.builders.ShapeBuilderRegistry;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
@@ -60,7 +60,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.index.Index;
@@ -82,9 +86,13 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
-import org.elasticsearch.script.*;
+import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script.ScriptParseException;
-import org.elasticsearch.script.mustache.MustacheScriptEngineService;
+import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.ScriptContextRegistry;
+import org.elasticsearch.script.ScriptEngineService;
+import org.elasticsearch.script.ScriptModule;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -104,10 +112,20 @@ import java.io.IOException;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.either;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 
 public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>> extends ESTestCase {
 
@@ -192,6 +210,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                         // skip services
                         bindQueryParsersExtension();
                         bindMapperExtension();
+                        bind(ShapeBuilderRegistry.class).asEagerSingleton();
                     }
                 },
                 new ScriptModule(settings) {
@@ -205,15 +224,8 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                         MockScriptEngine mockScriptEngine = new MockScriptEngine();
                         Multibinder<ScriptEngineService> multibinder = Multibinder.newSetBinder(binder(), ScriptEngineService.class);
                         multibinder.addBinding().toInstance(mockScriptEngine);
-                        try {
-                            Class.forName("com.github.mustachejava.Mustache");
-                        } catch(ClassNotFoundException e) {
-                            throw new IllegalStateException("error while loading mustache", e);
-                        }
-                        MustacheScriptEngineService mustacheScriptEngineService = new MustacheScriptEngineService(settings);
                         Set<ScriptEngineService> engines = new HashSet<>();
                         engines.add(mockScriptEngine);
-                        engines.add(mustacheScriptEngineService);
                         List<ScriptContext.Plugin> customContexts = new ArrayList<>();
                         bind(ScriptContextRegistry.class).toInstance(new ScriptContextRegistry(customContexts));
                         try {
@@ -243,7 +255,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         ScriptService scriptService = injector.getInstance(ScriptService.class);
         SimilarityService similarityService = new SimilarityService(idxSettings, Collections.emptyMap());
         MapperRegistry mapperRegistry = injector.getInstance(MapperRegistry.class);
-        MapperService mapperService = new MapperService(idxSettings, analysisService, similarityService, mapperRegistry);
+        MapperService mapperService = new MapperService(idxSettings, analysisService, similarityService, mapperRegistry, () -> queryShardContext);
         indexFieldDataService = new IndexFieldDataService(idxSettings, injector.getInstance(IndicesFieldDataCache.class), injector.getInstance(CircuitBreakerService.class), mapperService);
         BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(idxSettings, new IndicesWarmer(idxSettings.getNodeSettings(), null), new BitsetFilterCache.Listener() {
             @Override
@@ -836,21 +848,21 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         AbstractQueryTestCase delegate;
         @Override
         public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
-            if (method.equals(Client.class.getDeclaredMethod("get", GetRequest.class))) {
+            if (method.equals(Client.class.getMethod("get", GetRequest.class))) {
                 return new PlainActionFuture<GetResponse>() {
                     @Override
                     public GetResponse get() throws InterruptedException, ExecutionException {
                         return delegate.executeGet((GetRequest) args[0]);
                     }
                 };
-            } else if (method.equals(Client.class.getDeclaredMethod("multiTermVectors", MultiTermVectorsRequest.class))) {
+            } else if (method.equals(Client.class.getMethod("multiTermVectors", MultiTermVectorsRequest.class))) {
                     return new PlainActionFuture<MultiTermVectorsResponse>() {
                         @Override
                         public MultiTermVectorsResponse get() throws InterruptedException, ExecutionException {
                             return delegate.executeMultiTermVectors((MultiTermVectorsRequest) args[0]);
                         }
                     };
-            } else if (method.equals(Object.class.getDeclaredMethod("toString"))) {
+            } else if (method.equals(Object.class.getMethod("toString"))) {
                 return "MockClient";
             }
             throw new UnsupportedOperationException("this test can't handle calls to: " + method);

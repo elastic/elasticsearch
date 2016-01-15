@@ -47,6 +47,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static java.util.Collections.emptyMap;
+
 /**
  * Abstract base for scrolling across a search and executing bulk indexes on all
  * results.
@@ -65,7 +67,7 @@ public abstract class AbstractAsyncBulkIndexByScrollAction<Request extends Abstr
         if (mainRequest.getScript() == null) {
             script = null;
         } else {
-            script = scriptService.compile(mainRequest.getScript(), ScriptContext.Standard.UPDATE, mainRequest);
+            script = scriptService.compile(mainRequest.getScript(), ScriptContext.Standard.UPDATE, mainRequest, emptyMap());
         }
     }
 
@@ -118,7 +120,10 @@ public abstract class AbstractAsyncBulkIndexByScrollAction<Request extends Abstr
         if (timestamp != null) {
             index.timestamp(timestamp.toString());
         }
-        index.ttl(fieldValue(doc, TTLFieldMapper.NAME));
+        Long ttl = fieldValue(doc, TTLFieldMapper.NAME);
+        if (ttl != null) {
+            index.ttl(ttl);
+        }
     }
 
     /**

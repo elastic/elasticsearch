@@ -1,0 +1,14 @@
+# Integration tests for Plan A Plugin
+#
+"Plan A plugin loaded":
+    - do:
+        cluster.state: {}
+
+    # Get master node id
+    - set: { master_node: master }
+
+    - do:
+        nodes.info: {}
+
+    - match:  { nodes.$master.plugins.0.name: lang-plan-a }
+    - match:  { nodes.$master.plugins.0.jvm: true  }

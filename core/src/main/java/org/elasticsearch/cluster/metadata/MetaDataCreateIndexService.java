@@ -47,6 +47,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.IndexScopeSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -103,13 +104,14 @@ public class MetaDataCreateIndexService extends AbstractComponent {
     private final IndexTemplateFilter indexTemplateFilter;
     private final Environment env;
     private final NodeServicesProvider nodeServicesProvider;
+    private final IndexScopeSettings indexScopeSettings;
 
 
     @Inject
     public MetaDataCreateIndexService(Settings settings, ClusterService clusterService,
                                       IndicesService indicesService, AllocationService allocationService,
                                       Version version, AliasValidator aliasValidator,
-                                      Set<IndexTemplateFilter> indexTemplateFilters, Environment env, NodeServicesProvider nodeServicesProvider) {
+                                      Set<IndexTemplateFilter> indexTemplateFilters, Environment env, NodeServicesProvider nodeServicesProvider, IndexScopeSettings indexScopeSettings) {
         super(settings);
         this.clusterService = clusterService;
         this.indicesService = indicesService;
@@ -118,6 +120,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         this.aliasValidator = aliasValidator;
         this.env = env;
         this.nodeServicesProvider = nodeServicesProvider;
+        this.indexScopeSettings = indexScopeSettings;
 
         if (indexTemplateFilters.isEmpty()) {
             this.indexTemplateFilter = DEFAULT_INDEX_TEMPLATE_FILTER;

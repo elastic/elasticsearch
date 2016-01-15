@@ -62,9 +62,9 @@ public final class MergeSchedulerConfig {
     private volatile int maxMergeCount;
 
     MergeSchedulerConfig(IndexSettings indexSettings) {
-        indexSettings.addSettingsUpdateConsumer(MAX_THREAD_COUNT_SETTING, this::setMaxThreadCount);
-        indexSettings.addSettingsUpdateConsumer(MAX_MERGE_COUNT_SETTING, this::setMaxMergeCount);
-        indexSettings.addSettingsUpdateConsumer(AUTO_THROTTLE_SETTING, this::setAutoThrottle);
+        indexSettings.getScopedSettings().addSettingsUpdateConsumer(MAX_THREAD_COUNT_SETTING, this::setMaxThreadCount);
+        indexSettings.getScopedSettings().addSettingsUpdateConsumer(MAX_MERGE_COUNT_SETTING, this::setMaxMergeCount);
+        indexSettings.getScopedSettings().addSettingsUpdateConsumer(AUTO_THROTTLE_SETTING, this::setAutoThrottle);
         maxThreadCount = indexSettings.getValue(MAX_THREAD_COUNT_SETTING);
         maxMergeCount = indexSettings.getValue(MAX_MERGE_COUNT_SETTING);
         this.autoThrottle = indexSettings.getValue(AUTO_THROTTLE_SETTING);

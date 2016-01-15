@@ -20,18 +20,24 @@ package org.elasticsearch.index;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.AbstractScopedSettings;
+import org.elasticsearch.common.settings.IndexScopeSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.VersionUtils;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
@@ -46,9 +52,8 @@ public class IndexSettingsTests extends ESTestCase {
         final AtomicInteger integer = new AtomicInteger(0);
         Setting<Integer> integerSetting = Setting.intSetting("index.test.setting.int", -1, true, Setting.Scope.INDEX);
         IndexMetaData metaData = newIndexMeta("index", theSettings);
-        IndexSettings settings = new IndexSettings(metaData, Settings.EMPTY);
-        settings.addSetting(integerSetting);
-        settings.addSettingsUpdateConsumer(integerSetting, integer::set);
+        IndexSettings settings = newIndexSettings(newIndexMeta("index", theSettings), Settings.EMPTY, integerSetting);
+        settings.getScopedSettings().addSettingsUpdateConsumer(integerSetting, integer::set);
 
         assertEquals(version, settings.getIndexVersionCreated());
         assertEquals("0xdeadbeef", settings.getUUID());
@@ -69,11 +74,9 @@ public class IndexSettingsTests extends ESTestCase {
         Setting<Integer> integerSetting = Setting.intSetting("index.test.setting.int", -1, true, Setting.Scope.INDEX);
         Setting<String> notUpdated = new Setting<>("index.not.updated", "", Function.identity(), true, Setting.Scope.INDEX);
 
-        IndexSettings settings = new IndexSettings(newIndexMeta("index", theSettings), Settings.EMPTY);
-        settings.addSetting(integerSetting);
-        settings.addSetting(notUpdated);
-        settings.addSettingsUpdateConsumer(integerSetting, integer::set);
-        settings.addSettingsUpdateConsumer(notUpdated, builder::append);
+        IndexSettings settings = newIndexSettings(newIndexMeta("index", theSettings), Settings.EMPTY, integerSetting, notUpdated);
+        settings.getScopedSettings().addSettingsUpdateConsumer(integerSetting, integer::set);
+        settings.getScopedSettings().addSettingsUpdateConsumer(notUpdated, builder::append);
         assertEquals(0, integer.get());
         assertEquals("", builder.toString());
         IndexMetaData newMetaData = newIndexMeta("index", Settings.builder().put(settings.getIndexMetaData().getSettings()).put("index.test.setting.int", 42).build());
@@ -112,6 +115,14 @@ public class IndexSettingsTests extends ESTestCase {
         assertEquals(metaData.getSettings().getAsMap(), settings.getSettings().getAsMap());
     }
 
+    public IndexSettings newIndexSettings(IndexMetaData metaData, Settings nodeSettings, Setting<?>... settings) {
+        Set<Setting<?>> settingSet = new HashSet<>(IndexScopeSettings.BUILT_IN_INDEX_SETTINGS);
+        if (settings.length > 0) {
+            settingSet.addAll(Arrays.asList(settings));
+        }
+        return new IndexSettings(metaData, nodeSettings, (idx) -> Regex.simpleMatch(idx, metaData.getIndex()), new IndexScopeSettings(Settings.EMPTY, settingSet));
+    }
+
 
     public void testNodeSettingsAreContained() {
         final int numShards = randomIntBetween(1, 10);
@@ -124,9 +135,8 @@ public class IndexSettingsTests extends ESTestCase {
         Settings nodeSettings = Settings.settingsBuilder().put("index.foo.bar", 43).build();
         final AtomicInteger indexValue = new AtomicInteger(0);
         Setting<Integer> integerSetting = Setting.intSetting("index.foo.bar", -1, true, Setting.Scope.INDEX);
-        IndexSettings settings = new IndexSettings(newIndexMeta("index", theSettings), nodeSettings);
-        settings.addSetting(integerSetting);
-        settings.addSettingsUpdateConsumer(integerSetting, indexValue::set);
+        IndexSettings settings = newIndexSettings(newIndexMeta("index", theSettings), nodeSettings, integerSetting);
+        settings.getScopedSettings().addSettingsUpdateConsumer(integerSetting, indexValue::set);
         assertEquals(numReplicas, settings.getNumberOfReplicas());
         assertEquals(numShards, settings.getNumberOfShards());
         assertEquals(0, indexValue.get());

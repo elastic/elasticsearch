@@ -45,16 +45,21 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
     private final Setting.Scope scope;
 
     protected AbstractScopedSettings(Settings settings, Set<Setting<?>> settingsSet, Setting.Scope scope) {
-        this(settings, Settings.EMPTY, settingsSet, scope);
-    }
-
-    protected AbstractScopedSettings(Settings nodeSettings, Settings scopeSettings, Set<Setting<?>> settingsSet, Setting.Scope scope) {
-        super(nodeSettings);
-        this.lastSettingsApplied = scopeSettings;
+        super(settings);
+        this.lastSettingsApplied = Settings.EMPTY;
         this.scope = scope;
         for (Setting<?> entry : settingsSet) {
             addSetting(entry);
         }
+    }
+
+    protected AbstractScopedSettings(Settings nodeSettings, Settings scopeSettings, AbstractScopedSettings other) {
+        super(nodeSettings);
+        this.lastSettingsApplied = scopeSettings;
+        this.scope = other.scope;
+        complexMatchers.putAll(other.complexMatchers);
+        keySettings.putAll(other.keySettings);
+        settingUpdaters.addAll(other.settingUpdaters);
     }
 
     protected final void addSetting(Setting<?> setting) {

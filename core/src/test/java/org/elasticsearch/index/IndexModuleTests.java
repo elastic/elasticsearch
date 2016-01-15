@@ -189,27 +189,20 @@ public class IndexModuleTests extends ESTestCase {
         IndexModule module = new IndexModule(indexSettings, null, new AnalysisRegistry(null, environment));
         Setting<Boolean> booleanSetting = Setting.boolSetting("foo.bar", false, true, Setting.Scope.INDEX);
         Setting<Boolean> booleanSetting2 = Setting.boolSetting("foo.bar.baz", false, true, Setting.Scope.INDEX);
+        IndexSettingsModule.newIndexSettings(index, settings, booleanSetting);
         AtomicBoolean atomicBoolean = new AtomicBoolean(false);
-        module.addSetting(booleanSetting);
-        module.addSettingsUpdateConsumer(booleanSetting2, atomicBoolean::set);
+        module.addSettingsUpdateConsumer(booleanSetting, atomicBoolean::set);
 
         try {
-            module.addSettingsUpdateConsumer(booleanSetting, atomicBoolean::set);
-            fail("already added");
+            module.addSettingsUpdateConsumer(booleanSetting2, atomicBoolean::set);
+            fail("not registered");
         } catch (IllegalArgumentException ex) {
 
         }
 
-        try {
-            module.addSetting(booleanSetting2);
-            fail("already added");
-        } catch (IllegalArgumentException ex) {
-
-        }
         IndexService indexService = module.newIndexService(nodeEnvironment, deleter, nodeServicesProvider, mapperRegistry);
-        IndexSettings x = indexService.getIndexSettings();
-        x.containsSetting(booleanSetting);
-        x.containsSetting(booleanSetting2);
+        assertSame(booleanSetting, indexService.getIndexSettings().getScopedSettings().get(booleanSetting));
+
         indexService.close("simon says", false);
     }
 

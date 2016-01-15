@@ -119,7 +119,6 @@ public class ClusterModule extends AbstractModule {
         indexDynamicSettings.addSetting(setting, validator);
     }
 
-
     public void registerAllocationDecider(Class<? extends AllocationDecider> allocationDecider) {
         allocationDeciders.registerExtension(allocationDecider);
     }

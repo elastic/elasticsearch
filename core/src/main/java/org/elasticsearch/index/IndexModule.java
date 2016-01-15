@@ -91,28 +91,13 @@ public final class IndexModule {
     }
 
     /**
-     * Adds a Setting for this index.
-     */
-    public <T> void addSetting(Setting<T> setting) {
-        addSettingsUpdateConsumer(setting, null);
-    }
-
-    /**
      * Adds a Setting and it's consumer for this index.
      */
     public <T> void addSettingsUpdateConsumer(Setting<T> setting, Consumer<T> consumer) {
         if (setting == null) {
             throw new IllegalArgumentException("setting must not be null");
         }
-        if (indexSettings.containsSetting(setting)) {
-            throw new IllegalArgumentException("setting already registered: " + setting);
-        }
-        if (consumer != null) {
-            indexSettings.addSettingsUpdateConsumer(setting, consumer);
-        } else {
-            indexSettings.addSetting(setting);
-        }
-
+        indexSettings.getScopedSettings().addSettingsUpdateConsumer(setting, consumer);
     }
 
     /**
@@ -271,8 +256,8 @@ public final class IndexModule {
                 throw new IllegalStateException("store must not be null");
             }
         }
-        indexSettings.addSettingsUpdateConsumer(IndexStore.INDEX_STORE_THROTTLE_MAX_BYTES_PER_SEC_SETTING, store::setMaxRate);
-        indexSettings.addSettingsUpdateConsumer(IndexStore.INDEX_STORE_THROTTLE_TYPE_SETTING, store::setType);
+        indexSettings.getScopedSettings().addSettingsUpdateConsumer(IndexStore.INDEX_STORE_THROTTLE_MAX_BYTES_PER_SEC_SETTING, store::setMaxRate);
+        indexSettings.getScopedSettings().addSettingsUpdateConsumer(IndexStore.INDEX_STORE_THROTTLE_TYPE_SETTING, store::setType);
         final String queryCacheType = indexSettings.getSettings().get(IndexModule.QUERY_CACHE_TYPE, IndexModule.INDEX_QUERY_CACHE);
         final BiFunction<IndexSettings, IndicesQueryCache, QueryCache> queryCacheProvider = queryCaches.get(queryCacheType);
         final QueryCache queryCache = queryCacheProvider.apply(indexSettings, servicesProvider.getIndicesQueryCache());

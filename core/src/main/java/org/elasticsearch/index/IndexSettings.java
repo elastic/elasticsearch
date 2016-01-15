@@ -29,6 +29,7 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.AbstractScopedSettings;
+import org.elasticsearch.common.settings.IndexScopeSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -88,6 +89,8 @@ public final class IndexSettings {
     public static final TimeValue DEFAULT_GC_DELETES = TimeValue.timeValueSeconds(60);
     public static final Setting<TimeValue> INDEX_GC_DELETES_SETTING = Setting.timeSetting("index.gc_deletes", DEFAULT_GC_DELETES, new TimeValue(-1, TimeUnit.MICROSECONDS), true, Setting.Scope.INDEX);
 
+    private static final IndexScopeSettings DEFAULT_SCOPED_SETTINGS = new IndexScopeSettings(Settings.EMPTY, IndexScopeSettings.BUILT_IN_INDEX_SETTINGS);
+
     private final String uuid;
     private final Index index;
     private final Version version;
@@ -112,73 +115,11 @@ public final class IndexSettings {
     private volatile ByteSizeValue flushThresholdSize;
     private final MergeSchedulerConfig mergeSchedulerConfig;
     private final MergePolicyConfig mergePolicyConfig;
-    private final ScopedSettings scopedSettings;
+    private final IndexScopeSettings scopedSettings;
     private long gcDeletesInMillis = DEFAULT_GC_DELETES.millis();
     private volatile boolean warmerEnabled;
     private volatile int maxResultWindow;
     private volatile boolean TTLPurgeDisabled;
-
-
-    public static Set<Setting<?>> BUILT_IN_CLUSTER_SETTINGS = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
-        IndexSettings.INDEX_TTL_DISABLE_PURGE_SETTING,
-        IndexStore.INDEX_STORE_THROTTLE_TYPE_SETTING,
-        IndexStore.INDEX_STORE_THROTTLE_MAX_BYTES_PER_SEC_SETTING,
-        MergeSchedulerConfig.AUTO_THROTTLE_SETTING,
-        MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING,
-        MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING,
-        IndexMetaData.INDEX_ROUTING_EXCLUDE_GROUP_SETTING,
-        IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_SETTING,
-        IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING,
-        IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS_SETTING,
-        IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING,
-        IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING,
-        IndexMetaData.INDEX_SHADOW_REPLICAS_SETTING,
-        IndexMetaData.INDEX_SHARED_FILESYSTEM_SETTING,
-        IndexMetaData.INDEX_READ_ONLY_SETTING,
-        IndexMetaData.INDEX_BLOCKS_READ_SETTING,
-        IndexMetaData.INDEX_BLOCKS_WRITE_SETTING,
-        IndexMetaData.INDEX_BLOCKS_METADATA_SETTING,
-        IndexMetaData.INDEX_SHARED_FS_ALLOW_RECOVERY_ON_ANY_NODE_SETTING,
-        IndexMetaData.INDEX_PRIORITY_SETTING,
-        IndexMetaData.INDEX_DATA_PATH_SETTING,
-        SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_DEBUG_SETTING,
-        SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_WARN_SETTING,
-        SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_INFO_SETTING,
-        SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_TRACE_SETTING,
-        SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_WARN_SETTING,
-        SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_DEBUG_SETTING,
-        SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_INFO_SETTING,
-        SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_TRACE_SETTING,
-        SearchSlowLog.INDEX_SEARCH_SLOWLOG_LEVEL,
-        SearchSlowLog.INDEX_SEARCH_SLOWLOG_REFORMAT,
-        IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_WARN_SETTING,
-        IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_DEBUG_SETTING,
-        IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_INFO_SETTING,
-        IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_TRACE_SETTING,
-        IndexingSlowLog.INDEX_INDEXING_SLOWLOG_LEVEL_SETTING,
-        IndexingSlowLog.INDEX_INDEXING_SLOWLOG_REFORMAT_SETTING,
-        IndexingSlowLog.INDEX_INDEXING_SLOWLOG_MAX_SOURCE_CHARS_TO_LOG_SETTING,
-        MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING,
-        MergePolicyConfig.INDEX_MERGE_POLICY_EXPUNGE_DELETES_ALLOWED_SETTING,
-        MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING,
-        MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING,
-        MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_EXPLICIT_SETTING,
-        MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGED_SEGMENT_SETTING,
-        MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING,
-        MergePolicyConfig.INDEX_MERGE_POLICY_RECLAIM_DELETES_WEIGHT_SETTING,
-        IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING,
-        IndexSettings.INDEX_WARMER_ENABLED_SETTING,
-        IndexSettings.INDEX_REFRESH_INTERVAL_SETTING,
-        IndexSettings.MAX_RESULT_WINDOW_SETTING,
-        ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING,
-        IndexSettings.INDEX_GC_DELETES_SETTING,
-        IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING,
-        UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING,
-        EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING,
-        EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING,
-        IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTTING
-
-    )));
 
     /**
      * Returns the default search field for this index.
@@ -223,7 +164,11 @@ public final class IndexSettings {
      * @param nodeSettings the nodes settings this index is allocated on.
      */
     public IndexSettings(final IndexMetaData indexMetaData, final Settings nodeSettings) {
-        this(indexMetaData, nodeSettings, (index) -> Regex.simpleMatch(index, indexMetaData.getIndex()));
+        this(indexMetaData, nodeSettings, (index) -> Regex.simpleMatch(index, indexMetaData.getIndex()), DEFAULT_SCOPED_SETTINGS);
+    }
+
+    IndexSettings(final IndexMetaData indexMetaData, final Settings nodeSettings, IndexScopeSettings indexScopedSettings) {
+        this(indexMetaData, nodeSettings, (index) -> Regex.simpleMatch(index, indexMetaData.getIndex()), indexScopedSettings);
     }
 
     /**
@@ -234,8 +179,8 @@ public final class IndexSettings {
      * @param nodeSettings the nodes settings this index is allocated on.
      * @param indexNameMatcher a matcher that can resolve an expression to the index name or index alias
      */
-    public IndexSettings(final IndexMetaData indexMetaData, final Settings nodeSettings,final Predicate<String> indexNameMatcher) {
-        scopedSettings = new ScopedSettings(nodeSettings, indexMetaData.getSettings(), BUILT_IN_CLUSTER_SETTINGS);
+    public IndexSettings(final IndexMetaData indexMetaData, final Settings nodeSettings, final Predicate<String> indexNameMatcher, IndexScopeSettings indexScopedSettings) {
+        scopedSettings = indexScopedSettings.copy(nodeSettings, indexMetaData);
         this.nodeSettings = nodeSettings;
         this.settings = Settings.builder().put(nodeSettings).put(indexMetaData.getSettings()).build();
         this.index = new Index(indexMetaData.getIndex());
@@ -506,30 +451,11 @@ public final class IndexSettings {
         this.TTLPurgeDisabled = ttlPurgeDisabled;
     }
 
-    boolean containsSetting(Setting<?> setting) {
-        return scopedSettings.get(setting.getKey()) != null;
-    }
 
     public <T> T getValue(Setting<T> setting) {
         return scopedSettings.get(setting);
     }
 
-    private static final class ScopedSettings extends AbstractScopedSettings {
 
-        ScopedSettings(Settings settings, Settings scopeSettings, Set<Setting<?>> settingsSet) {
-            super(settings, scopeSettings, settingsSet, Setting.Scope.INDEX);
-        }
-
-        void addSettingInternal(Setting<?> settings) {
-            addSetting(settings);
-        }
-    }
-
-    void addSetting(Setting<?> setting) {
-        scopedSettings.addSettingInternal(setting);
-    }
-
-    <T> void addSettingsUpdateConsumer(Setting<T> setting, Consumer<T> consumer) {
-        scopedSettings.addSettingsUpdateConsumer(setting, consumer);
-    }
+    public IndexScopeSettings getScopedSettings() { return scopedSettings;}
 }

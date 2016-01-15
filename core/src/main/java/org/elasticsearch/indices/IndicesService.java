@@ -37,6 +37,7 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.IndexScopeSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -101,6 +102,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
     private final IndicesQueriesRegistry indicesQueriesRegistry;
     private final ClusterService clusterService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
+    private final IndexScopeSettings indexScopeSetting;
     private volatile Map<String, IndexService> indices = emptyMap();
     private final Map<Index, List<PendingDelete>> pendingDeletes = new HashMap<>();
     private final OldShardsStats oldShardsStats = new OldShardsStats();
@@ -116,7 +118,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
     public IndicesService(Settings settings, PluginsService pluginsService, NodeEnvironment nodeEnv,
                           ClusterSettings clusterSettings, AnalysisRegistry analysisRegistry,
                           IndicesQueriesRegistry indicesQueriesRegistry, IndexNameExpressionResolver indexNameExpressionResolver,
-                          ClusterService clusterService, MapperRegistry mapperRegistry, ThreadPool threadPool) {
+                          ClusterService clusterService, MapperRegistry mapperRegistry, ThreadPool threadPool, IndexScopeSettings indexScopeSettings) {
         super(settings);
         this.pluginsService = pluginsService;
         this.nodeEnv = nodeEnv;
@@ -130,6 +132,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         clusterSettings.addSettingsUpdateConsumer(IndexStoreConfig.INDICES_STORE_THROTTLE_TYPE_SETTING, indexStoreConfig::setRateLimitingType);
         clusterSettings.addSettingsUpdateConsumer(IndexStoreConfig.INDICES_STORE_THROTTLE_MAX_BYTES_PER_SEC_SETTING, indexStoreConfig::setRateLimitingThrottle);
         indexingMemoryController = new IndexingMemoryController(settings, threadPool, this);
+        this.indexScopeSetting = indexScopeSettings;
     }
 
     @Override
@@ -280,7 +283,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         }
         final String indexName = indexMetaData.getIndex();
         final Predicate<String> indexNameMatcher = (indexExpression) -> indexNameExpressionResolver.matchesIndex(indexName, indexExpression, clusterService.state());
-        final IndexSettings idxSettings = new IndexSettings(indexMetaData, this.settings, indexNameMatcher);
+        final IndexSettings idxSettings = new IndexSettings(indexMetaData, this.settings, indexNameMatcher, indexScopeSetting);
         Index index = new Index(indexMetaData.getIndex());
         if (indices.containsKey(index.name())) {
             throw new IndexAlreadyExistsException(index);

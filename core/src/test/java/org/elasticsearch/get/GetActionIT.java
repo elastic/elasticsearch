@@ -127,8 +127,9 @@ public class GetActionIT extends ESIntegTestCase {
         assertThat(response.getField("field1").getValues().get(0).toString(), equalTo("value1"));
         assertThat(response.getField("field2"), nullValue());
 
-        logger.info("--> flush the index, so we load it from it");
+        logger.info("--> flush and refresh the index, so we load it from it");
         flush();
+        refresh();
 
         logger.info("--> realtime get 1 (loaded from index)");
         response = client().prepareGet(indexOrAlias(), "type1", "1").get();

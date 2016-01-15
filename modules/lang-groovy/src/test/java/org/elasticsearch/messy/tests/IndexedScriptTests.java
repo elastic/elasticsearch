@@ -114,6 +114,7 @@ public class IndexedScriptTests extends ESIntegTestCase {
         ensureGreen("test_index");
         client().prepareIndex("test_index", "test_type", "1").setSource("{\"foo\":\"bar\"}").get();
         flush("test_index");
+        refresh("test_index");
 
         int iterations = randomIntBetween(2, 11);
         for (int i = 1; i < iterations; i++) {

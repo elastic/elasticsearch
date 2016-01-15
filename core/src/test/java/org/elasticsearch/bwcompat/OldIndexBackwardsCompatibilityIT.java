@@ -425,6 +425,7 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
             UpgradeIT.assertNotUpgraded(client(), indexName);
         }
         assertNoFailures(client().admin().indices().prepareUpgrade(indexName).get());
+        refresh(indexName);
         UpgradeIT.assertUpgraded(client(), indexName);
     }
 

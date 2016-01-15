@@ -515,6 +515,7 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
         client().prepareIndex("test", "parent", "1").setSource("p_field", 1).get();
         client().prepareIndex("test", "child", "1").setParent("1").setSource("c_field", 1).get();
         client().admin().indices().prepareFlush("test").get();
+        refresh("test");
 
         client().prepareIndex("test", "type1", "1").setSource("p_field", 1).get();
         client().admin().indices().prepareFlush("test").get();
@@ -778,6 +779,7 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
 
         client().prepareIndex("test", "type1", "3").setSource("p_field", 2).get();
         client().admin().indices().prepareFlush("test").get();
+        refresh("test");
 
         SearchResponse searchResponse = client().prepareSearch("test")
                 .setQuery(boolQuery().must(matchAllQuery()).filter(hasChildQuery("child", termQuery("c_field", 1)))).get();

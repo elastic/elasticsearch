@@ -26,6 +26,8 @@ import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.MappedFieldType.Loading;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MergeResult;
+import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
@@ -141,6 +143,25 @@ public class ParentFieldMapperTests extends ESTestCase {
         assertThat(parentFieldMapper.getChildJoinFieldType().fieldDataType().getLoading(), equalTo(Loading.EAGER_GLOBAL_ORDINALS));
         assertThat(parentFieldMapper.getChildJoinFieldType().hasDocValues(), is(false));
         assertThat(parentFieldMapper.getChildJoinFieldType().docValuesType(), equalTo(DocValuesType.NONE));
+    }
+
+    public void testMergeWithDefaultParentField() {
+        Settings indexSettings = post2Dot0IndexSettings();
+        ParentFieldMapper.Builder builder = new ParentFieldMapper.Builder("child");
+        builder.type("parent");
+        ParentFieldMapper fieldMapper = builder.build(new Mapper.BuilderContext(indexSettings, new ContentPath(0)));
+
+        IndicesModule indicesModule = new IndicesModule();
+        ParentFieldMapper otherFieldMapper = (ParentFieldMapper) indicesModule.getMapperRegistry().getMetadataMapperParsers()
+                .get(ParentFieldMapper.NAME)
+                .getDefault(indexSettings, ParentFieldMapper.Defaults.FIELD_TYPE, ParentFieldMapper.NAME);
+
+        MergeResult mergeResult = new MergeResult(false, false);
+        fieldMapper.merge(otherFieldMapper, mergeResult);
+        assertThat(mergeResult.hasConflicts(), is(true));
+        String[] buildConflicts = mergeResult.buildConflicts();
+        assertThat(buildConflicts.length, equalTo(1));
+        assertThat(buildConflicts[0], equalTo("The _parent field's type option can't be changed: [parent]->[null]"));
     }
 
     private static Settings pre2Dot0IndexSettings() {

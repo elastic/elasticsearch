@@ -38,6 +38,7 @@ import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
+import org.elasticsearch.gateway.PrimaryShardAllocator;
 import org.elasticsearch.index.store.IndexStoreConfig;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
@@ -149,5 +150,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
         HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_TYPE_SETTING,
         HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_TYPE_SETTING,
         Transport.TRANSPORT_PROFILES_SETTING,
-        Transport.TRANSPORT_TCP_COMPRESS)));
+        Transport.TRANSPORT_TCP_COMPRESS,
+        PrimaryShardAllocator.NODE_INITIAL_SHARDS_SETTING)));
 }

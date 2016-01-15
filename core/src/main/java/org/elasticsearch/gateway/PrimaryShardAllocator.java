@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 
@@ -40,6 +41,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -48,15 +50,30 @@ import java.util.stream.Collectors;
  */
 public abstract class PrimaryShardAllocator extends AbstractComponent {
 
-    @Deprecated
-    public static final String INDEX_RECOVERY_INITIAL_SHARDS = "index.recovery.initial_shards";
+    private static final Function<String, String> INITIAL_SHARDS_PARSER = (value) -> {
+        switch (value) {
+            case "quorum":
+            case "quorum-1":
+            case "half":
+            case "one":
+            case "full":
+            case "full-1":
+            case "all-1":
+            case "all":
+                return value;
+            default:
+                Integer.parseInt(value); // it can be parsed that's all we care here?
+                return value;
+        }
+    };
 
-    private final String initialShards;
+    public static final Setting<String> NODE_INITIAL_SHARDS_SETTING = new Setting<>("gateway.initial_shards", (settings) -> settings.get("gateway.local.initial_shards", "quorum"), INITIAL_SHARDS_PARSER, true, Setting.Scope.CLUSTER);
+    @Deprecated
+    public static final Setting<String> INDEX_RECOVERY_INITIAL_SHARDS_SETTING = new Setting<>("index.recovery.initial_shards", (settings) -> NODE_INITIAL_SHARDS_SETTING.get(settings) , INITIAL_SHARDS_PARSER, true, Setting.Scope.INDEX);
 
     public PrimaryShardAllocator(Settings settings) {
         super(settings);
-        this.initialShards = settings.get("gateway.initial_shards", settings.get("gateway.local.initial_shards", "quorum"));
-        logger.debug("using initial_shards [{}]", initialShards);
+        logger.debug("using initial_shards [{}]", NODE_INITIAL_SHARDS_SETTING.get(settings));
     }
 
     public boolean allocateUnassigned(RoutingAllocation allocation) {
@@ -209,29 +226,25 @@ public abstract class PrimaryShardAllocator extends AbstractComponent {
         // check if the counts meets the minimum set
         int requiredAllocation = 1;
         // if we restore from a repository one copy is more then enough
-        try {
-            String initialShards = indexMetaData.getSettings().get(INDEX_RECOVERY_INITIAL_SHARDS, settings.get(INDEX_RECOVERY_INITIAL_SHARDS, this.initialShards));
-            if ("quorum".equals(initialShards)) {
-                if (indexMetaData.getNumberOfReplicas() > 1) {
-                    requiredAllocation = ((1 + indexMetaData.getNumberOfReplicas()) / 2) + 1;
-                }
-            } else if ("quorum-1".equals(initialShards) || "half".equals(initialShards)) {
-                if (indexMetaData.getNumberOfReplicas() > 2) {
-                    requiredAllocation = ((1 + indexMetaData.getNumberOfReplicas()) / 2);
-                }
-            } else if ("one".equals(initialShards)) {
-                requiredAllocation = 1;
-            } else if ("full".equals(initialShards) || "all".equals(initialShards)) {
-                requiredAllocation = indexMetaData.getNumberOfReplicas() + 1;
-            } else if ("full-1".equals(initialShards) || "all-1".equals(initialShards)) {
-                if (indexMetaData.getNumberOfReplicas() > 1) {
-                    requiredAllocation = indexMetaData.getNumberOfReplicas();
-                }
-            } else {
-                requiredAllocation = Integer.parseInt(initialShards);
+        String initialShards = INDEX_RECOVERY_INITIAL_SHARDS_SETTING.get(indexMetaData.getSettings(), settings);
+        if ("quorum".equals(initialShards)) {
+            if (indexMetaData.getNumberOfReplicas() > 1) {
+                requiredAllocation = ((1 + indexMetaData.getNumberOfReplicas()) / 2) + 1;
             }
-        } catch (Exception e) {
-            logger.warn("[{}][{}] failed to derived initial_shards from value {}, ignore allocation for {}", shard.index(), shard.id(), initialShards, shard);
+        } else if ("quorum-1".equals(initialShards) || "half".equals(initialShards)) {
+            if (indexMetaData.getNumberOfReplicas() > 2) {
+                requiredAllocation = ((1 + indexMetaData.getNumberOfReplicas()) / 2);
+            }
+        } else if ("one".equals(initialShards)) {
+            requiredAllocation = 1;
+        } else if ("full".equals(initialShards) || "all".equals(initialShards)) {
+            requiredAllocation = indexMetaData.getNumberOfReplicas() + 1;
+        } else if ("full-1".equals(initialShards) || "all-1".equals(initialShards)) {
+            if (indexMetaData.getNumberOfReplicas() > 1) {
+                requiredAllocation = indexMetaData.getNumberOfReplicas();
+            }
+        } else {
+            requiredAllocation = Integer.parseInt(initialShards);
         }
 
         return nodesAndVersions.allocationsFound >= requiredAllocation;
@@ -336,7 +349,7 @@ public abstract class PrimaryShardAllocator extends AbstractComponent {
      */
     private boolean recoverOnAnyNode(IndexSettings indexSettings) {
         return indexSettings.isOnSharedFilesystem()
-            && indexSettings.getSettings().getAsBoolean(IndexMetaData.SETTING_SHARED_FS_ALLOW_RECOVERY_ON_ANY_NODE, false);
+            && IndexMetaData.INDEX_SHARED_FS_ALLOW_RECOVERY_ON_ANY_NODE_SETTING.get(indexSettings.getSettings());
     }
 
     protected abstract AsyncShardFetch.FetchResult<TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> fetchData(ShardRouting shard, RoutingAllocation allocation);

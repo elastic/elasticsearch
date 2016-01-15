@@ -29,11 +29,13 @@ import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.node.DiscoveryNodeFilters;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -59,6 +61,7 @@ import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 
 import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.OpType.AND;
 import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.OpType.OR;
@@ -149,14 +152,29 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
     }
     public static final String INDEX_SETTING_PREFIX = "index.";
     public static final String SETTING_NUMBER_OF_SHARDS = "index.number_of_shards";
+    public static final Setting<Integer> INDEX_NUMBER_OF_SHARDS_SETTING = Setting.intSetting(SETTING_NUMBER_OF_SHARDS, 5, 1, false, Setting.Scope.INDEX);
     public static final String SETTING_NUMBER_OF_REPLICAS = "index.number_of_replicas";
+    public static final Setting<Integer> INDEX_NUMBER_OF_REPLICAS_SETTING = Setting.intSetting(SETTING_NUMBER_OF_REPLICAS, 1, 0, true, Setting.Scope.INDEX);
     public static final String SETTING_SHADOW_REPLICAS = "index.shadow_replicas";
+    public static final Setting<Boolean> INDEX_SHADOW_REPLICAS_SETTING = Setting.boolSetting(SETTING_SHADOW_REPLICAS, false, false, Setting.Scope.INDEX);
+
     public static final String SETTING_SHARED_FILESYSTEM = "index.shared_filesystem";
+    public static final Setting<Boolean> INDEX_SHARED_FILESYSTEM_SETTING = Setting.boolSetting(SETTING_SHARED_FILESYSTEM, false, false, Setting.Scope.INDEX);
+
     public static final String SETTING_AUTO_EXPAND_REPLICAS = "index.auto_expand_replicas";
+    public static final Setting<AutoExpandReplicas> SETTING_AUTO_EXPAND_REPLICAS_SETTING = AutoExpandReplicas.SETTING;
     public static final String SETTING_READ_ONLY = "index.blocks.read_only";
+    public static final Setting<Boolean> INDEX_READ_ONLY_SETTING = Setting.boolSetting(SETTING_READ_ONLY, false, true, Setting.Scope.INDEX);
+
     public static final String SETTING_BLOCKS_READ = "index.blocks.read";
+    public static final Setting<Boolean> INDEX_BLOCKS_READ_SETTING = Setting.boolSetting(SETTING_BLOCKS_READ, false, true, Setting.Scope.INDEX);
+
     public static final String SETTING_BLOCKS_WRITE = "index.blocks.write";
+    public static final Setting<Boolean> INDEX_BLOCKS_WRITE_SETTING = Setting.boolSetting(SETTING_BLOCKS_WRITE, false, true, Setting.Scope.INDEX);
+
     public static final String SETTING_BLOCKS_METADATA = "index.blocks.metadata";
+    public static final Setting<Boolean> INDEX_BLOCKS_METADATA_SETTING = Setting.boolSetting(SETTING_BLOCKS_METADATA, false, true, Setting.Scope.INDEX);
+
     public static final String SETTING_VERSION_CREATED = "index.version.created";
     public static final String SETTING_VERSION_CREATED_STRING = "index.version.created_string";
     public static final String SETTING_VERSION_UPGRADED = "index.version.upgraded";
@@ -164,10 +182,13 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
     public static final String SETTING_VERSION_MINIMUM_COMPATIBLE = "index.version.minimum_compatible";
     public static final String SETTING_CREATION_DATE = "index.creation_date";
     public static final String SETTING_PRIORITY = "index.priority";
+    public static final Setting<Integer> INDEX_PRIORITY_SETTING = Setting.intSetting("index.priority", 1, 0, true, Setting.Scope.INDEX);
     public static final String SETTING_CREATION_DATE_STRING = "index.creation_date_string";
     public static final String SETTING_INDEX_UUID = "index.uuid";
     public static final String SETTING_DATA_PATH = "index.data_path";
+    public static final Setting<String> INDEX_DATA_PATH_SETTING = new Setting<>(SETTING_DATA_PATH, "", Function.identity(), false, Setting.Scope.INDEX);
     public static final String SETTING_SHARED_FS_ALLOW_RECOVERY_ON_ANY_NODE = "index.shared_filesystem.recover_on_any_node";
+    public static final Setting<Boolean> INDEX_SHARED_FS_ALLOW_RECOVERY_ON_ANY_NODE_SETTING = Setting.boolSetting(SETTING_SHARED_FS_ALLOW_RECOVERY_ON_ANY_NODE, false, true, Setting.Scope.INDEX);
     public static final String INDEX_UUID_NA_VALUE = "_na_";
 
     public static final Setting<Settings> INDEX_ROUTING_REQUIRE_GROUP_SETTING = Setting.groupSetting("index.routing.allocation.require.", true, Setting.Scope.INDEX);

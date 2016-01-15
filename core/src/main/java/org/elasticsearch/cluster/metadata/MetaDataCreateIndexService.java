@@ -460,9 +460,9 @@ public class MetaDataCreateIndexService extends AbstractComponent {
     }
 
     List<String> getIndexSettingsValidationErrors(Settings settings) {
-        String customPath = settings.get(IndexMetaData.SETTING_DATA_PATH, null);
+        String customPath = IndexMetaData.INDEX_DATA_PATH_SETTING.get(settings);
         List<String> validationErrors = new ArrayList<>();
-        if (customPath != null && env.sharedDataFile() == null) {
+        if (Strings.isEmpty(customPath) == false && env.sharedDataFile() == null) {
             validationErrors.add("path.shared_data must be set in order to use custom data paths");
         } else if (customPath != null) {
             Path resolvedPath = PathUtils.get(new Path[]{env.sharedDataFile()}, customPath);
@@ -470,6 +470,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                 validationErrors.add("custom path [" + customPath + "] is not a sub-path of path.shared_data [" + env.sharedDataFile() + "]");
             }
         }
+        //nocommit - this can be removed?
         Integer number_of_primaries = settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_SHARDS, null);
         Integer number_of_replicas = settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, null);
         if (number_of_primaries != null && number_of_primaries <= 0) {

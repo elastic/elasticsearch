@@ -59,9 +59,6 @@ import static org.elasticsearch.common.settings.Settings.settingsBuilder;
  */
 public class MetaDataUpdateSettingsService extends AbstractComponent implements ClusterStateListener {
 
-    // the value we recognize in the "max" position to mean all the nodes
-    private static final String ALL_NODES_VALUE = "all";
-
     private final ClusterService clusterService;
 
     private final AllocationService allocationService;
@@ -90,64 +87,30 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
         final int dataNodeCount = event.state().nodes().dataNodes().size();
 
         Map<Integer, List<String>> nrReplicasChanged = new HashMap<>();
-
         // we need to do this each time in case it was changed by update settings
         for (final IndexMetaData indexMetaData : event.state().metaData()) {
-            String autoExpandReplicas = indexMetaData.getSettings().get(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS);
-            if (autoExpandReplicas != null && Booleans.parseBoolean(autoExpandReplicas, true)) { // Booleans only work for false values, just as we want it here
-                try {
-                    final int min;
-                    final int max;
+            AutoExpandReplicas autoExpandReplicas = IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS_SETTING.get(indexMetaData.getSettings());
+            if (autoExpandReplicas.isEnabled()) {
+                final int min = autoExpandReplicas.getMinReplicas();
+                final int max = autoExpandReplicas.getMaxReplicas(dataNodeCount);
+                int numberOfReplicas = dataNodeCount - 1;
+                if (numberOfReplicas < min) {
+                    numberOfReplicas = min;
+                } else if (numberOfReplicas > max) {
+                    numberOfReplicas = max;
+                }
+                // same value, nothing to do there
+                if (numberOfReplicas == indexMetaData.getNumberOfReplicas()) {
+                    continue;
+                }
 
-                    final int dash = autoExpandReplicas.indexOf('-');
-                    if (-1 == dash) {
-                        logger.warn("failed to set [{}] for index [{}], it should be dash delimited [{}]",
-                                IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, indexMetaData.getIndex(), autoExpandReplicas);
-                        continue;
-                    }
-                    final String sMin = autoExpandReplicas.substring(0, dash);
-                    try {
-                        min = Integer.parseInt(sMin);
-                    } catch (NumberFormatException e) {
-                        logger.warn("failed to set [{}] for index [{}], minimum value is not a number [{}]",
-                                e, IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, indexMetaData.getIndex(), sMin);
-                        continue;
-                    }
-                    String sMax = autoExpandReplicas.substring(dash + 1);
-                    if (sMax.equals(ALL_NODES_VALUE)) {
-                        max = dataNodeCount - 1;
-                    } else {
-                        try {
-                            max = Integer.parseInt(sMax);
-                        } catch (NumberFormatException e) {
-                            logger.warn("failed to set [{}] for index [{}], maximum value is neither [{}] nor a number [{}]",
-                                    e, IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, indexMetaData.getIndex(), ALL_NODES_VALUE, sMax);
-                            continue;
-                        }
+                if (numberOfReplicas >= min && numberOfReplicas <= max) {
+
+                    if (!nrReplicasChanged.containsKey(numberOfReplicas)) {
+                        nrReplicasChanged.put(numberOfReplicas, new ArrayList<>());
                     }
 
-                    int numberOfReplicas = dataNodeCount - 1;
-                    if (numberOfReplicas < min) {
-                        numberOfReplicas = min;
-                    } else if (numberOfReplicas > max) {
-                        numberOfReplicas = max;
-                    }
-
-                    // same value, nothing to do there
-                    if (numberOfReplicas == indexMetaData.getNumberOfReplicas()) {
-                        continue;
-                    }
-
-                    if (numberOfReplicas >= min && numberOfReplicas <= max) {
-
-                        if (!nrReplicasChanged.containsKey(numberOfReplicas)) {
-                            nrReplicasChanged.put(numberOfReplicas, new ArrayList<String>());
-                        }
-
-                        nrReplicasChanged.get(numberOfReplicas).add(indexMetaData.getIndex());
-                    }
-                } catch (Exception e) {
-                    logger.warn("[{}] failed to parse auto expand replicas", e, indexMetaData.getIndex());
+                    nrReplicasChanged.get(numberOfReplicas).add(indexMetaData.getIndex());
                 }
             }
         }
@@ -267,46 +230,38 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                 }
 
                 ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
-                Boolean updatedReadOnly = openSettings.getAsBoolean(IndexMetaData.SETTING_READ_ONLY, null);
-                if (updatedReadOnly != null) {
-                    for (String index : actualIndices) {
-                        if (updatedReadOnly) {
-                            blocks.addIndexBlock(index, IndexMetaData.INDEX_READ_ONLY_BLOCK);
-                        } else {
-                            blocks.removeIndexBlock(index, IndexMetaData.INDEX_READ_ONLY_BLOCK);
-                        }
+                final boolean updatedReadOnly = IndexMetaData.INDEX_READ_ONLY_SETTING.get(openSettings);
+                for (String index : actualIndices) {
+                    if (updatedReadOnly) {
+                        blocks.addIndexBlock(index, IndexMetaData.INDEX_READ_ONLY_BLOCK);
+                    } else {
+                        blocks.removeIndexBlock(index, IndexMetaData.INDEX_READ_ONLY_BLOCK);
                     }
                 }
-                Boolean updateMetaDataBlock = openSettings.getAsBoolean(IndexMetaData.SETTING_BLOCKS_METADATA, null);
-                if (updateMetaDataBlock != null) {
-                    for (String index : actualIndices) {
-                        if (updateMetaDataBlock) {
-                            blocks.addIndexBlock(index, IndexMetaData.INDEX_METADATA_BLOCK);
-                        } else {
-                            blocks.removeIndexBlock(index, IndexMetaData.INDEX_METADATA_BLOCK);
-                        }
+                final boolean updateMetaDataBlock = IndexMetaData.INDEX_BLOCKS_METADATA_SETTING.get(openSettings);
+                for (String index : actualIndices) {
+                    if (updateMetaDataBlock) {
+                        blocks.addIndexBlock(index, IndexMetaData.INDEX_METADATA_BLOCK);
+                    } else {
+                        blocks.removeIndexBlock(index, IndexMetaData.INDEX_METADATA_BLOCK);
                     }
                 }
 
-                Boolean updateWriteBlock = openSettings.getAsBoolean(IndexMetaData.SETTING_BLOCKS_WRITE, null);
-                if (updateWriteBlock != null) {
-                    for (String index : actualIndices) {
-                        if (updateWriteBlock) {
-                            blocks.addIndexBlock(index, IndexMetaData.INDEX_WRITE_BLOCK);
-                        } else {
-                            blocks.removeIndexBlock(index, IndexMetaData.INDEX_WRITE_BLOCK);
-                        }
+                final boolean updateWriteBlock = IndexMetaData.INDEX_BLOCKS_WRITE_SETTING.get(openSettings);
+                for (String index : actualIndices) {
+                    if (updateWriteBlock) {
+                        blocks.addIndexBlock(index, IndexMetaData.INDEX_WRITE_BLOCK);
+                    } else {
+                        blocks.removeIndexBlock(index, IndexMetaData.INDEX_WRITE_BLOCK);
                     }
                 }
 
-                Boolean updateReadBlock = openSettings.getAsBoolean(IndexMetaData.SETTING_BLOCKS_READ, null);
-                if (updateReadBlock != null) {
-                    for (String index : actualIndices) {
-                        if (updateReadBlock) {
-                            blocks.addIndexBlock(index, IndexMetaData.INDEX_READ_BLOCK);
-                        } else {
-                            blocks.removeIndexBlock(index, IndexMetaData.INDEX_READ_BLOCK);
-                        }
+                final boolean updateReadBlock = IndexMetaData.INDEX_BLOCKS_READ_SETTING.get(openSettings);
+                for (String index : actualIndices) {
+                    if (updateReadBlock) {
+                        blocks.addIndexBlock(index, IndexMetaData.INDEX_READ_BLOCK);
+                    } else {
+                        blocks.removeIndexBlock(index, IndexMetaData.INDEX_READ_BLOCK);
                     }
                 }
 

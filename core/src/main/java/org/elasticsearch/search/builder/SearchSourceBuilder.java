@@ -21,6 +21,7 @@ package org.elasticsearch.search.builder;
 
 import com.carrotsearch.hppc.ObjectFloatHashMap;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.Nullable;
@@ -151,7 +152,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
 
     private BytesReference innerHitsBuilder;
 
-    private List<BytesReference> rescoreBuilders;
+    private List<RescoreBaseBuilder> rescoreBuilders;
 
     private ObjectFloatHashMap<String> indexBoost = null;
 
@@ -459,19 +460,11 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
     }
 
     public SearchSourceBuilder addRescorer(RescoreBaseBuilder rescoreBuilder) {
-        try {
             if (rescoreBuilders == null) {
                 rescoreBuilders = new ArrayList<>();
             }
-            XContentBuilder builder = XContentFactory.jsonBuilder();
-            builder.startObject();
-            rescoreBuilder.toXContent(builder, EMPTY_PARAMS);
-            builder.endObject();
-            rescoreBuilders.add(builder.bytes());
+            rescoreBuilders.add(rescoreBuilder);
             return this;
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
     }
 
     public SearchSourceBuilder clearRescorers() {
@@ -498,7 +491,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
     /**
      * Gets the bytes representing the rescore builders for this request.
      */
-    public List<BytesReference> rescores() {
+    public List<RescoreBaseBuilder> rescores() {
         return rescoreBuilders;
     }
 
@@ -878,10 +871,9 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                     }
                     builder.sorts = sorts;
                 } else if (context.parseFieldMatcher().match(currentFieldName, RESCORE_FIELD)) {
-                    List<BytesReference> rescoreBuilders = new ArrayList<>();
+                    List<RescoreBaseBuilder> rescoreBuilders = new ArrayList<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().copyCurrentStructure(parser);
-                        rescoreBuilders.add(xContentBuilder.bytes());
+                        rescoreBuilders.add(RescoreBaseBuilder.PROTOTYPE.fromXContent(context));
                     }
                     builder.rescoreBuilders = rescoreBuilders;
                 } else if (context.parseFieldMatcher().match(currentFieldName, STATS_FIELD)) {
@@ -1048,10 +1040,8 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
 
         if (rescoreBuilders != null) {
             builder.startArray(RESCORE_FIELD.getPreferredName());
-            for (BytesReference rescoreBuilder : rescoreBuilders) {
-                XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(rescoreBuilder);
-                parser.nextToken();
-                builder.copyCurrentStructure(parser);
+            for (RescoreBaseBuilder rescoreBuilder : rescoreBuilders) {
+                rescoreBuilder.toXContent(builder, params);
             }
             builder.endArray();
         }
@@ -1197,9 +1187,9 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         }
         if (in.readBoolean()) {
             int size = in.readVInt();
-            List<BytesReference> rescoreBuilders = new ArrayList<>();
+            List<RescoreBaseBuilder> rescoreBuilders = new ArrayList<>();
             for (int i = 0; i < size; i++) {
-                rescoreBuilders.add(in.readBytesReference());
+                rescoreBuilders.add(RescoreBaseBuilder.PROTOTYPE.readFrom(in));
             }
             builder.rescoreBuilders = rescoreBuilders;
         }
@@ -1313,8 +1303,8 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         out.writeBoolean(hasRescoreBuilders);
         if (hasRescoreBuilders) {
             out.writeVInt(rescoreBuilders.size());
-            for (BytesReference rescoreBuilder : rescoreBuilders) {
-                out.writeBytesReference(rescoreBuilder);
+            for (RescoreBaseBuilder rescoreBuilder : rescoreBuilders) {
+                rescoreBuilder.writeTo(out);
             }
         }
         boolean hasScriptFields = scriptFields != null;

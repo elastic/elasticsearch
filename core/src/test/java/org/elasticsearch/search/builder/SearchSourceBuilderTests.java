@@ -19,11 +19,6 @@
 
 package org.elasticsearch.search.builder;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.TimeUnit;
-
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -57,7 +52,7 @@ import org.elasticsearch.search.fetch.innerhits.InnerHitsBuilder;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsBuilder.InnerHit;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.highlight.HighlightBuilderTests;
-import org.elasticsearch.search.rescore.RescoreBaseBuilder;
+import org.elasticsearch.search.rescore.QueryRescoreBuilderTests;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
@@ -67,6 +62,11 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -280,10 +280,7 @@ public class SearchSourceBuilderTests extends ESTestCase {
         if (randomBoolean()) {
             int numRescores = randomIntBetween(1, 5);
             for (int i = 0; i < numRescores; i++) {
-                // NORELEASE need a random rescore builder method
-                RescoreBaseBuilder rescoreBuilder = new RescoreBaseBuilder(RescoreBaseBuilder.queryRescorer(QueryBuilders.termQuery(randomAsciiOfLengthBetween(5, 20),
-                        randomAsciiOfLengthBetween(5, 20))));
-                builder.addRescorer(rescoreBuilder);
+                builder.addRescorer(QueryRescoreBuilderTests.randomRescoreBuilder());
             }
         }
         if (randomBoolean()) {

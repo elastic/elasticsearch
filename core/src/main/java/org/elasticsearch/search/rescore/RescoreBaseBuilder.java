@@ -115,10 +115,12 @@ public class RescoreBaseBuilder implements ToXContent, Writeable<RescoreBaseBuil
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
         if (windowSize != null) {
             builder.field("window_size", windowSize);
         }
         rescorer.toXContent(builder, params);
+        builder.endObject();
         return builder;
     }
 

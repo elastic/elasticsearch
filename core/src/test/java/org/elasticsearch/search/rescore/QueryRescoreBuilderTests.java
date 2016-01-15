@@ -43,12 +43,11 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilders;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
-import org.elasticsearch.index.query.MatchAllQueryParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.index.query.QueryParser;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.rescore.QueryRescorer.QueryRescoreContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -56,8 +55,6 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
-import java.util.HashSet;
-import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -74,11 +71,8 @@ public class QueryRescoreBuilderTests extends ESTestCase {
     @BeforeClass
     public static void init() {
         namedWriteableRegistry = new NamedWriteableRegistry();
-        namedWriteableRegistry.registerPrototype(RescoreBuilder.class, org.elasticsearch.search.rescore.QueryRescorerBuilder.PROTOTYPE);
-        @SuppressWarnings("rawtypes")
-        Set<QueryParser> injectedQueryParsers = new HashSet<>();
-        injectedQueryParsers.add(new MatchAllQueryParser());
-        indicesQueriesRegistry = new IndicesQueriesRegistry(Settings.settingsBuilder().build(), injectedQueryParsers, namedWriteableRegistry);
+        namedWriteableRegistry.registerPrototype(RescoreBuilder.class, QueryRescorerBuilder.PROTOTYPE);
+        indicesQueriesRegistry = new SearchModule(Settings.EMPTY, namedWriteableRegistry).buildQueryParserRegistry();
     }
 
     @AfterClass
@@ -154,10 +148,7 @@ public class QueryRescoreBuilderTests extends ESTestCase {
         if (randomBoolean()) {
             builder.prettyPrint();
         }
-        builder.startObject();
         rescoreBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        builder.endObject();
-
         return XContentHelper.createParser(builder.bytes());
     }
 
@@ -326,7 +317,7 @@ public class QueryRescoreBuilderTests extends ESTestCase {
     /**
      * create random shape that is put under test
      */
-    private static RescoreBaseBuilder randomRescoreBuilder() {
+    public static RescoreBaseBuilder randomRescoreBuilder() {
         QueryBuilder<MatchAllQueryBuilder> queryBuilder = new MatchAllQueryBuilder().boost(randomFloat()).queryName(randomAsciiOfLength(20));
         org.elasticsearch.search.rescore.QueryRescorerBuilder rescorer = new
                 org.elasticsearch.search.rescore.QueryRescorerBuilder(queryBuilder);

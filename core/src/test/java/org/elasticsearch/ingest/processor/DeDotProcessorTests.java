@@ -37,7 +37,7 @@ public class DeDotProcessorTests extends ESTestCase {
         source.put("a.b", "hello world!");
         IngestDocument ingestDocument = new IngestDocument(source, Collections.emptyMap());
         String separator = randomUnicodeOfCodepointLengthBetween(1, 10);
-        Processor processor = new DeDotProcessor(separator);
+        Processor processor = new DeDotProcessor(randomAsciiOfLength(10), separator);
         processor.execute(ingestDocument);
         assertThat(ingestDocument.getSourceAndMetadata().get("a" + separator + "b" ), equalTo("hello world!"));
     }
@@ -48,7 +48,7 @@ public class DeDotProcessorTests extends ESTestCase {
         subField.put("b.c", "hello world!");
         source.put("a", subField);
         IngestDocument ingestDocument = new IngestDocument(source, Collections.emptyMap());
-        Processor processor = new DeDotProcessor("_");
+        Processor processor = new DeDotProcessor(randomAsciiOfLength(10), "_");
         processor.execute(ingestDocument);
 
         IngestDocument expectedDocument = new IngestDocument(
@@ -63,7 +63,7 @@ public class DeDotProcessorTests extends ESTestCase {
         subField.put("b.c", "hello world!");
         source.put("a", Arrays.asList(subField));
         IngestDocument ingestDocument = new IngestDocument(source, Collections.emptyMap());
-        Processor processor = new DeDotProcessor("_");
+        Processor processor = new DeDotProcessor(randomAsciiOfLength(10), "_");
         processor.execute(ingestDocument);
 
         IngestDocument expectedDocument = new IngestDocument(

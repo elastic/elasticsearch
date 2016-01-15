@@ -158,7 +158,7 @@ public class AppendProcessorTests extends ESTestCase {
 
     private static Processor createAppendProcessor(String fieldName, Object fieldValue) {
         TemplateService templateService = TestTemplateService.instance();
-        return new AppendProcessor(templateService.compile(fieldName), ValueSource.wrap(fieldValue, templateService));
+        return new AppendProcessor(randomAsciiOfLength(10), templateService.compile(fieldName), ValueSource.wrap(fieldValue, templateService));
     }
 
     private enum Scalar {

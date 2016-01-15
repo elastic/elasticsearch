@@ -32,7 +32,7 @@ public class FailProcessorTests extends ESTestCase {
     public void test() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         String message = randomAsciiOfLength(10);
-        Processor processor = new FailProcessor(new TestTemplateService.MockTemplate(message));
+        Processor processor = new FailProcessor(randomAsciiOfLength(10), new TestTemplateService.MockTemplate(message));
         try {
             processor.execute(ingestDocument);
             fail("fail processor should throw an exception");

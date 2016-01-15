@@ -39,6 +39,11 @@ public interface Processor {
     String getType();
 
     /**
+     * Gets the tag of a processor.
+     */
+    String getTag();
+
+    /**
      * A factory that knows how to construct a processor based on a map of maps.
      */
     interface Factory<P extends Processor> {
@@ -50,6 +55,5 @@ public interface Processor {
          * verify if all configurations settings have been used.
          */
         P create(Map<String, Object> config) throws Exception;
-
     }
 }

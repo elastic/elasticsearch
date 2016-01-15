@@ -19,6 +19,7 @@
 
 package org.elasticsearch.ingest.processor;
 
+import org.elasticsearch.ingest.core.AbstractProcessorFactory;
 import org.elasticsearch.ingest.core.IngestDocument;
 import org.elasticsearch.ingest.core.ConfigurationUtils;
 import org.elasticsearch.ingest.core.Processor;
@@ -39,6 +40,7 @@ public final class DateProcessor implements Processor {
     public static final String TYPE = "date";
     static final String DEFAULT_TARGET_FIELD = "@timestamp";
 
+    private final String processorTag;
     private final DateTimeZone timezone;
     private final Locale locale;
     private final String matchField;
@@ -46,7 +48,8 @@ public final class DateProcessor implements Processor {
     private final List<String> matchFormats;
     private final List<Function<String, DateTime>> dateParsers;
 
-    DateProcessor(DateTimeZone timezone, Locale locale, String matchField, List<String> matchFormats, String targetField) {
+    DateProcessor(String processorTag, DateTimeZone timezone, Locale locale, String matchField, List<String> matchFormats, String targetField) {
+        this.processorTag = processorTag;
         this.timezone = timezone;
         this.locale = locale;
         this.matchField = matchField;
@@ -93,6 +96,11 @@ public final class DateProcessor implements Processor {
         return TYPE;
     }
 
+    @Override
+    public String getTag() {
+        return processorTag;
+    }
+
     DateTimeZone getTimezone() {
         return timezone;
     }
@@ -113,10 +121,10 @@ public final class DateProcessor implements Processor {
         return matchFormats;
     }
 
-    public static class Factory implements Processor.Factory<DateProcessor> {
+    public static class Factory extends AbstractProcessorFactory<DateProcessor> {
 
         @SuppressWarnings("unchecked")
-        public DateProcessor create(Map<String, Object> config) throws Exception {
+        public DateProcessor doCreate(String processorTag, Map<String, Object> config) throws Exception {
             String matchField = ConfigurationUtils.readStringProperty(config, "match_field");
             String targetField = ConfigurationUtils.readStringProperty(config, "target_field", DEFAULT_TARGET_FIELD);
             String timezoneString = ConfigurationUtils.readOptionalStringProperty(config, "timezone");
@@ -131,7 +139,7 @@ public final class DateProcessor implements Processor {
                 }
             }
             List<String> matchFormats = ConfigurationUtils.readList(config, "match_formats");
-            return new DateProcessor(timezone, locale, matchField, matchFormats, targetField);
+            return new DateProcessor(processorTag, timezone, locale, matchField, matchFormats, targetField);
         }
     }
 }

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.ingest.processor;
 
+import org.elasticsearch.ingest.core.AbstractProcessorFactory;
 import org.elasticsearch.ingest.core.IngestDocument;
 import org.elasticsearch.ingest.core.TemplateService;
 import org.elasticsearch.ingest.core.ValueSource;
@@ -36,10 +37,12 @@ public class AppendProcessor implements Processor {
 
     public static final String TYPE = "append";
 
+    private final String processorTag;
     private final TemplateService.Template field;
     private final ValueSource value;
 
-    AppendProcessor(TemplateService.Template field, ValueSource value) {
+    AppendProcessor(String processorTag, TemplateService.Template field, ValueSource value) {
+        this.processorTag = processorTag;
         this.field = field;
         this.value = value;
     }
@@ -62,7 +65,12 @@ public class AppendProcessor implements Processor {
         return TYPE;
     }
 
-    public static final class Factory implements Processor.Factory<AppendProcessor> {
+    @Override
+    public String getTag() {
+        return processorTag;
+    }
+
+    public static final class Factory extends AbstractProcessorFactory<AppendProcessor> {
 
         private final TemplateService templateService;
 
@@ -71,10 +79,10 @@ public class AppendProcessor implements Processor {
         }
 
         @Override
-        public AppendProcessor create(Map<String, Object> config) throws Exception {
+        public AppendProcessor doCreate(String processorTag, Map<String, Object> config) throws Exception {
             String field = ConfigurationUtils.readStringProperty(config, "field");
             Object value = ConfigurationUtils.readObject(config, "value");
-            return new AppendProcessor(templateService.compile(field), ValueSource.wrap(value, templateService));
+            return new AppendProcessor(processorTag, templateService.compile(field), ValueSource.wrap(value, templateService));
         }
     }
 }

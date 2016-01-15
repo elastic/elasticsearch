@@ -19,6 +19,7 @@
 
 package org.elasticsearch.ingest.grok;
 
+import org.elasticsearch.ingest.core.AbstractProcessorFactory;
 import org.elasticsearch.ingest.core.ConfigurationUtils;
 import org.elasticsearch.ingest.core.IngestDocument;
 import org.elasticsearch.ingest.core.Processor;
@@ -30,10 +31,12 @@ public final class GrokProcessor implements Processor {
 
     public static final String TYPE = "grok";
 
+    private final String processorTag;
     private final String matchField;
     private final Grok grok;
 
-    public GrokProcessor(Grok grok, String matchField) {
+    public GrokProcessor(String processorTag, Grok grok, String matchField) {
+        this.processorTag = processorTag;
         this.matchField = matchField;
         this.grok = grok;
     }
@@ -54,6 +57,11 @@ public final class GrokProcessor implements Processor {
         return TYPE;
     }
 
+    @Override
+    public String getTag() {
+        return processorTag;
+    }
+
     String getMatchField() {
         return matchField;
     }
@@ -62,7 +70,7 @@ public final class GrokProcessor implements Processor {
         return grok;
     }
 
-    public final static class Factory implements Processor.Factory<GrokProcessor> {
+    public final static class Factory extends AbstractProcessorFactory<GrokProcessor> {
 
         private final Map<String, String> builtinPatterns;
 
@@ -70,7 +78,8 @@ public final class GrokProcessor implements Processor {
             this.builtinPatterns = builtinPatterns;
         }
 
-        public GrokProcessor create(Map<String, Object> config) throws Exception {
+        @Override
+        public GrokProcessor doCreate(String processorTag, Map<String, Object> config) throws Exception {
             String matchField = ConfigurationUtils.readStringProperty(config, "field");
             String matchPattern = ConfigurationUtils.readStringProperty(config, "pattern");
             Map<String, String> customPatternBank = ConfigurationUtils.readOptionalMap(config, "pattern_definitions");
@@ -80,7 +89,7 @@ public final class GrokProcessor implements Processor {
             }
 
             Grok grok = new Grok(patternBank, matchPattern);
-            return new GrokProcessor(grok, matchField);
+            return new GrokProcessor(processorTag, grok, matchField);
         }
 
     }

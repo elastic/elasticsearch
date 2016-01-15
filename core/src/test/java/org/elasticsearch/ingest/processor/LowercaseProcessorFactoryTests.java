@@ -32,7 +32,10 @@ public class LowercaseProcessorFactoryTests extends ESTestCase {
         LowercaseProcessor.Factory factory = new LowercaseProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
         config.put("field", "field1");
+        String processorTag = randomAsciiOfLength(10);
+        config.put("processor_tag", processorTag);
         LowercaseProcessor uppercaseProcessor = factory.create(config);
+        assertThat(uppercaseProcessor.getTag(), equalTo(processorTag));
         assertThat(uppercaseProcessor.getField(), equalTo("field1"));
     }
 

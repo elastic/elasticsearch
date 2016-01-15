@@ -19,6 +19,7 @@
 
 package org.elasticsearch.ingest.processor;
 
+import org.elasticsearch.ingest.core.AbstractProcessorFactory;
 import org.elasticsearch.ingest.core.IngestDocument;
 import org.elasticsearch.ingest.core.ConfigurationUtils;
 import org.elasticsearch.ingest.core.Processor;
@@ -35,11 +36,13 @@ public class GsubProcessor implements Processor {
 
     public static final String TYPE = "gsub";
 
+    private final String processorTag;
     private final String field;
     private final Pattern pattern;
     private final String replacement;
 
-    GsubProcessor(String field, Pattern pattern, String replacement) {
+    GsubProcessor(String processorTag, String field, Pattern pattern, String replacement) {
+        this.processorTag = processorTag;
         this.field = field;
         this.pattern = pattern;
         this.replacement = replacement;
@@ -74,14 +77,19 @@ public class GsubProcessor implements Processor {
         return TYPE;
     }
 
-    public static class Factory implements Processor.Factory<GsubProcessor> {
+    @Override
+    public String getTag() {
+        return processorTag;
+    }
+
+    public static class Factory extends AbstractProcessorFactory<GsubProcessor> {
         @Override
-        public GsubProcessor create(Map<String, Object> config) throws Exception {
+        public GsubProcessor doCreate(String processorTag, Map<String, Object> config) throws Exception {
             String field = ConfigurationUtils.readStringProperty(config, "field");
             String pattern = ConfigurationUtils.readStringProperty(config, "pattern");
             String replacement = ConfigurationUtils.readStringProperty(config, "replacement");
             Pattern searchPattern = Pattern.compile(pattern);
-            return new GsubProcessor(field, searchPattern, replacement);
+            return new GsubProcessor(processorTag, field, searchPattern, replacement);
         }
     }
 }

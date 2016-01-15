@@ -19,11 +19,6 @@
 
 package org.elasticsearch.action.ingest;
 
-import org.elasticsearch.action.ingest.SimulateDocumentResult;
-import org.elasticsearch.action.ingest.SimulateDocumentSimpleResult;
-import org.elasticsearch.action.ingest.SimulateDocumentVerboseResult;
-import org.elasticsearch.action.ingest.SimulatePipelineResponse;
-import org.elasticsearch.action.ingest.SimulateProcessorResult;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.ingest.core.IngestDocument;
@@ -94,7 +89,7 @@ public class SimulatePipelineResponseTests extends ESTestCase {
                 Iterator<SimulateProcessorResult> expectedProcessorResultIterator = expectedSimulateDocumentVerboseResult.getProcessorResults().iterator();
                 for (SimulateProcessorResult simulateProcessorResult : simulateDocumentVerboseResult.getProcessorResults()) {
                     SimulateProcessorResult expectedProcessorResult = expectedProcessorResultIterator.next();
-                    assertThat(simulateProcessorResult.getProcessorId(), equalTo(expectedProcessorResult.getProcessorId()));
+                    assertThat(simulateProcessorResult.getProcessorTag(), equalTo(expectedProcessorResult.getProcessorTag()));
                     assertThat(simulateProcessorResult.getIngestDocument(), equalTo(expectedProcessorResult.getIngestDocument()));
                     if (expectedProcessorResult.getFailure() == null) {
                         assertThat(simulateProcessorResult.getFailure(), nullValue());

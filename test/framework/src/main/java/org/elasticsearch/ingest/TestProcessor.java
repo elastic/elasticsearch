@@ -19,6 +19,7 @@
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.ingest.core.AbstractProcessorFactory;
 import org.elasticsearch.ingest.core.IngestDocument;
 import org.elasticsearch.ingest.core.Processor;
 
@@ -33,16 +34,18 @@ import java.util.function.Consumer;
 public class TestProcessor implements Processor {
 
     private final String type;
+    private final String tag;
     private final Consumer<IngestDocument> ingestDocumentConsumer;
     private final AtomicInteger invokedCounter = new AtomicInteger();
 
     public TestProcessor(Consumer<IngestDocument> ingestDocumentConsumer) {
-        this("test-processor", ingestDocumentConsumer);
+        this(null, "test-processor", ingestDocumentConsumer);
     }
 
-    public TestProcessor(String type, Consumer<IngestDocument> ingestDocumentConsumer) {
+    public TestProcessor(String tag, String type, Consumer<IngestDocument> ingestDocumentConsumer) {
         this.ingestDocumentConsumer = ingestDocumentConsumer;
         this.type = type;
+        this.tag = tag;
     }
 
     @Override
@@ -56,14 +59,19 @@ public class TestProcessor implements Processor {
         return type;
     }
 
+    @Override
+    public String getTag() {
+        return tag;
+    }
+
     public int getInvokedCounter() {
         return invokedCounter.get();
     }
 
-    public static final class Factory implements Processor.Factory<TestProcessor> {
+    public static final class Factory extends AbstractProcessorFactory<TestProcessor> {
         @Override
-        public TestProcessor create(Map<String, Object> config) throws Exception {
-            return new TestProcessor(ingestDocument -> {});
+        public TestProcessor doCreate(String processorId, Map<String, Object> config) throws Exception {
+            return new TestProcessor(processorId, "test-processor", ingestDocument -> {});
         }
     }
 }

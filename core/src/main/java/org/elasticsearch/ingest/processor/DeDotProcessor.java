@@ -19,6 +19,7 @@
 
 package org.elasticsearch.ingest.processor;
 
+import org.elasticsearch.ingest.core.AbstractProcessorFactory;
 import org.elasticsearch.ingest.core.ConfigurationUtils;
 import org.elasticsearch.ingest.core.IngestDocument;
 import org.elasticsearch.ingest.core.Processor;
@@ -37,9 +38,11 @@ public class DeDotProcessor implements Processor {
     public static final String TYPE = "dedot";
     static final String DEFAULT_SEPARATOR = "_";
 
+    private final String processorTag;
     private final String separator;
 
-    public DeDotProcessor(String separator) {
+    public DeDotProcessor(String processorTag, String separator) {
+        this.processorTag = processorTag;
         this.separator = separator;
     }
 
@@ -55,6 +58,11 @@ public class DeDotProcessor implements Processor {
     @Override
     public String getType() {
         return TYPE;
+    }
+
+    @Override
+    public String getTag() {
+        return processorTag;
     }
 
     /**
@@ -87,15 +95,15 @@ public class DeDotProcessor implements Processor {
         }
     }
 
-    public static class Factory implements Processor.Factory<DeDotProcessor> {
+    public static class Factory extends AbstractProcessorFactory<DeDotProcessor> {
 
         @Override
-        public DeDotProcessor create(Map<String, Object> config) throws Exception {
+        public DeDotProcessor doCreate(String processorTag, Map<String, Object> config) throws Exception {
             String separator = ConfigurationUtils.readOptionalStringProperty(config, "separator");
             if (separator == null) {
                 separator = DEFAULT_SEPARATOR;
             }
-            return new DeDotProcessor(separator);
+            return new DeDotProcessor(processorTag, separator);
         }
     }
 }

@@ -70,6 +70,39 @@
   - length: { docs: 1 }
 
 ---
+"Test simulate with provided invalid pipeline definition":
+  - do:
+      catch: request
+      ingest.simulate:
+        body: >
+          {
+            "pipeline": {
+              "description": "_description",
+              "processors": [
+                {
+                  "set" : {
+                    "value" : "_value"
+                  }
+                }
+              ]
+            },
+            "docs": [
+              {
+                "_index": "index",
+                "_type": "type",
+                "_id": "id",
+                "_source": {
+                  "foo": "bar"
+                }
+              }
+            ]
+          }
+  - length: { error: 3 }
+  - match: { status: 400 }
+  - match: { error.type: "illegal_argument_exception" }
+  - match: { error.reason: "required property [field] is missing" }
+
+---
 "Test simulate without index type and id":
   - do:
       ingest.simulate:
@@ -173,6 +206,7 @@
               "processors": [
                 {
                   "set" : {
+                    "processor_tag" : "processor[set]-0",
                     "field" : "field2",
                     "value" : "_value"
                   }
@@ -198,7 +232,7 @@
           }
   - length: { docs: 1 }
   - length: { docs.0.processor_results: 2 }
-  - match: { docs.0.processor_results.0.processor_id: "processor[set]-0" }
+  - match: { docs.0.processor_results.0.processor_tag: "processor[set]-0" }
   - length: { docs.0.processor_results.0.doc._source: 2 }
   - match: { docs.0.processor_results.0.doc._source.foo: "bar" }
   - match: { docs.0.processor_results.0.doc._source.field2: "_value" }
@@ -297,15 +331,10 @@
             ]
           }
   - length: { docs: 2 }
-  - length: { docs.0.processor_results: 2 }
+  - length: { docs.0.processor_results: 1 }
   - match: { docs.0.processor_results.0.error.type: "illegal_argument_exception" }
-  - match: { docs.0.processor_results.1.doc._index: "index" }
-  - match: { docs.0.processor_results.1.doc._type: "type" }
-  - match: { docs.0.processor_results.1.doc._id: "id" }
-  - match: { docs.0.processor_results.1.doc._source.foo: "bar" }
-  - match: { docs.0.processor_results.1.doc._source.bar: "HELLO" }
-  - length: { docs.0.processor_results.1.doc._ingest: 1 }
-  - is_true: docs.0.processor_results.1.doc._ingest.timestamp
+  - length: { docs.1.processor_results: 2 }
+  - match: { docs.1.processor_results.0.doc._index: "index" }
   - match: { docs.1.processor_results.0.doc._source.foo: 5 }
   - match: { docs.1.processor_results.0.doc._source.bar: "hello" }
   - length: { docs.1.processor_results.0.doc._ingest: 1 }
@@ -315,3 +344,78 @@
   - length: { docs.1.processor_results.1.doc._ingest: 1 }
   - is_true: docs.1.processor_results.1.doc._ingest.timestamp
 
+---
+"Test verbose simulate with on_failure":
+  - do:
+      ingest.simulate:
+        verbose: true
+        body: >
+          {
+            "pipeline" : {
+              "description": "_description",
+              "processors": [
+                {
+                  "set" : {
+                    "processor_tag" : "setstatus-1",
+                    "field" : "status",
+                    "value" : 200
+                  }
+                },
+                {
+                  "rename" : {
+                    "processor_tag" : "rename-1",
+                    "field" : "foofield",
+                    "to" : "field1",
+                    "on_failure" : [
+                      {
+                        "set" : {
+                          "processor_tag" : "set on_failure rename",
+                          "field" : "foofield",
+                          "value" : "exists"
+                        }
+                      },
+                      {
+                        "rename" : {
+                          "field" : "foofield2",
+                          "to" : "field1",
+                          "on_failure" : [
+                            {
+                              "set" : {
+                                "field" : "foofield2",
+                                "value" : "ran"
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            "docs": [
+              {
+                "_index": "index",
+                "_type": "type",
+                "_id": "id",
+                "_source": {
+                  "field1": "123.42 400 <foo>"
+                }
+              }
+            ]
+          }
+  - length: { docs: 1 }
+  - length: { docs.0.processor_results: 5 }
+  - match: { docs.0.processor_results.0.processor_tag: "setstatus-1" }
+  - match: { docs.0.processor_results.0.doc._source.field1: "123.42 400 <foo>" }
+  - match: { docs.0.processor_results.0.doc._source.status: 200 }
+  - match: { docs.0.processor_results.1.processor_tag: "rename-1" }
+  - match: { docs.0.processor_results.1.error.type: "illegal_argument_exception" }
+  - match: { docs.0.processor_results.1.error.reason: "field [foofield] doesn't exist" }
+  - match: { docs.0.processor_results.2.processor_tag: "set on_failure rename" }
+  - is_false: docs.0.processor_results.3.processor_tag
+  - is_false: docs.0.processor_results.4.processor_tag
+  - match: { docs.0.processor_results.4.doc._source.foofield: "exists" }
+  - match: { docs.0.processor_results.4.doc._source.foofield2: "ran" }
+  - match: { docs.0.processor_results.4.doc._source.field1: "123.42 400 <foo>" }
+  - match: { docs.0.processor_results.4.doc._source.status: 200 }

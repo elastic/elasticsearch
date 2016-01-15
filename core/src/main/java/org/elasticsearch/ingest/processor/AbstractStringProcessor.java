@@ -19,6 +19,7 @@
 
 package org.elasticsearch.ingest.processor;
 
+import org.elasticsearch.ingest.core.AbstractProcessorFactory;
 import org.elasticsearch.ingest.core.ConfigurationUtils;
 import org.elasticsearch.ingest.core.IngestDocument;
 import org.elasticsearch.ingest.core.Processor;
@@ -31,9 +32,11 @@ import java.util.Map;
  */
 public abstract class AbstractStringProcessor implements Processor {
 
+    private final String processorTag;
     private final String field;
 
-    protected AbstractStringProcessor(String field) {
+    protected AbstractStringProcessor(String processorTag, String field) {
+        this.processorTag = processorTag;
         this.field = field;
     }
 
@@ -50,15 +53,21 @@ public abstract class AbstractStringProcessor implements Processor {
         document.setFieldValue(field, process(val));
     }
 
+    @Override
+    public String getTag() {
+        return processorTag;
+    }
+
     protected abstract String process(String value);
 
-    public static abstract class Factory<T extends AbstractStringProcessor> implements Processor.Factory<T> {
+    public static abstract class Factory<T extends AbstractStringProcessor> extends AbstractProcessorFactory<T> {
+
         @Override
-        public T create(Map<String, Object> config) throws Exception {
+        public T doCreate(String processorTag, Map<String, Object> config) throws Exception {
             String field = ConfigurationUtils.readStringProperty(config, "field");
-            return newProcessor(field);
+            return newProcessor(processorTag, field);
         }
 
-        protected abstract T newProcessor(String field);
+        protected abstract T newProcessor(String processorTag, String field);
     }
 }

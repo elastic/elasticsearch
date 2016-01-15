@@ -32,6 +32,7 @@ import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.ingest.core.AbstractProcessorFactory;
 import org.elasticsearch.ingest.core.IngestDocument;
 import org.elasticsearch.ingest.core.Processor;
 
@@ -56,12 +57,14 @@ public final class GeoIpProcessor implements Processor {
 
     public static final String TYPE = "geoip";
 
+    private final String processorTag;
     private final String sourceField;
     private final String targetField;
     private final DatabaseReader dbReader;
     private final Set<Field> fields;
 
-    GeoIpProcessor(String sourceField, DatabaseReader dbReader, String targetField, Set<Field> fields) throws IOException {
+    GeoIpProcessor(String processorTag, String sourceField, DatabaseReader dbReader, String targetField, Set<Field> fields) throws IOException {
+        this.processorTag = processorTag;
         this.sourceField = sourceField;
         this.targetField = targetField;
         this.dbReader = dbReader;
@@ -98,6 +101,11 @@ public final class GeoIpProcessor implements Processor {
     @Override
     public String getType() {
         return TYPE;
+    }
+
+    @Override
+    public String getTag() {
+        return processorTag;
     }
 
     String getSourceField() {
@@ -215,7 +223,7 @@ public final class GeoIpProcessor implements Processor {
         return geoData;
     }
 
-    public static final class Factory implements Processor.Factory<GeoIpProcessor>, Closeable {
+    public static final class Factory extends AbstractProcessorFactory<GeoIpProcessor> implements Closeable {
 
         static final Set<Field> DEFAULT_FIELDS = EnumSet.of(
                 Field.CONTINENT_NAME, Field.COUNTRY_ISO_CODE, Field.REGION_NAME, Field.CITY_NAME, Field.LOCATION
@@ -227,7 +235,8 @@ public final class GeoIpProcessor implements Processor {
             this.databaseReaders = databaseReaders;
         }
 
-        public GeoIpProcessor create(Map<String, Object> config) throws Exception {
+        @Override
+        public GeoIpProcessor doCreate(String processorTag, Map<String, Object> config) throws Exception {
             String ipField = readStringProperty(config, "source_field");
             String targetField = readStringProperty(config, "target_field", "geoip");
             String databaseFile = readStringProperty(config, "database_file", "GeoLite2-City.mmdb");
@@ -251,7 +260,7 @@ public final class GeoIpProcessor implements Processor {
             if (databaseReader == null) {
                 throw new IllegalArgumentException("database file [" + databaseFile + "] doesn't exist");
             }
-            return new GeoIpProcessor(ipField, databaseReader, targetField, fields);
+            return new GeoIpProcessor(processorTag, ipField, databaseReader, targetField, fields);
         }
 
         @Override

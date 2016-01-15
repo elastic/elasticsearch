@@ -32,7 +32,10 @@ public class TrimProcessorFactoryTests extends ESTestCase {
         TrimProcessor.Factory factory = new TrimProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
         config.put("field", "field1");
+        String processorTag = randomAsciiOfLength(10);
+        config.put("processor_tag", processorTag);
         TrimProcessor uppercaseProcessor = factory.create(config);
+        assertThat(uppercaseProcessor.getTag(), equalTo(processorTag));
         assertThat(uppercaseProcessor.getField(), equalTo("field1"));
     }
 

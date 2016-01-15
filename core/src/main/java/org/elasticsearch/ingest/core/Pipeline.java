@@ -94,17 +94,17 @@ public final class Pipeline {
         }
 
         private List<Processor> readProcessors(String fieldName, Map<String, Processor.Factory> processorRegistry, Map<String, Object> config) throws Exception {
-            List<Map<String, Map<String, Object>>> onFailureProcessorConfigs = ConfigurationUtils.readOptionalList(config, fieldName);
-            List<Processor> onFailureProcessors = new ArrayList<>();
-            if (onFailureProcessorConfigs != null) {
-                for (Map<String, Map<String, Object>> processorConfigWithKey : onFailureProcessorConfigs) {
+            List<Map<String, Map<String, Object>>> processorConfigs = ConfigurationUtils.readOptionalList(config, fieldName);
+            List<Processor> processors = new ArrayList<>();
+            if (processorConfigs != null) {
+                for (Map<String, Map<String, Object>> processorConfigWithKey : processorConfigs) {
                     for (Map.Entry<String, Map<String, Object>> entry : processorConfigWithKey.entrySet()) {
-                        onFailureProcessors.add(readProcessor(processorRegistry, entry.getKey(), entry.getValue()));
+                        processors.add(readProcessor(processorRegistry, entry.getKey(), entry.getValue()));
                     }
                 }
             }
 
-            return onFailureProcessors;
+            return processors;
         }
 
         private Processor readProcessor(Map<String, Processor.Factory> processorRegistry, String type, Map<String, Object> config) throws Exception {
@@ -122,7 +122,5 @@ public final class Pipeline {
             }
             throw new IllegalArgumentException("No processor type exists with name [" + type + "]");
         }
-
-
     }
 }

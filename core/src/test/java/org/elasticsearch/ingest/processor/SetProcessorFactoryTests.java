@@ -42,7 +42,10 @@ public class SetProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", "field1");
         config.put("value", "value1");
+        String processorTag = randomAsciiOfLength(10);
+        config.put("processor_tag", processorTag);
         SetProcessor setProcessor = factory.create(config);
+        assertThat(setProcessor.getTag(), equalTo(processorTag));
         assertThat(setProcessor.getField().execute(Collections.emptyMap()), equalTo("field1"));
         assertThat(setProcessor.getValue().copyAndResolve(Collections.emptyMap()), equalTo("value1"));
     }

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.ingest.processor;
 
+import org.elasticsearch.ingest.core.AbstractProcessorFactory;
 import org.elasticsearch.ingest.core.IngestDocument;
 import org.elasticsearch.ingest.core.ConfigurationUtils;
 import org.elasticsearch.ingest.core.Processor;
@@ -32,10 +33,12 @@ public class RenameProcessor implements Processor {
 
     public static final String TYPE = "rename";
 
+    private final String processorTag;
     private final String oldFieldName;
     private final String newFieldName;
 
-    RenameProcessor(String oldFieldName, String newFieldName) {
+    RenameProcessor(String processorTag, String oldFieldName, String newFieldName) {
+        this.processorTag = processorTag;
         this.oldFieldName = oldFieldName;
         this.newFieldName = newFieldName;
     }
@@ -73,12 +76,17 @@ public class RenameProcessor implements Processor {
         return TYPE;
     }
 
-    public static class Factory implements Processor.Factory<RenameProcessor> {
+    @Override
+    public String getTag() {
+        return processorTag;
+    }
+
+    public static class Factory extends AbstractProcessorFactory<RenameProcessor> {
         @Override
-        public RenameProcessor create(Map<String, Object> config) throws Exception {
+        public RenameProcessor doCreate(String processorTag, Map<String, Object> config) throws Exception {
             String field = ConfigurationUtils.readStringProperty(config, "field");
             String newField = ConfigurationUtils.readStringProperty(config, "to");
-            return new RenameProcessor(field, newField);
+            return new RenameProcessor(processorTag, field, newField);
         }
     }
 }

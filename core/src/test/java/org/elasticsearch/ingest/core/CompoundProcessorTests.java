@@ -71,7 +71,7 @@ public class CompoundProcessorTests extends ESTestCase {
     }
 
     public void testSingleProcessorWithOnFailureProcessor() throws Exception {
-        TestProcessor processor1 = new TestProcessor("first", ingestDocument -> {throw new RuntimeException("error");});
+        TestProcessor processor1 = new TestProcessor("id", "first", ingestDocument -> {throw new RuntimeException("error");});
         TestProcessor processor2 = new TestProcessor(ingestDocument -> {
             Map<String, String> ingestMetadata = ingestDocument.getIngestMetadata();
             assertThat(ingestMetadata.size(), equalTo(2));
@@ -87,8 +87,8 @@ public class CompoundProcessorTests extends ESTestCase {
     }
 
     public void testSingleProcessorWithNestedFailures() throws Exception {
-        TestProcessor processor = new TestProcessor("first", ingestDocument -> {throw new RuntimeException("error");});
-        TestProcessor processorToFail = new TestProcessor("second", ingestDocument -> {
+        TestProcessor processor = new TestProcessor("id", "first", ingestDocument -> {throw new RuntimeException("error");});
+        TestProcessor processorToFail = new TestProcessor("id", "second", ingestDocument -> {
             Map<String, String> ingestMetadata = ingestDocument.getIngestMetadata();
             assertThat(ingestMetadata.size(), equalTo(2));
             assertThat(ingestMetadata.get(CompoundProcessor.ON_FAILURE_MESSAGE_FIELD), equalTo("error"));

@@ -36,7 +36,10 @@ public class ConvertProcessorFactoryTests extends ESTestCase {
         ConvertProcessor.Type type = randomFrom(ConvertProcessor.Type.values());
         config.put("field", "field1");
         config.put("type", type.toString());
+        String processorTag = randomAsciiOfLength(10);
+        config.put("processor_tag", processorTag);
         ConvertProcessor convertProcessor = factory.create(config);
+        assertThat(convertProcessor.getTag(), equalTo(processorTag));
         assertThat(convertProcessor.getField(), equalTo("field1"));
         assertThat(convertProcessor.getConvertType(), equalTo(type));
     }

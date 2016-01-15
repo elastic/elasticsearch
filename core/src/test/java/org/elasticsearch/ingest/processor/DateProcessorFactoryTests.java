@@ -41,8 +41,10 @@ public class DateProcessorFactoryTests extends ESTestCase {
         String sourceField = randomAsciiOfLengthBetween(1, 10);
         config.put("match_field", sourceField);
         config.put("match_formats", Collections.singletonList("dd/MM/yyyyy"));
-
+        String processorTag = randomAsciiOfLength(10);
+        config.put("processor_tag", processorTag);
         DateProcessor processor = factory.create(config);
+        assertThat(processor.getTag(), equalTo(processorTag));
         assertThat(processor.getMatchField(), equalTo(sourceField));
         assertThat(processor.getTargetField(), equalTo(DateProcessor.DEFAULT_TARGET_FIELD));
         assertThat(processor.getMatchFormats(), equalTo(Collections.singletonList("dd/MM/yyyyy")));

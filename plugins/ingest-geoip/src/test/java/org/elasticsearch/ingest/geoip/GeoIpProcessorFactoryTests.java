@@ -60,7 +60,11 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("source_field", "_field");
 
+        String processorTag = randomAsciiOfLength(10);
+        config.put("processor_tag", processorTag);
+
         GeoIpProcessor processor = factory.create(config);
+        assertThat(processor.getTag(), equalTo(processorTag));
         assertThat(processor.getSourceField(), equalTo("_field"));
         assertThat(processor.getTargetField(), equalTo("geoip"));
         assertThat(processor.getDbReader().getMetadata().getDatabaseType(), equalTo("GeoLite2-City"));

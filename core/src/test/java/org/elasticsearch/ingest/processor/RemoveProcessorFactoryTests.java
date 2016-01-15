@@ -41,7 +41,10 @@ public class RemoveProcessorFactoryTests extends ESTestCase {
     public void testCreate() throws Exception {
         Map<String, Object> config = new HashMap<>();
         config.put("field", "field1");
+        String processorTag = randomAsciiOfLength(10);
+        config.put("processor_tag", processorTag);
         RemoveProcessor removeProcessor = factory.create(config);
+        assertThat(removeProcessor.getTag(), equalTo(processorTag));
         assertThat(removeProcessor.getField().execute(Collections.emptyMap()), equalTo("field1"));
     }
 

@@ -29,8 +29,8 @@ public class UppercaseProcessor extends AbstractStringProcessor {
 
     public static final String TYPE = "uppercase";
 
-    UppercaseProcessor(String field) {
-        super(field);
+    UppercaseProcessor(String processorTag, String field) {
+        super(processorTag, field);
     }
 
     @Override
@@ -45,8 +45,8 @@ public class UppercaseProcessor extends AbstractStringProcessor {
 
     public static class Factory extends AbstractStringProcessor.Factory<UppercaseProcessor> {
         @Override
-        protected UppercaseProcessor newProcessor(String field) {
-            return new UppercaseProcessor(field);
+        protected UppercaseProcessor newProcessor(String processorTag, String field) {
+            return new UppercaseProcessor(processorTag, field);
         }
     }
 }

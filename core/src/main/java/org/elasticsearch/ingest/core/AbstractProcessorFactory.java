@@ -17,19 +17,23 @@
  * under the License.
  */
 
-package org.elasticsearch.ingest.processor;
 
-import java.util.Locale;
+package org.elasticsearch.ingest.core;
 
-public class UppercaseProcessorTests extends AbstractStringProcessorTestCase {
+import java.util.Map;
+
+/**
+ * A processor implementation may modify the data belonging to a document.
+ * Whether changes are made and what exactly is modified is up to the implementation.
+ */
+public abstract class AbstractProcessorFactory<P extends Processor> implements Processor.Factory<P> {
+    static final String PROCESSOR_TAG_KEY = "processor_tag";
 
     @Override
-    protected AbstractStringProcessor newProcessor(String field) {
-        return new UppercaseProcessor(randomAsciiOfLength(10), field);
+    public P create(Map<String, Object> config) throws Exception {
+        String tag = ConfigurationUtils.readOptionalStringProperty(config, PROCESSOR_TAG_KEY);
+        return doCreate(tag, config);
     }
 
-    @Override
-    protected String expectedResult(String input) {
-        return input.toUpperCase(Locale.ROOT);
-    }
+    protected abstract P doCreate(String tag, Map<String, Object> config) throws Exception;
 }

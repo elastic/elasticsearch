@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.ingest;
 
-import org.elasticsearch.action.ingest.SimulatePipelineRequest;
 import org.elasticsearch.ingest.PipelineStore;
 import org.elasticsearch.ingest.TestProcessor;
 import org.elasticsearch.ingest.core.CompoundProcessor;

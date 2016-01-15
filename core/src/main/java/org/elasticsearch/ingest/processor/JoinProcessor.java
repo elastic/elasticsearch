@@ -19,6 +19,7 @@
 
 package org.elasticsearch.ingest.processor;
 
+import org.elasticsearch.ingest.core.AbstractProcessorFactory;
 import org.elasticsearch.ingest.core.IngestDocument;
 import org.elasticsearch.ingest.core.ConfigurationUtils;
 import org.elasticsearch.ingest.core.Processor;
@@ -35,10 +36,12 @@ public class JoinProcessor implements Processor {
 
     public static final String TYPE = "join";
 
+    private final String processorTag;
     private final String field;
     private final String separator;
 
-    JoinProcessor(String field, String separator) {
+    JoinProcessor(String processorTag, String field, String separator) {
+        this.processorTag = processorTag;
         this.field = field;
         this.separator = separator;
     }
@@ -68,12 +71,17 @@ public class JoinProcessor implements Processor {
         return TYPE;
     }
 
-    public static class Factory implements Processor.Factory<JoinProcessor> {
+    @Override
+    public String getTag() {
+        return processorTag;
+    }
+
+    public static class Factory extends AbstractProcessorFactory<JoinProcessor> {
         @Override
-        public JoinProcessor create(Map<String, Object> config) throws Exception {
+        public JoinProcessor doCreate(String processorTag, Map<String, Object> config) throws Exception {
             String field = ConfigurationUtils.readStringProperty(config, "field");
             String separator = ConfigurationUtils.readStringProperty(config, "separator");
-            return new JoinProcessor(field, separator);
+            return new JoinProcessor(processorTag, field, separator);
         }
     }
 }

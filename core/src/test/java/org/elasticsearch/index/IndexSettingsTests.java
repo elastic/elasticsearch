@@ -47,6 +47,7 @@ public class IndexSettingsTests extends ESTestCase {
         Setting<Integer> integerSetting = Setting.intSetting("index.test.setting.int", -1, true, Setting.Scope.INDEX);
         IndexMetaData metaData = newIndexMeta("index", theSettings);
         IndexSettings settings = new IndexSettings(metaData, Settings.EMPTY);
+        settings.addSetting(integerSetting);
         settings.addSettingsUpdateConsumer(integerSetting, integer::set);
 
         assertEquals(version, settings.getIndexVersionCreated());
@@ -69,6 +70,8 @@ public class IndexSettingsTests extends ESTestCase {
         Setting<String> notUpdated = new Setting<>("index.not.updated", "", Function.identity(), true, Setting.Scope.INDEX);
 
         IndexSettings settings = new IndexSettings(newIndexMeta("index", theSettings), Settings.EMPTY);
+        settings.addSetting(integerSetting);
+        settings.addSetting(notUpdated);
         settings.addSettingsUpdateConsumer(integerSetting, integer::set);
         settings.addSettingsUpdateConsumer(notUpdated, builder::append);
         assertEquals(0, integer.get());
@@ -122,6 +125,7 @@ public class IndexSettingsTests extends ESTestCase {
         final AtomicInteger indexValue = new AtomicInteger(0);
         Setting<Integer> integerSetting = Setting.intSetting("index.foo.bar", -1, true, Setting.Scope.INDEX);
         IndexSettings settings = new IndexSettings(newIndexMeta("index", theSettings), nodeSettings);
+        settings.addSetting(integerSetting);
         settings.addSettingsUpdateConsumer(integerSetting, indexValue::set);
         assertEquals(numReplicas, settings.getNumberOfReplicas());
         assertEquals(numShards, settings.getNumberOfShards());

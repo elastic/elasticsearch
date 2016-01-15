@@ -127,7 +127,6 @@ import java.util.Map;
  */
 public class IndicesModule extends AbstractModule {
 
-
     private final ExtensionPoint.ClassSet<QueryParser> queryParsers
         = new ExtensionPoint.ClassSet<>("query_parser", QueryParser.class);
 

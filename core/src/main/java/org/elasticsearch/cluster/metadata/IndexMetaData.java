@@ -37,6 +37,7 @@ import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.loader.SettingsLoader;
 import org.elasticsearch.common.xcontent.FromXContentBuilder;
@@ -69,10 +70,6 @@ import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
  *
  */
 public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuilder<IndexMetaData>, ToXContent  {
-
-    public static final IndexMetaData PROTO = IndexMetaData.builder("")
-            .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
-            .numberOfShards(1).numberOfReplicas(0).build();
 
     public interface Custom extends Diffable<Custom>, ToXContent {
 
@@ -172,6 +169,14 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
     public static final String SETTING_DATA_PATH = "index.data_path";
     public static final String SETTING_SHARED_FS_ALLOW_RECOVERY_ON_ANY_NODE = "index.shared_filesystem.recover_on_any_node";
     public static final String INDEX_UUID_NA_VALUE = "_na_";
+
+    public static final Setting<Settings> INDEX_ROUTING_REQUIRE_GROUP_SETTING = Setting.groupSetting("index.routing.allocation.require.", true, Setting.Scope.INDEX);
+    public static final Setting<Settings> INDEX_ROUTING_INCLUDE_GROUP_SETTING = Setting.groupSetting("index.routing.allocation.include.", true, Setting.Scope.INDEX);
+    public static final Setting<Settings> INDEX_ROUTING_EXCLUDE_GROUP_SETTING = Setting.groupSetting("index.routing.allocation.exclude.", true, Setting.Scope.INDEX);
+
+    public static final IndexMetaData PROTO = IndexMetaData.builder("")
+        .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
+        .numberOfShards(1).numberOfReplicas(0).build();
 
     public static final String KEY_ACTIVE_ALLOCATIONS = "active_allocations";
 
@@ -758,22 +763,21 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
                     filledActiveAllocationIds.put(i, Collections.emptySet());
                 }
             }
-
-            Map<String, String> requireMap = settings.getByPrefix("index.routing.allocation.require.").getAsMap();
+            final Map<String, String> requireMap = INDEX_ROUTING_REQUIRE_GROUP_SETTING.get(settings).getAsMap();
             final DiscoveryNodeFilters requireFilters;
             if (requireMap.isEmpty()) {
                 requireFilters = null;
             } else {
                 requireFilters = DiscoveryNodeFilters.buildFromKeyValue(AND, requireMap);
             }
-            Map<String, String> includeMap = settings.getByPrefix("index.routing.allocation.include.").getAsMap();
+            Map<String, String> includeMap = INDEX_ROUTING_INCLUDE_GROUP_SETTING.get(settings).getAsMap();
             final DiscoveryNodeFilters includeFilters;
             if (includeMap.isEmpty()) {
                 includeFilters = null;
             } else {
                 includeFilters = DiscoveryNodeFilters.buildFromKeyValue(OR, includeMap);
             }
-            Map<String, String> excludeMap = settings.getByPrefix("index.routing.allocation.exclude.").getAsMap();
+            Map<String, String> excludeMap = INDEX_ROUTING_EXCLUDE_GROUP_SETTING.get(settings).getAsMap();
             final DiscoveryNodeFilters excludeFilters;
             if (excludeMap.isEmpty()) {
                 excludeFilters = null;

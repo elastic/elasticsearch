@@ -24,6 +24,7 @@ import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.engine.MockEngineFactory;
+import org.elasticsearch.test.engine.MockEngineSupport;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -41,8 +42,12 @@ public class MockEngineFactoryPlugin extends Plugin {
 
     private Class<? extends FilterDirectoryReader> readerWrapper = AssertingDirectoryReader.class;
 
+
+
     @Override
     public void onIndexModule(IndexModule module) {
+        module.addSetting(MockEngineSupport.DISABLE_FLUSH_ON_CLOSE);
+        module.addSetting(MockEngineSupport.WRAP_READER_RATIO);
         module.engineFactory.set(new MockEngineFactory(readerWrapper));
     }
 

@@ -60,7 +60,7 @@ public abstract class PriorityComparator implements Comparator<ShardRouting> {
     }
 
     private long timeCreated(Settings settings) {
-        return settings.getAsLong(IndexMetaData.SETTING_CREATION_DATE, -1l);
+        return IndexMetaData.INDEX_CREATION_DATE_SETTING.get(settings);
     }
 
     protected abstract Settings getIndexSettings(String index);

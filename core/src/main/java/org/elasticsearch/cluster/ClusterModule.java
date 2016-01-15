@@ -23,7 +23,6 @@ import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.action.index.NodeIndexDeletedAction;
 import org.elasticsearch.cluster.action.index.NodeMappingRefreshAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateFilter;
 import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
@@ -55,19 +54,12 @@ import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocatio
 import org.elasticsearch.cluster.routing.allocation.decider.SnapshotInProgressAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.cluster.service.InternalClusterService;
-import org.elasticsearch.cluster.settings.DynamicSettings;
-import org.elasticsearch.cluster.settings.Validator;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.ExtensionPoint;
 import org.elasticsearch.gateway.GatewayAllocator;
-import org.elasticsearch.gateway.PrimaryShardAllocator;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.SearchSlowLog;
-import org.elasticsearch.index.settings.IndexDynamicSettings;
-import org.elasticsearch.index.MergePolicyConfig;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -98,7 +90,6 @@ public class ClusterModule extends AbstractModule {
             SnapshotInProgressAllocationDecider.class));
 
     private final Settings settings;
-    private final DynamicSettings.Builder indexDynamicSettings = new DynamicSettings.Builder();
     private final ExtensionPoint.SelectedType<ShardsAllocator> shardsAllocators = new ExtensionPoint.SelectedType<>("shards_allocator", ShardsAllocator.class);
     private final ExtensionPoint.ClassSet<AllocationDecider> allocationDeciders = new ExtensionPoint.ClassSet<>("allocation_decider", AllocationDecider.class, AllocationDeciders.class);
     private final ExtensionPoint.ClassSet<IndexTemplateFilter> indexTemplateFilters = new ExtensionPoint.ClassSet<>("index_template_filter", IndexTemplateFilter.class);
@@ -115,10 +106,6 @@ public class ClusterModule extends AbstractModule {
         registerShardsAllocator(ClusterModule.EVEN_SHARD_COUNT_ALLOCATOR, BalancedShardsAllocator.class);
     }
 
-    public void registerIndexDynamicSetting(String setting, Validator validator) {
-        indexDynamicSettings.addSetting(setting, validator);
-    }
-
     public void registerAllocationDecider(Class<? extends AllocationDecider> allocationDecider) {
         allocationDeciders.registerExtension(allocationDecider);
     }
@@ -133,8 +120,6 @@ public class ClusterModule extends AbstractModule {
 
     @Override
     protected void configure() {
-        bind(DynamicSettings.class).annotatedWith(IndexDynamicSettings.class).toInstance(indexDynamicSettings.build());
-
         // bind ShardsAllocator
         String shardsAllocatorType = shardsAllocators.bindType(binder(), settings, ClusterModule.SHARDS_ALLOCATOR_TYPE_KEY, ClusterModule.BALANCED_ALLOCATOR);
         if (shardsAllocatorType.equals(ClusterModule.EVEN_SHARD_COUNT_ALLOCATOR)) {

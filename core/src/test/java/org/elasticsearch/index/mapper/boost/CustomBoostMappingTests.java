@@ -26,13 +26,22 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.InternalSettingsPluging;
+
+import java.util.Collection;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class CustomBoostMappingTests extends ESSingleNodeTestCase {
 
     private static final Settings BW_SETTINGS = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_2_0_0).build();
+
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return pluginList(InternalSettingsPluging.class);
+    }
 
     public void testBackCompatCustomBoostValues() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")

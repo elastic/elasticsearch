@@ -181,6 +181,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
     public static final String SETTING_VERSION_UPGRADED_STRING = "index.version.upgraded_string";
     public static final String SETTING_VERSION_MINIMUM_COMPATIBLE = "index.version.minimum_compatible";
     public static final String SETTING_CREATION_DATE = "index.creation_date";
+    public static final Setting<Long> INDEX_CREATION_DATE_SETTING = Setting.longSetting(SETTING_CREATION_DATE, -1, -1, false, Setting.Scope.INDEX);
     public static final String SETTING_PRIORITY = "index.priority";
     public static final Setting<Integer> INDEX_PRIORITY_SETTING = Setting.intSetting("index.priority", 1, 0, true, Setting.Scope.INDEX);
     public static final String SETTING_CREATION_DATE_STRING = "index.creation_date_string";
@@ -653,10 +654,6 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
             return this;
         }
 
-        public long creationDate() {
-            return settings.getAsLong(SETTING_CREATION_DATE, -1l);
-        }
-
         public Builder settings(Settings.Builder settings) {
             this.settings = settings.build();
             return this;
@@ -669,11 +666,6 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
 
         public MappingMetaData mapping(String type) {
             return mappings.get(type);
-        }
-
-        public Builder removeMapping(String mappingType) {
-            mappings.remove(mappingType);
-            return this;
         }
 
         public Builder putMapping(String type, String source) throws IOException {
@@ -718,22 +710,9 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
             return this;
         }
 
-        public Builder removeCustom(String type) {
-            this.customs.remove(type);
-            return this;
-        }
-
-        public Custom getCustom(String type) {
-            return this.customs.get(type);
-        }
-
         public Builder putActiveAllocationIds(int shardId, Set<String> allocationIds) {
             activeAllocationIds.put(shardId, new HashSet(allocationIds));
             return this;
-        }
-
-        public Set<String> getActiveAllocationIds(int shardId) {
-            return activeAllocationIds.get(shardId);
         }
 
         public long version() {

@@ -30,7 +30,9 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.MockEngineFactoryPlugin;
@@ -58,7 +60,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class RandomExceptionCircuitBreakerIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(RandomExceptionDirectoryReaderWrapper.TestPlugin.class);
+        return pluginList(RandomExceptionDirectoryReaderWrapper.TestPlugin.class, MockEngineFactoryPlugin.class);
     }
 
     public void testBreakerWithRandomExceptions() throws IOException, InterruptedException, ExecutionException {
@@ -195,6 +197,8 @@ public class RandomExceptionCircuitBreakerIT extends ESIntegTestCase {
     // TODO: Generalize this class and add it as a utility
     public static class RandomExceptionDirectoryReaderWrapper extends MockEngineSupport.DirectoryReaderWrapper {
 
+        public static final Setting<Double> EXCEPTION_TOP_LEVEL_RATIO_SETTING = Setting.doubleSetting(EXCEPTION_TOP_LEVEL_RATIO_KEY, 0.1d, 0.0d, false, Setting.Scope.INDEX);
+        public static final Setting<Double> EXCEPTION_LOW_LEVEL_RATIO_SETTING = Setting.doubleSetting(EXCEPTION_LOW_LEVEL_RATIO_KEY, 0.1d, 0.0d, false, Setting.Scope.INDEX);
         public static class TestPlugin extends Plugin {
             @Override
             public String name() {
@@ -203,6 +207,11 @@ public class RandomExceptionCircuitBreakerIT extends ESIntegTestCase {
             @Override
             public String description() {
                 return "a mock reader wrapper that throws random exceptions for testing";
+            }
+
+            public void onModule(SettingsModule module) {
+                module.registerSetting(EXCEPTION_TOP_LEVEL_RATIO_SETTING);
+                module.registerSetting(EXCEPTION_LOW_LEVEL_RATIO_SETTING);
             }
 
             public void onModule(MockEngineFactoryPlugin.MockEngineReaderModule module) {
@@ -219,8 +228,8 @@ public class RandomExceptionCircuitBreakerIT extends ESIntegTestCase {
 
             ThrowingSubReaderWrapper(Settings settings) {
                 final long seed = settings.getAsLong(SETTING_INDEX_SEED, 0l);
-                this.topLevelRatio = settings.getAsDouble(EXCEPTION_TOP_LEVEL_RATIO_KEY, 0.1d);
-                this.lowLevelRatio = settings.getAsDouble(EXCEPTION_LOW_LEVEL_RATIO_KEY, 0.1d);
+                this.topLevelRatio = EXCEPTION_TOP_LEVEL_RATIO_SETTING.get(settings);
+                this.lowLevelRatio = EXCEPTION_LOW_LEVEL_RATIO_SETTING.get(settings);
                 this.random = new Random(seed);
             }
 

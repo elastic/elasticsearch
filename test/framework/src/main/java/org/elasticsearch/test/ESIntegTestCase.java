@@ -76,7 +76,9 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -478,7 +480,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
         if (randomBoolean()) {
             // keep this low so we don't stall tests
-            builder.put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING, RandomInts.randomIntBetween(random, 1, 15) + "ms");
+            builder.put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), RandomInts.randomIntBetween(random, 1, 15) + "ms");
         }
 
         return builder;

@@ -89,8 +89,6 @@ public final class IndexSettings {
     public static final TimeValue DEFAULT_GC_DELETES = TimeValue.timeValueSeconds(60);
     public static final Setting<TimeValue> INDEX_GC_DELETES_SETTING = Setting.timeSetting("index.gc_deletes", DEFAULT_GC_DELETES, new TimeValue(-1, TimeUnit.MICROSECONDS), true, Setting.Scope.INDEX);
 
-    private static final IndexScopeSettings DEFAULT_SCOPED_SETTINGS = new IndexScopeSettings(Settings.EMPTY, IndexScopeSettings.BUILT_IN_INDEX_SETTINGS);
-
     private final String uuid;
     private final Index index;
     private final Version version;
@@ -164,7 +162,7 @@ public final class IndexSettings {
      * @param nodeSettings the nodes settings this index is allocated on.
      */
     public IndexSettings(final IndexMetaData indexMetaData, final Settings nodeSettings) {
-        this(indexMetaData, nodeSettings, (index) -> Regex.simpleMatch(index, indexMetaData.getIndex()), DEFAULT_SCOPED_SETTINGS);
+        this(indexMetaData, nodeSettings, (index) -> Regex.simpleMatch(index, indexMetaData.getIndex()), IndexScopeSettings.DEFAULT_SCOPED_SETTINGS);
     }
 
     IndexSettings(final IndexMetaData indexMetaData, final Settings nodeSettings, IndexScopeSettings indexScopedSettings) {

@@ -296,8 +296,20 @@ public class Setting<T> extends ToXContentToBytes {
         return new Setting<>(key, (s) -> Integer.toString(defaultValue), (s) -> parseInt(s, minValue, key), dynamic, scope);
     }
 
+    public static Setting<Long> longSetting(String key, long defaultValue, long minValue, boolean dynamic, Scope scope) {
+        return new Setting<>(key, (s) -> Long.toString(defaultValue), (s) -> parseLong(s, minValue, key), dynamic, scope);
+    }
+
     public static int parseInt(String s, int minValue, String key) {
         int value = Integer.parseInt(s);
+        if (value < minValue) {
+            throw new IllegalArgumentException("Failed to parse value [" + s + "] for setting [" + key + "] must be >= " + minValue);
+        }
+        return value;
+    }
+
+    public static long parseLong(String s, long minValue, String key) {
+        long value = Long.parseLong(s);
         if (value < minValue) {
             throw new IllegalArgumentException("Failed to parse value [" + s + "] for setting [" + key + "] must be >= " + minValue);
         }

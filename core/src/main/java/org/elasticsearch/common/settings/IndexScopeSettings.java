@@ -46,6 +46,8 @@ import org.elasticsearch.index.IndexingSlowLog;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.MergeSchedulerConfig;
 import org.elasticsearch.index.SearchSlowLog;
+import org.elasticsearch.index.fielddata.IndexFieldDataService;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.IndexStoreConfig;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
@@ -67,14 +69,6 @@ import java.util.Set;
  * Encapsulates all valid cluster level settings.
  */
 public final class IndexScopeSettings extends AbstractScopedSettings {
-
-    public IndexScopeSettings(Settings settings, Set<Setting<?>> settingsSet) {
-        super(settings, settingsSet, Setting.Scope.INDEX);
-    }
-
-    private IndexScopeSettings(Settings settings, IndexScopeSettings other, IndexMetaData metaData) {
-        super(settings, metaData.getSettings(), other);
-    }
 
     public static Set<Setting<?>> BUILT_IN_INDEX_SETTINGS = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
         IndexSettings.INDEX_TTL_DISABLE_PURGE_SETTING,
@@ -98,6 +92,7 @@ public final class IndexScopeSettings extends AbstractScopedSettings {
         IndexMetaData.INDEX_SHARED_FS_ALLOW_RECOVERY_ON_ANY_NODE_SETTING,
         IndexMetaData.INDEX_PRIORITY_SETTING,
         IndexMetaData.INDEX_DATA_PATH_SETTING,
+        IndexMetaData.INDEX_CREATION_DATE_SETTING,
         SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_DEBUG_SETTING,
         SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_WARN_SETTING,
         SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_INFO_SETTING,
@@ -133,8 +128,22 @@ public final class IndexScopeSettings extends AbstractScopedSettings {
         UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING,
         EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING,
         EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING,
-        IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTTING
+        IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTTING,
+        IndexFieldDataService.INDEX_FIELDDATA_CACHE_KEY,
+        FieldMapper.IGNORE_MALFORMED_SETTING,
+        FieldMapper.COERCE_SETTING,
+        Setting.groupSetting("index.analysis.", false, Setting.Scope.INDEX) // this sucks but we can't really validate all the analyzers
     )));
+
+    public static final IndexScopeSettings DEFAULT_SCOPED_SETTINGS = new IndexScopeSettings(Settings.EMPTY, IndexScopeSettings.BUILT_IN_INDEX_SETTINGS);
+
+    public IndexScopeSettings(Settings settings, Set<Setting<?>> settingsSet) {
+        super(settings, settingsSet, Setting.Scope.INDEX);
+    }
+
+    private IndexScopeSettings(Settings settings, IndexScopeSettings other, IndexMetaData metaData) {
+        super(settings, metaData.getSettings(), other);
+    }
 
     public IndexScopeSettings copy(Settings settings, IndexMetaData metaData) {
         return new IndexScopeSettings(settings, this, metaData);

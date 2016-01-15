@@ -1540,7 +1540,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         // Update settings to back to normal
         assertAcked(client.admin().indices().prepareUpdateSettings("test-idx").setSettings(Settings.builder()
-                        .put(IndexStore.INDEX_STORE_THROTTLE_TYPE_SETTING.getKey(), "node")
+                        .put(IndexStore.INDEX_STORE_THROTTLE_TYPE_SETTING.getKey(), "none")
         ));
 
         logger.info("--> wait for snapshot to complete");

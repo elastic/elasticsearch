@@ -21,6 +21,7 @@ package org.elasticsearch.common.settings;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.set.Sets;
 
 import java.util.ArrayList;
@@ -179,6 +180,18 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
     }
 
     /**
+     * Validates that the setting is valid
+     */
+    public final void validate(String key, String value) {
+        Settings.Builder builder = Settings.builder().put(key, value);
+        Setting setting = get(key);
+        if (setting == null) {
+            throw new IllegalArgumentException("unknown setting [" + key + "]");
+        }
+        setting.get(builder.build());
+    }
+
+    /**
      * Transactional interface to update settings.
      * @see Setting
      */
@@ -281,6 +294,46 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
             throw new IllegalArgumentException("setting " + setting.getKey() + " has not been registered");
         }
         return setting.get(this.lastSettingsApplied);
+    }
+
+    public boolean applyDynamicSettings(Settings toApply, Settings.Builder target, Settings.Builder updates, String type) {
+        boolean changed = false;
+        final Set<String> toRemove = new HashSet<>();
+        Settings.Builder settingsBuilder = Settings.settingsBuilder();
+        for (Map.Entry<String, String> entry : toApply.getAsMap().entrySet()) {
+            if (entry.getValue() == null) {
+                toRemove.add(entry.getKey());
+            } else if (hasDynamicSetting(entry.getKey())) {
+                validate(entry.getKey(), entry.getValue());
+                settingsBuilder.put(entry.getKey(), entry.getValue());
+                updates.put(entry.getKey(), entry.getValue());
+                changed = true;
+            } else {
+                throw new IllegalArgumentException(type + " setting [" + entry.getKey() + "], not dynamically updateable");
+            }
+
+        }
+        changed |= applyDeletes(toRemove, target);
+        target.put(settingsBuilder.build());
+        return changed;
+    }
+
+    private static final boolean applyDeletes(Set<String> deletes, Settings.Builder builder) {
+        boolean changed = false;
+        for (String entry : deletes) {
+            Set<String> keysToRemove = new HashSet<>();
+            Set<String> keySet = builder.internalMap().keySet();
+            for (String key : keySet) {
+                if (Regex.simpleMatch(entry, key)) {
+                    keysToRemove.add(key);
+                }
+            }
+            for (String key : keysToRemove) {
+                builder.remove(key);
+                changed = true;
+            }
+        }
+        return changed;
     }
 
 }

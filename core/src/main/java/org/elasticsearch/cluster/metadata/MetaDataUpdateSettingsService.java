@@ -34,15 +34,14 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.cluster.settings.DynamicSettings;
-import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.IndexScopeSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.index.settings.IndexDynamicSettings;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -63,18 +62,17 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
 
     private final AllocationService allocationService;
 
-    private final DynamicSettings dynamicSettings;
-
     private final IndexNameExpressionResolver indexNameExpressionResolver;
+    private final IndexScopeSettings indexScopeSettings;
 
     @Inject
-    public MetaDataUpdateSettingsService(Settings settings, ClusterService clusterService, AllocationService allocationService, @IndexDynamicSettings DynamicSettings dynamicSettings, IndexNameExpressionResolver indexNameExpressionResolver) {
+    public MetaDataUpdateSettingsService(Settings settings, ClusterService clusterService, AllocationService allocationService, IndexScopeSettings indexScopeSettings, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings);
         this.clusterService = clusterService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.clusterService.add(this);
         this.allocationService = allocationService;
-        this.dynamicSettings = dynamicSettings;
+        this.indexScopeSettings = indexScopeSettings;
     }
 
     @Override
@@ -147,40 +145,32 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
     public void updateSettings(final UpdateSettingsClusterStateUpdateRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
         Settings.Builder updatedSettingsBuilder = Settings.settingsBuilder();
         updatedSettingsBuilder.put(request.settings()).normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX);
+        Settings.Builder settingsForClosedIndices = Settings.builder();
+        Settings.Builder settingsForOpenIndices = Settings.builder();
+        Settings.Builder skipppedSettings = Settings.builder();
+
+
         // never allow to change the number of shards
-        for (String key : updatedSettingsBuilder.internalMap().keySet()) {
-            if (key.equals(IndexMetaData.SETTING_NUMBER_OF_SHARDS)) {
+        for (Map.Entry<String, String> entry : updatedSettingsBuilder.internalMap().entrySet()) {
+            if (entry.getKey().equals(IndexMetaData.SETTING_NUMBER_OF_SHARDS)) {
                 listener.onFailure(new IllegalArgumentException("can't change the number of shards for an index"));
                 return;
             }
-        }
-
-        final Settings closeSettings = updatedSettingsBuilder.build();
-
-        final Set<String> removedSettings = new HashSet<>();
-        final Set<String> errors = new HashSet<>();
-        for (Map.Entry<String, String> setting : updatedSettingsBuilder.internalMap().entrySet()) {
-            if (!dynamicSettings.hasDynamicSetting(setting.getKey())) {
-                removedSettings.add(setting.getKey());
+            Setting setting = indexScopeSettings.get(entry.getKey());
+            if (setting == null) {
+                throw new IllegalArgumentException("setting [" + entry.getKey() + "] is unknown");
+            }
+            indexScopeSettings.validate(entry.getKey(), entry.getValue());
+            settingsForClosedIndices.put(entry.getKey(), entry.getValue());
+            if (setting.isDynamic()) {
+                settingsForOpenIndices.put(entry.getKey(), entry.getValue());
             } else {
-                String error = dynamicSettings.validateDynamicSetting(setting.getKey(), setting.getValue(), clusterService.state());
-                if (error != null) {
-                    errors.add("[" + setting.getKey() + "] - " + error);
-                }
+                skipppedSettings.put(entry.getKey(), entry.getValue());
             }
         }
-
-        if (!errors.isEmpty()) {
-            listener.onFailure(new IllegalArgumentException("can't process the settings: " + errors.toString()));
-            return;
-        }
-
-        if (!removedSettings.isEmpty()) {
-            for (String removedSetting : removedSettings) {
-                updatedSettingsBuilder.remove(removedSetting);
-            }
-        }
-        final Settings openSettings = updatedSettingsBuilder.build();
+        final Settings skippedSettigns = skipppedSettings.build();
+        final Settings closedSettings = settingsForClosedIndices.build();
+        final Settings openSettings = settingsForOpenIndices.build();
 
         clusterService.submitStateUpdateTask("update-settings",
                 new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(Priority.URGENT, request, listener) {
@@ -208,16 +198,16 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                     }
                 }
 
-                if (closeIndices.size() > 0 && closeSettings.get(IndexMetaData.SETTING_NUMBER_OF_REPLICAS) != null) {
+                if (closeIndices.size() > 0 && closedSettings.get(IndexMetaData.SETTING_NUMBER_OF_REPLICAS) != null) {
                     throw new IllegalArgumentException(String.format(Locale.ROOT,
                             "Can't update [%s] on closed indices [%s] - can leave index in an unopenable state", IndexMetaData.SETTING_NUMBER_OF_REPLICAS,
                             closeIndices
                     ));
                 }
-                if (!removedSettings.isEmpty() && !openIndices.isEmpty()) {
+                if (!skippedSettigns.getAsMap().isEmpty() && !openIndices.isEmpty()) {
                     throw new IllegalArgumentException(String.format(Locale.ROOT,
                             "Can't update non dynamic settings[%s] for open indices [%s]",
-                            removedSettings,
+                            skippedSettigns.getAsMap().keySet(),
                             openIndices
                     ));
                 }
@@ -272,7 +262,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
 
                 if (!closeIndices.isEmpty()) {
                     String[] indices = closeIndices.toArray(new String[closeIndices.size()]);
-                    metaDataBuilder.updateSettings(closeSettings, indices);
+                    metaDataBuilder.updateSettings(closedSettings, indices);
                 }
 
 
@@ -281,11 +271,17 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                 // now, reroute in case things change that require it (like number of replicas)
                 RoutingAllocation.Result routingResult = allocationService.reroute(updatedState, "settings update");
                 updatedState = ClusterState.builder(updatedState).routingResult(routingResult).build();
-
+                for (String index : openIndices) {
+                    indexScopeSettings.dryRun(updatedState.metaData().index(index).getSettings());
+                }
+                for (String index : closeIndices) {
+                    indexScopeSettings.dryRun(updatedState.metaData().index(index).getSettings());
+                }
                 return updatedState;
             }
         });
     }
+
 
     public void upgradeIndexSettings(final UpgradeSettingsClusterStateUpdateRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
 

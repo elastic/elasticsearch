@@ -112,41 +112,27 @@ public class CreateIndexIT extends ESIntegTestCase {
     }
 
     public void testInvalidShardCountSettings() throws Exception {
+        int value = randomIntBetween(-10, 0);
         try {
             prepareCreate("test").setSettings(Settings.builder()
-                    .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, randomIntBetween(-10, 0))
+                    .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, value)
                     .build())
             .get();
             fail("should have thrown an exception about the primary shard count");
         } catch (IllegalArgumentException e) {
-            assertThat("message contains error about shard count: " + e.getMessage(),
-                    e.getMessage().contains("index must have 1 or more primary shards"), equalTo(true));
+            assertEquals("Failed to parse value [" + value + "] for setting [index.number_of_shards] must be >= 1", e.getMessage());
         }
-
+        value = randomIntBetween(-10, -1);
         try {
             prepareCreate("test").setSettings(Settings.builder()
-                    .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(-10, -1))
+                    .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, value)
                     .build())
                     .get();
             fail("should have thrown an exception about the replica shard count");
         } catch (IllegalArgumentException e) {
-            assertThat("message contains error about shard count: " + e.getMessage(),
-                    e.getMessage().contains("index must have 0 or more replica shards"), equalTo(true));
+            assertEquals("Failed to parse value [" + value + "] for setting [index.number_of_replicas] must be >= 0", e.getMessage());
         }
 
-        try {
-            prepareCreate("test").setSettings(Settings.builder()
-                    .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, randomIntBetween(-10, 0))
-                    .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(-10, -1))
-                    .build())
-                    .get();
-            fail("should have thrown an exception about the shard count");
-        } catch (IllegalArgumentException e) {
-            assertThat("message contains error about shard count: " + e.getMessage(),
-                    e.getMessage().contains("index must have 1 or more primary shards"), equalTo(true));
-            assertThat("message contains error about shard count: " + e.getMessage(),
-                    e.getMessage().contains("index must have 0 or more replica shards"), equalTo(true));
-        }
     }
 
     public void testCreateIndexWithBlocks() {
@@ -164,39 +150,38 @@ public class CreateIndexIT extends ESIntegTestCase {
         disableIndexBlock("test", IndexMetaData.SETTING_BLOCKS_METADATA);
     }
 
+    public void testUnknownSettingFails() {
+        try {
+            prepareCreate("test").setSettings(Settings.builder()
+                .put("index.unknown.value", "this must fail")
+                .build())
+                .get();
+            fail("should have thrown an exception about the shard count");
+        } catch (IllegalArgumentException e) {
+            assertEquals("unknown setting [index.unknown.value]", e.getMessage());
+        }
+    }
+
     public void testInvalidShardCountSettingsWithoutPrefix() throws Exception {
+        int value = randomIntBetween(-10, 0);
         try {
             prepareCreate("test").setSettings(Settings.builder()
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS.substring(IndexMetaData.INDEX_SETTING_PREFIX.length()), randomIntBetween(-10, 0))
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS.substring(IndexMetaData.INDEX_SETTING_PREFIX.length()), value)
                 .build())
                 .get();
             fail("should have thrown an exception about the shard count");
         } catch (IllegalArgumentException e) {
-            assertThat("message contains error about shard count: " + e.getMessage(),
-                e.getMessage().contains("index must have 1 or more primary shards"), equalTo(true));
+            assertEquals("Failed to parse value [" + value + "] for setting [index.number_of_shards] must be >= 1", e.getMessage());
         }
+        value = randomIntBetween(-10, -1);
         try {
             prepareCreate("test").setSettings(Settings.builder()
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS.substring(IndexMetaData.INDEX_SETTING_PREFIX.length()), randomIntBetween(-10, -1))
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS.substring(IndexMetaData.INDEX_SETTING_PREFIX.length()), value)
                 .build())
                 .get();
             fail("should have thrown an exception about the shard count");
         } catch (IllegalArgumentException e) {
-            assertThat("message contains error about shard count: " + e.getMessage(),
-                e.getMessage().contains("index must have 0 or more replica shards"), equalTo(true));
-        }
-        try {
-            prepareCreate("test").setSettings(Settings.builder()
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS.substring(IndexMetaData.INDEX_SETTING_PREFIX.length()), randomIntBetween(-10, 0))
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS.substring(IndexMetaData.INDEX_SETTING_PREFIX.length()), randomIntBetween(-10, -1))
-                .build())
-                .get();
-            fail("should have thrown an exception about the shard count");
-        } catch (IllegalArgumentException e) {
-            assertThat("message contains error about shard count: " + e.getMessage(),
-                e.getMessage().contains("index must have 1 or more primary shards"), equalTo(true));
-            assertThat("message contains error about shard count: " + e.getMessage(),
-                e.getMessage().contains("index must have 0 or more replica shards"), equalTo(true));
+            assertEquals("Failed to parse value [" + value + "] for setting [index.number_of_replicas] must be >= 0", e.getMessage());
         }
     }
 

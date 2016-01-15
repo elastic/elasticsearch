@@ -49,12 +49,15 @@ import org.elasticsearch.index.mapper.geo.GeoPointFieldMapperLegacy;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.InternalSettingsPluging;
 import org.elasticsearch.test.VersionUtils;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.Collection;
 
 import static org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import static org.hamcrest.Matchers.equalTo;
@@ -82,6 +85,11 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
 
     public <IFD extends IndexFieldData<?>> IFD getForField(FieldDataType type, String fieldName) {
         return getForField(type, fieldName, hasDocValues());
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return pluginList(InternalSettingsPluging.class);
     }
 
     public <IFD extends IndexFieldData<?>> IFD getForField(FieldDataType type, String fieldName, boolean docValues) {

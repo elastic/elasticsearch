@@ -463,7 +463,7 @@ public final class InternalTestCluster extends TestCluster {
         }
 
         // always default delayed allocation to 0 to make sure we have tests are not delayed
-        builder.put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING, 0);
+        builder.put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), 0);
 
         return builder.build();
     }

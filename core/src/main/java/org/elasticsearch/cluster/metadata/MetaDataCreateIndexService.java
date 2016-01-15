@@ -177,6 +177,9 @@ public class MetaDataCreateIndexService extends AbstractComponent {
     public void createIndex(final CreateIndexClusterStateUpdateRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
         Settings.Builder updatedSettingsBuilder = Settings.settingsBuilder();
         updatedSettingsBuilder.put(request.settings()).normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX);
+        for (Map.Entry<String, String> entry : updatedSettingsBuilder.internalMap().entrySet()) {
+            indexScopeSettings.validate(entry.getKey(), entry.getValue());
+        }
         request.settings(updatedSettingsBuilder.build());
 
         clusterService.submitStateUpdateTask("create-index [" + request.index() + "], cause [" + request.cause() + "]",
@@ -473,7 +476,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                 validationErrors.add("custom path [" + customPath + "] is not a sub-path of path.shared_data [" + env.sharedDataFile() + "]");
             }
         }
-        //nocommit - this can be removed?
+        //norelease - this can be removed?
         Integer number_of_primaries = settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_SHARDS, null);
         Integer number_of_replicas = settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, null);
         if (number_of_primaries != null && number_of_primaries <= 0) {

@@ -84,6 +84,11 @@ public final class ClusterSettings extends AbstractScopedSettings {
         return settings;
     }
 
+    @Override
+    public boolean hasDynamicSetting(String key) {
+        return isLoggerSetting(key) || super.hasDynamicSetting(key);
+    }
+
     /**
      * Returns <code>true</code> if the settings is a logger setting.
      */

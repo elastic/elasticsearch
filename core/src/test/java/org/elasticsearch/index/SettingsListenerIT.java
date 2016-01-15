@@ -18,20 +18,17 @@
  */
 package org.elasticsearch.index;
 
-import org.elasticsearch.cluster.ClusterModule;
-import org.elasticsearch.cluster.settings.Validator;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Set;
-import java.util.function.Consumer;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -46,7 +43,7 @@ public class SettingsListenerIT extends ESIntegTestCase {
 
     public static class SettingsListenerPlugin extends Plugin {
         private final SettingsTestingService service = new SettingsTestingService();
-
+        private static final Setting<Integer> SETTING = Setting.intSetting("index.test.new.setting", 0, true, Setting.Scope.INDEX);
         /**
          * The name of the plugin.
          */
@@ -63,8 +60,8 @@ public class SettingsListenerIT extends ESIntegTestCase {
             return "Settings Listenern Plugin";
         }
 
-        public void onModule(ClusterModule clusterModule) {
-            clusterModule.registerIndexDynamicSetting("index.test.new.setting", Validator.INTEGER);
+        public void onModule(SettingsModule settingsModule) {
+            settingsModule.registerSetting(SettingsTestingService.VALUE);
         }
 
         @Override
@@ -96,7 +93,7 @@ public class SettingsListenerIT extends ESIntegTestCase {
 
     public static class SettingsTestingService {
         public volatile int value;
-        public static Setting<Integer> VALUE = Setting.intSetting("index.test.new.setting", -1, true, Setting.Scope.INDEX);
+        public static Setting<Integer> VALUE = Setting.intSetting("index.test.new.setting", -1, -1, true, Setting.Scope.INDEX);
 
         public void setValue(int value) {
             this.value = value;
@@ -132,6 +129,14 @@ public class SettingsListenerIT extends ESIntegTestCase {
 
         for (SettingsTestingService instance : internalCluster().getInstances(SettingsTestingService.class)) {
             assertEquals(42, instance.value);
+        }
+
+        try {
+            client().admin().indices().prepareUpdateSettings("other").setSettings(Settings.builder()
+                .put("index.test.new.setting", -5)).get();
+            fail();
+        } catch (IllegalArgumentException ex) {
+            assertEquals("Failed to parse value [-5] for setting [index.test.new.setting] must be >= -1", ex.getMessage());
         }
     }
 }

@@ -22,6 +22,7 @@ import org.apache.lucene.index.AssertingDirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.engine.MockEngineFactory;
 import org.elasticsearch.test.engine.MockEngineSupport;
@@ -42,12 +43,13 @@ public class MockEngineFactoryPlugin extends Plugin {
 
     private Class<? extends FilterDirectoryReader> readerWrapper = AssertingDirectoryReader.class;
 
-
+    public void onModule(SettingsModule module) {
+        module.registerSetting(MockEngineSupport.DISABLE_FLUSH_ON_CLOSE);
+        module.registerSetting(MockEngineSupport.WRAP_READER_RATIO);
+    }
 
     @Override
     public void onIndexModule(IndexModule module) {
-        module.addSetting(MockEngineSupport.DISABLE_FLUSH_ON_CLOSE);
-        module.addSetting(MockEngineSupport.WRAP_READER_RATIO);
         module.engineFactory.set(new MockEngineFactory(readerWrapper));
     }
 

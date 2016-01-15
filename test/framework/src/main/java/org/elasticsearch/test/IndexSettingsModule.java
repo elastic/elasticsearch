@@ -21,11 +21,17 @@ package org.elasticsearch.test;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.IndexScopeSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
 
 public class IndexSettingsModule extends AbstractModule {
 
@@ -43,17 +49,21 @@ public class IndexSettingsModule extends AbstractModule {
         bind(IndexSettings.class).toInstance(newIndexSettings(index, settings));
     }
 
-    public static IndexSettings newIndexSettings(String index, Settings settings) {
-        return newIndexSettings(new Index(index), settings);
+    public static IndexSettings newIndexSettings(String index, Settings settings, Setting<?>... setting) {
+        return newIndexSettings(new Index(index), settings, setting);
     }
 
-    public static IndexSettings newIndexSettings(Index index, Settings settings) {
+    public static IndexSettings newIndexSettings(Index index, Settings settings, Setting<?>... setting) {
         Settings build = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(settings)
-                .build();
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(settings)
+            .build();
         IndexMetaData metaData = IndexMetaData.builder(index.getName()).settings(build).build();
-        return new IndexSettings(metaData, Settings.EMPTY);
+        Set<Setting<?>> settingSet = new HashSet<>(IndexScopeSettings.BUILT_IN_INDEX_SETTINGS);
+        if (setting.length > 0) {
+            settingSet.addAll(Arrays.asList(setting));
+        }
+        return new IndexSettings(metaData, Settings.EMPTY, (idx) -> Regex.simpleMatch(idx, metaData.getIndex()), new IndexScopeSettings(Settings.EMPTY, settingSet));
     }
 }

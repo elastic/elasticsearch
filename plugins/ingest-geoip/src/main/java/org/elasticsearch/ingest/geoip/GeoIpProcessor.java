@@ -37,24 +37,17 @@ import org.elasticsearch.ingest.core.Processor;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.io.InputStream;
 import java.net.InetAddress;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.PathMatcher;
-import java.nio.file.StandardOpenOption;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.ingest.core.ConfigurationUtils.readOptionalList;
 import static org.elasticsearch.ingest.core.ConfigurationUtils.readStringProperty;
@@ -230,31 +223,8 @@ public final class GeoIpProcessor implements Processor {
 
         private final Map<String, DatabaseReader> databaseReaders;
 
-        public Factory(Path configDirectory) {
-
-            // TODO(simonw): same as fro grok we should load this outside of the factory in a static method and hass the map to the ctor
-            Path geoIpConfigDirectory = configDirectory.resolve("ingest-geoip");
-            if (Files.exists(geoIpConfigDirectory) == false && Files.isDirectory(geoIpConfigDirectory)) {
-                throw new IllegalStateException("the geoip directory [" + geoIpConfigDirectory  + "] containing databases doesn't exist");
-            }
-
-            try (Stream<Path> databaseFiles = Files.list(geoIpConfigDirectory)) {
-                Map<String, DatabaseReader> databaseReaders = new HashMap<>();
-                PathMatcher pathMatcher = geoIpConfigDirectory.getFileSystem().getPathMatcher("glob:**.mmdb");
-                // Use iterator instead of forEach otherwise IOException needs to be caught twice...
-                Iterator<Path> iterator = databaseFiles.iterator();
-                while (iterator.hasNext()) {
-                    Path databasePath = iterator.next();
-                    if (Files.isRegularFile(databasePath) && pathMatcher.matches(databasePath)) {
-                        try (InputStream inputStream = Files.newInputStream(databasePath, StandardOpenOption.READ)) {
-                            databaseReaders.put(databasePath.getFileName().toString(), new DatabaseReader.Builder(inputStream).build());
-                        }
-                    }
-                }
-                this.databaseReaders = Collections.unmodifiableMap(databaseReaders);
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
+        public Factory(Map<String, DatabaseReader> databaseReaders) {
+            this.databaseReaders = databaseReaders;
         }
 
         public GeoIpProcessor create(Map<String, Object> config) throws Exception {

@@ -56,7 +56,7 @@ public class IngestGrokPlugin extends Plugin {
     }
 
     public void onModule(NodeModule nodeModule) {
-        nodeModule.registerProcessor(GrokProcessor.TYPE, (environment, templateService) -> new GrokProcessor.Factory(builtinPatterns));
+        nodeModule.registerProcessor(GrokProcessor.TYPE, (templateService) -> new GrokProcessor.Factory(builtinPatterns));
     }
 
     static Map<String, String> loadBuiltinPatterns() throws IOException {

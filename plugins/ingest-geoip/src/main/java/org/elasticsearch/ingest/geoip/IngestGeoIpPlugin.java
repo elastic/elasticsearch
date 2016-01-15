@@ -50,7 +50,7 @@ public class IngestGeoIpPlugin extends Plugin {
     public void onModule(NodeModule nodeModule) throws IOException {
         Path geoIpConfigDirectory = nodeModule.getNode().getEnvironment().configFile().resolve("ingest-geoip");
         Map<String, DatabaseReader> databaseReaders = loadDatabaseReaders(geoIpConfigDirectory);
-        nodeModule.registerProcessor(GeoIpProcessor.TYPE, (environment, templateService) -> new GeoIpProcessor.Factory(databaseReaders));
+        nodeModule.registerProcessor(GeoIpProcessor.TYPE, (templateService) -> new GeoIpProcessor.Factory(databaseReaders));
     }
 
     static Map<String, DatabaseReader> loadDatabaseReaders(Path geoIpConfigDirectory) throws IOException {

@@ -21,6 +21,8 @@ package org.elasticsearch.ingest;
 
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ingest.DeletePipelineRequest;
+import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.ingest.WritePipelineResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -32,9 +34,6 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.action.ingest.DeletePipelineRequest;
-import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.ingest.core.Pipeline;
 import org.elasticsearch.ingest.core.Processor;
 import org.elasticsearch.ingest.core.TemplateService;
@@ -47,7 +46,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.BiFunction;
+import java.util.function.Function;
 
 public class PipelineStore extends AbstractComponent implements Closeable, ClusterStateListener {
 
@@ -67,11 +66,11 @@ public class PipelineStore extends AbstractComponent implements Closeable, Clust
         clusterService.add(this);
     }
 
-    public void buildProcessorFactoryRegistry(ProcessorsRegistry processorsRegistry, Environment environment, ScriptService scriptService) {
+    public void buildProcessorFactoryRegistry(ProcessorsRegistry processorsRegistry, ScriptService scriptService) {
         Map<String, Processor.Factory> processorFactories = new HashMap<>();
         TemplateService templateService = new InternalTemplateService(scriptService);
-        for (Map.Entry<String, BiFunction<Environment, TemplateService, Processor.Factory<?>>> entry : processorsRegistry.entrySet()) {
-            Processor.Factory processorFactory = entry.getValue().apply(environment, templateService);
+        for (Map.Entry<String, Function<TemplateService, Processor.Factory<?>>> entry : processorsRegistry.entrySet()) {
+            Processor.Factory processorFactory = entry.getValue().apply(templateService);
             processorFactories.put(entry.getKey(), processorFactory);
         }
         this.processorFactoryRegistry = Collections.unmodifiableMap(processorFactories);

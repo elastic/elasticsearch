@@ -19,14 +19,13 @@
 
 package org.elasticsearch.ingest;
 
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.ingest.core.Processor;
 import org.elasticsearch.ingest.core.TemplateService;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Map;
 import java.util.Set;
-import java.util.function.BiFunction;
+import java.util.function.Function;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
@@ -35,24 +34,24 @@ public class ProcessorsRegistryTests extends ESTestCase {
     public void testAddProcessor() {
         ProcessorsRegistry processorsRegistry = new ProcessorsRegistry();
         TestProcessor.Factory factory1 = new TestProcessor.Factory();
-        processorsRegistry.registerProcessor("1", (environment, templateService) -> factory1);
+        processorsRegistry.registerProcessor("1", (templateService) -> factory1);
         TestProcessor.Factory factory2 = new TestProcessor.Factory();
-        processorsRegistry.registerProcessor("2", (environment, templateService) -> factory2);
+        processorsRegistry.registerProcessor("2", (templateService) -> factory2);
         TestProcessor.Factory factory3 = new TestProcessor.Factory();
         try {
-            processorsRegistry.registerProcessor("1", (environment, templateService) -> factory3);
+            processorsRegistry.registerProcessor("1", (templateService) -> factory3);
             fail("addProcessor should have failed");
         } catch(IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("Processor factory already registered for name [1]"));
         }
 
-        Set<Map.Entry<String, BiFunction<Environment, TemplateService, Processor.Factory<?>>>> entrySet = processorsRegistry.entrySet();
+        Set<Map.Entry<String, Function<TemplateService, Processor.Factory<?>>>> entrySet = processorsRegistry.entrySet();
         assertThat(entrySet.size(), equalTo(2));
-        for (Map.Entry<String, BiFunction<Environment, TemplateService, Processor.Factory<?>>> entry : entrySet) {
+        for (Map.Entry<String, Function<TemplateService, Processor.Factory<?>>> entry : entrySet) {
             if (entry.getKey().equals("1")) {
-                assertThat(entry.getValue().apply(null, null), equalTo(factory1));
+                assertThat(entry.getValue().apply(null), equalTo(factory1));
             } else if (entry.getKey().equals("2")) {
-                assertThat(entry.getValue().apply(null, null), equalTo(factory2));
+                assertThat(entry.getValue().apply(null), equalTo(factory2));
             } else {
                 fail("unexpected processor id [" + entry.getKey() + "]");
             }

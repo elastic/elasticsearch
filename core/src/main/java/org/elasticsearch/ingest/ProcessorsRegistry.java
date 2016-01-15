@@ -19,30 +19,29 @@
 
 package org.elasticsearch.ingest;
 
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.ingest.core.Processor;
 import org.elasticsearch.ingest.core.TemplateService;
 
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.BiFunction;
+import java.util.function.Function;
 
 public class ProcessorsRegistry {
 
-    private final Map<String, BiFunction<Environment, TemplateService, Processor.Factory<?>>> processorFactoryProviders = new HashMap<>();
+    private final Map<String, Function<TemplateService, Processor.Factory<?>>> processorFactoryProviders = new HashMap<>();
 
     /**
      * Adds a processor factory under a specific name.
      */
-    public void registerProcessor(String name, BiFunction<Environment, TemplateService, Processor.Factory<?>> processorFactoryProvider) {
-        BiFunction<Environment, TemplateService, Processor.Factory<?>> provider = processorFactoryProviders.putIfAbsent(name, processorFactoryProvider);
+    public void registerProcessor(String name, Function<TemplateService, Processor.Factory<?>> processorFactoryProvider) {
+        Function<TemplateService, Processor.Factory<?>> provider = processorFactoryProviders.putIfAbsent(name, processorFactoryProvider);
         if (provider != null) {
             throw new IllegalArgumentException("Processor factory already registered for name [" + name + "]");
         }
     }
 
-    public Set<Map.Entry<String, BiFunction<Environment, TemplateService, Processor.Factory<?>>>> entrySet() {
+    public Set<Map.Entry<String, Function<TemplateService, Processor.Factory<?>>>> entrySet() {
         return processorFactoryProviders.entrySet();
     }
 }

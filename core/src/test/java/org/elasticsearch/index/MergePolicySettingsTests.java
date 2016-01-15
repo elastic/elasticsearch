@@ -114,8 +114,7 @@ public class MergePolicySettingsTests extends ESTestCase {
 
         mp.onRefreshSettings(EMPTY_SETTINGS); // update without the settings and see if we stick to the values
         indexSettings.updateIndexMetaData(newIndexMeta("index", EMPTY_SETTINGS));
-        // this will fail because we now reset each setting which is not passed with the sttings update. are we sure this is the desired behavior?
-        assertEquals(((TieredMergePolicy) indexSettings.getMergePolicy()).getForceMergeDeletesPctAllowed(), MergePolicyConfig.DEFAULT_EXPUNGE_DELETES_ALLOWED + 1.0d, 0.0d);
+        assertEquals(((TieredMergePolicy) indexSettings.getMergePolicy()).getForceMergeDeletesPctAllowed(), MergePolicyConfig.DEFAULT_EXPUNGE_DELETES_ALLOWED, 0.0d);
         assertEquals(((TieredMergePolicy) mp.getMergePolicy()).getFloorSegmentMB(), new ByteSizeValue(MergePolicyConfig.DEFAULT_FLOOR_SEGMENT.mb() + 1, ByteSizeUnit.MB).mbFrac(), 0.001);
         assertEquals(((TieredMergePolicy) mp.getMergePolicy()).getMaxMergeAtOnce(), MergePolicyConfig.DEFAULT_MAX_MERGE_AT_ONCE-1);
         assertEquals(((TieredMergePolicy) mp.getMergePolicy()).getMaxMergeAtOnceExplicit(), MergePolicyConfig.DEFAULT_MAX_MERGE_AT_ONCE_EXPLICIT-1);

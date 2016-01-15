@@ -165,6 +165,7 @@ public final class IndexSettings {
         MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_EXPLICIT_SETTING,
         MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGED_SEGMENT_SETTING,
         MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING,
+        MergePolicyConfig.INDEX_MERGE_POLICY_RECLAIM_DELETES_WEIGHT_SETTING,
         IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING,
         IndexSettings.INDEX_WARMER_ENABLED_SETTING,
         IndexSettings.INDEX_REFRESH_INTERVAL_SETTING,
@@ -417,14 +418,7 @@ public final class IndexSettings {
             return false;
         }
         scopedSettings.applySettings(newSettings);
-
-        // nocommit
-        final Settings mergedSettings = this.settings = Settings.builder().put(nodeSettings).put(newSettings).build();
-        try {
-            updateSettings(mergedSettings);
-        } catch (Exception e) {
-            logger.warn("failed to refresh index settings for [{}]", e, mergedSettings);
-        }
+        this.settings = Settings.builder().put(nodeSettings).put(newSettings).build();
         return true;
     }
 
@@ -448,10 +442,6 @@ public final class IndexSettings {
 
     private void setEnableWarmer(boolean enableWarmer) {
         this.warmerEnabled = enableWarmer;
-    }
-
-    private void updateSettings(Settings settings) {
-        mergePolicyConfig.onRefreshSettings(settings);
     }
 
     /**

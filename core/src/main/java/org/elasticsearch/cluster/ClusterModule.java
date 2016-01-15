@@ -108,18 +108,11 @@ public class ClusterModule extends AbstractModule {
 
     public ClusterModule(Settings settings) {
         this.settings = settings;
-
-        registerBuiltinIndexSettings();
-
         for (Class<? extends AllocationDecider> decider : ClusterModule.DEFAULT_ALLOCATION_DECIDERS) {
             registerAllocationDecider(decider);
         }
         registerShardsAllocator(ClusterModule.BALANCED_ALLOCATOR, BalancedShardsAllocator.class);
         registerShardsAllocator(ClusterModule.EVEN_SHARD_COUNT_ALLOCATOR, BalancedShardsAllocator.class);
-    }
-
-    private void registerBuiltinIndexSettings() {
-        registerIndexDynamicSetting(MergePolicyConfig.INDEX_MERGE_POLICY_RECLAIM_DELETES_WEIGHT, Validator.NON_NEGATIVE_DOUBLE);
     }
 
     public void registerIndexDynamicSetting(String setting, Validator validator) {

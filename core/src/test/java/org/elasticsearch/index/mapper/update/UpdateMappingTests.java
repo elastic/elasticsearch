@@ -30,9 +30,12 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.core.LongFieldMapper;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.InternalSettingsPluging;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.LinkedHashMap;
 
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
@@ -41,6 +44,11 @@ import static org.hamcrest.CoreMatchers.equalTo;
 
 
 public class UpdateMappingTests extends ESSingleNodeTestCase {
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return pluginList(InternalSettingsPluging.class);
+    }
+
     public void testAllEnabledAfterDisabled() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("_all").field("enabled", false).endObject().endObject();
         XContentBuilder mappingUpdate = XContentFactory.jsonBuilder().startObject().startObject("_all").field("enabled", true).endObject().startObject("properties").startObject("text").field("type", "string").endObject().endObject().endObject();

@@ -186,10 +186,9 @@ public class IndexModuleTests extends ESTestCase {
 
 
     public void testListener() throws IOException {
-        IndexModule module = new IndexModule(indexSettings, null, new AnalysisRegistry(null, environment));
         Setting<Boolean> booleanSetting = Setting.boolSetting("foo.bar", false, true, Setting.Scope.INDEX);
+        IndexModule module = new IndexModule(IndexSettingsModule.newIndexSettings(index, settings, booleanSetting), null, new AnalysisRegistry(null, environment));
         Setting<Boolean> booleanSetting2 = Setting.boolSetting("foo.bar.baz", false, true, Setting.Scope.INDEX);
-        IndexSettingsModule.newIndexSettings(index, settings, booleanSetting);
         AtomicBoolean atomicBoolean = new AtomicBoolean(false);
         module.addSettingsUpdateConsumer(booleanSetting, atomicBoolean::set);
 
@@ -201,7 +200,7 @@ public class IndexModuleTests extends ESTestCase {
         }
 
         IndexService indexService = module.newIndexService(nodeEnvironment, deleter, nodeServicesProvider, mapperRegistry);
-        assertSame(booleanSetting, indexService.getIndexSettings().getScopedSettings().get(booleanSetting));
+        assertSame(booleanSetting, indexService.getIndexSettings().getScopedSettings().get(booleanSetting.getKey()));
 
         indexService.close("simon says", false);
     }

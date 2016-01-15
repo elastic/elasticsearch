@@ -28,15 +28,23 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.InternalSettingsPluging;
 import org.elasticsearch.test.VersionUtils;
 import org.junit.Assert;
 
 import java.io.IOException;
+import java.util.Collection;
 
 import static org.hamcrest.Matchers.containsString;
 
 public class CodecTests extends ESSingleNodeTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return pluginList(InternalSettingsPluging.class);
+    }
 
     public void testAcceptPostingsFormat() throws IOException {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")

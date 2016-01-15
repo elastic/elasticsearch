@@ -68,12 +68,6 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         assertTrue("shadow replicas for replica shards with shadow settings",IndexService.useShadowEngine(false, shadowSettings));
     }
 
-    public IndexService newIndexService() {
-        Settings settings = Settings.builder().put("name", "indexServiceTests").build();
-        return createIndex("test", settings);
-    }
-
-
     public static CompressedXContent filter(QueryBuilder filterBuilder) throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder();
         filterBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -82,7 +76,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testFilteringAliases() throws Exception {
-        IndexService indexService = newIndexService();
+        IndexService indexService = createIndex("test", Settings.EMPTY);
         IndexShard shard = indexService.getShard(0);
         add(indexService, "cats", filter(termQuery("animal", "cat")));
         add(indexService, "dogs", filter(termQuery("animal", "dog")));
@@ -106,7 +100,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testAliasFilters() throws Exception {
-        IndexService indexService = newIndexService();
+        IndexService indexService = createIndex("test", Settings.EMPTY);
         IndexShard shard = indexService.getShard(0);
 
         add(indexService, "cats", filter(termQuery("animal", "cat")));
@@ -123,7 +117,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testRemovedAliasFilter() throws Exception {
-        IndexService indexService = newIndexService();
+        IndexService indexService = createIndex("test", Settings.EMPTY);
         IndexShard shard = indexService.getShard(0);
 
         add(indexService, "cats", filter(termQuery("animal", "cat")));
@@ -137,7 +131,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testUnknownAliasFilter() throws Exception {
-        IndexService indexService = newIndexService();
+        IndexService indexService = createIndex("test", Settings.EMPTY);
         IndexShard shard = indexService.getShard(0);
 
         add(indexService, "cats", filter(termQuery("animal", "cat")));
@@ -162,7 +156,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testBaseAsyncTask() throws InterruptedException, IOException {
-        IndexService indexService = newIndexService();
+        IndexService indexService = createIndex("test", Settings.EMPTY);
         AtomicReference<CountDownLatch> latch = new AtomicReference<>(new CountDownLatch(1));
         AtomicReference<CountDownLatch> latch2 = new AtomicReference<>(new CountDownLatch(1));
         final AtomicInteger count = new AtomicInteger();
@@ -221,7 +215,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testRefreshTaskIsUpdated() throws IOException {
-        IndexService indexService = newIndexService();
+        IndexService indexService = createIndex("test", Settings.EMPTY);
         IndexService.AsyncRefreshTask refreshTask = indexService.getRefreshTask();
         assertEquals(1000, refreshTask.getInterval().millis());
         assertTrue(indexService.getRefreshTask().mustReschedule());
@@ -270,7 +264,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testFsyncTaskIsRunning() throws IOException {
-        IndexService indexService = newIndexService();
+        IndexService indexService = createIndex("test", Settings.EMPTY);
         IndexService.AsyncTranslogFSync fsyncTask = indexService.getFsyncTask();
         assertNotNull(fsyncTask);
         assertEquals(5000, fsyncTask.getInterval().millis());
@@ -283,7 +277,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testRefreshActuallyWorks() throws Exception {
-        IndexService indexService = newIndexService();
+        IndexService indexService = createIndex("test", Settings.EMPTY);
         ensureGreen("test");
         IndexService.AsyncRefreshTask refreshTask = indexService.getRefreshTask();
         assertEquals(1000, refreshTask.getInterval().millis());
@@ -313,7 +307,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
 
     public void testAsyncFsyncActuallyWorks() throws Exception {
         Settings settings = Settings.builder()
-            .put(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL, "10ms") // very often :)
+            .put(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey(), "10ms") // very often :)
             .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.ASYNC)
             .build();
         IndexService indexService = createIndex("test", settings);
@@ -328,7 +322,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
 
     public void testNoFsyncTaskIfDisabled() {
         Settings settings = Settings.builder()
-            .put(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL, "0ms") // disable
+            .put(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey(), "0ms") // disable
             .build();
         IndexService indexService = createIndex("test", settings);
         assertNull(indexService.getFsyncTask());

@@ -122,6 +122,9 @@ public final class IndexScopeSettings extends AbstractScopedSettings {
         IndexSettings.INDEX_WARMER_ENABLED_SETTING,
         IndexSettings.INDEX_REFRESH_INTERVAL_SETTING,
         IndexSettings.MAX_RESULT_WINDOW_SETTING,
+        IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING,
+        IndexSettings.DEFAULT_FIELD_SETTING,
+        IndexSettings.QUERY_STRING_LENIENT_SETTING,
         ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING,
         IndexSettings.INDEX_GC_DELETES_SETTING,
         IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING,
@@ -132,7 +135,10 @@ public final class IndexScopeSettings extends AbstractScopedSettings {
         IndexFieldDataService.INDEX_FIELDDATA_CACHE_KEY,
         FieldMapper.IGNORE_MALFORMED_SETTING,
         FieldMapper.COERCE_SETTING,
-        Setting.groupSetting("index.analysis.", false, Setting.Scope.INDEX) // this sucks but we can't really validate all the analyzers
+        // this sucks but we can't really validate all the analyzers/similarity in here
+        Setting.groupSetting("index.similarity.", false, Setting.Scope.INDEX), // this allows similarity settings to be passed
+        Setting.groupSetting("index.analysis.", false, Setting.Scope.INDEX) // this allows analysis settings to be passed
+
     )));
 
     public static final IndexScopeSettings DEFAULT_SCOPED_SETTINGS = new IndexScopeSettings(Settings.EMPTY, IndexScopeSettings.BUILT_IN_INDEX_SETTINGS);

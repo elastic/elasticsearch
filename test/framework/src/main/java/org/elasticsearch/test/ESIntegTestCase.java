@@ -523,9 +523,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
         if (random.nextBoolean()) {
             if (rarely(random)) {
-                builder.put(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL, 0); // 0 has special meaning to sync each op
+                builder.put(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey(), 0); // 0 has special meaning to sync each op
             } else {
-                builder.put(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL, RandomInts.randomIntBetween(random, 100, 5000), TimeUnit.MILLISECONDS);
+                builder.put(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey(), RandomInts.randomIntBetween(random, 100, 5000), TimeUnit.MILLISECONDS);
             }
         }
 

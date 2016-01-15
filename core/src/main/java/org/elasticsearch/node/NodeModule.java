@@ -100,6 +100,13 @@ public class NodeModule extends AbstractModule {
     }
 
     /**
+     * Returns the node
+     */
+    public Node getNode() {
+        return node;
+    }
+
+    /**
      * Adds a processor factory under a specific type name.
      */
     public void registerProcessor(String type, BiFunction<Environment, TemplateService, Processor.Factory<?>> processorFactoryProvider) {

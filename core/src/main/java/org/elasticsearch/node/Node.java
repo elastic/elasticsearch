@@ -231,6 +231,13 @@ public class Node implements Releasable {
     }
 
     /**
+     * Returns the environment of the node
+     */
+    public Environment getEnvironment() {
+        return environment;
+    }
+
+    /**
      * Start the node. If the node is already started, this method is no-op.
      */
     public Node start() {

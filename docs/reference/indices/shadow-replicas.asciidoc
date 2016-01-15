@@ -58,9 +58,9 @@ curl -XPUT 'localhost:9200/my_index' -d '
 [WARNING]
 ========================
 In the above example, the "/opt/data/my_index" path is a shared filesystem that
-must be available on every data node in the Elasticsearch cluster. You must
-also ensure that the Elasticsearch process has the correct permissions to read
-from and write to the directory used in the `index.data_path` setting.
+must be available on every node in the Elasticsearch cluster. You must also
+ensure that the Elasticsearch process has the correct permissions to read from
+and write to the directory used in the `index.data_path` setting.
 ========================
 
 An index that has been created with the `index.shadow_replicas` setting set to

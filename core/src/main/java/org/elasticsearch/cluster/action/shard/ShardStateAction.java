@@ -111,6 +111,7 @@ public class ShardStateAction extends AbstractComponent {
 
                     @Override
                     public void handleException(TransportException exp) {
+                        assert exp.getCause() != null : exp;
                         if (isMasterChannelException(exp.getCause())) {
                             waitForNewMasterAndRetry(observer, shardRoutingEntry, listener);
                         } else {

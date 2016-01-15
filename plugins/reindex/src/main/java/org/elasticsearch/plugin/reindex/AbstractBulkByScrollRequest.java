@@ -19,6 +19,9 @@
 
 package org.elasticsearch.plugin.reindex;
 
+import java.io.IOException;
+import java.util.Arrays;
+
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.WriteConsistencyLevel;
@@ -28,9 +31,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-
-import java.io.IOException;
-import java.util.Arrays;
+import org.elasticsearch.tasks.Task;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -203,6 +204,11 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     public Self setConsistency(WriteConsistencyLevel consistency) {
         this.consistency = consistency;
         return self();
+    }
+
+    @Override
+    public Task createTask(long id, String type, String action) {
+        return new BulkByScrollTask(id, type, action);
     }
 
     @Override

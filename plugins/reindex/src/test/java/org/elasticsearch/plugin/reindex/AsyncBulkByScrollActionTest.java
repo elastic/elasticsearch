@@ -19,6 +19,11 @@
 
 package org.elasticsearch.plugin.reindex;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
+
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -45,11 +50,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executor;
-
 import static org.apache.lucene.util.TestUtil.randomSimpleString;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.emptyCollectionOf;
@@ -62,6 +62,7 @@ public class AsyncBulkByScrollActionTest extends ESTestCase {
     private SearchRequest firstSearchRequest;
     private PlainActionFuture<Object> listener;
     private String scrollId;
+    private BulkByScrollTask task;
 
     @Before
     public void setupForTest() {
@@ -71,6 +72,7 @@ public class AsyncBulkByScrollActionTest extends ESTestCase {
         firstSearchRequest = null;
         listener = new PlainActionFuture<>();
         scrollId = null;
+        task = new BulkByScrollTask(0, "test", "test");
     }
 
     @After
@@ -124,11 +126,10 @@ public class AsyncBulkByScrollActionTest extends ESTestCase {
      */
     public void testShardFailuresAbortRequest() throws Exception {
         ShardSearchFailure shardFailure = new ShardSearchFailure(new RuntimeException("test"));
-        DummyAbstractAsyncBulkByScrollAction action = new DummyAbstractAsyncBulkByScrollAction();
-        action.onScrollResponse(new SearchResponse(null, scrollId(), 5, 4, randomLong(), new ShardSearchFailure[] { shardFailure }));
+        new DummyAbstractAsyncBulkByScrollAction().onScrollResponse(new SearchResponse(null, scrollId(), 5, 4, randomLong(), new ShardSearchFailure[] { shardFailure }));
         listener.get();
-        assertThat(action.indexingFailures(), emptyCollectionOf(Failure.class));
-        assertThat(action.searchFailures(), contains(shardFailure));
+        assertThat(task.indexingFailures(), emptyCollectionOf(Failure.class));
+        assertThat(task.searchFailures(), contains(shardFailure));
     }
 
     /**
@@ -139,13 +140,14 @@ public class AsyncBulkByScrollActionTest extends ESTestCase {
         DummyAbstractAsyncBulkByScrollAction action = new DummyAbstractAsyncBulkByScrollAction();
         action.onBulkResponse(new BulkResponse(new BulkItemResponse[] {new BulkItemResponse(0, "index", failure)}, randomLong()));
         listener.get();
-        assertThat(action.indexingFailures(), contains(failure));
-        assertThat(action.searchFailures(), emptyCollectionOf(ShardSearchFailure.class));
+        assertThat(task.indexingFailures(), contains(failure));
+        assertThat(task.searchFailures(), emptyCollectionOf(ShardSearchFailure.class));
     }
 
     private class DummyAbstractAsyncBulkByScrollAction extends AbstractAsyncBulkByScrollAction<DummyAbstractBulkByScrollRequest, Object> {
         public DummyAbstractAsyncBulkByScrollAction() {
-            super(logger, client, threadPool, AsyncBulkByScrollActionTest.this.mainRequest, firstSearchRequest, listener);
+            super(AsyncBulkByScrollActionTest.this.task, logger, client, threadPool,
+                    AsyncBulkByScrollActionTest.this.mainRequest, firstSearchRequest, listener);
         }
 
         @Override

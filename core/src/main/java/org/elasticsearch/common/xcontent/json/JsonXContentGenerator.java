@@ -75,7 +75,7 @@ public class JsonXContentGenerator implements XContentGenerator {
         this(jsonGenerator, os, true, filters);
     }
 
-    public JsonXContentGenerator(JsonGenerator jsonGenerator, OutputStream os, boolean inclusiveFilters, String... filters) {
+    public JsonXContentGenerator(JsonGenerator jsonGenerator, OutputStream os, boolean inclusive, String... filters) {
         if (jsonGenerator instanceof GeneratorBase) {
             this.base = (GeneratorBase) jsonGenerator;
         } else {
@@ -87,7 +87,7 @@ public class JsonXContentGenerator implements XContentGenerator {
             this.filter = null;
         } else {
             this.filter = new FilteringGeneratorDelegate(jsonGenerator,
-                    new FilterPathBasedFilter(inclusiveFilters, filters), true, true);
+                    new FilterPathBasedFilter(inclusive, filters), true, true);
             this.generator = this.filter;
         }
 

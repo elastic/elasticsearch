@@ -27,9 +27,14 @@ import java.util.concurrent.atomic.AtomicLong;
 
 public class PrioritizedRunnableTests extends ESTestCase {
     public void testGetAgeInMillis() throws Exception {
-        AtomicLong time = new AtomicLong();
+        final AtomicLong time = new AtomicLong();
 
-        PrioritizedRunnable runnable = new PrioritizedRunnable(Priority.NORMAL, time::get) {
+        PrioritizedRunnable runnable = new PrioritizedRunnable(Priority.NORMAL, new PrioritizedRunnable.LongSupplier() {
+            @Override
+            public long getAsLong() {
+                return time.get();
+            }
+        }) {
             @Override
             public void run() {
 

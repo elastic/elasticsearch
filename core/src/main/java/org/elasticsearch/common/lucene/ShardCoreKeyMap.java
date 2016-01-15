@@ -69,7 +69,7 @@ public final class ShardCoreKeyMap {
             if (coreKeyToShard.put(coreKey, shardId) == null) {
                 final boolean added = indexToCoreKey.put(index, coreKey);
                 assert added;
-                reader.addCoreClosedListener(new CoreClosedListener() {
+                CoreClosedListener listener = new CoreClosedListener() {
                     @Override
                     public void onClose(Object ownerCoreCacheKey) throws IOException {
                         assert coreKey == ownerCoreCacheKey;
@@ -78,7 +78,20 @@ public final class ShardCoreKeyMap {
                             indexToCoreKey.remove(index, coreKey);
                         }
                     }
-                });
+                };
+                boolean addedListener = false;
+                try {
+                    reader.addCoreClosedListener(listener);
+                    addedListener = true;
+                } finally {
+                    if (false == addedListener) {
+                        try {
+                            listener.onClose(coreKey);
+                        } catch (IOException e) {
+                            throw new RuntimeException("Blow up trying to recover from failure to add listener", e);
+                        }
+                    }
+                }
             }
         }
     }

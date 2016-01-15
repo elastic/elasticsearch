@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.action.support.replication;
 
-import com.google.common.base.Predicate;
 import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionWriteResponse;
@@ -42,7 +41,6 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -469,7 +467,7 @@ public class ShardReplicationTests extends ESTestCase {
     }
 
     @Test
-    public void testCounterOnPrimary() throws InterruptedException, ExecutionException, IOException {
+    public void testCounterOnPrimary() throws Exception {
         final String index = "test";
         final ShardId shardId = new ShardId(index, 0);
         // no replica, we only want to test on primary
@@ -497,14 +495,12 @@ public class ShardReplicationTests extends ESTestCase {
         t.start();
         // shard operation should be ongoing, so the counter is at 2
         // we have to wait here because increment happens in thread
-        awaitBusy(new Predicate<Object>() {
+        assertBusy(new Runnable() {
             @Override
-            public boolean apply(@Nullable Object input) {
-                    return (count.get() == 2);
+            public void run() {
+                assertIndexShardCounter(2);
             }
         });
-
-        assertIndexShardCounter(2);
         assertThat(transport.capturedRequests().length, equalTo(0));
         ((ActionWithDelay) action).countDownLatch.countDown();
         t.join();
@@ -561,10 +557,10 @@ public class ShardReplicationTests extends ESTestCase {
         t.start();
         // shard operation should be ongoing, so the counter is at 2
         // we have to wait here because increment happens in thread
-        awaitBusy(new Predicate<Object>() {
+        assertBusy(new Runnable() {
             @Override
-            public boolean apply(@Nullable Object input) {
-                return count.get() == 2;
+            public void run() {
+                assertIndexShardCounter(2);
             }
         });
         ((ActionWithDelay) action).countDownLatch.countDown();

@@ -19,23 +19,43 @@
 package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.unit.TimeValue;
+
+import java.util.concurrent.TimeUnit;
 
 /**
  *
  */
 public abstract class PrioritizedRunnable implements Runnable, Comparable<PrioritizedRunnable> {
 
+    // package visible for testing
+    interface LongSupplier {
+        long getAsLong();
+    }
+
     private final Priority priority;
     private final long creationDate;
+    private final LongSupplier relativeTimeProvider;
+
+    private static final LongSupplier SYSTEM_NANO_TIME = new LongSupplier() {
+        @Override
+        public long getAsLong() {
+            return System.nanoTime();
+        }
+    };
 
     public static PrioritizedRunnable wrap(Runnable runnable, Priority priority) {
         return new Wrapped(runnable, priority);
     }
 
     protected PrioritizedRunnable(Priority priority) {
+        this(priority, SYSTEM_NANO_TIME);
+    }
+
+    // package visible for testing
+    PrioritizedRunnable(Priority priority, LongSupplier relativeTimeProvider) {
         this.priority = priority;
-        creationDate = System.nanoTime();
+        this.creationDate = relativeTimeProvider.getAsLong();
+        this.relativeTimeProvider = relativeTimeProvider;
     }
 
     public long getCreationDateInNanos() {
@@ -43,7 +63,7 @@ public abstract class PrioritizedRunnable implements Runnable, Comparable<Priori
     }
 
     public long getAgeInMillis() {
-        return Math.max(0, (System.nanoTime() - creationDate) / 1000);
+        return TimeUnit.MILLISECONDS.convert(relativeTimeProvider.getAsLong() - creationDate, TimeUnit.NANOSECONDS);
     }
 
     @Override

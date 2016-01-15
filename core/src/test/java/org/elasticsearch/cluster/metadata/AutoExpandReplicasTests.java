@@ -46,14 +46,14 @@ public class AutoExpandReplicasTests extends ESTestCase {
             AutoExpandReplicas.SETTING.get(Settings.builder().put("index.auto_expand_replicas", "boom").build());
             fail();
         } catch (IllegalArgumentException ex) {
-            assertEquals("failed to parse [index.auto_expand_replicas] form [boom] at index -1", ex.getMessage());
+            assertEquals("failed to parse [index.auto_expand_replicas] from value: [boom] at index -1", ex.getMessage());
         }
 
         try {
             AutoExpandReplicas.SETTING.get(Settings.builder().put("index.auto_expand_replicas", "1-boom").build());
             fail();
         } catch (IllegalArgumentException ex) {
-            assertEquals("failed to parse [index.auto_expand_replicas] form [1-boom] at index 1", ex.getMessage());
+            assertEquals("failed to parse [index.auto_expand_replicas] from value: [1-boom] at index 1", ex.getMessage());
             assertEquals("For input string: \"boom\"", ex.getCause().getMessage());
         }
 
@@ -61,7 +61,7 @@ public class AutoExpandReplicasTests extends ESTestCase {
             AutoExpandReplicas.SETTING.get(Settings.builder().put("index.auto_expand_replicas", "boom-1").build());
             fail();
         } catch (IllegalArgumentException ex) {
-            assertEquals("failed to parse [index.auto_expand_replicas] form [boom-1] at index 4", ex.getMessage());
+            assertEquals("failed to parse [index.auto_expand_replicas] from value: [boom-1] at index 4", ex.getMessage());
             assertEquals("For input string: \"boom\"", ex.getCause().getMessage());
         }
 

@@ -457,8 +457,4 @@ public class JsonXContentGenerator implements XContentGenerator {
         generator.close();
     }
 
-    @Override
-    public void writeStartObject(String name) throws IOException {
-        generator.writeObjectFieldStart(name);
-    }
 }

@@ -31,7 +31,7 @@ public class FilterPathGeneratorFilteringTests extends ESTestCase {
 
     private final JsonFactory JSON_FACTORY = new JsonFactory();
 
-    public void testFilters() throws Exception {
+    public void testInclusiveFilters() throws Exception {
         final String SAMPLE = "{'a':0,'b':true,'c':'c_value','d':[0,1,2],'e':[{'f1':'f1_value','f2':'f2_value'},{'g1':'g1_value','g2':'g2_value'}],'h':{'i':{'j':{'k':{'l':'l_value'}}}}}";
 
         assertResult(SAMPLE, true, "a", "{'a':0}");
@@ -122,9 +122,14 @@ public class FilterPathGeneratorFilteringTests extends ESTestCase {
 
     }
 
-    public void testFiltersWithDots() throws Exception {
+    public void testInclusiveFiltersWithDots() throws Exception {
         assertResult("{'a':0,'b.c':'value','b':{'c':'c_value'}}", true, "b.c", "{'b':{'c':'c_value'}}");
         assertResult("{'a':0,'b.c':'value','b':{'c':'c_value'}}", true, "b\\.c", "{'b.c':'value'}");
+    }
+
+    public void testExclusiveFiltersWithDots() throws Exception {
+        assertResult("{'a':0,'b.c':'value','b':{'c':'c_value'}}", false, "b.c", "{'a':0,'b.c':'value'}");
+        assertResult("{'a':0,'b.c':'value','b':{'c':'c_value'}}", false, "b\\.c", "{'a':0,'b':{'c':'c_value'}}");
     }
 
     private void assertResult(String input, boolean inclusive, String filter, String expected) throws Exception {

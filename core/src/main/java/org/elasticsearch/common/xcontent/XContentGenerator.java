@@ -123,6 +123,4 @@ public interface XContentGenerator extends Closeable {
 
     @Override
     void close() throws IOException;
-
-    void writeStartObject(String name) throws IOException;
 }

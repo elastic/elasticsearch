@@ -30,7 +30,6 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder.FieldCaseConversion;
 import org.joda.time.DateTimeZone;
 import org.joda.time.ReadableInstant;
 import org.joda.time.format.DateTimeFormatter;
@@ -109,8 +108,7 @@ public final class XContentBuilder implements BytesStream, Releasable {
      * {@link #close()} when the builder is done with.
      */
     public XContentBuilder(XContent xContent, OutputStream bos, String[] filters) throws IOException {
-        this.bos = bos;
-        this.generator = xContent.createGenerator(bos, filters);
+        this(xContent, bos, true, filters);
     }
 
     /**
@@ -172,7 +170,7 @@ public final class XContentBuilder implements BytesStream, Releasable {
     }
 
     public XContentBuilder startObject(String name, FieldCaseConversion conversion) throws IOException {
-        field(name);
+        field(name, conversion);
         startObject();
         return this;
     }

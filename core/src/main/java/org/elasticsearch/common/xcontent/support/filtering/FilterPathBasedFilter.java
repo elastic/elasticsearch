@@ -46,10 +46,10 @@ public class FilterPathBasedFilter extends TokenFilter {
     private final boolean inclusive;
 
     public FilterPathBasedFilter(boolean inclusive, FilterPath[] filters) {
-        this.inclusive = inclusive;
         if (CollectionUtils.isEmpty(filters)) {
             throw new IllegalArgumentException("filters cannot be null or empty");
         }
+        this.inclusive = inclusive;
         this.filters = filters;
     }
 

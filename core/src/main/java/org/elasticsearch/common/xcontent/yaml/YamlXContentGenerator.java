@@ -32,11 +32,11 @@ import java.io.OutputStream;
 public class YamlXContentGenerator extends JsonXContentGenerator {
 
     public YamlXContentGenerator(JsonGenerator jsonGenerator, OutputStream os, String... filters) {
-        super(jsonGenerator, os, filters);
+        this(jsonGenerator, os, true, filters);
     }
 
-    public YamlXContentGenerator(JsonGenerator jsonGenerator, OutputStream os, boolean inclusiveFilters, String[] filters) {
-        super(jsonGenerator, os, inclusiveFilters, filters);
+    public YamlXContentGenerator(JsonGenerator jsonGenerator, OutputStream os, boolean inclusive, String[] filters) {
+        super(jsonGenerator, os, inclusive, filters);
     }
 
     @Override

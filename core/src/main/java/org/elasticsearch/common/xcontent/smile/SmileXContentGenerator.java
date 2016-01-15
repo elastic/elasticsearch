@@ -20,7 +20,6 @@
 package org.elasticsearch.common.xcontent.smile;
 
 import com.fasterxml.jackson.core.JsonGenerator;
-import com.fasterxml.jackson.dataformat.smile.SmileGenerator;
 
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContentGenerator;
@@ -33,11 +32,11 @@ import java.io.OutputStream;
 public class SmileXContentGenerator extends JsonXContentGenerator {
 
     public SmileXContentGenerator(JsonGenerator jsonGenerator, OutputStream os, String... filters) {
-        super(jsonGenerator, os, filters);
+        this(jsonGenerator, os, true, filters);
     }
 
-    public SmileXContentGenerator(SmileGenerator jsonGenerator, OutputStream os, boolean inclusiveFilters, String[] filters) {
-        super(jsonGenerator, os, inclusiveFilters, filters);
+    public SmileXContentGenerator(JsonGenerator jsonGenerator, OutputStream os, boolean inclusive, String[] filters) {
+        super(jsonGenerator, os, inclusive, filters);
     }
 
     @Override

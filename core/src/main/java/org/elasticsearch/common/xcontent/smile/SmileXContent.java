@@ -68,16 +68,6 @@ public class SmileXContent implements XContent {
     }
 
     @Override
-    public XContentGenerator createGenerator(OutputStream os) throws IOException {
-        return new SmileXContentGenerator(smileFactory.createGenerator(os, JsonEncoding.UTF8), os);
-    }
-
-    @Override
-    public XContentGenerator createGenerator(OutputStream os, String[] filters) throws IOException {
-        return new SmileXContentGenerator(smileFactory.createGenerator(os, JsonEncoding.UTF8), os, filters);
-    }
-
-    @Override
     public XContentGenerator createGenerator(OutputStream os, String[] filters, boolean inclusiveFilters) throws IOException {
         return new SmileXContentGenerator(smileFactory.createGenerator(os, JsonEncoding.UTF8), os, inclusiveFilters, filters);
     }

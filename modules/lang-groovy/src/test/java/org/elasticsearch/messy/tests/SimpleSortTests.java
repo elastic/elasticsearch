@@ -53,7 +53,7 @@ import org.elasticsearch.search.sort.ScriptSortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalSettingsPluging;
+import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.hamcrest.Matchers;
@@ -106,7 +106,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class SimpleSortTests extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(GroovyPlugin.class, InternalSettingsPluging.class);
+        return pluginList(GroovyPlugin.class, InternalSettingsPlugin.class);
     }
 
     @TestLogging("action.search.type:TRACE")

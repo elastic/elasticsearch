@@ -26,7 +26,7 @@ import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.test.InternalSettingsPluging;
+import org.elasticsearch.test.InternalSettingsPlugin;
 import org.junit.Before;
 
 import java.util.Collection;
@@ -38,7 +38,7 @@ public class IndicesSegmentsRequestTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(InternalSettingsPluging.class);
+        return pluginList(InternalSettingsPlugin.class);
     }
 
     @Before

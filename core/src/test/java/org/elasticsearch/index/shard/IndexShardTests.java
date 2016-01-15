@@ -93,7 +93,7 @@ import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.FieldMaskingReader;
 import org.elasticsearch.test.IndexSettingsModule;
-import org.elasticsearch.test.InternalSettingsPluging;
+import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
@@ -132,7 +132,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(InternalSettingsPluging.class);
+        return pluginList(InternalSettingsPlugin.class);
     }
 
     public void testWriteShardState() throws Exception {

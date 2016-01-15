@@ -22,7 +22,9 @@ package org.elasticsearch.test.store;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.IndexEventListener;
@@ -42,7 +44,7 @@ import java.util.Map;
 
 public class MockFSIndexStore extends IndexStore {
 
-    public static final String CHECK_INDEX_ON_CLOSE = "index.store.mock.check_index_on_close";
+    public static final Setting<Boolean> INDEX_CHECK_INDEX_ON_CLOSE_SETTING = Setting.boolSetting("index.store.mock.check_index_on_close", true, false, Setting.Scope.INDEX);
 
     public static class TestPlugin extends Plugin {
         @Override
@@ -58,11 +60,15 @@ public class MockFSIndexStore extends IndexStore {
             return Settings.builder().put(IndexModule.STORE_TYPE, "mock").build();
         }
 
+        public void onModule(SettingsModule module) {
+            module.registerSetting(INDEX_CHECK_INDEX_ON_CLOSE_SETTING);
+        }
+
         @Override
         public void onIndexModule(IndexModule indexModule) {
             Settings indexSettings = indexModule.getSettings();
             if ("mock".equals(indexSettings.get(IndexModule.STORE_TYPE))) {
-                if (indexSettings.getAsBoolean(CHECK_INDEX_ON_CLOSE, true)) {
+                if (INDEX_CHECK_INDEX_ON_CLOSE_SETTING.get(indexSettings)) {
                     indexModule.addIndexEventListener(new Listener());
                 }
                 indexModule.addIndexStore("mock", MockFSIndexStore::new);

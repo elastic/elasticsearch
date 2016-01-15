@@ -316,7 +316,6 @@ public class IndexStatsIT extends ESIntegTestCase {
                                  .put(MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING.getKey(), "2")
                                  .put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), "1")
                                  .put(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.getKey(), "1")
-                                 .put("index.merge.policy.type", "tiered")
                                  .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.ASYNC.name())
                                  ));
         ensureGreen();

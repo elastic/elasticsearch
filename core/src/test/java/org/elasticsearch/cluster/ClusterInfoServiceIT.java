@@ -139,7 +139,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
     public void testClusterInfoServiceCollectsInformation() throws Exception {
         internalCluster().startNodesAsync(2).get();
         assertAcked(prepareCreate("test").setSettings(settingsBuilder()
-                .put(Store.INDEX_STORE_STATS_REFRESH_INTERVAL, 0)
+                .put(Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), 0)
                 .put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE).build()));
         ensureGreen("test");
         InternalTestCluster internalTestCluster = internalCluster();

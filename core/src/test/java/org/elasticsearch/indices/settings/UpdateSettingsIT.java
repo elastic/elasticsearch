@@ -149,7 +149,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
                                  .put(MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING.getKey(), "2")
                                  .put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), "1")
                                  .put(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.getKey(), "2")
-                                 .put(Store.INDEX_STORE_STATS_REFRESH_INTERVAL, 0) // get stats all the time - no caching
+                                 .put(Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), 0) // get stats all the time - no caching
                                  ));
         ensureGreen();
         long termUpto = 0;

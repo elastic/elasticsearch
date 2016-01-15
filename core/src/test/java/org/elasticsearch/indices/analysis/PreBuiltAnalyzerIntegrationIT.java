@@ -27,6 +27,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESBackcompatTestCase;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.InternalSettingsPlugin;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -46,7 +47,7 @@ import static org.hamcrest.Matchers.notNullValue;
 public class PreBuiltAnalyzerIntegrationIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(DummyAnalysisPlugin.class);
+        return pluginList(DummyAnalysisPlugin.class, InternalSettingsPlugin.class);
     }
 
     public void testThatPreBuiltAnalyzersAreNotClosedOnIndexClose() throws Exception {

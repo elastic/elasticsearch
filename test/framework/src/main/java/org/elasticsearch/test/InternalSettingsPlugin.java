@@ -22,7 +22,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.plugins.Plugin;
 
-public final class InternalSettingsPluging extends Plugin {
+public final class InternalSettingsPlugin extends Plugin {
     @Override
     public String name() {
         return "internal-settings-plugin";

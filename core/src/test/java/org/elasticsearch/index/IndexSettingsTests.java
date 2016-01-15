@@ -252,13 +252,8 @@ public class IndexSettingsTests extends ESTestCase {
         TimeValue newGCDeleteSetting = new TimeValue(Math.abs(randomInt()), TimeUnit.MILLISECONDS);
         settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(IndexSettings.INDEX_GC_DELETES_SETTING.getKey(), newGCDeleteSetting.getStringRep()).build()));
         assertEquals(TimeValue.parseTimeValue(newGCDeleteSetting.getStringRep(), new TimeValue(1, TimeUnit.DAYS), IndexSettings.INDEX_GC_DELETES_SETTING.getKey()).getMillis(), settings.getGcDeletesInMillis());
-
-        try {
-            settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(IndexSettings.INDEX_GC_DELETES_SETTING.getKey(), new TimeValue(-1, TimeUnit.MILLISECONDS)).build()));
-            fail();
-        } catch (IllegalArgumentException e) {
-            // expected
-        }
+        settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(IndexSettings.INDEX_GC_DELETES_SETTING.getKey(), randomBoolean() ? -1 : new TimeValue(-1, TimeUnit.MILLISECONDS)).build()));
+        assertEquals(-1, settings.getGcDeletesInMillis());
     }
 
     public void testIsTTLPurgeDisabled() {

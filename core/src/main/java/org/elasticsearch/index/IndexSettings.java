@@ -78,7 +78,7 @@ public final class IndexSettings {
      * This setting is realtime updateable
      */
     public static final TimeValue DEFAULT_GC_DELETES = TimeValue.timeValueSeconds(60);
-    public static final Setting<TimeValue> INDEX_GC_DELETES_SETTING = Setting.timeSetting("index.gc_deletes", DEFAULT_GC_DELETES, new TimeValue(-1, TimeUnit.MICROSECONDS), true, Setting.Scope.INDEX);
+    public static final Setting<TimeValue> INDEX_GC_DELETES_SETTING = Setting.timeSetting("index.gc_deletes", DEFAULT_GC_DELETES, new TimeValue(-1, TimeUnit.MILLISECONDS), true, Setting.Scope.INDEX);
 
     private final String uuid;
     private final Index index;

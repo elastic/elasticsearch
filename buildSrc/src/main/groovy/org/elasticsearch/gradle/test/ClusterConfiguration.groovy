@@ -57,12 +57,10 @@ class ClusterConfiguration {
     @Input
     Closure waitCondition = { NodeInfo node, AntBuilder ant ->
         File tmpFile = new File(node.cwd, 'wait.success')
-        ant.echo(message: "[${LocalDateTime.now()}] Waiting for elasticsearch node ${node.httpUri()}", level: "info")
-        ant.get(src: "http://${node.httpUri()}",
+        ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes=${numNodes}",
                 dest: tmpFile.toString(),
                 ignoreerrors: true, // do not fail on error, so logging buffers can be flushed by the wait task
                 retries: 10)
-        ant.echo(message: "[${LocalDateTime.now()}] Finished waiting for elasticsearch node ${node.httpUri()}. Reachable? ${tmpFile.exists()}", level: "info")
         return tmpFile.exists()
     }
 

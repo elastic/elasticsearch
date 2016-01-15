@@ -583,7 +583,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         assertIndexShardCounter(1);
     }
 
-    public void testCounterOnPrimary() throws InterruptedException, ExecutionException, IOException {
+    public void testCounterOnPrimary() throws Exception {
         final String index = "test";
         final ShardId shardId = new ShardId(index, 0);
         // no replica, we only want to test on primary
@@ -611,9 +611,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         t.start();
         // shard operation should be ongoing, so the counter is at 2
         // we have to wait here because increment happens in thread
-        awaitBusy(() -> count.get() == 2);
-
-        assertIndexShardCounter(2);
+        assertBusy(() -> assertIndexShardCounter(2));
         assertThat(transport.capturedRequests().length, equalTo(0));
         ((ActionWithDelay) action).countDownLatch.countDown();
         t.join();
@@ -664,7 +662,7 @@ public class TransportReplicationActionTests extends ESTestCase {
             @Override
             public void run() {
                 try {
-                    replicaOperationTransportHandler.messageReceived(new Request(), createTransportChannel(new PlainActionFuture<>()));
+                    replicaOperationTransportHandler.messageReceived(new Request().setShardId(shardId), createTransportChannel(new PlainActionFuture<>()));
                 } catch (Exception e) {
                 }
             }
@@ -672,7 +670,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         t.start();
         // shard operation should be ongoing, so the counter is at 2
         // we have to wait here because increment happens in thread
-        awaitBusy(() -> count.get() == 2);
+        assertBusy(() -> assertIndexShardCounter(2));
         ((ActionWithDelay) action).countDownLatch.countDown();
         t.join();
         // operation should have finished and counter decreased because no outstanding replica requests

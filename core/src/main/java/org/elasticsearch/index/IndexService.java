@@ -25,6 +25,7 @@ import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
@@ -715,8 +716,7 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
 
         private static boolean sameException(Exception left, Exception right) {
             if (left.getClass() == right.getClass()) {
-                if ((left.getMessage() != null && left.getMessage().equals(right.getMessage()))
-                    || left.getMessage() == right.getMessage()) {
+                if (Objects.equals(left.getMessage(), right.getMessage())) {
                     StackTraceElement[] stackTraceLeft = left.getStackTrace();
                     StackTraceElement[] stackTraceRight = right.getStackTrace();
                     if (stackTraceLeft.length == stackTraceRight.length) {

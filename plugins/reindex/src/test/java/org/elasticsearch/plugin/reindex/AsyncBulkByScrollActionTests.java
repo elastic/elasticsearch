@@ -28,6 +28,7 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchRequest;
@@ -36,9 +37,16 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.FilterClient;
+import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.internal.InternalSearchHit;
+import org.elasticsearch.search.internal.InternalSearchHits;
+import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -50,18 +58,20 @@ import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 
+import static java.util.Collections.emptyMap;
 import static org.apache.lucene.util.TestUtil.randomSimpleString;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.emptyCollectionOf;
 import static org.hamcrest.Matchers.equalTo;
 
-public class AsyncBulkByScrollActionTest extends ESTestCase {
+public class AsyncBulkByScrollActionTests extends ESTestCase {
     private MockClearScrollClient client;
     private ThreadPool threadPool;
     private DummyAbstractBulkByScrollRequest mainRequest;
     private SearchRequest firstSearchRequest;
     private PlainActionFuture<Object> listener;
     private String scrollId;
+    private BulkByScrollTask task;
 
     @Before
     public void setupForTest() {
@@ -71,15 +81,13 @@ public class AsyncBulkByScrollActionTest extends ESTestCase {
         firstSearchRequest = null;
         listener = new PlainActionFuture<>();
         scrollId = null;
+        task = new BulkByScrollTask(0, "test", "test", () -> "test");
     }
 
     @After
     public void tearDownAndVerifyCommonStuff() {
         client.close();
         threadPool.shutdown();
-        if (scrollId != null) {
-            assertThat(client.scrollsCleared, contains(scrollId));
-        }
     }
 
     /**
@@ -88,8 +96,96 @@ public class AsyncBulkByScrollActionTest extends ESTestCase {
      * random scroll id so it is checked instead.
      */
     private String scrollId() {
-        scrollId = randomSimpleString(random());
+        scrollId = randomSimpleString(random(), 1, 1000); // Empty string's get special behavior we don't want
         return scrollId;
+    }
+
+    public void testScrollResponseSetsTotal() {
+        // Default is -1, meaning unstarted
+        assertEquals(-1, task.getStatus().getTotal());
+
+        long total = randomIntBetween(0, Integer.MAX_VALUE);
+        InternalSearchHits hits = new InternalSearchHits(null, total, 0);
+        InternalSearchResponse searchResponse = new InternalSearchResponse(hits, null, null, null, false, false);
+        new DummyAbstractAsyncBulkByScrollAction()
+            .onScrollResponse(new SearchResponse(searchResponse, scrollId(), 5, 4, randomLong(), null));
+        assertEquals(total, task.getStatus().getTotal());
+    }
+
+    public void testEachScrollResponseIsABatch() {
+        // Replace the generic thread pool with one that executes immediately so the batch is updated immediately
+        threadPool.shutdown();
+        threadPool = new ThreadPool(getTestName()) {
+            @Override
+            public Executor generic() {
+                return new Executor() {
+                    @Override
+                    public void execute(Runnable command) {
+                        command.run();
+                    }
+                };
+            }
+        };
+        int maxBatches = randomIntBetween(0, 100);
+        for (int batches = 1; batches < maxBatches; batches++) {
+            InternalSearchHit hit = new InternalSearchHit(0, "id", new Text("type"), emptyMap());
+            InternalSearchHits hits = new InternalSearchHits(new InternalSearchHit[] { hit }, 0, 0);
+            InternalSearchResponse searchResponse = new InternalSearchResponse(hits, null, null, null, false, false);
+            new DummyAbstractAsyncBulkByScrollAction()
+                .onScrollResponse(new SearchResponse(searchResponse, scrollId(), 5, 4, randomLong(), null));
+
+            assertEquals(batches, task.getStatus().getBatches());
+        }
+    }
+
+    public void testBulkResponseSetsLotsOfStatus() {
+        mainRequest.setAbortOnVersionConflict(false);
+        int maxBatches = randomIntBetween(0, 100);
+        long versionConflicts = 0;
+        long created = 0;
+        long updated = 0;
+        long deleted = 0;
+        for (int batches = 0; batches < maxBatches; batches++) {
+            BulkItemResponse[] responses = new BulkItemResponse[randomIntBetween(0, 10000)];
+            for (int i = 0; i < responses.length; i++) {
+                ShardId shardId = new ShardId(new Index("name", "uid"), 0);
+                String opType;
+                if (rarely()) {
+                    opType = randomSimpleString(random());
+                    versionConflicts++;
+                    responses[i] = new BulkItemResponse(i, opType, new Failure(shardId.getIndexName(), "type", "id" + i,
+                            new VersionConflictEngineException(shardId, "type", "id", "test")));
+                    continue;
+                }
+                boolean createdResponse;
+                switch (randomIntBetween(0, 2)) {
+                case 0:
+                    opType = randomFrom("index", "create");
+                    createdResponse = true;
+                    created++;
+                    break;
+                case 1:
+                    opType = randomFrom("index", "create");
+                    createdResponse = false;
+                    updated++;
+                    break;
+                case 2:
+                    opType = "delete";
+                    createdResponse = false;
+                    deleted++;
+                    break;
+                default:
+                    throw new RuntimeException("Bad scenario");
+                }
+                responses[i] = new BulkItemResponse(i, opType, new IndexResponse(shardId, "type", "id" + i, randomInt(), createdResponse));
+            }
+            new DummyAbstractAsyncBulkByScrollAction().onBulkResponse(new BulkResponse(responses, 0));
+            assertEquals(versionConflicts, task.getStatus().getVersionConflicts());
+            assertEquals(updated, task.getStatus().getUpdated());
+            assertEquals(created, task.getStatus().getCreated());
+            assertEquals(deleted, task.getStatus().getDeleted());
+            assertEquals(versionConflicts, task.getStatus().getVersionConflicts());
+        }
     }
 
     /**
@@ -108,14 +204,17 @@ public class AsyncBulkByScrollActionTest extends ESTestCase {
                 };
             }
         };
+        InternalSearchHits hits = new InternalSearchHits(null, 0, 0);
+        InternalSearchResponse searchResponse = new InternalSearchResponse(hits, null, null, null, false, false);
         new DummyAbstractAsyncBulkByScrollAction()
-                .onScrollResponse(new SearchResponse(null, scrollId(), 5, 4, randomLong(), null));
+                .onScrollResponse(new SearchResponse(searchResponse, scrollId(), 5, 4, randomLong(), null));
         try {
             listener.get();
             fail("Expected a failure");
         } catch (ExecutionException e) {
             assertThat(e.getMessage(), equalTo("EsRejectedExecutionException[test]"));
         }
+        assertThat(client.scrollsCleared, contains(scrollId));
     }
 
     /**
@@ -124,11 +223,12 @@ public class AsyncBulkByScrollActionTest extends ESTestCase {
      */
     public void testShardFailuresAbortRequest() throws Exception {
         ShardSearchFailure shardFailure = new ShardSearchFailure(new RuntimeException("test"));
-        DummyAbstractAsyncBulkByScrollAction action = new DummyAbstractAsyncBulkByScrollAction();
-        action.onScrollResponse(new SearchResponse(null, scrollId(), 5, 4, randomLong(), new ShardSearchFailure[] { shardFailure }));
+        new DummyAbstractAsyncBulkByScrollAction()
+                .onScrollResponse(new SearchResponse(null, scrollId(), 5, 4, randomLong(), new ShardSearchFailure[] { shardFailure }));
         listener.get();
-        assertThat(action.indexingFailures(), emptyCollectionOf(Failure.class));
-        assertThat(action.searchFailures(), contains(shardFailure));
+        assertThat(task.getStatus().getIndexingFailures(), emptyCollectionOf(Failure.class));
+        assertThat(task.getStatus().getSearchFailures(), contains(shardFailure));
+        assertThat(client.scrollsCleared, contains(scrollId));
     }
 
     /**
@@ -139,13 +239,14 @@ public class AsyncBulkByScrollActionTest extends ESTestCase {
         DummyAbstractAsyncBulkByScrollAction action = new DummyAbstractAsyncBulkByScrollAction();
         action.onBulkResponse(new BulkResponse(new BulkItemResponse[] {new BulkItemResponse(0, "index", failure)}, randomLong()));
         listener.get();
-        assertThat(action.indexingFailures(), contains(failure));
-        assertThat(action.searchFailures(), emptyCollectionOf(ShardSearchFailure.class));
+        assertThat(task.getStatus().getIndexingFailures(), contains(failure));
+        assertThat(task.getStatus().getSearchFailures(), emptyCollectionOf(ShardSearchFailure.class));
     }
 
     private class DummyAbstractAsyncBulkByScrollAction extends AbstractAsyncBulkByScrollAction<DummyAbstractBulkByScrollRequest, Object> {
         public DummyAbstractAsyncBulkByScrollAction() {
-            super(logger, client, threadPool, AsyncBulkByScrollActionTest.this.mainRequest, firstSearchRequest, listener);
+            super(AsyncBulkByScrollActionTests.this.task, logger, client, threadPool,
+                    AsyncBulkByScrollActionTests.this.mainRequest, firstSearchRequest, listener);
         }
 
         @Override
@@ -175,7 +276,8 @@ public class AsyncBulkByScrollActionTest extends ESTestCase {
 
         @Override
         @SuppressWarnings("unchecked")
-        protected <Request extends ActionRequest<Request>, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void doExecute(
+        protected <Request extends ActionRequest<Request>, Response extends ActionResponse,
+                RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void doExecute(
                 Action<Request, Response, RequestBuilder> action, Request request, ActionListener<Response> listener) {
             if (request instanceof ClearScrollRequest) {
                 ClearScrollRequest clearScroll = (ClearScrollRequest) request;

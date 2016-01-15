@@ -19,6 +19,16 @@
 
 package org.elasticsearch.plugin.reindex;
 
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
@@ -32,7 +42,6 @@ import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ESLogger;
@@ -41,20 +50,9 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
-
 import static java.lang.Math.max;
-import static java.util.Collections.unmodifiableList;
+import static java.lang.Math.min;
+
 import static org.elasticsearch.plugin.reindex.AbstractBulkByScrollRequest.SIZE_ALL_MATCHES;
 import static org.elasticsearch.rest.RestStatus.CONFLICT;
 import static org.elasticsearch.search.sort.SortBuilders.fieldSort;
@@ -65,16 +63,10 @@ import static org.elasticsearch.search.sort.SortBuilders.fieldSort;
  */
 public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBulkByScrollRequest<Request>, Response> {
     protected final Request mainRequest;
+    protected final BulkByScrollTask task;
 
     private final AtomicLong startTime = new AtomicLong(-1);
-    private final AtomicLong updated = new AtomicLong(0);
-    private final AtomicLong created = new AtomicLong(0);
-    private final AtomicLong deleted = new AtomicLong(0);
-    private final AtomicInteger batches = new AtomicInteger(0);
-    private final AtomicLong versionConflicts = new AtomicLong(0);
     private final AtomicReference<String> scroll = new AtomicReference<>();
-    private final List<Failure> indexingFailures = new CopyOnWriteArrayList<>();
-    private final List<ShardSearchFailure> searchFailures = new CopyOnWriteArrayList<>();
     private final Set<String> destinationIndices = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
     private final ESLogger logger;
@@ -83,8 +75,9 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
     private final SearchRequest firstSearchRequest;
     private final ActionListener<Response> listener;
 
-    public AbstractAsyncBulkByScrollAction(ESLogger logger, Client client, ThreadPool threadPool, Request mainRequest,
-            SearchRequest firstSearchRequest, ActionListener<Response> listener) {
+    public AbstractAsyncBulkByScrollAction(BulkByScrollTask task, ESLogger logger, Client client, ThreadPool threadPool,
+            Request mainRequest, SearchRequest firstSearchRequest, ActionListener<Response> listener) {
+        this.task = task;
         this.logger = logger;
         this.client = client;
         this.threadPool = threadPool;
@@ -101,48 +94,8 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         initialSearch();
     }
 
-    /**
-     * Count of documents updated.
-     */
-    public long updated() {
-        return updated.get();
-    }
-
-    /**
-     * Count of documents created.
-     */
-    public long created() {
-        return created.get();
-    }
-
-    /**
-     * Count of successful delete operations.
-     */
-    public long deleted() {
-        return deleted.get();
-    }
-
-    /**
-     * The number of scan responses this request has processed.
-     */
-    public int batches() {
-        return batches.get();
-    }
-
-    public long versionConflicts() {
-        return versionConflicts.get();
-    }
-
-    public long successfullyProcessed() {
-        return updated.get() + created.get() + deleted.get();
-    }
-
-    public List<Failure> indexingFailures() {
-        return unmodifiableList(indexingFailures);
-    }
-
-    public List<ShardSearchFailure> searchFailures() {
-        return unmodifiableList(searchFailures);
+    public BulkByScrollTask getTask() {
+        return task;
     }
 
     private void initialSearch() {
@@ -179,10 +132,15 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
     void onScrollResponse(SearchResponse searchResponse) {
         scroll.set(searchResponse.getScrollId());
         if (searchResponse.getShardFailures() != null && searchResponse.getShardFailures().length > 0) {
-            Collections.addAll(searchFailures, searchResponse.getShardFailures());
+            task.addSearchFailures(searchResponse.getShardFailures());
             startNormalTermination();
             return;
         }
+        long total = searchResponse.getHits().totalHits();
+        if (mainRequest.getSize() >= 0) {
+            total = min(total, mainRequest.getSize());
+        }
+        task.setTotal(total);
         threadPool.generic().execute(new AbstractRunnable() {
             @Override
             protected void doRun() throws Exception {
@@ -193,11 +151,11 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
                         startNormalTermination();
                         return;
                     }
-                    batches.incrementAndGet();
+                    task.countBatch();
                     List<SearchHit> docsIterable = Arrays.asList(docs);
                     if (mainRequest.getSize() != SIZE_ALL_MATCHES) {
                         // Truncate the docs if we have more than the request size
-                        long remaining = max(0, mainRequest.getSize() - successfullyProcessed());
+                        long remaining = max(0, mainRequest.getSize() - task.getSuccessfullyProcessed());
                         if (remaining < docs.length) {
                             docsIterable = docsIterable.subList(0, (int) remaining);
                         }
@@ -255,13 +213,13 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
                 case "create":
                     IndexResponse ir = item.getResponse();
                     if (ir.isCreated()) {
-                        created.incrementAndGet();
+                        task.countCreated();
                     } else {
-                        updated.incrementAndGet();
+                        task.countUpdated();
                     }
                     break;
                 case "delete":
-                    deleted.incrementAndGet();
+                    task.countDeleted();
                     break;
                 default:
                     throw new IllegalArgumentException("Unknown op type:  " + item.getOpType());
@@ -271,12 +229,12 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
             }
             destinationIndices.addAll(destinationIndicesThisBatch);
 
-            if (false == indexingFailures.isEmpty()) {
+            if (false == task.getIndexingFailures().isEmpty()) {
                 startNormalTermination();
                 return;
             }
 
-            if (mainRequest.getSize() != SIZE_ALL_MATCHES && successfullyProcessed() >= mainRequest.getSize()) {
+            if (mainRequest.getSize() != SIZE_ALL_MATCHES && task.getSuccessfullyProcessed() >= mainRequest.getSize()) {
                 // We've processed all the requested docs.
                 startNormalTermination();
                 return;
@@ -305,12 +263,12 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
 
     private void recordFailure(Failure failure) {
         if (failure.getStatus() == CONFLICT) {
-            versionConflicts.incrementAndGet();
+            task.countVersionConflict();
             if (false == mainRequest.isAbortOnVersionConflict()) {
                 return;
             }
         }
-        indexingFailures.add(failure);
+        task.addIndexingFailure(failure);
     }
 
     void startNormalTermination() {

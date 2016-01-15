@@ -19,10 +19,10 @@
 
 package org.elasticsearch.plugin.reindex;
 
+import java.util.Map;
+
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.lucene.uid.Versions;
-
-import java.util.Map;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 import static org.hamcrest.Matchers.containsString;
@@ -134,6 +134,6 @@ public class ReindexScriptTests extends AbstractAsyncBulkIndexByScrollActionScri
 
     @Override
     protected AbstractAsyncBulkIndexByScrollAction<ReindexRequest, ReindexResponse> action() {
-        return new TransportReindexAction.AsyncIndexBySearchAction(logger, null, null, threadPool, request(), listener());
+        return new TransportReindexAction.AsyncIndexBySearchAction(task, logger, null, null, threadPool, request(), listener());
     }
 }

@@ -19,6 +19,9 @@
 
 package org.elasticsearch.plugin.reindex;
 
+import java.io.IOException;
+import java.util.Arrays;
+
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.WriteConsistencyLevel;
@@ -28,9 +31,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-
-import java.io.IOException;
-import java.util.Arrays;
+import org.elasticsearch.tasks.Task;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -206,6 +207,11 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     }
 
     @Override
+    public Task createTask(long id, String type, String action) {
+        return new BulkByScrollTask(id, type, action, this::getDescription);
+    }
+
+    @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         source = new SearchRequest();
@@ -239,7 +245,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
             b.append("[all indices]");
         }
         if (source.types() != null && source.types().length != 0) {
-            b.append(source.types());
+            b.append(Arrays.toString(source.types()));
         }
     }
 

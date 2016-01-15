@@ -56,7 +56,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
             client().admin().indices().prepareUpdateSettings("test")
                     .setSettings(Settings.settingsBuilder()
                             .put("index.refresh_interval", -1) // this one can change
-                            .put("index.cache.filter.type", "none") // this one can't
+                            .put("index.fielddata.cache", "none") // this one can't
                     )
                     .execute().actionGet();
             fail();
@@ -66,12 +66,12 @@ public class UpdateSettingsIT extends ESIntegTestCase {
 
         IndexMetaData indexMetaData = client().admin().cluster().prepareState().execute().actionGet().getState().metaData().index("test");
         assertThat(indexMetaData.getSettings().get("index.refresh_interval"), nullValue());
-        assertThat(indexMetaData.getSettings().get("index.cache.filter.type"), nullValue());
+        assertThat(indexMetaData.getSettings().get("index.fielddata.cache"), nullValue());
 
         // Now verify via dedicated get settings api:
         GetSettingsResponse getSettingsResponse = client().admin().indices().prepareGetSettings("test").get();
         assertThat(getSettingsResponse.getSetting("test", "index.refresh_interval"), nullValue());
-        assertThat(getSettingsResponse.getSetting("test", "index.cache.filter.type"), nullValue());
+        assertThat(getSettingsResponse.getSetting("test", "index.fielddata.cache"), nullValue());
 
         client().admin().indices().prepareUpdateSettings("test")
                 .setSettings(Settings.settingsBuilder()
@@ -107,18 +107,18 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         client().admin().indices().prepareUpdateSettings("test")
                 .setSettings(Settings.settingsBuilder()
                         .put("index.refresh_interval", "1s") // this one can change
-                        .put("index.cache.filter.type", "none") // this one can't
+                        .put("index.fielddata.cache", "none") // this one can't
                 )
                 .execute().actionGet();
 
         indexMetaData = client().admin().cluster().prepareState().execute().actionGet().getState().metaData().index("test");
         assertThat(indexMetaData.getSettings().get("index.refresh_interval"), equalTo("1s"));
-        assertThat(indexMetaData.getSettings().get("index.cache.filter.type"), equalTo("none"));
+        assertThat(indexMetaData.getSettings().get("index.fielddata.cache"), equalTo("none"));
 
         // Now verify via dedicated get settings api:
         getSettingsResponse = client().admin().indices().prepareGetSettings("test").get();
         assertThat(getSettingsResponse.getSetting("test", "index.refresh_interval"), equalTo("1s"));
-        assertThat(getSettingsResponse.getSetting("test", "index.cache.filter.type"), equalTo("none"));
+        assertThat(getSettingsResponse.getSetting("test", "index.fielddata.cache"), equalTo("none"));
     }
 
     public void testEngineGCDeletesSetting() throws InterruptedException {
@@ -181,7 +181,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
             .prepareUpdateSettings("test")
             .setSettings(Settings.builder()
                          .put(IndexStore.INDEX_STORE_THROTTLE_TYPE_SETTING.getKey(), "merge")
-                         .put(IndexStore.INDEX_STORE_THROTTLE_MAX_BYTES_PER_SEC_SETTING.getKey(), "1mb"))
+                             .put(IndexStore.INDEX_STORE_THROTTLE_MAX_BYTES_PER_SEC_SETTING.getKey(), "1mb"))
             .get();
 
         // Make sure setting says it is in fact changed:
@@ -279,10 +279,10 @@ public class UpdateSettingsIT extends ESIntegTestCase {
             if (event.getLevel() == Level.TRACE &&
                 event.getLoggerName().endsWith("lucene.iw")) {
             }
-            if (event.getLevel() == Level.INFO && message.contains("updating [index.merge.scheduler.max_thread_count] from [10000] to [1]")) {
+            if (event.getLevel() == Level.INFO && message.contains("update [index.merge.scheduler.max_thread_count] from [10000] to [1]")) {
                 sawUpdateMaxThreadCount = true;
             }
-            if (event.getLevel() == Level.INFO && message.contains("updating [index.merge.scheduler.auto_throttle] from [true] to [false]")) {
+            if (event.getLevel() == Level.INFO && message.contains("update [index.merge.scheduler.auto_throttle] from [true] to [false]")) {
                 sawUpdateAutoThrottle = true;
             }
         }
@@ -359,7 +359,6 @@ public class UpdateSettingsIT extends ESIntegTestCase {
                                      ));
 
             assertFalse(mockAppender.sawUpdateMaxThreadCount);
-
             // Now make a live change to reduce allowed merge threads:
             client()
                 .admin()

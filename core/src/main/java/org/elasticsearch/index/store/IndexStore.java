@@ -49,7 +49,7 @@ public class IndexStore extends AbstractIndexComponent {
      * the node level one (defaults to the node level one).
      */
     public StoreRateLimiting rateLimiting() {
-        return rateLimiting.getType() != StoreRateLimiting.Type.NONE ? indexStoreConfig.getNodeRateLimiter() : this.rateLimiting;
+        return rateLimiting.getType() == StoreRateLimiting.Type.NONE ? indexStoreConfig.getNodeRateLimiter() : this.rateLimiting;
     }
 
     /**

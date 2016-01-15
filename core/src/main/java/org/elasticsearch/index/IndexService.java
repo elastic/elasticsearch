@@ -566,7 +566,6 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
 
     public synchronized void updateMetaData(final IndexMetaData metadata) {
         if (indexSettings.updateIndexMetaData(metadata)) {
-            final Settings settings = indexSettings.getSettings();
             for (final IndexShard shard : this.shards.values()) {
                 try {
                     shard.onSettingsChanged();

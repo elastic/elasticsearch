@@ -37,6 +37,28 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * thread that has a {@link ThreadContext} associated with. Threads spawned from a {@link org.elasticsearch.threadpool.ThreadPool} have out of the box
  * support for {@link ThreadContext} and all threads spawned will inherit the {@link ThreadContext} from the thread that it is forking from.".
  * Network calls will also preserve the senders headers automatically.
+ * <p>
+ * Consumers of ThreadContext usually don't need to interact with adding or stashing contexts. Every elasticsearch thread is managed by a thread pool or executor
+ * being responsible for stashing and restoring the threads context. For instance if a network request is received, all headers are deserialized from the network
+ * and directly added as the headers of the threads {@link ThreadContext} (see {@link #readHeaders(StreamInput)}. In order to not modify the context that is currently
+ * active on this thread the network code uses a try/with pattern to stash it's current context, read headers into a fresh one and once the request is handled or a handler thread
+ * is forked (which in turn inherits the context) it restores the previous context. For instance:
+ *
+ * <pre>
+ *     // current context is stashed and replaced with a default context
+ *     try (StoredContext context = threadContext.stashContext()) {
+ *         threadContext.readHeaders(in); // read headers into current context
+ *         if (fork) {
+ *             threadPool.execute(() -> request.handle()); // inherits context
+ *         } else {
+ *             request.handle();
+ *         }
+ *     }
+ *     // previous context is restored on StoredContext#close()
+ * </pre>
+ *
+ * </p>
+ *
  */
 public final class ThreadContext implements Closeable, Writeable<ThreadContext.ThreadContextStruct>{
 

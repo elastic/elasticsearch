@@ -335,7 +335,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
                 .put("gateway.recover_after_nodes", 4)
                 .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING, 4)
                 .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING, 4)
-                .put(MockFSDirectoryService.CRASH_INDEX, false).build();
+                .put(MockFSDirectoryService.CRASH_INDEX_SETTING.getKey(), false).build();
 
         internalCluster().startNodesAsync(4, settings).get();
         // prevent any rebalance actions during the peer recovery

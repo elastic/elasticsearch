@@ -61,7 +61,13 @@ public class MockFSIndexStore extends IndexStore {
         }
 
         public void onModule(SettingsModule module) {
+
             module.registerSetting(INDEX_CHECK_INDEX_ON_CLOSE_SETTING);
+            module.registerSetting(MockFSDirectoryService.CRASH_INDEX_SETTING);
+            module.registerSetting(MockFSDirectoryService.RANDOM_IO_EXCEPTION_RATE_SETTING);
+            module.registerSetting(MockFSDirectoryService.RANDOM_PREVENT_DOUBLE_WRITE_SETTING);
+            module.registerSetting(MockFSDirectoryService.RANDOM_NO_DELETE_OPEN_FILE_SETTING);
+            module.registerSetting(MockFSDirectoryService.RANDOM_IO_EXCEPTION_RATE_ON_OPEN_SETTING);
         }
 
         @Override

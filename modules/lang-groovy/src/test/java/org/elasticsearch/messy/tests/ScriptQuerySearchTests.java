@@ -53,8 +53,8 @@ public class ScriptQuerySearchTests extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.settingsBuilder().put(super.nodeSettings(nodeOrdinal))
                 // aggressive filter caching so that we can assert on the number of iterations of the script filters
-                .put(IndexModule.QUERY_CACHE_TYPE, IndexModule.INDEX_QUERY_CACHE)
-                .put(IndexModule.QUERY_CACHE_EVERYTHING, true)
+                .put(IndexModule.INDEX_QUERY_CACHE_TYPE_SETTING.getKey(), IndexModule.INDEX_QUERY_CACHE)
+                .put(IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.getKey(), true)
                 .build();
     }
 

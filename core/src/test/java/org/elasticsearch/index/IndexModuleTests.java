@@ -148,7 +148,7 @@ public class IndexModuleTests extends ESTestCase {
 
     public void testRegisterIndexStore() throws IOException {
         final Index index = new Index("foo");
-        final Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).put("path.home", createTempDir().toString()).put(IndexModule.STORE_TYPE, "foo_store").build();
+        final Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).put("path.home", createTempDir().toString()).put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), "foo_store").build();
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(index, settings);
         IndexModule module = new IndexModule(indexSettings, null, new AnalysisRegistry(null, environment));
         module.addIndexStore("foo_store", FooStore::new);
@@ -291,7 +291,7 @@ public class IndexModuleTests extends ESTestCase {
 
     public void testRegisterCustomQueryCache() throws IOException {
         Settings indexSettings = Settings.settingsBuilder()
-                .put(IndexModule.QUERY_CACHE_TYPE, "custom")
+                .put(IndexModule.INDEX_QUERY_CACHE_TYPE_SETTING.getKey(), "custom")
                 .put("path.home", createTempDir().toString())
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
         IndexModule module = new IndexModule(IndexSettingsModule.newIndexSettings(new Index("foo"), indexSettings), null, new AnalysisRegistry(null, environment));

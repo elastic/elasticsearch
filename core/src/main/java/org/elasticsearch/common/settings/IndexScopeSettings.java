@@ -41,6 +41,7 @@ import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.gateway.PrimaryShardAllocator;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexingSlowLog;
 import org.elasticsearch.index.MergePolicyConfig;
@@ -143,6 +144,9 @@ public final class IndexScopeSettings extends AbstractScopedSettings {
         PercolatorQueriesRegistry.INDEX_MAP_UNMAPPED_FIELDS_AS_STRING_SETTING,
         MapperService.INDEX_MAPPER_DYNAMIC_SETTING,
         BitsetFilterCache.INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING,
+        IndexModule.INDEX_STORE_TYPE_SETTING,
+        IndexModule.INDEX_QUERY_CACHE_TYPE_SETTING,
+        IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING,
         PrimaryShardAllocator.INDEX_RECOVERY_INITIAL_SHARDS_SETTING,
         // this sucks but we can't really validate all the analyzers/similarity in here
         Setting.groupSetting("index.similarity.", false, Setting.Scope.INDEX), // this allows similarity settings to be passed

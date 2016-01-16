@@ -20,6 +20,7 @@
 package org.elasticsearch.index;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
@@ -47,6 +48,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 /**
  * IndexModule represents the central extension point for index level custom implementations like:
@@ -62,13 +64,22 @@ import java.util.function.Consumer;
  */
 public final class IndexModule {
 
-    public static final String STORE_TYPE = "index.store.type";
+    public static final Setting<String> INDEX_STORE_TYPE_SETTING = new Setting<>("index.store.type", "", Function.identity(), false, Setting.Scope.INDEX);
     public static final String SIMILARITY_SETTINGS_PREFIX = "index.similarity";
     public static final String INDEX_QUERY_CACHE = "index";
     public static final String NONE_QUERY_CACHE = "none";
-    public static final String QUERY_CACHE_TYPE = "index.queries.cache.type";
+    public static final Setting<String> INDEX_QUERY_CACHE_TYPE_SETTING = new Setting<>("index.queries.cache.type", INDEX_QUERY_CACHE, (s) -> {
+        switch (s) {
+            case NONE_QUERY_CACHE:
+            case INDEX_QUERY_CACHE:
+                return s;
+            default:
+                throw new IllegalArgumentException("Unknown value for [index.queries.cache.type]: " + s);
+
+        }
+    }, false, Setting.Scope.INDEX);
     // for test purposes only
-    public static final String QUERY_CACHE_EVERYTHING = "index.queries.cache.everything";
+    public static final Setting<Boolean> INDEX_QUERY_CACHE_EVERYTHING_SETTING = Setting.boolSetting("index.queries.cache.everything", false, false, Setting.Scope.INDEX);
     private final IndexSettings indexSettings;
     private final IndexStoreConfig indexStoreConfig;
     private final AnalysisRegistry analysisRegistry;
@@ -242,9 +253,9 @@ public final class IndexModule {
                                         IndexingOperationListener... listeners) throws IOException {
         IndexSearcherWrapperFactory searcherWrapperFactory = indexSearcherWrapper.get() == null ? (shard) -> null : indexSearcherWrapper.get();
         IndexEventListener eventListener = freeze();
-        final String storeType = indexSettings.getSettings().get(STORE_TYPE);
+        final String storeType = indexSettings.getValue(INDEX_STORE_TYPE_SETTING);
         final IndexStore store;
-        if (storeType == null || isBuiltinType(storeType)) {
+        if (Strings.isEmpty(storeType) || isBuiltinType(storeType)) {
             store = new IndexStore(indexSettings, indexStoreConfig);
         } else {
             BiFunction<IndexSettings, IndexStoreConfig, IndexStore> factory = storeTypes.get(storeType);
@@ -258,7 +269,7 @@ public final class IndexModule {
         }
         indexSettings.getScopedSettings().addSettingsUpdateConsumer(IndexStore.INDEX_STORE_THROTTLE_MAX_BYTES_PER_SEC_SETTING, store::setMaxRate);
         indexSettings.getScopedSettings().addSettingsUpdateConsumer(IndexStore.INDEX_STORE_THROTTLE_TYPE_SETTING, store::setType);
-        final String queryCacheType = indexSettings.getSettings().get(IndexModule.QUERY_CACHE_TYPE, IndexModule.INDEX_QUERY_CACHE);
+        final String queryCacheType = indexSettings.getValue(INDEX_QUERY_CACHE_TYPE_SETTING);
         final BiFunction<IndexSettings, IndicesQueryCache, QueryCache> queryCacheProvider = queryCaches.get(queryCacheType);
         final QueryCache queryCache = queryCacheProvider.apply(indexSettings, servicesProvider.getIndicesQueryCache());
         return new IndexService(indexSettings, environment, new SimilarityService(indexSettings, similarities), shardStoreDeleter, analysisRegistry, engineFactory.get(),

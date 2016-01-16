@@ -425,11 +425,11 @@ public final class InternalTestCluster extends TestCluster {
         }
 
         if (random.nextBoolean()) {
-            builder.put(IndexModule.QUERY_CACHE_TYPE, random.nextBoolean() ? IndexModule.INDEX_QUERY_CACHE : IndexModule.NONE_QUERY_CACHE);
+            builder.put(IndexModule.INDEX_QUERY_CACHE_TYPE_SETTING.getKey(), random.nextBoolean() ? IndexModule.INDEX_QUERY_CACHE : IndexModule.NONE_QUERY_CACHE);
         }
 
         if (random.nextBoolean()) {
-            builder.put(IndexModule.QUERY_CACHE_EVERYTHING, random.nextBoolean());
+            builder.put(IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.getKey(), random.nextBoolean());
         }
 
         if (random.nextBoolean()) {

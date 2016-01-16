@@ -79,8 +79,8 @@ public class IndexStatsIT extends ESIntegTestCase {
         //Filter/Query cache is cleaned periodically, default is 60s, so make sure it runs often. Thread.sleep for 60s is bad
         return Settings.settingsBuilder().put(super.nodeSettings(nodeOrdinal))
                 .put(IndicesRequestCache.INDICES_CACHE_REQUEST_CLEAN_INTERVAL, "1ms")
-                .put(IndexModule.QUERY_CACHE_EVERYTHING, true)
-                .put(IndexModule.QUERY_CACHE_TYPE, IndexModule.INDEX_QUERY_CACHE)
+                .put(IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.getKey(), true)
+                .put(IndexModule.INDEX_QUERY_CACHE_TYPE_SETTING.getKey(), IndexModule.INDEX_QUERY_CACHE)
                 .build();
     }
 

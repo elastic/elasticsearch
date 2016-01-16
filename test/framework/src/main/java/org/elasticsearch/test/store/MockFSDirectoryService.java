@@ -182,7 +182,7 @@ public class MockFSDirectoryService extends FsDirectoryService {
 
     private FsDirectoryService randomDirectorService(IndexStore indexStore, ShardPath path) {
         final IndexSettings indexSettings = indexStore.getIndexSettings();
-        final IndexMetaData build = IndexMetaData.builder(indexSettings.getIndexMetaData()).settings(Settings.builder().put(indexSettings.getSettings()).put(IndexModule.STORE_TYPE, RandomPicks.randomFrom(random, IndexModule.Type.values()).getSettingsKey())).build();
+        final IndexMetaData build = IndexMetaData.builder(indexSettings.getIndexMetaData()).settings(Settings.builder().put(indexSettings.getSettings()).put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), RandomPicks.randomFrom(random, IndexModule.Type.values()).getSettingsKey())).build();
         final IndexSettings newIndexSettings = new IndexSettings(build, indexSettings.getNodeSettings());
         return new FsDirectoryService(newIndexSettings, indexStore, path);
     }

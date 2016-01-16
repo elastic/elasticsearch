@@ -57,7 +57,7 @@ public class MockFSIndexStore extends IndexStore {
         }
         @Override
         public Settings additionalSettings() {
-            return Settings.builder().put(IndexModule.STORE_TYPE, "mock").build();
+            return Settings.builder().put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), "mock").build();
         }
 
         public void onModule(SettingsModule module) {
@@ -73,7 +73,7 @@ public class MockFSIndexStore extends IndexStore {
         @Override
         public void onIndexModule(IndexModule indexModule) {
             Settings indexSettings = indexModule.getSettings();
-            if ("mock".equals(indexSettings.get(IndexModule.STORE_TYPE))) {
+            if ("mock".equals(indexSettings.get(IndexModule.INDEX_STORE_TYPE_SETTING.getKey()))) {
                 if (INDEX_CHECK_INDEX_ON_CLOSE_SETTING.get(indexSettings)) {
                     indexModule.addIndexEventListener(new Listener());
                 }

@@ -27,6 +27,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -70,6 +71,9 @@ import static org.elasticsearch.index.mapper.core.TypeParsers.parseMultiField;
 public class AttachmentMapper extends FieldMapper {
 
     private static ESLogger logger = ESLoggerFactory.getLogger("mapper.attachment");
+    public static final Setting<Boolean> INDEX_ATTACHMENT_IGNORE_ERRORS_SETTING = Setting.boolSetting("index.mapping.attachment.ignore_errors", true, false, Setting.Scope.INDEX);
+    public static final Setting<Boolean> INDEX_ATTACHMENT_DETECT_LANGUAGE_SETTING = Setting.boolSetting("index.mapping.attachment.detect_language", false, false, Setting.Scope.INDEX);
+    public static final Setting<Integer> INDEX_ATTACHMENT_INDEXED_CHARS_SETTING = Setting.intSetting("index.mapping.attachment.indexed_chars", 100000, false, Setting.Scope.INDEX);
 
     public static final String CONTENT_TYPE = "attachment";
 
@@ -222,21 +226,21 @@ public class AttachmentMapper extends FieldMapper {
             context.path().remove();
 
             if (defaultIndexedChars == null && context.indexSettings() != null) {
-                defaultIndexedChars = context.indexSettings().getAsInt("index.mapping.attachment.indexed_chars", 100000);
+                defaultIndexedChars = INDEX_ATTACHMENT_INDEXED_CHARS_SETTING.get(context.indexSettings());
             }
             if (defaultIndexedChars == null) {
                 defaultIndexedChars = 100000;
             }
 
             if (ignoreErrors == null && context.indexSettings() != null) {
-                ignoreErrors = context.indexSettings().getAsBoolean("index.mapping.attachment.ignore_errors", Boolean.TRUE);
+                ignoreErrors = INDEX_ATTACHMENT_IGNORE_ERRORS_SETTING.get(context.indexSettings());
             }
             if (ignoreErrors == null) {
                 ignoreErrors = Boolean.TRUE;
             }
 
             if (langDetect == null && context.indexSettings() != null) {
-                langDetect = context.indexSettings().getAsBoolean("index.mapping.attachment.detect_language", Boolean.FALSE);
+                langDetect = INDEX_ATTACHMENT_DETECT_LANGUAGE_SETTING.get(context.indexSettings());
             }
             if (langDetect == null) {
                 langDetect = Boolean.FALSE;

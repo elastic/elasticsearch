@@ -243,7 +243,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         final QueryCachingPolicy cachingPolicy;
         // the query cache is a node-level thing, however we want the most popular filters
         // to be computed on a per-shard basis
-        if (settings.getAsBoolean(IndexModule.QUERY_CACHE_EVERYTHING, false)) {
+        if (IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.get(settings)) {
             cachingPolicy = QueryCachingPolicy.ALWAYS_CACHE;
         } else {
             cachingPolicy = new UsageTrackingQueryCachingPolicy();

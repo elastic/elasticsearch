@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -169,10 +170,6 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
             // try and see if we an list unallocated
             IndexMetaData metaData = clusterService.state().metaData().index(shardId.index().name());
             if (metaData == null) {
-                return new StoreFilesMetaData(false, shardId, Store.MetadataSnapshot.EMPTY);
-            }
-            String storeType = metaData.getSettings().get(IndexModule.STORE_TYPE, "fs");
-            if (!storeType.contains("fs")) {
                 return new StoreFilesMetaData(false, shardId, Store.MetadataSnapshot.EMPTY);
             }
             final IndexSettings indexSettings = indexService != null ? indexService.getIndexSettings() : new IndexSettings(metaData, settings);

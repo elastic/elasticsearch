@@ -31,6 +31,7 @@ import org.elasticsearch.plugin.repository.azure.AzureRepositoryPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.test.store.MockFSDirectoryService;
+import org.elasticsearch.test.store.MockFSIndexStore;
 import org.junit.After;
 import org.junit.Before;
 
@@ -85,7 +86,7 @@ public abstract class AbstractAzureRepositoryServiceTestCase extends AbstractAzu
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(AzureRepositoryPlugin.class, TestPlugin.class);
+        return pluginList(AzureRepositoryPlugin.class, TestPlugin.class, MockFSIndexStore.TestPlugin.class);
     }
 
     @Override

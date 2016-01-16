@@ -279,10 +279,10 @@ public class UpdateSettingsIT extends ESIntegTestCase {
             if (event.getLevel() == Level.TRACE &&
                 event.getLoggerName().endsWith("lucene.iw")) {
             }
-            if (event.getLevel() == Level.INFO && message.contains("update [index.merge.scheduler.max_thread_count] from [10000] to [1]")) {
+            if (event.getLevel() == Level.INFO && message.contains("updating [index.merge.scheduler.max_thread_count] from [10000] to [1]")) {
                 sawUpdateMaxThreadCount = true;
             }
-            if (event.getLevel() == Level.INFO && message.contains("update [index.merge.scheduler.auto_throttle] from [true] to [false]")) {
+            if (event.getLevel() == Level.INFO && message.contains("updating [index.merge.scheduler.auto_throttle] from [true] to [false]")) {
                 sawUpdateAutoThrottle = true;
             }
         }
@@ -323,7 +323,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
                 .indices()
                 .prepareUpdateSettings("test")
                 .setSettings(Settings.builder()
-                             .put(MergeSchedulerConfig.AUTO_THROTTLE_SETTING.getKey(), "no"))
+                             .put(MergeSchedulerConfig.AUTO_THROTTLE_SETTING.getKey(), "false"))
                 .get();
 
             // Make sure we log the change:
@@ -331,7 +331,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
 
             // Make sure setting says it is in fact changed:
             GetSettingsResponse getSettingsResponse = client().admin().indices().prepareGetSettings("test").get();
-            assertThat(getSettingsResponse.getSetting("test", MergeSchedulerConfig.AUTO_THROTTLE_SETTING.getKey()), equalTo("no"));
+            assertThat(getSettingsResponse.getSetting("test", MergeSchedulerConfig.AUTO_THROTTLE_SETTING.getKey()), equalTo("false"));
         } finally {
             rootLogger.removeAppender(mockAppender);
             rootLogger.setLevel(savedLevel);

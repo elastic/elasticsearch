@@ -227,7 +227,7 @@ public class Setting<T> extends ToXContentToBytes {
     }
 
 
-    private class Updater implements AbstractScopedSettings.SettingUpdater<T> {
+    private final class Updater implements AbstractScopedSettings.SettingUpdater<T> {
         private final Consumer<T> consumer;
         private final ESLogger logger;
         private final Consumer<T> accept;
@@ -267,8 +267,8 @@ public class Setting<T> extends ToXContentToBytes {
         }
 
         @Override
-        public void apply(T value, Settings current, Settings previous) {
-            logger.info("update [{}] from [{}] to [{}]", key, getRaw(previous), getRaw(current));
+        public final void apply(T value, Settings current, Settings previous) {
+            logger.info("updating [{}] from [{}] to [{}]", key, getRaw(previous), getRaw(current));
             consumer.accept(value);
         }
     }
@@ -443,6 +443,7 @@ public class Setting<T> extends ToXContentToBytes {
 
                     @Override
                     public void apply(Settings value, Settings current, Settings previous) {
+                        logger.info("updating [{}] from [{}] to [{}]", key, getRaw(previous), getRaw(current));
                         consumer.accept(value);
                     }
 

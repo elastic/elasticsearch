@@ -25,14 +25,17 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+
 public class PrioritizedRunnableTests extends ESTestCase {
+
+    // test unit conversion with a controlled clock
     public void testGetAgeInMillis() throws Exception {
         AtomicLong time = new AtomicLong();
 
         PrioritizedRunnable runnable = new PrioritizedRunnable(Priority.NORMAL, time::get) {
             @Override
             public void run() {
-
             }
         };
         assertEquals(0, runnable.getAgeInMillis());
@@ -40,4 +43,27 @@ public class PrioritizedRunnableTests extends ESTestCase {
         time.addAndGet(TimeUnit.NANOSECONDS.convert(milliseconds, TimeUnit.MILLISECONDS));
         assertEquals(milliseconds, runnable.getAgeInMillis());
     }
+
+    // test age advances with System#nanoTime
+    public void testGetAgeInMillisWithRealClock() throws InterruptedException {
+        long nanosecondsInMillisecond = TimeUnit.NANOSECONDS.convert(1, TimeUnit.MILLISECONDS);
+        PrioritizedRunnable runnable = new PrioritizedRunnable(Priority.NORMAL) {
+            @Override
+            public void run() {
+            }
+        };
+
+        // force at least one millisecond to elapse, but ensure the
+        // clock has enough resolution to observe the passage of time
+        long start = System.nanoTime();
+        long elapsed;
+        while ((elapsed = (System.nanoTime() - start)) < nanosecondsInMillisecond) {
+            // busy spin
+        }
+
+        // creation happened before start, so age will be at least as
+        // large as elapsed
+        assertThat(runnable.getAgeInMillis(), greaterThanOrEqualTo(TimeUnit.MILLISECONDS.convert(elapsed, TimeUnit.NANOSECONDS)));
+    }
+
 }

@@ -296,14 +296,23 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
         return setting.get(this.lastSettingsApplied);
     }
 
-    public boolean applyDynamicSettings(Settings toApply, Settings.Builder target, Settings.Builder updates, String type) {
+    /**
+     * Updates a target settings builder with new, updated or deleted settings from a given settings builder.
+     * @param toApply the new settings to apply
+     * @param target the target settings builder that the updates are applied to. All keys that have explicit null value in toApply will be removed from this builder
+     * @param updates a settings builder that holds all updates applied to target
+     * @param type a free text string to allow better exceptions messages
+     * @param all if <code>true</code> all settings are updated otherwise only dynamic settings are updated. if set to <code>false</code> and a non-dynamic setting is updated an exception is thrown
+     * @return <code>true</code> if the target has changed otherwise <code>false</code>
+     */
+    public boolean updateSettings(Settings toApply, Settings.Builder target, Settings.Builder updates, String type, boolean all) {
         boolean changed = false;
         final Set<String> toRemove = new HashSet<>();
         Settings.Builder settingsBuilder = Settings.settingsBuilder();
         for (Map.Entry<String, String> entry : toApply.getAsMap().entrySet()) {
             if (entry.getValue() == null) {
                 toRemove.add(entry.getKey());
-            } else if (hasDynamicSetting(entry.getKey())) {
+            } else if ((all && get(entry.getKey()) != null) || hasDynamicSetting(entry.getKey())) {
                 validate(entry.getKey(), entry.getValue());
                 settingsBuilder.put(entry.getKey(), entry.getValue());
                 updates.put(entry.getKey(), entry.getValue());

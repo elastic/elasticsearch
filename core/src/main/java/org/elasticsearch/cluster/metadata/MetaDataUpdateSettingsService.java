@@ -42,6 +42,7 @@ import org.elasticsearch.common.settings.IndexScopeSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.IndexNotFoundException;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -256,13 +257,31 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                 }
 
                 if (!openIndices.isEmpty()) {
-                    String[] indices = openIndices.toArray(new String[openIndices.size()]);
-                    metaDataBuilder.updateSettings(openSettings, indices);
+                    for (String index : openIndices) {
+                        IndexMetaData indexMetaData = metaDataBuilder.get(index);
+                        if (indexMetaData == null) {
+                            throw new IndexNotFoundException(index);
+                        }
+                        Settings.Builder updates = Settings.builder();
+                        Settings.Builder indexSettings = Settings.builder().put(indexMetaData.getSettings());
+                        if (indexScopeSettings.updateSettings(openSettings, indexSettings, updates, index, false)) {
+                            metaDataBuilder.put(IndexMetaData.builder(indexMetaData).settings(indexSettings));
+                        }
+                    }
                 }
 
                 if (!closeIndices.isEmpty()) {
-                    String[] indices = closeIndices.toArray(new String[closeIndices.size()]);
-                    metaDataBuilder.updateSettings(closedSettings, indices);
+                    for (String index : closeIndices) {
+                        IndexMetaData indexMetaData = metaDataBuilder.get(index);
+                        if (indexMetaData == null) {
+                            throw new IndexNotFoundException(index);
+                        }
+                        Settings.Builder updates = Settings.builder();
+                        Settings.Builder indexSettings = Settings.builder().put(indexMetaData.getSettings());
+                        if (indexScopeSettings.updateSettings(closedSettings, indexSettings, updates, index, true)) {
+                            metaDataBuilder.put(IndexMetaData.builder(indexMetaData).settings(indexSettings));
+                        }
+                    }
                 }
 
 

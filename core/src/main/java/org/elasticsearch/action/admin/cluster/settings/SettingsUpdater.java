@@ -52,11 +52,11 @@ final class SettingsUpdater {
         boolean changed = false;
         Settings.Builder transientSettings = Settings.settingsBuilder();
         transientSettings.put(currentState.metaData().transientSettings());
-        changed |= clusterSettings.applyDynamicSettings(transientToApply, transientSettings, transientUpdates, "transient");
+        changed |= clusterSettings.updateSettings(transientToApply, transientSettings, transientUpdates, "transient", false);
 
         Settings.Builder persistentSettings = Settings.settingsBuilder();
         persistentSettings.put(currentState.metaData().persistentSettings());
-        changed |= clusterSettings.applyDynamicSettings(persistentToApply, persistentSettings, persistentUpdates, "persistent");
+        changed |= clusterSettings.updateSettings(persistentToApply, persistentSettings, persistentUpdates, "persistent", false);
 
         if (!changed) {
             return currentState;

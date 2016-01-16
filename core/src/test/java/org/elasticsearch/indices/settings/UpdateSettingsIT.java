@@ -30,11 +30,13 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.MergeSchedulerConfig;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Arrays;
@@ -50,6 +52,40 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 public class UpdateSettingsIT extends ESIntegTestCase {
+
+    public void testResetDefault() {
+        createIndex("test");
+
+        client().admin().indices().prepareUpdateSettings("test")
+            .setSettings(Settings.settingsBuilder()
+                .put("index.refresh_interval", -1)
+                .put("index.translog.flush_threshold_size", "1024b")
+            )
+            .execute().actionGet();
+        IndexMetaData indexMetaData = client().admin().cluster().prepareState().execute().actionGet().getState().metaData().index("test");
+        assertEquals(indexMetaData.getSettings().get("index.refresh_interval"), "-1");
+        for (IndicesService service : internalCluster().getInstances(IndicesService.class)) {
+            IndexService indexService = service.indexService("test");
+            if (indexService != null) {
+                assertEquals(indexService.getIndexSettings().getRefreshInterval().millis(), -1);
+                assertEquals(indexService.getIndexSettings().getFlushThresholdSize().bytes(), 1024);
+            }
+        }
+        client().admin().indices().prepareUpdateSettings("test")
+            .setSettings(Settings.settingsBuilder()
+                .putNull("index.refresh_interval")
+            )
+            .execute().actionGet();
+        indexMetaData = client().admin().cluster().prepareState().execute().actionGet().getState().metaData().index("test");
+        assertNull(indexMetaData.getSettings().get("index.refresh_interval"));
+        for (IndicesService service : internalCluster().getInstances(IndicesService.class)) {
+            IndexService indexService = service.indexService("test");
+            if (indexService != null) {
+                assertEquals(indexService.getIndexSettings().getRefreshInterval().millis(), 1000);
+                assertEquals(indexService.getIndexSettings().getFlushThresholdSize().bytes(), 1024);
+            }
+        }
+    }
     public void testOpenCloseUpdateSettings() throws Exception {
         createIndex("test");
         try {

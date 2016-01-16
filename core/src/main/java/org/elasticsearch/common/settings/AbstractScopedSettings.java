@@ -293,7 +293,7 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
         if (get(setting.getKey()) == null) {
             throw new IllegalArgumentException("setting " + setting.getKey() + " has not been registered");
         }
-        return setting.get(this.lastSettingsApplied);
+        return setting.get(this.lastSettingsApplied, settings);
     }
 
     /**

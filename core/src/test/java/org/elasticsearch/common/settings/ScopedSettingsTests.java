@@ -18,8 +18,11 @@
  */
 package org.elasticsearch.common.settings;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportService;
 
@@ -165,4 +168,26 @@ public class ScopedSettingsTests extends ESTestCase {
         assertTrue(ref.get().contains("internal:index/shard/recovery/*"));
         assertTrue(ref.get().contains("internal:gateway/local*"));
     }
+
+    public void testGetSetting() {
+        IndexScopeSettings settings = new IndexScopeSettings(
+           Settings.EMPTY,
+            IndexScopeSettings.BUILT_IN_INDEX_SETTINGS);
+        IndexScopeSettings copy = settings.copy(Settings.builder().put("index.store.type", "boom").build(), newIndexMeta("foo", Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 3).build()));
+        assertEquals(3, copy.get(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING).intValue());
+        assertEquals(1, copy.get(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING).intValue());
+        assertEquals("boom", copy.get(IndexModule.INDEX_STORE_TYPE_SETTING)); // test fallback to node settings
+    }
+
+
+    public static IndexMetaData newIndexMeta(String name, Settings indexSettings) {
+        Settings build = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(indexSettings)
+            .build();
+        IndexMetaData metaData = IndexMetaData.builder(name).settings(build).build();
+        return metaData;
+    }
+
 }

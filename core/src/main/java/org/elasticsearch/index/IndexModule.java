@@ -68,16 +68,7 @@ public final class IndexModule {
     public static final String SIMILARITY_SETTINGS_PREFIX = "index.similarity";
     public static final String INDEX_QUERY_CACHE = "index";
     public static final String NONE_QUERY_CACHE = "none";
-    public static final Setting<String> INDEX_QUERY_CACHE_TYPE_SETTING = new Setting<>("index.queries.cache.type", INDEX_QUERY_CACHE, (s) -> {
-        switch (s) {
-            case NONE_QUERY_CACHE:
-            case INDEX_QUERY_CACHE:
-                return s;
-            default:
-                throw new IllegalArgumentException("Unknown value for [index.queries.cache.type]: " + s);
-
-        }
-    }, false, Setting.Scope.INDEX);
+    public static final Setting<String> INDEX_QUERY_CACHE_TYPE_SETTING = new Setting<>("index.queries.cache.type", INDEX_QUERY_CACHE, Function.identity(), false, Setting.Scope.INDEX);
     // for test purposes only
     public static final Setting<Boolean> INDEX_QUERY_CACHE_EVERYTHING_SETTING = Setting.boolSetting("index.queries.cache.everything", false, false, Setting.Scope.INDEX);
     private final IndexSettings indexSettings;

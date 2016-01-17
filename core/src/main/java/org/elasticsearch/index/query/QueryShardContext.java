@@ -282,20 +282,14 @@ public class QueryShardContext {
         this.mapUnmappedFieldAsString = mapUnmappedFieldAsString;
     }
 
-    private MappedFieldType failIfFieldMappingNotFound(String name, MappedFieldType fieldMapping) {
-        if (allowUnmappedFields) {
+    MappedFieldType failIfFieldMappingNotFound(String name, MappedFieldType fieldMapping) {
+        if (fieldMapping != null || allowUnmappedFields) {
             return fieldMapping;
         } else if (mapUnmappedFieldAsString) {
             StringFieldMapper.Builder builder = MapperBuilders.stringField(name);
             return builder.build(new Mapper.BuilderContext(indexSettings.getSettings(), new ContentPath(1))).fieldType();
         } else {
-            Version indexCreatedVersion = indexSettings.getIndexVersionCreated();
-            if (fieldMapping == null && indexCreatedVersion.onOrAfter(Version.V_1_4_0_Beta1)) {
-                throw new QueryShardException(this, "Strict field resolution and no field mapping can be found for the field with name ["
-                        + name + "]");
-            } else {
-                return fieldMapping;
-            }
+            throw new QueryShardException(this, "No field mapping can be found for the field with name [{}]", name);
         }
     }
 

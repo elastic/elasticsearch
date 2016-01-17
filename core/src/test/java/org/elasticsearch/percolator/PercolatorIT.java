@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.percolator;
 
+import com.vividsolutions.jts.geom.Coordinate;
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -30,6 +31,7 @@ import org.elasticsearch.action.percolate.PercolateSourceBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.common.geo.builders.ShapeBuilders;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
@@ -71,6 +73,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.yamlBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
+import static org.elasticsearch.index.query.QueryBuilders.geoShapeQuery;
 import static org.elasticsearch.index.query.QueryBuilders.hasChildQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
@@ -1834,6 +1837,33 @@ public class PercolatorIT extends ESIntegTestCase {
                 .execute().actionGet();
         assertMatchCount(response1, 1l);
         assertThat(response1.getMatches(), arrayWithSize(1));
+    }
+
+    public void testGeoShapeWithMapUnmappedFieldAsString() throws Exception {
+        // If index.percolator.map_unmapped_fields_as_string is set to true, unmapped field is mapped as an analyzed string.
+        Settings.Builder settings = Settings.settingsBuilder()
+            .put(indexSettings())
+            .put("index.percolator.map_unmapped_fields_as_string", true);
+        assertAcked(prepareCreate("test")
+            .setSettings(settings)
+            .addMapping("type", "location", "type=geo_shape"));
+        client().prepareIndex("test", PercolatorService.TYPE_NAME, "1")
+            .setSource(jsonBuilder().startObject().field("query", geoShapeQuery("location", ShapeBuilders.newEnvelope(new Coordinate(0d, 50d), new Coordinate(2d, 40d)))).endObject())
+            .get();
+        refresh();
+
+        PercolateResponse response1 = client().preparePercolate()
+            .setIndices("test").setDocumentType("type")
+            .setPercolateDoc(docBuilder().setDoc(jsonBuilder().startObject()
+                .startObject("location")
+                    .field("type", "point")
+                    .field("coordinates", Arrays.asList(1.44207d, 43.59959d))
+                .endObject()
+                .endObject()))
+            .execute().actionGet();
+        assertMatchCount(response1, 1L);
+        assertThat(response1.getMatches().length, equalTo(1));
+        assertThat(response1.getMatches()[0].getId().string(), equalTo("1"));
     }
 
     public void testFailNicelyWithInnerHits() throws Exception {

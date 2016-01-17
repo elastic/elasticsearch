@@ -50,7 +50,7 @@ import java.util.function.Supplier;
 /**
  *
  */
-public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest, NodesResponse extends BaseNodesResponse, NodeRequest extends BaseNodeRequest, NodeResponse extends BaseNodeResponse> extends HandledTransportAction<NodesRequest, NodesResponse> {
+public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest<NodesRequest>, NodesResponse extends BaseNodesResponse, NodeRequest extends BaseNodeRequest, NodeResponse extends BaseNodeResponse> extends HandledTransportAction<NodesRequest, NodesResponse> {
 
     protected final ClusterName clusterName;
     protected final ClusterService clusterService;

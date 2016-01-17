@@ -38,7 +38,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  *
  */
-public class ReplicationRequest<Request extends ReplicationRequest<Request>> extends ActionRequest<Request> implements IndicesRequest {
+public abstract class ReplicationRequest<Request extends ReplicationRequest<Request>> extends ActionRequest<Request> implements IndicesRequest {
 
     public static final TimeValue DEFAULT_TIMEOUT = new TimeValue(1, TimeUnit.MINUTES);
 

@@ -90,7 +90,7 @@ import java.util.function.Supplier;
  * primary node to validate request before primary operation followed by sampling state again for resolving
  * nodes with replica copies to perform replication.
  */
-public abstract class TransportReplicationAction<Request extends ReplicationRequest, ReplicaRequest extends ReplicationRequest, Response extends ReplicationResponse> extends TransportAction<Request, Response> {
+public abstract class TransportReplicationAction<Request extends ReplicationRequest<Request>, ReplicaRequest extends ReplicationRequest<ReplicaRequest>, Response extends ReplicationResponse> extends TransportAction<Request, Response> {
 
     public static final String SHARD_FAILURE_TIMEOUT = "action.support.replication.shard.failure_timeout";
 

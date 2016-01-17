@@ -174,8 +174,8 @@ public class AsyncBulkByScrollActionTest extends ESTestCase {
         }
 
         @Override
-        @SuppressWarnings({ "rawtypes", "unchecked" }) // Declaration is raw
-        protected <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void doExecute(
+        @SuppressWarnings("unchecked")
+        protected <Request extends ActionRequest<Request>, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void doExecute(
                 Action<Request, Response, RequestBuilder> action, Request request, ActionListener<Response> listener) {
             if (request instanceof ClearScrollRequest) {
                 ClearScrollRequest clearScroll = (ClearScrollRequest) request;

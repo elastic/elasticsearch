@@ -12,6 +12,7 @@
   - do:
       update-by-query:
         index: test
+        wait_for_completion: true
   - match: {updated: 1}
   - match: {version_conflicts: 0}
   - match: {batches: 1}
@@ -19,6 +20,30 @@
   - match: {noops: 0}
   - is_true: took
   - is_false: created # This shouldn't be included in the response
+
+---
+"wait_for_completion=false":
+  - do:
+      index:
+        index:   test
+        type:    foo
+        id:      1
+        body:    { "text": "test" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      update-by-query:
+        index: test
+  - is_true: task.node
+  - is_true: task.id
+  - is_false: updated
+  - is_false: version_conflicts
+  - is_false: batches
+  - is_false: failures
+  - is_false: noops
+  - is_false: took
+  - is_false: created
 
 ---
 "Response for version conflict":
@@ -47,6 +72,7 @@
       catch: conflict
       update-by-query:
         index: test
+        wait_for_completion: true
   - match: {updated: 0}
   - match: {version_conflicts: 1}
   - match: {batches: 1}
@@ -87,6 +113,7 @@
       update-by-query:
         index: test
         conflicts: proceed
+        wait_for_completion: true
   - match: {updated: 0}
   - match: {version_conflicts: 1}
   - match: {batches: 1}
@@ -114,6 +141,7 @@
   - do:
       update-by-query:
         index: twitter
+        wait_for_completion: true
         body:
           query:
             match:
@@ -144,6 +172,7 @@
   - do:
       update-by-query:
         index: twitter
+        wait_for_completion: true
         size: 1
   - match: {updated: 1}
   - match: {version_conflicts: 0}
@@ -184,4 +213,5 @@
       update-by-query:
         index: test
         scroll_size: 1
+        wait_for_completion: true
   - match: {batches: 3}

@@ -185,6 +185,11 @@
           "type": "integer",
           "defaut_value": 100,
           "description": "Size on the scroll request powering the update-by-query"
+        },
+        "wait_for_completion": {
+           "type" : "boolean",
+           "default": false,
+           "description" : "Should the request should block until the reindex is complete."
         }
       }
     },

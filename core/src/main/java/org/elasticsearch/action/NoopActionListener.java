@@ -17,24 +17,31 @@
  * under the License.
  */
 
-package org.elasticsearch.plugin.reindex;
+package org.elasticsearch.action;
 
-import com.carrotsearch.randomizedtesting.annotations.Name;
-import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-
-import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.test.rest.RestTestCandidate;
-import org.elasticsearch.test.rest.parser.RestTestParseException;
-
-import java.io.IOException;
-
-public class ReindexRestIT extends ESRestTestCase {
-    public ReindexRestIT(@Name("yaml") RestTestCandidate testCandidate) {
-        super(testCandidate);
+/**
+ * An ActionListener that does nothing. Used when we need a listener but don't
+ * care to listen for the result.
+ */
+public final class NoopActionListener<Response> implements ActionListener<Response> {
+    /**
+     * Get the instance of NoopActionListener cast appropriately.
+     */
+    @SuppressWarnings("unchecked") // Safe because we do nothing with the type.
+    public static <Response> ActionListener<Response> instance() {
+        return (ActionListener<Response>) INSTANCE;
     }
 
-    @ParametersFactory
-    public static Iterable<Object[]> parameters() throws IOException, RestTestParseException {
-        return ESRestTestCase.createParameters(0, 1);
+    private static final NoopActionListener<Object> INSTANCE = new NoopActionListener<Object>();
+
+    private NoopActionListener() {
+    }
+
+    @Override
+    public void onResponse(Response response) {
+    }
+
+    @Override
+    public void onFailure(Throwable e) {
     }
 }

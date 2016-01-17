@@ -12,6 +12,7 @@
   - do:
       reindex:
         refresh: true
+        wait_for_completion: true
         body:
           source:
             index: twitter
@@ -51,6 +52,7 @@
   - do:
       reindex:
         refresh: true
+        wait_for_completion: true
         body:
           source:
             index: twitter
@@ -110,6 +112,7 @@
   - do:
       reindex:
         refresh: true
+        wait_for_completion: true
         body:
           source:
             index: twitter
@@ -153,6 +156,7 @@
   - do:
       reindex:
         refresh: true
+        wait_for_completion: true
         body:
           source:
             index: twitter
@@ -211,6 +215,7 @@
   - do:
       reindex:
         refresh: true
+        wait_for_completion: true
         body:
           source:
             index: twitter
@@ -256,6 +261,7 @@
   - do:
       reindex:
         refresh: true
+        wait_for_completion: true
         body:
           source:
             index: twitter
@@ -303,6 +309,7 @@
 
   - do:
       reindex:
+        wait_for_completion: true
         body:
           source:
             index: twitter
@@ -336,6 +343,7 @@
 
   - do:
       reindex:
+        wait_for_completion: true
         refresh: true
         body:
           source:
@@ -377,6 +385,7 @@
   - do:
       reindex:
         refresh: true
+        wait_for_completion: true
         body:
           source:
             index: twitter

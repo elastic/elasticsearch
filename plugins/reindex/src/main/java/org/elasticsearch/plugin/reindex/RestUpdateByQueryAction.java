@@ -19,8 +19,11 @@
 
 package org.elasticsearch.plugin.reindex;
 
+import java.util.Map;
+
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
@@ -30,7 +33,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
-import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -38,21 +40,17 @@ import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.script.Script;
 
-import java.util.Map;
-
 import static org.elasticsearch.plugin.reindex.AbstractBulkByScrollRequest.SIZE_ALL_MATCHES;
 import static org.elasticsearch.plugin.reindex.RestReindexAction.parseCommon;
-import static org.elasticsearch.plugin.reindex.UpdateByQueryAction.INSTANCE;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
-public class RestUpdateByQueryAction extends BaseRestHandler {
-    private IndicesQueriesRegistry indicesQueriesRegistry;
-
+public class RestUpdateByQueryAction extends
+        AbstractBaseReindexRestHandler<UpdateByQueryRequest, BulkIndexByScrollResponse, TransportUpdateByQueryAction> {
     @Inject
     public RestUpdateByQueryAction(Settings settings, RestController controller, Client client,
-            IndicesQueriesRegistry indicesQueriesRegistry) {
-        super(settings, controller, client);
-        this.indicesQueriesRegistry = indicesQueriesRegistry;
+            IndicesQueriesRegistry indicesQueriesRegistry, ClusterService clusterService,
+            TransportUpdateByQueryAction action) {
+        super(settings, controller, client, indicesQueriesRegistry, clusterService, action);
         controller.registerHandler(POST, "/{index}/_update_by_query", this);
         controller.registerHandler(POST, "/{index}/{type}/_update_by_query", this);
     }
@@ -108,6 +106,6 @@ public class RestUpdateByQueryAction extends BaseRestHandler {
         internalRequest.setSize(internalRequest.getSource().source().size());
         internalRequest.getSource().source().size(request.paramAsInt("scroll_size", scrollSize));
 
-        client.execute(INSTANCE, internalRequest, new BulkIndexByScrollResponseContentListener<>(channel));
+        execute(request, internalRequest, channel);
     }
 }

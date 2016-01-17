@@ -24,6 +24,7 @@
       update-by-query:
         index: test
         timeout: 1s
+        wait_for_completion: true
   - match:
       failures.0.cause.reason: /Not.enough.active.copies.to.meet.write.consistency.of.\[QUORUM\].\(have.1,.needed.4\)..Timeout\:.\[1s\],.request:.\[BulkShardRequest.to.\[test\].containing.\[1\].requests\]/
 
@@ -31,6 +32,7 @@
       update-by-query:
         index: test
         consistency: one
+        wait_for_completion: true
   - match: {failures: []}
   - match: {updated: 1}
   - match: {version_conflicts: 0}

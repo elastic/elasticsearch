@@ -30,6 +30,7 @@
   - do:
       reindex:
         refresh: true
+        wait_for_completion: true
         body:
           source:
             index: src
@@ -75,6 +76,7 @@
   - do:
       reindex:
         refresh: true
+        wait_for_completion: true
         body:
           conflicts: proceed
           source:
@@ -122,6 +124,7 @@
   - do:
       reindex:
         refresh: true
+        wait_for_completion: true
         body:
           source:
             index:        src
@@ -166,6 +169,7 @@
   - do:
       reindex:
         refresh: true
+        wait_for_completion: true
         body:
           source:
             index:        src

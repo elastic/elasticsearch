@@ -20,6 +20,11 @@
           "type" : "enum",
           "options" : ["one", "quorum", "all"],
           "description" : "Explicit write consistency setting for the operation"
+        },
+        "wait_for_completion": {
+           "type" : "boolean",
+           "default": false,
+           "description" : "Should the request should block until the reindex is complete."
         }
       }
     },

@@ -11,6 +11,7 @@
 
   - do:
       reindex:
+        wait_for_completion: true
         body:
           source:
             index: source
@@ -42,6 +43,7 @@
 
   - do:
       reindex:
+        wait_for_completion: true
         body:
           source:
             index:   source
@@ -53,6 +55,34 @@
   - match: {batches: 1}
   - match: {failures: []}
   - is_true: took
+
+---
+"wait_for_completion=true":
+  - do:
+      index:
+        index:   source
+        type:    foo
+        id:      1
+        body:    { "text": "test" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      reindex:
+        body:
+          source:
+            index: source
+          dest:
+            index: dest
+  - is_true: task.node
+  - is_true: task.id
+  - is_false: updated
+  - is_false: version_conflicts
+  - is_false: batches
+  - is_false: failures
+  - is_false: noops
+  - is_false: took
+  - is_false: created
 
 ---
 "Response format for version conflict":
@@ -74,6 +104,7 @@
   - do:
       catch: conflict
       reindex:
+        wait_for_completion: true
         body:
           source:
             index:   source
@@ -113,6 +144,7 @@
 
   - do:
       reindex:
+        wait_for_completion: true
         body:
           conflicts: proceed
           source:
@@ -140,6 +172,7 @@
 
   - do:
       reindex:
+        wait_for_completion: true
         refresh: true
         body:
           source:
@@ -172,6 +205,7 @@
   - do:
       reindex:
         refresh: true
+        wait_for_completion: true
         body:
           source:
             index: twitter
@@ -204,6 +238,7 @@
   - do:
       reindex:
         refresh: true
+        wait_for_completion: true
         body:
           source:
             index: twitter
@@ -238,6 +273,7 @@
   - do:
       reindex:
         refresh: true
+        wait_for_completion: true
         body:
           source:
             index: twitter
@@ -272,6 +308,7 @@
   - do:
       reindex:
         refresh: true
+        wait_for_completion: true
         body:
           source:
             index: [twitter, blog]
@@ -319,6 +356,7 @@
   - do:
       reindex:
         refresh: true
+        wait_for_completion: true
         body:
           size: 1
           source:

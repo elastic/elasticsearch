@@ -45,6 +45,7 @@
   - do:
       update-by-query:
         index: test
+        wait_for_completion: true
   - do:
       indices.refresh: {}
 

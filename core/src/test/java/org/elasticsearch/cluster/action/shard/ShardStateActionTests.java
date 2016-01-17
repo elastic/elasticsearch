@@ -140,6 +140,13 @@ public class ShardStateActionTests extends ESTestCase {
                 success.set(true);
                 latch.countDown();
             }
+
+            @Override
+            public void onShardFailedFailure(Exception e) {
+                success.set(false);
+                latch.countDown();
+                assert false;
+            }
         });
 
         CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
@@ -180,6 +187,13 @@ public class ShardStateActionTests extends ESTestCase {
             public void onSuccess() {
                 success.set(true);
                 latch.countDown();
+            }
+
+            @Override
+            public void onShardFailedFailure(Exception e) {
+                success.set(false);
+                latch.countDown();
+                assert false;
             }
         });
 
@@ -224,6 +238,7 @@ public class ShardStateActionTests extends ESTestCase {
                 success.set(false);
                 exception.set(e);
                 latch.countDown();
+                assert false;
             }
         });
 
@@ -251,6 +266,7 @@ public class ShardStateActionTests extends ESTestCase {
         shardStateAction.shardFailed(getRandomShardRouting(index), indexUUID, "test", getSimulatedFailure(), new ShardStateAction.Listener() {
             @Override
             public void onSuccess() {
+                failure.set(false);
                 assert false;
             }
 

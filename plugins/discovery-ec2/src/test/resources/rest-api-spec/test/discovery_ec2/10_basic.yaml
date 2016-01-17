@@ -11,4 +11,3 @@
         nodes.info: {}
 
     - match:  { nodes.$master.plugins.0.name: discovery-ec2  }
-    - match:  { nodes.$master.plugins.0.jvm: true  }

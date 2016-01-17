@@ -11,4 +11,3 @@
         nodes.info: {}
 
     - match:  { nodes.$master.plugins.0.name: jvm-example  }
-    - match:  { nodes.$master.plugins.0.jvm: true  }

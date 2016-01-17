@@ -34,7 +34,6 @@ List projects = [
   'plugins:repository-hdfs',
   'plugins:repository-s3',
   'plugins:jvm-example',
-  'plugins:site-example',
   'plugins:store-smb',
   'qa:evil-tests',
   'qa:smoke-test-client',

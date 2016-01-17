@@ -82,15 +82,14 @@ public class BootstrapForTesting {
         // initialize sysprops
         BootstrapInfo.getSystemProperties();
 
-        // check for jar hell
-        try {
-            JarHell.checkJarHell();
-        } catch (Exception e) {
-            throw new RuntimeException("found jar hell in test classpath", e);
-        }
-
         // install security manager if requested
         if (systemPropertyAsBoolean("tests.security.manager", true)) {
+            // check for jar hell
+            try {
+                JarHell.checkJarHell();
+            } catch (Exception e) {
+                throw new RuntimeException("found jar hell in test classpath", e);
+            }
             try {
                 // initialize paths the same exact way as bootstrap
                 Permissions perms = new Permissions();

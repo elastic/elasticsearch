@@ -654,16 +654,21 @@ public class TranslogTests extends ESTestCase {
                 public void onFailure(Throwable t) {
                     logger.error("--> reader [{}] had an error", t, threadId);
                     errors.add(t);
-                    closeView();
+                    try {
+                        closeView();
+                    } catch (IOException e) {
+                        logger.error("unexpected error while closing view, after failure");
+                        t.addSuppressed(e);
+                    }
                 }
 
-                void closeView() {
+                void closeView() throws IOException {
                     if (view != null) {
                         view.close();
                     }
                 }
 
-                void newView() {
+                void newView() throws IOException {
                     closeView();
                     view = translog.newView();
                     // captures the currently written ops so we know what to expect from the view

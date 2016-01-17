@@ -58,7 +58,6 @@ public class TranslogSnapshot extends TranslogReader implements Translog.Snapsho
     @Override
     public Translog.Operation next() throws IOException {
         if (readOperations < totalOperations) {
-            assert readOperations < totalOperations : "readOperations must be less than totalOperations";
             return readOperation();
         } else {
             return null;

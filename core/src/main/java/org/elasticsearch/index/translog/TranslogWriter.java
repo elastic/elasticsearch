@@ -139,18 +139,21 @@ public class TranslogWriter extends TranslogReader implements Closeable {
     }
 
     /**
-     * write all buffered ops to disk and fsync file
+     * write all buffered ops to disk and fsync file.
+     *
+     * Note: any exception during the sync process will be interpreted as a tragic exception and the writer will be closed before
+     * raising the exception.
      */
     public void sync() throws IOException {
         if (syncNeeded()) {
             synchronized (this) {
-                ensureOpen(); // this call gives a better exception that the incRef if we are closed by a tragic event
+                ensureOpen();
                 final long offsetToSync;
                 final int opsCounter;
-                outputStream.flush();
-                offsetToSync = totalOffset;
-                opsCounter = operationCounter;
                 try {
+                    outputStream.flush();
+                    offsetToSync = totalOffset;
+                    opsCounter = operationCounter;
                     checkpoint(offsetToSync, opsCounter, generation, channel, path);
                 } catch (Throwable ex) {
                     closeWithTragicEvent(ex);
@@ -182,27 +185,27 @@ public class TranslogWriter extends TranslogReader implements Closeable {
     public synchronized ImmutableTranslogReader closeIntoReader() throws IOException {
         try {
             sync(); // sync before we close..
-            if (closed.compareAndSet(false, true)) {
-                return new ImmutableTranslogReader(generation, channel, path, firstOperationOffset, getWrittenOffset(), operationCounter);
-            } else {
-                throw new AlreadyClosedException("translog [" + getGeneration() + "] is already closed", tragedy);
-            }
         } catch (IOException e) {
             closeWithTragicEvent(e);
             throw e;
+        }
+        if (closed.compareAndSet(false, true)) {
+            return new ImmutableTranslogReader(generation, channel, path, firstOperationOffset, getWrittenOffset(), operationCounter);
+        } else {
+            throw new AlreadyClosedException("translog [" + getGeneration() + "] is already closed", tragedy);
         }
     }
 
 
     @Override
     public synchronized Translog.Snapshot newSnapshot() {
+        ensureOpen();
         try {
-            ensureOpen();
             sync();
-            return super.newSnapshot();
         } catch (IOException e) {
-            throw new TranslogException(shardId, "exception while a snapshot", e);
+            throw new TranslogException(shardId, "exception while syncing before creating a snapshot", e);
         }
+        return super.newSnapshot();
     }
 
     private long getWrittenOffset() throws IOException {

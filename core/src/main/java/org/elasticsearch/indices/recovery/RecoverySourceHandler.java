@@ -120,7 +120,7 @@ public class RecoverySourceHandler {
     /**
      * performs the recovery from the local engine to the target
      */
-    public RecoveryResponse recoverToTarget() {
+    public RecoveryResponse recoverToTarget() throws IOException {
         try (Translog.View translogView = shard.acquireTranslogView()) {
             logger.trace("captured translog id [{}] for recovery", translogView.minTranslogGeneration());
             final IndexCommit phase1Snapshot;

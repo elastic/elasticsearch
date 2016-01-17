@@ -115,7 +115,9 @@ public class TranslogWriter extends TranslogReader implements Closeable {
         assert throwable != null : "throwable must not be null in a tragic event";
         if (tragedy == null) {
             tragedy = throwable;
-        } else {
+        } else if (tragedy != throwable) {
+            // it should be safe to call closeWithTragicEvents on multiple layers without
+            // worrying about self suppression.
             tragedy.addSuppressed(throwable);
         }
         close();

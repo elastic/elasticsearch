@@ -321,7 +321,7 @@ public class QueryParseContext {
     }
 
     private MappedFieldType failIfFieldMappingNotFound(String name, MappedFieldType fieldMapping) {
-        if (allowUnmappedFields) {
+        if (fieldMapping != null || allowUnmappedFields) {
             return fieldMapping;
         } else if (mapUnmappedFieldAsString){
             StringFieldMapper.Builder builder = MapperBuilders.stringField(name);

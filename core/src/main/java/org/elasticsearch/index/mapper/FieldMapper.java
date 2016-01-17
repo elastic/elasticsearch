@@ -70,6 +70,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             this.fieldType = fieldType.clone();
             this.defaultFieldType = defaultFieldType.clone();
             this.defaultOptions = fieldType.indexOptions(); // we have to store it the fieldType is mutable
+            this.docValuesSet = fieldType.hasDocValues();
             multiFieldsBuilder = new MultiFields.Builder();
         }
 

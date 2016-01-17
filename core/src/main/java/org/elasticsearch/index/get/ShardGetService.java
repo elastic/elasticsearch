@@ -19,7 +19,9 @@
 
 package org.elasticsearch.index.get;
 
+import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -50,7 +52,10 @@ import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.search.SearchHitField;
+import org.elasticsearch.search.fetch.parent.ParentFieldSubFetchPhase;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
+import org.elasticsearch.search.internal.InternalSearchHitField;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -348,6 +353,14 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                     fields.put(entry.getKey(), new GetField(entry.getKey(), entry.getValue()));
                 }
             }
+        }
+
+        if (docMapper.parentFieldMapper().active()) {
+            String parentId = ParentFieldSubFetchPhase.getParentId(docMapper.parentFieldMapper(), docIdAndVersion.context.reader(), docIdAndVersion.docId);
+            if (fields == null) {
+                fields = new HashMap<>(1);
+            }
+            fields.put(ParentFieldMapper.NAME, new GetField(ParentFieldMapper.NAME, Collections.singletonList(parentId)));
         }
 
         // now, go and do the script thingy if needed

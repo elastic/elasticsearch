@@ -181,6 +181,12 @@ When `max_children` was set to `0` on the `has_child` query then there was no up
 are allowed to match. This has changed and `0` now really means to zero child documents are allowed. If no upper limit
 is needed then the `max_children` option shouldn't be defined at all on the `has_child` query.
 
+==== `_parent` field no longer indexed
+
+The join between parent and child documents no longer relies on indexed fields and therefor from `3.0.0` onwards
+the `_parent` indexed field won't be indexed. In order to find documents that referrer to a specific parent id
+the new `parent_id` query can be used. The get response and hits inside the search response remain to include
+the parent id under the `_parent` key.
 
 [[breaking_30_settings_changes]]
 === Settings changes

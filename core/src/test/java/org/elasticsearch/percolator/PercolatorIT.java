@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.percolator;
 
+import com.vividsolutions.jts.geom.Coordinate;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -31,6 +32,7 @@ import org.elasticsearch.action.percolate.PercolateSourceBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
@@ -2035,6 +2037,34 @@ public class PercolatorIT extends ESIntegTestCase {
                 .setPercolateQuery(rangeQuery("created").lte("now"))
                 .get();
         assertMatchCount(response, 1);
+    }
+
+    @Test
+    public void testGeoShapeWithMapUnmappedFieldAsString() throws Exception {
+        // If index.percolator.map_unmapped_fields_as_string is set to true, unmapped field is mapped as an analyzed string.
+        Settings.Builder settings = Settings.settingsBuilder()
+            .put(indexSettings())
+            .put("index.percolator.map_unmapped_fields_as_string", true);
+        assertAcked(prepareCreate("test")
+            .setSettings(settings)
+            .addMapping("type", "location", "type=geo_shape"));
+        client().prepareIndex("test", PercolatorService.TYPE_NAME, "1")
+            .setSource(jsonBuilder().startObject().field("query", geoShapeQuery("location", ShapeBuilder.newEnvelope().topLeft(new Coordinate(0d, 50d)).bottomRight(new Coordinate(2d, 40d)))).endObject())
+            .get();
+        refresh();
+
+        PercolateResponse response1 = client().preparePercolate()
+            .setIndices("test").setDocumentType("type")
+            .setPercolateDoc(docBuilder().setDoc(jsonBuilder().startObject()
+                .startObject("location")
+                .field("type", "point")
+                .field("coordinates", Arrays.asList(1.44207d, 43.59959d))
+                .endObject()
+                .endObject()))
+            .execute().actionGet();
+        assertMatchCount(response1, 1L);
+        assertThat(response1.getMatches().length, equalTo(1));
+        assertThat(response1.getMatches()[0].getId().string(), equalTo("1"));
     }
 
 }

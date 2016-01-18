@@ -662,12 +662,12 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
                 .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", true)
                 .field("geohash", true).endObject().endObject().endObject().endObject().string();
         MapperService mapperService = createIndex("test", settings).mapperService();
-        DocumentMapper stage1 = mapperService.merge("type", new CompressedXContent(stage1Mapping), true, false);
+        DocumentMapper stage1 = mapperService.merge("type", new CompressedXContent(stage1Mapping), MapperService.MergeReason.MAPPING_UPDATE, false);
         String stage2Mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", false)
                 .field("geohash", false).endObject().endObject().endObject().endObject().string();
         try {
-            mapperService.merge("type", new CompressedXContent(stage2Mapping), false, false);
+            mapperService.merge("type", new CompressedXContent(stage2Mapping), MapperService.MergeReason.MAPPING_UPDATE, false);
             fail();
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("mapper [point] has different [lat_lon]"));
@@ -679,7 +679,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         stage2Mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", true)
                 .field("geohash", true).endObject().endObject().endObject().endObject().string();
-        mapperService.merge("type", new CompressedXContent(stage2Mapping), false, false);
+        mapperService.merge("type", new CompressedXContent(stage2Mapping), MapperService.MergeReason.MAPPING_UPDATE, false);
     }
 
     public void testGeoHashSearch() throws Exception {

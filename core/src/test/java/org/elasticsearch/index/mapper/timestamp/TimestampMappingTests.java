@@ -115,12 +115,12 @@ public class TimestampMappingTests extends ESSingleNodeTestCase {
                 .startObject("_timestamp").field("enabled", true).endObject()
                 .endObject().endObject().string();
         MapperService mapperService = createIndex("test").mapperService();
-        DocumentMapper enabledMapper = mapperService.merge("type", new CompressedXContent(enabledMapping), true, false);
+        DocumentMapper enabledMapper = mapperService.merge("type", new CompressedXContent(enabledMapping), MapperService.MergeReason.MAPPING_UPDATE, false);
 
         String disabledMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_timestamp").field("enabled", false).endObject()
                 .endObject().endObject().string();
-        DocumentMapper disabledMapper = mapperService.merge("type", new CompressedXContent(disabledMapping), false, false);
+        DocumentMapper disabledMapper = mapperService.merge("type", new CompressedXContent(disabledMapping), MapperService.MergeReason.MAPPING_UPDATE, false);
 
         assertThat(enabledMapper.timestampFieldMapper().enabled(), is(true));
         assertThat(disabledMapper.timestampFieldMapper().enabled(), is(false));
@@ -366,9 +366,9 @@ public class TimestampMappingTests extends ESSingleNodeTestCase {
     }
 
     void assertConflict(MapperService mapperService, String type, String mapping1, String mapping2, String conflict) throws IOException {
-        mapperService.merge("type", new CompressedXContent(mapping1), true, false);
+        mapperService.merge("type", new CompressedXContent(mapping1), MapperService.MergeReason.MAPPING_UPDATE, false);
         try {
-            mapperService.merge("type", new CompressedXContent(mapping2), false, false);
+            mapperService.merge("type", new CompressedXContent(mapping2), MapperService.MergeReason.MAPPING_UPDATE, false);
             assertNull(conflict);
         } catch (IllegalArgumentException e) {
             assertNotNull(conflict);

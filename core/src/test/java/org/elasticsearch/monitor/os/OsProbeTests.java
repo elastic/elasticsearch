@@ -29,7 +29,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class OsProbeTests extends ESTestCase {
@@ -71,7 +70,7 @@ public class OsProbeTests extends ESTestCase {
             // one minute load average is available, but 10-minute and 15-minute load averages are not
             // load average can be negative if not available or not computed yet, otherwise it should be >= 0
             if (loadAverage != null) {
-                assertThat(loadAverage[0], anyOf(lessThan((double) 0), greaterThanOrEqualTo((double) 0)));
+                assertThat(loadAverage[0], anyOf(equalTo((double) -1), greaterThanOrEqualTo((double) 0)));
                 assertThat(loadAverage[1], equalTo((double) -1));
                 assertThat(loadAverage[2], equalTo((double) -1));
             }

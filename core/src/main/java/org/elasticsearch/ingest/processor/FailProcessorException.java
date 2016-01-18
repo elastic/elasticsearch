@@ -21,6 +21,10 @@ package org.elasticsearch.ingest.processor;
 
 /**
  * Exception class thrown by {@link FailProcessor}.
+ *
+ * This exception is caught in the {@link org.elasticsearch.ingest.core.CompoundProcessor} and
+ * then changes the state of {@link org.elasticsearch.ingest.core.IngestDocument}. This
+ * exception should get serialized.
  */
 public class FailProcessorException extends RuntimeException {
 

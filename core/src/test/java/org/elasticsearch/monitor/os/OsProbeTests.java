@@ -66,6 +66,12 @@ public class OsProbeTests extends ESTestCase {
             assertThat(loadAverage[0], greaterThanOrEqualTo((double) 0));
             assertThat(loadAverage[1], greaterThanOrEqualTo((double) 0));
             assertThat(loadAverage[2], greaterThanOrEqualTo((double) 0));
+        } else if (Constants.FREE_BSD) {
+            // five- and fifteen-minute load averages not available if linprocfs is not mounted at /compat/linux/proc
+            assertNotNull(loadAverage);
+            assertThat(loadAverage[0], greaterThanOrEqualTo((double) 0));
+            assertThat(loadAverage[1], anyOf(equalTo((double) -1), greaterThanOrEqualTo((double) 0)));
+            assertThat(loadAverage[2], anyOf(equalTo((double) -1), greaterThanOrEqualTo((double) 0)));
         } else {
             // one minute load average is available, but 10-minute and 15-minute load averages are not
             // load average can be negative if not available or not computed yet, otherwise it should be >= 0

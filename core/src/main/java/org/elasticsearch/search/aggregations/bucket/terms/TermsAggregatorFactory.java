@@ -165,7 +165,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
     private final TermsAggregator.BucketCountThresholds bucketCountThresholds;
     private final boolean showTermDocCountError;
 
-    public TermsAggregatorFactory(String name, ValuesSourceConfig config, Terms.Order order,
+    public TermsAggregatorFactory(String name, ValuesSourceConfig<ValuesSource> config, Terms.Order order,
             TermsAggregator.BucketCountThresholds bucketCountThresholds, IncludeExclude includeExclude, String executionHint,
             SubAggCollectionMode executionMode, boolean showTermDocCountError) {
         super(name, StringTerms.TYPE.name(), config);

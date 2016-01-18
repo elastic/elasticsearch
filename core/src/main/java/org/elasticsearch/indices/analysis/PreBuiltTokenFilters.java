@@ -28,7 +28,6 @@ import org.apache.lucene.analysis.ckb.SoraniNormalizationFilter;
 import org.apache.lucene.analysis.commongrams.CommonGramsFilter;
 import org.apache.lucene.analysis.core.DecimalDigitFilter;
 import org.apache.lucene.analysis.core.LowerCaseFilter;
-import org.apache.lucene.analysis.core.Lucene43StopFilter;
 import org.apache.lucene.analysis.core.StopAnalyzer;
 import org.apache.lucene.analysis.core.StopFilter;
 import org.apache.lucene.analysis.core.UpperCaseFilter;
@@ -45,9 +44,6 @@ import org.apache.lucene.analysis.miscellaneous.ASCIIFoldingFilter;
 import org.apache.lucene.analysis.miscellaneous.KeywordRepeatFilter;
 import org.apache.lucene.analysis.miscellaneous.LengthFilter;
 import org.apache.lucene.analysis.miscellaneous.LimitTokenCountFilter;
-import org.apache.lucene.analysis.miscellaneous.Lucene43LengthFilter;
-import org.apache.lucene.analysis.miscellaneous.Lucene43TrimFilter;
-import org.apache.lucene.analysis.miscellaneous.Lucene47WordDelimiterFilter;
 import org.apache.lucene.analysis.miscellaneous.ScandinavianFoldingFilter;
 import org.apache.lucene.analysis.miscellaneous.ScandinavianNormalizationFilter;
 import org.apache.lucene.analysis.miscellaneous.TrimFilter;
@@ -55,8 +51,6 @@ import org.apache.lucene.analysis.miscellaneous.TruncateTokenFilter;
 import org.apache.lucene.analysis.miscellaneous.UniqueTokenFilter;
 import org.apache.lucene.analysis.miscellaneous.WordDelimiterFilter;
 import org.apache.lucene.analysis.ngram.EdgeNGramTokenFilter;
-import org.apache.lucene.analysis.ngram.Lucene43EdgeNGramTokenFilter;
-import org.apache.lucene.analysis.ngram.Lucene43NGramTokenFilter;
 import org.apache.lucene.analysis.ngram.NGramTokenFilter;
 import org.apache.lucene.analysis.payloads.DelimitedPayloadTokenFilter;
 import org.apache.lucene.analysis.payloads.TypeAsPayloadTokenFilter;
@@ -86,49 +80,26 @@ public enum PreBuiltTokenFilters {
     WORD_DELIMITER(CachingStrategy.ONE) {
         @Override
         public TokenStream create(TokenStream tokenStream, Version version) {
-            if (version.luceneVersion.onOrAfter(org.apache.lucene.util.Version.LUCENE_4_8)) {
-                return new WordDelimiterFilter(tokenStream,
-                           WordDelimiterFilter.GENERATE_WORD_PARTS |
-                           WordDelimiterFilter.GENERATE_NUMBER_PARTS |
-                           WordDelimiterFilter.SPLIT_ON_CASE_CHANGE |
-                           WordDelimiterFilter.SPLIT_ON_NUMERICS |
-                           WordDelimiterFilter.STEM_ENGLISH_POSSESSIVE, null);
-            } else {
-                return new Lucene47WordDelimiterFilter(tokenStream,
-                           WordDelimiterFilter.GENERATE_WORD_PARTS |
-                           WordDelimiterFilter.GENERATE_NUMBER_PARTS |
-                           WordDelimiterFilter.SPLIT_ON_CASE_CHANGE |
-                           WordDelimiterFilter.SPLIT_ON_NUMERICS |
-                           WordDelimiterFilter.STEM_ENGLISH_POSSESSIVE, null);
-            }
+            return new WordDelimiterFilter(tokenStream,
+                       WordDelimiterFilter.GENERATE_WORD_PARTS |
+                       WordDelimiterFilter.GENERATE_NUMBER_PARTS |
+                       WordDelimiterFilter.SPLIT_ON_CASE_CHANGE |
+                       WordDelimiterFilter.SPLIT_ON_NUMERICS |
+                       WordDelimiterFilter.STEM_ENGLISH_POSSESSIVE, null);
         }
-
-
     },
 
     STOP(CachingStrategy.LUCENE) {
         @Override
         public TokenStream create(TokenStream tokenStream, Version version) {
-            if (version.luceneVersion.onOrAfter(org.apache.lucene.util.Version.LUCENE_4_4_0)) {
-                return new StopFilter(tokenStream, StopAnalyzer.ENGLISH_STOP_WORDS_SET);
-            } else {
-                @SuppressWarnings("deprecation")
-                final TokenStream filter = new Lucene43StopFilter(true, tokenStream, StopAnalyzer.ENGLISH_STOP_WORDS_SET);
-                return filter;
-            }
+            return new StopFilter(tokenStream, StopAnalyzer.ENGLISH_STOP_WORDS_SET);
         }
     },
 
     TRIM(CachingStrategy.LUCENE) {
         @Override
         public TokenStream create(TokenStream tokenStream, Version version) {
-            if (version.luceneVersion.onOrAfter(org.apache.lucene.util.Version.LUCENE_4_4_0)) {
-                return new TrimFilter(tokenStream);
-            } else {
-                @SuppressWarnings("deprecation")
-                final TokenStream filter = new Lucene43TrimFilter(tokenStream, true);
-                return filter;
-            }
+            return new TrimFilter(tokenStream);
         }
     },
 
@@ -149,13 +120,7 @@ public enum PreBuiltTokenFilters {
     LENGTH(CachingStrategy.LUCENE) {
         @Override
         public TokenStream create(TokenStream tokenStream, Version version) {
-            if (version.luceneVersion.onOrAfter(org.apache.lucene.util.Version.LUCENE_4_4_0)) {
-                return new LengthFilter(tokenStream, 0, Integer.MAX_VALUE);
-            } else {
-                @SuppressWarnings("deprecation")
-                final TokenStream filter = new Lucene43LengthFilter(true, tokenStream, 0, Integer.MAX_VALUE);
-                return filter;
-            }
+            return new LengthFilter(tokenStream, 0, Integer.MAX_VALUE);
         }
     },
 
@@ -211,26 +176,14 @@ public enum PreBuiltTokenFilters {
     NGRAM(CachingStrategy.LUCENE) {
         @Override
         public TokenStream create(TokenStream tokenStream, Version version) {
-            if (version.luceneVersion.onOrAfter(org.apache.lucene.util.Version.LUCENE_4_4_0)) {
-                return new NGramTokenFilter(tokenStream);
-            } else {
-                @SuppressWarnings("deprecation")
-                final TokenStream filter = new Lucene43NGramTokenFilter(tokenStream);
-                return filter;
-            }
+            return new NGramTokenFilter(tokenStream);
         }
     },
 
     EDGE_NGRAM(CachingStrategy.LUCENE) {
         @Override
         public TokenStream create(TokenStream tokenStream, Version version) {
-            if (version.luceneVersion.onOrAfter(org.apache.lucene.util.Version.LUCENE_4_4_0)) {
-                return new EdgeNGramTokenFilter(tokenStream, EdgeNGramTokenFilter.DEFAULT_MIN_GRAM_SIZE, EdgeNGramTokenFilter.DEFAULT_MAX_GRAM_SIZE);
-            } else {
-                @SuppressWarnings("deprecation")
-                final TokenStream filter = new Lucene43EdgeNGramTokenFilter(tokenStream, EdgeNGramTokenFilter.DEFAULT_MIN_GRAM_SIZE, EdgeNGramTokenFilter.DEFAULT_MAX_GRAM_SIZE);
-                return filter;
-            }
+            return new EdgeNGramTokenFilter(tokenStream, EdgeNGramTokenFilter.DEFAULT_MIN_GRAM_SIZE, EdgeNGramTokenFilter.DEFAULT_MAX_GRAM_SIZE);
         }
     },
 

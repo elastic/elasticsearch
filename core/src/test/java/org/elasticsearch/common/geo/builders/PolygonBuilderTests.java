@@ -20,11 +20,14 @@
 package org.elasticsearch.common.geo.builders;
 
 import com.vividsolutions.jts.geom.Coordinate;
+
 import org.elasticsearch.common.geo.builders.ShapeBuilder.Orientation;
 import org.elasticsearch.test.geo.RandomShapeGenerator;
 import org.elasticsearch.test.geo.RandomShapeGenerator.ShapeType;
 
 import java.io.IOException;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class PolygonBuilderTests extends AbstractShapeBuilderTestCase<PolygonBuilder> {
 
@@ -77,8 +80,7 @@ public class PolygonBuilderTests extends AbstractShapeBuilderTestCase<PolygonBui
      * This is done so we don't have to expose a setter for orientation in the actual class
      */
     private static PolygonBuilder polyWithOposingOrientation(PolygonBuilder pb) {
-        PolygonBuilder mutation = new PolygonBuilder(pb.orientation() == Orientation.LEFT ? Orientation.RIGHT : Orientation.LEFT);
-        mutation.points(pb.shell().coordinates(false));
+        PolygonBuilder mutation = new PolygonBuilder(pb.shell(), pb.orientation() == Orientation.LEFT ? Orientation.RIGHT : Orientation.LEFT);
         for (LineStringBuilder hole : pb.holes()) {
             mutation.hole(hole);
         }
@@ -92,4 +94,33 @@ public class PolygonBuilderTests extends AbstractShapeBuilderTestCase<PolygonBui
         }
         return pgb;
     }
+
+    public void testCoerceShell() {
+        try{
+            new PolygonBuilder(new LineStringBuilder(new CoordinatesBuilder().coordinate(0.0, 0.0)
+                    .coordinate(1.0, 0.0).coordinate(1.0, 1.0).build()), Orientation.RIGHT);
+            fail("should raise validation exception");
+        } catch (IllegalArgumentException e) {
+            assertEquals("invalid number of points in LinearRing (found [3] - must be >= 4)", e.getMessage());
+        }
+
+        PolygonBuilder pb = new PolygonBuilder(new LineStringBuilder(new CoordinatesBuilder().coordinate(0.0, 0.0)
+                .coordinate(1.0, 0.0).coordinate(1.0, 1.0).build()), Orientation.RIGHT, true);
+        assertThat("Shell should have been closed via coerce", pb.shell().coordinates(false).length, equalTo(4));
+    }
+
+    public void testCoerceHole() {
+        PolygonBuilder pb = new PolygonBuilder(new CoordinatesBuilder().coordinate(0.0, 0.0)
+                .coordinate(2.0, 0.0).coordinate(2.0, 2.0).coordinate(0.0, 0.0));
+        try{
+            pb.hole(new LineStringBuilder(new CoordinatesBuilder().coordinate(0.0,0.0).coordinate(1.0,0.0).coordinate(1.0,1.0).build()));
+            fail("should raise validation exception");
+        } catch (IllegalArgumentException e) {
+            assertEquals("invalid number of points in LinearRing (found [3] - must be >= 4)", e.getMessage());
+        }
+
+        pb.hole(new LineStringBuilder(new CoordinatesBuilder().coordinate(0.0,0.0).coordinate(1.0,0.0).coordinate(1.0,1.0).build()), true);
+        assertThat("hole should have been closed via coerce", pb.holes().get(0).coordinates(false).length, equalTo(4));
+    }
+
 }

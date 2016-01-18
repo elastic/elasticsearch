@@ -20,7 +20,6 @@ package org.elasticsearch.search.aggregations.bucket.significant;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.PostingsEnum;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
@@ -80,8 +79,6 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                               TermsAggregator.BucketCountThresholds bucketCountThresholds, IncludeExclude includeExclude,
                     AggregationContext aggregationContext, Aggregator parent, SignificantTermsAggregatorFactory termsAggregatorFactory,
                     List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-                ValuesSource.Bytes.WithOrdinals valueSourceWithOrdinals = (ValuesSource.Bytes.WithOrdinals) valuesSource;
-                IndexSearcher indexSearcher = aggregationContext.searchContext().searcher();
                 final IncludeExclude.OrdinalsFilter filter = includeExclude == null ? null : includeExclude.convertToOrdinalsFilter();
                 return new GlobalOrdinalsSignificantTermsAggregator(name, factories,
                         (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource, bucketCountThresholds, filter, aggregationContext,
@@ -98,9 +95,8 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                     List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
                 final IncludeExclude.OrdinalsFilter filter = includeExclude == null ? null : includeExclude.convertToOrdinalsFilter();
                 return new GlobalOrdinalsSignificantTermsAggregator.WithHash(name, factories,
-                        (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource, bucketCountThresholds, filter,
- aggregationContext,
-                        parent, termsAggregatorFactory, pipelineAggregators, metaData);
+                        (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource, bucketCountThresholds, filter, aggregationContext, parent,
+                        termsAggregatorFactory, pipelineAggregators, metaData);
             }
         };
 
@@ -143,7 +139,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
         return new TermsAggregator.BucketCountThresholds(bucketCountThresholds);
     }
 
-    public SignificantTermsAggregatorFactory(String name, ValuesSourceConfig valueSourceConfig, TermsAggregator.BucketCountThresholds bucketCountThresholds, IncludeExclude includeExclude,
+    public SignificantTermsAggregatorFactory(String name, ValuesSourceConfig<ValuesSource> valueSourceConfig, TermsAggregator.BucketCountThresholds bucketCountThresholds, IncludeExclude includeExclude,
                                              String executionHint, Query filter, SignificanceHeuristic significanceHeuristic) {
 
         super(name, SignificantStringTerms.TYPE.name(), valueSourceConfig);

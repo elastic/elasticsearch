@@ -40,7 +40,7 @@ public class DisMaxQueryBuilder extends AbstractQueryBuilder<DisMaxQueryBuilder>
 
     public static final String NAME = "dis_max";
 
-    private final ArrayList<QueryBuilder> queries = new ArrayList<>();
+    private final List<QueryBuilder<?>> queries = new ArrayList<>();
 
     /** Default multiplication factor for breaking ties in document scores.*/
     public static float DEFAULT_TIE_BREAKER = 0.0f;
@@ -51,7 +51,7 @@ public class DisMaxQueryBuilder extends AbstractQueryBuilder<DisMaxQueryBuilder>
     /**
      * Add a sub-query to this disjunction.
      */
-    public DisMaxQueryBuilder add(QueryBuilder queryBuilder) {
+    public DisMaxQueryBuilder add(QueryBuilder<?> queryBuilder) {
         if (queryBuilder == null) {
             throw new IllegalArgumentException("inner dismax query clause cannot be null");
         }
@@ -62,7 +62,7 @@ public class DisMaxQueryBuilder extends AbstractQueryBuilder<DisMaxQueryBuilder>
     /**
      * @return an immutable list copy of the current sub-queries of this disjunction
      */
-    public List<QueryBuilder> innerQueries() {
+    public List<QueryBuilder<?>> innerQueries() {
         return this.queries;
     }
 
@@ -90,7 +90,7 @@ public class DisMaxQueryBuilder extends AbstractQueryBuilder<DisMaxQueryBuilder>
         builder.startObject(NAME);
         builder.field(DisMaxQueryParser.TIE_BREAKER_FIELD.getPreferredName(), tieBreaker);
         builder.startArray(DisMaxQueryParser.QUERIES_FIELD.getPreferredName());
-        for (QueryBuilder queryBuilder : queries) {
+        for (QueryBuilder<?> queryBuilder : queries) {
             queryBuilder.toXContent(builder, params);
         }
         builder.endArray();
@@ -112,7 +112,7 @@ public class DisMaxQueryBuilder extends AbstractQueryBuilder<DisMaxQueryBuilder>
     @Override
     protected DisMaxQueryBuilder doReadFrom(StreamInput in) throws IOException {
         DisMaxQueryBuilder disMax = new DisMaxQueryBuilder();
-        List<QueryBuilder> queryBuilders = readQueries(in);
+        List<QueryBuilder<?>> queryBuilders = readQueries(in);
         disMax.queries.addAll(queryBuilders);
         disMax.tieBreaker = in.readFloat();
         return disMax;

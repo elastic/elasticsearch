@@ -31,13 +31,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.store.MockFSDirectoryService;
 import org.elasticsearch.test.store.MockFSIndexStore;
-
 import java.io.IOException;
+import java.util.Collection;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
@@ -46,7 +46,11 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 
 public class SearchWithRandomIOExceptionsIT extends ESIntegTestCase {
 
-    @TestLogging("action.search.type:TRACE,index.shard:TRACE")
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return pluginList(MockFSIndexStore.TestPlugin.class);
+    }
+
     public void testRandomDirectoryIOExceptions() throws IOException, InterruptedException, ExecutionException {
         String mapping = XContentFactory.jsonBuilder().
             startObject().

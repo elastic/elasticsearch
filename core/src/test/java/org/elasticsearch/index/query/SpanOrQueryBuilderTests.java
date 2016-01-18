@@ -45,7 +45,7 @@ public class SpanOrQueryBuilderTests extends AbstractQueryTestCase<SpanOrQueryBu
         assertThat(query, instanceOf(SpanOrQuery.class));
         SpanOrQuery spanOrQuery = (SpanOrQuery) query;
         assertThat(spanOrQuery.getClauses().length, equalTo(queryBuilder.clauses().size()));
-        Iterator<SpanQueryBuilder> spanQueryBuilderIterator = queryBuilder.clauses().iterator();
+        Iterator<SpanQueryBuilder<?>> spanQueryBuilderIterator = queryBuilder.clauses().iterator();
         for (SpanQuery spanQuery : spanOrQuery.getClauses()) {
             assertThat(spanQuery, equalTo(spanQueryBuilderIterator.next().toQuery(context)));
         }
@@ -70,32 +70,32 @@ public class SpanOrQueryBuilderTests extends AbstractQueryTestCase<SpanOrQueryBu
 
     public void testFromJson() throws IOException {
         String json =
-                "{\n" + 
-                "  \"span_or\" : {\n" + 
-                "    \"clauses\" : [ {\n" + 
-                "      \"span_term\" : {\n" + 
-                "        \"field\" : {\n" + 
-                "          \"value\" : \"value1\",\n" + 
-                "          \"boost\" : 1.0\n" + 
-                "        }\n" + 
-                "      }\n" + 
-                "    }, {\n" + 
-                "      \"span_term\" : {\n" + 
-                "        \"field\" : {\n" + 
-                "          \"value\" : \"value2\",\n" + 
-                "          \"boost\" : 1.0\n" + 
-                "        }\n" + 
-                "      }\n" + 
-                "    }, {\n" + 
-                "      \"span_term\" : {\n" + 
-                "        \"field\" : {\n" + 
-                "          \"value\" : \"value3\",\n" + 
-                "          \"boost\" : 1.0\n" + 
-                "        }\n" + 
-                "      }\n" + 
-                "    } ],\n" + 
-                "    \"boost\" : 1.0\n" + 
-                "  }\n" + 
+                "{\n" +
+                "  \"span_or\" : {\n" +
+                "    \"clauses\" : [ {\n" +
+                "      \"span_term\" : {\n" +
+                "        \"field\" : {\n" +
+                "          \"value\" : \"value1\",\n" +
+                "          \"boost\" : 1.0\n" +
+                "        }\n" +
+                "      }\n" +
+                "    }, {\n" +
+                "      \"span_term\" : {\n" +
+                "        \"field\" : {\n" +
+                "          \"value\" : \"value2\",\n" +
+                "          \"boost\" : 1.0\n" +
+                "        }\n" +
+                "      }\n" +
+                "    }, {\n" +
+                "      \"span_term\" : {\n" +
+                "        \"field\" : {\n" +
+                "          \"value\" : \"value3\",\n" +
+                "          \"boost\" : 1.0\n" +
+                "        }\n" +
+                "      }\n" +
+                "    } ],\n" +
+                "    \"boost\" : 1.0\n" +
+                "  }\n" +
                 "}";
 
         SpanOrQueryBuilder parsed = (SpanOrQueryBuilder) parseQuery(json);

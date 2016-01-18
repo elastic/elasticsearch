@@ -37,6 +37,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.rescore.QueryRescoreMode;
 import org.elasticsearch.search.rescore.RescoreBuilder;
 import org.elasticsearch.search.rescore.RescoreBuilder.QueryRescorer;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -541,7 +542,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
                 .setQueryWeight(0.5f).setRescoreQueryWeight(0.4f);
 
             if (!"".equals(scoreModes[innerMode])) {
-                innerRescoreQuery.setScoreMode(scoreModes[innerMode]);
+                innerRescoreQuery.setScoreMode(QueryRescoreMode.fromString(scoreModes[innerMode]));
             }
 
             SearchResponse searchResponse = client()
@@ -564,7 +565,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
                         .boost(4.0f)).setQueryWeight(0.5f).setRescoreQueryWeight(0.4f);
 
                 if (!"".equals(scoreModes[outerMode])) {
-                    outerRescoreQuery.setScoreMode(scoreModes[outerMode]);
+                    outerRescoreQuery.setScoreMode(QueryRescoreMode.fromString(scoreModes[outerMode]));
                 }
 
                 searchResponse = client()
@@ -612,7 +613,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
                         .setRescoreQueryWeight(secondaryWeight);
 
                 if (!"".equals(scoreMode)) {
-                    rescoreQuery.setScoreMode(scoreMode);
+                    rescoreQuery.setScoreMode(QueryRescoreMode.fromString(scoreMode));
                 }
 
                 SearchResponse rescored = client()
@@ -683,11 +684,11 @@ public class QueryRescorerIT extends ESIntegTestCase {
         int numDocs = indexRandomNumbers("keyword", 1, true);
         QueryRescorer eightIsGreat = RescoreBuilder.queryRescorer(
                 QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", English.intToEnglish(8)),
-                        ScoreFunctionBuilders.weightFactorFunction(1000.0f)).boostMode(CombineFunction.REPLACE)).setScoreMode("total");
+                        ScoreFunctionBuilders.weightFactorFunction(1000.0f)).boostMode(CombineFunction.REPLACE)).setScoreMode(QueryRescoreMode.Total);
         QueryRescorer sevenIsBetter = RescoreBuilder.queryRescorer(
                 QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", English.intToEnglish(7)),
                         ScoreFunctionBuilders.weightFactorFunction(10000.0f)).boostMode(CombineFunction.REPLACE))
-                .setScoreMode("total");
+                .setScoreMode(QueryRescoreMode.Total);
 
         // First set the rescore window large enough that both rescores take effect
         SearchRequestBuilder request = client().prepareSearch();
@@ -704,10 +705,10 @@ public class QueryRescorerIT extends ESIntegTestCase {
         // Now use one rescore to drag the number we're looking for into the window of another
         QueryRescorer ninetyIsGood = RescoreBuilder.queryRescorer(
                 QueryBuilders.functionScoreQuery(QueryBuilders.queryStringQuery("*ninety*"), ScoreFunctionBuilders.weightFactorFunction(1000.0f))
-                        .boostMode(CombineFunction.REPLACE)).setScoreMode("total");
+                        .boostMode(CombineFunction.REPLACE)).setScoreMode(QueryRescoreMode.Total);
         QueryRescorer oneToo = RescoreBuilder.queryRescorer(
                 QueryBuilders.functionScoreQuery(QueryBuilders.queryStringQuery("*one*"), ScoreFunctionBuilders.weightFactorFunction(1000.0f))
-                        .boostMode(CombineFunction.REPLACE)).setScoreMode("total");
+                        .boostMode(CombineFunction.REPLACE)).setScoreMode(QueryRescoreMode.Total);
         request.clearRescorers().addRescorer(ninetyIsGood, numDocs).addRescorer(oneToo, 10);
         response = request.setSize(2).get();
         assertFirstHit(response, hasId("91"));

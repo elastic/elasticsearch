@@ -19,7 +19,18 @@
 
 package org.elasticsearch.plugin.discovery.multicast;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import java.io.IOException;
+import java.net.InetAddress;
+import java.net.SocketAddress;
+import java.security.AccessController;
+import java.security.PrivilegedExceptionAction;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.SpecialPermission;
@@ -55,17 +66,7 @@ import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
-import java.net.InetAddress;
-import java.net.SocketAddress;
-import java.security.AccessController;
-import java.security.PrivilegedExceptionAction;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 
 import static org.elasticsearch.cluster.node.DiscoveryNode.readNode;
 import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
@@ -144,13 +145,9 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
             boolean shared = settings.getAsBoolean("discovery.zen.ping.multicast.shared", Constants.MAC_OS_X);
             // OSX does not correctly send multicasts FROM the right interface
             boolean deferToInterface = settings.getAsBoolean("discovery.zen.ping.multicast.defer_group_to_set_interface", Constants.MAC_OS_X);
-            // don't use publish address, the use case for that is e.g. a firewall or proxy and
-            // may not even be bound to an interface on this machine! use the first bound address.
-            List<InetAddress> addresses = Arrays.asList(networkService.resolveBindHostAddresses(address == null ? null : new String[] { address }));
-            NetworkUtils.sortAddresses(addresses);
 
             final MulticastChannel.Config config = new MulticastChannel.Config(port, group, bufferSize, ttl,
-                                                                               addresses.get(0), deferToInterface);
+                    getMulticastInterface(), deferToInterface);
             SecurityManager sm = System.getSecurityManager();
             if (sm != null) {
                 sm.checkPermission(new SpecialPermission());
@@ -165,6 +162,16 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
             String msg = "multicast failed to start [{}], disabling. Consider using IPv4 only (by defining env. variable `ES_USE_IPV4`)";
             logger.info(msg, t, ExceptionsHelper.detailedMessage(t));
         }
+    }
+
+
+    @SuppressWarnings("deprecation") // Used to support funky configuration options
+    private InetAddress getMulticastInterface() throws IOException {
+        // don't use publish address, the use case for that is e.g. a firewall or proxy and
+        // may not even be bound to an interface on this machine! use the first bound address.
+        List<InetAddress> addresses = Arrays.asList(networkService.resolveBindHostAddresses(address == null ? null : new String[] { address }));
+        NetworkUtils.sortAddresses(addresses);
+        return addresses.get(0);
     }
 
     @Override

@@ -27,11 +27,11 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.MergePolicyConfig;
+import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -47,7 +47,7 @@ public class ParentFieldLoadingIT extends ESIntegTestCase {
     private final Settings indexSettings = Settings.builder()
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(IndexShard.INDEX_REFRESH_INTERVAL, -1)
+            .put(IndexSettings.INDEX_REFRESH_INTERVAL, -1)
                     // We never want merges in this test to ensure we have two segments for the last validation
             .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
             .build();

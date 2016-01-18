@@ -66,8 +66,8 @@ public abstract class AbstractChildTestCase extends ESSingleNodeTestCase {
         MapperService mapperService = indexService.mapperService();
         // Parent/child parsers require that the parent and child type to be presented in mapping
         // Sometimes we want a nested object field in the parent type that triggers nonNestedDocsFilter to be used
-        mapperService.merge(parentType, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(parentType, "nested_field", random().nextBoolean() ? "type=nested" : "type=object").string()), true, false);
-        mapperService.merge(childType, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(childType, "_parent", "type=" + parentType, CHILD_SCORE_NAME, "type=double,doc_values=false").string()), true, false);
+        mapperService.merge(parentType, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(parentType, "nested_field", random().nextBoolean() ? "type=nested" : "type=object").string()), MapperService.MergeReason.MAPPING_UPDATE, false);
+        mapperService.merge(childType, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(childType, "_parent", "type=" + parentType, CHILD_SCORE_NAME, "type=double,doc_values=false").string()), MapperService.MergeReason.MAPPING_UPDATE, false);
         return createSearchContext(indexService);
     }
     

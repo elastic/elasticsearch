@@ -488,7 +488,7 @@ public class SimpleStringMappingTests extends ESSingleNodeTestCase {
                 .endObject().endObject().string();
 
         MapperService mapperService = indexService.mapperService();
-        DocumentMapper defaultMapper = mapperService.merge("type", new CompressedXContent(mapping), true, false);
+        DocumentMapper defaultMapper = mapperService.merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE, false);
 
         ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -502,7 +502,7 @@ public class SimpleStringMappingTests extends ESSingleNodeTestCase {
         String updatedMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field").field("type", "string").startObject("norms").field("enabled", false).endObject()
                 .endObject().endObject().endObject().endObject().string();
-        defaultMapper = mapperService.merge("type", new CompressedXContent(updatedMapping), false, false);
+        defaultMapper = mapperService.merge("type", new CompressedXContent(updatedMapping), MapperService.MergeReason.MAPPING_UPDATE, false);
 
         doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -517,7 +517,7 @@ public class SimpleStringMappingTests extends ESSingleNodeTestCase {
                 .startObject("properties").startObject("field").field("type", "string").startObject("norms").field("enabled", true).endObject()
                 .endObject().endObject().endObject().endObject().string();
         try {
-            mapperService.merge("type", new CompressedXContent(updatedMapping), false, false);
+            mapperService.merge("type", new CompressedXContent(updatedMapping), MapperService.MergeReason.MAPPING_UPDATE, false);
             fail();
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("different [omit_norms]"));

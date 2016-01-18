@@ -37,6 +37,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Before;
@@ -125,7 +126,7 @@ public class BooleanFieldMapperTests extends ESSingleNodeTestCase {
                         .endObject()
                     .endObject().endObject()
                 .endObject().endObject().string();
-        DocumentMapper mapper = indexService.mapperService().merge("type", new CompressedXContent(mapping), true, false);
+        DocumentMapper mapper = indexService.mapperService().merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE, false);
         assertEquals(mapping, mapper.mappingSource().toString());
         BytesReference source = XContentFactory.jsonBuilder()
                 .startObject()

@@ -330,7 +330,7 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
                 try (MapperService mapperService = new MapperService(index, settings, analysisService, similarityLookupService, scriptService, mapperRegistry)) {
                     for (ObjectCursor<MappingMetaData> cursor : indexMetaData.getMappings().values()) {
                         MappingMetaData mappingMetaData = cursor.value;
-                        mapperService.merge(mappingMetaData.type(), mappingMetaData.source(), false, false);
+                        mapperService.merge(mappingMetaData.type(), mappingMetaData.source(), MapperService.MergeReason.MAPPING_RECOVERY, false);
                     }
                 }
             }

@@ -93,13 +93,13 @@ public class IndexTypeMapperTests extends ESSingleNodeTestCase {
                 .startObject("_index").field("enabled", true).endObject()
                 .endObject().endObject().string();
         MapperService mapperService = createIndex("test", bwcSettings).mapperService();
-        DocumentMapper mapperEnabled = mapperService.merge("type", new CompressedXContent(mappingWithIndexEnabled), true, false);
+        DocumentMapper mapperEnabled = mapperService.merge("type", new CompressedXContent(mappingWithIndexEnabled), MapperService.MergeReason.MAPPING_UPDATE, false);
         assertThat(mapperEnabled.IndexFieldMapper().enabled(), is(true));
 
         String mappingWithIndexDisabled = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_index").field("enabled", false).endObject()
                 .endObject().endObject().string();
-        DocumentMapper merged = mapperService.merge("type", new CompressedXContent(mappingWithIndexDisabled), false, false);
+        DocumentMapper merged = mapperService.merge("type", new CompressedXContent(mappingWithIndexDisabled), MapperService.MergeReason.MAPPING_UPDATE, false);
 
         assertThat(merged.IndexFieldMapper().enabled(), is(false));
     }

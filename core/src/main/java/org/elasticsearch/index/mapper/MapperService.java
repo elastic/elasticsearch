@@ -81,6 +81,22 @@ import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
  */
 public class MapperService extends AbstractIndexComponent implements Closeable {
 
+    /**
+     * The reason why a mapping is being merged.
+     */
+    public enum MergeReason {
+        /**
+         * Create or update a mapping.
+         */
+        MAPPING_UPDATE,
+        /**
+         * Recovery of an existing mapping, for instance because of a restart,
+         * if a shard was moved to a different node or for administrative
+         * purposes.
+         */
+        MAPPING_RECOVERY;
+    }
+
     public static final String DEFAULT_MAPPING = "_default_";
     public static final String INDEX_MAPPER_DYNAMIC_SETTING = "index.mapper.dynamic";
     public static final boolean INDEX_MAPPER_DYNAMIC_DEFAULT = true;
@@ -242,7 +258,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         typeListeners.remove(listener);
     }
 
-    public DocumentMapper merge(String type, CompressedXContent mappingSource, boolean applyDefault, boolean updateAllTypes) {
+    public DocumentMapper merge(String type, CompressedXContent mappingSource, MergeReason reason, boolean updateAllTypes) {
         if (DEFAULT_MAPPING.equals(type)) {
             // verify we can parse it
             // NOTE: never apply the default here
@@ -260,9 +276,13 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             return mapper;
         } else {
             synchronized (this) {
-                // only apply the default mapping if we don't have the type yet
-                applyDefault &= mappers.containsKey(type) == false;
-                return merge(parse(type, mappingSource, applyDefault), updateAllTypes);
+                final boolean applyDefault =
+                        // the default was already applied if we are recovering
+                        reason != MergeReason.MAPPING_RECOVERY
+                        // only apply the default mapping if we don't have the type yet
+                        && mappers.containsKey(type) == false;
+                DocumentMapper mergeWith = parse(type, mappingSource, applyDefault);
+                return merge(mergeWith, updateAllTypes);
             }
         }
     }

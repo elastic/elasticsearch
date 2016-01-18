@@ -144,12 +144,12 @@ public class TimestampMappingTests extends ESSingleNodeTestCase {
                 .startObject("_timestamp").field("enabled", true).endObject()
                 .endObject().endObject().string();
         MapperService mapperService = createIndex("test").mapperService();
-        DocumentMapper enabledMapper = mapperService.merge("type", new CompressedXContent(enabledMapping), true, false);
+        DocumentMapper enabledMapper = mapperService.merge("type", new CompressedXContent(enabledMapping), MapperService.MergeReason.MAPPING_UPDATE, false);
 
         String disabledMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_timestamp").field("enabled", false).endObject()
                 .endObject().endObject().string();
-        DocumentMapper disabledMapper = mapperService.merge("type", new CompressedXContent(disabledMapping), false, false);
+        DocumentMapper disabledMapper = mapperService.merge("type", new CompressedXContent(disabledMapping), MapperService.MergeReason.MAPPING_UPDATE, false);
 
         assertThat(enabledMapper.timestampFieldMapper().enabled(), is(true));
         assertThat(disabledMapper.timestampFieldMapper().enabled(), is(false));
@@ -507,14 +507,14 @@ public class TimestampMappingTests extends ESSingleNodeTestCase {
         Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
         MapperService mapperService = createIndex("test", indexSettings).mapperService();
 
-        DocumentMapper docMapper = mapperService.merge("type", new CompressedXContent(mapping), true, false);
+        DocumentMapper docMapper = mapperService.merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE, false);
         assertThat(docMapper.timestampFieldMapper().fieldType().fieldDataType().getLoading(), equalTo(MappedFieldType.Loading.LAZY));
         assertThat(docMapper.timestampFieldMapper().fieldType().fieldDataType().getFormat(indexSettings), equalTo("doc_values"));
         mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_timestamp").field("enabled", randomBoolean()).startObject("fielddata").field("loading", "eager").field("format", "array").endObject().field("store", "yes").endObject()
                 .endObject().endObject().string();
 
-        docMapper = mapperService.merge("type", new CompressedXContent(mapping), false, false);
+        docMapper = mapperService.merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE, false);
         assertThat(docMapper.timestampFieldMapper().fieldType().fieldDataType().getLoading(), equalTo(MappedFieldType.Loading.EAGER));
         assertThat(docMapper.timestampFieldMapper().fieldType().fieldDataType().getFormat(indexSettings), equalTo("array"));
     }
@@ -568,7 +568,7 @@ public class TimestampMappingTests extends ESSingleNodeTestCase {
         Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
         MapperService mapperService = createIndex("test", indexSettings).mapperService();
 
-        DocumentMapper docMapper = mapperService.merge("type", new CompressedXContent(mapping), true, false);
+        DocumentMapper docMapper = mapperService.merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE, false);
         assertThat(docMapper.timestampFieldMapper().fieldType().fieldDataType().getLoading(), equalTo(MappedFieldType.Loading.LAZY));
         mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_timestamp").field("enabled", false)
@@ -581,7 +581,7 @@ public class TimestampMappingTests extends ESSingleNodeTestCase {
                 .endObject().endObject().string();
 
         try {
-            mapperService.merge("type", new CompressedXContent(mapping), false, false);
+            mapperService.merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE, false);
             fail();
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("mapper [_timestamp] has different [index] values"));
@@ -599,7 +599,7 @@ public class TimestampMappingTests extends ESSingleNodeTestCase {
                 .endObject().endObject().string();
 
         try {
-            mapperService.merge("type", new CompressedXContent(mapping), false, false);
+            mapperService.merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE, false);
             fail();
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("Cannot update default in _timestamp value"));
@@ -618,7 +618,7 @@ public class TimestampMappingTests extends ESSingleNodeTestCase {
                 .endObject()
                 .endObject().endObject().string();
         try {
-            mapperService.merge("type", new CompressedXContent(mapping), false, false);
+            mapperService.merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE, false);
             fail();
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("Cannot update default in _timestamp value. Value is 1970-01-01 now encountering 1970-01-02"));
@@ -640,7 +640,7 @@ public class TimestampMappingTests extends ESSingleNodeTestCase {
                 .endObject().endObject().string();
         MapperService mapperService = createIndex("test", BWC_SETTINGS).mapperService();
 
-        mapperService.merge("type", new CompressedXContent(mapping), true, false);
+        mapperService.merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE, false);
         mapping = XContentFactory.jsonBuilder().startObject()
                 .startObject("type")
                 .startObject("_timestamp")
@@ -649,7 +649,7 @@ public class TimestampMappingTests extends ESSingleNodeTestCase {
                 .endObject().endObject().string();
 
         try {
-            mapperService.merge("type", new CompressedXContent(mapping), false, false);
+            mapperService.merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE, false);
             fail();
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("mapper [_timestamp] has different [index] values"));
@@ -699,9 +699,9 @@ public class TimestampMappingTests extends ESSingleNodeTestCase {
     }
 
     void assertConflict(MapperService mapperService, String type, String mapping1, String mapping2, String conflict) throws IOException {
-        mapperService.merge("type", new CompressedXContent(mapping1), true, false);
+        mapperService.merge("type", new CompressedXContent(mapping1), MapperService.MergeReason.MAPPING_UPDATE, false);
         try {
-            mapperService.merge("type", new CompressedXContent(mapping2), false, false);
+            mapperService.merge("type", new CompressedXContent(mapping2), MapperService.MergeReason.MAPPING_UPDATE, false);
             assertNull(conflict);
         } catch (IllegalArgumentException e) {
             assertNotNull(conflict);

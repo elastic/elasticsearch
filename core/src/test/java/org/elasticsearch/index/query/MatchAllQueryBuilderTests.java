@@ -32,6 +32,10 @@ public class MatchAllQueryBuilderTests extends AbstractQueryTestCase<MatchAllQue
 
     @Override
     protected MatchAllQueryBuilder doCreateTestQueryBuilder() {
+        return createRandomQueryBuilder();
+    }
+
+    public static MatchAllQueryBuilder createRandomQueryBuilder() {
         return new MatchAllQueryBuilder();
     }
 
@@ -52,10 +56,10 @@ public class MatchAllQueryBuilderTests extends AbstractQueryTestCase<MatchAllQue
 
     public void testFromJson() throws IOException {
         String json =
-                "{\n" + 
-                "  \"match_all\" : {\n" + 
-                "    \"boost\" : 1.2\n" + 
-                "  }\n" + 
+                "{\n" +
+                "  \"match_all\" : {\n" +
+                "    \"boost\" : 1.2\n" +
+                "  }\n" +
                 "}";
         MatchAllQueryBuilder parsed = (MatchAllQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);

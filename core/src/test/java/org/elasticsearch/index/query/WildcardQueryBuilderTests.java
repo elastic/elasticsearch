@@ -31,19 +31,7 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
 
     @Override
     protected WildcardQueryBuilder doCreateTestQueryBuilder() {
-        WildcardQueryBuilder query;
-
-        // mapped or unmapped field
-        String text = randomAsciiOfLengthBetween(1, 10);
-        if (randomBoolean()) {
-            query = new WildcardQueryBuilder(STRING_FIELD_NAME, text);
-        } else {
-            query = new WildcardQueryBuilder(randomAsciiOfLengthBetween(1, 10), text);
-        }
-        if (randomBoolean()) {
-            query.rewrite(randomFrom(getRandomRewriteMethod()));
-        }
-        return query;
+        return createRandomQueryBuilder();
     }
 
     @Override
@@ -92,5 +80,20 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
 
         assertEquals(json, "ki*y", parsed.value());
         assertEquals(json, 2.0, parsed.boost(), 0.0001);
+    }
+
+    public static WildcardQueryBuilder createRandomQueryBuilder() {
+        WildcardQueryBuilder query;
+        // mapped or unmapped field
+        String text = randomAsciiOfLengthBetween(1, 10);
+        if (randomBoolean()) {
+            query = new WildcardQueryBuilder(STRING_FIELD_NAME, text);
+        } else {
+            query = new WildcardQueryBuilder(randomAsciiOfLengthBetween(1, 10), text);
+        }
+        if (randomBoolean()) {
+            query.rewrite(randomFrom(getRandomRewriteMethod()));
+        }
+        return query;
     }
 }

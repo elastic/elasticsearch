@@ -69,19 +69,25 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
                 types = new String[0];
             }
         }
+        return createRandomQueryBuilder(types);
+    }
+
+    /**
+     * @param optionalTypes if array contains entries, they will be used to set the types in the resulting {@link IdsQueryBuilder}
+     */
+    public static IdsQueryBuilder createRandomQueryBuilder(String[] optionalTypes) {
         int numberOfIds = randomIntBetween(0, 10);
         String[] ids = new String[numberOfIds];
         for (int i = 0; i < numberOfIds; i++) {
             ids[i] = randomAsciiOfLengthBetween(1, 10);
         }
         IdsQueryBuilder query;
-        if (types.length > 0 || randomBoolean()) {
-            query = new IdsQueryBuilder(types);
-            query.addIds(ids);
+        if (optionalTypes.length > 0 || randomBoolean()) {
+            query = new IdsQueryBuilder(optionalTypes);
         } else {
             query = new IdsQueryBuilder();
-            query.addIds(ids);
         }
+        query.addIds(ids);
         return query;
     }
 
@@ -155,12 +161,12 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
 
     public void testFromJson() throws IOException {
         String json =
-                "{\n" + 
-                "  \"ids\" : {\n" + 
-                "    \"type\" : [ \"my_type\" ],\n" + 
-                "    \"values\" : [ \"1\", \"100\", \"4\" ],\n" + 
-                "    \"boost\" : 1.0\n" + 
-                "  }\n" + 
+                "{\n" +
+                "  \"ids\" : {\n" +
+                "    \"type\" : [ \"my_type\" ],\n" +
+                "    \"values\" : [ \"1\", \"100\", \"4\" ],\n" +
+                "    \"boost\" : 1.0\n" +
+                "  }\n" +
                 "}";
         IdsQueryBuilder parsed = (IdsQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);

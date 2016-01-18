@@ -21,12 +21,41 @@ package org.elasticsearch.index.query;
 
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
 
+import org.elasticsearch.common.collect.Tuple;
+
 import java.util.HashMap;
 import java.util.Map;
 
 public abstract class AbstractTermQueryTestCase<QB extends BaseTermQueryBuilder<QB>> extends AbstractQueryTestCase<QB> {
     @Override
     protected final QB doCreateTestQueryBuilder() {
+        Tuple<String, Object> nameValue = randomFieldNameAndValue();
+        return createQueryBuilder(nameValue.v1(), nameValue.v2());
+    }
+
+    protected abstract QB createQueryBuilder(String fieldName, Object value);
+
+    public void testIllegalArguments() throws QueryShardException {
+        try {
+            if (randomBoolean()) {
+                createQueryBuilder(null, randomAsciiOfLengthBetween(1, 30));
+            } else {
+                createQueryBuilder("", randomAsciiOfLengthBetween(1, 30));
+            }
+            fail("fieldname cannot be null or empty");
+        } catch (IllegalArgumentException e) {
+            // expected
+        }
+
+        try {
+            createQueryBuilder("field", null);
+            fail("value cannot be null or empty");
+        } catch (IllegalArgumentException e) {
+            // expected
+        }
+    }
+
+    protected static Tuple<String, Object> randomFieldNameAndValue() {
         String fieldName = null;
         Object value;
         switch (randomIntBetween(0, 3)) {
@@ -67,29 +96,7 @@ public abstract class AbstractTermQueryTestCase<QB extends BaseTermQueryBuilder<
         if (fieldName == null) {
             fieldName = randomAsciiOfLengthBetween(1, 10);
         }
-        return createQueryBuilder(fieldName, value);
-    }
-
-    protected abstract QB createQueryBuilder(String fieldName, Object value);
-
-    public void testIllegalArguments() throws QueryShardException {
-        try {
-            if (randomBoolean()) {
-                createQueryBuilder(null, randomAsciiOfLengthBetween(1, 30));
-            } else {
-                createQueryBuilder("", randomAsciiOfLengthBetween(1, 30));
-            }
-            fail("fieldname cannot be null or empty");
-        } catch (IllegalArgumentException e) {
-            // expected
-        }
-
-        try {
-            createQueryBuilder("field", null);
-            fail("value cannot be null or empty");
-        } catch (IllegalArgumentException e) {
-            // expected
-        }
+        return new Tuple<String, Object>(fieldName, value);
     }
 
     @Override

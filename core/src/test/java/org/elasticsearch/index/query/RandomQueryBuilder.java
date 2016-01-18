@@ -32,18 +32,21 @@ import java.util.Random;
 public class RandomQueryBuilder {
 
     /**
-     * Create a new query of a random type
+     * Create a new query of a random type.
+     * Currently supported are only the leaf queries {@link MatchAllQueryBuilder}, {@link TermQueryBuilder} or
+     * {@link IdsQueryBuilder}, the multi term queryies {@link PrefixQueryBuilder} and {@link WildcardQueryBuilder}
+     * and the {@link EmptyQueryBuilder}.
      * @param r random seed
      * @return a random {@link QueryBuilder}
      */
     public static QueryBuilder createQuery(Random r) {
         switch (RandomInts.randomIntBetween(r, 0, 4)) {
             case 0:
-                return new MatchAllQueryBuilderTests().createTestQueryBuilder();
+                return MatchAllQueryBuilderTests.createRandomQueryBuilder();
             case 1:
-                return new TermQueryBuilderTests().createTestQueryBuilder();
+                return TermQueryBuilderTests.createRandomQueryBuilder();
             case 2:
-                return new IdsQueryBuilderTests().createTestQueryBuilder();
+                return IdsQueryBuilderTests.createRandomQueryBuilder(new String[0]);
             case 3:
                 return createMultiTermQuery(r);
             case 4:
@@ -82,10 +85,10 @@ public class RandomQueryBuilder {
                 multiTermQueryBuilder = new FuzzyQueryBuilder(AbstractQueryTestCase.STRING_FIELD_NAME, RandomStrings.randomAsciiOfLengthBetween(r, 1, 10));
                 break;
             case 4:
-                multiTermQueryBuilder = new PrefixQueryBuilderTests().createTestQueryBuilder();
+                multiTermQueryBuilder = PrefixQueryBuilderTests.createRandomQueryBuilder();
                 break;
             case 5:
-                multiTermQueryBuilder = new WildcardQueryBuilderTests().createTestQueryBuilder();
+                multiTermQueryBuilder = WildcardQueryBuilderTests.createRandomQueryBuilder();
                 break;
             default:
                 throw new UnsupportedOperationException();

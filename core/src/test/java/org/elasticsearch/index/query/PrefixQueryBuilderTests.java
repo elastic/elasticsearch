@@ -35,14 +35,7 @@ public class PrefixQueryBuilderTests extends AbstractQueryTestCase<PrefixQueryBu
 
     @Override
     protected PrefixQueryBuilder doCreateTestQueryBuilder() {
-        String fieldName = randomBoolean() ? STRING_FIELD_NAME : randomAsciiOfLengthBetween(1, 10);
-        String value = randomAsciiOfLengthBetween(1, 10);
-        PrefixQueryBuilder query = new PrefixQueryBuilder(fieldName, value);
-
-        if (randomBoolean()) {
-            query.rewrite(getRandomRewriteMethod());
-        }
-        return query;
+        return createRandomQueryBuilder();
     }
 
     @Override
@@ -93,5 +86,16 @@ public class PrefixQueryBuilderTests extends AbstractQueryTestCase<PrefixQueryBu
         assertEquals(json, "ki", parsed.value());
         assertEquals(json, 2.0, parsed.boost(), 0.00001);
         assertEquals(json, "user", parsed.fieldName());
+    }
+
+    public static PrefixQueryBuilder createRandomQueryBuilder() {
+        String fieldName = randomBoolean() ? STRING_FIELD_NAME : randomAsciiOfLengthBetween(1, 10);
+        String value = randomAsciiOfLengthBetween(1, 10);
+        PrefixQueryBuilder query = new PrefixQueryBuilder(fieldName, value);
+
+        if (randomBoolean()) {
+            query.rewrite(getRandomRewriteMethod());
+        }
+        return query;
     }
 }

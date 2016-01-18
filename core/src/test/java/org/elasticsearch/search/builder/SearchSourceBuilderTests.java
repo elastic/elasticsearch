@@ -48,6 +48,7 @@ import org.elasticsearch.index.query.AbstractQueryTestCase;
 import org.elasticsearch.index.query.EmptyQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.RandomQueryBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionParser;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.script.Script;
@@ -223,16 +224,10 @@ public class SearchSourceBuilderTests extends ESTestCase {
             }
         }
         if (randomBoolean()) {
-            // NORELEASE make RandomQueryBuilder work outside of the
-            // AbstractQueryTestCase
-            // builder.query(RandomQueryBuilder.createQuery(getRandom()));
-            builder.query(QueryBuilders.termQuery(randomAsciiOfLengthBetween(5, 20), randomAsciiOfLengthBetween(5, 20)));
+            builder.query(RandomQueryBuilder.createQuery(getRandom()));
         }
         if (randomBoolean()) {
-            // NORELEASE make RandomQueryBuilder work outside of the
-            // AbstractQueryTestCase
-            // builder.postFilter(RandomQueryBuilder.createQuery(getRandom()));
-            builder.postFilter(QueryBuilders.termQuery(randomAsciiOfLengthBetween(5, 20), randomAsciiOfLengthBetween(5, 20)));
+            builder.postFilter(RandomQueryBuilder.createQuery(getRandom()));
         }
         if (randomBoolean()) {
             int numSorts = randomIntBetween(1, 5);

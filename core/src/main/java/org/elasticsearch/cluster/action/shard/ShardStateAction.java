@@ -49,6 +49,7 @@ import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.EmptyTransportResponseHandler;
 import org.elasticsearch.transport.NodeDisconnectedException;
+import org.elasticsearch.transport.NodeNotConnectedException;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
@@ -58,11 +59,8 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Set;
 
 import static org.elasticsearch.cluster.routing.ShardRouting.readShardRoutingEntry;
 
@@ -111,8 +109,7 @@ public class ShardStateAction extends AbstractComponent {
 
                     @Override
                     public void handleException(TransportException exp) {
-                        assert exp.getCause() != null : exp;
-                        if (isMasterChannelException(exp.getCause())) {
+                        if (isMasterChannelException(exp)) {
                             waitForNewMasterAndRetry(observer, shardRoutingEntry, listener);
                         } else {
                             logger.warn("{} unexpected failure while sending request to [{}] to fail shard [{}]", exp, shardRoutingEntry.getShardRouting().shardId(), masterNode, shardRoutingEntry);
@@ -123,14 +120,16 @@ public class ShardStateAction extends AbstractComponent {
         }
     }
 
-    private static Set<Class<?>> MASTER_CHANNEL_EXCEPTIONS =
-        new HashSet<>(Arrays.asList(
-            NotMasterException.class,
-            NodeDisconnectedException.class,
-            Discovery.FailedToCommitClusterStateException.class
-        ));
-    private static boolean isMasterChannelException(Throwable cause) {
-        return MASTER_CHANNEL_EXCEPTIONS.contains(cause.getClass());
+    private static Class[] MASTER_CHANNEL_EXCEPTIONS = new Class[]{
+        NotMasterException.class,
+        NodeNotConnectedException.class,
+        NodeDisconnectedException.class,
+        Discovery.FailedToCommitClusterStateException.class
+    };
+
+    // visible for testing
+    static boolean isMasterChannelException(TransportException exp) {
+        return ExceptionsHelper.unwrap(exp, MASTER_CHANNEL_EXCEPTIONS) != null;
     }
 
     // visible for testing
@@ -399,4 +398,5 @@ public class ShardStateAction extends AbstractComponent {
         default void onShardFailedFailure(final Exception e) {
         }
     }
+
 }

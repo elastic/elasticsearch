@@ -49,7 +49,7 @@ import java.util.function.Supplier;
 /**
  *
  */
-public abstract class TransportBroadcastAction<Request extends BroadcastRequest, Response extends BroadcastResponse, ShardRequest extends BroadcastShardRequest, ShardResponse extends BroadcastShardResponse>
+public abstract class TransportBroadcastAction<Request extends BroadcastRequest<Request>, Response extends BroadcastResponse, ShardRequest extends BroadcastShardRequest, ShardResponse extends BroadcastShardResponse>
         extends HandledTransportAction<Request, Response> {
 
     protected final ClusterService clusterService;

@@ -23,7 +23,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
@@ -109,7 +108,7 @@ public class TransportShardMultiPercolateAction extends TransportSingleShardActi
     }
 
 
-    public static class Request extends SingleShardRequest implements IndicesRequest {
+    public static class Request extends SingleShardRequest<Request> implements IndicesRequest {
 
         private int shardId;
         private String preference;
@@ -237,7 +236,7 @@ public class TransportShardMultiPercolateAction extends TransportSingleShardActi
                     shardResponse.readFrom(in);
                     items.add(new Item(slot, shardResponse));
                 } else {
-                    items.add(new Item(slot, (Throwable)in.readThrowable()));
+                    items.add(new Item(slot, in.readThrowable()));
                 }
             }
         }

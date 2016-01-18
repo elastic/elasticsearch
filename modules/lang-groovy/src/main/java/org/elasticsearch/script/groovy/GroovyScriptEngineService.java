@@ -23,6 +23,7 @@ import groovy.lang.Binding;
 import groovy.lang.GroovyClassLoader;
 import groovy.lang.GroovyCodeSource;
 import groovy.lang.Script;
+
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorer;
 import org.codehaus.groovy.ast.ClassCodeExpressionTransformer;
@@ -182,6 +183,7 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
             String fake = MessageDigests.toHexString(MessageDigests.sha1().digest(script.getBytes(StandardCharsets.UTF_8)));
             // same logic as GroovyClassLoader.parseClass() but with a different codesource string:
             return AccessController.doPrivileged(new PrivilegedAction<Object>() {
+                @Override
                 public Class<?> run() {
                     GroovyCodeSource gcs = new GroovyCodeSource(script, fake, BootstrapInfo.UNTRUSTED_CODEBASE);
                     gcs.setCachable(false);
@@ -203,7 +205,7 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
      */
     @SuppressWarnings("unchecked")
     private Script createScript(Object compiledScript, Map<String, Object> vars) throws InstantiationException, IllegalAccessException {
-        Class scriptClass = (Class) compiledScript;
+        Class<?> scriptClass = (Class<?>) compiledScript;
         Script scriptObject = (Script) scriptClass.newInstance();
         Binding binding = new Binding();
         binding.getVariables().putAll(vars);
@@ -211,7 +213,6 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
         return scriptObject;
     }
 
-    @SuppressWarnings({"unchecked"})
     @Override
     public ExecutableScript executable(CompiledScript compiledScript, Map<String, Object> vars) {
         try {
@@ -225,7 +226,6 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
         }
     }
 
-    @SuppressWarnings({"unchecked"})
     @Override
     public SearchScript search(final CompiledScript compiledScript, final SearchLookup lookup, @Nullable final Map<String, Object> vars) {
         return new SearchScript() {
@@ -288,7 +288,6 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
             }
         }
 
-        @SuppressWarnings({"unchecked"})
         @Override
         public void setNextVar(String name, Object value) {
             variables.put(name, value);

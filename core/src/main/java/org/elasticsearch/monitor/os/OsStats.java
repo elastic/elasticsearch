@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 /**
  *
@@ -89,7 +90,7 @@ public class OsStats implements Streamable, ToXContent {
         if (cpu != null) {
             builder.startObject(Fields.CPU);
             builder.field(Fields.PERCENT, cpu.getPercent());
-            if (cpu.getLoadAverage() != null) {
+            if (cpu.getLoadAverage() != null && Arrays.stream(cpu.getLoadAverage()).anyMatch(load -> load != -1)) {
                 builder.startObject(Fields.LOAD_AVERAGE);
                 if (cpu.getLoadAverage()[0] != -1) {
                     builder.field(Fields.LOAD_AVERAGE_1M, cpu.getLoadAverage()[0]);

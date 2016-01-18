@@ -46,6 +46,7 @@ import java.util.List;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -178,7 +179,7 @@ public class LicensingTests extends ShieldIntegTestCase {
         assertThat(clusterStatsNodeResponse, notNullValue());
         ClusterStatsIndices indices = clusterStatsNodeResponse.getIndicesStats();
         assertThat(indices, notNullValue());
-        assertThat(indices.getIndexCount(), is(2));
+        assertThat(indices.getIndexCount(), greaterThanOrEqualTo(2));
 
         ClusterHealthResponse clusterIndexHealth = client.admin().cluster().prepareHealth().get();
         assertThat(clusterIndexHealth, notNullValue());

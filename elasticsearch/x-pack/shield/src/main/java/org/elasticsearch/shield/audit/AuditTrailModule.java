@@ -54,8 +54,6 @@ public class AuditTrailModule extends AbstractShieldModule.Node {
                     bind(LoggingAuditTrail.class).asEagerSingleton();
                     break;
                 case IndexAuditTrail.NAME:
-                    // TODO should bind the lifecycle service in ShieldModule if we use it other places...
-                    bind(ShieldLifecycleService.class).asEagerSingleton();
                     bind(IndexAuditUserHolder.class).toInstance(indexAuditUser);
                     binder.addBinding().to(IndexAuditTrail.class);
                     bind(IndexAuditTrail.class).asEagerSingleton();
@@ -68,6 +66,18 @@ public class AuditTrailModule extends AbstractShieldModule.Node {
 
     public static boolean auditingEnabled(Settings settings) {
         return settings.getAsBoolean("shield.audit.enabled", false);
+    }
+
+    public static boolean indexAuditLoggingEnabled(Settings settings) {
+        if (auditingEnabled(settings)) {
+            String[] outputs = settings.getAsArray("shield.audit.outputs");
+            for (String output : outputs) {
+                if (output.equals(IndexAuditTrail.NAME)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     public static boolean fileAuditLoggingEnabled(Settings settings) {

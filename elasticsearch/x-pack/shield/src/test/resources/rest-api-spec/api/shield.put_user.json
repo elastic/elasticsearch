@@ -1,0 +1,22 @@
+{
+  "shield.put_user": {
+    "documentation": "Update or create a user for the native shield realm",
+    "methods": [ "PUT", "POST" ],
+    "url": {
+      "path": "/_shield/user/{username}",
+      "paths": [ "/_shield/user/{username}" ],
+      "parts": {
+        "username": {
+          "type" : "string",
+          "description" : "User ID",
+          "required" : true
+        }
+      },
+      "params": {}
+    },
+    "body": {
+      "description" : "The user to add",
+      "required" : true
+    }
+  }
+}

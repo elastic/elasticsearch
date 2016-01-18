@@ -330,9 +330,10 @@ public class LoggingAuditTrailTests extends ESTestCase {
             boolean runAs = randomBoolean();
             User user;
             if (runAs) {
-                user = new User.Simple("_username", new String[]{"r1"}, new User.Simple("running as", new String[] {"r2"}));
+                user = new User("_username", new String[]{"r1"},
+                        new User("running as", new String[] {"r2"}));
             } else {
-                user = new User.Simple("_username", new String[]{"r1"});
+                user = new User("_username", new String[]{"r1"});
             }
             String userInfo = runAs ? "principal=[running as], run_by_principal=[_username]" : "principal=[_username]";
             auditTrail.accessGranted(user, "_action", message);
@@ -392,9 +393,10 @@ public class LoggingAuditTrailTests extends ESTestCase {
             boolean runAs = randomBoolean();
             User user;
             if (runAs) {
-                user = new User.Simple("_username", new String[]{"r1"}, new User.Simple("running as", new String[] {"r2"}));
+                user = new User("_username", new String[]{"r1"},
+                        new User("running as", new String[] {"r2"}));
             } else {
-                user = new User.Simple("_username", new String[]{"r1"});
+                user = new User("_username", new String[]{"r1"});
             }
             String userInfo = runAs ? "principal=[running as], run_by_principal=[_username]" : "principal=[_username]";
             auditTrail.accessGranted(user, "internal:_action", message);
@@ -430,9 +432,10 @@ public class LoggingAuditTrailTests extends ESTestCase {
             boolean runAs = randomBoolean();
             User user;
             if (runAs) {
-                user = new User.Simple("_username", new String[]{"r1"}, new User.Simple("running as", new String[] {"r2"}));
+                user = new User("_username", new String[]{"r1"},
+                        new User("running as", new String[] {"r2"}));
             } else {
-                user = new User.Simple("_username", new String[]{"r1"});
+                user = new User("_username", new String[]{"r1"});
             }
             String userInfo = runAs ? "principal=[running as], run_by_principal=[_username]" : "principal=[_username]";
             auditTrail.accessDenied(user, "_action", message);
@@ -493,9 +496,9 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final boolean runAs = randomBoolean();
         User user;
         if (runAs) {
-            user = new User.Simple("_username", new String[]{"r1"}, new User.Simple("running as", new String[] {"r2"}));
+            user = new User("_username", new String[]{"r1"}, new User("running as", new String[] {"r2"}));
         } else {
-            user = new User.Simple("_username", new String[]{"r1"});
+            user = new User("_username", new String[]{"r1"});
         }
         String userInfo = runAs ? "principal=[running as], run_by_principal=[_username]" : "principal=[_username]";
         for (Level level : Level.values()) {
@@ -571,7 +574,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
             LoggingAuditTrail auditTrail = new LoggingAuditTrail(settings, transport, logger).start();
             TransportMessage message = new MockMessage();
             String origins = LoggingAuditTrail.originAttributes(message, transport);
-            User user = new User.Simple("_username", new String[]{"r1"}, new User.Simple("running as", new String[] {"r2"}));
+            User user = new User("_username", new String[]{"r1"}, new User("running as", new String[] {"r2"}));
             auditTrail.runAsGranted(user, "_action", message);
             switch (level) {
                 case ERROR:
@@ -594,7 +597,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
             LoggingAuditTrail auditTrail = new LoggingAuditTrail(settings, transport, logger).start();
             TransportMessage message = new MockMessage();
             String origins = LoggingAuditTrail.originAttributes(message, transport);
-            User user = new User.Simple("_username", new String[]{"r1"}, new User.Simple("running as", new String[] {"r2"}));
+            User user = new User("_username", new String[]{"r1"}, new User("running as", new String[] {"r2"}));
             auditTrail.runAsDenied(user, "_action", message);
             switch (level) {
                 case ERROR:

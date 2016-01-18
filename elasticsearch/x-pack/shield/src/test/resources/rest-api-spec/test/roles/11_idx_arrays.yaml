@@ -1,0 +1,73 @@
+---
+"Test put role api using as array of index names":
+  - skip:
+      features: headers
+
+  - do:
+      cluster.health:
+          wait_for_status: yellow
+
+  - do:
+      shield.put_role:
+        rolename: "admin_role2"
+        body:  >
+            {
+              "name": "admin_role2",
+              "cluster": ["all"],
+              "indices": [
+                {
+                  "names": ["foo", "bar"],
+                  "privileges": ["all"]
+                }
+              ]
+            }
+  - match: { role: { created: true } }
+
+  - do:
+      shield.put_user:
+        username: "joe"
+        body:  >
+            {
+              "username": "joe",
+              "password": "s3krit",
+              "roles" : [ "admin_role2" ]
+            }
+  - match: { user: { created: true } }
+
+# Index a doc and make sure the "joe" user can see it
+  - do:
+      index:
+        index: foo
+        type: doc
+        id: 1
+        body: { foo: bar }
+
+  - do:
+      headers:
+        Authorization: "Basic am9lOnMza3JpdA=="
+      get:
+        index: foo
+        type: doc
+        id: 1
+  - match: { _index: foo }
+  - match: { _type: doc }
+  - match: { _id: "1"}
+  - match: { _version: 1}
+  - match: { _source: { foo: bar }}
+
+# test that the role works on the cluster level
+  - do:
+      headers:
+        Authorization: "Basic am9lOnMza3JpdA=="
+      cluster.health: {}
+  - match: { timed_out: false }
+
+  - do:
+      shield.get_role:
+        rolename: "admin_role2"
+  - match: { found: true }
+  - match: { roles.0.name: "admin_role2" }
+  - match: { roles.0.cluster.0:  "all" }
+  - match: { roles.0.indices.0.names.0: "foo" }
+  - match: { roles.0.indices.0.names.1: "bar" }
+  - match: { roles.0.indices.0.privileges.0:  "all" }

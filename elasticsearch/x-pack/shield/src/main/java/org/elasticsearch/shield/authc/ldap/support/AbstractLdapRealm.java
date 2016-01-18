@@ -80,7 +80,7 @@ public abstract class AbstractLdapRealm extends CachingUsernamePasswordRealm {
     private User createUser(String principal, LdapSession session) {
         List<String> groupDNs = session.groups();
         Set<String> roles = roleMapper.resolveRoles(session.userDn(), groupDNs);
-        return new User.Simple(principal, roles.toArray(new String[roles.size()]));
+        return new User(principal, roles.toArray(new String[roles.size()]));
     }
 
     class Listener implements RefreshListener {

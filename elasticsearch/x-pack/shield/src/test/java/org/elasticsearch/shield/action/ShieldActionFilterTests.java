@@ -64,7 +64,7 @@ public class ShieldActionFilterTests extends ESTestCase {
         ActionListener listener = mock(ActionListener.class);
         ActionFilterChain chain = mock(ActionFilterChain.class);
         Task task = mock(Task.class);
-        User user = new User.Simple("username", new String[] { "r1", "r2" });
+        User user = new User("username", "r1", "r2");
         when(authcService.authenticate("_action", request, User.SYSTEM)).thenReturn(user);
         doReturn(request).when(spy(filter)).unsign(user, "_action", request);
         filter.apply(task, "_action", request, listener, chain);
@@ -78,7 +78,7 @@ public class ShieldActionFilterTests extends ESTestCase {
         ActionFilterChain chain = mock(ActionFilterChain.class);
         RuntimeException exception = new RuntimeException("process-error");
         Task task = mock(Task.class);
-        User user = new User.Simple("username", new String[] { "r1", "r2" });
+        User user = new User("username", "r1", "r2");
         when(authcService.authenticate("_action", request, User.SYSTEM)).thenReturn(user);
         doThrow(exception).when(authzService).authorize(user, "_action", request);
         filter.apply(task, "_action", request, listener, chain);

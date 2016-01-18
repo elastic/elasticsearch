@@ -1,0 +1,19 @@
+{
+  "shield.delete_role": {
+    "documentation": "Remove a role from the native shield realm",
+    "methods": [ "DELETE" ],
+    "url": {
+      "path": "/_shield/role/{rolename}",
+      "paths": [ "/_shield/role/{rolename}" ],
+      "parts": {
+        "rolename": {
+          "type" : "string",
+          "description" : "Role ID",
+          "required" : true
+        }
+      },
+      "params": {}
+    },
+    "body": null
+  }
+}

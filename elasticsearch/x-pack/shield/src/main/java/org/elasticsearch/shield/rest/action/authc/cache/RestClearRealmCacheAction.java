@@ -40,7 +40,7 @@ public class RestClearRealmCacheAction extends BaseRestHandler {
 
         ClearRealmCacheRequest req = new ClearRealmCacheRequest().realms(realms).usernames(usernames);
 
-        new ShieldClient(client).authc().clearRealmCache(req, new RestBuilderListener<ClearRealmCacheResponse>(channel) {
+        new ShieldClient(client).clearRealmCache(req, new RestBuilderListener<ClearRealmCacheResponse>(channel) {
             @Override
             public RestResponse buildResponse(ClearRealmCacheResponse response, XContentBuilder builder) throws Exception {
                 response.toXContent(builder, ToXContent.EMPTY_PARAMS);

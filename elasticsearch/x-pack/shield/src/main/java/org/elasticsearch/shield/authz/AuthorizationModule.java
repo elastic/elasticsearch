@@ -7,6 +7,9 @@ package org.elasticsearch.shield.authz;
 
 import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.shield.authc.esnative.ESNativeUsersStore;
+import org.elasticsearch.shield.authz.esnative.ESNativeRolesStore;
+import org.elasticsearch.shield.authz.store.CompositeRolesStore;
 import org.elasticsearch.shield.authz.store.FileRolesStore;
 import org.elasticsearch.shield.authz.store.RolesStore;
 import org.elasticsearch.shield.support.AbstractShieldModule;
@@ -15,7 +18,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 /**
- *
+ * Module used to bind various classes necessary for authorization
  */
 public class AuthorizationModule extends AbstractShieldModule.Node {
 
@@ -37,8 +40,12 @@ public class AuthorizationModule extends AbstractShieldModule.Node {
             reservedRolesBinder.addBinding().toInstance(reservedRole);
         }
 
+        // First the file and native roles stores must be bound...
         bind(FileRolesStore.class).asEagerSingleton();
-        bind(RolesStore.class).to(FileRolesStore.class).asEagerSingleton();
+        bind(ESNativeRolesStore.class).asEagerSingleton();
+        // Then the composite roles store (which combines both) can be bound
+        bind(RolesStore.class).to(CompositeRolesStore.class).asEagerSingleton();
+        bind(ESNativeUsersStore.class).asEagerSingleton();
         bind(AuthorizationService.class).to(InternalAuthorizationService.class).asEagerSingleton();
     }
 

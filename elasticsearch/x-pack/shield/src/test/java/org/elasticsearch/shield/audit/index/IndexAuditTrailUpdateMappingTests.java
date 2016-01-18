@@ -12,7 +12,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.shield.authc.AuthenticationService;
 import org.elasticsearch.test.ShieldIntegTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -37,6 +36,7 @@ import static org.mockito.Mockito.when;
  */
 public class IndexAuditTrailUpdateMappingTests extends ShieldIntegTestCase {
     private ThreadPool threadPool;
+    private IndexAuditTrail auditor;
 
     @Before
     public void setup() {
@@ -50,8 +50,7 @@ public class IndexAuditTrailUpdateMappingTests extends ShieldIntegTestCase {
         Settings settings = Settings.builder().put("shield.audit.index.rollover", rollover.name().toLowerCase(Locale.ENGLISH)).put("path.home", createTempDir()).build();
         Transport transport = mock(Transport.class);
         when(transport.boundAddress()).thenReturn(new BoundTransportAddress(new TransportAddress[] { DummyTransportAddress.INSTANCE }, DummyTransportAddress.INSTANCE));
-        Environment env = new Environment(settings);
-        IndexAuditTrail auditor = new IndexAuditTrail(settings, new IndexAuditUserHolder(), env, authService, transport, Providers.of(client()), threadPool, mock(ClusterService.class));
+        auditor = new IndexAuditTrail(settings, new IndexAuditUserHolder(), authService, transport, Providers.of(client()), threadPool, mock(ClusterService.class));
 
         // before starting we add an event
         auditor.authenticationFailed(new FakeRestRequest());
@@ -85,6 +84,9 @@ public class IndexAuditTrailUpdateMappingTests extends ShieldIntegTestCase {
 
     @After
     public void shutdown() {
+        if (auditor != null) {
+            auditor.stop();
+        }
         if (threadPool != null) {
             threadPool.shutdownNow();
         }

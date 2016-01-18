@@ -62,7 +62,7 @@ public class CustomRealm extends Realm<UsernamePasswordToken> {
     public User authenticate(UsernamePasswordToken token) {
         final String actualUser = token.principal();
         if (KNOWN_USER.equals(actualUser) && SecuredString.constantTimeEquals(token.credentials(), KNOWN_PW)) {
-            return new User.Simple(actualUser, ROLES);
+            return new User(actualUser, ROLES);
         }
         return null;
     }

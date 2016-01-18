@@ -21,7 +21,8 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class UserTests extends ESTestCase {
     public void testWriteToAndReadFrom() throws Exception {
-        User user = new User.Simple(randomAsciiOfLengthBetween(4, 30), generateRandomStringArray(20, 30, false));
+        User user = new User(randomAsciiOfLengthBetween(4, 30),
+                generateRandomStringArray(20, 30, false));
         BytesStreamOutput output = new BytesStreamOutput();
 
         User.writeTo(user, output);
@@ -34,8 +35,10 @@ public class UserTests extends ESTestCase {
     }
 
     public void testWriteToAndReadFromWithRunAs() throws Exception {
-        User runAs = new User.Simple(randomAsciiOfLengthBetween(4, 30), randomBoolean() ? generateRandomStringArray(20, 30, false) : null);
-        User user = new User.Simple(randomAsciiOfLengthBetween(4, 30), generateRandomStringArray(20, 30, false), runAs);
+        User runAs = new User(randomAsciiOfLengthBetween(4, 30),
+                randomBoolean() ? generateRandomStringArray(20, 30, false) : null);
+        User user = new User(randomAsciiOfLengthBetween(4, 30),
+                generateRandomStringArray(20, 30, false), runAs);
         BytesStreamOutput output = new BytesStreamOutput();
 
         User.writeTo(user, output);
@@ -77,10 +80,19 @@ public class UserTests extends ESTestCase {
 
     public void testCreateUserRunningAsSystemUser() throws Exception {
         try {
-            new User.Simple(randomAsciiOfLengthBetween(3, 10), generateRandomStringArray(16, 30, false), User.SYSTEM);
+            new User(randomAsciiOfLengthBetween(3, 10),
+                    generateRandomStringArray(16, 30, false), User.SYSTEM);
             fail("should not be able to create a runAs user with the system user");
         } catch (ElasticsearchSecurityException e) {
             assertThat(e.getMessage(), containsString("system"));
         }
+    }
+
+    public void testUserToString() throws Exception {
+        User sudo = new User("root", new String[]{"r3"});
+        User u = new User("bob", new String[]{"r1", "r2"}, sudo);
+        assertEquals("User[username=root,roles=[r3,]]", sudo.toString());
+        assertEquals("User[username=bob,roles=[r1,r2,],runAs=[User[username=root,roles=[r3,]]]]",
+                u.toString());
     }
 }

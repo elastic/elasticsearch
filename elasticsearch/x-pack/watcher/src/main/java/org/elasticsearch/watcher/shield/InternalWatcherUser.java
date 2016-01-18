@@ -12,7 +12,7 @@ import org.elasticsearch.shield.authz.Privilege;
 /**
  *
  */
-public class InternalWatcherUser extends User.Simple {
+public class InternalWatcherUser extends User {
 
     static final String NAME = "__watcher_user";
     static final String[] ROLE_NAMES = new String[] { "__watcher_role" };
@@ -30,7 +30,6 @@ public class InternalWatcherUser extends User.Simple {
             // at later phases we'll want to execute the watch on behalf of the user who registers
             // it. this will require some work to attache/persist that user to/with the watch.
             .add(Privilege.Index.ALL, "*")
-
             .build();
 
     InternalWatcherUser(String username, String[] roles) {

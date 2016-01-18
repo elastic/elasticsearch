@@ -82,7 +82,7 @@ public class PkiRealm extends Realm<X509AuthenticationToken> {
         }
 
         Set<String> roles = roleMapper.resolveRoles(token.dn(), Collections.<String>emptyList());
-        return new User.Simple(token.principal(), roles.toArray(new String[roles.size()]));
+        return new User(token.principal(), roles.toArray(new String[roles.size()]));
     }
 
     @Override

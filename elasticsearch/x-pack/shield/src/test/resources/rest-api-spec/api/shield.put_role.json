@@ -1,0 +1,22 @@
+{
+  "shield.put_role": {
+    "documentation": "Update or create a role for the native shield realm",
+    "methods": [ "PUT", "POST" ],
+    "url": {
+      "path": "/_shield/role/{rolename}",
+      "paths": [ "/_shield/role/{rolename}" ],
+      "parts": {
+        "rolename": {
+          "type" : "string",
+          "description" : "Role ID",
+          "required" : true
+        }
+      },
+      "params": {}
+    },
+    "body": {
+      "description" : "The role to add",
+      "required" : true
+    }
+  }
+}

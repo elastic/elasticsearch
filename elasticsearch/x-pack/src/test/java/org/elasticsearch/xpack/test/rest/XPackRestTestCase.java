@@ -11,8 +11,12 @@ import org.apache.http.client.methods.HttpPut;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.impl.conn.BasicHttpClientConnectionManager;
+import org.elasticsearch.client.support.Headers;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.shield.authc.support.SecuredString;
+import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -25,7 +29,10 @@ import org.junit.Before;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.URI;
+import java.util.Collection;
+import java.util.Collections;
 
+import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 
 
@@ -46,8 +53,15 @@ public abstract class XPackRestTestCase extends ESRestTestCase {
     @Before
     public void startWatcher() throws Exception {
         try(CloseableHttpClient client = HttpClients.createMinimal(new BasicHttpClientConnectionManager())) {
+            if (cluster() == null || cluster().httpAddresses() == null) {
+                fail("no address available to start watcher");
+            }
             InetSocketAddress address = cluster().httpAddresses()[0];
-            HttpPut request = new HttpPut(new URI("http", null, NetworkAddress.formatAddress(address.getAddress()), address.getPort(), "/_watcher/_start", null, null));
+            HttpPut request = new HttpPut(new URI("http",
+                                                  "test_user:changeme",
+                                                  NetworkAddress.formatAddress(address.getAddress()),
+                                                  address.getPort(),
+                                                  "/_watcher/start", null, null));
             client.execute(request);
         }
     }
@@ -55,8 +69,15 @@ public abstract class XPackRestTestCase extends ESRestTestCase {
     @After
     public void stopWatcher() throws Exception {
         try(CloseableHttpClient client = HttpClients.createMinimal(new BasicHttpClientConnectionManager())) {
+            if (cluster() == null || cluster().httpAddresses() == null) {
+                fail("no address available to stop watcher");
+            }
             InetSocketAddress address = cluster().httpAddresses()[0];
-            HttpPut request = new HttpPut(new URI("http", null, NetworkAddress.formatAddress(address.getAddress()), address.getPort(), "/_watcher/_stop", null, null));
+            HttpPut request = new HttpPut(new URI("http",
+                                                  "test_user:changeme",
+                                                  NetworkAddress.formatAddress(address.getAddress()),
+                                                  address.getPort(),
+                                                  "/_watcher/stop", null, null));
             client.execute(request);
         }
     }
@@ -66,13 +87,36 @@ public abstract class XPackRestTestCase extends ESRestTestCase {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(Node.HTTP_ENABLED, true)
-        .build();
+                .put("shield.user", "test_user:changeme")
+                .build();
     }
 
     @Override
     protected Settings transportClientSettings() {
         return Settings.builder()
                 .put(Node.HTTP_ENABLED, true)
+                .put("shield.user", "test_user:changeme")
+                .build();
+    }
+
+    @Override
+    protected Settings externalClusterClientSettings() {
+        return Settings.builder()
+                .put(Node.HTTP_ENABLED, true)
+                .put("shield.user", "test_user:changeme")
+                .build();
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
+        return Collections.singletonList(XPackPlugin.class);
+    }
+
+    @Override
+    protected Settings restClientSettings() {
+        String token = basicAuthHeaderValue("test_user", new SecuredString("changeme".toCharArray()));
+        return Settings.builder()
+                .put(Headers.PREFIX + ".Authorization", token)
                 .build();
     }
 

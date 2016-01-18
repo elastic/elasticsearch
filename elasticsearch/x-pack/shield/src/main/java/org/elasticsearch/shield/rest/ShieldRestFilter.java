@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.shield.rest;
 
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -23,6 +24,7 @@ import org.elasticsearch.shield.transport.netty.ShieldNettyHttpServerTransport;
 import org.jboss.netty.handler.ssl.SslHandler;
 
 import javax.net.ssl.SSLPeerUnverifiedException;
+
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
 

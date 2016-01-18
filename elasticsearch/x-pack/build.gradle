@@ -1,4 +1,5 @@
 import org.elasticsearch.gradle.MavenFilteringHack
+import org.elasticsearch.gradle.test.NodeInfo
 
 apply plugin: 'elasticsearch.esplugin'
 esplugin {
@@ -125,8 +126,17 @@ integTest {
   // TODO: fix this rest test to not depend on a hardcoded port!
   systemProperty 'tests.rest.blacklist', 'getting_started/10_monitor_cluster_health/*'
   cluster {
-    // TODO set up tests so that shield can be enabled or disabled
-    systemProperty 'es.shield.enabled', 'false'
+    setupCommand 'setupDummyUser', 'bin/x-pack/esusers', 'useradd', 'test_user', '-p', 'changeme', '-r', 'admin'
+    waitCondition = { NodeInfo node, AntBuilder ant ->
+        File tmpFile = new File(node.cwd, 'wait.success')
+        ant.get(src: "http://${node.httpUri()}",
+                dest: tmpFile.toString(),
+                username: "test_user",
+                password: "changeme",
+                ignoreerrors: true, // do not fail on error, so logging buffers can be flushed by the wait task
+                retries: 10)
+        return tmpFile.exists()
+    }
   }
 }
 
@@ -141,6 +151,10 @@ task testJar(type: Jar) {
 }
 artifacts {
     testArtifacts testJar
+}
+
+run {
+  setupCommand 'setupDummyUser', 'bin/x-pack/esusers', 'useradd', 'test_user', '-p', 'changeme', '-r', 'admin'
 }
 
 // classes are missing, e.g. com.ibm.icu.lang.UCharacter

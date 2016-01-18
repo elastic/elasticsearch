@@ -50,7 +50,7 @@ public class AnonymousUserHolderTests extends ESTestCase {
     public void testWhenAnonymousDisabled() {
         AnonymousService anonymousService = new AnonymousService(Settings.EMPTY);
         assertThat(anonymousService.enabled(), is(false));
-        assertThat(anonymousService.isAnonymous(new User.Simple(randomAsciiOfLength(10), new String[] { randomAsciiOfLength(5) })), is(false));
+        assertThat(anonymousService.isAnonymous(new User(randomAsciiOfLength(10), randomAsciiOfLength(5))), is(false));
         assertThat(anonymousService.anonymousUser(), nullValue());
         assertThat(anonymousService.authorizationExceptionsEnabled(), is(true));
     }

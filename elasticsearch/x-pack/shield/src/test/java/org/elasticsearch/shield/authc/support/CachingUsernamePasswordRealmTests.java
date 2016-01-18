@@ -49,7 +49,7 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
         CachingUsernamePasswordRealm realm = new CachingUsernamePasswordRealm("test", config) {
             @Override
             protected User doAuthenticate(UsernamePasswordToken token) {
-                return new User.Simple("username", new String[] { "r1", "r2", "r3" });
+                return new User("username", new String[] { "r1", "r2", "r3" });
             }
 
             @Override
@@ -188,7 +188,7 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
             protected User doAuthenticate(UsernamePasswordToken token) {
                 // do something slow
                 if (BCrypt.checkpw(token.credentials(), passwordHash)) {
-                    return new User.Simple(username, new String[]{"r1", "r2", "r3"});
+                    return new User(username, new String[]{"r1", "r2", "r3"});
                 }
                 return null;
             }
@@ -293,13 +293,13 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
         @Override
         protected User doAuthenticate(UsernamePasswordToken token) {
             authInvocationCounter.incrementAndGet();
-            return new User.Simple(token.principal(), new String[] { "testRole1", "testRole2" });
+            return new User(token.principal(), new String[] { "testRole1", "testRole2" });
         }
 
         @Override
         protected User doLookupUser(String username) {
             lookupInvocationCounter.incrementAndGet();
-            return new User.Simple(username, new String[] { "lookupRole1", "lookupRole2" });
+            return new User(username, new String[] { "lookupRole1", "lookupRole2" });
         }
 
         @Override
@@ -320,7 +320,7 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
         @Override
         protected User doAuthenticate(UsernamePasswordToken token) {
             authInvocationCounter.incrementAndGet();
-            return new User.Simple(token.principal(), new String[] { "testRole1", "testRole2" });
+            return new User(token.principal(), new String[] { "testRole1", "testRole2" });
         }
 
         @Override

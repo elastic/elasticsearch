@@ -97,7 +97,6 @@ public class InternalAuthorizationService extends AbstractComponent implements A
 
     @Override
     public void authorize(User user, String action, TransportRequest request) throws ElasticsearchSecurityException {
-
         // first we need to check if the user is the system. If it is, we'll just authorize the system access
         if (user.isSystem()) {
             if (SystemRole.INSTANCE.check(action)) {

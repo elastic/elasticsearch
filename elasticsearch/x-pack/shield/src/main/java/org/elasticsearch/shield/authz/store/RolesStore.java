@@ -6,9 +6,10 @@
 package org.elasticsearch.shield.authz.store;
 
 import org.elasticsearch.shield.authz.Permission;
+import org.elasticsearch.shield.authz.RoleDescriptor;
 
 /**
- *
+ * An interface for looking up a role given a string role name
  */
 public interface RolesStore {
 

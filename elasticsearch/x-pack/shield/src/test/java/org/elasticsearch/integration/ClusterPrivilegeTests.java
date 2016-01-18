@@ -134,9 +134,9 @@ public class ClusterPrivilegeTests extends AbstractPrivilegeTestCase {
         assertAccessIsDenied("user_b", "PUT", "/someindex/bar/1", "{ \"name\" : \"elasticsearch\" }", params);
         assertAccessIsAllowed("user_c", "PUT", "/someindex/bar/1", "{ \"name\" : \"elasticsearch\" }", params);
 
-        assertAccessIsDenied("user_b", "PUT", "/_snapshot/my-repo/my-snapshot");
-        assertAccessIsDenied("user_c", "PUT", "/_snapshot/my-repo/my-snapshot");
-        assertAccessIsAllowed("user_a", "PUT", "/_snapshot/my-repo/my-snapshot");
+        assertAccessIsDenied("user_b", "PUT", "/_snapshot/my-repo/my-snapshot", "{ \"indices\": \"someindex\" }");
+        assertAccessIsDenied("user_c", "PUT", "/_snapshot/my-repo/my-snapshot", "{ \"indices\": \"someindex\" }");
+        assertAccessIsAllowed("user_a", "PUT", "/_snapshot/my-repo/my-snapshot", "{ \"indices\": \"someindex\" }");
 
         assertAccessIsDenied("user_b", "GET", "/_snapshot/my-repo/my-snapshot/_status");
         assertAccessIsDenied("user_c", "GET", "/_snapshot/my-repo/my-snapshot/_status");

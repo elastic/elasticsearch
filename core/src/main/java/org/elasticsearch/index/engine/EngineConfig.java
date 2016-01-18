@@ -39,6 +39,8 @@ import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.Set;
+
 /*
  * Holds all the configuration that is used to create an {@link Engine}.
  * Once {@link Engine} has been created with this object, changes to this
@@ -65,6 +67,9 @@ public final class EngineConfig {
     private final QueryCache queryCache;
     private final QueryCachingPolicy queryCachingPolicy;
 
+    static {
+
+    }
     /**
      * Index setting to change the low level lucene codec used for writing new segments.
      * This setting is <b>not</b> realtime updateable.
@@ -72,11 +77,13 @@ public final class EngineConfig {
     public static final Setting<String> INDEX_CODEC_SETTING = new Setting<>("index.codec", "default", (s) -> {
         switch(s) {
             case "default":
-            case "lucene_default":
             case "best_compression":
                 return s;
             default:
-                throw new IllegalArgumentException("unknown value for [index.codec] must be one of [default, best_compression, lucene_default] but was: " + s);
+                if (Codec.availableCodecs().contains(s) == false) { // we don't error message the not officially supported ones
+                    throw new IllegalArgumentException("unknown value for [index.codec] must be one of [default, best_compression] but was: " + s);
+                }
+                return s;
         }
     }, false, Setting.Scope.INDEX);
 

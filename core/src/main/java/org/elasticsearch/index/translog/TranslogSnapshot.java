@@ -83,10 +83,10 @@ public class TranslogSnapshot extends TranslogReader implements Translog.Snapsho
      */
     protected void readBytes(ByteBuffer buffer, long position) throws IOException {
         if (position >= length) {
-            throw new EOFException("read requested past EOF. pos [" + position + "] end: [" + length + "]");
+            throw new EOFException("read requested past EOF. pos [" + position + "] end: [" + length + "], generation: [" + getGeneration() + "], path: [" + path + "]");
         }
         if (position < getFirstOperationOffset()) {
-            throw new IOException("read requested before position of first ops. pos [" + position + "] first op on: [" + getFirstOperationOffset() + "]");
+            throw new IOException("read requested before position of first ops. pos [" + position + "] first op on: [" + getFirstOperationOffset() + "], generation: [" + getGeneration() + "], path: [" + path + "]");
         }
         Channels.readFromFileChannelWithEofException(channel, position, buffer);
     }

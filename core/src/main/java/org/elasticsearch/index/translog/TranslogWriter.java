@@ -194,7 +194,7 @@ public class TranslogWriter extends TranslogReader implements Closeable {
         if (closed.compareAndSet(false, true)) {
             return new ImmutableTranslogReader(generation, channel, path, firstOperationOffset, getWrittenOffset(), operationCounter);
         } else {
-            throw new AlreadyClosedException("translog [" + getGeneration() + "] is already closed", tragedy);
+            throw new AlreadyClosedException("translog [" + getGeneration() + "] is already closed (path [" + path + "]", tragedy);
         }
     }
 

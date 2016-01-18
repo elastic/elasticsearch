@@ -476,9 +476,12 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      * while receiving future ones as well
      */
     public Translog.View newView() {
-        View view = new View(lastCommittedTranslogFileGeneration);
-        outstandingViews.add(view);
-        return view;
+        try (ReleasableLock lock = readLock.acquire()) {
+            ensureOpen();
+            View view = new View(lastCommittedTranslogFileGeneration);
+            outstandingViews.add(view);
+            return view;
+        }
     }
 
     /**
@@ -1237,13 +1240,13 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             minReferencedGen = Math.min(lastCommittedTranslogFileGeneration, minReferencedGen);
             final long finalMinReferencedGen = minReferencedGen;
             List<ImmutableTranslogReader> unreferenced = readers.stream().filter(r -> r.getGeneration() < finalMinReferencedGen).collect(Collectors.toList());
-            unreferenced.forEach(unreferencedReader -> {
+            for (final ImmutableTranslogReader unreferencedReader : unreferenced) {
                 Path translogPath = unreferencedReader.path();
                 logger.trace("delete translog file - not referenced and not current anymore {}", translogPath);
                 IOUtils.closeWhileHandlingException(unreferencedReader);
-                IOUtils.deleteFilesIgnoringExceptions(translogPath);
-                IOUtils.deleteFilesIgnoringExceptions(translogPath.resolveSibling(getCommitCheckpointFileName(unreferencedReader.getGeneration())));
-            });
+                IOUtils.deleteFilesIgnoringExceptions(translogPath,
+                        translogPath.resolveSibling(getCommitCheckpointFileName(unreferencedReader.getGeneration())));
+            }
             readers.removeAll(unreferenced);
         }
     }

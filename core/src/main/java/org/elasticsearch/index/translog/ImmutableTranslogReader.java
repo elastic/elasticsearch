@@ -61,10 +61,7 @@ public class ImmutableTranslogReader extends TranslogReader implements Closeable
     }
 
     /**
-     * Given a file, return a VersionedTranslogStream based on an
-     * optionally-existing header in the file. If the file does not exist, or
-     * has zero length, returns the latest version. If the header does not
-     * exist, assumes Version 0 of the translog file format.
+     * Given a file, opens an {@link ImmutableTranslogReader}, taking of checking and validating the file header.
      */
     public static ImmutableTranslogReader open(FileChannel channel, Path path, Checkpoint checkpoint, String translogUUID) throws IOException {
 
@@ -96,7 +93,7 @@ public class ImmutableTranslogReader extends TranslogReader implements Closeable
                 // ourselves here, because it allows us to read the first
                 // byte separately
                 if (header != CodecUtil.CODEC_MAGIC) {
-                    throw new TranslogCorruptedException("translog looks like version 1 or later, but has corrupted header");
+                    throw new TranslogCorruptedException("translog looks like version 1 or later, but has corrupted header. path:" + path);
                 }
                 // Confirm the rest of the header using CodecUtil, extracting
                 // the translog version
@@ -117,7 +114,7 @@ public class ImmutableTranslogReader extends TranslogReader implements Closeable
                         headerStream.read(ref.bytes, ref.offset, ref.length);
                         BytesRef uuidBytes = new BytesRef(translogUUID);
                         if (uuidBytes.bytesEquals(ref) == false) {
-                            throw new TranslogCorruptedException("expected shard UUID [" + uuidBytes + "] but got: [" + ref + "] this translog file belongs to a different translog");
+                            throw new TranslogCorruptedException("expected shard UUID [" + uuidBytes + "] but got: [" + ref + "] this translog file belongs to a different translog. path:" + path);
                         }
                         return new ImmutableTranslogReader(checkpoint.generation, channel, path, ref.length + CodecUtil.headerLength(TranslogWriter.TRANSLOG_CODEC) + RamUsageEstimator.NUM_BYTES_INT, checkpoint.offset, checkpoint.numOps);
                     default:
@@ -126,10 +123,10 @@ public class ImmutableTranslogReader extends TranslogReader implements Closeable
             } else if (b1 == UNVERSIONED_TRANSLOG_HEADER_BYTE) {
                 throw new IllegalStateException("pre-1.4 translog found [" + path + "]");
             } else {
-                throw new TranslogCorruptedException("Invalid first byte in translog file, got: " + Long.toHexString(b1) + ", expected 0x00 or 0x3f");
+                throw new TranslogCorruptedException("Invalid first byte in translog file, got: " + Long.toHexString(b1) + ", expected 0x00 or 0x3f. path:" + path);
             }
         } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException e) {
-            throw new TranslogCorruptedException("Translog header corrupted", e);
+            throw new TranslogCorruptedException("Translog header corrupted. path:" + path, e);
         }
     }
 
@@ -171,7 +168,7 @@ public class ImmutableTranslogReader extends TranslogReader implements Closeable
 
     protected void ensureOpen() {
         if (isClosed()) {
-            throw new AlreadyClosedException("translog [" + getGeneration() + "] is already closed");
+            throw new AlreadyClosedException(toString() + " is already closed");
         }
     }
 }

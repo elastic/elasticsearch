@@ -411,7 +411,7 @@ public abstract class AbstractTermVectorsTestCase extends ESIntegTestCase {
     protected TermVectorsRequestBuilder getRequestForConfig(TestConfig config) {
         return client().prepareTermVectors(randomBoolean() ? config.doc.index : config.doc.alias, config.doc.type, config.doc.id).setPayloads(config.requestPayloads)
                 .setOffsets(config.requestOffsets).setPositions(config.requestPositions).setFieldStatistics(true).setTermStatistics(true)
-                .setSelectedFields(config.selectedFields);
+                .setSelectedFields(config.selectedFields).setRealtime(false);
     }
 
     protected Fields getTermVectorsFromLucene(DirectoryReader directoryReader, TestDoc doc) throws IOException {

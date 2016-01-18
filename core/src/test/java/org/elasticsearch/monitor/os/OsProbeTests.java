@@ -55,11 +55,7 @@ public class OsProbeTests extends ESTestCase {
         }
         if (Constants.WINDOWS) {
             // load average is unavailable on Windows
-            if (loadAverage != null) {
-                assertThat(loadAverage[0], equalTo((double) -1));
-                assertThat(loadAverage[1], equalTo((double) -1));
-                assertThat(loadAverage[2], equalTo((double) -1));
-            }
+            assertNull(loadAverage);
         } else if (Constants.LINUX) {
             // we should be able to get the load average
             assertNotNull(loadAverage);

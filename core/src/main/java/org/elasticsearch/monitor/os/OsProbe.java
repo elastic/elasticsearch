@@ -119,6 +119,9 @@ public class OsProbe {
             }
             // fallback
         }
+        if (Constants.WINDOWS) {
+            return null;
+        }
         if (getSystemLoadAverage == null) {
             return null;
         }

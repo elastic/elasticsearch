@@ -236,9 +236,22 @@ accidentally.
 As noted earlier, _all_ nodes handle <<modules-http,HTTP>>
 and <<modules-transport,Transport>> traffic by default.
 
+[cols="<,<,<",options="header",]
+|=======================================================================
+|Setting |Default |Description
+|`http.enabled` |`true` |Enable or disable HTTP for the
+node.
+|`http.port` |`9200-9300` |The default HTTP port used by
+the node. The end bound is exclusive: `[9200, 9300)`. If
+unset, the next available port in the range will be used.
+|`transport.tcp.port` |`9300-9400` |The default Transport
+port used by the node. The end bound is exclusive:
+`[9300, 9400)`. If unset, the next available port in the
+range will be used.
+|=======================================================================
+
 In a well configured node, you should explicitly know the
-ports that are going to be used when the node starts up
-(by default this is a range of `[9200, 9300)` and `[9300, 9400)`).
+ports that are going to be used when the node starts up.
 By configuring the port explicitly, you can prevent
 multiple nodes from being started using the same
 configuration (e.g., by accident) because any attempts to

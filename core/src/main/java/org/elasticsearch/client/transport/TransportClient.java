@@ -19,6 +19,10 @@
 
 package org.elasticsearch.client.transport;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.TimeUnit;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
@@ -36,6 +40,7 @@ import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.ModulesBuilder;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
@@ -53,10 +58,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.netty.NettyTransport;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 
@@ -128,6 +129,7 @@ public class TransportClient extends AbstractClient {
             final ThreadPool threadPool = new ThreadPool(settings);
             final NetworkService networkService = new NetworkService(settings);
             final SettingsFilter settingsFilter = new SettingsFilter(settings);
+            NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
             boolean success = false;
             try {
                 ModulesBuilder modules = new ModulesBuilder();
@@ -138,10 +140,10 @@ public class TransportClient extends AbstractClient {
                 }
                 modules.add(new PluginsModule(pluginsService));
                 modules.add(new SettingsModule(this.settings, settingsFilter ));
-                modules.add(new NetworkModule(networkService, this.settings, true));
+                modules.add(new NetworkModule(networkService, this.settings, true, namedWriteableRegistry));
                 modules.add(new ClusterNameModule(this.settings));
                 modules.add(new ThreadPoolModule(threadPool));
-                modules.add(new SearchModule() {
+                modules.add(new SearchModule(settings, namedWriteableRegistry) {
                     @Override
                     protected void configure() {
                         // noop

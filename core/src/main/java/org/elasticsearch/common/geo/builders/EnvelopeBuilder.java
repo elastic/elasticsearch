@@ -33,7 +33,7 @@ public class EnvelopeBuilder extends ShapeBuilder {
 
     public static final GeoShapeType TYPE = GeoShapeType.ENVELOPE;
 
-    static final EnvelopeBuilder PROTOTYPE = new EnvelopeBuilder(new Coordinate(-1.0, 1.0), new Coordinate(1.0, -1.0));
+    public static final EnvelopeBuilder PROTOTYPE = new EnvelopeBuilder(new Coordinate(-1.0, 1.0), new Coordinate(1.0, -1.0));
 
     private Coordinate topLeft;
     private Coordinate bottomRight;

@@ -37,7 +37,7 @@ public class MultiLineStringBuilder extends ShapeBuilder {
 
     public static final GeoShapeType TYPE = GeoShapeType.MULTILINESTRING;
 
-    static final MultiLineStringBuilder PROTOTYPE = new MultiLineStringBuilder();
+    public static final MultiLineStringBuilder PROTOTYPE = new MultiLineStringBuilder();
 
     private final ArrayList<LineStringBuilder> lines = new ArrayList<>();
 

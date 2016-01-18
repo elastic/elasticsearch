@@ -52,19 +52,13 @@ import static org.hamcrest.core.IsNull.notNullValue;
 
 @ClusterScope(scope = Scope.TEST)
 public class CreateIndexIT extends ESIntegTestCase {
-    public void testCreationDateGiven() {
-        prepareCreate("test").setSettings(Settings.builder().put(IndexMetaData.SETTING_CREATION_DATE, 4l)).get();
-        ClusterStateResponse response = client().admin().cluster().prepareState().get();
-        ClusterState state = response.getState();
-        assertThat(state, notNullValue());
-        MetaData metadata = state.getMetaData();
-        assertThat(metadata, notNullValue());
-        ImmutableOpenMap<String, IndexMetaData> indices = metadata.getIndices();
-        assertThat(indices, notNullValue());
-        assertThat(indices.size(), equalTo(1));
-        IndexMetaData index = indices.get("test");
-        assertThat(index, notNullValue());
-        assertThat(index.getCreationDate(), equalTo(4l));
+    public void testCreationDateGivenFails() {
+        try {
+            prepareCreate("test").setSettings(Settings.builder().put(IndexMetaData.SETTING_CREATION_DATE, 4l)).get();
+            fail();
+        } catch (IllegalArgumentException ex) {
+            assertEquals("unknow setting [index.creation_date]", ex.getMessage());
+        }
     }
 
     public void testCreationDateGenerated() {

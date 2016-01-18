@@ -328,7 +328,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                 .get();
             fail();
         } catch (IllegalArgumentException ex) {
-            assertEquals("unknown setting [does_not_exist]", ex.getMessage());
+            assertEquals("unknown setting [index.does_not_exist]", ex.getMessage());
         }
 
         response = client().admin().indices().prepareGetTemplates().get();

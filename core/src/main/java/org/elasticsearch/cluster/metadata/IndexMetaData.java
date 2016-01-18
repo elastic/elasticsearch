@@ -181,7 +181,6 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
     public static final String SETTING_VERSION_UPGRADED_STRING = "index.version.upgraded_string";
     public static final String SETTING_VERSION_MINIMUM_COMPATIBLE = "index.version.minimum_compatible";
     public static final String SETTING_CREATION_DATE = "index.creation_date";
-    public static final Setting<Long> INDEX_CREATION_DATE_SETTING = Setting.longSetting(SETTING_CREATION_DATE, -1, -1, false, Setting.Scope.INDEX);
     public static final String SETTING_PRIORITY = "index.priority";
     public static final Setting<Integer> INDEX_PRIORITY_SETTING = Setting.intSetting("index.priority", 1, 0, true, Setting.Scope.INDEX);
     public static final String SETTING_CREATION_DATE_STRING = "index.creation_date_string";

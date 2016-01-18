@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaDataIndexTemplateService;
 import org.elasticsearch.common.inject.Inject;
@@ -72,11 +73,13 @@ public class TransportPutIndexTemplateAction extends TransportMasterNodeAction<P
         if (cause.length() == 0) {
             cause = "api";
         }
-        indexScopeSettings.validate(request.settings());
+        final Settings.Builder templateSettingsBuilder = Settings.settingsBuilder();
+        templateSettingsBuilder.put(request.settings()).normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX);
+        indexScopeSettings.validate(templateSettingsBuilder);
         indexTemplateService.putTemplate(new MetaDataIndexTemplateService.PutRequest(cause, request.name())
                 .template(request.template())
                 .order(request.order())
-                .settings(request.settings())
+                .settings(templateSettingsBuilder.build())
                 .mappings(request.mappings())
                 .aliases(request.aliases())
                 .customs(request.customs())

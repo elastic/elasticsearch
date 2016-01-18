@@ -888,9 +888,9 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         internalCluster().stopRandomNonMasterNode();
     }
 
-    // simulate handling of sending shard failure to an isolated master
-    public void testSendingShardFailureToPartitionedMaster() throws Exception {
-        List<String> nodes = startCluster(3, 3);
+    // simulate handling of sending shard failure during an isolation
+    public void testSendingShardFailure() throws Exception {
+        List<String> nodes = startCluster(3, 2);
         String masterNode = internalCluster().getMasterName();
         List<String> nonMasterNodes = nodes.stream().filter(node -> !node.equals(masterNode)).collect(Collectors.toList());
         String nonMasterNode = randomFrom(nonMasterNodes);
@@ -905,17 +905,14 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         // fail a random shard
         ShardRouting failedShard =
             randomFrom(clusterService().state().getRoutingNodes().node(nonMasterNodeId).shardsWithState(ShardRoutingState.STARTED));
-        TransportService masterTransportService = internalCluster().getInstance(TransportService.class, masterNode);
         ShardStateAction service = internalCluster().getInstance(ShardStateAction.class, nonMasterNode);
         String indexUUID = clusterService().state().metaData().index("test").getIndexUUID();
         CountDownLatch latch = new CountDownLatch(1);
         AtomicBoolean success = new AtomicBoolean();
 
-        // but first partition the master
-        for (String node : nonMasterNodes) {
-            MockTransportService nonMasterTransportService = (MockTransportService) internalCluster().getInstance(TransportService.class, node);
-            nonMasterTransportService.addUnresponsiveRule(masterTransportService);
-        }
+        String isolatedNode = randomBoolean() ? masterNode : nonMasterNode;
+        NetworkPartition networkPartition = addRandomIsolation(isolatedNode);
+        networkPartition.startDisrupting();
 
         service.shardFailed(failedShard, indexUUID, "simulated", new CorruptIndexException("simulated", (String) null), new ShardStateAction.Listener() {
             @Override
@@ -932,14 +929,14 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
             }
         });
 
-        // there should not be a master
-        assertNoMaster(nonMasterNode);
+        if (isolatedNode.equals(nonMasterNode)) {
+            assertNoMaster(nonMasterNode);
+        } else {
+            ensureStableCluster(2, nonMasterNode);
+        }
 
         // heal the partition
-        for (String node : nonMasterNodes) {
-            MockTransportService transportService = (MockTransportService) internalCluster().getInstance(TransportService.class, node);
-            transportService.clearRule(masterTransportService);
-        }
+        networkPartition.removeAndEnsureHealthy(internalCluster());
 
         // the cluster should stabilize
         ensureStableCluster(3);

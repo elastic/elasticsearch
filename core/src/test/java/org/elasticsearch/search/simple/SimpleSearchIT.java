@@ -40,6 +40,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
+import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
@@ -124,6 +125,16 @@ public class SimpleSearchIT extends ESIntegTestCase {
         refresh();
 
         SearchResponse search = client().prepareSearch()
+            .setQuery(boolQuery().must(QueryBuilders.termQuery("ip", "192.168.0.1")))
+            .execute().actionGet();
+        assertHitCount(search, 1L);
+
+        search = client().prepareSearch()
+            .setQuery(queryStringQuery("ip: 192.168.0.1"))
+            .execute().actionGet();
+        assertHitCount(search, 1L);
+
+        search = client().prepareSearch()
                 .setQuery(boolQuery().must(QueryBuilders.termQuery("ip", "192.168.0.1/32")))
                 .execute().actionGet();
         assertHitCount(search, 1l);

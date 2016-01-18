@@ -96,6 +96,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.TestSearchContext;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.cluster.TestClusterService;
@@ -196,13 +197,15 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         final TestClusterService clusterService = new TestClusterService();
         clusterService.setState(new ClusterState.Builder(clusterService.state()).metaData(new MetaData.Builder().put(
                 new IndexMetaData.Builder(index.name()).settings(indexSettings).numberOfShards(1).numberOfReplicas(0))));
+        SettingsModule settingsModule = new SettingsModule(settings, new SettingsFilter(settings));
+        settingsModule.registerSetting(InternalSettingsPlugin.VERSION_CREATED);
         final Client proxy = (Client) Proxy.newProxyInstance(
                 Client.class.getClassLoader(),
                 new Class[]{Client.class},
                 clientInvocationHandler);
         injector = new ModulesBuilder().add(
                 new EnvironmentModule(new Environment(settings)),
-                new SettingsModule(settings, new SettingsFilter(settings)),
+                settingsModule,
                 new ThreadPoolModule(new ThreadPool(settings)),
                 new IndicesModule() {
                     @Override

@@ -34,9 +34,9 @@ public final class InternalSettingsPlugin extends Plugin {
         return "a plugin that allows to set values for internal settings which are can't be set via the ordinary API without this pluging installed";
     }
 
-    private static final Setting<Integer> VERSION_CREATED = Setting.intSetting("index.version.created", 0, false, Setting.Scope.INDEX);
-    private static final Setting<Boolean> MERGE_ENABLED = Setting.boolSetting("index.merge.enabled", true, false, Setting.Scope.INDEX);
-    private static final Setting<Long> INDEX_CREATION_DATE_SETTING = Setting.longSetting(IndexMetaData.SETTING_CREATION_DATE, -1, -1, false, Setting.Scope.INDEX);
+    public static final Setting<Integer> VERSION_CREATED = Setting.intSetting("index.version.created", 0, false, Setting.Scope.INDEX);
+    public static final Setting<Boolean> MERGE_ENABLED = Setting.boolSetting("index.merge.enabled", true, false, Setting.Scope.INDEX);
+    public static final Setting<Long> INDEX_CREATION_DATE_SETTING = Setting.longSetting(IndexMetaData.SETTING_CREATION_DATE, -1, -1, false, Setting.Scope.INDEX);
 
     public void onModule(SettingsModule module) {
         module.registerSetting(VERSION_CREATED);

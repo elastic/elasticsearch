@@ -62,6 +62,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
 import org.junit.After;
@@ -100,9 +101,11 @@ public class TemplateQueryParserTests extends ESTestCase {
         ScriptModule scriptModule = new ScriptModule(settings);
         // TODO: make this use a mock engine instead of mustache and it will no longer be messy!
         scriptModule.addScriptEngine(MustacheScriptEngineService.class);
+        SettingsModule settingsModule = new SettingsModule(settings, new SettingsFilter(settings));
+        settingsModule.registerSetting(InternalSettingsPlugin.VERSION_CREATED);
         injector = new ModulesBuilder().add(
                 new EnvironmentModule(new Environment(settings)),
-                new SettingsModule(settings, new SettingsFilter(settings)),
+                settingsModule,
                 new ThreadPoolModule(new ThreadPool(settings)),
                 new IndicesModule() {
                     @Override

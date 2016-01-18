@@ -36,6 +36,8 @@ import org.elasticsearch.script.Template;
 import org.elasticsearch.search.suggest.SuggestContextParser;
 import org.elasticsearch.search.suggest.SuggestUtils;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
+import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder.Laplace;
+import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder.StupidBackoff;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionContext.DirectCandidateGenerator;
 
 import java.io.IOException;
@@ -265,7 +267,7 @@ public final class PhraseSuggestParser implements SuggestContextParser {
                     });
                 } else if ("laplace".equals(fieldName)) {
                     ensureNoSmoothing(suggestion);
-                    double theAlpha = 0.5;
+                    double theAlpha = Laplace.DEFAULT_LAPLACE_ALPHA;
 
                     while ((token = parser.nextToken()) != Token.END_OBJECT) {
                         if (token == XContentParser.Token.FIELD_NAME) {
@@ -286,7 +288,7 @@ public final class PhraseSuggestParser implements SuggestContextParser {
 
                 } else if ("stupid_backoff".equals(fieldName) || "stupidBackoff".equals(fieldName)) {
                     ensureNoSmoothing(suggestion);
-                    double theDiscount = 0.4;
+                    double theDiscount = StupidBackoff.DEFAULT_BACKOFF_DISCOUNT;
                     while ((token = parser.nextToken()) != Token.END_OBJECT) {
                         if (token == XContentParser.Token.FIELD_NAME) {
                             fieldName = parser.currentName();

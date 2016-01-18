@@ -57,7 +57,7 @@ public class CreateIndexIT extends ESIntegTestCase {
             prepareCreate("test").setSettings(Settings.builder().put(IndexMetaData.SETTING_CREATION_DATE, 4l)).get();
             fail();
         } catch (IllegalArgumentException ex) {
-            assertEquals("unknow setting [index.creation_date]", ex.getMessage());
+            assertEquals("unknown setting [index.creation_date]", ex.getMessage());
         }
     }
 

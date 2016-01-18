@@ -157,7 +157,7 @@ public class Utility {
     }
 
     public static Character byteToCharacter(final byte value) {
-        return (char)(byte)value;
+        return (char)value;
     }
 
     public static Integer byteToInteger(final byte value) {
@@ -193,7 +193,7 @@ public class Utility {
     }
 
     public static Character shortToCharacter(final short value) {
-        return (char)(short)value;
+        return (char)value;
     }
 
     public static Integer shortToInteger(final short value) {
@@ -211,11 +211,11 @@ public class Utility {
     public static Double shortToDouble(final short value) {
         return (double)value;
     }
-    
+
     public static boolean ShortToboolean(final Short value) {
         return value != 0;
     }
-    
+
     public static char ShortTochar(final Short value) {
         return (char)value.shortValue();
     }
@@ -261,19 +261,19 @@ public class Utility {
     }
 
     public static int CharacterToint(final Character value) {
-        return (int)value;
+        return value;
     }
 
     public static long CharacterTolong(final Character value) {
-        return (long)value;
+        return value;
     }
 
     public static float CharacterTofloat(final Character value) {
-        return (float)value;
+        return value;
     }
 
     public static double CharacterTodouble(final Character value) {
-        return (double)value;
+        return value;
     }
 
     public static Boolean CharacterToBoolean(final Character value) {
@@ -317,7 +317,7 @@ public class Utility {
     }
 
     public static Character intToCharacter(final int value) {
-        return (char)(int)value;
+        return (char)value;
     }
 
     public static Long intToLong(final int value) {
@@ -331,7 +331,7 @@ public class Utility {
     public static Double intToDouble(final int value) {
         return (double)value;
     }
-    
+
     public static boolean IntegerToboolean(final Integer value) {
         return value != 0;
     }
@@ -353,7 +353,7 @@ public class Utility {
     }
 
     public static Character longToCharacter(final long value) {
-        return (char)(long)value;
+        return (char)value;
     }
 
     public static Integer longToInteger(final long value) {
@@ -367,7 +367,7 @@ public class Utility {
     public static Double longToDouble(final long value) {
         return (double)value;
     }
-    
+
     public static boolean LongToboolean(final Long value) {
         return value != 0;
     }
@@ -389,7 +389,7 @@ public class Utility {
     }
 
     public static Character floatToCharacter(final float value) {
-        return (char)(float)value;
+        return (char)value;
     }
 
     public static Integer floatToInteger(final float value) {
@@ -403,11 +403,11 @@ public class Utility {
     public static Double floatToDouble(final float value) {
         return (double)value;
     }
-    
+
     public static boolean FloatToboolean(final Float value) {
         return value != 0;
     }
-    
+
     public static char FloatTochar(final Float value) {
         return (char)value.floatValue();
     }
@@ -425,7 +425,7 @@ public class Utility {
     }
 
     public static Character doubleToCharacter(final double value) {
-        return (char)(double)value;
+        return (char)value;
     }
 
     public static Integer doubleToInteger(final double value) {
@@ -435,23 +435,23 @@ public class Utility {
     public static Long doubleToLong(final double value) {
         return (long)value;
     }
-    
+
     public static Float doubleToFloat(final double value) {
         return (float)value;
     }
-    
+
     public static boolean DoubleToboolean(final Double value) {
         return value != 0;
     }
-    
+
     public static char DoubleTochar(final Double value) {
         return (char)value.doubleValue();
     }
-    
+
     // although divide by zero is guaranteed, the special overflow case is not caught.
     // its not needed for remainder because it is not possible there.
     // see https://docs.oracle.com/javase/specs/jls/se8/html/jls-15.html#jls-15.17.2
-    
+
     /**
      * Integer divide without overflow
      * @throws ArithmeticException on overflow or divide-by-zero
@@ -462,7 +462,7 @@ public class Utility {
        }
        return x / y;
     }
-    
+
     /**
      * Long divide without overflow
      * @throws ArithmeticException on overflow or divide-by-zero
@@ -667,7 +667,7 @@ public class Utility {
         }
         return z;
     }
-    
+
     /**
      * Checks for NaN, result is NaN but operands are finite
      * @throws ArithmeticException if overflow occurred
@@ -680,7 +680,7 @@ public class Utility {
         }
         return z;
     }
-    
+
     /**
      * Checks for NaN, result is infinite but operands are finite
      * @throws ArithmeticException if overflow occurred
@@ -693,7 +693,7 @@ public class Utility {
         }
         return z;
     }
-    
+
     /**
      * Checks for NaN, result is NaN but operands are finite
      * @throws ArithmeticException if overflow occurred
@@ -706,7 +706,7 @@ public class Utility {
         }
         return z;
     }
-    
+
     /**
      * Adds two floats but throws {@code ArithmeticException}
      * if the result overflows.
@@ -714,7 +714,7 @@ public class Utility {
     public static float addWithoutOverflow(float x, float y) {
         return checkInfFloat(x, y, x + y);
     }
-    
+
     /**
      * Adds two doubles but throws {@code ArithmeticException}
      * if the result overflows.
@@ -722,7 +722,7 @@ public class Utility {
     public static double addWithoutOverflow(double x, double y) {
         return checkInfDouble(x, y, x + y);
     }
-    
+
     /**
      * Subtracts two floats but throws {@code ArithmeticException}
      * if the result overflows.
@@ -730,7 +730,7 @@ public class Utility {
     public static float subtractWithoutOverflow(float x, float y) {
         return checkInfFloat(x, y, x - y);
     }
-    
+
     /**
      * Subtracts two doubles but throws {@code ArithmeticException}
      * if the result overflows.
@@ -738,7 +738,7 @@ public class Utility {
     public static double subtractWithoutOverflow(double x, double y) {
         return checkInfDouble(x, y , x - y);
     }
-    
+
     /**
      * Multiplies two floats but throws {@code ArithmeticException}
      * if the result overflows.
@@ -746,7 +746,7 @@ public class Utility {
     public static float multiplyWithoutOverflow(float x, float y) {
         return checkInfFloat(x, y, x * y);
     }
-    
+
     /**
      * Multiplies two doubles but throws {@code ArithmeticException}
      * if the result overflows.
@@ -754,7 +754,7 @@ public class Utility {
     public static double multiplyWithoutOverflow(double x, double y) {
         return checkInfDouble(x, y, x * y);
     }
-    
+
     /**
      * Divides two floats but throws {@code ArithmeticException}
      * if the result overflows, or would create NaN from finite
@@ -763,7 +763,7 @@ public class Utility {
     public static float divideWithoutOverflow(float x, float y) {
         return checkNaNFloat(x, y, checkInfFloat(x, y, x / y));
     }
-    
+
     /**
      * Divides two doubles but throws {@code ArithmeticException}
      * if the result overflows, or would create NaN from finite
@@ -772,7 +772,7 @@ public class Utility {
     public static double divideWithoutOverflow(double x, double y) {
         return checkNaNDouble(x, y, checkInfDouble(x, y, x / y));
     }
-    
+
     /**
      * Takes remainder two floats but throws {@code ArithmeticException}
      * if the result would create NaN from finite inputs ({@code y == 0})
@@ -780,7 +780,7 @@ public class Utility {
     public static float remainderWithoutOverflow(float x, float y) {
         return checkNaNFloat(x, y, x % y);
     }
-    
+
     /**
      * Divides two doubles but throws {@code ArithmeticException}
      * if the result would create NaN from finite inputs ({@code y == 0})

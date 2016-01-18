@@ -26,8 +26,6 @@ dependencies {
   compile "com.github.spullara.mustache.java:compiler:0.9.1"
 }
 
-compileTestJava.options.compilerArgs << '-Xlint:-rawtypes,-unchecked'
-
 integTest {
   cluster {
     systemProperty 'es.script.inline', 'on'

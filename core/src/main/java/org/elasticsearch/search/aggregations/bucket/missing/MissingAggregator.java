@@ -81,9 +81,9 @@ public class MissingAggregator extends SingleBucketAggregator {
         return new InternalMissing(name, 0, buildEmptySubAggregations(), pipelineAggregators(), metaData());
     }
 
-    public static class Factory extends ValuesSourceAggregatorFactory<ValuesSource>  {
+    public static class Factory extends ValuesSourceAggregatorFactory<ValuesSource> {
 
-        public Factory(String name, ValuesSourceConfig valueSourceConfig) {
+        public Factory(String name, ValuesSourceConfig<ValuesSource> valueSourceConfig) {
             super(name, InternalMissing.TYPE.name(), valueSourceConfig);
         }
 

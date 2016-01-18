@@ -36,7 +36,7 @@ import java.util.Locale;
  * Collectors used in the search.  Children CollectorResult's may be
  * embedded inside of a parent CollectorResult
  */
-public class CollectorResult implements ToXContent, Writeable {
+public class CollectorResult implements ToXContent, Writeable<CollectorResult> {
 
     public static final String REASON_SEARCH_COUNT = "search_count";
     public static final String REASON_SEARCH_TOP_HITS = "search_top_hits";
@@ -125,7 +125,7 @@ public class CollectorResult implements ToXContent, Writeable {
         builder = builder.startObject()
                 .field(NAME.getPreferredName(), getName())
                 .field(REASON.getPreferredName(), getReason())
-                .field(TIME.getPreferredName(), String.format(Locale.US, "%.10gms", (double) (getTime() / 1000000.0)));
+                .field(TIME.getPreferredName(), String.format(Locale.US, "%.10gms", getTime() / 1000000.0));
 
         if (!children.isEmpty()) {
             builder = builder.startArray(CHILDREN.getPreferredName());
@@ -150,7 +150,7 @@ public class CollectorResult implements ToXContent, Writeable {
     }
 
     @Override
-    public Object readFrom(StreamInput in) throws IOException {
+    public CollectorResult readFrom(StreamInput in) throws IOException {
         return new CollectorResult(in);
     }
 }

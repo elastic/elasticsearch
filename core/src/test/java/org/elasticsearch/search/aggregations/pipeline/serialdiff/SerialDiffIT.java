@@ -60,7 +60,7 @@ public class SerialDiffIT extends ESIntegTestCase {
     static int numBuckets;
     static int lag;
     static BucketHelpers.GapPolicy gapPolicy;
-    static ValuesSourceMetricsAggregationBuilder metric;
+    static ValuesSourceMetricsAggregationBuilder<?> metric;
     static List<PipelineAggregationHelperTests.MockBucket> mockHisto;
 
     static Map<String, ArrayList<Double>> testValues;
@@ -80,7 +80,7 @@ public class SerialDiffIT extends ESIntegTestCase {
         }
     }
 
-    private ValuesSourceMetricsAggregationBuilder randomMetric(String name, String field) {
+    private ValuesSourceMetricsAggregationBuilder<?> randomMetric(String name, String field) {
         int rand = randomIntBetween(0,3);
 
         switch (rand) {
@@ -95,7 +95,7 @@ public class SerialDiffIT extends ESIntegTestCase {
         }
     }
 
-    private void assertValidIterators(Iterator expectedBucketIter, Iterator expectedCountsIter, Iterator expectedValuesIter) {
+    private void assertValidIterators(Iterator<?> expectedBucketIter, Iterator<?> expectedCountsIter, Iterator<?> expectedValuesIter) {
         if (!expectedBucketIter.hasNext()) {
             fail("`expectedBucketIter` iterator ended before `actual` iterator, size mismatch");
         }

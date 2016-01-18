@@ -261,7 +261,11 @@ range will be used.
 
 In a well configured node, you should explicitly know the
 IPs, hosts, and ports that are going to be used when the
-node starts up.
+node starts up. To make your node accessible outside of
+the local machine (e.g., within the VPN), then you must
+explicitly set the `network.host` (or both
+`network.bind_host` and `network.publish_host`)
+setting on each node.
 
 [source,yaml]
 -------------------

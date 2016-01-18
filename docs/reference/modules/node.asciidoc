@@ -8,7 +8,8 @@ single node of Elasticsearch, then you have a cluster of one node.
 
 Every node in the cluster can handle <<modules-http,HTTP>> and
 <<modules-transport,Transport>> traffic by default. The transport layer
-is used exclusively for communication from node-to-node; the HTTP layer
+is used exclusively for communication from node-to-node and the
+{javaclient}/transport-client.html[Java `TransportClient`]; the HTTP layer
 is used only from external requests.
 
 Each node in the cluster serves one or more purposes, and there are
@@ -17,10 +18,15 @@ four types of nodes:
 [cols="<,<,<,<",options="header",]
 |=======================================================================
 |Node Type |Setting |Default |Description
-|<<master,Master>> |`node.master` |`true` |A node that is eligible to control the cluster.
-|<<data,Data>> |`node.data` |`true` |A node that stores index data for search activity.
-|<<client,Client>> |`node.client` |`false` |A standalone node that routes requests, but
-does not hold data or handle master duties.
+|<<master-node,Master>> |`node.master` |`true` |A node that is eligible
+ to control the cluster.
+|<<data-node,Data>> |`node.data` |`true` |A node that stores index data
+ for search activity.
+|<<client-node,Client>> |(All Above) |N/A |A standalone node that routes
+requests, but does not hold data or handle master duties.
+
+All nodes offer this behavior at a minimum, but they perform other tasks (e.g.,
+`node.data: true`) that must be disabled to be a "true" client node.
 |<<modules-tribe,Tribe>> |`tribe.*` |None |A special type of client node
 that allows you to connect to multiple clusters.
 |=======================================================================
@@ -32,20 +38,26 @@ computer for development.
 
 NOTE: A master node is said to be _eligible_ because there is a
 <<modules-discovery-zen,master election process>> that determines which
-master node (if there is more than one) is elected.
+master-eligible node (if there is more than one) is elected.
 
 For larger clusters, it generally makes sense to have standalone data nodes
 and standalone master nodes. To do this, you must modify the configuration
 of the respective nodes.
 
 [float]
-[[master]]
-===== Master Eligible Node
+[[master-node]]
+=== Master Eligible Node
 
-Creating a standalone master node has many benefits, but the most obvious
-is that it offloads work from another node. Master nodes control the
-cluster by determining where shards will exist, as well as determining
-what nodes are (and therefore are not) connected to the cluster.
+The master node is responsible for lightweight cluster-wide actions such as
+creating or deleting an index, tracking which nodes are part of the cluster,
+and deciding which shards to allocate to which nodes. It is important for
+cluster health to have a stable master node.
+
+Indexing and searching your data is CPU-, memory-, and I/O-intensive work
+which can put pressure on a node's resources. To ensure that your master
+node is stable and not under pressure, it is a good idea in a bigger
+cluster to split the roles between dedicated master-eligible nodes and
+dedicated data nodes.
 
 Master nodes _can_ receive search and indexing traffic from clients
 (e.g., you) and they will properly route the request, as will any other
@@ -55,57 +67,101 @@ _never_ have data, which means that the request is an unnecessary
 burden. An easy way to think about it is: you are tasking the node to
 do work that is not part of its normal duties.
 
-To create a standalone master eligible node:
+To create a standalone master-eligible node:
 
-```yaml
-node.master: true
-node.data: false
-```
-
-NOTE: It is not enough to just set `node.master: true`. You must
-disable the data aspect, which is enabled by default.
+[source,yaml]
+-------------------
+node.master: true <1>
+node.data: false <2>
+-------------------
+<1> The `node.master` role is enabled by default.
+<2> Disable the `node.data` role (enabled by default).
 
 [float]
-[[data]]
-===== Data Node
+[[master-node-critical-settings]]
+==== Critical Master Node Settings
+
+Whether you define standalone master eligible nodes or not, you
+must always be aware of how many master-eligible nodes exist in
+your cluster. In order for the election of the master node to be
+_safe_, you must setup a quorum for master election.
+
+To properly setup quorum, you must know how many master-eligible
+nodes (standalone or not) exist across the entire cluster.
+
+[cols="<,<,<",options="header",]
+|=======================================================================
+|Setting |Default |Description
+|`discovery.zen.minimum_master_nodes` |`1` |The minimum number of master
+nodes that must be connected before a master node can be elected.
+|=======================================================================
+
+Once you know the number of master nodes in your cluster, then
+you **must** set `discovery.zen.minimum_master_nodes` to the
+proper number based on the equation for quorum: `(M / 2) + 1`.
+For master quorum, you must only consider the master-eligible
+nodes in the cluster.
+
+[source,yaml]
+-------------------
+discovery.zen.minimum_master_nodes: 2 <1>
+-------------------
+<1> `2` is just an example value! You must set this based on the
+quorum of your cluster, which is defined as `(M / 2) + 1`.
+
+WARNING: If you do not set this value, or if you set it
+improperly, then you it can lead to unexpected data loss.
+
+[float]
+[[data-node]]
+=== Data Node
 
 Creating a standalone data node has the same benefits as creating a
 standalone master node: offload unnecessary workload. By removing
 master duties from a data node, you free up threads to do what you
 need them to do best: search and index data.
 
+Data nodes are the nodes that handle search, aggregation, and
+indexing requests. This means that they are generally going to be
+the busiest nodes in your cluster, so it is important to monitor
+the impact of your <<modules-indices,indices>> across your data
+nodes.
+
 Just like any other node, data nodes can handle requests for
-search and indexing traffic, as well as cluster related traffic
-(e.g., requesting the current cluster settings). Data nodes are the
-nodes that literally contain the data, so they are meant to handle
-search and indexing traffic, but cluster related traffic should be
-directed to master nodes whenever possible.
+search and indexing traffic intended for other nodes, as well as
+cluster related traffic (e.g., requesting the current cluster
+settings).
 
 To create a standalone data node:
 
-```yaml
-node.master: false
-node.data: true
-```
-
-NOTE: It is not enough to just set `node.data: true`. You must
-disable the master aspect, which is enabled by default.
+[source,yaml]
+-------------------
+node.master: false <1>
+node.data: true <2>
+-------------------
+<1> Disable the `node.master` role (enabled by default).
+<2> The `node.data` role is enabled by default.
 
 [float]
-[[client]]
-===== Client Node
+[[client-node]]
+=== Client Node
 
 If you take away the ability to be able to handle master
 duties and take away the ability to hold data, then you are left
-with a node that can only route requests.
+with a node that can only route requests, handle the search
+reduce phase, and distribute bulk indexing.
 
 Standalone client nodes provide large scale clusters a few
 benefits, by offloading some of the overhead associated with
-federated search and even bulk indexing. Client nodes join the
-cluster and receive the full cluster state, like every other
-node, and they use the cluster state to route requests to the
-appropriate place(s). In terms of searching and indexing, this
-is known as federated search and federated indexing.
+search and bulk indexing. Client nodes join the cluster and
+receive the full <<cluster-state,cluster state>>, like every
+other node, and they use the cluster state to route requests to
+the appropriate place(s). 
+
+WARNING: Unnecessarily adding too many client nodes to a cluster
+can increase the burden on the entire cluster because the
+elected master node must await acknowledgement of the cluster
+state from every node!
 
 Unlike master nodes and data nodes, the entire purpose of
 client nodes is to handle and route requests. This means that it
@@ -113,33 +169,29 @@ is good practice to send them any type of request, although they
 are generally expected to be used for data-related requests.
 
 The benefit of the client nodes should not be overstated though.
-Client nodes benefit other nodes by offloading the federated
+Client nodes benefit other nodes by offloading the distributed
 aspect of the request (e.g., the memory burden associated with
-federating a large aggregation). The routing aspect is a
-convenience, but the focus on any node should be on the burden
+collecting a large, distributed aggregation). The routing aspect
+is a convenience, but the focus on any node should be on the burden
 that they offload from other nodes.
 
 To create a standalone data node:
 
-```yaml
-node.client: true
-```
-
-NOTE: It _is_ enough to just set `node.client: true`. This will
-overrule `node.master` and `node.data` settings.
+[source,yaml]
+-------------------
+node.master: false <1>
+node.data: false <2>
+-------------------
+<1> Disable the `node.master` role (enabled by default).
+<2> Disable the `node.data` role (enabled by default).
 
 [float]
 [[node-configuration]]
-===== Node Configuration
-
-The above descriptions noted how to setup nodes to be master,
-data, or client nodes, but this section discusses some
-universal node settings that should be considered with any
-deployment.
+=== Node Configuration
 
 [float]
 [[node-configuration-disk]]
-====== Disk Configuration
+==== Disk Configuration
 
 [cols="<,<,<",options="header",]
 |=======================================================================
@@ -155,38 +207,31 @@ non-data nodes, allows the storage of metadata associated with
 the cluster. For data nodes, this is naturally where the data
 is stored.
 
-Whether you set the `path.data` or not, nodes can share
-the same data directory without interferring with other
-nodes, as long as you _always start them in the exact same
-order every time_. This can be a problem if you start
-multiple nodes, of varying types, on the same machine
-using an arbitrary order.
+WARNING: Never run different node types from the same data
+directory. This can lead to unexpected data loss.
 
 To prevent `path.data` from being unexpectedly shared by
-a node, then you can set the
+any node, then you can set the
 `node.max_local_storage_nodes` setting.
 
-```yaml
+[source,yaml]
+-------------------
 node.max_local_storage_nodes: 1
-```
-
-This limits the data directory to be used by only a
-single node. You can set it to a higher number to limit
-it to a higher value, but this is not generally recommended.
-It is explicitly recommended against if you have different
-types of nodes sharing the same directory.
-
-NOTE: Running multiple nodes on the same machine is not
-generally recommended.
+-------------------
 
 With this setting applied to each node, then the data
 directory cannot be accidentally shared and any node
 attempting to go above the set number (e.g., the second
 node) will be prevented from starting.
 
+NOTE: Running multiple nodes on the same machine is not
+generally recommended and this setting helps to prevent
+using the same configuration to start multiple nodes
+accidentally.
+
 [float]
 [[node-configuration-network]]
-====== Network Configuration
+==== Network Configuration
 
 As noted earlier, _all_ nodes handle <<modules-http,HTTP>>
 and <<modules-transport,Transport>> traffic by default.
@@ -199,18 +244,20 @@ multiple nodes from being started using the same
 configuration (e.g., by accident) because any attempts to
 use the same port will be blocked.
 
-```yaml
+[source,yaml]
+-------------------
 http.port: 9200
 transport.tcp.port: 9300
-```
+-------------------
 
 If you want to disable HTTP traffic, on a specific node or
 across the entire cluster, then you can do this simply by
 setting in each relevant node:
 
-```yaml
+[source,yaml]
+-------------------
 http.enabled: false
-```
+-------------------
 
 It is often convenient to disable HTTP traffic on data
 nodes in large scale deployments that use client nodes to
@@ -220,4 +267,3 @@ data nodes.
 NOTE: You cannot disable the transport connection. If you
 were able to disable it, then the node could not communicate
 with any other nodes in the cluster.
-

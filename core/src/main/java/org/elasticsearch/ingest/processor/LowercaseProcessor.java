@@ -30,8 +30,8 @@ public class LowercaseProcessor extends AbstractStringProcessor {
 
     public static final String TYPE = "lowercase";
 
-    LowercaseProcessor(String processorId, String field) {
-        super(processorId, field);
+    LowercaseProcessor(String processorTag, String field) {
+        super(processorTag, field);
     }
 
     @Override

@@ -47,12 +47,12 @@ public class SimulatePipelineResponseTests extends ESTestCase {
                 int numProcessors = randomIntBetween(1, 10);
                 List<SimulateProcessorResult> processorResults = new ArrayList<>(numProcessors);
                 for (int j = 0; j < numProcessors; j++) {
-                    String processorId = randomAsciiOfLengthBetween(1, 10);
+                    String processorTag = randomAsciiOfLengthBetween(1, 10);
                     SimulateProcessorResult processorResult;
                     if (isFailure) {
-                        processorResult = new SimulateProcessorResult(processorId, new IllegalArgumentException("test"));
+                        processorResult = new SimulateProcessorResult(processorTag, new IllegalArgumentException("test"));
                     } else {
-                        processorResult = new SimulateProcessorResult(processorId, ingestDocument);
+                        processorResult = new SimulateProcessorResult(processorTag, ingestDocument);
                     }
                     processorResults.add(processorResult);
                 }

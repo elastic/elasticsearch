@@ -27,8 +27,8 @@ public class TrimProcessor extends AbstractStringProcessor {
 
     public static final String TYPE = "trim";
 
-    TrimProcessor(String processorId, String field) {
-        super(processorId, field);
+    TrimProcessor(String processorTag, String field) {
+        super(processorTag, field);
     }
 
     @Override

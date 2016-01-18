@@ -70,8 +70,8 @@ public class TestProcessor implements Processor {
 
     public static final class Factory extends AbstractProcessorFactory<TestProcessor> {
         @Override
-        public TestProcessor doCreate(String processorId, Map<String, Object> config) throws Exception {
-            return new TestProcessor(processorId, "test-processor", ingestDocument -> {});
+        public TestProcessor doCreate(String processorTag, Map<String, Object> config) throws Exception {
+            return new TestProcessor(processorTag, "test-processor", ingestDocument -> {});
         }
     }
 }

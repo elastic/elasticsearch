@@ -33,14 +33,14 @@ import static org.hamcrest.Matchers.instanceOf;
 public class SimulateProcessorResultTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
-        String processorId = randomAsciiOfLengthBetween(1, 10);
+        String processorTag = randomAsciiOfLengthBetween(1, 10);
         boolean isFailure = randomBoolean();
         SimulateProcessorResult simulateProcessorResult;
         if (isFailure) {
-            simulateProcessorResult = new SimulateProcessorResult(processorId, new IllegalArgumentException("test"));
+            simulateProcessorResult = new SimulateProcessorResult(processorTag, new IllegalArgumentException("test"));
         } else {
             IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
-            simulateProcessorResult = new SimulateProcessorResult(processorId, ingestDocument);
+            simulateProcessorResult = new SimulateProcessorResult(processorTag, ingestDocument);
         }
 
         BytesStreamOutput out = new BytesStreamOutput();

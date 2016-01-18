@@ -236,6 +236,9 @@ accidentally.
 As noted earlier, _all_ nodes handle <<modules-http,HTTP>>
 and <<modules-transport,Transport>> traffic by default.
 
+NOTE: The <<modules-network,Network Settings documentation>>
+discusses these settings in much greater detail.
+
 [cols="<,<,<",options="header",]
 |=======================================================================
 |Setting |Default |Description
@@ -244,6 +247,12 @@ node.
 |`http.port` |`9200-9300` |The default HTTP port used by
 the node. The end bound is exclusive: `[9200, 9300)`. If
 unset, the next available port in the range will be used.
+|`network.host` |`_local_` |The IP and hostnames that can
+be used to talk to this node. This defaults to local-only
+addresses (`127.0.0.1` and `::1`) for security.
+
+You can set this value to the intended IP address
+explicitly.
 |`transport.tcp.port` |`9300-9400` |The default Transport
 port used by the node. The end bound is exclusive:
 `[9300, 9400)`. If unset, the next available port in the
@@ -251,9 +260,18 @@ range will be used.
 |=======================================================================
 
 In a well configured node, you should explicitly know the
-ports that are going to be used when the node starts up.
-By configuring the port explicitly, you can prevent
-multiple nodes from being started using the same
+IPs, hosts, and ports that are going to be used when the
+node starts up.
+
+[source,yaml]
+-------------------
+network.host: _en0:ipv4_ <1>
+-------------------
+<1> See the <<modules-network,Network Settings documentation>>
+for other possible values.
+
+By configuring the port explicitly, you can
+prevent multiple nodes from being started using the same
 configuration (e.g., by accident) because any attempts to
 use the same port will be blocked.
 

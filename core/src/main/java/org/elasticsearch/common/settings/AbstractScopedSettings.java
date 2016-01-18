@@ -36,7 +36,7 @@ import java.util.function.Consumer;
  */
 public abstract class AbstractScopedSettings extends AbstractComponent {
     private Settings lastSettingsApplied = Settings.EMPTY;
-    private final List<SettingUpdater> settingUpdaters = new ArrayList<>();
+    private final List<SettingUpdater<?>> settingUpdaters = new ArrayList<>();
     private final Map<String, Setting<?>> complexMatchers = new HashMap<>();
     private final Map<String, Setting<?>> keySettings = new HashMap<>();
     private final Setting.Scope scope;
@@ -68,7 +68,7 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
         final Settings current = Settings.builder().put(this.settings).put(settings).build();
         final Settings previous = Settings.builder().put(this.settings).put(this.lastSettingsApplied).build();
         List<RuntimeException> exceptions = new ArrayList<>();
-        for (SettingUpdater settingUpdater : settingUpdaters) {
+        for (SettingUpdater<?> settingUpdater : settingUpdaters) {
             try {
                 if (settingUpdater.hasChanged(current, previous)) {
                     settingUpdater.getValue(current, previous);
@@ -99,7 +99,7 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
         final Settings previous = Settings.builder().put(this.settings).put(this.lastSettingsApplied).build();
         try {
             List<Runnable> applyRunnables = new ArrayList<>();
-            for (SettingUpdater settingUpdater : settingUpdaters) {
+            for (SettingUpdater<?> settingUpdater : settingUpdaters) {
                 try {
                     applyRunnables.add(settingUpdater.updater(current, previous));
                 } catch (Exception ex) {
@@ -164,6 +164,7 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
     /**
      * Transactional interface to update settings.
      * @see Setting
+     * @param <T> the type of the value of the setting
      */
     public interface SettingUpdater<T> {
 
@@ -216,16 +217,15 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
     /**
      * Returns the {@link Setting} for the given key or <code>null</code> if the setting can not be found.
      */
-    public Setting get(String key) {
+    public Setting<?> get(String key) {
         Setting<?> setting = keySettings.get(key);
-        if (setting == null) {
-            for (Map.Entry<String, Setting<?>> entry : complexMatchers.entrySet()) {
-                if (entry.getValue().match(key)) {
-                    return entry.getValue();
-                }
-            }
-        } else {
+        if (setting != null) {
             return setting;
+        }
+        for (Map.Entry<String, Setting<?>> entry : complexMatchers.entrySet()) {
+            if (entry.getValue().match(key)) {
+                return entry.getValue();
+            }
         }
         return null;
     }
@@ -234,7 +234,7 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
      * Returns <code>true</code> if the setting for the given key is dynamically updateable. Otherwise <code>false</code>.
      */
     public boolean hasDynamicSetting(String key) {
-        final Setting setting = get(key);
+        final Setting<?> setting = get(key);
         return setting != null && setting.isDynamic();
     }
 

@@ -42,6 +42,8 @@ import java.util.function.Function;
 import java.util.regex.Pattern;
 
 /**
+ * A setting. Encapsulates typical stuff like default value, parsing, and scope.
+ * Some (dynamic=true) can by modified at run time using the API.
  */
 public class Setting<T> extends ToXContentToBytes {
     private final String key;
@@ -173,11 +175,18 @@ public class Setting<T> extends ToXContentToBytes {
         INDEX;
     }
 
-    final AbstractScopedSettings.SettingUpdater newUpdater(Consumer<T> consumer, ESLogger logger) {
+    /**
+     * Build a new updater with a noop validator.
+     */
+    final AbstractScopedSettings.SettingUpdater<T> newUpdater(Consumer<T> consumer, ESLogger logger) {
         return newUpdater(consumer, logger, (s) -> {});
     }
 
-    AbstractScopedSettings.SettingUpdater newUpdater(Consumer<T> consumer, ESLogger logger, Consumer<T> validator) {
+    /**
+     * Build the updater responsible for validating new values, logging the new
+     * value, and eventually setting the value where it belongs.
+     */
+    AbstractScopedSettings.SettingUpdater<T> newUpdater(Consumer<T> consumer, ESLogger logger, Consumer<T> validator) {
         if (isDynamic()) {
             return new Updater(consumer, logger, validator);
         } else {
@@ -343,6 +352,7 @@ public class Setting<T> extends ToXContentToBytes {
                 return array == null ? defaultValue.apply(settings) : arrayToParsableString(array);
             }
 
+            @Override
             public boolean match(String toTest) {
                 return pattern.matcher(toTest).matches();
             }

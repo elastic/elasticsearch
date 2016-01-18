@@ -72,9 +72,14 @@ public class OsProbeTests extends ESTestCase {
             assertThat(loadAverage[0], greaterThanOrEqualTo((double) 0));
             assertThat(loadAverage[1], anyOf(equalTo((double) -1), greaterThanOrEqualTo((double) 0)));
             assertThat(loadAverage[2], anyOf(equalTo((double) -1), greaterThanOrEqualTo((double) 0)));
-        } else {
+        } else if (Constants.MAC_OS_X) {
             // one minute load average is available, but 10-minute and 15-minute load averages are not
-            // load average can be negative if not available or not computed yet, otherwise it should be >= 0
+            assertNotNull(loadAverage);
+            assertThat(loadAverage[0], greaterThanOrEqualTo((double) 0));
+            assertThat(loadAverage[1], equalTo((double) -1));
+            assertThat(loadAverage[2], equalTo((double) -1));
+        } else {
+            // unknown system, but the best case is that we have the one-minute load average
             if (loadAverage != null) {
                 assertThat(loadAverage[0], anyOf(equalTo((double) -1), greaterThanOrEqualTo((double) 0)));
                 assertThat(loadAverage[1], equalTo((double) -1));

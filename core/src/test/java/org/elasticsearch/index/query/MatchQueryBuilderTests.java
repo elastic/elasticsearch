@@ -196,21 +196,20 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
             assertTrue(numericRangeQuery.includesMax());
 
             double value;
+            double width = 0;
             try {
                 value = Double.parseDouble(queryBuilder.value().toString());
             } catch (NumberFormatException e) {
                 // Maybe its a date
                 value = ISODateTimeFormat.dateTimeParser().parseMillis(queryBuilder.value().toString());
+                width = queryBuilder.fuzziness().asTimeValue().getMillis();
             }
-            double width;
-            if (queryBuilder.fuzziness().equals(Fuzziness.AUTO)) {
-                width = 1;
-            } else {
-                try {
+
+            if (width == 0) {
+                if (queryBuilder.fuzziness().equals(Fuzziness.AUTO)) {
+                    width = 1;
+                } else {
                     width = queryBuilder.fuzziness().asDouble();
-                } catch (NumberFormatException e) {
-                    // Maybe a time value?
-                    width = queryBuilder.fuzziness().asTimeValue().getMillis();
                 }
             }
             assertEquals(value - width, numericRangeQuery.getMin().doubleValue(), width * .1);

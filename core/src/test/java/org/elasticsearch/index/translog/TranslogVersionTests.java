@@ -84,10 +84,10 @@ public class TranslogVersionTests extends ESTestCase {
         checkFailsToOpen("/org/elasticsearch/index/translog/translog-v1-truncated.binary", "pre-2.0 translog");
     }
 
-    public ImmutableTranslogReader openReader(Path path, long id) throws IOException {
+    public TranslogReader openReader(Path path, long id) throws IOException {
         FileChannel channel = FileChannel.open(path, StandardOpenOption.READ);
         try {
-            ImmutableTranslogReader reader = ImmutableTranslogReader.open(channel, path, new Checkpoint(Files.size(path), 1, id), null);
+            TranslogReader reader = TranslogReader.open(channel, path, new Checkpoint(Files.size(path), 1, id), null);
             channel = null;
             return reader;
         } finally {

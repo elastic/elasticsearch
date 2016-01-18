@@ -111,7 +111,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     static final Pattern PARSE_STRICT_ID_PATTERN = Pattern.compile("^" + TRANSLOG_FILE_PREFIX + "(\\d+)(\\.tlog)$");
 
     // the list of translog readers is guaranteed to be in order of translog generation
-    private final List<ImmutableTranslogReader> readers = new ArrayList<>();
+    private final List<TranslogReader> readers = new ArrayList<>();
     private volatile ScheduledFuture<?> syncScheduler;
     // this is a concurrent set and is not protected by any of the locks. The main reason
     // is that is being accessed by two separate classes (additions & reading are done by Translog, remove by View when closed)
@@ -211,9 +211,9 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     }
 
     /** recover all translog files found on disk */
-    private final ArrayList<ImmutableTranslogReader> recoverFromFiles(TranslogGeneration translogGeneration, Checkpoint checkpoint) throws IOException {
+    private final ArrayList<TranslogReader> recoverFromFiles(TranslogGeneration translogGeneration, Checkpoint checkpoint) throws IOException {
         boolean success = false;
-        ArrayList<ImmutableTranslogReader> foundTranslogs = new ArrayList<>();
+        ArrayList<TranslogReader> foundTranslogs = new ArrayList<>();
         final Path tempFile = Files.createTempFile(location, TRANSLOG_FILE_PREFIX, TRANSLOG_FILE_SUFFIX); // a temp file to copy checkpoint to - note it must be in on the same FS otherwise atomic move won't work
         boolean tempFileRenamed = false;
         try (ReleasableLock lock = writeLock.acquire()) {
@@ -224,7 +224,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 if (Files.exists(committedTranslogFile) == false) {
                     throw new IllegalStateException("translog file doesn't exist with generation: " + i + " lastCommitted: " + lastCommittedTranslogFileGeneration + " checkpoint: " + checkpoint.generation + " - translog ids must be consecutive");
                 }
-                final ImmutableTranslogReader reader = openReader(committedTranslogFile, Checkpoint.read(location.resolve(getCommitCheckpointFileName(i))));
+                final TranslogReader reader = openReader(committedTranslogFile, Checkpoint.read(location.resolve(getCommitCheckpointFileName(i))));
                 foundTranslogs.add(reader);
                 logger.debug("recovered local translog from checkpoint {}", checkpoint);
             }
@@ -261,11 +261,11 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         return foundTranslogs;
     }
 
-    ImmutableTranslogReader openReader(Path path, Checkpoint checkpoint) throws IOException {
+    TranslogReader openReader(Path path, Checkpoint checkpoint) throws IOException {
         FileChannel channel = FileChannel.open(path, StandardOpenOption.READ);
         try {
             assert Translog.parseIdFromFileName(path) == checkpoint.generation : "expected generation: " + Translog.parseIdFromFileName(path) + " but got: " + checkpoint.generation;
-            ImmutableTranslogReader reader = ImmutableTranslogReader.open(channel, path, checkpoint, translogUUID);
+            TranslogReader reader = TranslogReader.open(channel, path, checkpoint, translogUUID);
             channel = null;
             return reader;
         } finally {
@@ -352,7 +352,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             ensureOpen();
             return Stream.concat(readers.stream(), Stream.of(current))
                     .filter(r -> r.getGeneration() >= minGeneration)
-                    .mapToInt(TranslogReader::totalOperations)
+                    .mapToInt(BaseTranslogReader::totalOperations)
                     .sum();
         }
     }
@@ -365,7 +365,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             ensureOpen();
             return Stream.concat(readers.stream(), Stream.of(current))
                     .filter(r -> r.getGeneration() >= minGeneration)
-                    .mapToLong(TranslogReader::sizeInBytes)
+                    .mapToLong(BaseTranslogReader::sizeInBytes)
                     .sum();
         }
     }
@@ -389,7 +389,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      */
     public Translog.Operation read(Location location) {
         try (ReleasableLock lock = readLock.acquire()) {
-            final TranslogReader reader;
+            final BaseTranslogReader reader;
             final long currentGeneration = current.getGeneration();
             if (currentGeneration == location.generation) {
                 reader = current;
@@ -466,7 +466,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             ensureOpen();
             Snapshot[] snapshots = Stream.concat(readers.stream(), Stream.of(current))
                     .filter(reader -> reader.getGeneration() >= minGeneration)
-                    .map(TranslogReader::newSnapshot).toArray(Snapshot[]::new);
+                    .map(BaseTranslogReader::newSnapshot).toArray(Snapshot[]::new);
             return new MultiSnapshot(snapshots);
         }
     }
@@ -1200,7 +1200,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 throw new IllegalStateException("already committing a translog with generation: " + currentCommittingGeneration);
             }
             currentCommittingGeneration = current.getGeneration();
-            ImmutableTranslogReader currentCommittingTranslog = current.closeIntoReader();
+            TranslogReader currentCommittingTranslog = current.closeIntoReader();
             readers.add(currentCommittingTranslog);
             Path checkpoint = location.resolve(CHECKPOINT_FILE_NAME);
             assert Checkpoint.read(checkpoint).generation == currentCommittingTranslog.getGeneration();
@@ -1243,8 +1243,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             long minReferencedGen = outstandingViews.stream().mapToLong(View::minTranslogGeneration).min().orElse(Long.MAX_VALUE);
             minReferencedGen = Math.min(lastCommittedTranslogFileGeneration, minReferencedGen);
             final long finalMinReferencedGen = minReferencedGen;
-            List<ImmutableTranslogReader> unreferenced = readers.stream().filter(r -> r.getGeneration() < finalMinReferencedGen).collect(Collectors.toList());
-            for (final ImmutableTranslogReader unreferencedReader : unreferenced) {
+            List<TranslogReader> unreferenced = readers.stream().filter(r -> r.getGeneration() < finalMinReferencedGen).collect(Collectors.toList());
+            for (final TranslogReader unreferencedReader : unreferenced) {
                 Path translogPath = unreferencedReader.path();
                 logger.trace("delete translog file - not referenced and not current anymore {}", translogPath);
                 IOUtils.closeWhileHandlingException(unreferencedReader);

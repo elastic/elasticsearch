@@ -824,7 +824,7 @@ public class TranslogTests extends ESTestCase {
         final Translog.Location lastLocation = translog.add(new Translog.Index("test", "" + translogOperations, Integer.toString(translogOperations).getBytes(Charset.forName("UTF-8"))));
 
         final Checkpoint checkpoint = Checkpoint.read(translog.location().resolve(Translog.CHECKPOINT_FILE_NAME));
-        try (final ImmutableTranslogReader reader = translog.openReader(translog.location().resolve(Translog.getFilename(translog.currentFileGeneration())), checkpoint)) {
+        try (final TranslogReader reader = translog.openReader(translog.location().resolve(Translog.getFilename(translog.currentFileGeneration())), checkpoint)) {
             assertEquals(lastSynced + 1, reader.totalOperations());
             for (int op = 0; op < translogOperations; op++) {
                 Translog.Location location = locations.get(op);
@@ -862,7 +862,7 @@ public class TranslogTests extends ESTestCase {
         }
         writer.sync();
 
-        final TranslogReader reader = randomBoolean() ? writer : translog.openReader(writer.path(), Checkpoint.read(translog.location().resolve(Translog.CHECKPOINT_FILE_NAME)));
+        final BaseTranslogReader reader = randomBoolean() ? writer : translog.openReader(writer.path(), Checkpoint.read(translog.location().resolve(Translog.CHECKPOINT_FILE_NAME)));
         for (int i = 0; i < numOps; i++) {
             ByteBuffer buffer = ByteBuffer.allocate(4);
             reader.readBytes(buffer, reader.getFirstOperationOffset() + 4 * i);
@@ -875,7 +875,7 @@ public class TranslogTests extends ESTestCase {
         out.writeInt(2048);
         writer.add(new BytesArray(bytes));
 
-        if (reader instanceof ImmutableTranslogReader) {
+        if (reader instanceof TranslogReader) {
             ByteBuffer buffer = ByteBuffer.allocate(4);
             try {
                 reader.readBytes(buffer, reader.getFirstOperationOffset() + 4 * numOps);
@@ -883,7 +883,7 @@ public class TranslogTests extends ESTestCase {
             } catch (EOFException ex) {
                 // expected
             }
-            ((ImmutableTranslogReader) reader).close();
+            ((TranslogReader) reader).close();
         } else {
             // live reader!
             ByteBuffer buffer = ByteBuffer.allocate(4);

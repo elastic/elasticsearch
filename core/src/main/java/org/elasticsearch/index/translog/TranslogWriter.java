@@ -41,7 +41,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public class TranslogWriter extends TranslogReader implements Closeable {
+public class TranslogWriter extends BaseTranslogReader implements Closeable {
 
     public static final String TRANSLOG_CODEC = "translog";
     public static final int VERSION_CHECKSUMS = 1;
@@ -184,7 +184,7 @@ public class TranslogWriter extends TranslogReader implements Closeable {
     /**
      * closes this writer and transfers it's underlying file channel to a new immutable reader
      */
-    public synchronized ImmutableTranslogReader closeIntoReader() throws IOException {
+    public synchronized TranslogReader closeIntoReader() throws IOException {
         try {
             sync(); // sync before we close..
         } catch (IOException e) {
@@ -192,7 +192,7 @@ public class TranslogWriter extends TranslogReader implements Closeable {
             throw e;
         }
         if (closed.compareAndSet(false, true)) {
-            return new ImmutableTranslogReader(generation, channel, path, firstOperationOffset, getWrittenOffset(), operationCounter);
+            return new TranslogReader(generation, channel, path, firstOperationOffset, getWrittenOffset(), operationCounter);
         } else {
             throw new AlreadyClosedException("translog [" + getGeneration() + "] is already closed (path [" + path + "]", tragedy);
         }

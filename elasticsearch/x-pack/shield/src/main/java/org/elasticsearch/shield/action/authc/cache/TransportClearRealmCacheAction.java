@@ -47,6 +47,8 @@ public class TransportClearRealmCacheAction extends TransportNodesAction<ClearRe
             Object resp = responses.get(i);
             if (resp instanceof ClearRealmCacheResponse.Node) {
                 nodes.add((ClearRealmCacheResponse.Node) resp);
+            } else {
+                throw new IllegalArgumentException("node response [" + resp.getClass() + "] is not the correct type");
             }
         }
         return new ClearRealmCacheResponse(clusterName, nodes.toArray(new ClearRealmCacheResponse.Node[nodes.size()]));

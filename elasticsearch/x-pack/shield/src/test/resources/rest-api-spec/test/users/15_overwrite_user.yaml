@@ -1,0 +1,57 @@
+---
+"Test overwriting a user":
+  - skip:
+      features: headers
+
+  - do:
+      cluster.health:
+          wait_for_status: yellow
+
+  - do:
+      shield.put_user:
+        username: "joe"
+        body:  >
+            {
+              "username": "joe",
+              "password": "s3krit",
+              "roles" : [ "admin" ]
+            }
+  - match: { user: { created: true } }
+
+  - do:
+      shield.get_user:
+        username: "joe"
+  - match: { found: true }
+  - match: { users.0.username: "joe" }
+  - match: { users.0.roles.0:  "admin" }
+
+  - do:
+      headers:
+        Authorization: "Basic am9lOnMza3JpdA=="
+      cluster.health: {}
+  - match: { timed_out: false }
+
+  - do:
+      shield.put_user:
+        username: "joe"
+        body:  >
+            {
+              "username": "joe",
+              "password": "s3krit2",
+              "roles" : [ "admin", "foo" ]
+            }
+  - match: { user: { created: false } }
+
+  - do:
+      shield.get_user:
+        username: "joe"
+  - match: { found: true }
+  - match: { users.0.username: "joe" }
+  - match: { users.0.roles.0:  "admin" }
+  - match: { users.0.roles.1:  "foo" }
+
+  - do:
+      headers:
+        Authorization: "Basic am9lOnMza3JpdDI="
+      cluster.health: {}
+  - match: { timed_out: false }

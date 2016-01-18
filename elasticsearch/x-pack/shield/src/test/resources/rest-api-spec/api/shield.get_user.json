@@ -1,0 +1,19 @@
+{
+  "shield.get_user": {
+    "documentation": "Retrieve one or more users from the native shield realm",
+    "methods": [ "GET" ],
+    "url": {
+      "path": "/_shield/user/{username}",
+      "paths": [ "/_shield/user/{username}" ],
+      "parts": {
+        "username": {
+          "type" : "string",
+          "description" : "User ID",
+          "required" : false
+        }
+      },
+      "params": {}
+    },
+    "body": null
+  }
+}

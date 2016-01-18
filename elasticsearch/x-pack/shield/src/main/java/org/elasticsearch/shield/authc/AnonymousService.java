@@ -51,6 +51,6 @@ public class AnonymousService {
             return null;
         }
         String username = settings.get("shield.authc.anonymous.username", ANONYMOUS_USERNAME);
-        return new User.Simple(username, roles);
+        return new User(username, roles);
     }
 }

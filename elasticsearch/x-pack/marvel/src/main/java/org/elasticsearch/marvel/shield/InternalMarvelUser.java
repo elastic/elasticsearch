@@ -15,7 +15,7 @@ import org.elasticsearch.shield.authz.Privilege;
 /**
  *
  */
-public class InternalMarvelUser extends User.Simple {
+public class InternalMarvelUser extends User {
 
     static final String NAME = "__marvel_user";
     static final String[] ROLE_NAMES = new String[] { "__marvel_role" };

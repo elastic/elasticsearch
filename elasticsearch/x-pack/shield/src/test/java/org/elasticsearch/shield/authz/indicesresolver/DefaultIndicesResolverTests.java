@@ -69,7 +69,7 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         metaData = mdBuilder.build();
 
         AuthorizationService authzService = mock(AuthorizationService.class);
-        user = new User.Simple("user", new String[] { "role" });
+        user = new User("user", "role");
 
         String[] authorizedIndices = new String[]{"bar", "bar-closed", "foofoobar", "foofoo", "missing", "foofoo-closed"};
         when(authzService.authorizedIndicesAndAliases(user, SearchAction.NAME)).thenReturn(Collections.unmodifiableList(Arrays.asList(authorizedIndices)));
@@ -78,7 +78,7 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         when(authzService.authorizedIndicesAndAliases(user, IndicesAliasesAction.NAME)).thenReturn(Collections.unmodifiableList(Arrays.asList(authorizedIndices)));
         when(authzService.authorizedIndicesAndAliases(user, GetAliasesAction.NAME)).thenReturn(Collections.unmodifiableList(Arrays.asList(authorizedIndices)));
         when(authzService.authorizedIndicesAndAliases(user, DeleteIndexAction.NAME)).thenReturn(Collections.unmodifiableList(Arrays.asList(authorizedIndices)));
-        userNoIndices = new User.Simple("test", new String[] { "test" });
+        userNoIndices = new User("test", "test");
         when(authzService.authorizedIndicesAndAliases(userNoIndices, IndicesAliasesAction.NAME)).thenReturn(Collections.<String>emptyList());
         when(authzService.authorizedIndicesAndAliases(userNoIndices, GetAliasesAction.NAME)).thenReturn(Collections.<String>emptyList());
         when(authzService.authorizedIndicesAndAliases(userNoIndices, SearchAction.NAME)).thenReturn(Collections.<String>emptyList());

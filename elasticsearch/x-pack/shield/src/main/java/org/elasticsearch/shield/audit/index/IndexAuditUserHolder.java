@@ -20,8 +20,6 @@ public class IndexAuditUserHolder {
 
     private static final String NAME = "__indexing_audit_user";
     private static final String[] ROLE_NAMES = new String[] { "__indexing_audit_role" };
-
-    private final User user;
     public static final Permission.Global.Role ROLE = Permission.Global.Role.builder(ROLE_NAMES[0])
         .cluster(Privilege.Cluster.action(PutIndexTemplateAction.NAME))
         .add(Privilege.Index.CREATE_INDEX, IndexAuditTrail.INDEX_NAME_PREFIX + "*")
@@ -31,8 +29,10 @@ public class IndexAuditUserHolder {
         .add(Privilege.Index.action(PutMappingAction.NAME), IndexAuditTrail.INDEX_NAME_PREFIX + "*")
         .build();
 
+    private final User user;
+
     public IndexAuditUserHolder() {
-        this.user = new User.Simple(NAME, ROLE_NAMES);
+        this.user = new User(NAME, ROLE_NAMES);
     }
 
     public User user() {

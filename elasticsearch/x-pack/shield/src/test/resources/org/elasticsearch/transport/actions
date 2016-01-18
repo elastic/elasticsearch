@@ -74,4 +74,11 @@ cluster:admin/plugin/license/get
 cluster:admin/plugin/license/delete
 cluster:admin/plugin/license/put
 cluster:admin/shield/realm/cache/clear
+cluster:admin/shield/roles/cache/clear
+cluster:admin/shield/user/add
+cluster:admin/shield/user/delete
+cluster:admin/shield/user/get
+cluster:admin/shield/role/add
+cluster:admin/shield/role/delete
+cluster:admin/shield/role/get
 internal:indices/admin/upgrade

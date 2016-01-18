@@ -20,6 +20,8 @@ import java.util.Arrays;
  */
 public class SecuredString implements CharSequence {
 
+    public static final SecuredString EMPTY = new SecuredString(new char[0]);
+
     private final char[] chars;
     private boolean cleared = false;
 
@@ -43,6 +45,8 @@ public class SecuredString implements CharSequence {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null) return false;
+        // Require password to calculate equals
+        if (this == EMPTY || o == EMPTY) return false;
 
         if (o instanceof SecuredString) {
             SecuredString that = (SecuredString) o;
@@ -179,6 +183,21 @@ public class SecuredString implements CharSequence {
      */
     public static boolean constantTimeEquals(SecuredString securedString, String string) {
         return constantTimeEquals(securedString.internalChars(), string.toCharArray());
+    }
+
+    /**
+     * This does a char by char comparison of the two Strings to provide protection against timing attacks. In other
+     * words it does not exit at the first character that does not match and only exits at the end of the comparison.
+     *
+     * NOTE: length will cause this function to exit early, which is OK as it is not considered feasible to prevent
+     * length attacks
+     *
+     * @param securedString the securedstring to compare to string char by char
+     * @param otherString the other securedstring to compare
+     * @return true if both match char for char
+     */
+    public static boolean constantTimeEquals(SecuredString securedString, SecuredString otherString) {
+        return constantTimeEquals(securedString.internalChars(), otherString.internalChars());
     }
 
     /**

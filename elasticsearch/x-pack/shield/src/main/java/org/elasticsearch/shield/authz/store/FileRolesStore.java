@@ -24,6 +24,7 @@ import org.elasticsearch.shield.ShieldPlugin;
 import org.elasticsearch.shield.authc.support.RefreshListener;
 import org.elasticsearch.shield.authz.Permission;
 import org.elasticsearch.shield.authz.Privilege;
+import org.elasticsearch.shield.authz.RoleDescriptor;
 import org.elasticsearch.shield.authz.SystemRole;
 import org.elasticsearch.shield.support.NoOpLogger;
 import org.elasticsearch.shield.support.Validation;

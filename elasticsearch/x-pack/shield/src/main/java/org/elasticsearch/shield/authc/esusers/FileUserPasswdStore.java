@@ -75,11 +75,11 @@ public class FileUserPasswdStore {
         }
     }
 
-    void addListener(RefreshListener listener) {
+    public void addListener(RefreshListener listener) {
         listeners.add(listener);
     }
 
-    int usersCount() {
+    public int usersCount() {
         return users.size();
     }
 
@@ -180,7 +180,7 @@ public class FileUserPasswdStore {
         }
     }
 
-    protected void notifyRefresh() {
+    public void notifyRefresh() {
         for (RefreshListener listener : listeners) {
             listener.onRefresh();
         }

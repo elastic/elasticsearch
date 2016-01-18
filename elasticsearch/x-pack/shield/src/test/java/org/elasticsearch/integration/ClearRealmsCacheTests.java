@@ -143,7 +143,7 @@ public class ClearRealmsCacheTests extends ShieldIntegTestCase {
 
             final CountDownLatch latch = new CountDownLatch(1);
             final AtomicReference<Throwable> error = new AtomicReference<>();
-            client.authc().clearRealmCache(request, new ActionListener<ClearRealmCacheResponse>() {
+            client.clearRealmCache(request, new ActionListener<ClearRealmCacheResponse>() {
                 @Override
                 public void onResponse(ClearRealmCacheResponse response) {
                     assertThat(response.getNodes().length, equalTo(internalCluster().getNodeNames().length));

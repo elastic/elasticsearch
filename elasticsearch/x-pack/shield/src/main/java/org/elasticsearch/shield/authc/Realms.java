@@ -11,6 +11,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.shield.ShieldSettingsFilter;
+import org.elasticsearch.shield.authc.esnative.ESNativeRealm;
 import org.elasticsearch.shield.authc.esusers.ESUsersRealm;
 import org.elasticsearch.shield.license.ShieldLicenseState;
 
@@ -134,7 +135,14 @@ public class Realms extends AbstractLifecycleComponent<Realms> implements Iterab
 
         // there is no "realms" configuration, go over all the factories and try to create defaults
         // for all the internal realms
-        realms.add(factories.get(ESUsersRealm.TYPE).createDefault("default_" + ESUsersRealm.TYPE));
+        Realm.Factory indexRealmFactory = factories.get(ESNativeRealm.TYPE);
+        if (indexRealmFactory != null) {
+            realms.add(indexRealmFactory.createDefault("default_" + ESNativeRealm.TYPE));
+        }
+        Realm.Factory esUsersRealm = factories.get(ESUsersRealm.TYPE);
+        if (esUsersRealm != null) {
+            realms.add(esUsersRealm.createDefault("default_" + ESUsersRealm.TYPE));
+        }
         return realms;
     }
 

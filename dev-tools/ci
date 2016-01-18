@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+# This script is used as a single command to run the x-plugins tests. It will
+# attempt to check out 'elasticsearch' into a sibling directory and then run the
+# tests.
+#
+# If `USE_EXISTING_ES` is set to anything, this script will allow the use of an
+# existing 'elasticsearch' sibling directory. It defaults to complaining if an
+# existing (dirty) ES directory exists.
+#
+# Any arguments will be passed to the `gradle check` command
+
+# Turn on semi-strict mode
+set -eo pipefail
+
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+XBASEDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )/../" && pwd )"
+XSIBLINGDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )/../../" && pwd )"
+
+# go to the x-plugins directory
+cd $XSIBLINGDIR
+
+if [ "x$USE_EXISTING_ES" = "x" ]; then
+    if [ -d "./elasticsearch" ]; then
+        echo "I expected a clean workspace but an 'elasticsearch' sibling \
+directory already exists in [$XSIBLINGDIR]!"
+        echo
+        echo "Either define 'USE_EXISTING_ES' or remove the \
+existing 'elasticsearch' sibling."
+        exit 1
+    fi
+    echo "Checking out Elasticsearch 'master' branch..."
+    git clone https://github.com/elastic/elasticsearch.git --depth=1
+else
+    if [ -d "./elasticsearch" ]; then
+        echo "Using existing 'elasticsearch' checkout"
+    else
+        echo "You have defined 'USE_EXISTING_ES' but no existing \
+Elasticsearch directory exists!"
+        exit 2
+    fi
+fi
+
+echo "Running X-Plugins tests..."
+cd "$SCRIPT_DIR/.." && echo "Running 'gradle check' in $PWD"
+
+# Actually run the tests, passing any arguments to gradle
+gradle check $*
+
+# ~*~ shell-script-mode ~*~

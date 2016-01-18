@@ -13,6 +13,7 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.shield.ShieldPlugin;
 import org.elasticsearch.shield.authc.esusers.ESUsersRealm;
+import org.elasticsearch.shield.authc.esnative.ESNativeRealm;
 import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
@@ -130,6 +131,8 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
                 .put("shield.authc.realms.esusers.order", 0)
                 .put("shield.authc.realms.esusers.files.users", writeFile(folder, "users", configUsers()))
                 .put("shield.authc.realms.esusers.files.users_roles", writeFile(folder, "users_roles", configUsersRoles()))
+                .put("shield.authc.realms.index.type", ESNativeRealm.TYPE)
+                .put("shield.authc.realms.index.order", "1")
                 .put("shield.authz.store.files.roles", writeFile(folder, "roles.yml", configRoles()))
                 // Test framework sometimes randomily selects the 'index' or 'none' cache and that makes the
                 // validation in ShieldPlugin fail.

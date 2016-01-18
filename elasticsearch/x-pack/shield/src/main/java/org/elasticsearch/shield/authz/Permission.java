@@ -139,6 +139,10 @@ public interface Permission {
                 return new Builder(name);
             }
 
+            public static Builder builder(RoleDescriptor rd) {
+                return new Builder(rd);
+            }
+
             public static class Builder {
 
                 private final String name;
@@ -148,6 +152,21 @@ public interface Permission {
 
                 private Builder(String name) {
                     this.name = name;
+                }
+
+                private Builder(RoleDescriptor rd) {
+                    this.name = rd.getName();
+                    this.cluster(Privilege.Cluster.get((new Privilege.Name(rd.getClusterPattern()))));
+                    for (RoleDescriptor.IndicesPrivileges iGroup : rd.getIndicesPrivileges()) {
+                        this.add(iGroup.getFields() == null ? null : Arrays.asList(iGroup.getFields()),
+                                iGroup.getQuery(),
+                                Privilege.Index.get(new Privilege.Name(iGroup.getPrivileges())),
+                                iGroup.getIndices());
+                    }
+                    String[] rdRunAs = rd.getRunAs();
+                    if (rdRunAs != null && rdRunAs.length > 0) {
+                        this.runAs(new Privilege.General(new Privilege.Name(rdRunAs), rdRunAs));
+                    }
                 }
 
                 // FIXME we should throw an exception if we have already set cluster or runAs...

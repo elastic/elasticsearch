@@ -7,15 +7,11 @@ package org.elasticsearch.shield.action.authc.cache;
 
 import org.elasticsearch.action.support.nodes.NodesOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.shield.client.ShieldAuthcClient;
-import org.elasticsearch.shield.client.ShieldClient;
 
 /**
  *
  */
 public class ClearRealmCacheRequestBuilder extends NodesOperationRequestBuilder<ClearRealmCacheRequest, ClearRealmCacheResponse, ClearRealmCacheRequestBuilder> {
-
-    private final ShieldAuthcClient authcClient;
 
     public ClearRealmCacheRequestBuilder(ElasticsearchClient client) {
         this(client, ClearRealmCacheAction.INSTANCE);
@@ -23,7 +19,6 @@ public class ClearRealmCacheRequestBuilder extends NodesOperationRequestBuilder<
 
     public ClearRealmCacheRequestBuilder(ElasticsearchClient client, ClearRealmCacheAction action) {
         super(client, action, new ClearRealmCacheRequest());
-        authcClient = new ShieldClient(client).authc();
     }
 
     /**

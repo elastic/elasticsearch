@@ -226,6 +226,7 @@ public class ServerSSLServiceTests extends ESTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/2")
     public void testThatSSLSocketFactoryHasProperCiphersAndProtocols() throws Exception {
         ServerSSLService sslService = new ServerSSLService(settingsBuilder()
                 .put("shield.ssl.keystore.path", testnodeStore)

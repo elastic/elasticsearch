@@ -41,14 +41,15 @@ public class ESUsersRealm extends CachingUsernamePasswordRealm {
             return null;
         }
         String[] roles = userRolesStore.roles(token.principal());
-        return new User.Simple(token.principal(), roles);
+
+        return new User(token.principal(), roles);
     }
 
     @Override
     public User doLookupUser(String username) {
         if (userPasswdStore.userExists(username)){
             String[] roles = userRolesStore.roles(username);
-            return new User.Simple(username, roles);
+            return new User(username, roles);
         }
         return null;
     }
@@ -81,9 +82,7 @@ public class ESUsersRealm extends CachingUsernamePasswordRealm {
 
         @Override
         public ESUsersRealm create(RealmConfig config) {
-            FileUserPasswdStore userPasswdStore = new FileUserPasswdStore(config, watcherService);
-            FileUserRolesStore userRolesStore = new FileUserRolesStore(config, watcherService);
-            return new ESUsersRealm(config, userPasswdStore, userRolesStore);
+            return new ESUsersRealm(config, new FileUserPasswdStore(config, watcherService), new FileUserRolesStore(config, watcherService));
         }
 
         @Override

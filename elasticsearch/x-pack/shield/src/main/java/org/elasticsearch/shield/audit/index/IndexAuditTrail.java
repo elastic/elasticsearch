@@ -40,9 +40,10 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.shield.admin.ShieldInternalUserHolder;
+import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.audit.AuditTrail;
 import org.elasticsearch.shield.authc.AuthenticationService;
@@ -127,7 +128,6 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     private final IndexAuditUserHolder auditUser;
     private final Provider<Client> clientProvider;
     private final AuthenticationService authenticationService;
-    private final Environment environment;
     private final LinkedBlockingQueue<Message> eventQueue;
     private final QueueConsumer queueConsumer;
     private final Transport transport;
@@ -150,13 +150,12 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
 
     @Inject
     public IndexAuditTrail(Settings settings, IndexAuditUserHolder indexingAuditUser,
-                           Environment environment, AuthenticationService authenticationService,
-                           Transport transport, Provider<Client> clientProvider, ThreadPool threadPool, ClusterService clusterService) {
+                           AuthenticationService authenticationService, Transport transport,
+                           Provider<Client> clientProvider, ThreadPool threadPool, ClusterService clusterService) {
         super(settings);
         this.auditUser = indexingAuditUser;
         this.authenticationService = authenticationService;
         this.clientProvider = clientProvider;
-        this.environment = environment;
         this.transport = transport;
         this.threadPool = threadPool;
         this.clusterService = clusterService;
@@ -418,7 +417,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     public void accessGranted(User user, String action, TransportMessage<?> message) {
         if (!principalIsAuditor(user.principal())) {
             // special treatment for internal system actions - only log if explicitly told to
-            if (user.isSystem() && Privilege.SYSTEM.predicate().test(action)) {
+            if ((user.isSystem() && Privilege.SYSTEM.predicate().test(action)) || ShieldInternalUserHolder.isShieldInternalUser(user)) {
                 if (events.contains(SYSTEM_ACCESS_GRANTED)) {
                     try {
                         enqueue(message("access_granted", action, user, indices(message), message), "access_granted");

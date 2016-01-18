@@ -11,7 +11,6 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -34,7 +33,6 @@ import org.joda.time.DateTime;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -134,7 +132,7 @@ public class WatcherUtilsTests extends ESTestCase {
         builder = WatcherUtils.writeSearchRequest(expectedRequest, builder, ToXContent.EMPTY_PARAMS);
         XContentParser parser = XContentHelper.createParser(builder.bytes());
         assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
-        IndicesQueriesRegistry registry = new IndicesQueriesRegistry(Settings.EMPTY, Collections.singleton(new MatchAllQueryParser()), new NamedWriteableRegistry());
+        IndicesQueriesRegistry registry = new IndicesQueriesRegistry(Settings.EMPTY, singletonMap("match_all", new MatchAllQueryParser()));
         QueryParseContext context = new QueryParseContext(registry);
         context.reset(parser);
         SearchRequest result = WatcherUtils.readSearchRequest(parser, ExecutableSearchInput.DEFAULT_SEARCH_TYPE, context);
@@ -220,7 +218,7 @@ public class WatcherUtilsTests extends ESTestCase {
 
         XContentParser parser = XContentHelper.createParser(builder.bytes());
         assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
-        IndicesQueriesRegistry registry = new IndicesQueriesRegistry(Settings.EMPTY, Collections.singleton(new MatchAllQueryParser()), new NamedWriteableRegistry());
+        IndicesQueriesRegistry registry = new IndicesQueriesRegistry(Settings.EMPTY, singletonMap("match_all", new MatchAllQueryParser()));
         QueryParseContext context = new QueryParseContext(registry);
         context.reset(parser);
         SearchRequest result = WatcherUtils.readSearchRequest(parser, ExecutableSearchInput.DEFAULT_SEARCH_TYPE, context);

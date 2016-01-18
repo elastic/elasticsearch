@@ -546,7 +546,7 @@ public class TransportReplicationActionTests extends ESTestCase {
                     t = new IndexShardNotStartedException(shardId, IndexShardState.RECOVERING);
                 }
                 logger.debug("--> simulating failure on {} with [{}]", capturedRequest.node, t.getClass().getSimpleName());
-                transport.handleResponse(capturedRequest.requestId, t);
+                transport.handleRemoteError(capturedRequest.requestId, t);
                 if (criticalFailure) {
                     CapturingTransport.CapturedRequest[] shardFailedRequests = transport.getCapturedRequestsAndClear();
                     assertEquals(1, shardFailedRequests.length);
@@ -565,7 +565,7 @@ public class TransportReplicationActionTests extends ESTestCase {
                         for (int retryNumber = 0; retryNumber < numberOfRetries; retryNumber++) {
                             // force a new cluster state to simulate a new master having been elected
                             clusterService.setState(ClusterState.builder(clusterService.state()));
-                            transport.handleResponse(currentRequest.requestId, new NotMasterException("shard-failed-test"));
+                            transport.handleRemoteError(currentRequest.requestId, new NotMasterException("shard-failed-test"));
                             CapturingTransport.CapturedRequest[] retryRequests = transport.getCapturedRequestsAndClear();
                             assertEquals(1, retryRequests.length);
                             currentRequest = retryRequests[0];
@@ -662,7 +662,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         CapturingTransport.CapturedRequest[] replicationRequests = transport.getCapturedRequestsAndClear();
         assertThat(replicationRequests.length, equalTo(1));
         // try with failure response
-        transport.handleResponse(replicationRequests[0].requestId, new CorruptIndexException("simulated", (String) null));
+        transport.handleRemoteError(replicationRequests[0].requestId, new CorruptIndexException("simulated", (String) null));
         CapturingTransport.CapturedRequest[] shardFailedRequests = transport.getCapturedRequestsAndClear();
         assertEquals(1, shardFailedRequests.length);
         transport.handleResponse(shardFailedRequests[0].requestId, TransportResponse.Empty.INSTANCE);

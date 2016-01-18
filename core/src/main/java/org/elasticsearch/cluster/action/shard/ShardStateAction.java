@@ -47,6 +47,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.EmptyTransportResponseHandler;
 import org.elasticsearch.transport.NodeDisconnectedException;
 import org.elasticsearch.transport.NodeNotConnectedException;
@@ -122,8 +123,7 @@ public class ShardStateAction extends AbstractComponent {
 
     private static Class[] MASTER_CHANNEL_EXCEPTIONS = new Class[]{
         NotMasterException.class,
-        NodeNotConnectedException.class,
-        NodeDisconnectedException.class,
+        ConnectTransportException.class,
         Discovery.FailedToCommitClusterStateException.class
     };
 

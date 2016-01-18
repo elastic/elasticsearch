@@ -38,6 +38,7 @@ import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.NodeDisconnectedException;
 import org.elasticsearch.transport.NodeNotConnectedException;
+import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.SendRequestTransportException;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponse;
@@ -286,10 +287,10 @@ public class ShardStateActionTests extends ESTestCase {
     }
 
     public void testMasterChannelExceptions() {
-        assertTrue(ShardStateAction.isMasterChannelException(new TransportException(new NotMasterException("simulated"))));
-        assertTrue(ShardStateAction.isMasterChannelException(new TransportException(new Discovery.FailedToCommitClusterStateException("simulated"))));
-        assertTrue(ShardStateAction.isMasterChannelException(new NodeNotConnectedException(null, null)));
-        assertTrue(ShardStateAction.isMasterChannelException(new NodeDisconnectedException(null, null)));
+        assertTrue(ShardStateAction.isMasterChannelException(new RemoteTransportException("simulated", new NotMasterException("simulated"))));
+        assertTrue(ShardStateAction.isMasterChannelException(new RemoteTransportException("simulated", new Discovery.FailedToCommitClusterStateException("simulated"))));
+        assertTrue(ShardStateAction.isMasterChannelException(new SendRequestTransportException(null, ShardStateAction.SHARD_FAILED_ACTION_NAME, new NodeNotConnectedException(null, "simulated"))));
+        assertTrue(ShardStateAction.isMasterChannelException(new NodeDisconnectedException(null, ShardStateAction.SHARD_FAILED_ACTION_NAME)));
     }
 
     private ShardRouting getRandomShardRouting(String index) {

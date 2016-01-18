@@ -69,12 +69,19 @@ public final class EngineConfig {
      * Index setting to change the low level lucene codec used for writing new segments.
      * This setting is <b>not</b> realtime updateable.
      */
-    public static final Setting<String> INDEX_CODEC_SETTING = new Setting<>("index.codec", EngineConfig.DEFAULT_CODEC_NAME, (s) -> { if (s.isEmpty()) {throw new IllegalArgumentException("index.codec must not be empty");} return s;}, false, Setting.Scope.INDEX);
+    public static final Setting<String> INDEX_CODEC_SETTING = new Setting<>("index.codec", "default", (s) -> {
+        switch(s) {
+            case "default":
+            case "best_compression":
+                return s;
+            default:
+                throw new IllegalArgumentException("unknown value for [index.codec] must be one of [default, best_compression]");
+        }
+    }, false, Setting.Scope.INDEX);
 
     /** if set to true the engine will start even if the translog id in the commit point can not be found */
     public static final String INDEX_FORCE_NEW_TRANSLOG = "index.engine.force_new_translog";
 
-    private static final String DEFAULT_CODEC_NAME = "default";
     private TranslogConfig translogConfig;
     private boolean create = false;
 

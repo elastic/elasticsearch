@@ -180,6 +180,25 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
     }
 
     /**
+     * Validates that all settings in the builder are registered and valid
+     */
+    public final void validate(Settings.Builder settingsBuilder) {
+        for (Map.Entry<String, String> entry : settingsBuilder.internalMap().entrySet()) {
+            validate(entry.getKey(), entry.getValue());
+        }
+    }
+
+    /**
+     * * Validates that all given settings are registered and valid
+     */
+    public final void validate(Settings settings) {
+        for (Map.Entry<String, String> entry : settings.getAsMap().entrySet()) {
+            validate(entry.getKey(), entry.getValue());
+        }
+    }
+
+
+    /**
      * Validates that the setting is valid
      */
     public final void validate(String key, String value) {

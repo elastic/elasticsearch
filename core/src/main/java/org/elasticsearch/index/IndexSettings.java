@@ -347,7 +347,7 @@ public final class IndexSettings {
         }
         this.indexMetaData = indexMetaData;
         final Settings existingSettings = this.settings;
-        if (existingSettings.getByPrefix(IndexMetaData.INDEX_SETTING_PREFIX).getAsMap().equals(newSettings.getByPrefix(IndexMetaData.INDEX_SETTING_PREFIX).getAsMap())) {
+        if (existingSettings.filter(IndexScopeSettings.INDEX_SETTINGS_KEY_PREDICATE).getAsMap().equals(newSettings.filter(IndexScopeSettings.INDEX_SETTINGS_KEY_PREDICATE).getAsMap())) {
             // nothing to update, same settings
             return false;
         }

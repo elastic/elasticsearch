@@ -51,10 +51,13 @@ public class SettingsModule extends AbstractModule {
 
     @Override
     protected void configure() {
+        final IndexScopeSettings indexScopeSettings = new IndexScopeSettings(settings, new HashSet<>(this.indexSettings.values()));
+        // by now we are fully configured, lets check node level settings for unregistered index settings
+        indexScopeSettings.validate(settings.filter(IndexScopeSettings.INDEX_SETTINGS_KEY_PREDICATE));
         bind(Settings.class).toInstance(settings);
         bind(SettingsFilter.class).toInstance(settingsFilter);
         final ClusterSettings clusterSettings = new ClusterSettings(settings, new HashSet<>(this.clusterSettings.values()));
-        final IndexScopeSettings indexScopeSettings = new IndexScopeSettings(settings, new HashSet<>(this.indexSettings.values()));
+
         bind(ClusterSettings.class).toInstance(clusterSettings);
         bind(IndexScopeSettings.class).toInstance(indexScopeSettings);
     }

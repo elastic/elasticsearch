@@ -69,11 +69,14 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 
 /**
  * Encapsulates all valid cluster level settings.
  */
 public final class IndexScopeSettings extends AbstractScopedSettings {
+
+    public static final Predicate<String> INDEX_SETTINGS_KEY_PREDICATE = (s) -> s.startsWith(IndexMetaData.INDEX_SETTING_PREFIX);
 
     public static Set<Setting<?>> BUILT_IN_INDEX_SETTINGS = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
         IndexSettings.INDEX_TTL_DISABLE_PURGE_SETTING,

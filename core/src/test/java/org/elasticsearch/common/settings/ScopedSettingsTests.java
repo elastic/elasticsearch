@@ -179,6 +179,41 @@ public class ScopedSettingsTests extends ESTestCase {
         assertEquals("boom", copy.get(IndexModule.INDEX_STORE_TYPE_SETTING)); // test fallback to node settings
     }
 
+    public void testValidate() {
+        IndexScopeSettings settings = new IndexScopeSettings(
+            Settings.EMPTY,
+            IndexScopeSettings.BUILT_IN_INDEX_SETTINGS);
+        settings.validate(Settings.builder().put("index.store.type", "boom"));
+        settings.validate(Settings.builder().put("index.store.type", "boom").build());
+        try {
+            settings.validate(Settings.builder().put("index.store.type", "boom", "i.am.not.a.setting", true));
+            fail();
+        } catch (IllegalArgumentException e) {
+            assertEquals("unknown setting [i.am.not.a.setting]", e.getMessage());
+        }
+
+        try {
+            settings.validate(Settings.builder().put("index.store.type", "boom", "i.am.not.a.setting", true).build());
+            fail();
+        } catch (IllegalArgumentException e) {
+            assertEquals("unknown setting [i.am.not.a.setting]", e.getMessage());
+        }
+
+        try {
+            settings.validate(Settings.builder().put("index.store.type", "boom", "index.number_of_replicas", true).build());
+            fail();
+        } catch (IllegalArgumentException e) {
+            assertEquals("Failed to parse value [true] for setting [index.number_of_replicas]", e.getMessage());
+        }
+
+        try {
+            settings.validate("index.number_of_replicas", "true");
+            fail();
+        } catch (IllegalArgumentException e) {
+            assertEquals("Failed to parse value [true] for setting [index.number_of_replicas]", e.getMessage());
+        }
+    }
+
 
     public static IndexMetaData newIndexMeta(String name, Settings indexSettings) {
         Settings build = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)

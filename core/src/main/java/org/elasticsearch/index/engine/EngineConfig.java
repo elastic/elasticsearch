@@ -72,10 +72,11 @@ public final class EngineConfig {
     public static final Setting<String> INDEX_CODEC_SETTING = new Setting<>("index.codec", "default", (s) -> {
         switch(s) {
             case "default":
+            case "lucene_default":
             case "best_compression":
                 return s;
             default:
-                throw new IllegalArgumentException("unknown value for [index.codec] must be one of [default, best_compression]");
+                throw new IllegalArgumentException("unknown value for [index.codec] must be one of [default, best_compression, lucene_default] but was: " + s);
         }
     }, false, Setting.Scope.INDEX);
 

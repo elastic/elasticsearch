@@ -33,6 +33,7 @@ import org.apache.lucene.store.StoreRateLimiting;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.metrics.CounterMetric;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.IndexModule;
@@ -50,7 +51,16 @@ import java.util.Set;
 public class FsDirectoryService extends DirectoryService implements StoreRateLimiting.Listener, StoreRateLimiting.Provider {
 
     protected final IndexStore indexStore;
-
+    public static final Setting<LockFactory> INDEX_LOCK_FACTOR_SETTING = new Setting<>("index.store.fs.fs_lock", "native", (s) -> {
+        switch (s) {
+            case "native":
+                return NativeFSLockFactory.INSTANCE;
+            case "simple":
+                return SimpleFSLockFactory.INSTANCE;
+            default:
+                throw new IllegalArgumentException("unrecognized [index.store.fs.fs_lock] \"" + s + "\": must be native or simple");
+        }
+    }, false, Setting.Scope.INDEX);
     private final CounterMetric rateLimitingTimeInNanos = new CounterMetric();
     private final ShardPath path;
 
@@ -71,29 +81,11 @@ public class FsDirectoryService extends DirectoryService implements StoreRateLim
         return indexStore.rateLimiting();
     }
 
-    public static LockFactory buildLockFactory(IndexSettings indexSettings) {
-        final Settings settings = indexSettings.getSettings();
-        String fsLock = settings.get("index.store.fs.lock", settings.get("index.store.fs.fs_lock", "native"));
-        LockFactory lockFactory;
-        if (fsLock.equals("native")) {
-            lockFactory = NativeFSLockFactory.INSTANCE;
-        } else if (fsLock.equals("simple")) {
-            lockFactory = SimpleFSLockFactory.INSTANCE;
-        } else {
-            throw new IllegalArgumentException("unrecognized fs_lock \"" + fsLock + "\": must be native or simple");
-        }
-        return lockFactory;
-    }
-
-    protected final LockFactory buildLockFactory() throws IOException {
-        return buildLockFactory(indexSettings);
-    }
-
     @Override
     public Directory newDirectory() throws IOException {
         final Path location = path.resolveIndex();
         Files.createDirectories(location);
-        Directory wrapped = newFSDirectory(location, buildLockFactory());
+        Directory wrapped = newFSDirectory(location, indexSettings.getValue(INDEX_LOCK_FACTOR_SETTING));
         return new RateLimitedFSDirectory(wrapped, this, this) ;
     }
 

@@ -52,6 +52,7 @@ import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.percolator.PercolatorQueriesRegistry;
+import org.elasticsearch.index.store.FsDirectoryService;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.IndexStoreConfig;
 import org.elasticsearch.index.store.Store;
@@ -151,6 +152,7 @@ public final class IndexScopeSettings extends AbstractScopedSettings {
         IndexModule.INDEX_QUERY_CACHE_TYPE_SETTING,
         IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING,
         PrimaryShardAllocator.INDEX_RECOVERY_INITIAL_SHARDS_SETTING,
+        FsDirectoryService.INDEX_LOCK_FACTOR_SETTING,
         // this sucks but we can't really validate all the analyzers/similarity in here
         Setting.groupSetting("index.similarity.", false, Setting.Scope.INDEX), // this allows similarity settings to be passed
         Setting.groupSetting("index.analysis.", false, Setting.Scope.INDEX) // this allows analysis settings to be passed

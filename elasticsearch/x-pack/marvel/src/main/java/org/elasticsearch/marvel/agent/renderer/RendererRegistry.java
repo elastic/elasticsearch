@@ -6,20 +6,21 @@
 package org.elasticsearch.marvel.agent.renderer;
 
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
 
 import java.util.Collections;
 import java.util.Map;
 
 public class RendererRegistry {
 
-    private final Map<String, Renderer> renderers;
+    private final Map<Class<? extends MarvelDoc>, Renderer> renderers;
 
     @Inject
-    public RendererRegistry(Map<String, Renderer> renderers) {
+    public RendererRegistry(Map<Class<? extends MarvelDoc>, Renderer> renderers) {
         this.renderers = Collections.unmodifiableMap(renderers);
     }
 
-    public Renderer renderer(String type) {
-        return renderers.get(type);
+    public Renderer getRenderer(MarvelDoc marvelDoc) {
+        return renderers.get(marvelDoc.getClass());
     }
 }

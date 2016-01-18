@@ -91,7 +91,7 @@ public class HttpExporter extends Exporter {
     final boolean hostnameVerification;
 
     final Environment env;
-    final RendererRegistry rendererRegistry;
+    final RendererRegistry renderers;
 
     final @Nullable TimeValue templateCheckTimeout;
 
@@ -109,7 +109,7 @@ public class HttpExporter extends Exporter {
 
         super(TYPE, config);
         this.env = env;
-        this.rendererRegistry = rendererRegistry;
+        this.renderers = rendererRegistry;
 
         hosts = config.settings().getAsArray(HOST_SETTING, Strings.EMPTY_ARRAY);
         if (hosts.length == 0) {
@@ -182,9 +182,12 @@ public class HttpExporter extends Exporter {
         final XContentType xContentType = XContentType.SMILE;
 
         // Get the appropriate renderer in order to render the MarvelDoc
-        Renderer renderer = rendererRegistry.renderer(marvelDoc.type());
+        Renderer renderer = renderers.getRenderer(marvelDoc);
+        assert renderer != null : "unable to render marvel document of type [" + marvelDoc.type() + "]. no renderer found in registry";
+
         if (renderer == null) {
-            logger.warn("unable to render marvel document of type [{}]. no renderer found in registry", marvelDoc.type());
+            logger.warn("http exporter [{}] - unable to render marvel document of type [{}]: no renderer found in registry",
+                    name(), marvelDoc.type());
             return;
         }
 

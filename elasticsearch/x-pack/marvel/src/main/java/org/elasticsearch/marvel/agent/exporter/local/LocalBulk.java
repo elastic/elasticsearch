@@ -50,13 +50,22 @@ public class LocalBulk extends ExportBulk {
 
     @Override
     public synchronized ExportBulk add(Collection<MarvelDoc> docs) throws Exception {
-
         for (MarvelDoc marvelDoc : docs) {
             if (state.get() != State.ACTIVE) {
                 return this;
             }
             if (requestBuilder == null) {
                 requestBuilder = client.prepareBulk();
+            }
+
+            // Get the appropriate renderer in order to render the MarvelDoc
+            Renderer renderer = renderers.getRenderer(marvelDoc);
+            assert renderer != null : "unable to render marvel document of type [" + marvelDoc.type() + "]. no renderer found in registry";
+
+            if (renderer == null) {
+                logger.warn("local exporter [{}] - unable to render marvel document of type [{}]: no renderer found in registry",
+                        name, marvelDoc.type());
+                continue;
             }
 
             IndexRequestBuilder request = client.prepareIndex();
@@ -70,10 +79,6 @@ public class LocalBulk extends ExportBulk {
             if (marvelDoc.id() != null) {
                 request.setId(marvelDoc.id());
             }
-
-            // Get the appropriate renderer in order to render the MarvelDoc
-            Renderer renderer = renderers.renderer(marvelDoc.type());
-            assert renderer != null : "unable to render marvel document of type [" + marvelDoc.type() + "]. no renderer found in registry";
 
             if (buffer == null) {
                 buffer = new BytesStreamOutput();

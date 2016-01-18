@@ -110,7 +110,7 @@ discovery.zen.minimum_master_nodes: 2 <1>
 quorum of your cluster, which is defined as `(M / 2) + 1`.
 
 WARNING: If you do not set this value, or if you set it
-improperly, then you it can lead to unexpected data loss.
+improperly, then it can lead to unexpected data loss.
 
 [float]
 [[data-node]]

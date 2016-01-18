@@ -66,7 +66,7 @@ public abstract class TransportAction<Request extends ActionRequest<Request>, Re
         return future;
     }
 
-    public final void execute(Request request, ActionListener<Response> listener) {
+    public final Task execute(Request request, ActionListener<Response> listener) {
         Task task = taskManager.register("transport", actionName, request);
         if (task == null) {
             execute(null, request, listener);
@@ -85,6 +85,7 @@ public abstract class TransportAction<Request extends ActionRequest<Request>, Re
                 }
             });
         }
+        return task;
     }
 
     private final void execute(Task task, Request request, ActionListener<Response> listener) {

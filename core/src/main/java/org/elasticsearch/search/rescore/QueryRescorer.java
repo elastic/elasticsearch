@@ -227,7 +227,7 @@ public final class QueryRescorer implements Rescorer {
         }
     };
 
-    /** Returns a new {@link TopDocs} with the topN from the incoming one, or the same TopDocs if the number of hits is already <=
+    /** Returns a new {@link TopDocs} with the topN from the incoming one, or the same TopDocs if the number of hits is already &lt;=
      *  topN. */
     private TopDocs topN(TopDocs in, int topN) {
         if (in.totalHits < topN) {

@@ -68,12 +68,12 @@ import org.elasticsearch.common.settings.Settings;
 
 /**
  * A client provides a one stop interface for performing actions/operations against the cluster.
- * <p/>
- * <p>All operations performed are asynchronous by nature. Each action/operation has two flavors, the first
+ * <p>
+ * All operations performed are asynchronous by nature. Each action/operation has two flavors, the first
  * simply returns an {@link org.elasticsearch.action.ActionFuture}, while the second accepts an
  * {@link org.elasticsearch.action.ActionListener}.
- * <p/>
- * <p>A client can either be retrieved from a {@link org.elasticsearch.node.Node} started, or connected remotely
+ * <p>
+ * A client can either be retrieved from a {@link org.elasticsearch.node.Node} started, or connected remotely
  * to one or more nodes using {@link org.elasticsearch.client.transport.TransportClient}.
  *
  * @see org.elasticsearch.node.Node#client()
@@ -91,8 +91,8 @@ public interface Client extends ElasticsearchClient, Releasable {
 
     /**
      * Index a JSON source associated with a given index and type.
-     * <p/>
-     * <p>The id is optional, if it is not provided, one will be generated automatically.
+     * <p>
+     * The id is optional, if it is not provided, one will be generated automatically.
      *
      * @param request The index request
      * @return The result future
@@ -102,8 +102,8 @@ public interface Client extends ElasticsearchClient, Releasable {
 
     /**
      * Index a document associated with a given index and type.
-     * <p/>
-     * <p>The id is optional, if it is not provided, one will be generated automatically.
+     * <p>
+     * The id is optional, if it is not provided, one will be generated automatically.
      *
      * @param request  The index request
      * @param listener A listener to be notified with a result
@@ -113,8 +113,8 @@ public interface Client extends ElasticsearchClient, Releasable {
 
     /**
      * Index a document associated with a given index and type.
-     * <p/>
-     * <p>The id is optional, if it is not provided, one will be generated automatically.
+     * <p>
+     * The id is optional, if it is not provided, one will be generated automatically.
      */
     IndexRequestBuilder prepareIndex();
 
@@ -146,8 +146,8 @@ public interface Client extends ElasticsearchClient, Releasable {
 
     /**
      * Index a document associated with a given index and type.
-     * <p/>
-     * <p>The id is optional, if it is not provided, one will be generated automatically.
+     * <p>
+     * The id is optional, if it is not provided, one will be generated automatically.
      *
      * @param index The index to index the document to
      * @param type  The type to index the document to
@@ -156,8 +156,8 @@ public interface Client extends ElasticsearchClient, Releasable {
 
     /**
      * Index a document associated with a given index and type.
-     * <p/>
-     * <p>The id is optional, if it is not provided, one will be generated automatically.
+     * <p>
+     * The id is optional, if it is not provided, one will be generated automatically.
      *
      * @param index The index to index the document to
      * @param type  The type to index the document to
@@ -489,7 +489,6 @@ public interface Client extends ElasticsearchClient, Releasable {
      * An action that returns the term vectors for a specific document.
      *
      * @param request The term vector request
-     * @return The response future
      */
     void termVectors(TermVectorsRequest request, ActionListener<TermVectorsResponse> listener);
 
@@ -520,7 +519,6 @@ public interface Client extends ElasticsearchClient, Releasable {
      * An action that returns the term vectors for a specific document.
      *
      * @param request The term vector request
-     * @return The response future
      */
     @Deprecated
     void termVector(TermVectorsRequest request, ActionListener<TermVectorsResponse> listener);

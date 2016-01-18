@@ -25,33 +25,41 @@ import org.elasticsearch.rest.RestStatus;
 
 /**
  * An exception indicating that a failure occurred performing an operation on the shard.
- *
- *
  */
 public interface ShardOperationFailedException extends Streamable, ToXContent {
 
     /**
      * The index the operation failed on. Might return <tt>null</tt> if it can't be derived.
+     *
+     * @return The index the operation failed on or <tt>null</tt> if it can't be derived
      */
     String index();
 
     /**
-     * The index the operation failed on. Might return <tt>-1</tt> if it can't be derived.
+     * The shard the operation failed on. Might return <tt>-1</tt> if it can't be derived.
+     *
+     * @return The shard the operation failed on or <tt>-1</tt> if it can't be derived
      */
     int shardId();
 
     /**
      * The reason of the failure.
+     *
+     * @return The reason of the failure
      */
     String reason();
 
     /**
      * The status of the failure.
+     *
+     * @return The status of the failure
      */
     RestStatus status();
 
     /**
-     * The cause of this failure
+     * The cause of this failure.
+     *
+     * @return The cause of this failure
      */
     Throwable getCause();
 }

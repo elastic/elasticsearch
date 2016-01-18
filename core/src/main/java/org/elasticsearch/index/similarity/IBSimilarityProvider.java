@@ -28,7 +28,7 @@ import org.elasticsearch.common.settings.Settings;
 
 /**
  * {@link SimilarityProvider} for {@link IBSimilarity}.
- * <p/>
+ * <p>
  * Configuration options available:
  * <ul>
  *     <li>distribution</li>

@@ -99,7 +99,6 @@ public class SnapshotId implements Streamable {
      *
      * @param in stream input
      * @return snapshot id
-     * @throws IOException
      */
     public static SnapshotId readSnapshotId(StreamInput in) throws IOException {
         SnapshotId snapshot = new SnapshotId();

@@ -48,7 +48,7 @@ public abstract class ContextBuilder<E extends ContextMapping> {
     /**
      * Create a new {@link GeolocationContextMapping} with given precision and
      * neighborhood usage
-     * 
+     *
      * @param precision geohash length
      * @param neighbors use neighbor cells
      */
@@ -57,15 +57,15 @@ public abstract class ContextBuilder<E extends ContextMapping> {
     }
 
     /**
-     * Create a new {@link CategoryMapping}
+     * Create a new {@link CategoryContextMapping}
      */
     public static CategoryContextMapping.Builder category(String name) {
         return new CategoryContextMapping.Builder(name, null);
     }
 
     /**
-     * Create a new {@link CategoryMapping} with default category
-     * 
+     * Create a new {@link CategoryContextMapping} with default category
+     *
      * @param defaultCategory category to use, if it is not provided
      */
     public static CategoryContextMapping.Builder category(String name, String defaultCategory) {
@@ -74,7 +74,7 @@ public abstract class ContextBuilder<E extends ContextMapping> {
 
     /**
      * Create a new {@link CategoryContextMapping}
-     * 
+     *
      * @param fieldname
      *            name of the field to use
      */
@@ -84,7 +84,7 @@ public abstract class ContextBuilder<E extends ContextMapping> {
 
     /**
      * Create a new {@link CategoryContextMapping}
-     * 
+     *
      * @param fieldname name of the field to use
      * @param defaultValues values to use, if the document not provides
      *        a field with the given name
@@ -113,12 +113,12 @@ public abstract class ContextBuilder<E extends ContextMapping> {
     protected static ContextMapping loadMapping(String name, Map<String, Object> config, Version indexVersionCreated)
             throws ElasticsearchParseException {
         final Object argType = config.get(ContextMapping.FIELD_TYPE);
-        
+
         if (argType == null) {
             throw new ElasticsearchParseException("missing [{}] in context mapping", ContextMapping.FIELD_TYPE);
         }
 
-        final String type = argType.toString(); 
+        final String type = argType.toString();
         ContextMapping contextMapping;
         if (GeolocationContextMapping.TYPE.equals(type)) {
             contextMapping = GeolocationContextMapping.load(name, config);
@@ -129,7 +129,7 @@ public abstract class ContextBuilder<E extends ContextMapping> {
         }
         config.remove(ContextMapping.FIELD_TYPE);
         DocumentMapperParser.checkNoRemainingFields(name, config, indexVersionCreated);
-        
+
         return contextMapping;
     }
 }

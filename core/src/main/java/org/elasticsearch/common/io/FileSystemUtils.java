@@ -100,7 +100,7 @@ public final class FileSystemUtils {
     }
 
     /**
-     * Appends the path to the given base and strips N elements off the path if strip is > 0.
+     * Appends the path to the given base and strips N elements off the path if strip is &gt; 0.
      */
     public static Path append(Path base, Path path, int strip) {
         for (Path subPath : path) {

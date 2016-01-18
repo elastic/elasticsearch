@@ -30,7 +30,7 @@ import static org.junit.Assert.assertThat;
 
 /**
  * Represents a length assert section:
- * <p/>
+ * <p>
  * - length:   { hits.hits: 1  }
  */
 public class LengthAssertion extends Assertion {

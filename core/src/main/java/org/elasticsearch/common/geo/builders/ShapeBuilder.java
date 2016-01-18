@@ -270,7 +270,7 @@ public abstract class ShapeBuilder implements ToXContent {
      * Create a new {@link ShapeBuilder} from {@link XContent}
      * @param parser parser to read the GeoShape from
      * @return {@link ShapeBuilder} read from the parser or null
-     *          if the parsers current token has been <code><null</code>
+     *          if the parsers current token has been <code>null</code>
      * @throws IOException if the input could not be read
      */
     public static ShapeBuilder parse(XContentParser parser) throws IOException {
@@ -284,7 +284,7 @@ public abstract class ShapeBuilder implements ToXContent {
      *                     to the shape construction process (e.g., orientation)
      *                     todo: refactor to place build specific parameters in the SpatialContext
      * @return {@link ShapeBuilder} read from the parser or null
-     *          if the parsers current token has been <code><null</code>
+     *          if the parsers current token has been <code>null</code>
      * @throws IOException if the input could not be read
      */
     public static ShapeBuilder parse(XContentParser parser, GeoShapeFieldMapper geoDocMapper) throws IOException {
@@ -385,7 +385,7 @@ public abstract class ShapeBuilder implements ToXContent {
 
     /**
      * Node used to represent a tree of coordinates.
-     * <p/>
+     * <p>
      * Can either be a leaf node consisting of a Coordinate, or a parent with
      * children
      */
@@ -606,7 +606,6 @@ public abstract class ShapeBuilder implements ToXContent {
 
         /**
          * Transforms coordinates in the eastern hemisphere (-180:0) to a (180:360) range 
-         * @param points
          */
         protected static void translate(Coordinate[] points) {
             for (Coordinate c : points) {
@@ -714,7 +713,6 @@ public abstract class ShapeBuilder implements ToXContent {
          * @param parser - parse utility object including source document
          * @param shapeMapper - field mapper needed for index specific parameters
          * @return ShapeBuilder - a builder instance used to create the geometry
-         * @throws IOException
          */
         public static ShapeBuilder parse(XContentParser parser, GeoShapeFieldMapper shapeMapper) throws IOException {
             if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {

@@ -214,7 +214,6 @@ public enum DistanceUnit {
      * 
      * @param out {@link StreamOutput} to write to
      * @param unit {@link DistanceUnit} to write 
-     * @throws IOException
      */
     public static void writeDistanceUnit(StreamOutput out, DistanceUnit unit) throws IOException {
         out.writeByte((byte) unit.ordinal());
@@ -226,7 +225,7 @@ public enum DistanceUnit {
      * @param in {@link StreamInput} to read the {@link DistanceUnit} from
      * @return {@link DistanceUnit} read from the {@link StreamInput}
      * @throws IOException if no unit can be read from the {@link StreamInput}
-     * @thrown ElasticsearchIllegalArgumentException if no matching {@link DistanceUnit} can be found
+     * @throws IllegalArgumentException if no matching {@link DistanceUnit} can be found
      */
     public static DistanceUnit readDistanceUnit(StreamInput in) throws IOException {
         byte b = in.readByte();

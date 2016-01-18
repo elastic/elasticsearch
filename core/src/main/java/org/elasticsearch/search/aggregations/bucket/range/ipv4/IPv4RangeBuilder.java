@@ -25,7 +25,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilderException;
 import static org.elasticsearch.index.mapper.ip.IpFieldMapper.cidrMaskToMinMax;
 
 /**
- * Builder for the {@link IPv4Range} aggregation.
+ * Builder for the {@code IPv4Range} aggregation.
  */
 public class IPv4RangeBuilder extends AbstractRangeBuilder<IPv4RangeBuilder> {
 
@@ -41,7 +41,7 @@ public class IPv4RangeBuilder extends AbstractRangeBuilder<IPv4RangeBuilder> {
      *
      * @param key  the key to use for this range in the response
      * @param from the lower bound on the distances, inclusive
-     * @parap to   the upper bound on the distances, exclusive
+     * @param to   the upper bound on the distances, exclusive
      */
     public IPv4RangeBuilder addRange(String key, String from, String to) {
         ranges.add(new Range(key, from, to));

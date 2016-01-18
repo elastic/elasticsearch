@@ -29,14 +29,14 @@ import java.io.IOException;
  * A Query builder which allows building a query given JSON string or binary data provided as input. This is useful when you want
  * to use the Java Builder API but still have JSON query strings at hand that you want to combine with other
  * query builders.
- * <p/>
+ * <p>
  * Example usage in a boolean query :
  * <pre>
- * {@code
+ * <code>
  *      BoolQueryBuilder bool = new BoolQueryBuilder();
  *      bool.must(new WrapperQueryBuilder("{\"term\": {\"field\":\"value\"}}");
  *      bool.must(new TermQueryBuilder("field2","value2");
- * }
+ * </code>
  * </pre>
  */
 public class WrapperQueryBuilder extends QueryBuilder {

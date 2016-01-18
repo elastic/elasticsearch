@@ -60,14 +60,14 @@ import java.util.Locale;
  * This parser parses this kind of input
  *
  * <pre>
- * {@code}
+ * <code>
  * {
  *      "fieldname1" : {
  *          "origin" = "someValue",
  *          "scale" = "someValue"
  *      }
  *
- * }
+ * </code>
  * </pre>
  *
  * "origin" here refers to the reference point and "scale" to the level of
@@ -89,8 +89,8 @@ import java.util.Locale;
  * <p>
  * See {@link GaussDecayFunctionBuilder} and {@link GaussDecayFunctionParser}
  * for an example. The parser furthermore needs to be registered in the
- * {@link org.elasticsearch.index.query.functionscore.FunctionScoreModule
- * FunctionScoreModule}.
+ * {@link org.elasticsearch.index.query.functionscore.ScoreFunctionParserMapper
+ * ScoreFunctionParserMapper}.
  *
  * **/
 
@@ -107,7 +107,7 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
      * Parses bodies of the kind
      *
      * <pre>
-     * {@code}
+     * <code>
      * {
      *      "fieldname1" : {
      *          "origin" = "someValue",
@@ -115,6 +115,7 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
      *      }
      *
      * }
+     * </code>
      * </pre>
      *
      * */

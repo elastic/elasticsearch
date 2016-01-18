@@ -43,7 +43,7 @@ import java.util.*;
 /**
  * Allows to asynchronously fetch shard related data from other nodes for allocation, without blocking
  * the cluster update thread.
- * <p/>
+ * <p>
  * The async fetch logic maintains a map of which nodes are being fetched from in an async manner,
  * and once the results are back, it makes sure to schedule a reroute to make sure those results will
  * be taken into account.
@@ -93,7 +93,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
     /**
      * Fetches the data for the relevant shard. If there any ongoing async fetches going on, or new ones have
      * been initiated by this call, the result will have no data.
-     * <p/>
+     * <p>
      * The ignoreNodes are nodes that are supposed to be ignored for this round, since fetching is async, we need
      * to keep them around and make sure we add them back when all the responses are fetched and returned.
      */

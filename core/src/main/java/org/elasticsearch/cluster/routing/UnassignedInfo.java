@@ -47,7 +47,7 @@ public class UnassignedInfo implements ToXContent, Writeable<UnassignedInfo> {
 
     /**
      * Reason why the shard is in unassigned state.
-     * <p/>
+     * <p>
      * Note, ordering of the enum is important, make sure to add new values
      * at the end and handle version serialization properly.
      */

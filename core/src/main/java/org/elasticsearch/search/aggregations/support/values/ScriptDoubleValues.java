@@ -29,7 +29,7 @@ import java.util.Collection;
 import java.util.Iterator;
 
 /**
- * {@link DoubleValues} implementation which is based on a script
+ * {@link SortingNumericDoubleValues} implementation which is based on a script
  */
 public class ScriptDoubleValues extends SortingNumericDoubleValues implements ScorerAware {
 

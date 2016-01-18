@@ -72,7 +72,7 @@ public abstract class AbstractResourceWatcher<Listener> implements ResourceWatch
 
     /**
      * Will be called periodically
-     * <p/>
+     * <p>
      * Implementing watcher should check resource and notify all {@link #listeners()}.
      */
     protected abstract void doCheckAndNotify() throws IOException;

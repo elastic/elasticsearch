@@ -71,7 +71,6 @@ public class BlockingClusterStatePublishResponseHandler {
      * Allows to wait for all non master nodes to reply to the publish event up to a timeout
      * @param timeout the timeout
      * @return true if the timeout expired or not, false otherwise
-     * @throws InterruptedException
      */
     public boolean awaitAllNodes(TimeValue timeout) throws InterruptedException {
         boolean success = latch.await(timeout.millis(), TimeUnit.MILLISECONDS);

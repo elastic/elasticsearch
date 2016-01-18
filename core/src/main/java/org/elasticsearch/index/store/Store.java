@@ -71,7 +71,7 @@ import java.util.zip.Checksum;
  * This class also provides access to metadata information like checksums for committed files. A committed
  * file is a file that belongs to a segment written by a Lucene commit. Files that have not been committed
  * ie. created during a merge or a shard refresh / NRT reopen are not considered in the MetadataSnapshot.
- * <p/>
+ * <p>
  * Note: If you use a store it's reference count should be increased before using it by calling #incRef and a
  * corresponding #decRef must be called in a try/finally block to release the store again ie.:
  * <pre>
@@ -304,7 +304,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * corresponding {@link #decRef}, in a finally clause; otherwise the store may never be closed.  Note that
      * {@link #close} simply calls decRef(), which means that the Store will not really be closed until {@link
      * #decRef} has been called for all outstanding references.
-     * <p/>
+     * <p>
      * Note: Close can safely be called multiple times.
      *
      * @throws AlreadyClosedException iff the reference counter can not be incremented.
@@ -323,7 +323,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * corresponding {@link #decRef}, in a finally clause; otherwise the store may never be closed.  Note that
      * {@link #close} simply calls decRef(), which means that the Store will not really be closed until {@link
      * #decRef} has been called for all outstanding references.
-     * <p/>
+     * <p>
      * Note: Close can safely be called multiple times.
      *
      * @see #decRef()
@@ -418,7 +418,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * The returned IndexOutput might validate the files checksum if the file has been written with a newer lucene version
      * and the metadata holds the necessary information to detect that it was been written by Lucene 4.8 or newer. If it has only
      * a legacy checksum, returned IndexOutput will not verify the checksum.
-     * <p/>
+     * <p>
      * Note: Checksums are calculated nevertheless since lucene does it by default sicne version 4.8.0. This method only adds the
      * verification against the checksum in the given metadata and does not add any significant overhead.
      */
@@ -728,7 +728,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * Only files that are part of the last commit are considered in this datastrucutre.
      * For backwards compatibility the snapshot might include legacy checksums that
      * are derived from a dedicated checksum file written by older elasticsearch version pre 1.3
-     * <p/>
+     * <p>
      * Note: This class will ignore the <tt>segments.gen</tt> file since it's optional and might
      * change concurrently for safety reasons.
      *
@@ -872,13 +872,12 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
         /**
          * Reads legacy checksum files found in the directory.
-         * <p/>
+         * <p>
          * Files are expected to start with _checksums- prefix
          * followed by long file version. Only file with the highest version is read, all other files are ignored.
          *
          * @param directory the directory to read checksums from
          * @return a map of file checksums and the checksum file version
-         * @throws IOException
          */
         static Tuple<Map<String, String>, Long> readLegacyChecksums(Directory directory) throws IOException {
             synchronized (directory) {
@@ -907,7 +906,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
          *
          * @param directory  the directory to clean
          * @param newVersion the latest checksum file version
-         * @throws IOException
          */
         static void cleanLegacyChecksums(Directory directory, long newVersion) throws IOException {
             synchronized (directory) {
@@ -954,7 +952,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         }
 
         /**
-         * Computes a strong hash value for small files. Note that this method should only be used for files < 1MB
+         * Computes a strong hash value for small files. Note that this method should only be used for files &lt; 1MB
          */
         public static BytesRef hashFile(Directory directory, String file) throws IOException {
             final BytesRefBuilder fileHash = new BytesRefBuilder();
@@ -966,7 +964,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
 
         /**
-         * Computes a strong hash value for small files. Note that this method should only be used for files < 1MB
+         * Computes a strong hash value for small files. Note that this method should only be used for files &lt; 1MB
          */
         public static void hashFile(BytesRefBuilder fileHash, InputStream in, long size) throws IOException {
             final int len = (int) Math.min(1024 * 1024, size); // for safety we limit this to 1MB
@@ -1011,10 +1009,10 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
          * <li>all files in this segment have the same length</li>
          * <li>the segments <tt>.si</tt> files hashes are byte-identical Note: This is a using a perfect hash function, The metadata transfers the <tt>.si</tt> file content as it's hash</li>
          * </ul>
-         * <p/>
+         * <p>
          * The <tt>.si</tt> file contains a lot of diagnostics including a timestamp etc. in the future there might be
          * unique segment identifiers in there hardening this method further.
-         * <p/>
+         * <p>
          * The per-commit files handles very similar. A commit is composed of the <tt>segments_N</tt> files as well as generational files like
          * deletes (<tt>_x_y.del</tt>) or field-info (<tt>_x_y.fnm</tt>) files. On a per-commit level files for a commit are treated
          * as identical iff:
@@ -1023,7 +1021,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
          * <li>all files belonging to this commit have the same length</li>
          * <li>the segments file <tt>segments_N</tt> files hashes are byte-identical Note: This is a using a perfect hash function, The metadata transfers the <tt>segments_N</tt> file content as it's hash</li>
          * </ul>
-         * <p/>
+         * <p>
          * NOTE: this diff will not contain the <tt>segments.gen</tt> file. This file is omitted on recovery.
          */
         public RecoveryDiff recoveryDiff(MetadataSnapshot recoveryTargetSnapshot) {
@@ -1338,7 +1336,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
     /**
      * Index input that calculates checksum as data is read from the input.
-     * <p/>
+     * <p>
      * This class supports random access (it is possible to seek backward and forward) in order to accommodate retry
      * mechanism that is used in some repository plugins (S3 for example). However, the checksum is only calculated on
      * the first read. All consecutive reads of the same data are not used to calculate the checksum.

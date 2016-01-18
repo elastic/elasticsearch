@@ -71,7 +71,7 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
      * original suggest text tokens. A value between 0 and 1 can be specified.
      * This value will be compared to the string distance result of each
      * candidate spelling correction.
-     * <p/>
+     * <p>
      * Default is <tt>0.5</tt>
      */
     public TermSuggestionBuilder setAccuracy(float accuracy) {
@@ -88,7 +88,7 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
      * <li><code>frequency</code> - Sort should first be based on document
      * frequency, then scotr and then the term itself.
      * </ol>
-     * <p/>
+     * <p>
      * What the score is depends on the suggester being used.
      */
     public TermSuggestionBuilder sort(String sort) {
@@ -145,7 +145,7 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
      * 0.4) or an absolute number to represent document frequencies. If an value
      * higher than 1 is specified then fractional can not be specified. Defaults
      * to <tt>0.01</tt>.
-     * <p/>
+     * <p>
      * This can be used to exclude high frequency terms from being suggested.
      * High frequency terms are usually spelled correctly on top of this this
      * also improves the suggest performance.

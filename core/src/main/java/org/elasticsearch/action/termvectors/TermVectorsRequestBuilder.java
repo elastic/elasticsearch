@@ -30,7 +30,7 @@ import java.util.Map;
 /**
  * The builder class for a term vector request.
  * Returns the term vector (doc frequency, positions, offsets) for a document.
- * <p/>
+ * <p>
  * Note, the {@code index}, {@code type} and {@code id} are
  * required.
  */

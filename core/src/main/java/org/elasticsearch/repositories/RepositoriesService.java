@@ -80,7 +80,7 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
 
     /**
      * Registers new repository in the cluster
-     * <p/>
+     * <p>
      * This method can be only called on the master node. It tries to create a new repository on the master
      * and if it was successful it adds new repository to cluster metadata.
      *
@@ -155,7 +155,7 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
     }
     /**
      * Unregisters repository in the cluster
-     * <p/>
+     * <p>
      * This method can be only called on the master node. It removes repository information from cluster metadata.
      *
      * @param request  unregister repository request
@@ -315,7 +315,7 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
 
     /**
      * Returns registered repository
-     * <p/>
+     * <p>
      * This method is called only on the master node
      *
      * @param repository repository name
@@ -332,7 +332,7 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
 
     /**
      * Returns registered index shard repository
-     * <p/>
+     * <p>
      * This method is called only on data nodes
      *
      * @param repository repository name
@@ -349,7 +349,7 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
 
     /**
      * Creates a new repository and adds it to the list of registered repositories.
-     * <p/>
+     * <p>
      * If a repository with the same name but different types or settings already exists, it will be closed and
      * replaced with the new repository. If a repository with the same name exists but it has the same type and settings
      * the new repository is ignored.

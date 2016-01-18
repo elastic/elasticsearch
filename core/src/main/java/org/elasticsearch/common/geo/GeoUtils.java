@@ -216,7 +216,7 @@ public class GeoUtils {
 
     /**
      * Normalize latitude to lie within the -90 to 90 (both inclusive) range.
-     * <p/>
+     * <p>
      * Note: You should not normalize longitude and latitude separately,
      * because when normalizing latitude it may be necessary to
      * add a shift of 180&deg; in the longitude.
@@ -240,7 +240,7 @@ public class GeoUtils {
     /**
      * Normalize the geo {@code Point} for its coordinates to lie within their
      * respective normalized ranges.
-     * <p/>
+     * <p>
      * Note: A shift of 180&deg; is applied in the longitude if necessary,
      * in order to normalize properly the latitude.
      *
@@ -253,9 +253,9 @@ public class GeoUtils {
     /**
      * Normalize the geo {@code Point} for the given coordinates to lie within
      * their respective normalized ranges.
-     * <p/>
+     * <p>
      * You can control which coordinate gets normalized with the two flags.
-     * <p/>
+     * <p>
      * Note: A shift of 180&deg; is applied in the longitude if necessary,
      * in order to normalize properly the latitude.
      * If normalizing latitude but not longitude, it is assumed that
@@ -325,9 +325,6 @@ public class GeoUtils {
      * 
      * @param parser {@link XContentParser} to parse the value from
      * @return new {@link GeoPoint} parsed from the parse
-     * 
-     * @throws IOException
-     * @throws org.elasticsearch.ElasticsearchParseException
      */
     public static GeoPoint parseGeoPoint(XContentParser parser) throws IOException, ElasticsearchParseException {
         return parseGeoPoint(parser, new GeoPoint());
@@ -346,9 +343,6 @@ public class GeoUtils {
      * @param parser {@link XContentParser} to parse the value from
      * @param point A {@link GeoPoint} that will be reset by the values parsed
      * @return new {@link GeoPoint} parsed from the parse
-     * 
-     * @throws IOException
-     * @throws org.elasticsearch.ElasticsearchParseException
      */
     public static GeoPoint parseGeoPoint(XContentParser parser, GeoPoint point) throws IOException, ElasticsearchParseException {
         double lat = Double.NaN;

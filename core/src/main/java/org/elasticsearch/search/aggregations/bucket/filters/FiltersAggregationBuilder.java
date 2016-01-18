@@ -50,7 +50,7 @@ public class FiltersAggregationBuilder extends AggregationBuilder<FiltersAggrega
     /**
      * Add a new filter with the given key.
      * NOTE: if a filter was already defined for this key, then this filter will replace it.
-     * NOTE: the same {@link FiltersBuilder} cannot have both keyed and non-keyed filters
+     * NOTE: the same {@link FiltersAggregationBuilder} cannot have both keyed and non-keyed filters
      */
     public FiltersAggregationBuilder filter(String key, QueryBuilder filter) {
         if (keyedFilters == null) {
@@ -62,7 +62,7 @@ public class FiltersAggregationBuilder extends AggregationBuilder<FiltersAggrega
 
     /**
      * Add a new filter with no key.
-     * NOTE: the same {@link FiltersBuilder} cannot have both keyed and non-keyed filters.
+     * NOTE: the same {@link FiltersAggregationBuilder} cannot have both keyed and non-keyed filters.
      */
     public FiltersAggregationBuilder filter(QueryBuilder filter) {
         if (nonKeyedFilters == null) {

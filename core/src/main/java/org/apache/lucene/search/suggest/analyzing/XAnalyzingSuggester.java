@@ -19,21 +19,37 @@
 package org.apache.lucene.search.suggest.analyzing;
 
 import com.carrotsearch.hppc.ObjectIntHashMap;
-
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.TokenStreamToAutomaton;
 import org.apache.lucene.search.suggest.InputIterator;
 import org.apache.lucene.search.suggest.Lookup;
-import org.apache.lucene.store.*;
-import org.apache.lucene.util.*;
+import org.apache.lucene.store.ByteArrayDataInput;
+import org.apache.lucene.store.ByteArrayDataOutput;
+import org.apache.lucene.store.DataInput;
+import org.apache.lucene.store.DataOutput;
+import org.apache.lucene.store.InputStreamDataInput;
+import org.apache.lucene.store.OutputStreamDataOutput;
+import org.apache.lucene.util.ArrayUtil;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
+import org.apache.lucene.util.CharsRefBuilder;
+import org.apache.lucene.util.IOUtils;
+import org.apache.lucene.util.IntsRef;
+import org.apache.lucene.util.IntsRefBuilder;
+import org.apache.lucene.util.OfflineSorter;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.LimitedFiniteStringsIterator;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.Transition;
-import org.apache.lucene.util.fst.*;
+import org.apache.lucene.util.fst.Builder;
+import org.apache.lucene.util.fst.ByteSequenceOutputs;
+import org.apache.lucene.util.fst.FST;
 import org.apache.lucene.util.fst.FST.BytesReader;
+import org.apache.lucene.util.fst.PairOutputs;
 import org.apache.lucene.util.fst.PairOutputs.Pair;
+import org.apache.lucene.util.fst.PositiveIntOutputs;
+import org.apache.lucene.util.fst.Util;
 import org.apache.lucene.util.fst.Util.Result;
 import org.apache.lucene.util.fst.Util.TopResults;
 import org.elasticsearch.common.collect.HppcMaps;
@@ -43,7 +59,14 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashSet;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Set;
 
 /**
  * Suggester that first analyzes the surface form, adds the
@@ -54,7 +77,7 @@ import java.util.*;
  *
  * <p>
  * This can result in powerful suggester functionality.  For
- * example, if you use an analyzer removing stop words, 
+ * example, if you use an analyzer removing stop words,
  * then the partial text "ghost chr..." could see the
  * suggestion "The Ghost of Christmas Past".  Note that
  * position increments MUST NOT be preserved for this example
@@ -94,49 +117,47 @@ import java.util.*;
  *   <li> Lookups with the empty string return no results
  *        instead of all results.
  * </ul>
- * 
- * @lucene.experimental
  */
 public class XAnalyzingSuggester extends Lookup {
 
   /**
-   * FST<Weight,Surface>: 
+   * FST&lt;Weight,Surface&gt;:
    *  input is the analyzed form, with a null byte between terms
    *  weights are encoded as costs: (Integer.MAX_VALUE-weight)
    *  surface is the original, unanalyzed form.
    */
   private FST<Pair<Long,BytesRef>> fst = null;
-  
-  /** 
+
+  /**
    * Analyzer that will be used for analyzing suggestions at
    * index time.
    */
   private final Analyzer indexAnalyzer;
 
-  /** 
+  /**
    * Analyzer that will be used for analyzing suggestions at
    * query time.
    */
   private final Analyzer queryAnalyzer;
-  
-  /** 
+
+  /**
    * True if exact match suggestions should always be returned first.
    */
   private final boolean exactFirst;
-  
-  /** 
+
+  /**
    * True if separator between tokens should be preserved.
    */
   private final boolean preserveSep;
 
-  /** Include this flag in the options parameter to {@link
+  /** Include this flag in the options parameter to {@code
    *  #XAnalyzingSuggester(Analyzer,Analyzer,int,int,int,boolean,FST,boolean,int,int,int,int,int)} to always
    *  return the exact match first, regardless of score.  This
    *  has no performance impact but could result in
    *  low-quality suggestions. */
   public static final int EXACT_FIRST = 1;
 
-  /** Include this flag in the options parameter to {@link
+  /** Include this flag in the options parameter to {@code
    *  #XAnalyzingSuggester(Analyzer,Analyzer,int,int,int,boolean,FST,boolean,int,int,int,int,int)} to preserve
    *  token separators when matching. */
   public static final int PRESERVE_SEP = 2;
@@ -173,7 +194,7 @@ public class XAnalyzingSuggester extends Lookup {
 
   public static final int PAYLOAD_SEP = '\u001F';
   public static final int HOLE_CHARACTER = '\u001E';
-  
+
   private final Automaton queryPrefix;
 
   /** Whether position holes should appear in the automaton. */
@@ -182,19 +203,24 @@ public class XAnalyzingSuggester extends Lookup {
   /** Number of entries the lookup was built with */
   private long count = 0;
 
-    /**
-   * Calls {@link #XAnalyzingSuggester(Analyzer,Analyzer,int,int,int,boolean,FST,boolean,int,int,int,int,int)
+  /**
+   * Calls {@code #XAnalyzingSuggester(Analyzer,Analyzer,int,int,int,boolean,FST,boolean,int,int,int,int,int)
    * AnalyzingSuggester(analyzer, analyzer, EXACT_FIRST |
    * PRESERVE_SEP, 256, -1)}
+   *
+   * @param analyzer Analyzer that will be used for analyzing suggestions while building the index.
    */
   public XAnalyzingSuggester(Analyzer analyzer) {
     this(analyzer, null, analyzer, EXACT_FIRST | PRESERVE_SEP, 256, -1, true, null, false, 0, SEP_LABEL, PAYLOAD_SEP, END_BYTE, HOLE_CHARACTER);
   }
 
   /**
-   * Calls {@link #XAnalyzingSuggester(Analyzer,Analyzer,int,int,int,boolean,FST,boolean,int,int,int,int,int)
+   * Calls {@code #XAnalyzingSuggester(Analyzer,Analyzer,int,int,int,boolean,FST,boolean,int,int,int,int,int)
    * AnalyzingSuggester(indexAnalyzer, queryAnalyzer, EXACT_FIRST |
    * PRESERVE_SEP, 256, -1)}
+   *
+   * @param indexAnalyzer Analyzer that will be used for analyzing suggestions while building the index.
+   * @param queryAnalyzer Analyzer that will be used for analyzing query text during lookup
    */
   public XAnalyzingSuggester(Analyzer indexAnalyzer, Analyzer queryAnalyzer) {
     this(indexAnalyzer, null, queryAnalyzer, EXACT_FIRST | PRESERVE_SEP, 256, -1, true, null, false, 0, SEP_LABEL, PAYLOAD_SEP, END_BYTE, HOLE_CHARACTER);
@@ -202,7 +228,7 @@ public class XAnalyzingSuggester extends Lookup {
 
   /**
    * Creates a new suggester.
-   * 
+   *
    * @param indexAnalyzer Analyzer that will be used for
    *   analyzing suggestions while building the index.
    * @param queryAnalyzer Analyzer that will be used for
@@ -219,7 +245,7 @@ public class XAnalyzingSuggester extends Lookup {
   public XAnalyzingSuggester(Analyzer indexAnalyzer, Automaton queryPrefix, Analyzer queryAnalyzer, int options, int maxSurfaceFormsPerAnalyzedForm, int maxGraphExpansions,
                              boolean preservePositionIncrements, FST<Pair<Long, BytesRef>> fst, boolean hasPayloads, int maxAnalyzedPathsForOneInput,
                              int sepLabel, int payloadSep, int endByte, int holeCharacter) {
-      // SIMON EDIT: I added fst, hasPayloads and maxAnalyzedPathsForOneInput 
+      // SIMON EDIT: I added fst, hasPayloads and maxAnalyzedPathsForOneInput
     this.indexAnalyzer = indexAnalyzer;
     this.queryAnalyzer = queryAnalyzer;
     this.fst = fst;
@@ -232,7 +258,7 @@ public class XAnalyzingSuggester extends Lookup {
 
     // FLORIAN EDIT: I added <code>queryPrefix</code> for context dependent suggestions
     this.queryPrefix = queryPrefix;
-    
+
     // NOTE: this is just an implementation limitation; if
     // somehow this is a problem we could fix it by using
     // more than one byte to disambiguate ... but 256 seems
@@ -259,7 +285,7 @@ public class XAnalyzingSuggester extends Lookup {
 public long ramBytesUsed() {
     return fst == null ? 0 : fst.ramBytesUsed();
   }
-  
+
   public int getMaxAnalyzedPathsForOneInput() {
       return maxAnalyzedPathsForOneInput;
   }
@@ -324,7 +350,7 @@ public long ramBytesUsed() {
     }
     return a;
   }
-  
+
   private int[] topoSortStates(Automaton a) {
       int[] states = new int[a.getNumStates()];
       final Set<Integer> visited = new HashSet<>();
@@ -391,7 +417,7 @@ public long ramBytesUsed() {
     tsta.setPreservePositionIncrements(preservePositionIncrements);
     return tsta;
   }
-  
+
   private static class AnalyzingComparator implements Comparator<BytesRef> {
 
     private final boolean hasPayloads;
@@ -476,7 +502,7 @@ public long ramBytesUsed() {
                 new LimitedFiniteStringsIterator(toAutomaton(surfaceForm, ts2a), maxGraphExpansions);
         for (IntsRef string; (string = finiteStrings.next()) != null; count++) {
           Util.toBytesRef(string, scratch);
-          
+
           // length of the analyzed text (FST input)
           if (scratch.length() > Short.MAX_VALUE-2) {
             throw new IllegalArgumentException("cannot handle analyzed forms > " + (Short.MAX_VALUE-2) + " in length (got " + scratch.length() + ")");
@@ -499,9 +525,9 @@ public long ramBytesUsed() {
           } else {
             payload = null;
           }
-          
+
           buffer = ArrayUtil.grow(buffer, requiredLength);
-          
+
           output.reset(buffer);
 
           output.writeShort(analyzedLength);
@@ -538,7 +564,7 @@ public long ramBytesUsed() {
       Files.delete(tempInput);
 
       reader = new OfflineSorter.ByteSequencesReader(tempSorted);
-     
+
       PairOutputs<Long,BytesRef> outputs = new PairOutputs<>(PositiveIntOutputs.getSingleton(), ByteSequenceOutputs.getSingleton());
       Builder<Pair<Long,BytesRef>> builder = new Builder<>(FST.INPUT_TYPE.BYTE1, outputs);
 
@@ -573,7 +599,7 @@ public long ramBytesUsed() {
           surface.offset = input.getPosition();
           surface.length = scratch.length() - surface.offset;
         }
-        
+
         if (previousAnalyzed == null) {
           previousAnalyzed = new BytesRefBuilder();
           previousAnalyzed.copyBytes(analyzed);
@@ -631,7 +657,7 @@ public long ramBytesUsed() {
       success = true;
     } finally {
       IOUtils.closeWhileHandlingException(reader, writer);
-        
+
       if (success) {
         IOUtils.deleteFilesIfExist(tempInput, tempSorted);
       } else {
@@ -745,7 +771,7 @@ public long ramBytesUsed() {
       final CharsRefBuilder spare = new CharsRefBuilder();
 
       //System.out.println("  now intersect exactFirst=" + exactFirst);
-    
+
       // Intersect automaton w/ suggest wFST and get all
       // prefix starting nodes & their outputs:
       //final PathIntersector intersector = getPathIntersector(lookupAutomaton, fst);
@@ -833,7 +859,7 @@ public long ramBytesUsed() {
             return false;
           }
           seen.add(output.output2);
-          
+
           if (!exactFirst) {
             return true;
           } else {
@@ -853,7 +879,7 @@ public long ramBytesUsed() {
       };
 
       prefixPaths = getFullPrefixPaths(prefixPaths, lookupAutomaton, fst);
-      
+
       for (FSTUtil.Path<Pair<Long,BytesRef>> path : prefixPaths) {
         searcher.addStartPaths(path.fstNode, path.output, true, path.input);
       }
@@ -959,7 +985,7 @@ public long ramBytesUsed() {
       // TODO: is there a Reader from a CharSequence?
       // Turn tokenstream into automaton:
       Automaton automaton = null;
-      
+
       try (TokenStream ts = queryAnalyzer.tokenStream("", key.toString())) {
           automaton = getTokenStreamToAutomaton().toAutomaton(ts);
       }
@@ -973,38 +999,52 @@ public long ramBytesUsed() {
       automaton = Operations.determinize(automaton, Integer.MAX_VALUE);
       return automaton;
   }
-  
-  
+
+
 
   /**
-   * Returns the weight associated with an input string,
-   * or null if it does not exist.
+   * Returns the weight associated with an input string, or null if it does not exist.
+   *
+   * Unsupported in this implementation (and will throw an {@link UnsupportedOperationException}).
+   *
+   * @param key input string
+   * @return the weight associated with the input string, or {@code null} if it does not exist.
    */
   public Object get(CharSequence key) {
     throw new UnsupportedOperationException();
   }
-  
-  /** cost -> weight */
+
+  /**
+   * cost -&gt; weight
+   *
+   * @param encoded Cost
+   * @return Weight
+   */
   public static int decodeWeight(long encoded) {
     return (int)(Integer.MAX_VALUE - encoded);
   }
-  
-  /** weight -> cost */
+
+  /**
+   * weight -&gt; cost
+   *
+   * @param value Weight
+   * @return Cost
+   */
   public static int encodeWeight(long value) {
     if (value < 0 || value > Integer.MAX_VALUE) {
       throw new UnsupportedOperationException("cannot encode value: " + value);
     }
     return Integer.MAX_VALUE - (int)value;
   }
-   
+
   static final Comparator<Pair<Long,BytesRef>> weightComparator = new Comparator<Pair<Long,BytesRef>> () {
     @Override
     public int compare(Pair<Long,BytesRef> left, Pair<Long,BytesRef> right) {
       return left.output1.compareTo(right.output1);
     }
   };
-  
-  
+
+
     public static class XBuilder {
         private Builder<Pair<Long, BytesRef>> builder;
         private int maxSurfaceFormsPerAnalyzedForm;
@@ -1030,11 +1070,11 @@ public long ramBytesUsed() {
             this.analyzed.grow(analyzed.length+2);
             this.analyzed.copyBytes(analyzed);
         }
-        
+
         private final static class SurfaceFormAndPayload implements Comparable<SurfaceFormAndPayload> {
             BytesRef payload;
             long weight;
-            
+
             public SurfaceFormAndPayload(BytesRef payload, long cost) {
                 super();
                 this.payload = payload;
@@ -1058,8 +1098,8 @@ public long ramBytesUsed() {
             int surfaceIndex = -1;
             long encodedWeight = cost == -1 ? cost : encodeWeight(cost);
             /*
-             * we need to check if we have seen this surface form, if so only use the 
-             * the surface form with the highest weight and drop the rest no matter if 
+             * we need to check if we have seen this surface form, if so only use the
+             * the surface form with the highest weight and drop the rest no matter if
              * the payload differs.
              */
             if (count >= maxSurfaceFormsPerAnalyzedForm) {
@@ -1082,7 +1122,7 @@ public long ramBytesUsed() {
                 surfaceCopy = BytesRef.deepCopyOf(surface);
                 seenSurfaceForms.put(surfaceCopy, surfaceIndex);
             }
-           
+
             BytesRef payloadRef;
             if (!hasPayloads) {
                 payloadRef = surfaceCopy;
@@ -1102,7 +1142,7 @@ public long ramBytesUsed() {
                 surfaceFormsAndPayload[surfaceIndex].weight = encodedWeight;
             }
         }
-        
+
         public void finishTerm(long defaultWeight) throws IOException {
             ArrayUtil.timSort(surfaceFormsAndPayload, 0, count);
             int deduplicator = 0;

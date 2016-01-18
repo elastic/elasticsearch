@@ -379,9 +379,6 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
     /**
      * Returns shards based on nodeAttributes given  such as node name , node attribute, node IP
      * Supports node specifications in cluster API
-     *
-     * @param nodeAttribute
-     * @param discoveryNodes
      */
     public ShardIterator onlyNodeSelectorActiveInitializingShardsIt(String nodeAttribute, DiscoveryNodes discoveryNodes) {
         ArrayList<ShardRouting> ordered = new ArrayList<>(activeShards.size() + allInitializingShards.size());

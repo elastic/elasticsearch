@@ -71,7 +71,7 @@ public class RestoreSnapshotRequestBuilder extends MasterNodeOperationRequestBui
 
     /**
      * Sets the list of indices that should be restored from snapshot
-     * <p/>
+     * <p>
      * The list of indices supports multi-index syntax. For example: "+test*" ,"-test42" will index all indices with
      * prefix "test" except index "test42". Aliases are not supported. An empty list or {"_all"} will restore all open
      * indices in the snapshot.
@@ -99,7 +99,7 @@ public class RestoreSnapshotRequestBuilder extends MasterNodeOperationRequestBui
 
     /**
      * Sets rename pattern that should be applied to restored indices.
-     * <p/>
+     * <p>
      * Indices that match the rename pattern will be renamed according to {@link #setRenameReplacement(String)}. The
      * rename pattern is applied according to the {@link java.util.regex.Matcher#appendReplacement(StringBuffer, String)}
      * The request will fail if two or more indices will be renamed into the same name.
@@ -114,7 +114,7 @@ public class RestoreSnapshotRequestBuilder extends MasterNodeOperationRequestBui
 
     /**
      * Sets rename replacement
-     * <p/>
+     * <p>
      * See {@link #setRenamePattern(String)} for more information.
      *
      * @param renameReplacement rename replacement
@@ -128,7 +128,7 @@ public class RestoreSnapshotRequestBuilder extends MasterNodeOperationRequestBui
 
     /**
      * Sets repository-specific restore settings.
-     * <p/>
+     * <p>
      * See repository documentation for more information.
      *
      * @param settings repository-specific snapshot settings
@@ -141,7 +141,7 @@ public class RestoreSnapshotRequestBuilder extends MasterNodeOperationRequestBui
 
     /**
      * Sets repository-specific restore settings.
-     * <p/>
+     * <p>
      * See repository documentation for more information.
      *
      * @param settings repository-specific snapshot settings
@@ -154,7 +154,7 @@ public class RestoreSnapshotRequestBuilder extends MasterNodeOperationRequestBui
 
     /**
      * Sets repository-specific restore settings in JSON, YAML or properties format
-     * <p/>
+     * <p>
      * See repository documentation for more information.
      *
      * @param source repository-specific snapshot settings
@@ -167,7 +167,7 @@ public class RestoreSnapshotRequestBuilder extends MasterNodeOperationRequestBui
 
     /**
      * Sets repository-specific restore settings
-     * <p/>
+     * <p>
      * See repository documentation for more information.
      *
      * @param source repository-specific snapshot settings
@@ -191,7 +191,7 @@ public class RestoreSnapshotRequestBuilder extends MasterNodeOperationRequestBui
 
     /**
      * If set to true the restore procedure will restore global cluster state.
-     * <p/>
+     * <p>
      * The global cluster state includes persistent settings and index template definitions.
      *
      * @param restoreGlobalState true if global state should be restored from the snapshot

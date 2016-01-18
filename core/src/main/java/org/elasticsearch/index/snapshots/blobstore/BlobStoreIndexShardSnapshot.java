@@ -236,7 +236,6 @@ public class BlobStoreIndexShardSnapshot implements ToXContent, FromXContentBuil
          * @param file    file info
          * @param builder XContent builder
          * @param params  parameters
-         * @throws IOException
          */
         public static void toXContent(FileInfo file, XContentBuilder builder, ToXContent.Params params) throws IOException {
             builder.startObject();
@@ -265,7 +264,6 @@ public class BlobStoreIndexShardSnapshot implements ToXContent, FromXContentBuil
          *
          * @param parser parser
          * @return file info
-         * @throws IOException
          */
         public static FileInfo fromXContent(XContentParser parser) throws IOException {
             XContentParser.Token token = parser.currentToken();
@@ -454,7 +452,6 @@ public class BlobStoreIndexShardSnapshot implements ToXContent, FromXContentBuil
      *
      * @param builder  XContent builder
      * @param params   parameters
-     * @throws IOException
      */
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -477,7 +474,6 @@ public class BlobStoreIndexShardSnapshot implements ToXContent, FromXContentBuil
      *
      * @param parser parser
      * @return shard snapshot metadata
-     * @throws IOException
      */
     public BlobStoreIndexShardSnapshot fromXContent(XContentParser parser, ParseFieldMatcher parseFieldMatcher) throws IOException {
 

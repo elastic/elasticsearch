@@ -105,7 +105,7 @@ public class MappingUpdatedAction extends AbstractComponent {
     }
 
     /**
-     * Same as {@link #updateMappingOnMasterSynchronously(String, String, String, Mapping, TimeValue)}
+     * Same as {@link #updateMappingOnMasterSynchronously(String, String, Mapping, TimeValue)}
      * using the default timeout.
      */
     public void updateMappingOnMasterSynchronously(String index, String type, Mapping mappingUpdate) throws Throwable {

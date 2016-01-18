@@ -52,7 +52,7 @@ public class AllocationExplanation implements Streamable {
         /**
          * Creates a new {@link NodeExplanation}
          *  
-         * @param node node referenced by {@link This} {@link NodeExplanation}
+         * @param node node referenced by this {@link NodeExplanation}
          * @param description a message associated with the given node 
          */
         public NodeExplanation(DiscoveryNode node, String description) {

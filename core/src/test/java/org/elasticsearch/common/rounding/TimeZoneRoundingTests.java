@@ -72,7 +72,7 @@ public class TimeZoneRoundingTests extends ESTestCase {
     }
 
     /**
-     * test TimeIntervalTimeZoneRounding, (interval < 12h) with time zone shift
+     * test TimeIntervalTimeZoneRounding, (interval &lt; 12h) with time zone shift
      */
     @Test
     public void testTimeIntervalTimeZoneRounding() {
@@ -88,7 +88,7 @@ public class TimeZoneRoundingTests extends ESTestCase {
     }
 
     /**
-     * test DayIntervalTimeZoneRounding, (interval >= 12h) with time zone shift
+     * test DayIntervalTimeZoneRounding, (interval &gt;= 12h) with time zone shift
      */
     @Test
     public void testDayIntervalTimeZoneRounding() {

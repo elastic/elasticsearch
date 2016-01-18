@@ -33,18 +33,16 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * A path that can be used to sort/order buckets (in some multi-bucket aggregations, eg terms & histogram) based on
+ * A path that can be used to sort/order buckets (in some multi-bucket aggregations, eg terms &amp; histogram) based on
  * sub-aggregations. The path may point to either a single-bucket aggregation or a metrics aggregation. If the path
  * points to a single-bucket aggregation, the sort will be applied based on the {@code doc_count} of the bucket. If this
  * path points to a metrics aggregation, if it's a single-value metrics (eg. avg, max, min, etc..) the sort will be
  * applied on that single value. If it points to a multi-value metrics, the path should point out what metric should be
  * the sort-by value.
- * <p/>
+ * <p>
  * The path has the following form:
- * <p/>
  * <center>{@code <aggregation_name>['>'<aggregation_name>*]['.'<metric_name>]}</center>
- * <p/>
- * <p/>
+ * <p>
  * Examples:
  *
  * <ul>

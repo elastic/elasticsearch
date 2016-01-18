@@ -44,7 +44,7 @@ public class GetSettingsRequestBuilder extends MasterNodeReadOperationRequestBui
 
     /**
      * Specifies what type of requested indices to ignore and wildcard indices expressions.
-     * <p/>
+     * <p>
      * For example indices that don't exist.
      */
     public GetSettingsRequestBuilder setIndicesOptions(IndicesOptions options) {

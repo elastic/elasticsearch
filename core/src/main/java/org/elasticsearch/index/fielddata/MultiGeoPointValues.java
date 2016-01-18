@@ -27,7 +27,7 @@ import org.elasticsearch.common.geo.GeoPoint;
  *   GeoPointValues values = ..;
  *   values.setDocId(docId);
  *   final int numValues = values.count();
- *   for (int i = 0; i < numValues; i++) {
+ *   for (int i = 0; i &lt; numValues; i++) {
  *       GeoPoint value = values.valueAt(i);
  *       // process value
  *   }

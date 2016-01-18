@@ -218,9 +218,9 @@ public enum FieldData {
 
     /**
      * Returns a single-valued view of the {@link SortedNumericDoubleValues},
-     * if it was previously wrapped with {@link #singleton(NumericDocValues, Bits)},
+     * if it was previously wrapped with {@link DocValues#singleton(NumericDocValues, Bits)},
      * or null.
-     * @see #unwrapSingletonBits(SortedNumericDocValues)
+     * @see DocValues#unwrapSingletonBits(SortedNumericDocValues)
      */
     public static NumericDoubleValues unwrapSingleton(SortedNumericDoubleValues values) {
         if (values instanceof SingletonSortedNumericDoubleValues) {

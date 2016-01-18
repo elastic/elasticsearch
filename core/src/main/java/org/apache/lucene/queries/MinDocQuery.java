@@ -36,7 +36,6 @@ public final class MinDocQuery extends Query {
 
     private final int minDoc;
 
-    /** Sole constructor. */
     public MinDocQuery(int minDoc) {
         this.minDoc = minDoc;
     }

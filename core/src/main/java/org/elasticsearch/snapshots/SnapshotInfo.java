@@ -131,7 +131,7 @@ public class SnapshotInfo implements ToXContent, Streamable {
 
     /**
      * Returns time when snapshot ended
-     * <p/>
+     * <p>
      * Can be 0L if snapshot is still running
      *
      * @return snapshot end time
@@ -310,7 +310,6 @@ public class SnapshotInfo implements ToXContent, Streamable {
      *
      * @param in stream input
      * @return deserialized snapshot info
-     * @throws IOException
      */
     public static SnapshotInfo readSnapshotInfo(StreamInput in) throws IOException {
         SnapshotInfo snapshotInfo = new SnapshotInfo();
@@ -323,7 +322,6 @@ public class SnapshotInfo implements ToXContent, Streamable {
      *
      * @param in stream input
      * @return deserialized snapshot info or null
-     * @throws IOException
      */
     public static SnapshotInfo readOptionalSnapshotInfo(StreamInput in) throws IOException {
         return in.readOptionalStreamable(new SnapshotInfo());

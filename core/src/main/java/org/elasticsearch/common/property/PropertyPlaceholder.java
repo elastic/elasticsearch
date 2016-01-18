@@ -30,8 +30,8 @@ import java.util.Set;
  * Utility class for working with Strings that have placeholder values in them. A placeholder takes the form
  * <tt>${name}</tt>. Using <tt>PropertyPlaceholder</tt> these placeholders can be substituted for
  * user-supplied values.
- * <p/>
- * <p> Values for substitution can be supplied using a {@link Properties} instance or using a
+ * <p>
+ * Values for substitution can be supplied using a {@link Properties} instance or using a
  * {@link PlaceholderResolver}.
  */
 public class PropertyPlaceholder {

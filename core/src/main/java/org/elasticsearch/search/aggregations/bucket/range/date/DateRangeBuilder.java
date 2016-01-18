@@ -24,7 +24,7 @@ import org.elasticsearch.search.aggregations.bucket.range.AbstractRangeBuilder;
 import java.io.IOException;
 
 /**
- * Builder for the {@link DateRange} aggregation.
+ * Builder for the {@code DateRange} aggregation.
  */
 public class DateRangeBuilder extends AbstractRangeBuilder<DateRangeBuilder> {
 
@@ -42,7 +42,7 @@ public class DateRangeBuilder extends AbstractRangeBuilder<DateRangeBuilder> {
      *
      * @param key  the key to use for this range in the response
      * @param from the lower bound on the distances, inclusive
-     * @parap to   the upper bound on the distances, exclusive
+     * @param to   the upper bound on the distances, exclusive
      */
     public DateRangeBuilder addRange(String key, Object from, Object to) {
         ranges.add(new Range(key, from, to));
@@ -50,7 +50,7 @@ public class DateRangeBuilder extends AbstractRangeBuilder<DateRangeBuilder> {
     }
 
     /**
-     * Same as {@link #addRange(String, double, double)} but the key will be
+     * Same as {@link #addRange(String, Object, Object)} but the key will be
      * automatically generated based on <code>from</code> and <code>to</code>.
      */
     public DateRangeBuilder addRange(Object from, Object to) {
@@ -69,7 +69,7 @@ public class DateRangeBuilder extends AbstractRangeBuilder<DateRangeBuilder> {
     }
 
     /**
-     * Same as {@link #addUnboundedTo(String, double)} but the key will be
+     * Same as {@link #addUnboundedTo(String, Object)} but the key will be
      * computed automatically.
      */
     public DateRangeBuilder addUnboundedTo(Object to) {
@@ -88,7 +88,7 @@ public class DateRangeBuilder extends AbstractRangeBuilder<DateRangeBuilder> {
     }
 
     /**
-     * Same as {@link #addUnboundedFrom(String, double)} but the key will be
+     * Same as {@link #addUnboundedFrom(String, Object)} but the key will be
      * computed automatically.
      */
     public DateRangeBuilder addUnboundedFrom(Object from) {

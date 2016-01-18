@@ -528,7 +528,7 @@ public class RecoveryState implements ToXContent, Streamable {
         /**
          * returns the total number of translog operations needed to be recovered at this moment.
          * Note that this can change as the number of operations grows during recovery.
-         * <p/>
+         * <p>
          * A value of -1 ({@link RecoveryState.Translog#UNKNOWN} is return if this is unknown (typically a gateway recovery)
          */
         public synchronized int totalOperations() {
@@ -543,7 +543,7 @@ public class RecoveryState implements ToXContent, Streamable {
         /**
          * returns the total number of translog operations to recovered, on the start of the recovery. Unlike {@link #totalOperations}
          * this does change during recovery.
-         * <p/>
+         * <p>
          * A value of -1 ({@link RecoveryState.Translog#UNKNOWN} is return if this is unknown (typically a gateway recovery)
          */
         public synchronized int totalOperationsOnStart() {

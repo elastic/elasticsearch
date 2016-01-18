@@ -56,7 +56,7 @@ public final class ShardCoreKeyMap {
 
     /**
      * Register a {@link LeafReader}. This is necessary so that the core cache
-     * key of this reader can be found later using {@link #getCoreCacheKeys(ShardId)}.
+     * key of this reader can be found later using {@link #getShardId(Object)}.
      */
     public void add(LeafReader reader) {
         final ShardId shardId = ShardUtils.extractShardId(reader);

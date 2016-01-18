@@ -34,15 +34,15 @@ import java.util.Set;
 /**
  * Factory that creates a {@link CJKBigramFilter} to form bigrams of CJK terms
  * that are generated from StandardTokenizer or ICUTokenizer.
- * <p/>
+ * <p>
  * CJK types are set by these tokenizers, but you can also use flags to
  * explicitly control which of the CJK scripts are turned into bigrams.
- * <p/>
+ * <p>
  * By default, when a CJK character has no adjacent characters to form a bigram,
  * it is output in unigram form. If you want to always output both unigrams and
  * bigrams, set the <code>outputUnigrams</code> flag. This can be used for a
  * combined unigram+bigram approach.
- * <p/>
+ * <p>
  * In all cases, all non-CJK input is passed thru unmodified.
  */
 public final class CJKBigramFilterFactory extends AbstractTokenFilterFactory {

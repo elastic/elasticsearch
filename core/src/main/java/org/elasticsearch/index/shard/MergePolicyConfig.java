@@ -79,7 +79,7 @@ import org.elasticsearch.index.settings.IndexSettingsService;
  * 
  *     Sets the allowed number of segments per tier. Smaller values mean more
  *     merging but fewer segments. Default is <code>10</code>. Note, this value needs to be
- *     >= than the <code>max_merge_at_once</code> otherwise you'll force too many merges to
+ *     &gt;= than the <code>max_merge_at_once</code> otherwise you'll force too many merges to
  *     occur.
  * 
  * <li><code>index.merge.policy.reclaim_deletes_weight</code>:

@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (C) 2006 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -29,21 +29,20 @@ import static com.google.common.base.Preconditions.checkNotNull;
 /**
  * Binding key consisting of an injection type and an optional annotation.
  * Matches the type and annotation at a point of injection.
- * <p/>
- * <p>For example, {@code Key.get(Service.class, Transactional.class)} will
+ * <p>
+ * For example, {@code Key.get(Service.class, Transactional.class)} will
  * match:
- * <p/>
  * <pre>
  *   {@literal @}Inject
  *   public void setService({@literal @}Transactional Service service) {
  *     ...
  *   }
  * </pre>
- * <p/>
- * <p>{@code Key} supports generic types via subclassing just like {@link
+ * <p>
+ * {@code Key} supports generic types via subclassing just like {@link
  * TypeLiteral}.
- * <p/>
- * <p>Keys do not differentiate between primitive types (int, char, etc.) and
+ * <p>
+ * Keys do not differentiate between primitive types (int, char, etc.) and
  * their correpsonding wrapper types (Integer, Character, etc.). Primitive
  * types will be replaced with their wrapper types when keys are created.
  *
@@ -58,15 +57,15 @@ public class Key<T> {
 
     /**
      * Constructs a new key. Derives the type from this class's type parameter.
-     * <p/>
-     * <p>Clients create an empty anonymous subclass. Doing so embeds the type
+     * <p>
+     * Clients create an empty anonymous subclass. Doing so embeds the type
      * parameter in the anonymous class's type hierarchy so we can reconstitute it
      * at runtime despite erasure.
-     * <p/>
-     * <p>Example usage for a binding of type {@code Foo} annotated with
+     * <p>
+     * Example usage for a binding of type {@code Foo} annotated with
      * {@code @Bar}:
-     * <p/>
-     * <p>{@code new Key<Foo>(Bar.class) {}}.
+     * <p>
+     * {@code new Key<Foo>(Bar.class) {}}.
      */
     @SuppressWarnings("unchecked")
     protected Key(Class<? extends Annotation> annotationType) {
@@ -77,15 +76,15 @@ public class Key<T> {
 
     /**
      * Constructs a new key. Derives the type from this class's type parameter.
-     * <p/>
-     * <p>Clients create an empty anonymous subclass. Doing so embeds the type
+     * <p>
+     * Clients create an empty anonymous subclass. Doing so embeds the type
      * parameter in the anonymous class's type hierarchy so we can reconstitute it
      * at runtime despite erasure.
-     * <p/>
-     * <p>Example usage for a binding of type {@code Foo} annotated with
+     * <p>
+     * Example usage for a binding of type {@code Foo} annotated with
      * {@code @Bar}:
-     * <p/>
-     * <p>{@code new Key<Foo>(new Bar()) {}}.
+     * <p>
+     * {@code new Key<Foo>(new Bar()) {}}.
      */
     @SuppressWarnings("unchecked")
     protected Key(Annotation annotation) {
@@ -97,14 +96,14 @@ public class Key<T> {
 
     /**
      * Constructs a new key. Derives the type from this class's type parameter.
-     * <p/>
-     * <p>Clients create an empty anonymous subclass. Doing so embeds the type
+     * <p>
+     * Clients create an empty anonymous subclass. Doing so embeds the type
      * parameter in the anonymous class's type hierarchy so we can reconstitute it
      * at runtime despite erasure.
-     * <p/>
-     * <p>Example usage for a binding of type {@code Foo}:
-     * <p/>
-     * <p>{@code new Key<Foo>() {}}.
+     * <p>
+     * Example usage for a binding of type {@code Foo}:
+     * <p>
+     * {@code new Key<Foo>() {}}.
      */
     @SuppressWarnings("unchecked")
     protected Key() {

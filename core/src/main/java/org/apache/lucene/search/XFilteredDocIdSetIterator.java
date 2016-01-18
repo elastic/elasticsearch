@@ -54,7 +54,7 @@ public abstract class XFilteredDocIdSetIterator extends DocIdSetIterator {
    * Validation method to determine whether a docid should be in the result set.
    * @param doc docid to be tested
    * @return true if input docid should be in the result set, false otherwise.
-   * @see #FilteredDocIdSetIterator(DocIdSetIterator)
+   * @see #XFilteredDocIdSetIterator(DocIdSetIterator)
    * @throws CollectionTerminatedException if the underlying iterator is exhausted.
    */
   protected abstract boolean match(int doc);

@@ -41,7 +41,6 @@ import static org.elasticsearch.search.Scroll.readScroll;
  * Used by warmers and by api that need to create a search context within their execution.
  *
  * Source structure:
- * <p/>
  * <pre>
  * {
  *  from : 0, size : 20, (optional, can be set on the request)

@@ -108,7 +108,6 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
     /**
      * Sets the list of snapshots to be returned
      *
-     * @param snapshots
      * @return this request
      */
     public GetSnapshotsRequest snapshots(String[] snapshots) {

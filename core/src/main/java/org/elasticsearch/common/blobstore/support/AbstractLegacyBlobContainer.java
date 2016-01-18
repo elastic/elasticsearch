@@ -41,7 +41,7 @@ public abstract class AbstractLegacyBlobContainer extends AbstractBlobContainer 
 
     /**
      * Creates a new {@link InputStream} for the given blob name
-     * <p/>
+     * <p>
      * This method is deprecated and is used only for compatibility with older blob containers
      * The new blob containers should use readBlob/writeBlob methods instead
      */
@@ -50,7 +50,7 @@ public abstract class AbstractLegacyBlobContainer extends AbstractBlobContainer 
 
     /**
      * Creates a new OutputStream for the given blob name
-     * <p/>
+     * <p>
      * This method is deprecated and is used only for compatibility with older blob containers
      * The new blob containers should override readBlob/writeBlob methods instead
      */

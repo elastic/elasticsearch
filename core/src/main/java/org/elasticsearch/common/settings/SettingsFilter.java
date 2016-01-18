@@ -50,8 +50,6 @@ public class SettingsFilter extends AbstractComponent {
 
     /**
      * Adds a new simple pattern to the list of filters
-     *
-     * @param pattern
      */
     public void addFilter(String pattern) {
         patterns.add(pattern);
@@ -59,8 +57,6 @@ public class SettingsFilter extends AbstractComponent {
 
     /**
      * Removes a simple pattern from the list of filters
-     *
-     * @param pattern
      */
     public void removeFilter(String pattern) {
         patterns.remove(pattern);

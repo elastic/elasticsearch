@@ -73,7 +73,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
     }
 
     /**
-     * Same as {@link #collectBucket(int, long)}, but doesn't check if the docCounts needs to be re-sized.
+     * Same as {@link #collectBucket(LeafBucketCollector, int, long)}, but doesn't check if the docCounts needs to be re-sized.
      */
     public final void collectExistingBucket(LeafBucketCollector subCollector, int doc, long bucketOrd) throws IOException {
         docCounts.increment(bucketOrd, 1);

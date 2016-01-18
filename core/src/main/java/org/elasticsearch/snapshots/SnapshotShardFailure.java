@@ -128,7 +128,6 @@ public class SnapshotShardFailure implements ShardOperationFailedException {
      *
      * @param in stream input
      * @return shard failure information
-     * @throws IOException
      */
     public static SnapshotShardFailure readSnapshotShardFailure(StreamInput in) throws IOException {
         SnapshotShardFailure exp = new SnapshotShardFailure();
@@ -165,7 +164,6 @@ public class SnapshotShardFailure implements ShardOperationFailedException {
      * @param snapshotShardFailure snapshot failure information
      * @param builder              XContent builder
      * @param params               additional parameters
-     * @throws IOException
      */
     public static void toXContent(SnapshotShardFailure snapshotShardFailure, XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
@@ -178,7 +176,6 @@ public class SnapshotShardFailure implements ShardOperationFailedException {
      *
      * @param parser JSON parser
      * @return snapshot failure information
-     * @throws IOException
      */
     public static SnapshotShardFailure fromXContent(XContentParser parser) throws IOException {
         SnapshotShardFailure snapshotShardFailure = new SnapshotShardFailure();

@@ -132,7 +132,6 @@ public class DateHistogramOffsetIT extends ESIntegTestCase {
 
     /**
      * Set offset so day buckets start at 6am. Index first 12 hours for two days, with one day gap.
-     * @throws Exception
      */
     @Test
     public void singleValue_WithOffset_MinDocCount() throws Exception {

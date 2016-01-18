@@ -34,7 +34,7 @@ public interface HashFunction {
     /**
      * Calculate a hash value for routing and its type
      * @param type types name
-     * @param routing String to calculate the hash value from 
+     * @param id String to calculate the hash value from 
      * @return hash value of the given type and routing string
      */
     @Deprecated

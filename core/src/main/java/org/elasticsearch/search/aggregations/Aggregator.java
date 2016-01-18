@@ -40,7 +40,7 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
     /**
      * Parses the aggregation request and creates the appropriate aggregator factory for it.
      *
-     * @see {@link AggregatorFactory}
+     * @see AggregatorFactory
     */
     public interface Parser {
 

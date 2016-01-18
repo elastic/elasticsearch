@@ -145,7 +145,7 @@ public interface ClusterService extends LifecycleComponent<ClusterService> {
     /**
      * Returns the maximum wait time for tasks in the queue
      *
-     * @returns A zero time value if the queue is empty, otherwise the time value oldest task waiting in the queue
+     * @return A zero time value if the queue is empty, otherwise the time value oldest task waiting in the queue
      */
     TimeValue getMaxTaskWaitTime();
 }

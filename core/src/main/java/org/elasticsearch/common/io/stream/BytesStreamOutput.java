@@ -28,8 +28,8 @@ import org.elasticsearch.common.util.ByteArray;
 import java.io.IOException;
 
 /**
- * A @link {@link StreamOutput} that uses{@link BigArrays} to acquire pages of
- * bytes, which avoids frequent reallocation & copying of the internal data.
+ * A @link {@link StreamOutput} that uses {@link BigArrays} to acquire pages of
+ * bytes, which avoids frequent reallocation &amp; copying of the internal data.
  */
 public class BytesStreamOutput extends StreamOutput implements BytesStream {
 

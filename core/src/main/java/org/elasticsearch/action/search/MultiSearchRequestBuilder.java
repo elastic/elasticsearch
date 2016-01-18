@@ -35,7 +35,7 @@ public class MultiSearchRequestBuilder extends ActionRequestBuilder<MultiSearchR
     /**
      * Add a search request to execute. Note, the order is important, the search response will be returned in the
      * same order as the search requests.
-     * <p/>
+     * <p>
      * If ignoreIndices has been set on the search request, then the indicesOptions of the multi search request
      * will not be used (if set).
      */
@@ -64,7 +64,7 @@ public class MultiSearchRequestBuilder extends ActionRequestBuilder<MultiSearchR
     /**
      * Specifies what type of requested indices to ignore and how to deal with wildcard indices expressions.
      * For example indices that don't exist.
-     * <p/>
+     * <p>
      * Invoke this method before invoking {@link #add(SearchRequestBuilder)}.
      */
     public MultiSearchRequestBuilder setIndicesOptions(IndicesOptions indicesOptions) {

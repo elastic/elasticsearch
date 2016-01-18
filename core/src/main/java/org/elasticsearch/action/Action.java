@@ -33,6 +33,9 @@ public abstract class Action<Request extends ActionRequest, Response extends Act
 
     /**
      * Creates a new request builder given the client provided as argument
+     *
+     * @param client An initialized {@link ElasticsearchClient}
+     * @return An initialized {@link RequestBuilder} instance
      */
     public abstract RequestBuilder newRequestBuilder(ElasticsearchClient client);
 }

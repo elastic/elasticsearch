@@ -341,7 +341,6 @@ public abstract class QueryBuilders {
      *
      * @param multiTermQueryBuilder The {@link MultiTermQueryBuilder} that
      *                              backs the created builder.
-     * @return
      */
 
     public static SpanMultiTermQueryBuilder spanMultiTermQueryBuilder(MultiTermQueryBuilder multiTermQueryBuilder) {
@@ -791,7 +790,7 @@ public abstract class QueryBuilders {
 
     /**
      * Create a new {@link AndQueryBuilder} composed of the given filters.
-     * @deprecated Use {@link #boolQuery().mustNot()} instead
+     * @deprecated Use {@link BoolQueryBuilder#mustNot(QueryBuilder)} instead
      */
     @Deprecated
     public static AndQueryBuilder andQuery(QueryBuilder... filters) {

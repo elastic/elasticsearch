@@ -332,9 +332,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         }
 
         response = client().admin().indices().prepareGetTemplates().get();
-        assertThat(response.getIndexTemplates(), hasSize(1));
-        assertThat(response.getIndexTemplates().get(0).getSettings().getAsMap().size(), equalTo(1));
-        assertNull(response.getIndexTemplates().get(0).getSettings().get("index.does_not_exist"));
+        assertEquals(0, response.getIndexTemplates().size());
 
         createIndex("test");
 

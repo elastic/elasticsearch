@@ -95,7 +95,7 @@ public final class MockEngineSupport {
         shardId = config.getShardId();
         filterCache = config.getQueryCache();
         filterCachingPolicy = config.getQueryCachingPolicy();
-        final long seed = settings.getAsLong(ESIntegTestCase.SETTING_INDEX_SEED, 0l);
+        final long seed =  config.getIndexSettings().getValue(ESIntegTestCase.INDEX_TEST_SEED_SETTING);
         Random random = new Random(seed);
         final double ratio = WRAP_READER_RATIO.get(settings);
         boolean wrapReader = random.nextDouble() < ratio;

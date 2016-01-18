@@ -25,6 +25,7 @@ import org.apache.lucene.index.SnapshotDeletionPolicy;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.similarities.Similarity;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -68,7 +69,7 @@ public final class EngineConfig {
      * Index setting to change the low level lucene codec used for writing new segments.
      * This setting is <b>not</b> realtime updateable.
      */
-    public static final String INDEX_CODEC_SETTING = "index.codec";
+    public static final Setting<String> INDEX_CODEC_SETTING = new Setting<>("index.codec", EngineConfig.DEFAULT_CODEC_NAME, (s) -> { if (s.isEmpty()) {throw new IllegalArgumentException("index.codec must not be empty");} return s;}, false, Setting.Scope.INDEX);
 
     /** if set to true the engine will start even if the translog id in the commit point can not be found */
     public static final String INDEX_FORCE_NEW_TRANSLOG = "index.engine.force_new_translog";
@@ -97,7 +98,7 @@ public final class EngineConfig {
         this.similarity = similarity;
         this.codecService = codecService;
         this.eventListener = eventListener;
-        codecName = settings.get(EngineConfig.INDEX_CODEC_SETTING, EngineConfig.DEFAULT_CODEC_NAME);
+        codecName = indexSettings.getValue(INDEX_CODEC_SETTING);
         // We give IndexWriter a "huge" (256 MB) buffer, so it won't flush on its own unless the ES indexing buffer is also huge and/or
         // there are not too many shards allocated to this node.  Instead, IndexingMemoryController periodically checks
         // and refreshes the most heap-consuming shards when total indexing heap usage across all shards is too high:

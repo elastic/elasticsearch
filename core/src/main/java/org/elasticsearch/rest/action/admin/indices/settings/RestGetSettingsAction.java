@@ -57,7 +57,7 @@ public class RestGetSettingsAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         final String[] names = request.paramAsStringArrayOrEmptyIfAll("name");
-        final boolean renderDefaults = request.paramAsBoolean("defaults", false);
+        final boolean renderDefaults = request.paramAsBoolean("include_defaults", false);
         GetSettingsRequest getSettingsRequest = new GetSettingsRequest()
                 .indices(Strings.splitStringByCommaToArray(request.param("index")))
                 .indicesOptions(IndicesOptions.fromRequest(request, IndicesOptions.strictExpandOpen()))

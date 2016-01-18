@@ -237,7 +237,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         /* create engine config */
         logger.debug("state: [CREATED]");
 
-        this.checkIndexOnStartup = settings.get("index.shard.check_on_startup", "false");
+        this.checkIndexOnStartup = indexSettings.getValue(IndexSettings.INDEX_CHECK_ON_STARTUP);
         this.translogConfig = new TranslogConfig(shardId, shardPath().resolveTranslog(), indexSettings,
             provider.getBigArrays());
         final QueryCachingPolicy cachingPolicy;
@@ -1208,7 +1208,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         BytesStreamOutput os = new BytesStreamOutput();
         PrintStream out = new PrintStream(os, false, StandardCharsets.UTF_8.name());
 
-        if ("checksum".equalsIgnoreCase(checkIndexOnStartup)) {
+        if ("checksum".equals(checkIndexOnStartup)) {
             // physical verification only: verify all checksums for the latest commit
             IOException corrupt = null;
             MetadataSnapshot metadata = store.getMetadata();
@@ -1240,7 +1240,7 @@ public class IndexShard extends AbstractIndexShardComponent {
                         return;
                     }
                     logger.warn("check index [failure]\n{}", new String(os.bytes().toBytes(), StandardCharsets.UTF_8));
-                    if ("fix".equalsIgnoreCase(checkIndexOnStartup)) {
+                    if ("fix".equals(checkIndexOnStartup)) {
                         if (logger.isDebugEnabled()) {
                             logger.debug("fixing index, writing new segments file ...");
                         }

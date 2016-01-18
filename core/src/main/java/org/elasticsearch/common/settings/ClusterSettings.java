@@ -39,6 +39,7 @@ import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.gateway.PrimaryShardAllocator;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.store.IndexStoreConfig;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
@@ -62,7 +63,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
     public ClusterSettings(Settings settings, Set<Setting<?>> settingsSet) {
         super(settings, settingsSet, Setting.Scope.CLUSTER);
     }
-
 
     @Override
     public synchronized Settings applySettings(Settings newSettings) {
@@ -156,5 +156,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_TYPE_SETTING,
         Transport.TRANSPORT_PROFILES_SETTING,
         Transport.TRANSPORT_TCP_COMPRESS,
+        IndexSettings.QUERY_STRING_ANALYZE_WILDCARD,
+        IndexSettings.QUERY_STRING_ALLOW_LEADING_WILDCARD,
         PrimaryShardAllocator.NODE_INITIAL_SHARDS_SETTING)));
 }

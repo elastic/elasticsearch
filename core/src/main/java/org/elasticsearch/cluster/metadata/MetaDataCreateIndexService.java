@@ -177,9 +177,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
     public void createIndex(final CreateIndexClusterStateUpdateRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
         Settings.Builder updatedSettingsBuilder = Settings.settingsBuilder();
         updatedSettingsBuilder.put(request.settings()).normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX);
-        for (Map.Entry<String, String> entry : updatedSettingsBuilder.internalMap().entrySet()) {
-            indexScopeSettings.validate(entry.getKey(), entry.getValue());
-        }
+        indexScopeSettings.validate(updatedSettingsBuilder);
         request.settings(updatedSettingsBuilder.build());
 
         clusterService.submitStateUpdateTask("create-index [" + request.index() + "], cause [" + request.cause() + "]",

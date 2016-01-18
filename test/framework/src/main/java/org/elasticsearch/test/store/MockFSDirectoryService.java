@@ -82,7 +82,7 @@ public class MockFSDirectoryService extends FsDirectoryService {
     public MockFSDirectoryService(IndexSettings idxSettings, IndexStore indexStore, final ShardPath path) {
         super(idxSettings, indexStore, path);
         Settings indexSettings = idxSettings.getSettings();
-        final long seed = indexSettings.getAsLong(ESIntegTestCase.SETTING_INDEX_SEED, 0l);
+        final long seed = idxSettings.getValue(ESIntegTestCase.INDEX_TEST_SEED_SETTING);
         this.random = new Random(seed);
 
         randomIOExceptionRate = RANDOM_IO_EXCEPTION_RATE_SETTING.get(indexSettings);

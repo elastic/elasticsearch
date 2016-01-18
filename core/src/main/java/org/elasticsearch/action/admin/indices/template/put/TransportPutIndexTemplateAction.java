@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaDataIndexTemplateService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.IndexScopeSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -38,13 +39,15 @@ import org.elasticsearch.transport.TransportService;
 public class TransportPutIndexTemplateAction extends TransportMasterNodeAction<PutIndexTemplateRequest, PutIndexTemplateResponse> {
 
     private final MetaDataIndexTemplateService indexTemplateService;
+    private final IndexScopeSettings indexScopeSettings;
 
     @Inject
     public TransportPutIndexTemplateAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                            ThreadPool threadPool, MetaDataIndexTemplateService indexTemplateService,
-                                           ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+                                           ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, IndexScopeSettings indexScopeSettings) {
         super(settings, PutIndexTemplateAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, PutIndexTemplateRequest::new);
         this.indexTemplateService = indexTemplateService;
+        this.indexScopeSettings = indexScopeSettings;
     }
 
     @Override
@@ -69,7 +72,7 @@ public class TransportPutIndexTemplateAction extends TransportMasterNodeAction<P
         if (cause.length() == 0) {
             cause = "api";
         }
-
+        indexScopeSettings.validate(request.settings());
         indexTemplateService.putTemplate(new MetaDataIndexTemplateService.PutRequest(cause, request.name())
                 .template(request.template())
                 .order(request.order())

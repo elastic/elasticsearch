@@ -227,7 +227,7 @@ public class RandomExceptionCircuitBreakerIT extends ESIntegTestCase {
             private final double lowLevelRatio;
 
             ThrowingSubReaderWrapper(Settings settings) {
-                final long seed = settings.getAsLong(SETTING_INDEX_SEED, 0l);
+                final long seed = ESIntegTestCase.INDEX_TEST_SEED_SETTING.get(settings);
                 this.topLevelRatio = EXCEPTION_TOP_LEVEL_RATIO_SETTING.get(settings);
                 this.lowLevelRatio = EXCEPTION_LOW_LEVEL_RATIO_SETTING.get(settings);
                 this.random = new Random(seed);

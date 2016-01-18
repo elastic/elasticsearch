@@ -75,6 +75,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -161,6 +162,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BooleanSupplier;
+import java.util.function.Function;
 
 import static org.elasticsearch.client.Requests.syncedFlushRequest;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
@@ -268,7 +270,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * The value of this seed can be used to initialize a random context for a specific index.
      * It's set once per test via a generic index template.
      */
-    public static final String SETTING_INDEX_SEED = "index.tests.seed";
+    public static final Setting<Long> INDEX_TEST_SEED_SETTING = Setting.longSetting("index.tests.seed", 0, Long.MIN_VALUE, false, Setting.Scope.INDEX);
 
     /**
      * A boolean value to enable or disable mock modules. This is useful to test the
@@ -367,8 +369,11 @@ public abstract class ESIntegTestCase extends ESTestCase {
         // TODO move settings for random directory etc here into the index based randomized settings.
         if (cluster().size() > 0) {
             Settings.Builder randomSettingsBuilder =
-                    setRandomIndexSettings(getRandom(), Settings.builder())
-                            .put(SETTING_INDEX_SEED, getRandom().nextLong());
+                    setRandomIndexSettings(getRandom(), Settings.builder());
+            if (isInternalCluster()) {
+                // this is only used by mock plugins and if the cluster is not internal we just can't set it
+                randomSettingsBuilder.put(INDEX_TEST_SEED_SETTING.getKey(), getRandom().nextLong());
+            }
 
             randomSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, numberOfShards())
                     .put(SETTING_NUMBER_OF_REPLICAS, numberOfReplicas());
@@ -475,7 +480,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         }
 
         if (random.nextBoolean()) {
-            builder.put("index.shard.check_on_startup", randomFrom(random, "false", "checksum", "true"));
+            builder.put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), randomFrom("false", "checksum", "true"));
         }
 
         if (randomBoolean()) {
@@ -505,7 +510,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
     private static Settings.Builder setRandomIndexNormsLoading(Random random, Settings.Builder builder) {
         if (random.nextBoolean()) {
-            builder.put(SearchService.NORMS_LOADING_KEY, RandomPicks.randomFrom(random, Arrays.asList(MappedFieldType.Loading.EAGER, MappedFieldType.Loading.LAZY)));
+            builder.put(SearchService.INDEX_NORMS_LOADING_SETTING.getKey(), RandomPicks.randomFrom(random, Arrays.asList(MappedFieldType.Loading.EAGER, MappedFieldType.Loading.LAZY)));
         }
         return builder;
     }
@@ -1824,7 +1829,23 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 mocks.add(AssertingLocalTransport.TestPlugin.class);
             }
         }
+        mocks.add(TestSeedPlugin.class);
         return Collections.unmodifiableList(mocks);
+    }
+
+    public static final class TestSeedPlugin extends Plugin {
+        @Override
+        public String name() {
+            return "test-seed-plugin";
+        }
+        @Override
+        public String description() {
+            return "a test plugin that registeres index.tests.seed as an index setting";
+        }
+        public void onModule(SettingsModule module) {
+            module.registerSetting(INDEX_TEST_SEED_SETTING);
+        }
+
     }
 
     /**

@@ -180,7 +180,7 @@ public class SearchWithRandomExceptionsIT extends ESIntegTestCase {
             private final double lowLevelRatio;
 
             ThrowingSubReaderWrapper(Settings settings) {
-                final long seed = settings.getAsLong(SETTING_INDEX_SEED, 0l);
+                final long seed = ESIntegTestCase.INDEX_TEST_SEED_SETTING.get(settings);
                 this.topLevelRatio = settings.getAsDouble(EXCEPTION_TOP_LEVEL_RATIO_KEY, 0.1d);
                 this.lowLevelRatio = settings.getAsDouble(EXCEPTION_LOW_LEVEL_RATIO_KEY, 0.1d);
                 this.random = new Random(seed);

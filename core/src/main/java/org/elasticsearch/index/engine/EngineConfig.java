@@ -78,6 +78,7 @@ public final class EngineConfig {
         switch(s) {
             case "default":
             case "best_compression":
+            case "lucene_default":
                 return s;
             default:
                 if (Codec.availableCodecs().contains(s) == false) { // we don't error message the not officially supported ones

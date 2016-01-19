@@ -23,7 +23,14 @@
   <!-- WARNING: AUTOMATICALLY GENERATED -->
   <!-- TO UPGRADE: run gradle install on master, add the generated dependencies from build/poms, remove all 'provided' dependencies -->
   <!--             also remove org.elasticsearch.test:framework -->
+  <!--             also remove guava (we must use the es version) -->
+  <!--             also add slf4j (make it a compile-time dep) -->
   <dependencies>
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-api</artifactId>
+      <scope>compile</scope>
+    </dependency>
     <dependency>
       <groupId>commons-io</groupId>
       <artifactId>commons-io</artifactId>

@@ -25,7 +25,6 @@ import org.apache.lucene.store.OutputStreamDataOutput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.util.Callback;
@@ -35,7 +34,9 @@ import org.elasticsearch.index.shard.ShardId;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
-import java.nio.file.*;
+import java.nio.file.OpenOption;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
@@ -137,7 +138,9 @@ public class TranslogWriter extends TranslogReader {
         try (ReleasableLock lock = writeLock.acquire()) {
             if (tragedy == null) {
                 tragedy = throwable;
-            } else {
+            } else if (tragedy != throwable) {
+                // it should be safe to call closeWithTragicEvents on multiple layers without
+                // worrying about self suppression.
                 tragedy.addSuppressed(throwable);
             }
             close();

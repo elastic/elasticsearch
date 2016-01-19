@@ -7,6 +7,9 @@ dependencies {
   testCompile project(path: ':x-plugins:elasticsearch:x-pack', configuration: 'runtime')
 }
 
+// needed to be consistent with ssl host checking
+String host = InetAddress.getLoopbackAddress().getHostAddress();
+
 // location of keystore and files to generate it
 File keystore = new File(project.buildDir, 'keystore/test-node.jks')
 
@@ -24,7 +27,7 @@ task createKey(type: LoggedExec) {
        '-keyalg', 'RSA',
        '-keysize', '2048',
        '-validity', '712',
-       '-dname', 'CN=localhost',
+       '-dname', 'CN=' + host,
        '-keypass', 'keypass',
        '-storepass', 'keypass'
 }
@@ -42,7 +45,7 @@ project.rootProject.subprojects.findAll { it.path.startsWith(':plugins:') }.each
 
 integTest {
   cluster {
-    systemProperty 'es.network.host', 'localhost'
+    systemProperty 'es.network.host', host
     systemProperty 'es.marvel.agent.exporter.es.ssl.truststore.path', keystore.name
     systemProperty 'es.marvel.agent.exporter.es.ssl.truststore.password', 'keypass'
     systemProperty 'es.shield.transport.ssl', 'true'

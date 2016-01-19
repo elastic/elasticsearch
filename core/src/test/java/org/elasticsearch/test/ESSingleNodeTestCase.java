@@ -137,8 +137,25 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         return false;
     }
 
-    private static Node newNode() {
-        Node build = NodeBuilder.nodeBuilder().local(true).data(true).settings(Settings.builder()
+    /** The version of elasticsearch the node should act like. */
+    protected Version getVersion() {
+        return Version.CURRENT;
+    }
+
+    /** The plugin classes that should be added to the node. */
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return Collections.emptyList();
+    }
+
+    /** Helper method to create list of plugins without specifying generic types. */
+    @SafeVarargs
+    @SuppressWarnings("varargs") // due to type erasure, the varargs type is non-reifiable, which casues this warning
+    protected final Collection<Class<? extends Plugin>> pluginList(Class<? extends Plugin>... plugins) {
+        return Arrays.asList(plugins);
+    }
+
+    private Node newNode() {
+        Settings settings = Settings.builder()
                 .put(ClusterName.SETTING, InternalTestCluster.clusterName("single-node-cluster", randomLong()))
                 .put("path.home", createTempDir())
                 // TODO: use a consistent data path for custom paths
@@ -151,8 +168,11 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
                 .put("script.indexed", "on")
                 .put(EsExecutors.PROCESSORS, 1) // limit the number of threads created
                 .put("http.enabled", false)
+                .put("node.local", true)
+                .put("node.data", true)
                 .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING, true) // make sure we get what we set :)
-        ).build();
+                .build();
+        Node build = new MockNode(settings, getVersion(), getPlugins());
         build.start();
         assertThat(DiscoveryNode.localNode(build.settings()), is(true));
         return build;

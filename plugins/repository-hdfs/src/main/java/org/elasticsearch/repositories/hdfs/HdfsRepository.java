@@ -19,16 +19,9 @@
 package org.elasticsearch.repositories.hdfs;
 
 import java.io.IOException;
-import java.net.MalformedURLException;
 import java.net.URI;
-import java.net.URL;
-import java.nio.file.Files;
 import java.security.AccessController;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
 import java.lang.reflect.Constructor;
-import java.net.URI;
-import java.security.AccessController;
 import java.security.Principal;
 import java.security.PrivilegedAction;
 import java.util.Collections;
@@ -55,7 +48,6 @@ import org.elasticsearch.index.snapshots.IndexShardRepository;
 import org.elasticsearch.repositories.RepositoryName;
 import org.elasticsearch.repositories.RepositorySettings;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
-import org.elasticsearch.threadpool.ThreadPool;
 
 public final class HdfsRepository extends BlobStoreRepository {
 

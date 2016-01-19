@@ -29,12 +29,9 @@ import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 
 import java.io.IOException;
-import java.lang.reflect.ReflectPermission;
 import java.security.AccessController;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
-
-import javax.security.auth.AuthPermission;
 
 final class HdfsBlobStore implements BlobStore {
 

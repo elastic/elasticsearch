@@ -20,7 +20,6 @@ package org.elasticsearch.gradle.test
 
 import com.carrotsearch.gradle.junit4.RandomizedTestingTask
 import org.elasticsearch.gradle.BuildPlugin
-import org.gradle.api.GradleException
 import org.gradle.api.Task
 import org.gradle.api.internal.tasks.options.Option
 import org.gradle.api.plugins.JavaBasePlugin
@@ -61,8 +60,9 @@ public class RestIntegTestTask extends RandomizedTestingTask {
         // this must run after all projects have been configured, so we know any project
         // references can be accessed as a fully configured
         project.gradle.projectsEvaluated {
-            Object clusterUri = ClusterFormationTasks.setup(project, this, clusterConfig)
-            systemProperty('tests.cluster', clusterUri)
+            NodeInfo node = ClusterFormationTasks.setup(project, this, clusterConfig)
+            systemProperty('tests.rest.cluster', "localhost:${-> new URL('http://' + node.httpUri()).getPort()}")
+            systemProperty('tests.cluster', "${-> node.transportUri()}")
         }
     }
 

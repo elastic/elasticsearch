@@ -65,7 +65,7 @@ while (true) {
     for (SearchHit hit : scrollResp.getHits().getHits()) {
         //Handle the hit...
     }
-    scrollResp = client.prepareSearchScroll(scrollResp.getScrollId()).setScroll(new TimeValue(600000)).execute().actionGet();
+    scrollResp = client.prepareSearchScroll(scrollResp.getScrollId()).setScroll(new TimeValue(60000)).execute().actionGet();
     //Break condition: No hits are returned
     if (scrollResp.getHits().getHits().length == 0) {
         break;

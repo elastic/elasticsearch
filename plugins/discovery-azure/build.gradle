@@ -56,8 +56,6 @@ dependencyLicenses {
   mapping from: /jaxb-.*/, to: 'jaxb'
 }
 
-compileJava.options.compilerArgs << '-Xlint:-path,-unchecked'
-
 thirdPartyAudit.excludes = [
   // classes are missing
   'javax.servlet.ServletContextEvent', 

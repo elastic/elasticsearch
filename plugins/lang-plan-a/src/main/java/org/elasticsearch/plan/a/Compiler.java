@@ -33,7 +33,8 @@ import java.security.cert.Certificate;
 /**
  * The Compiler is the entry point for generating a Plan A script.  The compiler will generate an ANTLR
  * parse tree based on the source code that is passed in.  Two passes will then be run over the parse tree,
- * one for analysis and another to generate the actual byte code using ASM.
+ * one for analysis using the {@link Analyzer} and another to generate the actual byte code using ASM in
+ * the {@link Writer}.
  */
 final class Compiler {
     // The default language API to be used with Plan A.  The second construction is used

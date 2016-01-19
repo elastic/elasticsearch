@@ -118,7 +118,7 @@ public class CliToolTests extends CliToolTestCase {
         Terminal terminal = new MockTerminal();
         int count = randomIntBetween(2, 7);
         List<AtomicReference<Boolean>> executed = new ArrayList<>(count);
-        for (int i = 0; i < executed.size(); i++) {
+        for (int i = 0; i < count; i++) {
             executed.add(new AtomicReference<>(false));
         }
         NamedCommand[] cmds = new NamedCommand[count];
@@ -136,7 +136,7 @@ public class CliToolTests extends CliToolTestCase {
         int cmdIndex = randomIntBetween(0, count-1);
         CliTool.ExitStatus status = tool.execute("cmd" + cmdIndex);
         assertThat(status, is(OK));
-        for (int i = 0; i < executed.size(); i++) {
+        for (int i = 0; i < count; i++) {
             assertThat(executed.get(i).get(), is(i == cmdIndex));
         }
     }
@@ -145,7 +145,7 @@ public class CliToolTests extends CliToolTestCase {
         Terminal terminal = new MockTerminal();
         int count = randomIntBetween(2, 7);
         List<AtomicReference<Boolean>> executed = new ArrayList<>(count);
-        for (int i = 0; i < executed.size(); i++) {
+        for (int i = 0; i < count; i++) {
             executed.add(new AtomicReference<>(false));
         }
         NamedCommand[] cmds = new NamedCommand[count];
@@ -162,7 +162,7 @@ public class CliToolTests extends CliToolTestCase {
         MultiCmdTool tool = new MultiCmdTool("tool", terminal, cmds);
         CliTool.ExitStatus status = tool.execute("cmd" + count); // "cmd" + count doesn't exist
         assertThat(status, is(CliTool.ExitStatus.USAGE));
-        for (int i = 0; i < executed.size(); i++) {
+        for (int i = 0; i < count; i++) {
             assertThat(executed.get(i).get(), is(false));
         }
     }

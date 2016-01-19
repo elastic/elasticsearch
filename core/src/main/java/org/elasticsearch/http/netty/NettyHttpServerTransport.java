@@ -141,7 +141,7 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
     protected final String publishHosts[];
 
     protected final boolean detailedErrorsEnabled;
-    private final ThreadPool threadPool;
+    protected final ThreadPool threadPool;
 
     protected int publishPort;
 

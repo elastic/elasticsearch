@@ -117,9 +117,6 @@ final class HdfsBlobStore implements BlobStore {
     /**
      * Executes the provided operation against this store
      */
-    // we can do FS ops with only two elevated permissions:
-    // 1) hadoop dynamic proxy is messy with access rules
-    // 2) allow hadoop to add credentials to our Subject
     <V> V execute(final Operation<V> operation) throws IOException {
         SecurityManager sm = System.getSecurityManager();
         if (sm != null) {
@@ -135,8 +132,7 @@ final class HdfsBlobStore implements BlobStore {
                 public V run() throws IOException {
                     return operation.run(fileContext);
                 }
-            }, null, new ReflectPermission("suppressAccessChecks"),
-                     new AuthPermission("modifyPrivateCredentials"));
+            });
         } catch (PrivilegedActionException pae) {
             throw (IOException) pae.getException();
         }

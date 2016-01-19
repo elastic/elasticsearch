@@ -816,12 +816,6 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     }
 
     protected static Fuzziness randomFuzziness(String fieldName) {
-        if (randomBoolean()) {
-            return Fuzziness.fromEdits(randomIntBetween(0, 2));
-        }
-        if (randomBoolean()) {
-            return Fuzziness.AUTO;
-        }
         switch (fieldName) {
             case INT_FIELD_NAME:
                 return Fuzziness.build(randomIntBetween(3, 100));
@@ -830,6 +824,9 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             case DATE_FIELD_NAME:
                 return Fuzziness.build(randomTimeValue());
             default:
+                if (randomBoolean()) {
+                    return Fuzziness.fromEdits(randomIntBetween(0, 2));
+                }
                 return Fuzziness.AUTO;
         }
     }

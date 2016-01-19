@@ -43,7 +43,7 @@ final class HdfsBlobStore implements BlobStore {
     private final int bufferSize;
     private volatile boolean closed;
 
-    HdfsBlobStore(FileContext fileContext, String path, int bufferSize) throws IOException {
+    HdfsBlobStore(FileContext fileContext, final String path, int bufferSize) throws IOException {
         this.fileContext = fileContext;
         this.bufferSize = bufferSize;
         this.root = execute(new Operation<Path>() {
@@ -59,7 +59,7 @@ final class HdfsBlobStore implements BlobStore {
         }
     }
 
-    private void mkdirs(Path path) throws IOException {
+    private void mkdirs(final Path path) throws IOException {
         execute(new Operation<Void>() {
             @Override
             public Void run(FileContext fileContext) throws IOException {
@@ -70,7 +70,7 @@ final class HdfsBlobStore implements BlobStore {
     }
 
     @Override
-    public void delete(BlobPath path) throws IOException {
+    public void delete(final BlobPath path) throws IOException {
         execute(new Operation<Void>() {
             @Override
             public Void run(FileContext fc) throws IOException {
@@ -120,7 +120,7 @@ final class HdfsBlobStore implements BlobStore {
     // we can do FS ops with only two elevated permissions:
     // 1) hadoop dynamic proxy is messy with access rules
     // 2) allow hadoop to add credentials to our Subject
-    <V> V execute(Operation<V> operation) throws IOException {
+    <V> V execute(final Operation<V> operation) throws IOException {
         SecurityManager sm = System.getSecurityManager();
         if (sm != null) {
             // unprivileged code such as scripts do not have SpecialPermission

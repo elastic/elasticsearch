@@ -57,8 +57,6 @@ import org.elasticsearch.repositories.RepositorySettings;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.threadpool.ThreadPool;
 
-public class HdfsRepository extends BlobStoreRepository implements FileSystemFactory {
-
 public final class HdfsRepository extends BlobStoreRepository {
 
     private final BlobPath basePath = BlobPath.cleanPath();
@@ -87,7 +85,7 @@ public final class HdfsRepository extends BlobStoreRepository {
         if (Strings.hasText(uriSetting) == false) {
             throw new IllegalArgumentException("No 'uri' defined for hdfs snapshot/restore");
         }
-        URI uri = URI.create(uriSetting);
+        final URI uri = URI.create(uriSetting);
         if ("hdfs".equalsIgnoreCase(uri.getScheme()) == false) {
             throw new IllegalArgumentException(
                     String.format(Locale.ROOT, "Invalid scheme [%s] specified in uri [%s]; only 'hdfs' uri allowed for hdfs snapshot/restore", uri.getScheme(), uriSetting));
@@ -127,8 +125,8 @@ public final class HdfsRepository extends BlobStoreRepository {
     
     // create hadoop filecontext
     @SuppressForbidden(reason = "lesser of two evils (the other being a bunch of JNI/classloader nightmares)")
-    private static FileContext createContext(URI uri, RepositorySettings repositorySettings)  {
-        Configuration cfg = new Configuration(repositorySettings.settings().getAsBoolean("load_defaults", true));
+    private static FileContext createContext(final URI uri, RepositorySettings repositorySettings)  {
+        final Configuration cfg = new Configuration(repositorySettings.settings().getAsBoolean("load_defaults", true));
         cfg.setClassLoader(HdfsRepository.class.getClassLoader());
         cfg.reloadConfiguration();
 

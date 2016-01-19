@@ -64,6 +64,7 @@
         <module>mapper-attachments</module>
         <module>mapper-murmur3</module>
         <module>mapper-size</module>
+        <module>repository-hdfs</module>
         <module>jvm-example</module>
         <module>site-example</module>
     </modules>

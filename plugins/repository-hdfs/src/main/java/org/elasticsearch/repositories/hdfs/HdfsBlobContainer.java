@@ -53,7 +53,7 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public boolean blobExists(String blobName) {
+    public boolean blobExists(final String blobName) {
         try {
             return store.execute(new Operation<Boolean>() {
                 @Override
@@ -67,7 +67,7 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public void deleteBlob(String blobName) throws IOException {
+    public void deleteBlob(final String blobName) throws IOException {
         try {
             store.execute(new Operation<Boolean>() {
                 @Override
@@ -81,7 +81,7 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public void move(String sourceBlobName, String targetBlobName) throws IOException {
+    public void move(final String sourceBlobName, final String targetBlobName) throws IOException {
         store.execute(new Operation<Void>() {
             @Override
             public Void run(FileContext fileContext) throws IOException {
@@ -92,7 +92,7 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public InputStream readBlob(String blobName) throws IOException {
+    public InputStream readBlob(final String blobName) throws IOException {
         // FSDataInputStream does buffering internally
         return store.execute(new Operation<InputStream>() {
             @Override
@@ -103,7 +103,7 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public void writeBlob(String blobName, InputStream inputStream, long blobSize) throws IOException {
+    public void writeBlob(final String blobName, final InputStream inputStream, long blobSize) throws IOException {
         store.execute(new Operation<Void>() {
             @Override
             public Void run(FileContext fileContext) throws IOException {

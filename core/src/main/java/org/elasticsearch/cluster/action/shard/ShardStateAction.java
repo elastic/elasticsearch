@@ -89,7 +89,7 @@ public class ShardStateAction extends AbstractComponent {
             logger.warn("{} no master known for action [{}] for shard [{}]", shardRoutingEntry.getShardRouting().shardId(), actionName, shardRoutingEntry.getShardRouting());
             waitForNewMasterAndRetry(actionName, observer, shardRoutingEntry, listener);
         } else {
-            logger.debug("{} sending [{}] for shard [{}]", shardRoutingEntry.getShardRouting().getId(), actionName, shardRoutingEntry);
+            logger.debug("{} sending [{}] to [{}] for shard [{}]", shardRoutingEntry.getShardRouting().getId(), actionName, masterNode.getId(), shardRoutingEntry);
             transportService.sendRequest(masterNode,
                 actionName, shardRoutingEntry, new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
                     @Override

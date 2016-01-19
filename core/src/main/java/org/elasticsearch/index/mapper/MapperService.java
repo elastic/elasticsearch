@@ -95,7 +95,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     public static final String DEFAULT_MAPPING = "_default_";
-    public static final Setting<Long> INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING = Setting.longSetting("index.mapping.nested_fields.limit", 50l, 0, false, Setting.Scope.INDEX);
+    public static final Setting<Long> INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING = Setting.longSetting("index.mapping.nested_fields.limit", 50l, 0, true, Setting.Scope.INDEX);
     public static final boolean INDEX_MAPPER_DYNAMIC_DEFAULT = true;
     public static final Setting<Boolean> INDEX_MAPPER_DYNAMIC_SETTING = Setting.boolSetting("index.mapper.dynamic", INDEX_MAPPER_DYNAMIC_DEFAULT, false, Setting.Scope.INDEX);
     private static ObjectHashSet<String> META_FIELDS = ObjectHashSet.from(

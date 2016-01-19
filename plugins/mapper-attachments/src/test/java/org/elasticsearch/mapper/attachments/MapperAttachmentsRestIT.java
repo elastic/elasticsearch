@@ -21,7 +21,6 @@ package org.elasticsearch.mapper.attachments;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.RestTestCandidate;
 import org.elasticsearch.test.rest.parser.RestTestParseException;
@@ -29,14 +28,6 @@ import org.elasticsearch.test.rest.parser.RestTestParseException;
 import java.io.IOException;
 
 public class MapperAttachmentsRestIT extends ESRestTestCase {
-
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
-                .put("plugin.types", MapperAttachmentsPlugin.class.getName())
-                .build();
-    }
 
     public MapperAttachmentsRestIT(@Name("yaml") RestTestCandidate testCandidate) {
         super(testCandidate);

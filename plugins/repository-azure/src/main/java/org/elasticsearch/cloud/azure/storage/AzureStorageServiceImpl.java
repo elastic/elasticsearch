@@ -123,7 +123,7 @@ public class AzureStorageServiceImpl extends AbstractLifecycleComponent<AzureSto
         // Set timeout option. Defaults to 5mn. See cloud.azure.storage.timeout or cloud.azure.storage.xxx.timeout
         try {
             int timeout = (int) azureStorageSettings.getTimeout().getMillis();
-            client.getDefaultRequestOptions().setTimeoutIntervalInMs(timeout);
+            client.getDefaultRequestOptions().setMaximumExecutionTimeInMs(timeout);
         } catch (ClassCastException e) {
             throw new IllegalArgumentException("Can not convert [" + azureStorageSettings.getTimeout() +
                 "]. It can not be longer than 2,147,483,647ms.");

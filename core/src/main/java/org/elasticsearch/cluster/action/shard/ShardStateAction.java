@@ -50,7 +50,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.EmptyTransportResponseHandler;
 import org.elasticsearch.transport.NodeDisconnectedException;
-import org.elasticsearch.transport.NodeNotConnectedException;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
@@ -90,6 +89,7 @@ public class ShardStateAction extends AbstractComponent {
             logger.warn("{} no master known for action [{}] for shard [{}]", shardRoutingEntry.getShardRouting().shardId(), actionName, shardRoutingEntry.getShardRouting());
             waitForNewMasterAndRetry(actionName, observer, shardRoutingEntry, listener);
         } else {
+            logger.debug("{} sending [{}] for shard [{}]", shardRoutingEntry.getShardRouting().getId(), actionName, shardRoutingEntry);
             transportService.sendRequest(masterNode,
                 actionName, shardRoutingEntry, new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
                     @Override

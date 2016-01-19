@@ -37,6 +37,9 @@ import org.elasticsearch.test.cluster.TestClusterService;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.NodeDisconnectedException;
+import org.elasticsearch.transport.NodeNotConnectedException;
+import org.elasticsearch.transport.RemoteTransportException;
+import org.elasticsearch.transport.SendRequestTransportException;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
@@ -216,11 +219,17 @@ public class ShardStateActionTests extends ESTestCase {
         AtomicReference<Exception> exception = new AtomicReference<>();
 
         LongConsumer retryLoop = requestId -> {
-            List<Exception> possibleExceptions = new ArrayList<>();
-            possibleExceptions.add(new NotMasterException("simulated"));
-            possibleExceptions.add(new NodeDisconnectedException(clusterService.state().nodes().masterNode(), ShardStateAction.SHARD_FAILED_ACTION_NAME));
-            possibleExceptions.add(new Discovery.FailedToCommitClusterStateException("simulated"));
-            transport.handleResponse(requestId, randomFrom(possibleExceptions));
+            if (randomBoolean()) {
+                transport.handleRemoteError(
+                    requestId,
+                    randomFrom(new NotMasterException("simulated"), new Discovery.FailedToCommitClusterStateException("simulated")));
+            } else {
+                if (randomBoolean()) {
+                    transport.handleLocalError(requestId, new NodeNotConnectedException(null, "simulated"));
+                } else {
+                    transport.handleError(requestId, new NodeDisconnectedException(null, ShardStateAction.SHARD_FAILED_ACTION_NAME));
+                }
+            }
         };
 
         final int numberOfRetries = randomIntBetween(1, 256);
@@ -279,7 +288,7 @@ public class ShardStateActionTests extends ESTestCase {
         final CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
         assertThat(capturedRequests.length, equalTo(1));
         assertFalse(failure.get());
-        transport.handleResponse(capturedRequests[0].requestId, new TransportException("simulated"));
+        transport.handleRemoteError(capturedRequests[0].requestId, new TransportException("simulated"));
 
         assertTrue(failure.get());
     }

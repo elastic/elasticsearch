@@ -213,7 +213,7 @@ public class TestMergeMapperTests extends ESSingleNodeTestCase {
                     .endObject()
                 .endObject().endObject().bytes());
         MapperService mapperService = createIndex("test").mapperService();
-        mapperService.merge("type", mapping, true, false);
+        mapperService.merge("type", mapping, MapperService.MergeReason.MAPPING_UPDATE, false);
 
         CompressedXContent update = new CompressedXContent(XContentFactory.jsonBuilder().startObject()
                 .startObject("type")
@@ -223,7 +223,7 @@ public class TestMergeMapperTests extends ESSingleNodeTestCase {
                         .endObject()
                     .endObject()
                 .endObject().endObject().bytes());
-        DocumentMapper mapper = mapperService.merge("type", update, false, false);
+        DocumentMapper mapper = mapperService.merge("type", update, MapperService.MergeReason.MAPPING_UPDATE, false);
 
         assertNotNull(mapper.mappers().getMapper("foo"));
         assertFalse(mapper.sourceMapper().enabled());

@@ -125,7 +125,8 @@ public class AzureStorageServiceImpl extends AbstractLifecycleComponent<AzureSto
             int timeout = (int) azureStorageSettings.getTimeout().getMillis();
             client.getDefaultRequestOptions().setTimeoutIntervalInMs(timeout);
         } catch (ClassCastException e) {
-            throw new IllegalArgumentException("Can not cast [" + azureStorageSettings.getTimeout() + "] to int.");
+            throw new IllegalArgumentException("Can not convert [" + azureStorageSettings.getTimeout() +
+                "]. It can not be longer than 2,147,483,647ms.");
         }
         return client;
     }

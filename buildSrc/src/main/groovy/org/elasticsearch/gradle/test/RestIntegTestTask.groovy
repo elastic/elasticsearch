@@ -62,6 +62,9 @@ public class RestIntegTestTask extends RandomizedTestingTask {
         project.gradle.projectsEvaluated {
             NodeInfo node = ClusterFormationTasks.setup(project, this, clusterConfig)
             systemProperty('tests.rest.cluster', "localhost:${-> new URL('http://' + node.httpUri()).getPort()}")
+            // TODO: our "client" qa tests currently use the rest-test plugin. instead they should have their own plugin
+            // that sets up the test cluster and passes this transport uri instead of http uri. Until then, we pass
+            // both as separate sysprops
             systemProperty('tests.cluster', "${-> node.transportUri()}")
         }
     }

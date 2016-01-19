@@ -121,7 +121,7 @@ public class ShieldIndexSearcherWrapperUnitTests extends ESTestCase {
                 .startObject("properties")
                 .endObject()
                 .endObject().endObject();
-        mapperService.merge("type", new CompressedXContent(mappingSource.string()), false, false);
+        mapperService.merge("type", new CompressedXContent(mappingSource.string()), MapperService.MergeReason.MAPPING_UPDATE, false);
 
         IndicesAccessControl.IndexAccessControl indexAccessControl = new IndicesAccessControl.IndexAccessControl(true, emptySet(), null);
         request.putInContext(InternalAuthorizationService.INDICES_PERMISSIONS_KEY, new IndicesAccessControl(true, singletonMap("_index", indexAccessControl)));
@@ -164,7 +164,7 @@ public class ShieldIndexSearcherWrapperUnitTests extends ESTestCase {
                     .startObject("field2_b").field("type", "string").endObject()
                     .startObject("field2_c").field("type", "string").endObject()
                 .endObject().endObject().endObject();
-        mapperService.merge("type", new CompressedXContent(mappingSource.string()), false, false);
+        mapperService.merge("type", new CompressedXContent(mappingSource.string()), MapperService.MergeReason.MAPPING_UPDATE, false);
 
         assertResolvedFields("field1*", "field1_a", "field1_b", "field1_c");
         assertResolvedFields("field2*", "field2_a", "field2_b", "field2_c");
@@ -194,7 +194,7 @@ public class ShieldIndexSearcherWrapperUnitTests extends ESTestCase {
                     .endObject()
                 .endObject()
                 .endObject().endObject().endObject();
-        mapperService.merge("type", new CompressedXContent(mappingSource.string()), false, false);
+        mapperService.merge("type", new CompressedXContent(mappingSource.string()), MapperService.MergeReason.MAPPING_UPDATE, false);
 
         assertResolvedFields("foo.bar", "foo.bar");
         assertResolvedFields("bar.baz", "bar.baz");
@@ -208,7 +208,7 @@ public class ShieldIndexSearcherWrapperUnitTests extends ESTestCase {
                     .startObject("field").field("type", "string").endObject()
                 .endObject()
                 .endObject().endObject();
-        mapperService.merge("parent1", new CompressedXContent(mappingSource.string()), false, false);
+        mapperService.merge("parent1", new CompressedXContent(mappingSource.string()), MapperService.MergeReason.MAPPING_UPDATE, false);
         mappingSource = jsonBuilder().startObject().startObject("child1")
                 .startObject("properties")
                     .startObject("field").field("type", "string").endObject()
@@ -217,7 +217,7 @@ public class ShieldIndexSearcherWrapperUnitTests extends ESTestCase {
                     .field("type", "parent1")
                 .endObject()
                 .endObject().endObject();
-        mapperService.merge("child1", new CompressedXContent(mappingSource.string()), false, false);
+        mapperService.merge("child1", new CompressedXContent(mappingSource.string()), MapperService.MergeReason.MAPPING_UPDATE, false);
         mappingSource = jsonBuilder().startObject().startObject("child2")
                 .startObject("properties")
                     .startObject("field").field("type", "string").endObject()
@@ -226,13 +226,13 @@ public class ShieldIndexSearcherWrapperUnitTests extends ESTestCase {
                     .field("type", "parent1")
                 .endObject()
                 .endObject().endObject();
-        mapperService.merge("child2", new CompressedXContent(mappingSource.string()), false, false);
+        mapperService.merge("child2", new CompressedXContent(mappingSource.string()), MapperService.MergeReason.MAPPING_UPDATE, false);
         mappingSource = jsonBuilder().startObject().startObject("parent2")
                 .startObject("properties")
                 .startObject("field").field("type", "string").endObject()
                 .endObject()
                 .endObject().endObject();
-        mapperService.merge("parent2", new CompressedXContent(mappingSource.string()), false, false);
+        mapperService.merge("parent2", new CompressedXContent(mappingSource.string()), MapperService.MergeReason.MAPPING_UPDATE, false);
         mappingSource = jsonBuilder().startObject().startObject("child3")
                 .startObject("properties")
                     .startObject("field").field("type", "string").endObject()
@@ -241,7 +241,7 @@ public class ShieldIndexSearcherWrapperUnitTests extends ESTestCase {
                     .field("type", "parent2")
                 .endObject()
                 .endObject().endObject();
-        mapperService.merge("child3", new CompressedXContent(mappingSource.string()), false, false);
+        mapperService.merge("child3", new CompressedXContent(mappingSource.string()), MapperService.MergeReason.MAPPING_UPDATE, false);
 
         assertResolvedFields("field1", "field1", ParentFieldMapper.joinField("parent1"), ParentFieldMapper.joinField("parent2"));
     }

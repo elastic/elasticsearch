@@ -57,7 +57,7 @@ public class LineStringBuilder extends CoordinateCollection<LineStringBuilder> {
 
     public static final GeoShapeType TYPE = GeoShapeType.LINESTRING;
 
-    static final LineStringBuilder PROTOTYPE = new LineStringBuilder(new CoordinatesBuilder().coordinate(0.0, 0.0).coordinate(1.0, 1.0));
+    public static final LineStringBuilder PROTOTYPE = new LineStringBuilder(new CoordinatesBuilder().coordinate(0.0, 0.0).coordinate(1.0, 1.0));
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {

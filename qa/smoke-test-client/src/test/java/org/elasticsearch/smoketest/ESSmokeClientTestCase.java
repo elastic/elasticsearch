@@ -67,11 +67,6 @@ public abstract class ESSmokeClientTestCase extends LuceneTestCase {
      */
     public static final String TESTS_CLUSTER = "tests.cluster";
 
-    /**
-     * Defaults to localhost:9300
-     */
-    public static final String TESTS_CLUSTER_DEFAULT = "localhost:9300";
-
     protected static final ESLogger logger = ESLoggerFactory.getLogger(ESSmokeClientTestCase.class.getName());
 
     private static final AtomicInteger counter = new AtomicInteger();
@@ -131,11 +126,10 @@ public abstract class ESSmokeClientTestCase extends LuceneTestCase {
     }
 
     @BeforeClass
-    public static void initializeSettings() throws UnknownHostException {
+    public static void initializeSettings() {
         clusterAddresses = System.getProperty(TESTS_CLUSTER);
         if (clusterAddresses == null || clusterAddresses.isEmpty()) {
-            clusterAddresses = TESTS_CLUSTER_DEFAULT;
-            logger.info("[{}] not set. Falling back to [{}]", TESTS_CLUSTER, TESTS_CLUSTER_DEFAULT);
+            fail("Must specify " + TESTS_CLUSTER + " for smoke client test");
         }
     }
 

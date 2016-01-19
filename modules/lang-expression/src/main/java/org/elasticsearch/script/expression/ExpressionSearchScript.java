@@ -19,6 +19,10 @@
 
 package org.elasticsearch.script.expression;
 
+import java.io.IOException;
+import java.util.Collections;
+import java.util.Map;
+
 import org.apache.lucene.expressions.Bindings;
 import org.apache.lucene.expressions.Expression;
 import org.apache.lucene.expressions.SimpleBindings;
@@ -31,10 +35,6 @@ import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.SearchScript;
-
-import java.io.IOException;
-import java.util.Collections;
-import java.util.Map;
 
 /**
  * A bridge to evaluate an {@link Expression} against {@link Bindings} in the context
@@ -88,9 +88,6 @@ class ExpressionSearchScript implements SearchScript {
 
             @Override
             public double runAsDouble() { return evaluate(); }
-
-            @Override
-            public Object unwrap(Object value) { return value; }
 
             @Override
             public void setDocument(int d) {

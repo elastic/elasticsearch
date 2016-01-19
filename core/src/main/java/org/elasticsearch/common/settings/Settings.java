@@ -58,6 +58,7 @@ import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -75,19 +76,6 @@ public final class Settings implements ToXContent {
 
     public static final Settings EMPTY = new Builder().build();
     private static final Pattern ARRAY_PATTERN = Pattern.compile("(.*)\\.\\d+$");
-
-    /** Name of the setting to use to disable required units for byte size, time settings. */
-    public static final String SETTINGS_REQUIRE_UNITS = "settings_require_units";
-
-    private static boolean settingsRequireUnits = true;
-
-    public static void setSettingsRequireUnits(boolean v) {
-        settingsRequireUnits = v;
-    }
-
-    public static boolean getSettingsRequireUnits() {
-        return settingsRequireUnits;
-    }
 
     private final Map<String, String> forcedUnderscoreSettings;
     private SortedMap<String, String> settings;
@@ -220,6 +208,19 @@ public final class Settings implements ToXContent {
                     continue;
                 }
                 builder.put(entry.getKey().substring(prefix.length()), entry.getValue());
+            }
+        }
+        return builder.build();
+    }
+
+    /**
+     * Returns a new settings object that contains all setting of the current one filtered by the given settings key predicate.
+     */
+    public Settings filter(Predicate<String> predicate) {
+        Builder builder = new Builder();
+        for (Map.Entry<String, String> entry : getAsMap().entrySet()) {
+            if (predicate.test(entry.getKey())) {
+                builder.put(entry.getKey(), entry.getValue());
             }
         }
         return builder.build();

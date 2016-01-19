@@ -82,8 +82,7 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
         Set<String> fullExpectedIds = new TreeSet<>();
 
         Settings.Builder settingsBuilder = settingsBuilder()
-                .put(indexSettings())
-                .put("routing.hash.type", "simple");
+                .put(indexSettings());
 
         if (numShards > 0) {
             settingsBuilder.put(SETTING_NUMBER_OF_SHARDS, numShards);
@@ -122,8 +121,7 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
 
     public void testDfsQueryThenFetch() throws Exception {
         Settings.Builder settingsBuilder = settingsBuilder()
-            .put(indexSettings())
-            .put("routing.hash.type", "simple");
+            .put(indexSettings());
         client().admin().indices().create(createIndexRequest("test")
             .settings(settingsBuilder))
             .actionGet();

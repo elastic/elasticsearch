@@ -84,7 +84,7 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
             @Override
             public void beforeIndexAddedToCluster(Index index, Settings indexSettings) {
                 beforeAddedCount.incrementAndGet();
-                if (indexSettings.getAsBoolean("index.fail", false)) {
+                if (MockIndexEventListener.TestPlugin.INDEX_FAIL.get(indexSettings)) {
                     throw new ElasticsearchException("failing on purpose");
                 }
             }

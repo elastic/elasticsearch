@@ -74,7 +74,7 @@ import java.util.function.Supplier;
  * @param <Response>             the response to the client request
  * @param <ShardOperationResult> per-shard operation results
  */
-public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRequest,
+public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRequest<Request>,
         Response extends BroadcastResponse,
         ShardOperationResult extends Streamable> extends HandledTransportAction<Request, Response> {
 
@@ -446,10 +446,12 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
             return nodeId;
         }
 
+        @Override
         public String[] indices() {
             return indicesLevelRequest.indices();
         }
 
+        @Override
         public IndicesOptions indicesOptions() {
             return indicesLevelRequest.indicesOptions();
         }

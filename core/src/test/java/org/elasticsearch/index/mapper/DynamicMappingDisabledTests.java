@@ -67,13 +67,13 @@ public class DynamicMappingDisabledTests extends ESSingleNodeTestCase {
     public void setUp() throws Exception {
         super.setUp();
         settings = Settings.builder()
-            .put(MapperService.INDEX_MAPPER_DYNAMIC_SETTING, false)
+            .put(MapperService.INDEX_MAPPER_DYNAMIC_SETTING.getKey(), false)
             .build();
         clusterService = new TestClusterService(THREAD_POOL);
         transport = new LocalTransport(settings, THREAD_POOL, Version.CURRENT, new NamedWriteableRegistry());
         transportService = new TransportService(transport, THREAD_POOL);
         indicesService = getInstanceFromNode(IndicesService.class);
-        shardStateAction = new ShardStateAction(settings, clusterService, transportService, null, null);
+        shardStateAction = new ShardStateAction(settings, clusterService, transportService, null, null, THREAD_POOL);
         actionFilters = new ActionFilters(Collections.emptySet());
         indexNameExpressionResolver = new IndexNameExpressionResolver(settings);
         autoCreateIndex = new AutoCreateIndex(settings, indexNameExpressionResolver);

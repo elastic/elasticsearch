@@ -630,7 +630,11 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                 task.listener.clusterStateProcessed(task.source, previousClusterState, newClusterState);
             }
 
-            executor.clusterStatePublished(newClusterState);
+            try {
+                executor.clusterStatePublished(newClusterState);
+            } catch (Exception e) {
+                logger.error("exception thrown while notifying executor of new cluster state publication [{}]", e, source);
+            }
 
             TimeValue executionTime = TimeValue.timeValueMillis(Math.max(0, TimeValue.nsecToMSec(System.nanoTime() - startTimeNS)));
             logger.debug("processing [{}]: took {} done applying updated cluster_state (version: {}, uuid: {})", source, executionTime, newClusterState.version(), newClusterState.stateUUID());

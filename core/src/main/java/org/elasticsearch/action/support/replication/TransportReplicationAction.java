@@ -65,7 +65,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BaseTransportResponseHandler;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.EmptyTransportResponseHandler;
-import org.elasticsearch.transport.ReceiveTimeoutTransportException;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportChannelResponseHandler;
 import org.elasticsearch.transport.TransportException;
@@ -77,6 +76,7 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -91,9 +91,7 @@ import java.util.function.Supplier;
  * primary node to validate request before primary operation followed by sampling state again for resolving
  * nodes with replica copies to perform replication.
  */
-public abstract class TransportReplicationAction<Request extends ReplicationRequest, ReplicaRequest extends ReplicationRequest, Response extends ReplicationResponse> extends TransportAction<Request, Response> {
-
-    public static final String SHARD_FAILURE_TIMEOUT = "action.support.replication.shard.failure_timeout";
+public abstract class TransportReplicationAction<Request extends ReplicationRequest<Request>, ReplicaRequest extends ReplicationRequest<ReplicaRequest>, Response extends ReplicationResponse> extends TransportAction<Request, Response> {
 
     protected final TransportService transportService;
     protected final ClusterService clusterService;
@@ -102,7 +100,6 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
     protected final WriteConsistencyLevel defaultWriteConsistencyLevel;
     protected final TransportRequestOptions transportOptions;
     protected final MappingUpdatedAction mappingUpdatedAction;
-    private final TimeValue shardFailedTimeout;
 
     final String transportReplicaAction;
     final String transportPrimaryAction;
@@ -134,8 +131,6 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         this.transportOptions = transportOptions();
 
         this.defaultWriteConsistencyLevel = WriteConsistencyLevel.fromString(settings.get("action.write_consistency", "quorum"));
-        // TODO: set a default timeout
-        shardFailedTimeout = settings.getAsTime(SHARD_FAILURE_TIMEOUT, null);
     }
 
     @Override
@@ -616,7 +611,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                 if (logger.isTraceEnabled()) {
                     logger.trace("action [{}] completed on shard [{}] for request [{}] with cluster state version [{}]", transportPrimaryAction, shardId, request, state.version());
                 }
-                replicationPhase = new ReplicationPhase(primaryResponse.v2(), primaryResponse.v1(), shardId, channel, indexShardReference, shardFailedTimeout);
+                replicationPhase = new ReplicationPhase(primaryResponse.v2(), primaryResponse.v1(), shardId, channel, indexShardReference);
             } catch (Throwable e) {
                 if (ExceptionsHelper.status(e) == RestStatus.CONFLICT) {
                     if (logger.isTraceEnabled()) {
@@ -740,15 +735,13 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         private final AtomicInteger pending;
         private final int totalShards;
         private final Releasable indexShardReference;
-        private final TimeValue shardFailedTimeout;
 
         public ReplicationPhase(ReplicaRequest replicaRequest, Response finalResponse, ShardId shardId,
-                                TransportChannel channel, Releasable indexShardReference, TimeValue shardFailedTimeout) {
+                                TransportChannel channel, Releasable indexShardReference) {
             this.replicaRequest = replicaRequest;
             this.channel = channel;
             this.finalResponse = finalResponse;
             this.indexShardReference = indexShardReference;
-            this.shardFailedTimeout = shardFailedTimeout;
             this.shardId = shardId;
 
             // we have to get a new state after successfully indexing into the primary in order to honour recovery semantics.
@@ -890,14 +883,31 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                             if (ignoreReplicaException(exp)) {
                                 onReplicaFailure(nodeId, exp);
                             } else {
-                                logger.warn("{} failed to perform {} on node {}", exp, shardId, transportReplicaAction, node);
-                                shardStateAction.shardFailed(clusterService.state(), shard, indexUUID, "failed to perform " + transportReplicaAction + " on replica on node " + node, exp, shardFailedTimeout, new ReplicationFailedShardStateListener(nodeId, exp));
+                                String message = String.format(Locale.ROOT, "failed to perform %s on replica on node %s", transportReplicaAction, node);
+                                logger.warn("{} {}", exp, shardId, message);
+                                shardStateAction.shardFailed(
+                                    shard,
+                                    indexUUID,
+                                    message,
+                                    exp,
+                                    new ShardStateAction.Listener() {
+                                        @Override
+                                        public void onSuccess() {
+                                            onReplicaFailure(nodeId, exp);
+                                        }
+
+                                        @Override
+                                        public void onFailure(Throwable t) {
+                                            // TODO: handle catastrophic non-channel failures
+                                            onReplicaFailure(nodeId, exp);
+                                        }
+                                    }
+                                );
                             }
                         }
                     }
             );
         }
-
 
         void onReplicaFailure(String nodeId, @Nullable Throwable e) {
             // Only version conflict should be ignored from being put into the _shards header?
@@ -961,34 +971,6 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                 if (logger.isTraceEnabled()) {
                     logger.trace("action [{}] completed on all replicas [{}] for request [{}]", transportReplicaAction, shardId, replicaRequest);
                 }
-            }
-        }
-
-        public class ReplicationFailedShardStateListener implements ShardStateAction.Listener {
-            private final String nodeId;
-            private Throwable failure;
-
-            public ReplicationFailedShardStateListener(String nodeId, Throwable failure) {
-                this.nodeId = nodeId;
-                this.failure = failure;
-            }
-
-            @Override
-            public void onSuccess() {
-                onReplicaFailure(nodeId, failure);
-            }
-
-            @Override
-            public void onShardFailedNoMaster() {
-                onReplicaFailure(nodeId, failure);
-            }
-
-            @Override
-            public void onShardFailedFailure(DiscoveryNode master, TransportException e) {
-                if (e instanceof ReceiveTimeoutTransportException) {
-                    logger.trace("timeout sending shard failure to master [{}]", e, master);
-                }
-                onReplicaFailure(nodeId, failure);
             }
         }
     }

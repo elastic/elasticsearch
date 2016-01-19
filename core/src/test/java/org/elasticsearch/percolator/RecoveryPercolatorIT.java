@@ -38,6 +38,8 @@ import org.elasticsearch.test.ESIntegTestCase.Scope;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.action.percolate.PercolateSourceBuilder.docBuilder;
@@ -249,6 +251,7 @@ public class RecoveryPercolatorIT extends ESIntegTestCase {
                 .setSource(document)
                 .get();
 
+        final Lock lock = new ReentrantLock();
         final AtomicBoolean run = new AtomicBoolean(true);
         final AtomicReference<Throwable> error = new AtomicReference<>();
         Runnable r = () -> {
@@ -261,7 +264,13 @@ public class RecoveryPercolatorIT extends ESIntegTestCase {
                     } else {
                         percolateBuilder.setGetRequest(Requests.getRequest("test").type("type").id("1"));
                     }
-                    PercolateResponse response = percolateBuilder.get();
+                    PercolateResponse response;
+                    try {
+                        lock.lock();
+                        response = percolateBuilder.get();
+                    } finally {
+                        lock.unlock();
+                    }
                     assertNoFailures(response);
                     assertThat(response.getSuccessfulShards(), equalTo(response.getTotalShards()));
                     assertThat(response.getCount(), equalTo((long) numQueries));
@@ -279,7 +288,12 @@ public class RecoveryPercolatorIT extends ESIntegTestCase {
         try {
             // 1 index, 2 primaries, 2 replicas per primary
             for (int i = 0; i < 4; i++) {
-                internalCluster().stopRandomNode(nodePredicate);
+                try {
+                    lock.lock();
+                    internalCluster().stopRandomNode(nodePredicate);
+                } finally {
+                    lock.unlock();
+                }
                 client.admin().cluster().prepareHealth("test")
                         .setWaitForEvents(Priority.LANGUID)
                         .setTimeout(TimeValue.timeValueMinutes(2))
@@ -287,7 +301,12 @@ public class RecoveryPercolatorIT extends ESIntegTestCase {
                         .setWaitForActiveShards(4) // 2 nodes, so 4 shards (2 primaries, 2 replicas)
                         .get();
                 assertThat(error.get(), nullValue());
-                internalCluster().stopRandomNode(nodePredicate);
+                try {
+                    lock.lock();
+                    internalCluster().stopRandomNode(nodePredicate);
+                } finally {
+                    lock.unlock();
+                }
                 client.admin().cluster().prepareHealth("test")
                         .setWaitForEvents(Priority.LANGUID)
                         .setTimeout(TimeValue.timeValueMinutes(2))
@@ -295,7 +314,7 @@ public class RecoveryPercolatorIT extends ESIntegTestCase {
                         .setWaitForActiveShards(2) // 1 node, so 2 shards (2 primaries, 0 replicas)
                         .get();
                 assertThat(error.get(), nullValue());
-                internalCluster().startNode();
+                internalCluster().startNode(settingsBuilder().put("node.stay", false));
                 client.admin().cluster().prepareHealth("test")
                         .setWaitForEvents(Priority.LANGUID)
                         .setTimeout(TimeValue.timeValueMinutes(2))
@@ -303,7 +322,7 @@ public class RecoveryPercolatorIT extends ESIntegTestCase {
                         .setWaitForActiveShards(4)  // 2 nodes, so 4 shards (2 primaries, 2 replicas)
                         .get();
                 assertThat(error.get(), nullValue());
-                internalCluster().startNode();
+                internalCluster().startNode(settingsBuilder().put("node.stay", false));
                 client.admin().cluster().prepareHealth("test")
                         .setWaitForEvents(Priority.LANGUID)
                         .setTimeout(TimeValue.timeValueMinutes(2))

@@ -51,18 +51,6 @@ public abstract class NodeConfigurationSource {
      */
     public abstract Settings nodeSettings(int nodeOrdinal);
 
-    /** Plugins that will be randomly added to the node */
-    public Collection<Class<? extends Plugin>> mockPlugins() {
-        List<Class<? extends Plugin>> plugins = new ArrayList<>();
-        plugins.add(MockTransportService.TestPlugin.class);
-        plugins.add(MockFSIndexStore.TestPlugin.class);
-        plugins.add(NodeMocksPlugin.class);
-        plugins.add(MockEngineFactoryPlugin.class);
-        plugins.add(MockSearchService.TestPlugin.class);
-        plugins.add(AssertingLocalTransport.TestPlugin.class);
-        return plugins;
-    }
-
     /** Returns plugins that should be loaded on the node */
     public Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.emptyList();

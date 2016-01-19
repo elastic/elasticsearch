@@ -19,65 +19,30 @@
 
 package org.elasticsearch.index.query.functionscore;
 
-import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.NamedWriteable;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.xcontent.XContentLocation;
-import org.elasticsearch.index.query.functionscore.exp.ExponentialDecayFunctionParser;
-import org.elasticsearch.index.query.functionscore.fieldvaluefactor.FieldValueFactorFunctionParser;
-import org.elasticsearch.index.query.functionscore.gauss.GaussDecayFunctionParser;
-import org.elasticsearch.index.query.functionscore.lin.LinearDecayFunctionParser;
-import org.elasticsearch.index.query.functionscore.random.RandomScoreFunctionParser;
-import org.elasticsearch.index.query.functionscore.script.ScriptScoreFunctionParser;
-import org.elasticsearch.index.query.functionscore.weight.WeightBuilder;
-
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
-import java.util.Set;
+
+import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.xcontent.XContentLocation;
+
+import static java.util.Collections.unmodifiableMap;
 
 public class ScoreFunctionParserMapper {
 
     protected Map<String, ScoreFunctionParser<?>> functionParsers;
 
-    @Inject
-    public ScoreFunctionParserMapper(Set<ScoreFunctionParser> parsers, NamedWriteableRegistry namedWriteableRegistry) {
-        Map<String, ScoreFunctionParser<?>> map = new HashMap<>();
-        // built-in parsers
-        addParser(new ScriptScoreFunctionParser(), map, namedWriteableRegistry);
-        addParser(new GaussDecayFunctionParser(), map, namedWriteableRegistry);
-        addParser(new LinearDecayFunctionParser(), map, namedWriteableRegistry);
-        addParser(new ExponentialDecayFunctionParser(), map, namedWriteableRegistry);
-        addParser(new RandomScoreFunctionParser(), map, namedWriteableRegistry);
-        addParser(new FieldValueFactorFunctionParser(), map, namedWriteableRegistry);
-        for (ScoreFunctionParser<?> scoreFunctionParser : parsers) {
-            addParser(scoreFunctionParser, map, namedWriteableRegistry);
-        }
-        this.functionParsers = Collections.unmodifiableMap(map);
-        //weight doesn't have its own parser, so every function supports it out of the box.
-        //Can be a single function too when not associated to any other function, which is why it needs to be registered manually here.
-        namedWriteableRegistry.registerPrototype(ScoreFunctionBuilder.class, new WeightBuilder());
+    public ScoreFunctionParserMapper(Map<String, ScoreFunctionParser<?>> functionParsers) {
+        this.functionParsers = unmodifiableMap(functionParsers);
     }
 
-    public ScoreFunctionParser get(XContentLocation contentLocation, String parserName) {
-        ScoreFunctionParser functionParser = get(parserName);
+    public ScoreFunctionParser<?> get(XContentLocation contentLocation, String parserName) {
+        ScoreFunctionParser<?> functionParser = get(parserName);
         if (functionParser == null) {
             throw new ParsingException(contentLocation, "No function with the name [" + parserName + "] is registered.");
         }
         return functionParser;
     }
 
-    private ScoreFunctionParser get(String parserName) {
+    private ScoreFunctionParser<?> get(String parserName) {
         return functionParsers.get(parserName);
-    }
-
-    private static void addParser(ScoreFunctionParser<? extends ScoreFunctionBuilder> scoreFunctionParser, Map<String, ScoreFunctionParser<?>> map, NamedWriteableRegistry namedWriteableRegistry) {
-        for (String name : scoreFunctionParser.getNames()) {
-            map.put(name, scoreFunctionParser);
-
-        }
-        @SuppressWarnings("unchecked") NamedWriteable<? extends ScoreFunctionBuilder> sfb = scoreFunctionParser.getBuilderPrototype();
-        namedWriteableRegistry.registerPrototype(ScoreFunctionBuilder.class, sfb);
     }
 }

@@ -77,7 +77,7 @@ public class MovAvgIT extends ESIntegTestCase {
     static int period;
     static HoltWintersModel.SeasonalityType seasonalityType;
     static BucketHelpers.GapPolicy gapPolicy;
-    static ValuesSourceMetricsAggregationBuilder metric;
+    static ValuesSourceMetricsAggregationBuilder<?> metric;
     static List<PipelineAggregationHelperTests.MockBucket> mockHisto;
 
     static Map<String, ArrayList<Double>> testValues;
@@ -864,7 +864,7 @@ public class MovAvgIT extends ESIntegTestCase {
 
     public void testHoltWintersNotEnoughData() {
         try {
-            SearchResponse response = client()
+            client()
                     .prepareSearch("idx").setTypes("type")
                     .addAggregation(
                             histogram("histo").field(INTERVAL_FIELD).interval(interval)
@@ -1003,7 +1003,7 @@ public class MovAvgIT extends ESIntegTestCase {
 
     public void testBadModelParams() {
         try {
-            SearchResponse response = client()
+            client()
                     .prepareSearch("idx").setTypes("type")
                     .addAggregation(
                             histogram("histo").field(INTERVAL_FIELD).interval(interval)
@@ -1248,7 +1248,7 @@ public class MovAvgIT extends ESIntegTestCase {
 
         for (MovAvgModelBuilder builder : builders) {
             try {
-                SearchResponse response = client()
+                client()
                         .prepareSearch("idx").setTypes("type")
                         .addAggregation(
                                 histogram("histo").field(INTERVAL_FIELD).interval(interval)
@@ -1265,14 +1265,10 @@ public class MovAvgIT extends ESIntegTestCase {
                 // All good
             }
         }
-
-
-
-
     }
 
 
-    private void assertValidIterators(Iterator expectedBucketIter, Iterator expectedCountsIter, Iterator expectedValuesIter) {
+    private void assertValidIterators(Iterator<?> expectedBucketIter, Iterator<?> expectedCountsIter, Iterator<?> expectedValuesIter) {
         if (!expectedBucketIter.hasNext()) {
             fail("`expectedBucketIter` iterator ended before `actual` iterator, size mismatch");
         }
@@ -1355,7 +1351,7 @@ public class MovAvgIT extends ESIntegTestCase {
         }
     }
 
-    private ValuesSourceMetricsAggregationBuilder randomMetric(String name, String field) {
+    private ValuesSourceMetricsAggregationBuilder<?> randomMetric(String name, String field) {
         int rand = randomIntBetween(0,3);
 
         switch (rand) {

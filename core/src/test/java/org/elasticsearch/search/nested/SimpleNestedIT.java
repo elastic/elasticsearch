@@ -235,7 +235,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
     // This IncludeNestedDocsQuery also needs to be aware of the filter from alias
     public void testDeleteNestedDocsWithAlias() throws Exception {
         assertAcked(prepareCreate("test")
-                .setSettings(settingsBuilder().put(indexSettings()).put("index.referesh_interval", -1).build())
+                .setSettings(settingsBuilder().put(indexSettings()).put("index.refresh_interval", -1).build())
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("field1")
                         .field("type", "string")
@@ -412,7 +412,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test")
                 .setSettings(settingsBuilder()
                         .put(indexSettings())
-                        .put("index.referesh_interval", -1))
+                        .put("index.refresh_interval", -1))
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("nested1")
                         .field("type", "nested")

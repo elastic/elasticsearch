@@ -106,16 +106,16 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
                 }
                 assertThat(booleanQuery.clauses().size(), equalTo(clauses.size()));
                 Iterator<BooleanClause> clauseIterator = clauses.iterator();
-                for (BooleanClause booleanClause : booleanQuery.getClauses()) {
+                for (BooleanClause booleanClause : booleanQuery.clauses()) {
                     assertThat(booleanClause, instanceOf(clauseIterator.next().getClass()));
                 }
             }
         }
     }
 
-    private static List<BooleanClause> getBooleanClauses(List<QueryBuilder> queryBuilders, BooleanClause.Occur occur, QueryShardContext context) throws IOException {
+    private static List<BooleanClause> getBooleanClauses(List<QueryBuilder<?>> queryBuilders, BooleanClause.Occur occur, QueryShardContext context) throws IOException {
         List<BooleanClause> clauses = new ArrayList<>();
-        for (QueryBuilder query : queryBuilders) {
+        for (QueryBuilder<?> query : queryBuilders) {
             Query innerQuery = query.toQuery(context);
             if (innerQuery != null) {
                 clauses.add(new BooleanClause(innerQuery, occur));
@@ -132,22 +132,22 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         String contentString = "{\n" +
                 "    \"bool\" : {\n";
         if (tempQueryBuilder.must().size() > 0) {
-            QueryBuilder must = tempQueryBuilder.must().get(0);
+            QueryBuilder<?> must = tempQueryBuilder.must().get(0);
             contentString += "must: " + must.toString() + ",";
             expectedQuery.must(must);
         }
         if (tempQueryBuilder.mustNot().size() > 0) {
-            QueryBuilder mustNot = tempQueryBuilder.mustNot().get(0);
+            QueryBuilder<?> mustNot = tempQueryBuilder.mustNot().get(0);
             contentString += (randomBoolean() ? "must_not: " : "mustNot: ") + mustNot.toString() + ",";
             expectedQuery.mustNot(mustNot);
         }
         if (tempQueryBuilder.should().size() > 0) {
-            QueryBuilder should = tempQueryBuilder.should().get(0);
+            QueryBuilder<?> should = tempQueryBuilder.should().get(0);
             contentString += "should: " + should.toString() + ",";
             expectedQuery.should(should);
         }
         if (tempQueryBuilder.filter().size() > 0) {
-            QueryBuilder filter = tempQueryBuilder.filter().get(0);
+            QueryBuilder<?> filter = tempQueryBuilder.filter().get(0);
             contentString += "filter: " + filter.toString() + ",";
             expectedQuery.filter(filter);
         }
@@ -270,6 +270,17 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
                 .minimumNumberShouldMatch(3)
                 .buildAsBytes()).toQuery(createShardContext());
         assertEquals(3, bq.getMinimumNumberShouldMatch());
+    }
+
+    public void testMinShouldMatchDisableCoord() throws Exception {
+        BooleanQuery bq = (BooleanQuery) parseQuery(
+                boolQuery()
+                        .should(termQuery("foo", "bar"))
+                        .should(termQuery("foo2", "bar2"))
+                        .minimumNumberShouldMatch("3")
+                        .disableCoord(true)
+                        .buildAsBytes()).toQuery(createShardContext());
+        assertEquals(0, bq.getMinimumNumberShouldMatch());
     }
 
     public void testFromJson() throws IOException {

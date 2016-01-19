@@ -56,7 +56,7 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
 
     private static final int REQUEST_OVERHEAD = 50;
 
-    final List<ActionRequest> requests = new ArrayList<>();
+    final List<ActionRequest<?>> requests = new ArrayList<>();
     List<Object> payloads = null;
 
     protected TimeValue timeout = BulkShardRequest.DEFAULT_TIMEOUT;
@@ -71,14 +71,14 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
     /**
      * Adds a list of requests to be executed. Either index or delete requests.
      */
-    public BulkRequest add(ActionRequest... requests) {
-        for (ActionRequest request : requests) {
+    public BulkRequest add(ActionRequest<?>... requests) {
+        for (ActionRequest<?> request : requests) {
             add(request, null);
         }
         return this;
     }
 
-    public BulkRequest add(ActionRequest request) {
+    public BulkRequest add(ActionRequest<?> request) {
         return add(request, null);
     }
 
@@ -88,7 +88,7 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
      * @param payload Optional payload
      * @return the current bulk request
      */
-    public BulkRequest add(ActionRequest request, @Nullable Object payload) {
+    public BulkRequest add(ActionRequest<?> request, @Nullable Object payload) {
         if (request instanceof IndexRequest) {
             add((IndexRequest) request, payload);
         } else if (request instanceof DeleteRequest) {
@@ -104,8 +104,8 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
     /**
      * Adds a list of requests to be executed. Either index or delete requests.
      */
-    public BulkRequest add(Iterable<ActionRequest> requests) {
-        for (ActionRequest request : requests) {
+    public BulkRequest add(Iterable<ActionRequest<?>> requests) {
+        for (ActionRequest<?> request : requests) {
             add(request);
         }
         return this;
@@ -188,15 +188,14 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
     /**
      * The list of requests in this bulk request.
      */
-    public List<ActionRequest> requests() {
+    public List<ActionRequest<?>> requests() {
         return this.requests;
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public List<? extends IndicesRequest> subRequests() {
         List<IndicesRequest> indicesRequests = new ArrayList<>();
-        for (ActionRequest request : requests) {
+        for (ActionRequest<?> request : requests) {
             assert request instanceof IndicesRequest;
             indicesRequests.add((IndicesRequest) request);
         }
@@ -478,7 +477,7 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
         if (requests.isEmpty()) {
             validationException = addValidationError("no requests added", validationException);
         }
-        for (ActionRequest request : requests) {
+        for (ActionRequest<?> request : requests) {
             // We first check if refresh has been set
             if ((request instanceof DeleteRequest && ((DeleteRequest)request).refresh()) ||
                     (request instanceof UpdateRequest && ((UpdateRequest)request).refresh()) ||
@@ -527,7 +526,7 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
         super.writeTo(out);
         out.writeByte(consistencyLevel.id());
         out.writeVInt(requests.size());
-        for (ActionRequest request : requests) {
+        for (ActionRequest<?> request : requests) {
             if (request instanceof IndexRequest) {
                 out.writeByte((byte) 0);
             } else if (request instanceof DeleteRequest) {

@@ -17,9 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.index.shard;
+package org.elasticsearch.index;
 
 import org.apache.lucene.index.ConcurrentMergeScheduler;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.IndexSettings;
@@ -52,19 +53,21 @@ import org.elasticsearch.index.IndexSettings;
  */
 public final class MergeSchedulerConfig {
 
-    public static final String MAX_THREAD_COUNT = "index.merge.scheduler.max_thread_count";
-    public static final String MAX_MERGE_COUNT = "index.merge.scheduler.max_merge_count";
-    public static final String AUTO_THROTTLE = "index.merge.scheduler.auto_throttle";
+    public static final Setting<Integer> MAX_THREAD_COUNT_SETTING = new Setting<>("index.merge.scheduler.max_thread_count", (s) -> Integer.toString(Math.max(1, Math.min(4, EsExecutors.boundedNumberOfProcessors(s) / 2))), (s) -> Setting.parseInt(s, 1, "index.merge.scheduler.max_thread_count"), true, Setting.Scope.INDEX);
+    public static final Setting<Integer> MAX_MERGE_COUNT_SETTING = new Setting<>("index.merge.scheduler.max_merge_count", (s) -> Integer.toString(MAX_THREAD_COUNT_SETTING.get(s) + 5), (s) -> Setting.parseInt(s, 1, "index.merge.scheduler.max_merge_count"), true, Setting.Scope.INDEX);
+    public static final Setting<Boolean> AUTO_THROTTLE_SETTING = Setting.boolSetting("index.merge.scheduler.auto_throttle", true, true, Setting.Scope.INDEX);
 
     private volatile boolean autoThrottle;
     private volatile int maxThreadCount;
     private volatile int maxMergeCount;
 
-    public MergeSchedulerConfig(IndexSettings indexSettings) {
-        final Settings settings = indexSettings.getSettings();
-        maxThreadCount = settings.getAsInt(MAX_THREAD_COUNT, Math.max(1, Math.min(4, EsExecutors.boundedNumberOfProcessors(settings) / 2)));
-        maxMergeCount = settings.getAsInt(MAX_MERGE_COUNT, maxThreadCount + 5);
-        this.autoThrottle = settings.getAsBoolean(AUTO_THROTTLE, true);
+    MergeSchedulerConfig(IndexSettings indexSettings) {
+        indexSettings.getScopedSettings().addSettingsUpdateConsumer(MAX_THREAD_COUNT_SETTING, this::setMaxThreadCount);
+        indexSettings.getScopedSettings().addSettingsUpdateConsumer(MAX_MERGE_COUNT_SETTING, this::setMaxMergeCount);
+        indexSettings.getScopedSettings().addSettingsUpdateConsumer(AUTO_THROTTLE_SETTING, this::setAutoThrottle);
+        maxThreadCount = indexSettings.getValue(MAX_THREAD_COUNT_SETTING);
+        maxMergeCount = indexSettings.getValue(MAX_MERGE_COUNT_SETTING);
+        this.autoThrottle = indexSettings.getValue(AUTO_THROTTLE_SETTING);
     }
 
     /**
@@ -78,7 +81,7 @@ public final class MergeSchedulerConfig {
     /**
      * Enables / disables auto throttling on the {@link ConcurrentMergeScheduler}
      */
-    public void setAutoThrottle(boolean autoThrottle) {
+    void setAutoThrottle(boolean autoThrottle) {
         this.autoThrottle = autoThrottle;
     }
 
@@ -93,7 +96,7 @@ public final class MergeSchedulerConfig {
      * Expert: directly set the maximum number of merge threads and
      * simultaneous merges allowed.
      */
-    public void setMaxThreadCount(int maxThreadCount) {
+    void setMaxThreadCount(int maxThreadCount) {
         this.maxThreadCount = maxThreadCount;
     }
 
@@ -108,7 +111,7 @@ public final class MergeSchedulerConfig {
      *
      * Expert: set the maximum number of simultaneous merges allowed.
      */
-    public void setMaxMergeCount(int maxMergeCount) {
+    void setMaxMergeCount(int maxMergeCount) {
         this.maxMergeCount = maxMergeCount;
     }
 }

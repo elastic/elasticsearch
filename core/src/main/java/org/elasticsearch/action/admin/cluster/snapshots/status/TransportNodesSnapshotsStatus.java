@@ -179,6 +179,7 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<Transpor
             this.failures = failures;
         }
 
+        @Override
         public FailedNodeException[] failures() {
             return failures;
         }

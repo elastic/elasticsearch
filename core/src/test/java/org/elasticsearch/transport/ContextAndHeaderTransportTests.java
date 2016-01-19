@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.messy.tests;
+package org.elasticsearch.transport;
 
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
@@ -28,8 +28,6 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptRequest;
-import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptResponse;
 import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -39,9 +37,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.GeoShapeQueryBuilder;
@@ -49,14 +45,9 @@ import org.elasticsearch.index.query.MoreLikeThisQueryBuilder;
 import org.elasticsearch.index.query.MoreLikeThisQueryBuilder.Item;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermsQueryBuilder;
-import org.elasticsearch.index.query.functionscore.script.ScriptScoreFunctionBuilder;
 import org.elasticsearch.indices.cache.query.terms.TermsLookup;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptService.ScriptType;
-import org.elasticsearch.script.groovy.GroovyPlugin;
-import org.elasticsearch.script.groovy.GroovyScriptEngineService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
@@ -98,34 +89,34 @@ public class ContextAndHeaderTransportTests extends ESIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return settingsBuilder()
-                .put(super.nodeSettings(nodeOrdinal))
-                .put("script.indexed", "on")
-                .put(HTTP_ENABLED, true)
-                .build();
+            .put(super.nodeSettings(nodeOrdinal))
+            .put("script.indexed", "on")
+            .put(HTTP_ENABLED, true)
+            .build();
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(ActionLoggingPlugin.class, GroovyPlugin.class);
+        return pluginList(ActionLoggingPlugin.class);
     }
 
     @Before
     public void createIndices() throws Exception {
         String mapping = jsonBuilder().startObject().startObject("type")
-                .startObject("properties")
-                .startObject("location").field("type", "geo_shape").endObject()
-                .startObject("name").field("type", "string").endObject()
-                .endObject()
-                .endObject().endObject().string();
+            .startObject("properties")
+            .startObject("location").field("type", "geo_shape").endObject()
+            .startObject("name").field("type", "string").endObject()
+            .endObject()
+            .endObject().endObject().string();
 
         Settings settings = settingsBuilder()
-                .put(indexSettings())
-                .put(SETTING_NUMBER_OF_SHARDS, 1) // A single shard will help to keep the tests repeatable.
-                .build();
+            .put(indexSettings())
+            .put(SETTING_NUMBER_OF_SHARDS, 1) // A single shard will help to keep the tests repeatable.
+            .build();
         assertAcked(transportClient().admin().indices().prepareCreate(lookupIndex)
-                .setSettings(settings).addMapping("type", mapping));
+            .setSettings(settings).addMapping("type", mapping));
         assertAcked(transportClient().admin().indices().prepareCreate(queryIndex)
-                .setSettings(settings).addMapping("type", mapping));
+            .setSettings(settings).addMapping("type", mapping));
         ensureGreen(queryIndex, lookupIndex);
         requests.clear();
     }
@@ -243,31 +234,6 @@ public class ContextAndHeaderTransportTests extends ESIntegTestCase {
         assertGetRequestsContainHeaders();
     }
 
-    public void testThatIndexedScriptGetRequestContainsContextAndHeaders() throws Exception {
-        PutIndexedScriptResponse scriptResponse = transportClient().preparePutIndexedScript(GroovyScriptEngineService.NAME, "my_script",
-            jsonBuilder().startObject().field("script", "_score * 10").endObject().string()
-        ).get();
-        assertThat(scriptResponse.isCreated(), is(true));
-
-        transportClient().prepareIndex(queryIndex, "type", "1")
-            .setSource(jsonBuilder().startObject().field("name", "Star Wars - The new republic").endObject())
-            .get();
-        transportClient().admin().indices().prepareRefresh(queryIndex).get();
-
-        SearchResponse searchResponse = transportClient()
-            .prepareSearch(queryIndex)
-            .setQuery(
-                QueryBuilders.functionScoreQuery(
-                    new ScriptScoreFunctionBuilder(new Script("my_script", ScriptType.INDEXED, "groovy", null))).boostMode(
-                    CombineFunction.REPLACE)).get();
-        assertNoFailures(searchResponse);
-        assertHitCount(searchResponse, 1);
-        assertThat(searchResponse.getHits().getMaxScore(), is(10.0f));
-
-        assertGetRequestsContainHeaders(".scripts");
-        assertRequestsContainHeader(PutIndexedScriptRequest.class);
-    }
-
     public void testThatRelevantHttpHeadersBecomeRequestHeaders() throws Exception {
         String releventHeaderName = "relevant_" + randomHeaderKey;
         for (RestController restController : internalCluster().getDataNodeInstances(RestController.class)) {
@@ -331,7 +297,7 @@ public class ContextAndHeaderTransportTests extends ESIntegTestCase {
         if (request instanceof IndexRequest) {
             IndexRequest indexRequest = (IndexRequest) request;
             msg = String.format(Locale.ROOT, "Expected header %s to be in index request %s/%s/%s", randomHeaderKey,
-                    indexRequest.index(), indexRequest.type(), indexRequest.id());
+                indexRequest.index(), indexRequest.type(), indexRequest.id());
         }
         assertThat(msg, context.containsKey(randomHeaderKey), is(true));
         assertThat(context.get(randomHeaderKey).toString(), is(randomHeaderValue));

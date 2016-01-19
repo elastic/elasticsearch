@@ -36,12 +36,15 @@ import org.elasticsearch.common.xcontent.XContentType;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.regex.Pattern;
 
 /**
+ * A setting. Encapsulates typical stuff like default value, parsing, and scope.
+ * Some (dynamic=true) can by modified at run time using the API.
  */
 public class Setting<T> extends ToXContentToBytes {
     private final String key;
@@ -166,6 +169,16 @@ public class Setting<T> extends ToXContentToBytes {
     }
 
     /**
+     * Returns the value for this setting but falls back to the second provided settings object
+     */
+    public final T get(Settings primary, Settings secondary) {
+        if (exists(primary)) {
+            return get(primary);
+        }
+        return get(secondary);
+    }
+
+    /**
      * The settings scope - settings can either be cluster settings or per index settings.
      */
     public enum Scope {
@@ -173,11 +186,18 @@ public class Setting<T> extends ToXContentToBytes {
         INDEX;
     }
 
-    final AbstractScopedSettings.SettingUpdater newUpdater(Consumer<T> consumer, ESLogger logger) {
+    /**
+     * Build a new updater with a noop validator.
+     */
+    final AbstractScopedSettings.SettingUpdater<T> newUpdater(Consumer<T> consumer, ESLogger logger) {
         return newUpdater(consumer, logger, (s) -> {});
     }
 
-    AbstractScopedSettings.SettingUpdater newUpdater(Consumer<T> consumer, ESLogger logger, Consumer<T> validator) {
+    /**
+     * Build the updater responsible for validating new values, logging the new
+     * value, and eventually setting the value where it belongs.
+     */
+    AbstractScopedSettings.SettingUpdater<T> newUpdater(Consumer<T> consumer, ESLogger logger, Consumer<T> validator) {
         if (isDynamic()) {
             return new Updater(consumer, logger, validator);
         } else {
@@ -216,7 +236,7 @@ public class Setting<T> extends ToXContentToBytes {
     }
 
 
-    private class Updater implements AbstractScopedSettings.SettingUpdater<T> {
+    private final class Updater implements AbstractScopedSettings.SettingUpdater<T> {
         private final Consumer<T> consumer;
         private final ESLogger logger;
         private final Consumer<T> accept;
@@ -256,8 +276,8 @@ public class Setting<T> extends ToXContentToBytes {
         }
 
         @Override
-        public void apply(T value, Settings current, Settings previous) {
-            logger.info("update [{}] from [{}] to [{}]", key, getRaw(previous), getRaw(current));
+        public final void apply(T value, Settings current, Settings previous) {
+            logger.info("updating [{}] from [{}] to [{}]", key, getRaw(previous), getRaw(current));
             consumer.accept(value);
         }
     }
@@ -285,8 +305,20 @@ public class Setting<T> extends ToXContentToBytes {
         return new Setting<>(key, (s) -> Integer.toString(defaultValue), (s) -> parseInt(s, minValue, key), dynamic, scope);
     }
 
+    public static Setting<Long> longSetting(String key, long defaultValue, long minValue, boolean dynamic, Scope scope) {
+        return new Setting<>(key, (s) -> Long.toString(defaultValue), (s) -> parseLong(s, minValue, key), dynamic, scope);
+    }
+
     public static int parseInt(String s, int minValue, String key) {
         int value = Integer.parseInt(s);
+        if (value < minValue) {
+            throw new IllegalArgumentException("Failed to parse value [" + s + "] for setting [" + key + "] must be >= " + minValue);
+        }
+        return value;
+    }
+
+    public static long parseLong(String s, long minValue, String key) {
+        long value = Long.parseLong(s);
         if (value < minValue) {
             throw new IllegalArgumentException("Failed to parse value [" + s + "] for setting [" + key + "] must be >= " + minValue);
         }
@@ -343,6 +375,7 @@ public class Setting<T> extends ToXContentToBytes {
                 return array == null ? defaultValue.apply(settings) : arrayToParsableString(array);
             }
 
+            @Override
             public boolean match(String toTest) {
                 return pattern.matcher(toTest).matches();
             }
@@ -420,6 +453,7 @@ public class Setting<T> extends ToXContentToBytes {
 
                     @Override
                     public void apply(Settings value, Settings current, Settings previous) {
+                        logger.info("updating [{}] from [{}] to [{}]", key, getRaw(previous), getRaw(current));
                         consumer.accept(value);
                     }
 
@@ -460,4 +494,16 @@ public class Setting<T> extends ToXContentToBytes {
         }, dynamic, scope);
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        Setting<?> setting = (Setting<?>) o;
+        return Objects.equals(key, setting.key);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(key);
+    }
 }

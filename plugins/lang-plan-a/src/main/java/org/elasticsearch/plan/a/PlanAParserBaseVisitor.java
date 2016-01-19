@@ -122,6 +122,13 @@ class PlanAParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implements P
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
+  @Override public T visitEmptyscope(PlanAParser.EmptyscopeContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
   @Override public T visitInitializer(PlanAParser.InitializerContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
@@ -151,6 +158,13 @@ class PlanAParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implements P
    * {@link #visitChildren} on {@code ctx}.</p>
    */
   @Override public T visitDeclvar(PlanAParser.DeclvarContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitTrap(PlanAParser.TrapContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
    *

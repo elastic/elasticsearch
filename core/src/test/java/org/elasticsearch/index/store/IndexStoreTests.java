@@ -49,7 +49,7 @@ public class IndexStoreTests extends ESTestCase {
         final Path tempDir = createTempDir().resolve("foo").resolve("0");
         final IndexModule.Type[] values = IndexModule.Type.values();
         final IndexModule.Type type = RandomPicks.randomFrom(random(), values);
-        Settings settings = Settings.settingsBuilder().put(IndexModule.STORE_TYPE, type.name().toLowerCase(Locale.ROOT))
+        Settings settings = Settings.settingsBuilder().put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), type.name().toLowerCase(Locale.ROOT))
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(new Index("foo"), settings);
         FsDirectoryService service = new FsDirectoryService(indexSettings, null, new ShardPath(false, tempDir, tempDir, "foo", new ShardId("foo", 0)));

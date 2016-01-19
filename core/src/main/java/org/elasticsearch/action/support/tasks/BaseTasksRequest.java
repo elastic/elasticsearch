@@ -34,7 +34,7 @@ import java.io.IOException;
 /**
  * A base class for task requests
  */
-public class BaseTasksRequest<T extends BaseTasksRequest> extends ActionRequest<T> {
+public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends ActionRequest<Request> {
 
 
     public static final String[] ALL_ACTIONS = Strings.EMPTY_ARRAY;
@@ -73,9 +73,9 @@ public class BaseTasksRequest<T extends BaseTasksRequest> extends ActionRequest<
      * Sets the list of action masks for the actions that should be returned
      */
     @SuppressWarnings("unchecked")
-    public final T actions(String... actions) {
+    public final Request actions(String... actions) {
         this.actions = actions;
-        return (T) this;
+        return (Request) this;
     }
 
     /**
@@ -90,9 +90,9 @@ public class BaseTasksRequest<T extends BaseTasksRequest> extends ActionRequest<
     }
 
     @SuppressWarnings("unchecked")
-    public final T nodesIds(String... nodesIds) {
+    public final Request nodesIds(String... nodesIds) {
         this.nodesIds = nodesIds;
-        return (T) this;
+        return (Request) this;
     }
 
     /**
@@ -103,9 +103,9 @@ public class BaseTasksRequest<T extends BaseTasksRequest> extends ActionRequest<
     }
 
     @SuppressWarnings("unchecked")
-    public T parentNode(String parentNode) {
+    public Request parentNode(String parentNode) {
         this.parentNode = parentNode;
-        return (T) this;
+        return (Request) this;
     }
 
     /**
@@ -116,9 +116,9 @@ public class BaseTasksRequest<T extends BaseTasksRequest> extends ActionRequest<
     }
 
     @SuppressWarnings("unchecked")
-    public T parentTaskId(long parentTaskId) {
+    public Request parentTaskId(long parentTaskId) {
         this.parentTaskId = parentTaskId;
-        return (T) this;
+        return (Request) this;
     }
 
 
@@ -127,15 +127,15 @@ public class BaseTasksRequest<T extends BaseTasksRequest> extends ActionRequest<
     }
 
     @SuppressWarnings("unchecked")
-    public final T timeout(TimeValue timeout) {
+    public final Request timeout(TimeValue timeout) {
         this.timeout = timeout;
-        return (T) this;
+        return (Request) this;
     }
 
     @SuppressWarnings("unchecked")
-    public final T timeout(String timeout) {
+    public final Request timeout(String timeout) {
         this.timeout = TimeValue.parseTimeValue(timeout, null, getClass().getSimpleName() + ".timeout");
-        return (T) this;
+        return (Request) this;
     }
 
     @Override

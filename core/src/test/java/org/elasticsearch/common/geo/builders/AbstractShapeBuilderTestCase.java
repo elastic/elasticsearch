@@ -40,7 +40,7 @@ import static org.hamcrest.Matchers.not;
 
 public abstract class AbstractShapeBuilderTestCase<SB extends ShapeBuilder> extends ESTestCase {
 
-    private static final int NUMBER_OF_TESTBUILDERS = 100;
+    private static final int NUMBER_OF_TESTBUILDERS = 20;
     private static NamedWriteableRegistry namedWriteableRegistry;
 
     /**

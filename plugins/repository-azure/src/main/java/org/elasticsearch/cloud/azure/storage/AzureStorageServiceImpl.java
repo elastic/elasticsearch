@@ -90,8 +90,8 @@ public class AzureStorageServiceImpl extends AbstractLifecycleComponent<AzureSto
         logger.trace("selecting a client for account [{}], mode [{}]", account, mode.name());
         AzureStorageSettings azureStorageSettings = null;
 
-        if (this.primaryStorageSettings == null || this.secondariesStorageSettings.isEmpty()) {
-            throw new IllegalArgumentException("No azure storage can be found. Check your elasticsearch.yml.");
+        if (this.primaryStorageSettings == null) {
+            throw new IllegalArgumentException("No primary azure storage can be found. Check your elasticsearch.yml.");
         }
 
         if (account != null) {
@@ -123,9 +123,10 @@ public class AzureStorageServiceImpl extends AbstractLifecycleComponent<AzureSto
         // Set timeout option. Defaults to 5mn. See cloud.azure.storage.timeout or cloud.azure.storage.xxx.timeout
         try {
             int timeout = (int) azureStorageSettings.getTimeout().getMillis();
-            client.getDefaultRequestOptions().setTimeoutIntervalInMs(timeout);
+            client.getDefaultRequestOptions().setMaximumExecutionTimeInMs(timeout);
         } catch (ClassCastException e) {
-            throw new IllegalArgumentException("Can not cast [" + azureStorageSettings.getTimeout() + "] to int.");
+            throw new IllegalArgumentException("Can not convert [" + azureStorageSettings.getTimeout() +
+                "]. It can not be longer than 2,147,483,647ms.");
         }
         return client;
     }

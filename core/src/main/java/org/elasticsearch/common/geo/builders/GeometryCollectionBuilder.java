@@ -36,7 +36,7 @@ public class GeometryCollectionBuilder extends ShapeBuilder {
 
     public static final GeoShapeType TYPE = GeoShapeType.GEOMETRYCOLLECTION;
 
-    static final GeometryCollectionBuilder PROTOTYPE = new GeometryCollectionBuilder();
+    public static final GeometryCollectionBuilder PROTOTYPE = new GeometryCollectionBuilder();
 
     protected final ArrayList<ShapeBuilder> shapes = new ArrayList<>();
 

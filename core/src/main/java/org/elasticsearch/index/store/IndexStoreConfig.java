@@ -31,7 +31,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
  * <tt>indices.store.throttle.type</tt> or <tt>indices.store.throttle.max_bytes_per_sec</tt> are reflected immediately
  * on all referencing {@link IndexStore} instances
  */
-public class IndexStoreConfig{
+public class IndexStoreConfig {
 
     /**
      * Configures the node / cluster level throttle type. See {@link StoreRateLimiting.Type}.

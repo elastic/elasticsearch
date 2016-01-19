@@ -51,11 +51,21 @@ public class SettingsModule extends AbstractModule {
     @Override
     protected void configure() {
         final IndexScopedSettings indexScopedSettings = new IndexScopedSettings(settings, new HashSet<>(this.indexSettings.values()));
+        final ClusterSettings clusterSettings = new ClusterSettings(settings, new HashSet<>(this.clusterSettings.values()));
         // by now we are fully configured, lets check node level settings for unregistered index settings
         indexScopedSettings.validate(settings.filter(IndexScopedSettings.INDEX_SETTINGS_KEY_PREDICATE));
+        // we can't call this method yet since we have not all node level settings registered.
+        // yet we can validate the ones we have registered to not have invalid values. this is better than nothing
+        // and progress over perfection and we fail as soon as possible.
+        // clusterSettings.validate(settings.filter(IndexScopedSettings.INDEX_SETTINGS_KEY_PREDICATE.negate()));
+        for (Map.Entry<String, String> entry : settings.filter(IndexScopedSettings.INDEX_SETTINGS_KEY_PREDICATE.negate()).getAsMap().entrySet()) {
+            if (clusterSettings.get(entry.getKey()) != null) {
+                clusterSettings.validate(entry.getKey(), settings);
+            }
+        }
+
         bind(Settings.class).toInstance(settings);
         bind(SettingsFilter.class).toInstance(settingsFilter);
-        final ClusterSettings clusterSettings = new ClusterSettings(settings, new HashSet<>(this.clusterSettings.values()));
 
         bind(ClusterSettings.class).toInstance(clusterSettings);
         bind(IndexScopedSettings.class).toInstance(indexScopedSettings);

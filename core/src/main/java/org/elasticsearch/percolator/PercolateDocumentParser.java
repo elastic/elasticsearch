@@ -49,14 +49,13 @@ public class PercolateDocumentParser {
     private final HighlightPhase highlightPhase;
     private final SortParseElement sortParseElement;
     private final AggregationPhase aggregationPhase;
-    private final MappingUpdatedAction mappingUpdatedAction;
 
     @Inject
-    public PercolateDocumentParser(HighlightPhase highlightPhase, SortParseElement sortParseElement, AggregationPhase aggregationPhase, MappingUpdatedAction mappingUpdatedAction) {
+    public PercolateDocumentParser(HighlightPhase highlightPhase, SortParseElement sortParseElement,
+                                   AggregationPhase aggregationPhase) {
         this.highlightPhase = highlightPhase;
         this.sortParseElement = sortParseElement;
         this.aggregationPhase = aggregationPhase;
-        this.mappingUpdatedAction = mappingUpdatedAction;
     }
 
     public ParsedDocument parse(PercolateShardRequest request, PercolateContext context, MapperService mapperService, QueryShardContext queryShardContext) {
@@ -97,9 +96,6 @@ public class PercolateDocumentParser {
                         doc = docMapper.getDocumentMapper().parse(source(parser).index(index).type(request.documentType()).flyweight(true));
                         if (docMapper.getMapping() != null) {
                             doc.addDynamicMappingsUpdate(docMapper.getMapping());
-                        }
-                        if (doc.dynamicMappingsUpdate() != null) {
-                            mappingUpdatedAction.updateMappingOnMasterSynchronously(request.shardId().getIndex(), request.documentType(), doc.dynamicMappingsUpdate());
                         }
                         // the document parsing exists the "doc" object, so we need to set the new current field.
                         currentFieldName = parser.currentName();

@@ -175,7 +175,7 @@ public class PercolatorIT extends ESIntegTestCase {
     }
 
     public void testSimple2() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type1", "field1", "type=long,doc_values=true"));
+        assertAcked(prepareCreate("test").addMapping("type1", "field1", "type=long,doc_values=true", "field2", "type=string"));
         ensureGreen();
 
         // introduce the doc
@@ -1575,92 +1575,6 @@ public class PercolatorIT extends ESIntegTestCase {
         response = client().preparePercolate().setGetRequest(Requests.getRequest("nestedindex").type("company").id("matching")).setDocumentType("company").setIndices("nestedindex").get();
         assertEquals(response.getMatches().length, 1);
         assertEquals(response.getMatches()[0].getId().string(), "Q");
-    }
-
-    public void testPercolationWithDynamicTemplates() throws Exception {
-        assertAcked(prepareCreate("idx").addMapping("type", jsonBuilder().startObject().startObject("type")
-                .field("dynamic", false)
-                .startObject("properties")
-                .startObject("custom")
-                .field("dynamic", true)
-                .field("type", "object")
-                .field("include_in_all", false)
-                .endObject()
-                .endObject()
-                .startArray("dynamic_templates")
-                .startObject()
-                .startObject("custom_fields")
-                .field("path_match", "custom.*")
-                .startObject("mapping")
-                .field("index", "not_analyzed")
-                .endObject()
-                .endObject()
-                .endObject()
-                .endArray()
-                .endObject().endObject()));
-        ensureGreen("idx");
-
-        try {
-            client().prepareIndex("idx", PercolatorService.TYPE_NAME, "1")
-                    .setSource(jsonBuilder().startObject().field("query", QueryBuilders.queryStringQuery("color:red")).endObject())
-                    .get();
-            fail();
-        } catch (MapperParsingException e) {
-        }
-        refresh();
-
-        PercolateResponse percolateResponse = client().preparePercolate().setDocumentType("type")
-                .setPercolateDoc(new PercolateSourceBuilder.DocBuilder().setDoc(jsonBuilder().startObject().startObject("custom").field("color", "blue").endObject().endObject()))
-                .get();
-
-        assertMatchCount(percolateResponse, 0l);
-        assertThat(percolateResponse.getMatches(), arrayWithSize(0));
-
-        // The previous percolate request introduced the custom.color field, so now we register the query again
-        // and the field name `color` will be resolved to `custom.color` field in mapping via smart field mapping resolving.
-        client().prepareIndex("idx", PercolatorService.TYPE_NAME, "1")
-                .setSource(jsonBuilder().startObject().field("query", QueryBuilders.queryStringQuery("custom.color:red")).endObject())
-                .get();
-        client().prepareIndex("idx", PercolatorService.TYPE_NAME, "2")
-                .setSource(jsonBuilder().startObject().field("query", QueryBuilders.queryStringQuery("custom.color:blue")).field("type", "type").endObject())
-                .get();
-        refresh();
-
-        // The second request will yield a match, since the query during the proper field during parsing.
-        percolateResponse = client().preparePercolate().setDocumentType("type")
-                .setPercolateDoc(new PercolateSourceBuilder.DocBuilder().setDoc(jsonBuilder().startObject().startObject("custom").field("color", "blue").endObject().endObject()))
-                .get();
-
-        assertMatchCount(percolateResponse, 1l);
-        assertThat(percolateResponse.getMatches()[0].getId().string(), equalTo("2"));
-    }
-
-    public void testUpdateMappingDynamicallyWhilePercolating() throws Exception {
-        createIndex("test");
-        ensureSearchable();
-
-        // percolation source
-        XContentBuilder percolateDocumentSource = XContentFactory.jsonBuilder().startObject().startObject("doc")
-                .field("field1", 1)
-                .field("field2", "value")
-                .endObject().endObject();
-
-        PercolateResponse response = client().preparePercolate()
-                .setIndices("test").setDocumentType("type1")
-                .setSource(percolateDocumentSource).execute().actionGet();
-        assertAllSuccessful(response);
-        assertMatchCount(response, 0l);
-        assertThat(response.getMatches(), arrayWithSize(0));
-
-        assertMappingOnMaster("test", "type1");
-
-        GetMappingsResponse mappingsResponse = client().admin().indices().prepareGetMappings("test").get();
-        assertThat(mappingsResponse.getMappings().get("test"), notNullValue());
-        assertThat(mappingsResponse.getMappings().get("test").get("type1"), notNullValue());
-        assertThat(mappingsResponse.getMappings().get("test").get("type1").getSourceAsMap().isEmpty(), is(false));
-        Map<String, Object> properties = (Map<String, Object>) mappingsResponse.getMappings().get("test").get("type1").getSourceAsMap().get("properties");
-        assertThat(((Map<String, String>) properties.get("field1")).get("type"), equalTo("long"));
-        assertThat(((Map<String, String>) properties.get("field2")).get("type"), equalTo("string"));
     }
 
     public void testDontReportDeletedPercolatorDocs() throws Exception {

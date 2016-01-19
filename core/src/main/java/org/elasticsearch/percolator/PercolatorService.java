@@ -52,6 +52,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.fieldvisitor.SingleFieldsVisitor;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.percolator.PercolatorFieldMapper;
@@ -201,7 +202,8 @@ public class PercolatorService extends AbstractComponent {
 
             // parse the source either into one MemoryIndex, if it is a single document or index multiple docs if nested
             PercolatorIndex percolatorIndex;
-            boolean isNested = indexShard.mapperService().documentMapper(request.documentType()).hasNestedObjects();
+            DocumentMapper documentMapper = indexShard.mapperService().documentMapper(request.documentType());
+            boolean isNested = documentMapper != null && documentMapper.hasNestedObjects();
             if (parsedDocument.docs().size() > 1) {
                 assert isNested;
                 percolatorIndex = multi;

@@ -327,7 +327,7 @@ public class ShieldPlugin extends Plugin {
         unauthorized users.
      */
     private void addQueryCacheSettings(Settings.Builder settingsBuilder) {
-        settingsBuilder.put(IndexModule.QUERY_CACHE_TYPE, OPT_OUT_QUERY_CACHE);
+        settingsBuilder.put(IndexModule.INDEX_QUERY_CACHE_TYPE_SETTING.getKey(), OPT_OUT_QUERY_CACHE);
     }
 
     private static boolean isShieldMandatory(String[] existingMandatoryPlugins) {
@@ -365,12 +365,12 @@ public class ShieldPlugin extends Plugin {
             // in case this are node settings then the plugin additional settings have not been applied yet,
             // so we use 'opt_out_cache' as default. So in that case we only fail if the node settings contain
             // another cache impl than 'opt_out_cache'.
-            queryCacheImplementation = settings.get(IndexModule.QUERY_CACHE_TYPE, OPT_OUT_QUERY_CACHE);
+            queryCacheImplementation = settings.get(IndexModule.INDEX_QUERY_CACHE_TYPE_SETTING.getKey(), OPT_OUT_QUERY_CACHE);
         } else {
-            queryCacheImplementation = settings.get(IndexModule.QUERY_CACHE_TYPE);
+            queryCacheImplementation = settings.get(IndexModule.INDEX_QUERY_CACHE_TYPE_SETTING.getKey());
         }
         if (OPT_OUT_QUERY_CACHE.equals(queryCacheImplementation) == false) {
-            throw new IllegalStateException("shield does not support a user specified query cache. remove the setting [" + IndexModule.QUERY_CACHE_TYPE + "] with value [" + queryCacheImplementation + "]");
+            throw new IllegalStateException("shield does not support a user specified query cache. remove the setting [" + IndexModule.INDEX_QUERY_CACHE_TYPE_SETTING.getKey() + "] with value [" + queryCacheImplementation + "]");
         }
     }
 }

@@ -156,7 +156,7 @@ public class FieldDataCacheWithFieldSubsetReaderTests extends ESTestCase {
                 .numberOfReplicas(0)
                 .creationDate(System.currentTimeMillis())
                 .build();
-        return new IndexSettings(indexMetaData, settings, Collections.emptyList());
+        return new IndexSettings(indexMetaData, settings);
     }
 
     private static class DummyAccountingFieldDataCache implements IndexFieldDataCache {

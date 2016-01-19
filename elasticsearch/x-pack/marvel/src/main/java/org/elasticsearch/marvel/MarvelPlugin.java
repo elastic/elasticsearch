@@ -10,6 +10,7 @@ import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.marvel.agent.AgentService;
@@ -35,6 +36,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Function;
 
 public class MarvelPlugin extends Plugin {
 
@@ -42,6 +44,8 @@ public class MarvelPlugin extends Plugin {
 
     public static final String NAME = "marvel";
     public static final String ENABLED = NAME + ".enabled";
+    public static final Setting<String> INDEX_MARVEL_VERSION_SETTING = new Setting<>("index.marvel.plugin.version", "", Function.identity(), false, Setting.Scope.INDEX);
+    public static final Setting<String> INDEX_MARVEL_TEMPLATE_VERSION_SETTING = new Setting<>("index.marvel.template.version", "", Function.identity(), false, Setting.Scope.INDEX);
 
     private final Settings settings;
     private final boolean enabled;
@@ -144,5 +148,7 @@ public class MarvelPlugin extends Plugin {
         module.registerSetting(MarvelSettings.CLUSTER_STATE_TIMEOUT_SETTING);
         module.registerSetting(MarvelSettings.CLUSTER_STATS_TIMEOUT_SETTING);
         module.registerSetting(CleanerService.HISTORY_SETTING);
+        module.registerSetting(INDEX_MARVEL_VERSION_SETTING);
+        module.registerSetting(INDEX_MARVEL_TEMPLATE_VERSION_SETTING);
     }
 }

@@ -372,7 +372,7 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
 
     public void testQueryCache() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
-                        .setSettings(Settings.builder().put(IndexModule.QUERY_CACHE_EVERYTHING, true))
+                        .setSettings(Settings.builder().put(IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.getKey(), true))
                         .addMapping("type1", "field1", "type=string", "field2", "type=string")
         );
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2")
@@ -396,7 +396,7 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
 
     public void testRequestCache() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
-                        .setSettings(Settings.builder().put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED, true))
+                        .setSettings(Settings.builder().put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true))
                         .addMapping("type1", "field1", "type=string", "field2", "type=string")
         );
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2")

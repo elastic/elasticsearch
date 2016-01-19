@@ -41,7 +41,7 @@ public class ShieldF {
         settings.put("security.manager.enabled", "false");
         // Disable Marvel to prevent cluster activity
         settings.put("marvel.enabled", "false");
-        settings.put(IndexModule.QUERY_CACHE_TYPE, ShieldPlugin.OPT_OUT_QUERY_CACHE);
+        settings.put(IndexModule.INDEX_QUERY_CACHE_TYPE_SETTING.getKey(), ShieldPlugin.OPT_OUT_QUERY_CACHE);
         settings.put("cluster.name", ShieldF.class.getSimpleName());
 
         String homeDir = System.getProperty("es.path.home");

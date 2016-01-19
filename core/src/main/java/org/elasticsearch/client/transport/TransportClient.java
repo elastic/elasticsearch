@@ -82,7 +82,7 @@ public class TransportClient extends AbstractClient {
      */
     public static class Builder {
 
-        private Settings settings = Settings.EMPTY;
+        private Settings providedSettings = Settings.EMPTY;
         private List<Class<? extends Plugin>> pluginClasses = new ArrayList<>();
 
         /**
@@ -96,7 +96,7 @@ public class TransportClient extends AbstractClient {
          * The settings to configure the transport client with.
          */
         public Builder settings(Settings settings) {
-            this.settings = settings;
+            this.providedSettings = settings;
             return this;
         }
 
@@ -108,21 +108,22 @@ public class TransportClient extends AbstractClient {
             return this;
         }
 
+        private PluginsService newPluginService(final Settings settings) {
+            final Settings.Builder settingsBuilder = settingsBuilder()
+                .put(NettyTransport.PING_SCHEDULE, "5s") // enable by default the transport schedule ping interval
+                .put( InternalSettingsPreparer.prepareSettings(settings))
+                .put("network.server", false)
+                .put("node.client", true)
+                .put(CLIENT_TYPE_SETTING, CLIENT_TYPE);
+            return new PluginsService(settingsBuilder.build(), null, null, pluginClasses);
+        };
+
         /**
          * Builds a new instance of the transport client.
          */
         public TransportClient build() {
-            Settings settings = InternalSettingsPreparer.prepareSettings(this.settings);
-            settings = settingsBuilder()
-                    .put(NettyTransport.PING_SCHEDULE, "5s") // enable by default the transport schedule ping interval
-                    .put(settings)
-                    .put("network.server", false)
-                    .put("node.client", true)
-                    .put(CLIENT_TYPE_SETTING, CLIENT_TYPE)
-                    .build();
-
-            PluginsService pluginsService = new PluginsService(settings, null, null, pluginClasses);
-            this.settings = pluginsService.updatedSettings();
+            final PluginsService pluginsService = newPluginService(providedSettings);
+            final Settings settings = pluginsService.updatedSettings();
 
             Version version = Version.CURRENT;
 
@@ -139,9 +140,9 @@ public class TransportClient extends AbstractClient {
                     modules.add(pluginModule);
                 }
                 modules.add(new PluginsModule(pluginsService));
-                modules.add(new SettingsModule(this.settings, settingsFilter ));
-                modules.add(new NetworkModule(networkService, this.settings, true, namedWriteableRegistry));
-                modules.add(new ClusterNameModule(this.settings));
+                modules.add(new SettingsModule(settings, settingsFilter ));
+                modules.add(new NetworkModule(networkService, settings, true, namedWriteableRegistry));
+                modules.add(new ClusterNameModule(settings));
                 modules.add(new ThreadPoolModule(threadPool));
                 modules.add(new SearchModule(settings, namedWriteableRegistry) {
                     @Override
@@ -150,7 +151,7 @@ public class TransportClient extends AbstractClient {
                     }
                 });
                 modules.add(new ActionModule(true));
-                modules.add(new CircuitBreakerModule(this.settings));
+                modules.add(new CircuitBreakerModule(settings));
 
                 pluginsService.processModules(modules);
 

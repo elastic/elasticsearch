@@ -130,7 +130,7 @@ public class ClusterStatsIT extends ESIntegTestCase {
     public void testValuesSmokeScreen() throws IOException {
         internalCluster().ensureAtMostNumDataNodes(5);
         internalCluster().ensureAtLeastNumDataNodes(1);
-        assertAcked(prepareCreate("test1").setSettings(settingsBuilder().put(Store.INDEX_STORE_STATS_REFRESH_INTERVAL, 0).build()));
+        assertAcked(prepareCreate("test1").setSettings(settingsBuilder().put(Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), 0).build()));
         index("test1", "type", "1", "f", "f");
         /*
          * Ensure at least one shard is allocated otherwise the FS stats might

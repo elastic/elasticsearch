@@ -52,19 +52,13 @@ import static org.hamcrest.core.IsNull.notNullValue;
 
 @ClusterScope(scope = Scope.TEST)
 public class CreateIndexIT extends ESIntegTestCase {
-    public void testCreationDateGiven() {
-        prepareCreate("test").setSettings(Settings.builder().put(IndexMetaData.SETTING_CREATION_DATE, 4l)).get();
-        ClusterStateResponse response = client().admin().cluster().prepareState().get();
-        ClusterState state = response.getState();
-        assertThat(state, notNullValue());
-        MetaData metadata = state.getMetaData();
-        assertThat(metadata, notNullValue());
-        ImmutableOpenMap<String, IndexMetaData> indices = metadata.getIndices();
-        assertThat(indices, notNullValue());
-        assertThat(indices.size(), equalTo(1));
-        IndexMetaData index = indices.get("test");
-        assertThat(index, notNullValue());
-        assertThat(index.getCreationDate(), equalTo(4l));
+    public void testCreationDateGivenFails() {
+        try {
+            prepareCreate("test").setSettings(Settings.builder().put(IndexMetaData.SETTING_CREATION_DATE, 4l)).get();
+            fail();
+        } catch (IllegalArgumentException ex) {
+            assertEquals("unknown setting [index.creation_date]", ex.getMessage());
+        }
     }
 
     public void testCreationDateGenerated() {
@@ -112,41 +106,27 @@ public class CreateIndexIT extends ESIntegTestCase {
     }
 
     public void testInvalidShardCountSettings() throws Exception {
+        int value = randomIntBetween(-10, 0);
         try {
             prepareCreate("test").setSettings(Settings.builder()
-                    .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, randomIntBetween(-10, 0))
+                    .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, value)
                     .build())
             .get();
             fail("should have thrown an exception about the primary shard count");
         } catch (IllegalArgumentException e) {
-            assertThat("message contains error about shard count: " + e.getMessage(),
-                    e.getMessage().contains("index must have 1 or more primary shards"), equalTo(true));
+            assertEquals("Failed to parse value [" + value + "] for setting [index.number_of_shards] must be >= 1", e.getMessage());
         }
-
+        value = randomIntBetween(-10, -1);
         try {
             prepareCreate("test").setSettings(Settings.builder()
-                    .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(-10, -1))
+                    .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, value)
                     .build())
                     .get();
             fail("should have thrown an exception about the replica shard count");
         } catch (IllegalArgumentException e) {
-            assertThat("message contains error about shard count: " + e.getMessage(),
-                    e.getMessage().contains("index must have 0 or more replica shards"), equalTo(true));
+            assertEquals("Failed to parse value [" + value + "] for setting [index.number_of_replicas] must be >= 0", e.getMessage());
         }
 
-        try {
-            prepareCreate("test").setSettings(Settings.builder()
-                    .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, randomIntBetween(-10, 0))
-                    .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(-10, -1))
-                    .build())
-                    .get();
-            fail("should have thrown an exception about the shard count");
-        } catch (IllegalArgumentException e) {
-            assertThat("message contains error about shard count: " + e.getMessage(),
-                    e.getMessage().contains("index must have 1 or more primary shards"), equalTo(true));
-            assertThat("message contains error about shard count: " + e.getMessage(),
-                    e.getMessage().contains("index must have 0 or more replica shards"), equalTo(true));
-        }
     }
 
     public void testCreateIndexWithBlocks() {
@@ -164,39 +144,38 @@ public class CreateIndexIT extends ESIntegTestCase {
         disableIndexBlock("test", IndexMetaData.SETTING_BLOCKS_METADATA);
     }
 
+    public void testUnknownSettingFails() {
+        try {
+            prepareCreate("test").setSettings(Settings.builder()
+                .put("index.unknown.value", "this must fail")
+                .build())
+                .get();
+            fail("should have thrown an exception about the shard count");
+        } catch (IllegalArgumentException e) {
+            assertEquals("unknown setting [index.unknown.value]", e.getMessage());
+        }
+    }
+
     public void testInvalidShardCountSettingsWithoutPrefix() throws Exception {
+        int value = randomIntBetween(-10, 0);
         try {
             prepareCreate("test").setSettings(Settings.builder()
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS.substring(IndexMetaData.INDEX_SETTING_PREFIX.length()), randomIntBetween(-10, 0))
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS.substring(IndexMetaData.INDEX_SETTING_PREFIX.length()), value)
                 .build())
                 .get();
             fail("should have thrown an exception about the shard count");
         } catch (IllegalArgumentException e) {
-            assertThat("message contains error about shard count: " + e.getMessage(),
-                e.getMessage().contains("index must have 1 or more primary shards"), equalTo(true));
+            assertEquals("Failed to parse value [" + value + "] for setting [index.number_of_shards] must be >= 1", e.getMessage());
         }
+        value = randomIntBetween(-10, -1);
         try {
             prepareCreate("test").setSettings(Settings.builder()
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS.substring(IndexMetaData.INDEX_SETTING_PREFIX.length()), randomIntBetween(-10, -1))
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS.substring(IndexMetaData.INDEX_SETTING_PREFIX.length()), value)
                 .build())
                 .get();
             fail("should have thrown an exception about the shard count");
         } catch (IllegalArgumentException e) {
-            assertThat("message contains error about shard count: " + e.getMessage(),
-                e.getMessage().contains("index must have 0 or more replica shards"), equalTo(true));
-        }
-        try {
-            prepareCreate("test").setSettings(Settings.builder()
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS.substring(IndexMetaData.INDEX_SETTING_PREFIX.length()), randomIntBetween(-10, 0))
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS.substring(IndexMetaData.INDEX_SETTING_PREFIX.length()), randomIntBetween(-10, -1))
-                .build())
-                .get();
-            fail("should have thrown an exception about the shard count");
-        } catch (IllegalArgumentException e) {
-            assertThat("message contains error about shard count: " + e.getMessage(),
-                e.getMessage().contains("index must have 1 or more primary shards"), equalTo(true));
-            assertThat("message contains error about shard count: " + e.getMessage(),
-                e.getMessage().contains("index must have 0 or more replica shards"), equalTo(true));
+            assertEquals("Failed to parse value [" + value + "] for setting [index.number_of_replicas] must be >= 0", e.getMessage());
         }
     }
 

@@ -61,6 +61,16 @@ public class AzureStorageServiceTest extends ESTestCase {
         assertThat(client.getEndpoint(), is(URI.create("https://azure1")));
     }
 
+    public void testGetDefaultClientWithNoSecondary() {
+        AzureStorageServiceImpl azureStorageService = new AzureStorageServiceMock(Settings.builder()
+            .put("cloud.azure.storage.azure1.account", "myaccount1")
+            .put("cloud.azure.storage.azure1.key", "mykey1")
+            .build());
+        azureStorageService.doStart();
+        CloudBlobClient client = azureStorageService.getSelectedClient(null, LocationMode.PRIMARY_ONLY);
+        assertThat(client.getEndpoint(), is(URI.create("https://azure1")));
+    }
+
     public void testGetSelectedClientPrimary() {
         AzureStorageServiceImpl azureStorageService = new AzureStorageServiceMock(settings);
         azureStorageService.doStart();
@@ -80,6 +90,13 @@ public class AzureStorageServiceTest extends ESTestCase {
         azureStorageService.doStart();
         CloudBlobClient client = azureStorageService.getSelectedClient("azure3", LocationMode.PRIMARY_ONLY);
         assertThat(client.getEndpoint(), is(URI.create("https://azure3")));
+    }
+
+    public void testGetDefaultClientWithPrimaryAndSecondaries() {
+        AzureStorageServiceImpl azureStorageService = new AzureStorageServiceMock(settings);
+        azureStorageService.doStart();
+        CloudBlobClient client = azureStorageService.getSelectedClient(null, LocationMode.PRIMARY_ONLY);
+        assertThat(client.getEndpoint(), is(URI.create("https://azure1")));
     }
 
     public void testGetSelectedClientNonExisting() {

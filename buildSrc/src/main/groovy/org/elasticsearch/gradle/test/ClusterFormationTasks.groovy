@@ -46,9 +46,9 @@ class ClusterFormationTasks {
     /**
      * Adds dependent tasks to the given task to start and stop a cluster with the given configuration.
      *
-     * Returns an object that will resolve at execution time of the given task to a uri for the cluster.
+     * Returns a NodeInfo object for the first node in the cluster.
      */
-    static Object setup(Project project, Task task, ClusterConfiguration config) {
+    static NodeInfo setup(Project project, Task task, ClusterConfiguration config) {
         if (task.getEnabled() == false) {
             // no need to add cluster formation tasks if the task won't run!
             return
@@ -66,7 +66,7 @@ class ClusterFormationTasks {
         task.dependsOn(wait)
 
         // delay the resolution of the uri by wrapping in a closure, so it is not used until read for tests
-        return "${-> nodes[0].transportUri()}"
+        return nodes[0]
     }
 
     /** Adds a dependency on the given distribution */

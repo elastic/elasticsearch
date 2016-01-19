@@ -131,9 +131,15 @@ the operating system:
 `os.cpu.percent`::
     Recent CPU usage for the whole system, or -1 if not supported
 
-`os.cpu.load_average`::
-	Array of system load averages for the last one minute, five
-	minute and fifteen minutes (value of -1 indicates not supported)
+`os.cpu.load_average.1m`::
+    One-minute load average on the system (field is not present if
+    one-minute load average is not available)
+`os.cpu.load_average.5m`::
+    Five-minute load average on the system (field is not present if
+    five-minute load average is not available)
+`os.cpu.load_average.15m`::
+    Fifteen-minute load average on the system (field is not present if
+    fifteen-minute load average is not available)
 
 `os.mem.total_in_bytes`::
 	Total amount of physical memory in bytes

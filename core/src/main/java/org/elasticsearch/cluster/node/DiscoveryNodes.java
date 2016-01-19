@@ -319,7 +319,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
             throw new IllegalArgumentException("resolved [" + node + "] into [" + resolvedNodeIds.length + "] nodes, where expected to be resolved to a single node");
         }
         if (resolvedNodeIds.length == 0) {
-            throw new IllegalArgumentException("failed to resolve [" + node + " ], no matching nodes");
+            throw new IllegalArgumentException("failed to resolve [" + node + "], no matching nodes");
         }
         return nodes.get(resolvedNodeIds[0]);
     }

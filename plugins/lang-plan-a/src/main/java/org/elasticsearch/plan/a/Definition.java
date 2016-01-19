@@ -24,10 +24,14 @@ import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 class Definition {
     enum Sort {
@@ -351,22 +355,44 @@ class Definition {
     final Type utilityType;
     final Type defobjType;
 
+    final Type itrType;
+    final Type oitrType;
+    final Type sitrType;
+
+    final Type collectionType;
+    final Type ocollectionType;
+    final Type scollectionType;
+
     final Type listType;
     final Type arraylistType;
-    final Type mapType;
-    final Type hashmapType;
-
     final Type olistType;
     final Type oarraylistType;
-    final Type omapType;
-    final Type ohashmapType;
+    final Type slistType;
+    final Type sarraylistType;
 
+    final Type setType;
+    final Type hashsetType;
+    final Type osetType;
+    final Type ohashsetType;
+    final Type ssetType;
+    final Type shashsetType;
+
+    final Type mapType;
+    final Type hashmapType;
+    final Type oomapType;
+    final Type oohashmapType;
     final Type smapType;
     final Type shashmapType;
     final Type somapType;
     final Type sohashmapType;
 
     final Type execType;
+
+    final Type exceptionType;
+    final Type arithexcepType;
+    final Type iargexcepType;
+    final Type istateexceptType;
+    final Type nfexcepType;
 
     public Definition() {
         structs = new HashMap<>();
@@ -406,22 +432,44 @@ class Definition {
         utilityType = getType("Utility");
         defobjType = getType("Def");
 
+        itrType = getType("Iterator");
+        oitrType = getType("Iterator<Object>");
+        sitrType = getType("Iterator<String>");
+
+        collectionType = getType("Collection");
+        ocollectionType = getType("Collection<Object>");
+        scollectionType = getType("Collection<String>");
+
         listType = getType("List");
         arraylistType = getType("ArrayList");
-        mapType = getType("Map");
-        hashmapType = getType("HashMap");
-
         olistType = getType("List<Object>");
         oarraylistType = getType("ArrayList<Object>");
-        omapType = getType("Map<Object,Object>");
-        ohashmapType = getType("HashMap<Object,Object>");
+        slistType = getType("List<String>");
+        sarraylistType = getType("ArrayList<String>");
 
+        setType = getType("Set");
+        hashsetType = getType("HashSet");
+        osetType = getType("Set<Object>");
+        ohashsetType = getType("HashSet<Object>");
+        ssetType = getType("Set<String>");
+        shashsetType = getType("HashSet<String>");
+
+        mapType = getType("Map");
+        hashmapType = getType("HashMap");
+        oomapType = getType("Map<Object,Object>");
+        oohashmapType = getType("HashMap<Object,Object>");
         smapType = getType("Map<String,def>");
         shashmapType = getType("HashMap<String,def>");
         somapType = getType("Map<String,Object>");
         sohashmapType = getType("HashMap<String,Object>");
 
         execType = getType("Executable");
+
+        exceptionType = getType("Exception");
+        arithexcepType = getType("ArithmeticException");
+        iargexcepType = getType("IllegalArgumentException");
+        istateexceptType = getType("IllegalStateException");
+        nfexcepType = getType("NumberFormatException");
 
         addDefaultElements();
         copyDefaultStructs();
@@ -478,22 +526,44 @@ class Definition {
         utilityType = definition.utilityType;
         defobjType = definition.defobjType;
 
+        itrType = definition.itrType;
+        oitrType = definition.oitrType;
+        sitrType = definition.sitrType;
+
+        collectionType = definition.collectionType;
+        ocollectionType = definition.ocollectionType;
+        scollectionType = definition.scollectionType;
+
         listType = definition.listType;
         arraylistType = definition.arraylistType;
-        mapType = definition.mapType;
-        hashmapType = definition.hashmapType;
-
         olistType = definition.olistType;
         oarraylistType = definition.oarraylistType;
-        omapType = definition.omapType;
-        ohashmapType = definition.ohashmapType;
+        slistType = definition.slistType;
+        sarraylistType = definition.sarraylistType;
 
+        setType = definition.setType;
+        hashsetType = definition.hashsetType;
+        osetType = definition.osetType;
+        ohashsetType = definition.ohashsetType;
+        ssetType = definition.ssetType;
+        shashsetType = definition.shashsetType;
+
+        mapType = definition.mapType;
+        hashmapType = definition.hashmapType;
+        oomapType = definition.oomapType;
+        oohashmapType = definition.oohashmapType;
         smapType = definition.smapType;
         shashmapType = definition.shashmapType;
         somapType = definition.somapType;
         sohashmapType = definition.sohashmapType;
 
         execType = definition.execType;
+
+        exceptionType = definition.exceptionType;
+        arithexcepType = definition.arithexcepType;
+        iargexcepType = definition.iargexcepType;
+        istateexceptType = definition.istateexceptType;
+        nfexcepType = definition.nfexcepType;
     }
 
     private void addDefaultStructs() {
@@ -526,22 +596,44 @@ class Definition {
         addStruct( "Utility"      , Utility.class      );
         addStruct( "Def"          , Def.class          );
 
-        addStruct( "List"      , List.class      );
-        addStruct( "ArrayList" , ArrayList.class );
-        addStruct( "Map"       , Map.class       );
-        addStruct( "HashMap"   , HashMap.class   );
+        addStruct( "Iterator"         , Iterator.class );
+        addStruct( "Iterator<Object>" , Iterator.class );
+        addStruct( "Iterator<String>" , Iterator.class );
 
-        addStruct( "List<Object>"           , List.class      );
-        addStruct( "ArrayList<Object>"      , ArrayList.class );
-        addStruct( "Map<Object,Object>"     , Map.class       );
-        addStruct( "HashMap<Object,Object>" , HashMap.class   );
+        addStruct( "Collection"         , Collection.class );
+        addStruct( "Collection<Object>" , Collection.class );
+        addStruct( "Collection<String>" , Collection.class );
 
-        addStruct( "Map<String,def>"        , Map.class       );
-        addStruct( "HashMap<String,def>"    , HashMap.class   );
-        addStruct( "Map<String,Object>"     , Map.class       );
-        addStruct( "HashMap<String,Object>" , HashMap.class   );
+        addStruct( "List"              , List.class      );
+        addStruct( "ArrayList"         , ArrayList.class );
+        addStruct( "List<Object>"      , List.class      );
+        addStruct( "ArrayList<Object>" , ArrayList.class );
+        addStruct( "List<String>"      , List.class      );
+        addStruct( "ArrayList<String>" , ArrayList.class );
+
+        addStruct( "Set"             , Set.class     );
+        addStruct( "HashSet"         , HashSet.class );
+        addStruct( "Set<Object>"     , Set.class     );
+        addStruct( "HashSet<Object>" , HashSet.class );
+        addStruct( "Set<String>"     , Set.class     );
+        addStruct( "HashSet<String>" , HashSet.class );
+
+        addStruct( "Map"                    , Map.class     );
+        addStruct( "HashMap"                , HashMap.class );
+        addStruct( "Map<Object,Object>"     , Map.class     );
+        addStruct( "HashMap<Object,Object>" , HashMap.class );
+        addStruct( "Map<String,def>"        , Map.class     );
+        addStruct( "HashMap<String,def>"    , HashMap.class );
+        addStruct( "Map<String,Object>"     , Map.class     );
+        addStruct( "HashMap<String,Object>" , HashMap.class );
 
         addStruct( "Executable" , Executable.class );
+
+        addStruct( "Exception"                , Exception.class);
+        addStruct( "ArithmeticException"      , ArithmeticException.class);
+        addStruct( "IllegalArgumentException" , IllegalArgumentException.class);
+        addStruct( "IllegalStateException"    , IllegalStateException.class);
+        addStruct( "NumberFormatException"    , NumberFormatException.class);
     }
 
     private void addDefaultClasses() {
@@ -568,10 +660,16 @@ class Definition {
         addClass("CharSequence");
         addClass("String");
 
+        addClass("Iterator");
+        addClass("Collection");
         addClass("List");
         addClass("ArrayList");
+        addClass("Set");
+        addClass("HashSet");
         addClass("Map");
         addClass("HashMap");
+
+        addClass("Exception");
     }
 
     private void addDefaultElements() {
@@ -587,45 +685,39 @@ class Definition {
         addMethod("Boolean", "valueOf", null, true, booleanobjType, new Type[] {booleanType}, null, null);
         addMethod("Boolean", "booleanValue", null, false, booleanType, new Type[] {}, null, null);
 
-        addConstructor("Byte", "new", new Type[]{byteType}, null);
+        addConstructor("Byte", "new", new Type[] {byteType}, null);
         addMethod("Byte", "valueOf", null, true, byteobjType, new Type[] {byteType}, null, null);
-        addMethod("Byte", "byteValue", null, false, byteType, new Type[] {}, null, null);
         addField("Byte", "MIN_VALUE", null, true, byteType, null);
         addField("Byte", "MAX_VALUE", null, true, byteType, null);
 
-        addConstructor("Short", "new", new Type[]{shortType}, null);
+        addConstructor("Short", "new", new Type[] {shortType}, null);
         addMethod("Short", "valueOf", null, true, shortobjType, new Type[] {shortType}, null, null);
-        addMethod("Short", "shortValue", null, false, shortType, new Type[] {}, null, null);
         addField("Short", "MIN_VALUE", null, true, shortType, null);
         addField("Short", "MAX_VALUE", null, true, shortType, null);
 
-        addConstructor("Character", "new", new Type[]{charType}, null);
+        addConstructor("Character", "new", new Type[] {charType}, null);
         addMethod("Character", "valueOf", null, true, charobjType, new Type[] {charType}, null, null);
         addMethod("Character", "charValue", null, false, charType, new Type[] {}, null, null);
         addField("Character", "MIN_VALUE", null, true, charType, null);
         addField("Character", "MAX_VALUE", null, true, charType, null);
 
-        addConstructor("Integer", "new", new Type[]{intType}, null);
+        addConstructor("Integer", "new", new Type[] {intType}, null);
         addMethod("Integer", "valueOf", null, true, intobjType, new Type[] {intType}, null, null);
-        addMethod("Integer", "intValue", null, false, intType, new Type[] {}, null, null);
         addField("Integer", "MIN_VALUE", null, true, intType, null);
         addField("Integer", "MAX_VALUE", null, true, intType, null);
 
-        addConstructor("Long", "new", new Type[]{longType}, null);
+        addConstructor("Long", "new", new Type[] {longType}, null);
         addMethod("Long", "valueOf", null, true, longobjType, new Type[] {longType}, null, null);
-        addMethod("Long", "longValue", null, false, longType, new Type[] {}, null, null);
         addField("Long", "MIN_VALUE", null, true, longType, null);
         addField("Long", "MAX_VALUE", null, true, longType, null);
 
-        addConstructor("Float", "new", new Type[]{floatType}, null);
+        addConstructor("Float", "new", new Type[] {floatType}, null);
         addMethod("Float", "valueOf", null, true, floatobjType, new Type[] {floatType}, null, null);
-        addMethod("Float", "floatValue", null, false, floatType, new Type[] {}, null, null);
         addField("Float", "MIN_VALUE", null, true, floatType, null);
         addField("Float", "MAX_VALUE", null, true, floatType, null);
 
-        addConstructor("Double", "new", new Type[]{doubleType}, null);
+        addConstructor("Double", "new", new Type[] {doubleType}, null);
         addMethod("Double", "valueOf", null, true, doubleobjType, new Type[] {doubleType}, null, null);
-        addMethod("Double", "doubleValue", null, false, doubleType, new Type[] {}, null, null);
         addField("Double", "MIN_VALUE", null, true, doubleType, null);
         addField("Double", "MAX_VALUE", null, true, doubleType, null);
 
@@ -760,7 +852,44 @@ class Definition {
         addMethod("Utility", "DoubleToboolean", null, true, booleanType, new Type[] {doubleobjType}, null, null);
         addMethod("Utility", "DoubleTochar", null, true, charType, new Type[] {doubleobjType}, null, null);
 
-        addMethod("Math", "dmax", "max", true, doubleType, new Type[] {doubleType, doubleType}, null, null);
+        addMethod("Math", "abs", null, true, doubleType, new Type[] {doubleType}, null, null);
+        addMethod("Math", "fabs", "abs", true, floatType, new Type[] {floatType}, null, null);
+        addMethod("Math", "labs", "abs", true, longType, new Type[] {longType}, null, null);
+        addMethod("Math", "iabs", "abs", true, intType, new Type[] {intType}, null, null);
+        addMethod("Math", "acos", null, true, doubleType, new Type[] {doubleType}, null, null);
+        addMethod("Math", "asin", null, true, doubleType, new Type[] {doubleType}, null, null);
+        addMethod("Math", "atan", null, true, doubleType, new Type[] {doubleType}, null, null);
+        addMethod("Math", "atan2", null, true, doubleType, new Type[] {doubleType, doubleType}, null, null);
+        addMethod("Math", "cbrt", null, true, doubleType, new Type[] {doubleType}, null, null);
+        addMethod("Math", "ceil", null, true, doubleType, new Type[] {doubleType}, null, null);
+        addMethod("Math", "cos", null, true, doubleType, new Type[] {doubleType}, null, null);
+        addMethod("Math", "cosh", null, true, doubleType, new Type[] {doubleType}, null, null);
+        addMethod("Math", "exp", null, true, doubleType, new Type[] {doubleType}, null, null);
+        addMethod("Math", "expm1", null, true, doubleType, new Type[] {doubleType}, null, null);
+        addMethod("Math", "floor", null, true, doubleType, new Type[] {doubleType}, null, null);
+        addMethod("Math", "hypot", null, true, doubleType, new Type[] {doubleType, doubleType}, null, null);
+        addMethod("Math", "log", null, true, doubleType, new Type[] {doubleType}, null, null);
+        addMethod("Math", "log10", null, true, doubleType, new Type[] {doubleType}, null, null);
+        addMethod("Math", "log1p", null, true, doubleType, new Type[] {doubleType}, null, null);
+        addMethod("Math", "max", "max", true, doubleType, new Type[] {doubleType, doubleType}, null, null);
+        addMethod("Math", "fmax", "max", true, floatType, new Type[] {floatType, floatType}, null, null);
+        addMethod("Math", "lmax", "max", true, longType, new Type[] {longType, longType}, null, null);
+        addMethod("Math", "imax", "max", true, intType, new Type[] {intType, intType}, null, null);
+        addMethod("Math", "min", "min", true, doubleType, new Type[] {doubleType, doubleType}, null, null);
+        addMethod("Math", "fmin", "min", true, floatType, new Type[] {floatType, floatType}, null, null);
+        addMethod("Math", "lmin", "min", true, longType, new Type[] {longType, longType}, null, null);
+        addMethod("Math", "imin", "min", true, intType, new Type[] {intType, intType}, null, null);
+        addMethod("Math", "pow", null, true, doubleType, new Type[] {doubleType, doubleType}, null, null);
+        addMethod("Math", "random", null, true, doubleType, new Type[] {}, null, null);
+        addMethod("Math", "rint", null, true, doubleType, new Type[] {doubleType}, null, null);
+        addMethod("Math", "round", null, true, longType, new Type[] {doubleType}, null, null);
+        addMethod("Math", "sin", null, true, doubleType, new Type[] {doubleType}, null, null);
+        addMethod("Math", "sinh", null, true, doubleType, new Type[] {doubleType}, null, null);
+        addMethod("Math", "sqrt", null, true, doubleType, new Type[] {doubleType}, null, null);
+        addMethod("Math", "tan", null, true, doubleType, new Type[] {doubleType}, null, null);
+        addMethod("Math", "tanh", null, true, doubleType, new Type[] {doubleType}, null, null);
+        addMethod("Math", "toDegrees", null, true, doubleType, new Type[] {doubleType}, null, null);
+        addMethod("Math", "toRadians", null, true, doubleType, new Type[] {doubleType}, null, null);
 
         addMethod("Def", "DefToboolean", null, true, booleanType, new Type[] {defType}, null, null);
         addMethod("Def", "DefTobyte", null, true, byteType, new Type[] {defType}, null, null);
@@ -778,56 +907,124 @@ class Definition {
         addMethod("Def", "DefToLong", null, true, longobjType, new Type[] {defType}, null, null);
         addMethod("Def", "DefToFloat", null, true, floatobjType, new Type[] {defType}, null, null);
         addMethod("Def", "DefToDouble", null, true, doubleobjType, new Type[] {defType}, null, null);
-        
-        addMethod("List", "addLast", "add", false, booleanType, new Type[] {objectType}, null, new Type[] {defType});
-        addMethod("List", "add", null, false, voidType, new Type[] {intType, objectType}, null, new Type[] {intType, defType});
+
+        addMethod("Iterator", "hasNext", null, false, booleanType, new Type[] {}, null, null);
+        addMethod("Iterator", "next", null, false, objectType, new Type[] {}, defType, null);
+        addMethod("Iterator", "remove", null, false, voidType, new Type[] {}, null, null);
+
+        addMethod("Iterator<Object>", "hasNext", null, false, booleanType, new Type[] {}, null, null);
+        addMethod("Iterator<Object>", "next", null, false, objectType, new Type[] {}, null, null);
+        addMethod("Iterator<Object>", "remove", null, false, voidType, new Type[] {}, null, null);
+
+        addMethod("Iterator<String>", "hasNext", null, false, booleanType, new Type[] {}, null, null);
+        addMethod("Iterator<String>", "next", null, false, objectType, new Type[] {}, stringType, null);
+        addMethod("Iterator<String>", "remove", null, false, voidType, new Type[] {}, null, null);
+
+        addMethod("Collection", "add", null, false, booleanType, new Type[] {objectType}, null, new Type[] {defType});
+        addMethod("Collection", "clear", null, false, voidType, new Type[] {}, null, null);
+        addMethod("Collection", "contains", null, false, booleanType, new Type[] {objectType}, null, new Type[] {defType});
+        addMethod("Collection", "isEmpty", null, false, booleanType, new Type[] {}, null, null);
+        addMethod("Collection", "iterator", null, false, itrType, new Type[] {}, null, null);
+        addMethod("Collection", "remove", null, false, booleanType, new Type[] {objectType}, null, new Type[] {defType});
+        addMethod("Collection", "size", null, false, intType, new Type[] {}, null, null);
+
+        addMethod("Collection<Object>", "add", null, false, booleanType, new Type[] {objectType}, null, null);
+        addMethod("Collection<Object>", "clear", null, false, voidType, new Type[] {}, null, null);
+        addMethod("Collection<Object>", "contains", null, false, booleanType, new Type[] {objectType}, null, null);
+        addMethod("Collection<Object>", "isEmpty", null, false, booleanType, new Type[] {}, null, null);
+        addMethod("Collection<Object>", "iterator", null, false, oitrType, new Type[] {}, null, null);
+        addMethod("Collection<Object>", "remove", null, false, booleanType, new Type[] {objectType}, null, null);
+        addMethod("Collection<Object>", "size", null, false, intType, new Type[] {}, null, null);
+
+        addMethod("Collection<String>", "add", null, false, booleanType, new Type[] {objectType}, null, new Type[] {stringType});
+        addMethod("Collection<String>", "clear", null, false, voidType, new Type[] {}, null, null);
+        addMethod("Collection<String>", "contains", null, false, booleanType, new Type[] {objectType}, null, new Type[] {stringType});
+        addMethod("Collection<String>", "isEmpty", null, false, booleanType, new Type[] {}, null, null);
+        addMethod("Collection<String>", "iterator", null, false, sitrType, new Type[] {}, null, null);
+        addMethod("Collection<String>", "remove", null, false, booleanType, new Type[] {objectType}, null, new Type[] {stringType});
+        addMethod("Collection<String>", "size", null, false, intType, new Type[] {}, null, null);
+
+        addMethod("List", "set", null, false, objectType, new Type[] {intType, objectType}, defType, new Type[] {intType, defType});
         addMethod("List", "get", null, false, objectType, new Type[] {intType}, defType, null);
         addMethod("List", "remove", null, false, objectType, new Type[] {intType}, defType, null);
-        addMethod("List", "size", null, false, intType, new Type[] {}, null, null);
-        addMethod("List", "isEmpty", null, false, booleanType, new Type[] {}, null, null);
 
         addConstructor("ArrayList", "new", new Type[] {}, null);
+
+        addMethod("List<Object>", "set", null, false, objectType, new Type[] {intType, objectType}, null, null);
+        addMethod("List<Object>", "get", null, false, objectType, new Type[] {intType}, null, null);
+        addMethod("List<Object>", "remove", null, false, objectType, new Type[] {intType}, null, null);
+
+        addConstructor("ArrayList<Object>", "new", new Type[] {}, null);
+
+        addMethod("List<String>", "set", null, false, objectType, new Type[] {intType, objectType}, stringType, new Type[] {intType, stringType});
+        addMethod("List<String>", "get", null, false, objectType, new Type[] {intType}, stringType, null);
+        addMethod("List<String>", "remove", null, false, objectType, new Type[] {intType}, stringType, null);
+
+        addConstructor("ArrayList<String>", "new", new Type[] {}, null);
+
+        addConstructor("HashSet", "new", new Type[] {}, null);
+
+        addConstructor("HashSet<Object>", "new", new Type[] {}, null);
+
+        addConstructor("HashSet<String>", "new", new Type[] {}, null);
 
         addMethod("Map", "put", null, false, objectType, new Type[] {objectType, objectType}, defType, new Type[] {defType, defType});
         addMethod("Map", "get", null, false, objectType, new Type[] {objectType}, defType, new Type[] {defType});
         addMethod("Map", "remove", null, false, objectType, new Type[] {objectType}, null, null);
-        addMethod("Map", "size", null, false, intType, new Type[] {}, null, null);
         addMethod("Map", "isEmpty", null, false, booleanType, new Type[] {}, null, null);
+        addMethod("Map", "size", null, false, intType, new Type[] {}, null, null);
+        addMethod("Map", "containsKey", null, false, booleanType, new Type[] {objectType}, null, new Type[] {defType});
+        addMethod("Map", "containsValue", null, false, booleanType, new Type[] {objectType}, null, new Type[] {defType});
+        addMethod("Map", "keySet", null, false, osetType, new Type[] {}, setType, null);
+        addMethod("Map", "values", null, false, ocollectionType, new Type[] {}, collectionType, null);
 
         addConstructor("HashMap", "new", new Type[] {}, null);
-
-        addMethod("Map<String,def>", "put", null, false, objectType, new Type[] {objectType, objectType}, defType, new Type[] {stringType, defType});
-        addMethod("Map<String,def>", "get", null, false, objectType, new Type[] {objectType}, defType, new Type[] {stringType});
-        addMethod("Map<String,def>", "remove", null, false, objectType, new Type[] {objectType}, defType, new Type[] {stringType});
-        addMethod("Map<String,def>", "size", null, false, intType, new Type[] {}, null, null);
-        addMethod("Map<String,def>", "isEmpty", null, false, booleanType, new Type[] {}, null, null);
-
-        addConstructor("HashMap<String,def>", "new", new Type[] {}, null);
-
-        addMethod("List<Object>", "addLast", "add", false, booleanType, new Type[] {objectType}, null, null);
-        addMethod("List<Object>", "add", null, false, voidType, new Type[] {intType, objectType}, null, null);
-        addMethod("List<Object>", "get", null, false, objectType, new Type[] {intType}, null, null);
-        addMethod("List<Object>", "remove", null, false, objectType, new Type[] {intType}, null, null);
-        addMethod("List<Object>", "size", null, false, intType, new Type[] {}, null, null);
-        addMethod("List<Object>", "isEmpty", null, false, booleanType, new Type[] {}, null, null);
-
-        addConstructor("ArrayList<Object>", "new", new Type[] {}, null);
 
         addMethod("Map<Object,Object>", "put", null, false, objectType, new Type[] {objectType, objectType}, null, null);
         addMethod("Map<Object,Object>", "get", null, false, objectType, new Type[] {objectType}, null, null);
         addMethod("Map<Object,Object>", "remove", null, false, objectType, new Type[] {objectType}, null, null);
-        addMethod("Map<Object,Object>", "size", null, false, intType, new Type[] {}, null, null);
         addMethod("Map<Object,Object>", "isEmpty", null, false, booleanType, new Type[] {}, null, null);
+        addMethod("Map<Object,Object>", "size", null, false, intType, new Type[] {}, null, null);
+        addMethod("Map<Object,Object>", "containsKey", null, false, booleanType, new Type[] {objectType}, null, null);
+        addMethod("Map<Object,Object>", "containsValue", null, false, booleanType, new Type[] {objectType}, null, null);
+        addMethod("Map<Object,Object>", "keySet", null, false, osetType, new Type[] {}, null, null);
+        addMethod("Map<Object,Object>", "values", null, false, ocollectionType, new Type[] {}, null, null);
 
         addConstructor("HashMap<Object,Object>", "new", new Type[] {}, null);
+
+        addMethod("Map<String,def>", "put", null, false, objectType, new Type[] {objectType, objectType}, defType, new Type[] {stringType, defType});
+        addMethod("Map<String,def>", "get", null, false, objectType, new Type[] {objectType}, defType, new Type[] {stringType});
+        addMethod("Map<String,def>", "remove", null, false, objectType, new Type[] {objectType}, defType, new Type[] {stringType});
+        addMethod("Map<String,def>", "isEmpty", null, false, booleanType, new Type[] {}, null, null);
+        addMethod("Map<String,def>", "size", null, false, intType, new Type[] {}, null, null);
+        addMethod("Map<String,def>", "containsKey", null, false, booleanType, new Type[] {objectType}, null, new Type[] {stringType});
+        addMethod("Map<String,def>", "containsValue", null, false, booleanType, new Type[] {objectType}, null, new Type[] {defType});
+        addMethod("Map<String,def>", "keySet", null, false, osetType, new Type[] {}, ssetType, null);
+        addMethod("Map<String,def>", "values", null, false, ocollectionType, new Type[] {}, collectionType, null);
+
+        addConstructor("HashMap<String,def>", "new", new Type[] {}, null);
 
         addMethod("Map<String,Object>", "put", null, false, objectType, new Type[] {objectType, objectType}, null, new Type[] {stringType, objectType});
         addMethod("Map<String,Object>", "get", null, false, objectType, new Type[] {objectType}, null, new Type[] {stringType});
         addMethod("Map<String,Object>", "remove", null, false, objectType, new Type[] {objectType}, null, new Type[] {stringType});
-        addMethod("Map<String,Object>", "size", null, false, intType, new Type[] {}, null, null);
         addMethod("Map<String,Object>", "isEmpty", null, false, booleanType, new Type[] {}, null, null);
+        addMethod("Map<String,Object>", "size", null, false, intType, new Type[] {}, null, null);
+        addMethod("Map<String,Object>", "containsKey", null, false, booleanType, new Type[] {objectType}, null, new Type[] {stringType});
+        addMethod("Map<String,Object>", "containsValue", null, false, booleanType, new Type[] {objectType}, null, null);
+        addMethod("Map<String,Object>", "keySet", null, false, osetType, new Type[] {}, ssetType, null);
+        addMethod("Map<String,Object>", "values", null, false, ocollectionType, new Type[] {}, null, null);
 
         addConstructor("HashMap<String,Object>", "new", new Type[] {}, null);
+
+        addMethod("Exception", "getMessage", null, false, stringType, new Type[] {}, null, null);
+
+        addConstructor("ArithmeticException", "new", new Type[] {stringType}, null);
+
+        addConstructor("IllegalArgumentException", "new", new Type[] {stringType}, null);
+
+        addConstructor("IllegalStateException", "new", new Type[] {stringType}, null);
+
+        addConstructor("NumberFormatException", "new", new Type[] {stringType}, null);
     }
 
     private void copyDefaultStructs() {
@@ -845,21 +1042,36 @@ class Definition {
         copyStruct("CharSequence", "Object");
         copyStruct("String", "CharSequence", "Object");
 
-        copyStruct("List", "Object");
-        copyStruct("ArrayList", "List", "Object");
+        copyStruct("List", "Collection", "Object");
+        copyStruct("ArrayList", "List", "Collection", "Object");
+        copyStruct("List<Object>", "Collection<Object>", "Object");
+        copyStruct("ArrayList<Object>", "List<Object>", "Collection<Object>", "Object");
+        copyStruct("List<String>", "Collection<String>", "Object");
+        copyStruct("ArrayList<String>", "List<String>", "Collection<String>", "Object");
+
+        copyStruct("Set", "Collection", "Object");
+        copyStruct("HashSet", "Set", "Collection", "Object");
+        copyStruct("Set<Object>", "Collection<Object>", "Object");
+        copyStruct("HashSet<Object>", "Set<Object>", "Collection<Object>", "Object");
+        copyStruct("Set<String>", "Collection<String>", "Object");
+        copyStruct("HashSet<String>", "Set<String>", "Collection<String>", "Object");
+
         copyStruct("Map", "Object");
         copyStruct("HashMap", "Map", "Object");
-        copyStruct("Map<String,def>", "Object");
-        copyStruct("HashMap<String,def>", "Map<String,def>", "Object");
-
-        copyStruct("List<Object>", "Object");
-        copyStruct("ArrayList<Object>", "List", "Object");
         copyStruct("Map<Object,Object>", "Object");
         copyStruct("HashMap<Object,Object>", "Map<Object,Object>", "Object");
+        copyStruct("Map<String,def>", "Object");
+        copyStruct("HashMap<String,def>", "Map<String,def>", "Object");
         copyStruct("Map<String,Object>", "Object");
         copyStruct("HashMap<String,Object>", "Map<String,Object>", "Object");
 
         copyStruct("Executable", "Object");
+
+        copyStruct("Exception", "Object");
+        copyStruct("ArithmeticException", "Exception", "Object");
+        copyStruct("IllegalArgumentException", "Exception", "Object");
+        copyStruct("IllegalStateException", "Exception", "Object");
+        copyStruct("NumberFormatException", "Exception", "Object");
     }
 
     private void addDefaultTransforms() {
@@ -984,7 +1196,7 @@ class Definition {
         addTransform(defType, longobjType, "Def", "DefToLong", true);
         addTransform(defType, floatobjType, "Def", "DefToFloat", true);
         addTransform(defType, doubleobjType, "Def", "DefToDouble", true);
-        
+
         addTransform(numberType, booleanType, "Utility", "NumberToboolean", true);
         addTransform(numberType, byteType, "Number", "byteValue", false);
         addTransform(numberType, shortType, "Number", "shortValue", false);
@@ -1162,41 +1374,155 @@ class Definition {
 
         addBound(stringType, charseqType, charseqType);
 
+        addBound(oitrType, itrType, itrType);
+        addBound(oitrType, sitrType, itrType);
+        addBound(sitrType, itrType, itrType);
+
+        addBound(ocollectionType, collectionType, collectionType);
+        addBound(scollectionType, collectionType, collectionType);
+        addBound(scollectionType, ocollectionType, ocollectionType);
+        addBound(listType, collectionType, collectionType);
+        addBound(listType, ocollectionType, collectionType);
+        addBound(listType, scollectionType, collectionType);
+        addBound(arraylistType, collectionType, collectionType);
+        addBound(arraylistType, ocollectionType, collectionType);
+        addBound(arraylistType, scollectionType, collectionType);
         addBound(arraylistType, listType, listType);
+        addBound(olistType, collectionType, collectionType);
+        addBound(olistType, ocollectionType, ocollectionType);
+        addBound(olistType, scollectionType, ocollectionType);
         addBound(olistType, listType, listType);
         addBound(olistType, arraylistType, listType);
+        addBound(oarraylistType, collectionType, collectionType);
+        addBound(oarraylistType, ocollectionType, ocollectionType);
+        addBound(oarraylistType, scollectionType, ocollectionType);
         addBound(oarraylistType, listType, listType);
-        addBound(oarraylistType, olistType, olistType);
         addBound(oarraylistType, arraylistType, arraylistType);
+        addBound(oarraylistType, olistType, olistType);
+        addBound(slistType, collectionType, collectionType);
+        addBound(slistType, ocollectionType, ocollectionType);
+        addBound(slistType, scollectionType, scollectionType);
+        addBound(slistType, listType, listType);
+        addBound(slistType, arraylistType, listType);
+        addBound(slistType, olistType, olistType);
+        addBound(slistType, oarraylistType, olistType);
+        addBound(sarraylistType, collectionType, collectionType);
+        addBound(sarraylistType, ocollectionType, ocollectionType);
+        addBound(sarraylistType, scollectionType, scollectionType);
+        addBound(sarraylistType, listType, listType);
+        addBound(sarraylistType, arraylistType, arraylistType);
+        addBound(sarraylistType, olistType, olistType);
+        addBound(sarraylistType, oarraylistType, oarraylistType);
+        addBound(sarraylistType, slistType, slistType);
+        addBound(setType, collectionType, collectionType);
+        addBound(setType, ocollectionType, collectionType);
+        addBound(setType, scollectionType, collectionType);
+        addBound(setType, listType, collectionType);
+        addBound(setType, arraylistType, collectionType);
+        addBound(setType, olistType, collectionType);
+        addBound(setType, oarraylistType, collectionType);
+        addBound(setType, slistType, collectionType);
+        addBound(setType, sarraylistType, collectionType);
+        addBound(hashsetType, collectionType, collectionType);
+        addBound(hashsetType, ocollectionType, collectionType);
+        addBound(hashsetType, scollectionType, collectionType);
+        addBound(hashsetType, listType, collectionType);
+        addBound(hashsetType, arraylistType, collectionType);
+        addBound(hashsetType, olistType, collectionType);
+        addBound(hashsetType, oarraylistType, collectionType);
+        addBound(hashsetType, slistType, collectionType);
+        addBound(hashsetType, sarraylistType, collectionType);
+        addBound(hashsetType, setType, setType);
+        addBound(osetType, collectionType, collectionType);
+        addBound(osetType, ocollectionType, ocollectionType);
+        addBound(osetType, scollectionType, ocollectionType);
+        addBound(osetType, listType, collectionType);
+        addBound(osetType, arraylistType, collectionType);
+        addBound(osetType, olistType, ocollectionType);
+        addBound(osetType, oarraylistType, ocollectionType);
+        addBound(osetType, slistType, ocollectionType);
+        addBound(osetType, sarraylistType, ocollectionType);
+        addBound(osetType, setType, setType);
+        addBound(osetType, hashsetType, setType);
+        addBound(ohashsetType, collectionType, collectionType);
+        addBound(ohashsetType, ocollectionType, ocollectionType);
+        addBound(ohashsetType, scollectionType, ocollectionType);
+        addBound(ohashsetType, listType, collectionType);
+        addBound(ohashsetType, arraylistType, collectionType);
+        addBound(ohashsetType, olistType, ocollectionType);
+        addBound(ohashsetType, oarraylistType, ocollectionType);
+        addBound(ohashsetType, slistType, ocollectionType);
+        addBound(ohashsetType, sarraylistType, ocollectionType);
+        addBound(ohashsetType, setType, setType);
+        addBound(ohashsetType, hashsetType, hashsetType);
+        addBound(ohashsetType, osetType, osetType);
+        addBound(ssetType, collectionType, collectionType);
+        addBound(ssetType, ocollectionType, ocollectionType);
+        addBound(ssetType, scollectionType, scollectionType);
+        addBound(ssetType, listType, collectionType);
+        addBound(ssetType, arraylistType, collectionType);
+        addBound(ssetType, olistType, ocollectionType);
+        addBound(ssetType, oarraylistType, ocollectionType);
+        addBound(ssetType, slistType, scollectionType);
+        addBound(ssetType, sarraylistType, scollectionType);
+        addBound(ssetType, setType, setType);
+        addBound(ssetType, hashsetType, setType);
+        addBound(ssetType, osetType, osetType);
+        addBound(ssetType, ohashsetType, osetType);
+        addBound(shashsetType, collectionType, collectionType);
+        addBound(shashsetType, ocollectionType, ocollectionType);
+        addBound(shashsetType, scollectionType, scollectionType);
+        addBound(shashsetType, listType, collectionType);
+        addBound(shashsetType, arraylistType, collectionType);
+        addBound(shashsetType, olistType, ocollectionType);
+        addBound(shashsetType, oarraylistType, ocollectionType);
+        addBound(shashsetType, slistType, scollectionType);
+        addBound(shashsetType, sarraylistType, scollectionType);
+        addBound(shashsetType, setType, setType);
+        addBound(shashsetType, hashsetType, hashsetType);
+        addBound(shashsetType, osetType, osetType);
+        addBound(shashsetType, ohashsetType, hashsetType);
+        addBound(shashsetType, ssetType, ssetType);
 
         addBound(hashmapType, mapType, mapType);
-        addBound(omapType, mapType, mapType);
-        addBound(omapType, hashmapType, mapType);
-        addBound(ohashmapType, mapType, mapType);
-        addBound(ohashmapType, hashmapType, hashmapType);
-        addBound(ohashmapType, omapType, omapType);
+        addBound(oomapType, mapType, mapType);
+        addBound(oomapType, hashmapType, mapType);
+        addBound(oohashmapType, mapType, mapType);
+        addBound(oohashmapType, hashmapType, hashmapType);
+        addBound(oohashmapType, oomapType, oomapType);
         addBound(smapType, mapType, mapType);
         addBound(smapType, hashmapType, mapType);
-        addBound(smapType, omapType, omapType);
-        addBound(smapType, ohashmapType, omapType);
+        addBound(smapType, oomapType, oomapType);
+        addBound(smapType, oohashmapType, oomapType);
         addBound(shashmapType, mapType, mapType);
         addBound(shashmapType, hashmapType, hashmapType);
-        addBound(shashmapType, omapType, omapType);
-        addBound(shashmapType, ohashmapType, ohashmapType);
+        addBound(shashmapType, oomapType, oomapType);
+        addBound(shashmapType, oohashmapType, oohashmapType);
         addBound(shashmapType, smapType, smapType);
         addBound(somapType, mapType, mapType);
         addBound(somapType, hashmapType, mapType);
-        addBound(somapType, omapType, omapType);
-        addBound(somapType, ohashmapType, omapType);
+        addBound(somapType, oomapType, oomapType);
+        addBound(somapType, oohashmapType, oomapType);
         addBound(somapType, smapType, smapType);
         addBound(somapType, shashmapType, smapType);
         addBound(sohashmapType, mapType, mapType);
         addBound(sohashmapType, hashmapType, hashmapType);
-        addBound(sohashmapType, omapType, omapType);
-        addBound(sohashmapType, ohashmapType, ohashmapType);
+        addBound(sohashmapType, oomapType, oomapType);
+        addBound(sohashmapType, oohashmapType, oohashmapType);
         addBound(sohashmapType, smapType, smapType);
         addBound(sohashmapType, shashmapType, shashmapType);
         addBound(sohashmapType, somapType, somapType);
+
+        addBound(arithexcepType, exceptionType, exceptionType);
+        addBound(iargexcepType, exceptionType, exceptionType);
+        addBound(istateexceptType, exceptionType, exceptionType);
+        addBound(nfexcepType, exceptionType, exceptionType);
+        addBound(arithexcepType, iargexcepType, exceptionType);
+        addBound(arithexcepType, istateexceptType, exceptionType);
+        addBound(arithexcepType, nfexcepType, exceptionType);
+        addBound(iargexcepType, istateexceptType, exceptionType);
+        addBound(iargexcepType, nfexcepType, exceptionType);
+        addBound(istateexceptType, nfexcepType, exceptionType);
     }
 
     public final void addStruct(final String name, final Class<?> clazz) {
@@ -1232,30 +1558,30 @@ class Definition {
 
         if (owner == null) {
             throw new IllegalArgumentException(
-                    "Owner struct [" + struct + "] not defined for constructor [" + name + "].");
+                "Owner struct [" + struct + "] not defined for constructor [" + name + "].");
         }
 
         if (!name.matches("^[_a-zA-Z][_a-zA-Z0-9]*$")) {
             throw new IllegalArgumentException(
-                    "Invalid constructor name [" + name + "] with the struct [" + owner.name + "].");
+                "Invalid constructor name [" + name + "] with the struct [" + owner.name + "].");
         }
 
         if (owner.constructors.containsKey(name)) {
             throw new IllegalArgumentException(
-                    "Duplicate constructor name [" + name + "] found within the struct [" + owner.name + "].");
+                "Duplicate constructor name [" + name + "] found within the struct [" + owner.name + "].");
         }
 
         if (owner.statics.containsKey(name)) {
             throw new IllegalArgumentException("Constructors and functions may not have the same name" +
-                    " [" + name + "] within the same struct [" + owner.name + "].");
+                " [" + name + "] within the same struct [" + owner.name + "].");
         }
 
         if (owner.methods.containsKey(name)) {
             throw new IllegalArgumentException("Constructors and methods may not have the same name" +
-                    " [" + name + "] within the same struct [" + owner.name + "].");
+                " [" + name + "] within the same struct [" + owner.name + "].");
         }
 
-        final Class[] classes = new Class[args.length];
+        final Class<?>[] classes = new Class<?>[args.length];
 
         for (int count = 0; count < classes.length; ++count) {
             if (genargs != null) {
@@ -1263,8 +1589,8 @@ class Definition {
                     genargs[count].clazz.asSubclass(args[count].clazz);
                 } catch (ClassCastException exception) {
                     throw new ClassCastException("Generic argument [" + genargs[count].name + "]" +
-                            " is not a sub class of [" + args[count].name + "] in the constructor" +
-                            " [" + name + " ] from the struct [" + owner.name + "].");
+                        " is not a sub class of [" + args[count].name + "] in the constructor" +
+                        " [" + name + " ] from the struct [" + owner.name + "].");
                 }
             }
 
@@ -1277,12 +1603,12 @@ class Definition {
             reflect = owner.clazz.getConstructor(classes);
         } catch (NoSuchMethodException exception) {
             throw new IllegalArgumentException("Constructor [" + name + "] not found for class" +
-                    " [" + owner.clazz.getName() + "] with arguments " + Arrays.toString(classes) + ".");
+                " [" + owner.clazz.getName() + "] with arguments " + Arrays.toString(classes) + ".");
         }
 
         final org.objectweb.asm.commons.Method asm = org.objectweb.asm.commons.Method.getMethod(reflect);
         final Constructor constructor =
-                new Constructor(name, owner, Arrays.asList(genargs != null ? genargs : args), asm, reflect);
+            new Constructor(name, owner, Arrays.asList(genargs != null ? genargs : args), asm, reflect);
 
         owner.constructors.put(name, constructor);
     }
@@ -1293,37 +1619,37 @@ class Definition {
 
         if (owner == null) {
             throw new IllegalArgumentException("Owner struct [" + struct + "] not defined" +
-                    " for " + (statik ? "function" : "method") + " [" + name + "].");
+                " for " + (statik ? "function" : "method") + " [" + name + "].");
         }
 
         if (!name.matches("^[_a-zA-Z][_a-zA-Z0-9]*$")) {
             throw new IllegalArgumentException("Invalid " + (statik ? "function" : "method") +
-                    " name [" + name + "] with the struct [" + owner.name + "].");
+                " name [" + name + "] with the struct [" + owner.name + "].");
         }
 
         if (owner.constructors.containsKey(name)) {
             throw new IllegalArgumentException("Constructors and " + (statik ? "functions" : "methods") +
-                    " may not have the same name [" + name + "] within the same struct" +
-                    " [" + owner.name + "].");
+                " may not have the same name [" + name + "] within the same struct" +
+                " [" + owner.name + "].");
         }
 
         if (owner.statics.containsKey(name)) {
             if (statik) {
                 throw new IllegalArgumentException(
-                        "Duplicate function name [" + name + "] found within the struct [" + owner.name + "].");
+                    "Duplicate function name [" + name + "] found within the struct [" + owner.name + "].");
             } else {
                 throw new IllegalArgumentException("Functions and methods may not have the same name" +
-                        " [" + name + "] within the same struct [" + owner.name + "].");
+                    " [" + name + "] within the same struct [" + owner.name + "].");
             }
         }
 
         if (owner.methods.containsKey(name)) {
             if (statik) {
                 throw new IllegalArgumentException("Functions and methods may not have the same name" +
-                        " [" + name + "] within the same struct [" + owner.name + "].");
+                    " [" + name + "] within the same struct [" + owner.name + "].");
             } else {
                 throw new IllegalArgumentException("Duplicate method name [" + name + "]" +
-                        " found within the struct [" + owner.name + "].");
+                    " found within the struct [" + owner.name + "].");
             }
         }
 
@@ -1332,18 +1658,18 @@ class Definition {
                 genrtn.clazz.asSubclass(rtn.clazz);
             } catch (ClassCastException exception) {
                 throw new ClassCastException("Generic return [" + genrtn.clazz.getCanonicalName() + "]" +
-                        " is not a sub class of [" + rtn.clazz.getCanonicalName() + "] in the method" +
-                        " [" + name + " ] from the struct [" + owner.name + "].");
+                    " is not a sub class of [" + rtn.clazz.getCanonicalName() + "] in the method" +
+                    " [" + name + " ] from the struct [" + owner.name + "].");
             }
         }
 
         if (genargs != null && genargs.length != args.length) {
             throw new IllegalArgumentException("Generic arguments arity [" +  genargs.length + "] is not the same as " +
-                    (statik ? "function" : "method") + " [" + name + "] arguments arity" +
-                    " [" + args.length + "] within the struct [" + owner.name + "].");
+                (statik ? "function" : "method") + " [" + name + "] arguments arity" +
+                " [" + args.length + "] within the struct [" + owner.name + "].");
         }
 
-        final Class[] classes = new Class[args.length];
+        final Class<?>[] classes = new Class<?>[args.length];
 
         for (int count = 0; count < classes.length; ++count) {
             if (genargs != null) {
@@ -1351,8 +1677,8 @@ class Definition {
                     genargs[count].clazz.asSubclass(args[count].clazz);
                 } catch (ClassCastException exception) {
                     throw new ClassCastException("Generic argument [" + genargs[count].name + "] is not a sub class" +
-                            " of [" + args[count].name + "] in the " + (statik ? "function" : "method") +
-                            " [" + name + " ] from the struct [" + owner.name + "].");
+                        " of [" + args[count].name + "] in the " + (statik ? "function" : "method") +
+                        " [" + name + " ] from the struct [" + owner.name + "].");
                 }
             }
 
@@ -1365,15 +1691,15 @@ class Definition {
             reflect = owner.clazz.getMethod(alias == null ? name : alias, classes);
         } catch (NoSuchMethodException exception) {
             throw new IllegalArgumentException((statik ? "Function" : "Method") +
-                    " [" + (alias == null ? name : alias) + "] not found for class [" + owner.clazz.getName() + "]" +
-                    " with arguments " + Arrays.toString(classes) + ".");
+                " [" + (alias == null ? name : alias) + "] not found for class [" + owner.clazz.getName() + "]" +
+                " with arguments " + Arrays.toString(classes) + ".");
         }
 
         if (!reflect.getReturnType().equals(rtn.clazz)) {
             throw new IllegalArgumentException("Specified return type class [" + rtn.clazz + "]" +
-                    " does not match the found return type class [" + reflect.getReturnType() + "] for the " +
-                    (statik ? "function" : "method") + " [" + name + "]" +
-                    " within the struct [" + owner.name + "].");
+                " does not match the found return type class [" + reflect.getReturnType() + "] for the " +
+                (statik ? "function" : "method") + " [" + name + "]" +
+                " within the struct [" + owner.name + "].");
         }
 
         final org.objectweb.asm.commons.Method asm = org.objectweb.asm.commons.Method.getMethod(reflect);
@@ -1383,32 +1709,32 @@ class Definition {
         try {
             if (statik) {
                 handle = MethodHandles.publicLookup().in(owner.clazz).findStatic(
-                        owner.clazz, alias == null ? name : alias, MethodType.methodType(rtn.clazz, classes));
+                    owner.clazz, alias == null ? name : alias, MethodType.methodType(rtn.clazz, classes));
             } else {
                 handle = MethodHandles.publicLookup().in(owner.clazz).findVirtual(
-                        owner.clazz, alias == null ? name : alias, MethodType.methodType(rtn.clazz, classes));
+                    owner.clazz, alias == null ? name : alias, MethodType.methodType(rtn.clazz, classes));
             }
         } catch (NoSuchMethodException | IllegalAccessException exception) {
             throw new IllegalArgumentException("Method [" + (alias == null ? name : alias) + "]" +
-                    " not found for class [" + owner.clazz.getName() + "]" +
-                    " with arguments " + Arrays.toString(classes) + ".");
+                " not found for class [" + owner.clazz.getName() + "]" +
+                " with arguments " + Arrays.toString(classes) + ".");
         }
 
         final Method method = new Method(name, owner, genrtn != null ? genrtn : rtn,
-                Arrays.asList(genargs != null ? genargs : args), asm, reflect, handle);
+            Arrays.asList(genargs != null ? genargs : args), asm, reflect, handle);
         final int modifiers = reflect.getModifiers();
 
         if (statik) {
             if (!java.lang.reflect.Modifier.isStatic(modifiers)) {
                 throw new IllegalArgumentException("Function [" + name + "]" +
-                        " within the struct [" + owner.name + "] is not linked to a static Java method.");
+                    " within the struct [" + owner.name + "] is not linked to a static Java method.");
             }
 
             owner.functions.put(name, method);
         } else {
             if (java.lang.reflect.Modifier.isStatic(modifiers)) {
                 throw new IllegalArgumentException("Method [" + name + "]" +
-                        " within the struct [" + owner.name + "] is not linked to a non-static Java method.");
+                    " within the struct [" + owner.name + "] is not linked to a non-static Java method.");
             }
 
             owner.methods.put(name, method);
@@ -1421,31 +1747,31 @@ class Definition {
 
         if (owner == null) {
             throw new IllegalArgumentException("Owner struct [" + struct + "] not defined for " +
-                    (statik ? "static" : "member") + " [" + name + "].");
+                (statik ? "static" : "member") + " [" + name + "].");
         }
 
         if (!name.matches("^[_a-zA-Z][_a-zA-Z0-9]*$")) {
             throw new IllegalArgumentException("Invalid " + (statik ? "static" : "member") +
-                    " name [" + name + "] with the struct [" + owner.name + "].");
+                " name [" + name + "] with the struct [" + owner.name + "].");
         }
 
         if (owner.statics.containsKey(name)) {
             if (statik) {
                 throw new IllegalArgumentException("Duplicate static name [" + name + "]" +
-                        " found within the struct [" + owner.name + "].");
+                    " found within the struct [" + owner.name + "].");
             } else {
                 throw new IllegalArgumentException("Statics and members may not have the same name " +
-                        "[" + name + "] within the same struct [" + owner.name + "].");
+                    "[" + name + "] within the same struct [" + owner.name + "].");
             }
         }
 
         if (owner.members.containsKey(name)) {
             if (statik) {
                 throw new IllegalArgumentException("Statics and members may not have the same name " +
-                        "[" + name + "] within the same struct [" + owner.name + "].");
+                    "[" + name + "] within the same struct [" + owner.name + "].");
             } else {
                 throw new IllegalArgumentException("Duplicate member name [" + name + "]" +
-                        " found within the struct [" + owner.name + "].");
+                    " found within the struct [" + owner.name + "].");
             }
         }
 
@@ -1454,8 +1780,8 @@ class Definition {
                 generic.clazz.asSubclass(type.clazz);
             } catch (ClassCastException exception) {
                 throw new ClassCastException("Generic type [" + generic.clazz.getCanonicalName() + "]" +
-                        " is not a sub class of [" + type.clazz.getCanonicalName() + "] for the field" +
-                        " [" + name + " ] from the struct [" + owner.name + "].");
+                    " is not a sub class of [" + type.clazz.getCanonicalName() + "] for the field" +
+                    " [" + name + " ] from the struct [" + owner.name + "].");
             }
         }
 
@@ -1465,7 +1791,7 @@ class Definition {
             reflect = owner.clazz.getField(alias == null ? name : alias);
         } catch (NoSuchFieldException exception) {
             throw new IllegalArgumentException("Field [" + (alias == null ? name : alias) + "]" +
-                    " not found for class [" + owner.clazz.getName() + "].");
+                " not found for class [" + owner.clazz.getName() + "].");
         }
 
         MethodHandle getter = null;
@@ -1474,13 +1800,13 @@ class Definition {
         try {
             if (!statik) {
                 getter = MethodHandles.publicLookup().in(owner.clazz).findGetter(
-                        owner.clazz, alias == null ? name : alias, type.clazz);
+                    owner.clazz, alias == null ? name : alias, type.clazz);
                 setter = MethodHandles.publicLookup().in(owner.clazz).findSetter(
-                        owner.clazz, alias == null ? name : alias, type.clazz);
+                    owner.clazz, alias == null ? name : alias, type.clazz);
             }
         } catch (NoSuchFieldException | IllegalAccessException exception) {
             throw new IllegalArgumentException("Getter/Setter [" + (alias == null ? name : alias) + "]" +
-                    " not found for class [" + owner.clazz.getName() + "].");
+                " not found for class [" + owner.clazz.getName() + "].");
         }
 
         final Field field = new Field(name, owner, generic == null ? type : generic, type, reflect, getter, setter);
@@ -1493,14 +1819,14 @@ class Definition {
 
             if (!java.lang.reflect.Modifier.isFinal(modifiers)) {
                 throw new IllegalArgumentException("Static [" + name + "]" +
-                        " within the struct [" + owner.name + "] is not linked to static Java field.");
+                    " within the struct [" + owner.name + "] is not linked to static Java field.");
             }
 
             owner.statics.put(alias == null ? name : alias, field);
         } else {
             if (java.lang.reflect.Modifier.isStatic(modifiers)) {
                 throw new IllegalArgumentException("Member [" + name + "]" +
-                        " within the struct [" + owner.name + "] is not linked to non-static Java field.");
+                    " within the struct [" + owner.name + "] is not linked to non-static Java field.");
             }
 
             owner.members.put(alias == null ? name : alias, field);
@@ -1519,18 +1845,18 @@ class Definition {
 
             if (struct == null) {
                 throw new IllegalArgumentException("Child struct [" + children[count] + "]" +
-                        " not defined for copy to owner struct [" + owner.name + "].");
+                    " not defined for copy to owner struct [" + owner.name + "].");
             }
 
             try {
                 owner.clazz.asSubclass(child.clazz);
             } catch (ClassCastException exception) {
                 throw new ClassCastException("Child struct [" + child.name + "]" +
-                        " is not a super type of owner struct [" + owner.name + "] in copy.");
+                    " is not a super type of owner struct [" + owner.name + "] in copy.");
             }
 
             final boolean object = child.clazz.equals(Object.class) &&
-                    java.lang.reflect.Modifier.isInterface(owner.clazz.getModifiers());
+                java.lang.reflect.Modifier.isInterface(owner.clazz.getModifiers());
 
             for (final Method method : child.methods.values()) {
                 if (owner.methods.get(method.name) == null) {
@@ -1543,22 +1869,22 @@ class Definition {
                         reflect = clazz.getMethod(method.method.getName(), method.reflect.getParameterTypes());
                     } catch (NoSuchMethodException exception) {
                         throw new IllegalArgumentException("Method [" + method.method.getName() + "] not found for" +
-                                " class [" + owner.clazz.getName() + "] with arguments " +
-                                Arrays.toString(method.reflect.getParameterTypes()) + ".");
+                            " class [" + owner.clazz.getName() + "] with arguments " +
+                            Arrays.toString(method.reflect.getParameterTypes()) + ".");
                     }
 
                     try {
                         handle = MethodHandles.publicLookup().in(owner.clazz).findVirtual(
-                                owner.clazz, method.method.getName(),
-                                MethodType.methodType(method.reflect.getReturnType(), method.reflect.getParameterTypes()));
+                            owner.clazz, method.method.getName(),
+                            MethodType.methodType(method.reflect.getReturnType(), method.reflect.getParameterTypes()));
                     } catch (NoSuchMethodException | IllegalAccessException exception) {
                         throw new IllegalArgumentException("Method [" + method.method.getName() + "] not found for" +
-                                " class [" + owner.clazz.getName() + "] with arguments " +
-                                Arrays.toString(method.reflect.getParameterTypes()) + ".");
+                            " class [" + owner.clazz.getName() + "] with arguments " +
+                            Arrays.toString(method.reflect.getParameterTypes()) + ".");
                     }
 
                     owner.methods.put(method.name,
-                            new Method(method.name, owner, method.rtn, method.arguments, method.method, reflect, handle));
+                        new Method(method.name, owner, method.rtn, method.arguments, method.method, reflect, handle));
                 }
             }
 
@@ -1572,21 +1898,21 @@ class Definition {
                         reflect = owner.clazz.getField(field.reflect.getName());
                     } catch (NoSuchFieldException exception) {
                         throw new IllegalArgumentException("Field [" + field.reflect.getName() + "]" +
-                                " not found for class [" + owner.clazz.getName() + "].");
+                            " not found for class [" + owner.clazz.getName() + "].");
                     }
 
                     try {
                         getter = MethodHandles.publicLookup().in(owner.clazz).findGetter(
-                                owner.clazz, field.name, field.type.clazz);
+                            owner.clazz, field.name, field.type.clazz);
                         setter = MethodHandles.publicLookup().in(owner.clazz).findSetter(
-                                owner.clazz, field.name, field.type.clazz);
+                            owner.clazz, field.name, field.type.clazz);
                     } catch (NoSuchFieldException | IllegalAccessException exception) {
                         throw new IllegalArgumentException("Getter/Setter [" + field.name + "]" +
-                                " not found for class [" + owner.clazz.getName() + "].");
+                            " not found for class [" + owner.clazz.getName() + "].");
                     }
 
                     owner.members.put(field.name,
-                            new Field(field.name, owner, field.type, field.generic, reflect, getter, setter));
+                        new Field(field.name, owner, field.type, field.generic, reflect, getter, setter));
                 }
             }
         }
@@ -1598,19 +1924,19 @@ class Definition {
 
         if (owner == null) {
             throw new IllegalArgumentException("Owner struct [" + struct + "] not defined for" +
-                    " transform with cast type from [" + from.name + "] and cast type to [" + to.name + "].");
+                " transform with cast type from [" + from.name + "] and cast type to [" + to.name + "].");
         }
 
         if (from.equals(to)) {
             throw new IllegalArgumentException("Transform with owner struct [" + owner.name + "] cannot" +
-                    " have cast type from [" + from.name + "] be the same as cast type to [" + to.name + "].");
+                " have cast type from [" + from.name + "] be the same as cast type to [" + to.name + "].");
         }
 
         final Cast cast = new Cast(from, to);
 
         if (transforms.containsKey(cast)) {
             throw new IllegalArgumentException("Transform with owner struct [" + owner.name + "]" +
-                    " and cast type from [" + from.name + "] to cast type to [" + to.name + "] already defined.");
+                " and cast type from [" + from.name + "] to cast type to [" + to.name + "] already defined.");
         }
 
         Method method;
@@ -1622,14 +1948,14 @@ class Definition {
 
             if (method == null) {
                 throw new IllegalArgumentException("Transform with owner struct [" + owner.name + "]" +
-                        " and cast type from [" + from.name + "] to cast type to [" + to.name +
-                        "] using a function [" + name + "] that is not defined.");
+                    " and cast type from [" + from.name + "] to cast type to [" + to.name +
+                    "] using a function [" + name + "] that is not defined.");
             }
 
             if (method.arguments.size() != 1) {
                 throw new IllegalArgumentException("Transform with owner struct [" + owner.name + "]" +
-                        " and cast type from [" + from.name + "] to cast type to [" + to.name +
-                        "] using function [" + name + "] does not have a single type argument.");
+                    " and cast type from [" + from.name + "] to cast type to [" + to.name +
+                    "] using function [" + name + "] does not have a single type argument.");
             }
 
             Type argument = method.arguments.get(0);
@@ -1642,8 +1968,8 @@ class Definition {
                     upcast = argument;
                 } catch (ClassCastException cce1) {
                     throw new ClassCastException("Transform with owner struct [" + owner.name + "]" +
-                            " and cast type from [" + from.name + "] to cast type to [" + to.name + "] using" +
-                            " function [" + name + "] cannot cast from type to the function input argument type.");
+                        " and cast type from [" + from.name + "] to cast type to [" + to.name + "] using" +
+                        " function [" + name + "] cannot cast from type to the function input argument type.");
                 }
             }
 
@@ -1657,8 +1983,8 @@ class Definition {
                     downcast = to;
                 } catch (ClassCastException cce1) {
                     throw new ClassCastException("Transform with owner struct [" + owner.name + "]" +
-                            " and cast type from [" + from.name + "] to cast type to [" + to.name + "] using" +
-                            " function [" + name + "] cannot cast to type to the function return argument type.");
+                        " and cast type from [" + from.name + "] to cast type to [" + to.name + "] using" +
+                        " function [" + name + "] cannot cast to type to the function return argument type.");
                 }
             }
         } else {
@@ -1666,14 +1992,14 @@ class Definition {
 
             if (method == null) {
                 throw new IllegalArgumentException("Transform with owner struct [" + owner.name + "]" +
-                        " and cast type from [" + from.name + "] to cast type to [" + to.name +
-                        "] using a method [" + name + "] that is not defined.");
+                    " and cast type from [" + from.name + "] to cast type to [" + to.name +
+                    "] using a method [" + name + "] that is not defined.");
             }
 
             if (!method.arguments.isEmpty()) {
                 throw new IllegalArgumentException("Transform with owner struct [" + owner.name + "]" +
-                        " and cast type from [" + from.name + "] to cast type to [" + to.name +
-                        "] using method [" + name + "] does not have a single type argument.");
+                    " and cast type from [" + from.name + "] to cast type to [" + to.name +
+                    "] using method [" + name + "] does not have a single type argument.");
             }
 
             try {
@@ -1684,8 +2010,8 @@ class Definition {
                     upcast = getType(owner.name);
                 } catch (ClassCastException cce1) {
                     throw new ClassCastException("Transform with owner struct [" + owner.name + "]" +
-                            " and cast type from [" + from.name + "] to cast type to [" + to.name + "] using" +
-                            " method [" + name + "] cannot cast from type to the method input argument type.");
+                        " and cast type from [" + from.name + "] to cast type to [" + to.name + "] using" +
+                        " method [" + name + "] cannot cast from type to the method input argument type.");
                 }
             }
 
@@ -1699,8 +2025,8 @@ class Definition {
                     downcast = to;
                 } catch (ClassCastException cce1) {
                     throw new ClassCastException("Transform with owner struct [" + owner.name + "]" +
-                            " and cast type from [" + from.name + "] to cast type to [" + to.name + "]" +
-                            " using method [" + name + "] cannot cast to type to the method return argument type.");
+                        " and cast type from [" + from.name + "] to cast type to [" + to.name + "]" +
+                        " using method [" + name + "] cannot cast to type to the method return argument type.");
                 }
             }
         }
@@ -1715,12 +2041,12 @@ class Definition {
 
         if (bounds.containsKey(pair0)) {
             throw new IllegalArgumentException(
-                    "Bound already defined for types [" + type0.name + "] and [" + type1.name + "].");
+                "Bound already defined for types [" + type0.name + "] and [" + type1.name + "].");
         }
 
         if (bounds.containsKey(pair1)) {
             throw new IllegalArgumentException(
-                    "Bound already defined for types [" + type1.name + "] and [" + type0.name + "].");
+                "Bound already defined for types [" + type1.name + "] and [" + type0.name + "].");
         }
 
         bounds.put(pair0, bound);
@@ -1763,7 +2089,7 @@ class Definition {
                 clazz = Class.forName(type.getInternalName().replace('/', '.'));
             } catch (ClassNotFoundException exception) {
                 throw new IllegalArgumentException("The class [" + type.getInternalName() + "]" +
-                        " could not be found to create type [" + name + "].");
+                    " could not be found to create type [" + name + "].");
             }
 
             sort = Sort.ARRAY;

@@ -22,6 +22,7 @@ package org.elasticsearch.messy.tests;
 import com.carrotsearch.hppc.LongHashSet;
 import com.carrotsearch.hppc.LongSet;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
+
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -65,7 +66,7 @@ public class MinDocCountTests extends AbstractTermsTestCase {
         return Collections.singleton(GroovyPlugin.class);
     }
 
-    private static final QueryBuilder QUERY = QueryBuilders.termQuery("match", true);
+    private static final QueryBuilder<?> QUERY = QueryBuilders.termQuery("match", true);
 
     private static int cardinality;
 
@@ -77,7 +78,6 @@ public class MinDocCountTests extends AbstractTermsTestCase {
         final List<IndexRequestBuilder> indexRequests = new ArrayList<>();
         final Set<String> stringTerms = new HashSet<>();
         final LongSet longTerms = new LongHashSet();
-        final Set<String> dateTerms = new HashSet<>();
         for (int i = 0; i < cardinality; ++i) {
             String stringTerm;
             do {
@@ -319,7 +319,6 @@ public class MinDocCountTests extends AbstractTermsTestCase {
                 throw ae;
             }
         }
-
     }
 
     public void testHistogramCountAsc() throws Exception {
@@ -372,11 +371,9 @@ public class MinDocCountTests extends AbstractTermsTestCase {
                     .execute().actionGet();
             assertSubset(allHisto, (Histogram) response.getAggregations().get("histo"), minDocCount);
         }
-
     }
 
     private void testMinDocCountOnDateHistogram(Histogram.Order order) throws Exception {
-        final int interval = randomIntBetween(1, 3);
         final SearchResponse allResponse = client().prepareSearch("idx").setTypes("type")
                 .setSize(0)
                 .setQuery(QUERY)
@@ -393,7 +390,5 @@ public class MinDocCountTests extends AbstractTermsTestCase {
                     .execute().actionGet();
             assertSubset(allHisto, (Histogram) response.getAggregations().get("histo"), minDocCount);
         }
-
     }
-
 }

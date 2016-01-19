@@ -53,7 +53,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class PolygonBuilder extends ShapeBuilder {
 
     public static final GeoShapeType TYPE = GeoShapeType.POLYGON;
-    static final PolygonBuilder PROTOTYPE = new PolygonBuilder(new CoordinatesBuilder().coordinate(0.0, 0.0).coordinate(0.0, 1.0)
+    public static final PolygonBuilder PROTOTYPE = new PolygonBuilder(new CoordinatesBuilder().coordinate(0.0, 0.0).coordinate(0.0, 1.0)
             .coordinate(1.0, 0.0).coordinate(0.0, 0.0));
 
     private static final Coordinate[][] EMPTY = new Coordinate[0][];

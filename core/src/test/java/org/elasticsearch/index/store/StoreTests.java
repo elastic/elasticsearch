@@ -1154,7 +1154,7 @@ public class StoreTests extends ESTestCase {
         DirectoryService directoryService = new LuceneManagedDirectoryService(random());
         Settings settings = Settings.builder()
                 .put(IndexMetaData.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT)
-                .put(Store.INDEX_STORE_STATS_REFRESH_INTERVAL, TimeValue.timeValueMinutes(0)).build();
+                .put(Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.timeValueMinutes(0)).build();
         Store store = new Store(shardId, IndexSettingsModule.newIndexSettings(new Index("index"), settings), directoryService, new DummyShardLock(shardId));
         long initialStoreSize = 0;
         for (String extraFiles : store.directory().listAll()) {

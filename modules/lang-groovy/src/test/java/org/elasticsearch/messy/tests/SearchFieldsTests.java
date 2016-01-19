@@ -339,9 +339,7 @@ public class SearchFieldsTests extends ESIntegTestCase {
                 .execute().actionGet();
         client().admin().indices().refresh(refreshRequest()).actionGet();
 
-        SearchResponse response = client().prepareSearch()
-                .setQuery(matchAllQuery())
-.addScriptField("s_obj1", new Script("_source.obj1"))
+        SearchResponse response = client().prepareSearch().setQuery(matchAllQuery()).addScriptField("s_obj1", new Script("_source.obj1"))
                 .addScriptField("s_obj1_test", new Script("_source.obj1.test")).addScriptField("s_obj2", new Script("_source.obj2"))
                 .addScriptField("s_obj2_arr2", new Script("_source.obj2.arr2")).addScriptField("s_arr3", new Script("_source.arr3"))
                 .execute().actionGet();
@@ -355,7 +353,7 @@ public class SearchFieldsTests extends ESIntegTestCase {
         assertThat(response.getHits().getAt(0).field("s_obj1_test").value().toString(), equalTo("something"));
 
         Map<String, Object> sObj2 = response.getHits().getAt(0).field("s_obj2").value();
-        List sObj2Arr2 = (List) sObj2.get("arr2");
+        List<?> sObj2Arr2 = (List<?>) sObj2.get("arr2");
         assertThat(sObj2Arr2.size(), equalTo(2));
         assertThat(sObj2Arr2.get(0).toString(), equalTo("arr_value1"));
         assertThat(sObj2Arr2.get(1).toString(), equalTo("arr_value2"));
@@ -365,8 +363,8 @@ public class SearchFieldsTests extends ESIntegTestCase {
         assertThat(sObj2Arr2.get(0).toString(), equalTo("arr_value1"));
         assertThat(sObj2Arr2.get(1).toString(), equalTo("arr_value2"));
 
-        List sObj2Arr3 = response.getHits().getAt(0).field("s_arr3").values();
-        assertThat(((Map) sObj2Arr3.get(0)).get("arr3_field1").toString(), equalTo("arr3_value1"));
+        List<?> sObj2Arr3 = response.getHits().getAt(0).field("s_arr3").values();
+        assertThat(((Map<?, ?>) sObj2Arr3.get(0)).get("arr3_field1").toString(), equalTo("arr3_value1"));
     }
 
     public void testPartialFields() throws Exception {

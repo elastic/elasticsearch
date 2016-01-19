@@ -21,6 +21,7 @@ package org.elasticsearch.plan.a;
 
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.tree.ParseTree;
+import org.elasticsearch.script.ScoreAccessor;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
@@ -34,11 +35,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.plan.a.Adapter.ExpressionMetadata;
-import static org.elasticsearch.plan.a.Adapter.ExtNodeMetadata;
-import static org.elasticsearch.plan.a.Adapter.ExternalMetadata;
-import static org.elasticsearch.plan.a.Adapter.StatementMetadata;
-import static org.elasticsearch.plan.a.Adapter.error;
 import static org.elasticsearch.plan.a.Definition.Cast;
 import static org.elasticsearch.plan.a.Definition.Constructor;
 import static org.elasticsearch.plan.a.Definition.Field;
@@ -46,6 +42,11 @@ import static org.elasticsearch.plan.a.Definition.Method;
 import static org.elasticsearch.plan.a.Definition.Sort;
 import static org.elasticsearch.plan.a.Definition.Transform;
 import static org.elasticsearch.plan.a.Definition.Type;
+import static org.elasticsearch.plan.a.Metadata.ExpressionMetadata;
+import static org.elasticsearch.plan.a.Metadata.ExtNodeMetadata;
+import static org.elasticsearch.plan.a.Metadata.ExternalMetadata;
+import static org.elasticsearch.plan.a.Metadata.StatementMetadata;
+import static org.elasticsearch.plan.a.Metadata.error;
 import static org.elasticsearch.plan.a.PlanAParser.ADD;
 import static org.elasticsearch.plan.a.PlanAParser.AfterthoughtContext;
 import static org.elasticsearch.plan.a.PlanAParser.ArgumentsContext;
@@ -69,6 +70,7 @@ import static org.elasticsearch.plan.a.PlanAParser.DecltypeContext;
 import static org.elasticsearch.plan.a.PlanAParser.DeclvarContext;
 import static org.elasticsearch.plan.a.PlanAParser.DoContext;
 import static org.elasticsearch.plan.a.PlanAParser.EmptyContext;
+import static org.elasticsearch.plan.a.PlanAParser.EmptyscopeContext;
 import static org.elasticsearch.plan.a.PlanAParser.ExprContext;
 import static org.elasticsearch.plan.a.PlanAParser.ExpressionContext;
 import static org.elasticsearch.plan.a.PlanAParser.ExtbraceContext;
@@ -103,7 +105,10 @@ import static org.elasticsearch.plan.a.PlanAParser.SUB;
 import static org.elasticsearch.plan.a.PlanAParser.SingleContext;
 import static org.elasticsearch.plan.a.PlanAParser.SourceContext;
 import static org.elasticsearch.plan.a.PlanAParser.StatementContext;
+import static org.elasticsearch.plan.a.PlanAParser.ThrowContext;
+import static org.elasticsearch.plan.a.PlanAParser.TrapContext;
 import static org.elasticsearch.plan.a.PlanAParser.TrueContext;
+import static org.elasticsearch.plan.a.PlanAParser.TryContext;
 import static org.elasticsearch.plan.a.PlanAParser.USH;
 import static org.elasticsearch.plan.a.PlanAParser.UnaryContext;
 import static org.elasticsearch.plan.a.PlanAParser.WhileContext;
@@ -112,18 +117,13 @@ class Writer extends PlanAParserBaseVisitor<Void> {
     private static class Branch {
         final ParserRuleContext source;
 
-        Label begin;
-        Label end;
-        Label tru;
-        Label fals;
+        Label begin = null;
+        Label end = null;
+        Label tru = null;
+        Label fals = null;
 
         private Branch(final ParserRuleContext source) {
             this.source = source;
-
-            begin = null;
-            end = null;
-            tru = null;
-            fals = null;
         }
     }
 
@@ -131,200 +131,206 @@ class Writer extends PlanAParserBaseVisitor<Void> {
     final static String CLASS_NAME = BASE_CLASS_NAME + "$CompiledPlanAExecutable";
     private final static org.objectweb.asm.Type BASE_CLASS_TYPE = org.objectweb.asm.Type.getType(Executable.class);
     private final static org.objectweb.asm.Type CLASS_TYPE =
-            org.objectweb.asm.Type.getType("L" + CLASS_NAME.replace(".", "/") + ";");
+        org.objectweb.asm.Type.getType("L" + CLASS_NAME.replace(".", "/") + ";");
+
+    private final static org.objectweb.asm.Type PLAN_A_ERROR_TYPE = org.objectweb.asm.Type.getType(PlanAError.class);
 
     private final static org.objectweb.asm.commons.Method CONSTRUCTOR = org.objectweb.asm.commons.Method.getMethod(
-            "void <init>(org.elasticsearch.plan.a.Definition, java.lang.String, java.lang.String)");
+        "void <init>(org.elasticsearch.plan.a.Definition, java.lang.String, java.lang.String)");
     private final static org.objectweb.asm.commons.Method EXECUTE = org.objectweb.asm.commons.Method.getMethod(
-            "java.lang.Object execute(java.util.Map)");
+        "java.lang.Object execute(java.util.Map)");
     private final static String SIGNATURE = "(Ljava/util/Map<Ljava/lang/String;Ljava/lang/Object;>;)Ljava/lang/Object;";
 
     private final static org.objectweb.asm.Type DEFINITION_TYPE = org.objectweb.asm.Type.getType(Definition.class);
 
+    private final static org.objectweb.asm.Type MAP_TYPE = org.objectweb.asm.Type.getType(Map.class);
+    private final static org.objectweb.asm.commons.Method MAP_GET =
+        org.objectweb.asm.commons.Method.getMethod("Object get(Object)");
+
+    private final static org.objectweb.asm.Type SCORE_ACCESSOR_TYPE = org.objectweb.asm.Type.getType(ScoreAccessor.class);
+    private final static org.objectweb.asm.commons.Method SCORE_ACCESSOR_FLOAT =
+        org.objectweb.asm.commons.Method.getMethod("float floatValue()");
+
     private final static org.objectweb.asm.commons.Method DEF_METHOD_CALL = org.objectweb.asm.commons.Method.getMethod(
-            "java.lang.Object methodCall(java.lang.Object, java.lang.String, " +
+        "java.lang.Object methodCall(java.lang.Object, java.lang.String, " +
             "org.elasticsearch.plan.a.Definition, java.lang.Object[], boolean[])");
     private final static org.objectweb.asm.commons.Method DEF_ARRAY_STORE = org.objectweb.asm.commons.Method.getMethod(
-            "void arrayStore(java.lang.Object, java.lang.Object, java.lang.Object, " +
+        "void arrayStore(java.lang.Object, java.lang.Object, java.lang.Object, " +
             "org.elasticsearch.plan.a.Definition, boolean, boolean)");
     private final static org.objectweb.asm.commons.Method DEF_ARRAY_LOAD = org.objectweb.asm.commons.Method.getMethod(
-            "java.lang.Object arrayLoad(java.lang.Object, java.lang.Object, " +
+        "java.lang.Object arrayLoad(java.lang.Object, java.lang.Object, " +
             "org.elasticsearch.plan.a.Definition, boolean)");
     private final static org.objectweb.asm.commons.Method DEF_FIELD_STORE = org.objectweb.asm.commons.Method.getMethod(
-            "void fieldStore(java.lang.Object, java.lang.Object, java.lang.String, " +
+        "void fieldStore(java.lang.Object, java.lang.Object, java.lang.String, " +
             "org.elasticsearch.plan.a.Definition, boolean)");
     private final static org.objectweb.asm.commons.Method DEF_FIELD_LOAD = org.objectweb.asm.commons.Method.getMethod(
-            "java.lang.Object fieldLoad(java.lang.Object, java.lang.String, org.elasticsearch.plan.a.Definition)");
+        "java.lang.Object fieldLoad(java.lang.Object, java.lang.String, org.elasticsearch.plan.a.Definition)");
 
     private final static org.objectweb.asm.commons.Method DEF_NOT_CALL = org.objectweb.asm.commons.Method.getMethod(
-            "java.lang.Object not(java.lang.Object)");
+        "java.lang.Object not(java.lang.Object)");
     private final static org.objectweb.asm.commons.Method DEF_NEG_CALL = org.objectweb.asm.commons.Method.getMethod(
-            "java.lang.Object neg(java.lang.Object)");
+        "java.lang.Object neg(java.lang.Object)");
     private final static org.objectweb.asm.commons.Method DEF_MUL_CALL = org.objectweb.asm.commons.Method.getMethod(
-            "java.lang.Object mul(java.lang.Object, java.lang.Object)");
+        "java.lang.Object mul(java.lang.Object, java.lang.Object)");
     private final static org.objectweb.asm.commons.Method DEF_DIV_CALL = org.objectweb.asm.commons.Method.getMethod(
-            "java.lang.Object div(java.lang.Object, java.lang.Object)");
+        "java.lang.Object div(java.lang.Object, java.lang.Object)");
     private final static org.objectweb.asm.commons.Method DEF_REM_CALL = org.objectweb.asm.commons.Method.getMethod(
-            "java.lang.Object rem(java.lang.Object, java.lang.Object)");
+        "java.lang.Object rem(java.lang.Object, java.lang.Object)");
     private final static org.objectweb.asm.commons.Method DEF_ADD_CALL = org.objectweb.asm.commons.Method.getMethod(
-            "java.lang.Object add(java.lang.Object, java.lang.Object)");
+        "java.lang.Object add(java.lang.Object, java.lang.Object)");
     private final static org.objectweb.asm.commons.Method DEF_SUB_CALL = org.objectweb.asm.commons.Method.getMethod(
-            "java.lang.Object sub(java.lang.Object, java.lang.Object)");
+        "java.lang.Object sub(java.lang.Object, java.lang.Object)");
     private final static org.objectweb.asm.commons.Method DEF_LSH_CALL = org.objectweb.asm.commons.Method.getMethod(
-            "java.lang.Object lsh(java.lang.Object, java.lang.Object)");
+        "java.lang.Object lsh(java.lang.Object, java.lang.Object)");
     private final static org.objectweb.asm.commons.Method DEF_RSH_CALL = org.objectweb.asm.commons.Method.getMethod(
-            "java.lang.Object rsh(java.lang.Object, java.lang.Object)");
+        "java.lang.Object rsh(java.lang.Object, java.lang.Object)");
     private final static org.objectweb.asm.commons.Method DEF_USH_CALL = org.objectweb.asm.commons.Method.getMethod(
-            "java.lang.Object ush(java.lang.Object, java.lang.Object)");
+        "java.lang.Object ush(java.lang.Object, java.lang.Object)");
     private final static org.objectweb.asm.commons.Method DEF_AND_CALL = org.objectweb.asm.commons.Method.getMethod(
-            "java.lang.Object and(java.lang.Object, java.lang.Object)");
+        "java.lang.Object and(java.lang.Object, java.lang.Object)");
     private final static org.objectweb.asm.commons.Method DEF_XOR_CALL = org.objectweb.asm.commons.Method.getMethod(
-            "java.lang.Object xor(java.lang.Object, java.lang.Object)");
+        "java.lang.Object xor(java.lang.Object, java.lang.Object)");
     private final static org.objectweb.asm.commons.Method DEF_OR_CALL = org.objectweb.asm.commons.Method.getMethod(
-            "java.lang.Object or(java.lang.Object, java.lang.Object)");
+        "java.lang.Object or(java.lang.Object, java.lang.Object)");
     private final static org.objectweb.asm.commons.Method DEF_EQ_CALL = org.objectweb.asm.commons.Method.getMethod(
-            "boolean eq(java.lang.Object, java.lang.Object)");
+        "boolean eq(java.lang.Object, java.lang.Object)");
     private final static org.objectweb.asm.commons.Method DEF_LT_CALL = org.objectweb.asm.commons.Method.getMethod(
-            "boolean lt(java.lang.Object, java.lang.Object)");
+        "boolean lt(java.lang.Object, java.lang.Object)");
     private final static org.objectweb.asm.commons.Method DEF_LTE_CALL = org.objectweb.asm.commons.Method.getMethod(
-            "boolean lte(java.lang.Object, java.lang.Object)");
+        "boolean lte(java.lang.Object, java.lang.Object)");
     private final static org.objectweb.asm.commons.Method DEF_GT_CALL = org.objectweb.asm.commons.Method.getMethod(
-            "boolean gt(java.lang.Object, java.lang.Object)");
+        "boolean gt(java.lang.Object, java.lang.Object)");
     private final static org.objectweb.asm.commons.Method DEF_GTE_CALL = org.objectweb.asm.commons.Method.getMethod(
-            "boolean gte(java.lang.Object, java.lang.Object)");
+        "boolean gte(java.lang.Object, java.lang.Object)");
 
     private final static org.objectweb.asm.Type STRINGBUILDER_TYPE = org.objectweb.asm.Type.getType(StringBuilder.class);
 
     private final static org.objectweb.asm.commons.Method STRINGBUILDER_CONSTRUCTOR =
-            org.objectweb.asm.commons.Method.getMethod("void <init>()");
+        org.objectweb.asm.commons.Method.getMethod("void <init>()");
     private final static org.objectweb.asm.commons.Method STRINGBUILDER_APPEND_BOOLEAN =
-            org.objectweb.asm.commons.Method.getMethod("java.lang.StringBuilder append(boolean)");
+        org.objectweb.asm.commons.Method.getMethod("java.lang.StringBuilder append(boolean)");
     private final static org.objectweb.asm.commons.Method STRINGBUILDER_APPEND_CHAR =
-            org.objectweb.asm.commons.Method.getMethod("java.lang.StringBuilder append(char)");
+        org.objectweb.asm.commons.Method.getMethod("java.lang.StringBuilder append(char)");
     private final static org.objectweb.asm.commons.Method STRINGBUILDER_APPEND_INT =
-            org.objectweb.asm.commons.Method.getMethod("java.lang.StringBuilder append(int)");
+        org.objectweb.asm.commons.Method.getMethod("java.lang.StringBuilder append(int)");
     private final static org.objectweb.asm.commons.Method STRINGBUILDER_APPEND_LONG =
-            org.objectweb.asm.commons.Method.getMethod("java.lang.StringBuilder append(long)");
+        org.objectweb.asm.commons.Method.getMethod("java.lang.StringBuilder append(long)");
     private final static org.objectweb.asm.commons.Method STRINGBUILDER_APPEND_FLOAT =
-            org.objectweb.asm.commons.Method.getMethod("java.lang.StringBuilder append(float)");
+        org.objectweb.asm.commons.Method.getMethod("java.lang.StringBuilder append(float)");
     private final static org.objectweb.asm.commons.Method STRINGBUILDER_APPEND_DOUBLE =
-            org.objectweb.asm.commons.Method.getMethod("java.lang.StringBuilder append(double)");
+        org.objectweb.asm.commons.Method.getMethod("java.lang.StringBuilder append(double)");
     private final static org.objectweb.asm.commons.Method STRINGBUILDER_APPEND_STRING =
-            org.objectweb.asm.commons.Method.getMethod("java.lang.StringBuilder append(java.lang.String)");
+        org.objectweb.asm.commons.Method.getMethod("java.lang.StringBuilder append(java.lang.String)");
     private final static org.objectweb.asm.commons.Method STRINGBUILDER_APPEND_OBJECT =
-            org.objectweb.asm.commons.Method.getMethod("java.lang.StringBuilder append(java.lang.Object)");
+        org.objectweb.asm.commons.Method.getMethod("java.lang.StringBuilder append(java.lang.Object)");
     private final static org.objectweb.asm.commons.Method STRINGBUILDER_TOSTRING =
-            org.objectweb.asm.commons.Method.getMethod("java.lang.String toString()");
+        org.objectweb.asm.commons.Method.getMethod("java.lang.String toString()");
 
     private final static org.objectweb.asm.commons.Method TOINTEXACT_LONG =
-            org.objectweb.asm.commons.Method.getMethod("int toIntExact(long)");
+        org.objectweb.asm.commons.Method.getMethod("int toIntExact(long)");
     private final static org.objectweb.asm.commons.Method NEGATEEXACT_INT =
-            org.objectweb.asm.commons.Method.getMethod("int negateExact(int)");
+        org.objectweb.asm.commons.Method.getMethod("int negateExact(int)");
     private final static org.objectweb.asm.commons.Method NEGATEEXACT_LONG =
-            org.objectweb.asm.commons.Method.getMethod("long negateExact(long)");
+        org.objectweb.asm.commons.Method.getMethod("long negateExact(long)");
     private final static org.objectweb.asm.commons.Method MULEXACT_INT =
-            org.objectweb.asm.commons.Method.getMethod("int multiplyExact(int, int)");
+        org.objectweb.asm.commons.Method.getMethod("int multiplyExact(int, int)");
     private final static org.objectweb.asm.commons.Method MULEXACT_LONG =
-            org.objectweb.asm.commons.Method.getMethod("long multiplyExact(long, long)");
+        org.objectweb.asm.commons.Method.getMethod("long multiplyExact(long, long)");
     private final static org.objectweb.asm.commons.Method ADDEXACT_INT =
-            org.objectweb.asm.commons.Method.getMethod("int addExact(int, int)");
+        org.objectweb.asm.commons.Method.getMethod("int addExact(int, int)");
     private final static org.objectweb.asm.commons.Method ADDEXACT_LONG =
-            org.objectweb.asm.commons.Method.getMethod("long addExact(long, long)");
+        org.objectweb.asm.commons.Method.getMethod("long addExact(long, long)");
     private final static org.objectweb.asm.commons.Method SUBEXACT_INT =
-            org.objectweb.asm.commons.Method.getMethod("int subtractExact(int, int)");
+        org.objectweb.asm.commons.Method.getMethod("int subtractExact(int, int)");
     private final static org.objectweb.asm.commons.Method SUBEXACT_LONG =
-            org.objectweb.asm.commons.Method.getMethod("long subtractExact(long, long)");
+        org.objectweb.asm.commons.Method.getMethod("long subtractExact(long, long)");
 
     private final static org.objectweb.asm.commons.Method CHECKEQUALS =
-            org.objectweb.asm.commons.Method.getMethod("boolean checkEquals(java.lang.Object, java.lang.Object)");
+        org.objectweb.asm.commons.Method.getMethod("boolean checkEquals(java.lang.Object, java.lang.Object)");
     private final static org.objectweb.asm.commons.Method TOBYTEEXACT_INT =
-            org.objectweb.asm.commons.Method.getMethod("byte toByteExact(int)");
+        org.objectweb.asm.commons.Method.getMethod("byte toByteExact(int)");
     private final static org.objectweb.asm.commons.Method TOBYTEEXACT_LONG =
-            org.objectweb.asm.commons.Method.getMethod("byte toByteExact(long)");
+        org.objectweb.asm.commons.Method.getMethod("byte toByteExact(long)");
     private final static org.objectweb.asm.commons.Method TOBYTEWOOVERFLOW_FLOAT =
-            org.objectweb.asm.commons.Method.getMethod("byte toByteWithoutOverflow(float)");
+        org.objectweb.asm.commons.Method.getMethod("byte toByteWithoutOverflow(float)");
     private final static org.objectweb.asm.commons.Method TOBYTEWOOVERFLOW_DOUBLE =
-            org.objectweb.asm.commons.Method.getMethod("byte toByteWithoutOverflow(double)");
+        org.objectweb.asm.commons.Method.getMethod("byte toByteWithoutOverflow(double)");
     private final static org.objectweb.asm.commons.Method TOSHORTEXACT_INT =
-            org.objectweb.asm.commons.Method.getMethod("short toShortExact(int)");
+        org.objectweb.asm.commons.Method.getMethod("short toShortExact(int)");
     private final static org.objectweb.asm.commons.Method TOSHORTEXACT_LONG =
-            org.objectweb.asm.commons.Method.getMethod("short toShortExact(long)");
+        org.objectweb.asm.commons.Method.getMethod("short toShortExact(long)");
     private final static org.objectweb.asm.commons.Method TOSHORTWOOVERFLOW_FLOAT =
-            org.objectweb.asm.commons.Method.getMethod("short toShortWithoutOverflow(float)");
+        org.objectweb.asm.commons.Method.getMethod("short toShortWithoutOverflow(float)");
     private final static org.objectweb.asm.commons.Method TOSHORTWOOVERFLOW_DOUBLE =
-            org.objectweb.asm.commons.Method.getMethod("short toShortWithoutOverflow(double)");
+        org.objectweb.asm.commons.Method.getMethod("short toShortWithoutOverflow(double)");
     private final static org.objectweb.asm.commons.Method TOCHAREXACT_INT =
-            org.objectweb.asm.commons.Method.getMethod("char toCharExact(int)");
+        org.objectweb.asm.commons.Method.getMethod("char toCharExact(int)");
     private final static org.objectweb.asm.commons.Method TOCHAREXACT_LONG =
-            org.objectweb.asm.commons.Method.getMethod("char toCharExact(long)");
+        org.objectweb.asm.commons.Method.getMethod("char toCharExact(long)");
     private final static org.objectweb.asm.commons.Method TOCHARWOOVERFLOW_FLOAT =
-            org.objectweb.asm.commons.Method.getMethod("char toCharWithoutOverflow(float)");
+        org.objectweb.asm.commons.Method.getMethod("char toCharWithoutOverflow(float)");
     private final static org.objectweb.asm.commons.Method TOCHARWOOVERFLOW_DOUBLE =
-            org.objectweb.asm.commons.Method.getMethod("char toCharWithoutOverflow(double)");
+        org.objectweb.asm.commons.Method.getMethod("char toCharWithoutOverflow(double)");
     private final static org.objectweb.asm.commons.Method TOINTWOOVERFLOW_FLOAT =
-            org.objectweb.asm.commons.Method.getMethod("int toIntWithoutOverflow(float)");
+        org.objectweb.asm.commons.Method.getMethod("int toIntWithoutOverflow(float)");
     private final static org.objectweb.asm.commons.Method TOINTWOOVERFLOW_DOUBLE =
-            org.objectweb.asm.commons.Method.getMethod("int toIntWithoutOverflow(double)");
+        org.objectweb.asm.commons.Method.getMethod("int toIntWithoutOverflow(double)");
     private final static org.objectweb.asm.commons.Method TOLONGWOOVERFLOW_FLOAT =
-            org.objectweb.asm.commons.Method.getMethod("long toLongExactWithoutOverflow(float)");
+        org.objectweb.asm.commons.Method.getMethod("long toLongExactWithoutOverflow(float)");
     private final static org.objectweb.asm.commons.Method TOLONGWOOVERFLOW_DOUBLE =
-            org.objectweb.asm.commons.Method.getMethod("long toLongExactWithoutOverflow(double)");
+        org.objectweb.asm.commons.Method.getMethod("long toLongExactWithoutOverflow(double)");
     private final static org.objectweb.asm.commons.Method TOFLOATWOOVERFLOW_DOUBLE =
-            org.objectweb.asm.commons.Method.getMethod("float toFloatWithoutOverflow(double)");
+        org.objectweb.asm.commons.Method.getMethod("float toFloatWithoutOverflow(double)");
     private final static org.objectweb.asm.commons.Method MULWOOVERLOW_FLOAT =
-            org.objectweb.asm.commons.Method.getMethod("float multiplyWithoutOverflow(float, float)");
+        org.objectweb.asm.commons.Method.getMethod("float multiplyWithoutOverflow(float, float)");
     private final static org.objectweb.asm.commons.Method MULWOOVERLOW_DOUBLE =
-            org.objectweb.asm.commons.Method.getMethod("double multiplyWithoutOverflow(double, double)");
+        org.objectweb.asm.commons.Method.getMethod("double multiplyWithoutOverflow(double, double)");
     private final static org.objectweb.asm.commons.Method DIVWOOVERLOW_INT =
-            org.objectweb.asm.commons.Method.getMethod("int divideWithoutOverflow(int, int)");
+        org.objectweb.asm.commons.Method.getMethod("int divideWithoutOverflow(int, int)");
     private final static org.objectweb.asm.commons.Method DIVWOOVERLOW_LONG =
-            org.objectweb.asm.commons.Method.getMethod("long divideWithoutOverflow(long, long)");
+        org.objectweb.asm.commons.Method.getMethod("long divideWithoutOverflow(long, long)");
     private final static org.objectweb.asm.commons.Method DIVWOOVERLOW_FLOAT =
-            org.objectweb.asm.commons.Method.getMethod("float divideWithoutOverflow(float, float)");
+        org.objectweb.asm.commons.Method.getMethod("float divideWithoutOverflow(float, float)");
     private final static org.objectweb.asm.commons.Method DIVWOOVERLOW_DOUBLE =
-            org.objectweb.asm.commons.Method.getMethod("double divideWithoutOverflow(double, double)");
+        org.objectweb.asm.commons.Method.getMethod("double divideWithoutOverflow(double, double)");
     private final static org.objectweb.asm.commons.Method REMWOOVERLOW_FLOAT =
-            org.objectweb.asm.commons.Method.getMethod("float remainderWithoutOverflow(float, float)");
+        org.objectweb.asm.commons.Method.getMethod("float remainderWithoutOverflow(float, float)");
     private final static org.objectweb.asm.commons.Method REMWOOVERLOW_DOUBLE =
-            org.objectweb.asm.commons.Method.getMethod("double remainderWithoutOverflow(double, double)");
+        org.objectweb.asm.commons.Method.getMethod("double remainderWithoutOverflow(double, double)");
     private final static org.objectweb.asm.commons.Method ADDWOOVERLOW_FLOAT =
-            org.objectweb.asm.commons.Method.getMethod("float addWithoutOverflow(float, float)");
+        org.objectweb.asm.commons.Method.getMethod("float addWithoutOverflow(float, float)");
     private final static org.objectweb.asm.commons.Method ADDWOOVERLOW_DOUBLE =
-            org.objectweb.asm.commons.Method.getMethod("double addWithoutOverflow(double, double)");
+        org.objectweb.asm.commons.Method.getMethod("double addWithoutOverflow(double, double)");
     private final static org.objectweb.asm.commons.Method SUBWOOVERLOW_FLOAT =
-            org.objectweb.asm.commons.Method.getMethod("float subtractWithoutOverflow(float, float)");
+        org.objectweb.asm.commons.Method.getMethod("float subtractWithoutOverflow(float, float)");
     private final static org.objectweb.asm.commons.Method SUBWOOVERLOW_DOUBLE =
-            org.objectweb.asm.commons.Method.getMethod("double subtractWithoutOverflow(double, double)");
+        org.objectweb.asm.commons.Method.getMethod("double subtractWithoutOverflow(double, double)");
 
-    static byte[] write(Adapter adapter) {
-        Writer writer = new Writer(adapter);
+    static byte[] write(Metadata metadata) {
+        Writer writer = new Writer(metadata);
 
         return writer.getBytes();
     }
 
-    private final Adapter adapter;
+    private final Metadata metadata;
     private final Definition definition;
     private final ParseTree root;
     private final String source;
     private final CompilerSettings settings;
 
-    private final Map<ParserRuleContext, Branch> branches;
-    private final Deque<Branch> jumps;
-    private final Set<ParserRuleContext> strings;
+    private final Map<ParserRuleContext, Branch> branches = new HashMap<>();
+    private final Deque<Branch> jumps = new ArrayDeque<>();
+    private final Set<ParserRuleContext> strings = new HashSet<>();
 
     private ClassWriter writer;
     private GeneratorAdapter execute;
 
-    private Writer(final Adapter adapter) {
-        this.adapter = adapter;
-        definition = adapter.definition;
-        root = adapter.root;
-        source = adapter.source;
-        settings = adapter.settings;
-
-        branches = new HashMap<>();
-        jumps = new ArrayDeque<>();
-        strings = new HashSet<>();
+    private Writer(final Metadata metadata) {
+        this.metadata = metadata;
+        definition = metadata.definition;
+        root = metadata.root;
+        source = metadata.source;
+        settings = metadata.settings;
 
         writeBegin();
         writeConstructor();
@@ -377,19 +383,39 @@ class Writer extends PlanAParserBaseVisitor<Void> {
     private void writeExecute() {
         final int access = Opcodes.ACC_PUBLIC | Opcodes.ACC_SYNTHETIC;
         execute = new GeneratorAdapter(access, EXECUTE, SIGNATURE, null, writer);
+
+        final Label fals = new Label();
+        final Label end = new Label();
+        execute.visitVarInsn(Opcodes.ALOAD, metadata.inputValueSlot);
+        execute.push("#score");
+        execute.invokeInterface(MAP_TYPE, MAP_GET);
+        execute.dup();
+        execute.ifNull(fals);
+        execute.checkCast(SCORE_ACCESSOR_TYPE);
+        execute.invokeVirtual(SCORE_ACCESSOR_TYPE, SCORE_ACCESSOR_FLOAT);
+        execute.goTo(end);
+        execute.mark(fals);
+        execute.pop();
+        execute.push(0F);
+        execute.mark(end);
+        execute.visitVarInsn(Opcodes.FSTORE, metadata.scoreValueSlot);
+
+        execute.push(settings.getMaxLoopCounter());
+        execute.visitVarInsn(Opcodes.ISTORE, metadata.loopCounterSlot);
+
         visit(root);
         execute.endMethod();
     }
 
     @Override
     public Void visitSource(final SourceContext ctx) {
-        final StatementMetadata sourcesmd = adapter.getStatementMetadata(ctx);
+        final StatementMetadata sourcesmd = metadata.getStatementMetadata(ctx);
 
         for (final StatementContext sctx : ctx.statement()) {
             visit(sctx);
         }
 
-        if (!sourcesmd.allReturn) {
+        if (!sourcesmd.methodEscape) {
             execute.visitInsn(Opcodes.ACONST_NULL);
             execute.returnValue();
         }
@@ -408,11 +434,11 @@ class Writer extends PlanAParserBaseVisitor<Void> {
         visit(exprctx);
 
         final BlockContext blockctx0 = ctx.block(0);
-        final StatementMetadata blockmd0 = adapter.getStatementMetadata(blockctx0);
+        final StatementMetadata blockmd0 = metadata.getStatementMetadata(blockctx0);
         visit(blockctx0);
 
         if (els) {
-            if (!blockmd0.allExit) {
+            if (!blockmd0.allLast) {
                 execute.goTo(branch.end);
             }
 
@@ -438,15 +464,20 @@ class Writer extends PlanAParserBaseVisitor<Void> {
         visit(exprctx);
 
         final BlockContext blockctx = ctx.block();
-        boolean allexit = false;
+        boolean allLast = false;
 
         if (blockctx != null) {
-            StatementMetadata blocksmd = adapter.getStatementMetadata(blockctx);
-            allexit = blocksmd.allExit;
+            final StatementMetadata blocksmd = metadata.getStatementMetadata(blockctx);
+            allLast = blocksmd.allLast;
+            writeLoopCounter(blocksmd.count > 0 ? blocksmd.count : 1);
             visit(blockctx);
+        } else if (ctx.empty() != null) {
+            writeLoopCounter(1);
+        } else {
+            throw new IllegalStateException(error(ctx) + "Unexpected writer state.");
         }
 
-        if (!allexit) {
+        if (!allLast) {
             execute.goTo(branch.begin);
         }
 
@@ -460,23 +491,21 @@ class Writer extends PlanAParserBaseVisitor<Void> {
     public Void visitDo(final DoContext ctx) {
         final ExpressionContext exprctx = ctx.expression();
         final Branch branch = markBranch(ctx, exprctx);
+        Label start = new Label();
         branch.begin = new Label();
         branch.end = new Label();
         branch.fals = branch.end;
 
+        final BlockContext blockctx = ctx.block();
+        final StatementMetadata blocksmd = metadata.getStatementMetadata(blockctx);
+
         jumps.push(branch);
+        execute.mark(start);
+        visit(blockctx);
         execute.mark(branch.begin);
-
-        final BlockContext bctx = ctx.block();
-        final StatementMetadata blocksmd = adapter.getStatementMetadata(bctx);
-        visit(bctx);
-
         visit(exprctx);
-
-        if (!blocksmd.allExit) {
-            execute.goTo(branch.begin);
-        }
-
+        writeLoopCounter(blocksmd.count > 0 ? blocksmd.count : 1);
+        execute.goTo(start);
         execute.mark(branch.end);
         jumps.pop();
 
@@ -506,12 +535,24 @@ class Writer extends PlanAParserBaseVisitor<Void> {
         }
 
         final BlockContext blockctx = ctx.block();
-        boolean allexit = false;
+        boolean allLast = false;
 
         if (blockctx != null) {
-            StatementMetadata blocksmd = adapter.getStatementMetadata(blockctx);
-            allexit = blocksmd.allExit;
+            StatementMetadata blocksmd = metadata.getStatementMetadata(blockctx);
+            allLast = blocksmd.allLast;
+
+            int count = blocksmd.count > 0 ? blocksmd.count : 1;
+
+            if (atctx != null) {
+                ++count;
+            }
+
+            writeLoopCounter(count);
             visit(blockctx);
+        } else if (ctx.empty() != null) {
+            writeLoopCounter(1);
+        } else {
+            throw new IllegalStateException(error(ctx) + "Unexpected writer state.");
         }
 
         if (atctx != null) {
@@ -519,7 +560,7 @@ class Writer extends PlanAParserBaseVisitor<Void> {
             visit(atctx);
         }
 
-        if (atctx != null || !allexit) {
+        if (atctx != null || !allLast) {
             execute.goTo(start);
         }
 
@@ -561,13 +602,55 @@ class Writer extends PlanAParserBaseVisitor<Void> {
     }
 
     @Override
+    public Void visitTry(final TryContext ctx) {
+        final TrapContext[] trapctxs = new TrapContext[ctx.trap().size()];
+        ctx.trap().toArray(trapctxs);
+        final Branch branch = markBranch(ctx, trapctxs);
+
+        Label end = new Label();
+        branch.begin = new Label();
+        branch.end = new Label();
+        branch.tru = trapctxs.length > 1 ? end : null;
+
+        execute.mark(branch.begin);
+
+        final BlockContext blockctx = ctx.block();
+        final StatementMetadata blocksmd = metadata.getStatementMetadata(blockctx);
+        visit(blockctx);
+
+        if (!blocksmd.allLast) {
+            execute.goTo(end);
+        }
+
+        execute.mark(branch.end);
+
+        for (final TrapContext trapctx : trapctxs) {
+            visit(trapctx);
+        }
+
+        if (!blocksmd.allLast || trapctxs.length > 1) {
+            execute.mark(end);
+        }
+
+        return null;
+    }
+
+    @Override
+    public Void visitThrow(final ThrowContext ctx) {
+        visit(ctx.expression());
+        execute.throwException();
+
+        return null;
+    }
+
+    @Override
     public Void visitExpr(final ExprContext ctx) {
-        final StatementMetadata exprsmd = adapter.getStatementMetadata(ctx);
+        final StatementMetadata exprsmd = metadata.getStatementMetadata(ctx);
         final ExpressionContext exprctx = ctx.expression();
-        final ExpressionMetadata expremd = adapter.getExpressionMetadata(exprctx);
+        final ExpressionMetadata expremd = metadata.getExpressionMetadata(exprctx);
         visit(exprctx);
 
-        if (exprsmd.allReturn) {
+        if (exprsmd.methodEscape) {
             execute.returnValue();
         } else {
             writePop(expremd.to.type.getSize());
@@ -605,7 +688,9 @@ class Writer extends PlanAParserBaseVisitor<Void> {
         if (declctx != null) {
             visit(declctx);
         } else if (exprctx != null) {
+            final ExpressionMetadata expremd = metadata.getExpressionMetadata(exprctx);
             visit(exprctx);
+            writePop(expremd.to.type.getSize());
         } else {
             throw new IllegalStateException(error(ctx) + "Unexpected writer state.");
         }
@@ -615,7 +700,10 @@ class Writer extends PlanAParserBaseVisitor<Void> {
 
     @Override
     public Void visitAfterthought(AfterthoughtContext ctx) {
+        final ExpressionContext exprctx = ctx.expression();
+        final ExpressionMetadata expremd = metadata.getExpressionMetadata(exprctx);
         visit(ctx.expression());
+        writePop(expremd.to.type.getSize());
 
         return null;
     }
@@ -636,7 +724,7 @@ class Writer extends PlanAParserBaseVisitor<Void> {
 
     @Override
     public Void visitDeclvar(final DeclvarContext ctx) {
-        final ExpressionMetadata declvaremd = adapter.getExpressionMetadata(ctx);
+        final ExpressionMetadata declvaremd = metadata.getExpressionMetadata(ctx);
         final org.objectweb.asm.Type type = declvaremd.to.type;
         final Sort sort = declvaremd.to.sort;
         final int slot = (int)declvaremd.postConst;
@@ -667,13 +755,41 @@ class Writer extends PlanAParserBaseVisitor<Void> {
     }
 
     @Override
+    public Void visitTrap(final TrapContext ctx) {
+        final StatementMetadata trapsmd = metadata.getStatementMetadata(ctx);
+
+        final Branch branch = getBranch(ctx);
+        final Label jump = new Label();
+
+        final BlockContext blockctx = ctx.block();
+        final EmptyscopeContext emptyctx = ctx.emptyscope();
+
+        execute.mark(jump);
+        writeLoadStoreVariable(ctx, true, trapsmd.exception, trapsmd.slot);
+
+        if (blockctx != null) {
+            visit(ctx.block());
+        } else if (emptyctx == null) {
+            throw new IllegalStateException(error(ctx) + "Unexpected writer state.");
+        }
+
+        execute.visitTryCatchBlock(branch.begin, branch.end, jump, trapsmd.exception.type.getInternalName());
+
+        if (branch.tru != null && !trapsmd.allLast) {
+            execute.goTo(branch.tru);
+        }
+
+        return null;
+    }
+
+    @Override
     public Void visitPrecedence(final PrecedenceContext ctx) {
         throw new UnsupportedOperationException(error(ctx) + "Unexpected writer state.");
     }
 
     @Override
     public Void visitNumeric(final NumericContext ctx) {
-        final ExpressionMetadata numericemd = adapter.getExpressionMetadata(ctx);
+        final ExpressionMetadata numericemd = metadata.getExpressionMetadata(ctx);
         final Object postConst = numericemd.postConst;
 
         if (postConst == null) {
@@ -690,7 +806,7 @@ class Writer extends PlanAParserBaseVisitor<Void> {
 
     @Override
     public Void visitChar(final CharContext ctx) {
-        final ExpressionMetadata charemd = adapter.getExpressionMetadata(ctx);
+        final ExpressionMetadata charemd = metadata.getExpressionMetadata(ctx);
         final Object postConst = charemd.postConst;
 
         if (postConst == null) {
@@ -707,7 +823,7 @@ class Writer extends PlanAParserBaseVisitor<Void> {
 
     @Override
     public Void visitTrue(final TrueContext ctx) {
-        final ExpressionMetadata trueemd = adapter.getExpressionMetadata(ctx);
+        final ExpressionMetadata trueemd = metadata.getExpressionMetadata(ctx);
         final Object postConst = trueemd.postConst;
         final Branch branch = getBranch(ctx);
 
@@ -727,7 +843,7 @@ class Writer extends PlanAParserBaseVisitor<Void> {
 
     @Override
     public Void visitFalse(final FalseContext ctx) {
-        final ExpressionMetadata falseemd = adapter.getExpressionMetadata(ctx);
+        final ExpressionMetadata falseemd = metadata.getExpressionMetadata(ctx);
         final Object postConst = falseemd.postConst;
         final Branch branch = getBranch(ctx);
 
@@ -747,7 +863,7 @@ class Writer extends PlanAParserBaseVisitor<Void> {
 
     @Override
     public Void visitNull(final NullContext ctx) {
-        final ExpressionMetadata nullemd = adapter.getExpressionMetadata(ctx);
+        final ExpressionMetadata nullemd = metadata.getExpressionMetadata(ctx);
 
         execute.visitInsn(Opcodes.ACONST_NULL);
         checkWriteCast(nullemd);
@@ -758,7 +874,7 @@ class Writer extends PlanAParserBaseVisitor<Void> {
 
     @Override
     public Void visitExternal(final ExternalContext ctx) {
-        final ExpressionMetadata expremd = adapter.getExpressionMetadata(ctx);
+        final ExpressionMetadata expremd = metadata.getExpressionMetadata(ctx);
         visit(ctx.extstart());
         checkWriteCast(expremd);
         checkWriteBranch(ctx);
@@ -769,7 +885,7 @@ class Writer extends PlanAParserBaseVisitor<Void> {
 
     @Override
     public Void visitPostinc(final PostincContext ctx) {
-        final ExpressionMetadata expremd = adapter.getExpressionMetadata(ctx);
+        final ExpressionMetadata expremd = metadata.getExpressionMetadata(ctx);
         visit(ctx.extstart());
         checkWriteCast(expremd);
         checkWriteBranch(ctx);
@@ -779,7 +895,7 @@ class Writer extends PlanAParserBaseVisitor<Void> {
 
     @Override
     public Void visitPreinc(final PreincContext ctx) {
-        final ExpressionMetadata expremd = adapter.getExpressionMetadata(ctx);
+        final ExpressionMetadata expremd = metadata.getExpressionMetadata(ctx);
         visit(ctx.extstart());
         checkWriteCast(expremd);
         checkWriteBranch(ctx);
@@ -789,7 +905,7 @@ class Writer extends PlanAParserBaseVisitor<Void> {
 
     @Override
     public Void visitUnary(final UnaryContext ctx) {
-        final ExpressionMetadata unaryemd = adapter.getExpressionMetadata(ctx);
+        final ExpressionMetadata unaryemd = metadata.getExpressionMetadata(ctx);
         final Object postConst = unaryemd.postConst;
         final Object preConst = unaryemd.preConst;
         final Branch branch = getBranch(ctx);
@@ -891,7 +1007,7 @@ class Writer extends PlanAParserBaseVisitor<Void> {
 
     @Override
     public Void visitCast(final CastContext ctx) {
-        final ExpressionMetadata castemd = adapter.getExpressionMetadata(ctx);
+        final ExpressionMetadata castemd = metadata.getExpressionMetadata(ctx);
         final Object postConst = castemd.postConst;
 
         if (postConst == null) {
@@ -908,7 +1024,7 @@ class Writer extends PlanAParserBaseVisitor<Void> {
 
     @Override
     public Void visitBinary(final BinaryContext ctx) {
-        final ExpressionMetadata binaryemd = adapter.getExpressionMetadata(ctx);
+        final ExpressionMetadata binaryemd = metadata.getExpressionMetadata(ctx);
         final Object postConst = binaryemd.postConst;
         final Object preConst = binaryemd.preConst;
         final Branch branch = getBranch(ctx);
@@ -930,7 +1046,7 @@ class Writer extends PlanAParserBaseVisitor<Void> {
             }
 
             final ExpressionContext exprctx0 = ctx.expression(0);
-            final ExpressionMetadata expremd0 = adapter.getExpressionMetadata(exprctx0);
+            final ExpressionMetadata expremd0 = metadata.getExpressionMetadata(exprctx0);
             strings.add(exprctx0);
             visit(exprctx0);
 
@@ -940,7 +1056,7 @@ class Writer extends PlanAParserBaseVisitor<Void> {
             }
 
             final ExpressionContext exprctx1 = ctx.expression(1);
-            final ExpressionMetadata expremd1 = adapter.getExpressionMetadata(exprctx1);
+            final ExpressionMetadata expremd1 = metadata.getExpressionMetadata(exprctx1);
             strings.add(exprctx1);
             visit(exprctx1);
 
@@ -990,7 +1106,7 @@ class Writer extends PlanAParserBaseVisitor<Void> {
 
     @Override
     public Void visitComp(final CompContext ctx) {
-        final ExpressionMetadata compemd = adapter.getExpressionMetadata(ctx);
+        final ExpressionMetadata compemd = metadata.getExpressionMetadata(ctx);
         final Object postConst = compemd.postConst;
         final Object preConst = compemd.preConst;
         final Branch branch = getBranch(ctx);
@@ -1014,10 +1130,10 @@ class Writer extends PlanAParserBaseVisitor<Void> {
             }
         } else {
             final ExpressionContext exprctx0 = ctx.expression(0);
-            final ExpressionMetadata expremd0 = adapter.getExpressionMetadata(exprctx0);
+            final ExpressionMetadata expremd0 = metadata.getExpressionMetadata(exprctx0);
 
             final ExpressionContext exprctx1 = ctx.expression(1);
-            final ExpressionMetadata expremd1 = adapter.getExpressionMetadata(exprctx1);
+            final ExpressionMetadata expremd1 = metadata.getExpressionMetadata(exprctx1);
             final org.objectweb.asm.Type type = expremd1.to.type;
             final Sort sort1 = expremd1.to.sort;
 
@@ -1033,9 +1149,9 @@ class Writer extends PlanAParserBaseVisitor<Void> {
             final Label end = new Label();
 
             final boolean eq = (ctx.EQ() != null || ctx.EQR() != null) && (tru || !fals) ||
-                    (ctx.NE() != null || ctx.NER() != null) && fals;
+                (ctx.NE() != null || ctx.NER() != null) && fals;
             final boolean ne = (ctx.NE() != null || ctx.NER() != null) && (tru || !fals) ||
-                    (ctx.EQ() != null || ctx.EQR() != null) && fals;
+                (ctx.EQ() != null || ctx.EQR() != null) && fals;
             final boolean lt  = ctx.LT()  != null && (tru || !fals) || ctx.GTE() != null && fals;
             final boolean lte = ctx.LTE() != null && (tru || !fals) || ctx.GT()  != null && fals;
             final boolean gt  = ctx.GT()  != null && (tru || !fals) || ctx.LTE() != null && fals;
@@ -1156,7 +1272,7 @@ class Writer extends PlanAParserBaseVisitor<Void> {
 
     @Override
     public Void visitBool(final BoolContext ctx) {
-        final ExpressionMetadata boolemd = adapter.getExpressionMetadata(ctx);
+        final ExpressionMetadata boolemd = metadata.getExpressionMetadata(ctx);
         final Object postConst = boolemd.postConst;
         final Object preConst = boolemd.preConst;
         final Branch branch = getBranch(ctx);
@@ -1255,7 +1371,7 @@ class Writer extends PlanAParserBaseVisitor<Void> {
 
     @Override
     public Void visitConditional(final ConditionalContext ctx) {
-        final ExpressionMetadata condemd = adapter.getExpressionMetadata(ctx);
+        final ExpressionMetadata condemd = metadata.getExpressionMetadata(ctx);
         final Branch branch = getBranch(ctx);
 
         final ExpressionContext expr0 = ctx.expression(0);
@@ -1286,7 +1402,7 @@ class Writer extends PlanAParserBaseVisitor<Void> {
 
     @Override
     public Void visitAssignment(final AssignmentContext ctx) {
-        final ExpressionMetadata expremd = adapter.getExpressionMetadata(ctx);
+        final ExpressionMetadata expremd = metadata.getExpressionMetadata(ctx);
         visit(ctx.extstart());
         checkWriteCast(expremd);
         checkWriteBranch(ctx);
@@ -1296,10 +1412,10 @@ class Writer extends PlanAParserBaseVisitor<Void> {
 
     @Override
     public Void visitExtstart(ExtstartContext ctx) {
-        final ExternalMetadata startemd = adapter.getExternalMetadata(ctx);
+        final ExternalMetadata startemd = metadata.getExternalMetadata(ctx);
 
         if (startemd.token == ADD) {
-            final ExpressionMetadata storeemd = adapter.getExpressionMetadata(startemd.storeExpr);
+            final ExpressionMetadata storeemd = metadata.getExpressionMetadata(startemd.storeExpr);
 
             if (startemd.current.sort == Sort.STRING || storeemd.from.sort == Sort.STRING) {
                 writeNewStrings();
@@ -1372,7 +1488,7 @@ class Writer extends PlanAParserBaseVisitor<Void> {
 
     @Override
     public Void visitExtcast(final ExtcastContext ctx) {
-        ExtNodeMetadata castenmd = adapter.getExtNodeMetadata(ctx);
+        ExtNodeMetadata castenmd = metadata.getExtNodeMetadata(ctx);
 
         final ExtprecContext precctx = ctx.extprec();
         final ExtcastContext castctx = ctx.extcast();
@@ -1404,7 +1520,7 @@ class Writer extends PlanAParserBaseVisitor<Void> {
 
     @Override
     public Void visitExtbrace(final ExtbraceContext ctx) {
-        final ExpressionContext exprctx = adapter.updateExpressionTree(ctx.expression());
+        final ExpressionContext exprctx = metadata.updateExpressionTree(ctx.expression());
 
         visit(exprctx);
         writeLoadStoreExternal(ctx);
@@ -1508,7 +1624,7 @@ class Writer extends PlanAParserBaseVisitor<Void> {
 
     @Override
     public Void visitExtstring(ExtstringContext ctx) {
-        final ExtNodeMetadata stringenmd = adapter.getExtNodeMetadata(ctx);
+        final ExtNodeMetadata stringenmd = metadata.getExtNodeMetadata(ctx);
 
         writeConstant(ctx, stringenmd.target);
 
@@ -1531,7 +1647,7 @@ class Writer extends PlanAParserBaseVisitor<Void> {
 
     @Override
     public Void visitIncrement(IncrementContext ctx) {
-        final ExpressionMetadata incremd = adapter.getExpressionMetadata(ctx);
+        final ExpressionMetadata incremd = metadata.getExpressionMetadata(ctx);
         final Object postConst = incremd.postConst;
 
         if (postConst == null) {
@@ -1544,6 +1660,18 @@ class Writer extends PlanAParserBaseVisitor<Void> {
         checkWriteBranch(ctx);
 
         return null;
+    }
+
+    private void writeLoopCounter(final int count) {
+        final Label end = new Label();
+
+        execute.iinc(metadata.loopCounterSlot, -count);
+        execute.visitVarInsn(Opcodes.ILOAD, metadata.loopCounterSlot);
+        execute.push(0);
+        execute.ifICmp(GeneratorAdapter.GT, end);
+        execute.throwException(PLAN_A_ERROR_TYPE,
+            "The maximum number of statements that can be executed in a loop has been reached.");
+        execute.mark(end);
     }
 
     private void writeConstant(final ParserRuleContext source, final Object constant) {
@@ -1618,12 +1746,12 @@ class Writer extends PlanAParserBaseVisitor<Void> {
     private void writeBinaryInstruction(final ParserRuleContext source, final Type type, final int token) {
         final Sort sort = type.sort;
         final boolean exact = !settings.getNumericOverflow() &&
-                ((sort == Sort.INT || sort == Sort.LONG) &&
+            ((sort == Sort.INT || sort == Sort.LONG) &&
                 (token == MUL || token == DIV || token == ADD || token == SUB) ||
                 (sort == Sort.FLOAT || sort == Sort.DOUBLE) &&
-                (token == MUL || token == DIV || token == REM || token == ADD || token == SUB));
+                    (token == MUL || token == DIV || token == REM || token == ADD || token == SUB));
 
-        // if its a 64-bit shift, fixup the last argument to truncate to 32-bits
+        // if its a 64-bit shift, fixup the lastSource argument to truncate to 32-bits
         // note unlike java, this means we still do binary promotion of shifts,
         // but it keeps things simple -- this check works because we promote shifts.
         if (sort == Sort.LONG && (token == LSH || token == USH || token == RSH)) {
@@ -1683,7 +1811,7 @@ class Writer extends PlanAParserBaseVisitor<Void> {
             }
         } else {
             if ((sort == Sort.FLOAT || sort == Sort.DOUBLE) &&
-                    (token == LSH || token == USH || token == RSH || token == BWAND || token == BWXOR || token == BWOR)) {
+                (token == LSH || token == USH || token == RSH || token == BWAND || token == BWXOR || token == BWOR)) {
                 throw new IllegalStateException(error(source) + "Unexpected writer state.");
             }
 
@@ -1731,122 +1859,122 @@ class Writer extends PlanAParserBaseVisitor<Void> {
      * @return true if an instruction is written, false otherwise
      */
     private boolean writeExactInstruction(final Sort osort, final Sort psort) {
-            if (psort == Sort.DOUBLE) {
-                if (osort == Sort.FLOAT) {
-                    execute.invokeStatic(definition.utilityType.type, TOFLOATWOOVERFLOW_DOUBLE);
-                } else if (osort == Sort.FLOAT_OBJ) {
-                    execute.invokeStatic(definition.utilityType.type, TOFLOATWOOVERFLOW_DOUBLE);
-                    execute.checkCast(definition.floatobjType.type);
-                } else if (osort == Sort.LONG) {
-                    execute.invokeStatic(definition.utilityType.type, TOLONGWOOVERFLOW_DOUBLE);
-                } else if (osort == Sort.LONG_OBJ) {
-                    execute.invokeStatic(definition.utilityType.type, TOLONGWOOVERFLOW_DOUBLE);
-                    execute.checkCast(definition.longobjType.type);
-                } else if (osort == Sort.INT) {
-                    execute.invokeStatic(definition.utilityType.type, TOINTWOOVERFLOW_DOUBLE);
-                } else if (osort == Sort.INT_OBJ) {
-                    execute.invokeStatic(definition.utilityType.type, TOINTWOOVERFLOW_DOUBLE);
-                    execute.checkCast(definition.intobjType.type);
-                } else if (osort == Sort.CHAR) {
-                    execute.invokeStatic(definition.utilityType.type, TOCHARWOOVERFLOW_DOUBLE);
-                } else if (osort == Sort.CHAR_OBJ) {
-                    execute.invokeStatic(definition.utilityType.type, TOCHARWOOVERFLOW_DOUBLE);
-                    execute.checkCast(definition.charobjType.type);
-                } else if (osort == Sort.SHORT) {
-                    execute.invokeStatic(definition.utilityType.type, TOSHORTWOOVERFLOW_DOUBLE);
-                } else if (osort == Sort.SHORT_OBJ) {
-                    execute.invokeStatic(definition.utilityType.type, TOSHORTWOOVERFLOW_DOUBLE);
-                    execute.checkCast(definition.shortobjType.type);
-                } else if (osort == Sort.BYTE) {
-                    execute.invokeStatic(definition.utilityType.type, TOBYTEWOOVERFLOW_DOUBLE);
-                } else if (osort == Sort.BYTE_OBJ) {
-                    execute.invokeStatic(definition.utilityType.type, TOBYTEWOOVERFLOW_DOUBLE);
-                    execute.checkCast(definition.byteobjType.type);
-                } else {
-                    return false;
-                }
-            } else if (psort == Sort.FLOAT) {
-                if (osort == Sort.LONG) {
-                    execute.invokeStatic(definition.utilityType.type, TOLONGWOOVERFLOW_FLOAT);
-                } else if (osort == Sort.LONG_OBJ) {
-                    execute.invokeStatic(definition.utilityType.type, TOLONGWOOVERFLOW_FLOAT);
-                    execute.checkCast(definition.longobjType.type);
-                } else if (osort == Sort.INT) {
-                    execute.invokeStatic(definition.utilityType.type, TOINTWOOVERFLOW_FLOAT);
-                } else if (osort == Sort.INT_OBJ) {
-                    execute.invokeStatic(definition.utilityType.type, TOINTWOOVERFLOW_FLOAT);
-                    execute.checkCast(definition.intobjType.type);
-                } else if (osort == Sort.CHAR) {
-                    execute.invokeStatic(definition.utilityType.type, TOCHARWOOVERFLOW_FLOAT);
-                } else if (osort == Sort.CHAR_OBJ) {
-                    execute.invokeStatic(definition.utilityType.type, TOCHARWOOVERFLOW_FLOAT);
-                    execute.checkCast(definition.charobjType.type);
-                } else if (osort == Sort.SHORT) {
-                    execute.invokeStatic(definition.utilityType.type, TOSHORTWOOVERFLOW_FLOAT);
-                } else if (osort == Sort.SHORT_OBJ) {
-                    execute.invokeStatic(definition.utilityType.type, TOSHORTWOOVERFLOW_FLOAT);
-                    execute.checkCast(definition.shortobjType.type);
-                } else if (osort == Sort.BYTE) {
-                    execute.invokeStatic(definition.utilityType.type, TOBYTEWOOVERFLOW_FLOAT);
-                } else if (osort == Sort.BYTE_OBJ) {
-                    execute.invokeStatic(definition.utilityType.type, TOBYTEWOOVERFLOW_FLOAT);
-                    execute.checkCast(definition.byteobjType.type);
-                } else {
-                    return false;
-                }
-            } else if (psort == Sort.LONG) {
-                if (osort == Sort.INT) {
-                    execute.invokeStatic(definition.mathType.type, TOINTEXACT_LONG);
-                } else if (osort == Sort.INT_OBJ) {
-                    execute.invokeStatic(definition.mathType.type, TOINTEXACT_LONG);
-                    execute.checkCast(definition.intobjType.type);
-                } else if (osort == Sort.CHAR) {
-                    execute.invokeStatic(definition.utilityType.type, TOCHAREXACT_LONG);
-                } else if (osort == Sort.CHAR_OBJ) {
-                    execute.invokeStatic(definition.utilityType.type, TOCHAREXACT_LONG);
-                    execute.checkCast(definition.charobjType.type);
-                } else if (osort == Sort.SHORT) {
-                    execute.invokeStatic(definition.utilityType.type, TOSHORTEXACT_LONG);
-                } else if (osort == Sort.SHORT_OBJ) {
-                    execute.invokeStatic(definition.utilityType.type, TOSHORTEXACT_LONG);
-                    execute.checkCast(definition.shortobjType.type);
-                } else if (osort == Sort.BYTE) {
-                    execute.invokeStatic(definition.utilityType.type, TOBYTEEXACT_LONG);
-                } else if (osort == Sort.BYTE_OBJ) {
-                    execute.invokeStatic(definition.utilityType.type, TOBYTEEXACT_LONG);
-                    execute.checkCast(definition.byteobjType.type);
-                } else {
-                    return false;
-                }
-            } else if (psort == Sort.INT) {
-                if (osort == Sort.CHAR) {
-                    execute.invokeStatic(definition.utilityType.type, TOCHAREXACT_INT);
-                } else if (osort == Sort.CHAR_OBJ) {
-                    execute.invokeStatic(definition.utilityType.type, TOCHAREXACT_INT);
-                    execute.checkCast(definition.charobjType.type);
-                } else if (osort == Sort.SHORT) {
-                    execute.invokeStatic(definition.utilityType.type, TOSHORTEXACT_INT);
-                } else if (osort == Sort.SHORT_OBJ) {
-                    execute.invokeStatic(definition.utilityType.type, TOSHORTEXACT_INT);
-                    execute.checkCast(definition.shortobjType.type);
-                } else if (osort == Sort.BYTE) {
-                    execute.invokeStatic(definition.utilityType.type, TOBYTEEXACT_INT);
-                } else if (osort == Sort.BYTE_OBJ) {
-                    execute.invokeStatic(definition.utilityType.type, TOBYTEEXACT_INT);
-                    execute.checkCast(definition.byteobjType.type);
-                } else {
-                    return false;
-                }
+        if (psort == Sort.DOUBLE) {
+            if (osort == Sort.FLOAT) {
+                execute.invokeStatic(definition.utilityType.type, TOFLOATWOOVERFLOW_DOUBLE);
+            } else if (osort == Sort.FLOAT_OBJ) {
+                execute.invokeStatic(definition.utilityType.type, TOFLOATWOOVERFLOW_DOUBLE);
+                execute.checkCast(definition.floatobjType.type);
+            } else if (osort == Sort.LONG) {
+                execute.invokeStatic(definition.utilityType.type, TOLONGWOOVERFLOW_DOUBLE);
+            } else if (osort == Sort.LONG_OBJ) {
+                execute.invokeStatic(definition.utilityType.type, TOLONGWOOVERFLOW_DOUBLE);
+                execute.checkCast(definition.longobjType.type);
+            } else if (osort == Sort.INT) {
+                execute.invokeStatic(definition.utilityType.type, TOINTWOOVERFLOW_DOUBLE);
+            } else if (osort == Sort.INT_OBJ) {
+                execute.invokeStatic(definition.utilityType.type, TOINTWOOVERFLOW_DOUBLE);
+                execute.checkCast(definition.intobjType.type);
+            } else if (osort == Sort.CHAR) {
+                execute.invokeStatic(definition.utilityType.type, TOCHARWOOVERFLOW_DOUBLE);
+            } else if (osort == Sort.CHAR_OBJ) {
+                execute.invokeStatic(definition.utilityType.type, TOCHARWOOVERFLOW_DOUBLE);
+                execute.checkCast(definition.charobjType.type);
+            } else if (osort == Sort.SHORT) {
+                execute.invokeStatic(definition.utilityType.type, TOSHORTWOOVERFLOW_DOUBLE);
+            } else if (osort == Sort.SHORT_OBJ) {
+                execute.invokeStatic(definition.utilityType.type, TOSHORTWOOVERFLOW_DOUBLE);
+                execute.checkCast(definition.shortobjType.type);
+            } else if (osort == Sort.BYTE) {
+                execute.invokeStatic(definition.utilityType.type, TOBYTEWOOVERFLOW_DOUBLE);
+            } else if (osort == Sort.BYTE_OBJ) {
+                execute.invokeStatic(definition.utilityType.type, TOBYTEWOOVERFLOW_DOUBLE);
+                execute.checkCast(definition.byteobjType.type);
             } else {
                 return false;
             }
+        } else if (psort == Sort.FLOAT) {
+            if (osort == Sort.LONG) {
+                execute.invokeStatic(definition.utilityType.type, TOLONGWOOVERFLOW_FLOAT);
+            } else if (osort == Sort.LONG_OBJ) {
+                execute.invokeStatic(definition.utilityType.type, TOLONGWOOVERFLOW_FLOAT);
+                execute.checkCast(definition.longobjType.type);
+            } else if (osort == Sort.INT) {
+                execute.invokeStatic(definition.utilityType.type, TOINTWOOVERFLOW_FLOAT);
+            } else if (osort == Sort.INT_OBJ) {
+                execute.invokeStatic(definition.utilityType.type, TOINTWOOVERFLOW_FLOAT);
+                execute.checkCast(definition.intobjType.type);
+            } else if (osort == Sort.CHAR) {
+                execute.invokeStatic(definition.utilityType.type, TOCHARWOOVERFLOW_FLOAT);
+            } else if (osort == Sort.CHAR_OBJ) {
+                execute.invokeStatic(definition.utilityType.type, TOCHARWOOVERFLOW_FLOAT);
+                execute.checkCast(definition.charobjType.type);
+            } else if (osort == Sort.SHORT) {
+                execute.invokeStatic(definition.utilityType.type, TOSHORTWOOVERFLOW_FLOAT);
+            } else if (osort == Sort.SHORT_OBJ) {
+                execute.invokeStatic(definition.utilityType.type, TOSHORTWOOVERFLOW_FLOAT);
+                execute.checkCast(definition.shortobjType.type);
+            } else if (osort == Sort.BYTE) {
+                execute.invokeStatic(definition.utilityType.type, TOBYTEWOOVERFLOW_FLOAT);
+            } else if (osort == Sort.BYTE_OBJ) {
+                execute.invokeStatic(definition.utilityType.type, TOBYTEWOOVERFLOW_FLOAT);
+                execute.checkCast(definition.byteobjType.type);
+            } else {
+                return false;
+            }
+        } else if (psort == Sort.LONG) {
+            if (osort == Sort.INT) {
+                execute.invokeStatic(definition.mathType.type, TOINTEXACT_LONG);
+            } else if (osort == Sort.INT_OBJ) {
+                execute.invokeStatic(definition.mathType.type, TOINTEXACT_LONG);
+                execute.checkCast(definition.intobjType.type);
+            } else if (osort == Sort.CHAR) {
+                execute.invokeStatic(definition.utilityType.type, TOCHAREXACT_LONG);
+            } else if (osort == Sort.CHAR_OBJ) {
+                execute.invokeStatic(definition.utilityType.type, TOCHAREXACT_LONG);
+                execute.checkCast(definition.charobjType.type);
+            } else if (osort == Sort.SHORT) {
+                execute.invokeStatic(definition.utilityType.type, TOSHORTEXACT_LONG);
+            } else if (osort == Sort.SHORT_OBJ) {
+                execute.invokeStatic(definition.utilityType.type, TOSHORTEXACT_LONG);
+                execute.checkCast(definition.shortobjType.type);
+            } else if (osort == Sort.BYTE) {
+                execute.invokeStatic(definition.utilityType.type, TOBYTEEXACT_LONG);
+            } else if (osort == Sort.BYTE_OBJ) {
+                execute.invokeStatic(definition.utilityType.type, TOBYTEEXACT_LONG);
+                execute.checkCast(definition.byteobjType.type);
+            } else {
+                return false;
+            }
+        } else if (psort == Sort.INT) {
+            if (osort == Sort.CHAR) {
+                execute.invokeStatic(definition.utilityType.type, TOCHAREXACT_INT);
+            } else if (osort == Sort.CHAR_OBJ) {
+                execute.invokeStatic(definition.utilityType.type, TOCHAREXACT_INT);
+                execute.checkCast(definition.charobjType.type);
+            } else if (osort == Sort.SHORT) {
+                execute.invokeStatic(definition.utilityType.type, TOSHORTEXACT_INT);
+            } else if (osort == Sort.SHORT_OBJ) {
+                execute.invokeStatic(definition.utilityType.type, TOSHORTEXACT_INT);
+                execute.checkCast(definition.shortobjType.type);
+            } else if (osort == Sort.BYTE) {
+                execute.invokeStatic(definition.utilityType.type, TOBYTEEXACT_INT);
+            } else if (osort == Sort.BYTE_OBJ) {
+                execute.invokeStatic(definition.utilityType.type, TOBYTEEXACT_INT);
+                execute.checkCast(definition.byteobjType.type);
+            } else {
+                return false;
+            }
+        } else {
+            return false;
+        }
 
         return true;
     }
 
     private void writeLoadStoreExternal(final ParserRuleContext source) {
-        final ExtNodeMetadata sourceenmd = adapter.getExtNodeMetadata(source);
-        final ExternalMetadata parentemd = adapter.getExternalMetadata(sourceenmd.parent);
+        final ExtNodeMetadata sourceenmd = metadata.getExtNodeMetadata(source);
+        final ExternalMetadata parentemd = metadata.getExternalMetadata(sourceenmd.parent);
 
         final boolean length = "#length".equals(sourceenmd.target);
         final boolean array = "#brace".equals(sourceenmd.target);
@@ -1868,7 +1996,7 @@ class Writer extends PlanAParserBaseVisitor<Void> {
         if (length) {
             execute.arrayLength();
         } else if (sourceenmd.last && parentemd.storeExpr != null) {
-            final ExpressionMetadata expremd = adapter.getExpressionMetadata(parentemd.storeExpr);
+            final ExpressionMetadata expremd = metadata.getExpressionMetadata(parentemd.storeExpr);
             final boolean cat = strings.contains(parentemd.storeExpr);
 
             if (cat) {
@@ -1934,7 +2062,7 @@ class Writer extends PlanAParserBaseVisitor<Void> {
                 boolean exact = false;
 
                 if (!settings.getNumericOverflow() && expremd.typesafe && sourceenmd.type.sort != Sort.DEF &&
-                        (token == MUL || token == DIV || token == REM || token == ADD || token == SUB)) {
+                    (token == MUL || token == DIV || token == REM || token == ADD || token == SUB)) {
                     exact = writeExactInstruction(sourceenmd.type.sort, sourceenmd.promote.sort);
                 }
 
@@ -1973,7 +2101,7 @@ class Writer extends PlanAParserBaseVisitor<Void> {
                                            final boolean store, final boolean variable,
                                            final boolean field, final boolean name,
                                            final boolean array, final boolean shortcut) {
-        final ExtNodeMetadata sourceemd = adapter.getExtNodeMetadata(source);
+        final ExtNodeMetadata sourceemd = metadata.getExtNodeMetadata(source);
 
         if (variable) {
             writeLoadStoreVariable(source, store, sourceemd.type, (int)sourceemd.target);
@@ -2030,9 +2158,9 @@ class Writer extends PlanAParserBaseVisitor<Void> {
 
     private void writeLoadStoreField(final ParserRuleContext source, final boolean store, final String name) {
         if (store) {
-            final ExtNodeMetadata sourceemd = adapter.getExtNodeMetadata(source);
-            final ExternalMetadata parentemd = adapter.getExternalMetadata(sourceemd.parent);
-            final ExpressionMetadata expremd = adapter.getExpressionMetadata(parentemd.storeExpr);
+            final ExtNodeMetadata sourceemd = metadata.getExtNodeMetadata(source);
+            final ExternalMetadata parentemd = metadata.getExternalMetadata(sourceemd.parent);
+            final ExpressionMetadata expremd = metadata.getExpressionMetadata(parentemd.storeExpr);
 
             execute.push(name);
             execute.loadThis();
@@ -2054,12 +2182,12 @@ class Writer extends PlanAParserBaseVisitor<Void> {
 
         if (type.sort == Sort.DEF) {
             final ExtbraceContext bracectx = (ExtbraceContext)source;
-            final ExpressionMetadata expremd0 = adapter.getExpressionMetadata(bracectx.expression());
+            final ExpressionMetadata expremd0 = metadata.getExpressionMetadata(bracectx.expression());
 
             if (store) {
-                final ExtNodeMetadata braceenmd = adapter.getExtNodeMetadata(bracectx);
-                final ExternalMetadata parentemd = adapter.getExternalMetadata(braceenmd.parent);
-                final ExpressionMetadata expremd1 = adapter.getExpressionMetadata(parentemd.storeExpr);
+                final ExtNodeMetadata braceenmd = metadata.getExtNodeMetadata(bracectx);
+                final ExternalMetadata parentemd = metadata.getExternalMetadata(braceenmd.parent);
+                final ExpressionMetadata expremd1 = metadata.getExpressionMetadata(parentemd.storeExpr);
 
                 execute.loadThis();
                 execute.getField(CLASS_TYPE, "definition", DEFINITION_TYPE);
@@ -2118,8 +2246,8 @@ class Writer extends PlanAParserBaseVisitor<Void> {
     }
 
     private void writeNewExternal(final ExtnewContext source) {
-        final ExtNodeMetadata sourceenmd = adapter.getExtNodeMetadata(source);
-        final ExternalMetadata parentemd = adapter.getExternalMetadata(sourceenmd.parent);
+        final ExtNodeMetadata sourceenmd = metadata.getExtNodeMetadata(source);
+        final ExternalMetadata parentemd = metadata.getExternalMetadata(sourceenmd.parent);
 
         final boolean makearray = "#makearray".equals(sourceenmd.target);
         final boolean constructor = sourceenmd.target instanceof Constructor;
@@ -2155,7 +2283,7 @@ class Writer extends PlanAParserBaseVisitor<Void> {
     }
 
     private void writeCallExternal(final ExtcallContext source) {
-        final ExtNodeMetadata sourceenmd = adapter.getExtNodeMetadata(source);
+        final ExtNodeMetadata sourceenmd = metadata.getExtNodeMetadata(source);
 
         final boolean method = sourceenmd.target instanceof Method;
         final boolean def = sourceenmd.target instanceof String;
@@ -2205,7 +2333,7 @@ class Writer extends PlanAParserBaseVisitor<Void> {
             for (int argument = 0; argument < arguments.size(); ++argument) {
                 execute.dup();
                 execute.push(argument);
-                execute.push(adapter.getExpressionMetadata(arguments.get(argument)).typesafe);
+                execute.push(metadata.getExpressionMetadata(arguments.get(argument)).typesafe);
                 execute.arrayStore(definition.booleanType.type);
             }
 

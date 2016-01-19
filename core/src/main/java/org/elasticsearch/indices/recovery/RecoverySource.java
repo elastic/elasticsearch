@@ -37,6 +37,7 @@ import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -82,7 +83,7 @@ public class RecoverySource extends AbstractComponent implements IndexEventListe
         }
     }
 
-    private RecoveryResponse recover(final StartRecoveryRequest request) {
+    private RecoveryResponse recover(final StartRecoveryRequest request) throws IOException {
         final IndexService indexService = indicesService.indexServiceSafe(request.shardId().index().name());
         final IndexShard shard = indexService.getShard(request.shardId().id());
 

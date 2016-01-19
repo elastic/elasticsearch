@@ -288,7 +288,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
                 Map.Entry<String, Float> field = fieldsIterator.next();
                 assertTermOrBoostQuery(booleanClause.getQuery(), field.getKey(), queryBuilder.value(), field.getValue());
             }
-            if (queryBuilder.minimumShouldMatch() != null) {
+            if (queryBuilder.minimumShouldMatch() != null && !boolQuery.isCoordDisabled()) {
                 assertThat(boolQuery.getMinimumNumberShouldMatch(), greaterThan(0));
             }
         } else if (queryBuilder.fields().size() == 1) {

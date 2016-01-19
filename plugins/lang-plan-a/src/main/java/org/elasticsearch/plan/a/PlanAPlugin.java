@@ -34,7 +34,7 @@ public final class PlanAPlugin extends Plugin {
         return "Plan A scripting language for Elasticsearch";
     }
 
-    public void onModule(ScriptModule module) {
+    public void onModule(final ScriptModule module) {
         module.addScriptEngine(PlanAScriptEngineService.class);
     }
 }

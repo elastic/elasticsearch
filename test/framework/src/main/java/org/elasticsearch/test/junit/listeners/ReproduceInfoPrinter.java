@@ -24,6 +24,7 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.internal.AssumptionViolatedException;
 import org.junit.runner.Description;
 import org.junit.runner.notification.Failure;
@@ -39,7 +40,6 @@ import static org.elasticsearch.test.ESIntegTestCase.TESTS_CLUSTER;
 import static org.elasticsearch.test.rest.ESRestTestCase.REST_TESTS_BLACKLIST;
 import static org.elasticsearch.test.rest.ESRestTestCase.REST_TESTS_SPEC;
 import static org.elasticsearch.test.rest.ESRestTestCase.REST_TESTS_SUITE;
-import static org.elasticsearch.test.rest.ESRestTestCase.Rest;
 
 /**
  * A {@link RunListener} that emits to {@link System#err} a string with command
@@ -82,7 +82,7 @@ public class ReproduceInfoPrinter extends RunListener {
         gradleMessageBuilder.appendAllOpts(failure.getDescription());
 
         //Rest tests are a special case as they allow for additional parameters
-        if (failure.getDescription().getTestClass().isAnnotationPresent(Rest.class)) {
+        if (ESRestTestCase.class.isAssignableFrom(failure.getDescription().getTestClass())) {
             gradleMessageBuilder.appendRestTestsProperties();
         }
 

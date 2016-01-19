@@ -389,7 +389,12 @@ public abstract class MappedFieldType extends FieldType {
         return false;
     }
 
-    /** Creates a term associated with the field of this mapper for the given value */
+    /**
+     * Creates a term associated with the field of this mapper for the given
+     * value. Its important to use termQuery when building term queries because
+     * things like ParentFieldMapper override it to make more interesting
+     * queries.
+     */
     protected Term createTerm(Object value) {
         return new Term(name(), indexedValueForSearch(value));
     }

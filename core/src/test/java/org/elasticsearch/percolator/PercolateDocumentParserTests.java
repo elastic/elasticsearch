@@ -25,7 +25,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.percolate.PercolateShardRequest;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
@@ -57,8 +56,9 @@ import org.junit.Before;
 import org.mockito.Mockito;
 
 import java.util.Collections;
-import java.util.Set;
+import java.util.Map;
 
+import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -77,15 +77,13 @@ public class PercolateDocumentParserTests extends ESTestCase {
                 Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                         .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
                         .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
-                        .build(),
-                Settings.EMPTY, Collections.emptyList()
-        );
+                        .build(), Settings.EMPTY);
         AnalysisService analysisService = new AnalysisService(indexSettings, Collections.<String, AnalyzerProvider>emptyMap(), Collections.<String, TokenizerFactory>emptyMap(), Collections.<String, CharFilterFactory>emptyMap(), Collections.<String, TokenFilterFactory>emptyMap());
         IndicesModule indicesModule = new IndicesModule();
         mapperService = new MapperService(indexSettings, analysisService, new SimilarityService(indexSettings, Collections.emptyMap()), indicesModule.getMapperRegistry(), () -> null);
 
-        Set<QueryParser> parsers = Collections.singleton(new TermQueryParser());
-        IndicesQueriesRegistry indicesQueriesRegistry = new IndicesQueriesRegistry(indexSettings.getSettings(), parsers, new NamedWriteableRegistry());
+        Map<String, QueryParser<?>> parsers = singletonMap("term", new TermQueryParser());
+        IndicesQueriesRegistry indicesQueriesRegistry = new IndicesQueriesRegistry(indexSettings.getSettings(), parsers);
 
         queryShardContext = new QueryShardContext(indexSettings, null, null, null, mapperService, null, null, indicesQueriesRegistry);
 

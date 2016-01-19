@@ -22,9 +22,7 @@ package org.elasticsearch.indices;
 import org.elasticsearch.action.update.UpdateHelper;
 import org.elasticsearch.cluster.metadata.MetaDataIndexUpgradeService;
 import org.elasticsearch.common.geo.ShapesAvailability;
-import org.elasticsearch.common.geo.builders.ShapeBuilderRegistry;
 import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.util.ExtensionPoint;
 import org.elasticsearch.index.NodeServicesProvider;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
@@ -57,52 +55,6 @@ import org.elasticsearch.index.mapper.internal.VersionFieldMapper;
 import org.elasticsearch.index.mapper.ip.IpFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.percolator.PercolatorFieldMapper;
-import org.elasticsearch.index.query.BoolQueryParser;
-import org.elasticsearch.index.query.BoostingQueryParser;
-import org.elasticsearch.index.query.CommonTermsQueryParser;
-import org.elasticsearch.index.query.ConstantScoreQueryParser;
-import org.elasticsearch.index.query.DisMaxQueryParser;
-import org.elasticsearch.index.query.ExistsQueryParser;
-import org.elasticsearch.index.query.FieldMaskingSpanQueryParser;
-import org.elasticsearch.index.query.FuzzyQueryParser;
-import org.elasticsearch.index.query.GeoBoundingBoxQueryParser;
-import org.elasticsearch.index.query.GeoDistanceQueryParser;
-import org.elasticsearch.index.query.GeoDistanceRangeQueryParser;
-import org.elasticsearch.index.query.GeoPolygonQueryParser;
-import org.elasticsearch.index.query.GeoShapeQueryParser;
-import org.elasticsearch.index.query.GeohashCellQuery;
-import org.elasticsearch.index.query.HasChildQueryParser;
-import org.elasticsearch.index.query.HasParentQueryParser;
-import org.elasticsearch.index.query.IdsQueryParser;
-import org.elasticsearch.index.query.IndicesQueryParser;
-import org.elasticsearch.index.query.MatchAllQueryParser;
-import org.elasticsearch.index.query.MatchNoneQueryParser;
-import org.elasticsearch.index.query.MatchQueryParser;
-import org.elasticsearch.index.query.MoreLikeThisQueryParser;
-import org.elasticsearch.index.query.MultiMatchQueryParser;
-import org.elasticsearch.index.query.NestedQueryParser;
-import org.elasticsearch.index.query.PrefixQueryParser;
-import org.elasticsearch.index.query.QueryParser;
-import org.elasticsearch.index.query.QueryStringQueryParser;
-import org.elasticsearch.index.query.RangeQueryParser;
-import org.elasticsearch.index.query.RegexpQueryParser;
-import org.elasticsearch.index.query.ScriptQueryParser;
-import org.elasticsearch.index.query.SimpleQueryStringParser;
-import org.elasticsearch.index.query.SpanContainingQueryParser;
-import org.elasticsearch.index.query.SpanFirstQueryParser;
-import org.elasticsearch.index.query.SpanMultiTermQueryParser;
-import org.elasticsearch.index.query.SpanNearQueryParser;
-import org.elasticsearch.index.query.SpanNotQueryParser;
-import org.elasticsearch.index.query.SpanOrQueryParser;
-import org.elasticsearch.index.query.SpanTermQueryParser;
-import org.elasticsearch.index.query.SpanWithinQueryParser;
-import org.elasticsearch.index.query.TemplateQueryParser;
-import org.elasticsearch.index.query.TermQueryParser;
-import org.elasticsearch.index.query.TermsQueryParser;
-import org.elasticsearch.index.query.TypeQueryParser;
-import org.elasticsearch.index.query.WildcardQueryParser;
-import org.elasticsearch.index.query.WrapperQueryParser;
-import org.elasticsearch.index.query.functionscore.FunctionScoreQueryParser;
 import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.indices.cache.query.IndicesQueryCache;
 import org.elasticsearch.indices.cache.request.IndicesRequestCache;
@@ -111,7 +63,6 @@ import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCacheListener;
 import org.elasticsearch.indices.flush.SyncedFlushService;
 import org.elasticsearch.indices.mapper.MapperRegistry;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.RecoverySource;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
@@ -127,10 +78,6 @@ import java.util.Map;
  */
 public class IndicesModule extends AbstractModule {
 
-
-    private final ExtensionPoint.ClassSet<QueryParser> queryParsers
-        = new ExtensionPoint.ClassSet<>("query_parser", QueryParser.class);
-
     private final Map<String, Mapper.TypeParser> mapperParsers
         = new LinkedHashMap<>();
     // Use a LinkedHashMap for metadataMappers because iteration order matters
@@ -138,60 +85,8 @@ public class IndicesModule extends AbstractModule {
         = new LinkedHashMap<>();
 
     public IndicesModule() {
-        registerBuiltinQueryParsers();
         registerBuiltInMappers();
         registerBuiltInMetadataMappers();
-    }
-
-    private void registerBuiltinQueryParsers() {
-        registerQueryParser(MatchQueryParser.class);
-        registerQueryParser(MultiMatchQueryParser.class);
-        registerQueryParser(NestedQueryParser.class);
-        registerQueryParser(HasChildQueryParser.class);
-        registerQueryParser(HasParentQueryParser.class);
-        registerQueryParser(DisMaxQueryParser.class);
-        registerQueryParser(IdsQueryParser.class);
-        registerQueryParser(MatchAllQueryParser.class);
-        registerQueryParser(QueryStringQueryParser.class);
-        registerQueryParser(BoostingQueryParser.class);
-        registerQueryParser(BoolQueryParser.class);
-        registerQueryParser(TermQueryParser.class);
-        registerQueryParser(TermsQueryParser.class);
-        registerQueryParser(FuzzyQueryParser.class);
-        registerQueryParser(RegexpQueryParser.class);
-        registerQueryParser(RangeQueryParser.class);
-        registerQueryParser(PrefixQueryParser.class);
-        registerQueryParser(WildcardQueryParser.class);
-        registerQueryParser(ConstantScoreQueryParser.class);
-        registerQueryParser(SpanTermQueryParser.class);
-        registerQueryParser(SpanNotQueryParser.class);
-        registerQueryParser(SpanWithinQueryParser.class);
-        registerQueryParser(SpanContainingQueryParser.class);
-        registerQueryParser(FieldMaskingSpanQueryParser.class);
-        registerQueryParser(SpanFirstQueryParser.class);
-        registerQueryParser(SpanNearQueryParser.class);
-        registerQueryParser(SpanOrQueryParser.class);
-        registerQueryParser(MoreLikeThisQueryParser.class);
-        registerQueryParser(WrapperQueryParser.class);
-        registerQueryParser(IndicesQueryParser.class);
-        registerQueryParser(CommonTermsQueryParser.class);
-        registerQueryParser(SpanMultiTermQueryParser.class);
-        registerQueryParser(FunctionScoreQueryParser.class);
-        registerQueryParser(SimpleQueryStringParser.class);
-        registerQueryParser(TemplateQueryParser.class);
-        registerQueryParser(TypeQueryParser.class);
-        registerQueryParser(ScriptQueryParser.class);
-        registerQueryParser(GeoDistanceQueryParser.class);
-        registerQueryParser(GeoDistanceRangeQueryParser.class);
-        registerQueryParser(GeoBoundingBoxQueryParser.class);
-        registerQueryParser(GeohashCellQuery.Parser.class);
-        registerQueryParser(GeoPolygonQueryParser.class);
-        registerQueryParser(ExistsQueryParser.class);
-        registerQueryParser(MatchNoneQueryParser.class);
-
-        if (ShapesAvailability.JTS_AVAILABLE && ShapesAvailability.SPATIAL4J_AVAILABLE) {
-            registerQueryParser(GeoShapeQueryParser.class);
-        }
     }
 
     private void registerBuiltInMappers() {
@@ -237,10 +132,6 @@ public class IndicesModule extends AbstractModule {
         // last so that it can see all other mappers, including those coming from plugins
     }
 
-    public void registerQueryParser(Class<? extends QueryParser> queryParser) {
-        queryParsers.registerExtension(queryParser);
-    }
-
     /**
      * Register a mapper for the given type.
      */
@@ -263,7 +154,6 @@ public class IndicesModule extends AbstractModule {
 
     @Override
     protected void configure() {
-        bindQueryParsersExtension();
         bindMapperExtension();
 
         bind(IndicesService.class).asEagerSingleton();
@@ -284,7 +174,6 @@ public class IndicesModule extends AbstractModule {
         bind(IndicesFieldDataCacheListener.class).asEagerSingleton();
         bind(TermVectorsService.class).asEagerSingleton();
         bind(NodeServicesProvider.class).asEagerSingleton();
-        bind(ShapeBuilderRegistry.class).asEagerSingleton();
     }
 
     // public for testing
@@ -302,10 +191,5 @@ public class IndicesModule extends AbstractModule {
 
     protected void bindMapperExtension() {
         bind(MapperRegistry.class).toInstance(getMapperRegistry());
-    }
-
-    protected void bindQueryParsersExtension() {
-        queryParsers.bind(binder());
-        bind(IndicesQueriesRegistry.class).asEagerSingleton();
     }
 }

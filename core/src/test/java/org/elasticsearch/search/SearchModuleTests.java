@@ -18,19 +18,29 @@
  */
 package org.elasticsearch.search;
 
+import java.io.IOException;
+
 import org.elasticsearch.common.inject.ModuleTestCase;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.QueryParser;
+import org.elasticsearch.index.query.TermQueryParser;
 import org.elasticsearch.search.highlight.CustomHighlighter;
 import org.elasticsearch.search.highlight.Highlighter;
 import org.elasticsearch.search.highlight.PlainHighlighter;
 import org.elasticsearch.search.suggest.CustomSuggester;
 import org.elasticsearch.search.suggest.Suggester;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggester;
+
+import static org.hamcrest.Matchers.containsString;
 /**
  */
 public class SearchModuleTests extends ModuleTestCase {
 
    public void testDoubleRegister() {
-       SearchModule module = new SearchModule();
+       SearchModule module = new SearchModule(Settings.EMPTY, new NamedWriteableRegistry());
        try {
            module.registerHighlighter("fvh", PlainHighlighter.class);
        } catch (IllegalArgumentException e) {
@@ -45,7 +55,7 @@ public class SearchModuleTests extends ModuleTestCase {
    }
 
     public void testRegisterSuggester() {
-        SearchModule module = new SearchModule();
+        SearchModule module = new SearchModule(Settings.EMPTY, new NamedWriteableRegistry());
         module.registerSuggester("custom", CustomSuggester.class);
         try {
             module.registerSuggester("custom", CustomSuggester.class);
@@ -56,7 +66,7 @@ public class SearchModuleTests extends ModuleTestCase {
     }
 
     public void testRegisterHighlighter() {
-        SearchModule module = new SearchModule();
+        SearchModule module = new SearchModule(Settings.EMPTY, new NamedWriteableRegistry());
         module.registerHighlighter("custom", CustomHighlighter.class);
         try {
             module.registerHighlighter("custom", CustomHighlighter.class);
@@ -65,4 +75,32 @@ public class SearchModuleTests extends ModuleTestCase {
         }
         assertMapMultiBinding(module, Highlighter.class, CustomHighlighter.class);
     }
+
+    public void testRegisterQueryParserDuplicate() {
+        SearchModule module = new SearchModule(Settings.EMPTY, new NamedWriteableRegistry());
+        module.registerQueryParser(TermQueryParser::new);
+        try {
+            module.buildQueryParserRegistry();
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("already registered for name [term] while trying to register [org.elasticsearch.index."));
+        }
+    }
+
+    static class FakeQueryParser implements QueryParser {
+        @Override
+        public String[] names() {
+            return new String[] {"fake-query-parser"};
+        }
+
+        @Override
+        public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+            return null;
+        }
+
+        @Override
+        public QueryBuilder getBuilderPrototype() {
+            return null;
+        }
+    }
+
 }

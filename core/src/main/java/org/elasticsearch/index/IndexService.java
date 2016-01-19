@@ -25,6 +25,7 @@ import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
@@ -61,7 +62,6 @@ import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.search.stats.SearchSlowLog;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexSearcherWrapper;
 import org.elasticsearch.index.shard.IndexShard;
@@ -140,7 +140,7 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
         this.engineFactory = engineFactory;
         // initialize this last -- otherwise if the wrapper requires any other member to be non-null we fail with an NPE
         this.searcherWrapper = wrapperFactory.newWrapper(this);
-        this.slowLog = new IndexingSlowLog(indexSettings.getSettings());
+        this.slowLog = new IndexingSlowLog(indexSettings);
 
         // Add our slowLog to the incoming IndexingOperationListeners:
         this.listeners = new IndexingOperationListener[1+listenersIn.length];
@@ -153,7 +153,7 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
             this.fsyncTask = null;
         }
         this.refreshTask = new AsyncRefreshTask(this);
-        searchSlowLog = new SearchSlowLog(indexSettings.getSettings());
+        searchSlowLog = new SearchSlowLog(indexSettings);
     }
 
     public int numberOfShards() {
@@ -566,29 +566,12 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
 
     public synchronized void updateMetaData(final IndexMetaData metadata) {
         if (indexSettings.updateIndexMetaData(metadata)) {
-            final Settings settings = indexSettings.getSettings();
             for (final IndexShard shard : this.shards.values()) {
                 try {
                     shard.onSettingsChanged();
                 } catch (Exception e) {
                     logger.warn("[{}] failed to notify shard about setting change", e, shard.shardId().id());
                 }
-            }
-            try {
-                indexStore.onRefreshSettings(settings);
-            } catch (Exception e) {
-                logger.warn("failed to refresh index store settings", e);
-            }
-            try {
-                slowLog.onRefreshSettings(settings); // this will be refactored soon anyway so duplication is ok here
-            } catch (Exception e) {
-                logger.warn("failed to refresh slowlog settings", e);
-            }
-
-            try {
-                searchSlowLog.onRefreshSettings(settings); // this will be refactored soon anyway so duplication is ok here
-            } catch (Exception e) {
-                logger.warn("failed to refresh slowlog settings", e);
             }
             if (refreshTask.getInterval().equals(indexSettings.getRefreshInterval()) == false) {
                 rescheduleRefreshTasks();
@@ -687,7 +670,9 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
 
         private synchronized void onTaskCompletion() {
             if (mustReschedule()) {
-                indexService.logger.trace("scheduling {} every {}", toString(), interval);
+                if (indexService.logger.isTraceEnabled()) {
+                    indexService.logger.trace("scheduling {} every {}", toString(), interval);
+                }
                 this.scheduledFuture = threadPool.schedule(interval, getThreadPool(), BaseAsyncTask.this);
             } else {
                 indexService.logger.trace("scheduled {} disabled", toString());
@@ -715,8 +700,7 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
 
         private static boolean sameException(Exception left, Exception right) {
             if (left.getClass() == right.getClass()) {
-                if ((left.getMessage() != null && left.getMessage().equals(right.getMessage()))
-                    || left.getMessage() == right.getMessage()) {
+                if (Objects.equals(left.getMessage(), right.getMessage())) {
                     StackTraceElement[] stackTraceLeft = left.getStackTrace();
                     StackTraceElement[] stackTraceRight = right.getStackTrace();
                     if (stackTraceLeft.length == stackTraceRight.length) {

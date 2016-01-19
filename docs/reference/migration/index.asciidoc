@@ -18,6 +18,8 @@ See <<setup-upgrade>> for more info.
 --
 include::migrate_3_0.asciidoc[]
 
+include::migrate_2_3.asciidoc[]
+
 include::migrate_2_2.asciidoc[]
 
 include::migrate_2_1.asciidoc[]

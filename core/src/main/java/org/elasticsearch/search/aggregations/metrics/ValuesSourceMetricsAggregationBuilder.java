@@ -62,6 +62,7 @@ public abstract class ValuesSourceMetricsAggregationBuilder<B extends ValuesSour
     /**
      * Configure the value to use when documents miss a value.
      */
+    @SuppressWarnings("unchecked")
     public B missing(Object missingValue) {
         this.missing = missingValue;
         return (B) this;

@@ -306,16 +306,16 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
             if (indexMetaData.getState() == IndexMetaData.State.CLOSE) {
                 addIndexBlock(indexMetaData.getIndex(), MetaDataIndexStateService.INDEX_CLOSED_BLOCK);
             }
-            if (indexMetaData.getSettings().getAsBoolean(IndexMetaData.SETTING_READ_ONLY, false)) {
+            if (IndexMetaData.INDEX_READ_ONLY_SETTING.get(indexMetaData.getSettings())) {
                 addIndexBlock(indexMetaData.getIndex(), IndexMetaData.INDEX_READ_ONLY_BLOCK);
             }
-            if (indexMetaData.getSettings().getAsBoolean(IndexMetaData.SETTING_BLOCKS_READ, false)) {
+            if (IndexMetaData.INDEX_BLOCKS_READ_SETTING.get(indexMetaData.getSettings())) {
                 addIndexBlock(indexMetaData.getIndex(), IndexMetaData.INDEX_READ_BLOCK);
             }
-            if (indexMetaData.getSettings().getAsBoolean(IndexMetaData.SETTING_BLOCKS_WRITE, false)) {
+            if (IndexMetaData.INDEX_BLOCKS_WRITE_SETTING.get(indexMetaData.getSettings())) {
                 addIndexBlock(indexMetaData.getIndex(), IndexMetaData.INDEX_WRITE_BLOCK);
             }
-            if (indexMetaData.getSettings().getAsBoolean(IndexMetaData.SETTING_BLOCKS_METADATA, false)) {
+            if (IndexMetaData.INDEX_BLOCKS_METADATA_SETTING.get(indexMetaData.getSettings())) {
                 addIndexBlock(indexMetaData.getIndex(), IndexMetaData.INDEX_METADATA_BLOCK);
             }
             return this;

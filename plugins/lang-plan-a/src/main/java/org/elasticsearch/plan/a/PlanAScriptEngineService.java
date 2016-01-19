@@ -40,117 +40,199 @@ import java.security.ProtectionDomain;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * Implementation of a ScriptEngine for the Plan A language.
+ */
 public class PlanAScriptEngineService extends AbstractComponent implements ScriptEngineService {
 
+    /**
+     * Standard name of the Plan A language.
+     */
     public static final String NAME = "plan-a";
-    // default settings, used unless otherwise specified
+
+    /**
+     * Default compiler settings to be used.
+     */
     private static final CompilerSettings DEFAULT_COMPILER_SETTINGS = new CompilerSettings();
 
-    public static final String NUMERIC_OVERFLOW = "numeric_overflow";
+    /**
+     * Permissions context used during compilation.
+     */
+    private static final AccessControlContext COMPILATION_CONTEXT;
 
-    // TODO: how should custom definitions be specified?
+    /**
+     * Setup the allowed permissions.
+     */
+    static {
+        final Permissions none = new Permissions();
+        none.setReadOnly();
+        COMPILATION_CONTEXT = new AccessControlContext(new ProtectionDomain[] {
+            new ProtectionDomain(null, none)
+        });
+    }
+
+    /**
+     * Used only for testing.
+     */
     private Definition definition = null;
 
+    /**
+     * Used only for testing.
+     */
+    void setDefinition(final Definition definition) {
+        this.definition = definition;
+    }
+
+    /**
+     * Constructor.
+     * @param settings The settings to initialize the engine with.
+     */
     @Inject
-    public PlanAScriptEngineService(Settings settings) {
+    public PlanAScriptEngineService(final Settings settings) {
         super(settings);
     }
 
-    public void setDefinition(final Definition definition) {
-        this.definition = new Definition(definition);
-    }
-
+    /**
+     * Get the type name(s) for the language.
+     * @return Always contains only the single name of the language.
+     */
     @Override
     public String[] types() {
         return new String[] { NAME };
     }
 
+    /**
+     * Get the extension(s) for the language.
+     * @return Always contains only the single extension of the language.
+     */
     @Override
     public String[] extensions() {
         return new String[] { NAME };
     }
 
+    /**
+     * Whether or not the engine is secure.
+     * @return Always true as the engine should be secure at runtime.
+     */
     @Override
     public boolean sandboxed() {
         return true;
     }
 
-    // context used during compilation
-    private static final AccessControlContext COMPILATION_CONTEXT;
-    static {
-        Permissions none = new Permissions();
-        none.setReadOnly();
-        COMPILATION_CONTEXT = new AccessControlContext(new ProtectionDomain[] {
-                new ProtectionDomain(null, none)
-        });
-    }
-
+    /**
+     * Compiles a Plan A script with the specified parameters.
+     * @param script The code to be compiled.
+     * @param params The params used to modify the compiler settings on a per script basis.
+     * @return Compiled script object represented by an {@link Executable}.
+     */
     @Override
-    public Object compile(String script, Map<String, String> params) {
+    public Object compile(final String script, final Map<String, String> params) {
         final CompilerSettings compilerSettings;
+
         if (params.isEmpty()) {
+            // Use the default settings.
             compilerSettings = DEFAULT_COMPILER_SETTINGS;
         } else {
-            // custom settings
+            // Use custom settings specified by params.
             compilerSettings = new CompilerSettings();
-            Map<String,String> clone = new HashMap<>(params);
-            String value = clone.remove(NUMERIC_OVERFLOW);
+            Map<String, String> copy = new HashMap<>(params);
+            String value = copy.remove(CompilerSettings.NUMERIC_OVERFLOW);
+
             if (value != null) {
-                // TODO: can we get a real boolean parser in here?
                 compilerSettings.setNumericOverflow(Boolean.parseBoolean(value));
             }
-            if (!clone.isEmpty()) {
-                throw new IllegalArgumentException("Unrecognized compile-time parameter(s): " + clone);
+
+            value = copy.remove(CompilerSettings.MAX_LOOP_COUNTER);
+
+            if (value != null) {
+                compilerSettings.setMaxLoopCounter(Integer.parseInt(value));
+            }
+
+            if (!copy.isEmpty()) {
+                throw new IllegalArgumentException("Unrecognized compile-time parameter(s): " + copy);
             }
         }
-        // check we ourselves are not being called by unprivileged code
-        SecurityManager sm = System.getSecurityManager();
+
+        // Check we ourselves are not being called by unprivileged code.
+        final SecurityManager sm = System.getSecurityManager();
+
         if (sm != null) {
             sm.checkPermission(new SpecialPermission());
         }
-        // create our loader (which loads compiled code with no permissions)
-        Compiler.Loader loader = AccessController.doPrivileged(new PrivilegedAction<Compiler.Loader>() {
+
+        // Create our loader (which loads compiled code with no permissions).
+        final Compiler.Loader loader = AccessController.doPrivileged(new PrivilegedAction<Compiler.Loader>() {
             @Override
             public Compiler.Loader run() {
                 return new Compiler.Loader(getClass().getClassLoader());
             }
         });
-        // drop all permissions to actually compile the code itself
+
+        // Drop all permissions to actually compile the code itself.
         return AccessController.doPrivileged(new PrivilegedAction<Executable>() {
             @Override
             public Executable run() {
-                return Compiler.compile(loader, "something", script, definition, compilerSettings);
+                return Compiler.compile(loader, "unknown", script, definition, compilerSettings);
             }
         }, COMPILATION_CONTEXT);
     }
 
+    /**
+     * Retrieve an {@link ExecutableScript} for later use.
+     * @param compiledScript A previously compiled script.
+     * @param vars The variables to be used in the script.
+     * @return An {@link ExecutableScript} with the currently specified variables.
+     */
     @Override
-    public ExecutableScript executable(CompiledScript compiledScript, Map<String,Object> vars) {
-        return new ScriptImpl((Executable) compiledScript.compiled(), vars, null);
+    public ExecutableScript executable(final CompiledScript compiledScript, final Map<String, Object> vars) {
+        return new ScriptImpl((Executable)compiledScript.compiled(), vars, null);
     }
 
+    /**
+     * Retrieve a {@link SearchScript} for later use.
+     * @param compiledScript A previously compiled script.
+     * @param lookup The object that ultimately allows access to search fields.
+     * @param vars The variables to be used in the script.
+     * @return An {@link SearchScript} with the currently specified variables.
+     */
     @Override
-    public SearchScript search(CompiledScript compiledScript, SearchLookup lookup, Map<String,Object> vars) {
+    public SearchScript search(final CompiledScript compiledScript, final SearchLookup lookup, final Map<String, Object> vars) {
         return new SearchScript() {
+            /**
+             * Get the search script that will have access to search field values.
+             * @param context The LeafReaderContext to be used.
+             * @return A script that will have the search fields from the current context available for use.
+             */
             @Override
-            public LeafSearchScript getLeafSearchScript(LeafReaderContext context) throws IOException {
-                return new ScriptImpl((Executable) compiledScript.compiled(), vars, lookup.getLeafSearchLookup(context));
+            public LeafSearchScript getLeafSearchScript(final LeafReaderContext context) throws IOException {
+                return new ScriptImpl((Executable)compiledScript.compiled(), vars, lookup.getLeafSearchLookup(context));
             }
 
+            /**
+             * Whether or not the score is needed.
+             * @return Always true as it's assumed score is needed.
+             */
             @Override
             public boolean needsScores() {
-                return true; // TODO: maybe even do these different and more like expressions.
+                return true;
             }
         };
     }
 
+    /**
+     * Action taken when a script is removed from the cache.
+     * @param script The removed script.
+     */
     @Override
-    public void scriptRemoved(CompiledScript script) {
-        // nothing to do
+    public void scriptRemoved(final CompiledScript script) {
+        // Nothing to do.
     }
 
+    /**
+     * Action taken when the engine is closed.
+     */
     @Override
     public void close() throws IOException {
-        // nothing to do
+        // Nothing to do.
     }
 }

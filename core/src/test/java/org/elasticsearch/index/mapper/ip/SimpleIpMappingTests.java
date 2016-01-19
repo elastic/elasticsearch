@@ -38,6 +38,7 @@ import static org.hamcrest.Matchers.nullValue;
  *
  */
 public class SimpleIpMappingTests extends ESSingleNodeTestCase {
+
     public void testSimpleMapping() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("ip").field("type", "ip").endObject().endObject()

@@ -33,9 +33,12 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.InternalSettingsPlugin;
 
 import java.io.IOException;
+import java.util.Collection;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -44,10 +47,15 @@ import static org.hamcrest.Matchers.greaterThan;
 
 public class ParentFieldLoadingIT extends ESIntegTestCase {
 
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return pluginList(InternalSettingsPlugin.class); // uses index.merge.enabled
+    }
+
     private final Settings indexSettings = Settings.builder()
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(IndexSettings.INDEX_REFRESH_INTERVAL, -1)
+            .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
                     // We never want merges in this test to ensure we have two segments for the last validation
             .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
             .build();

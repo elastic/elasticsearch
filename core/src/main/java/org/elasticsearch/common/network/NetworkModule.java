@@ -19,6 +19,9 @@
 
 package org.elasticsearch.common.network;
 
+import java.util.Arrays;
+import java.util.List;
+
 import org.elasticsearch.client.support.Headers;
 import org.elasticsearch.client.transport.TransportClientNodesService;
 import org.elasticsearch.client.transport.support.TransportProxyClient;
@@ -138,9 +141,6 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.local.LocalTransport;
 import org.elasticsearch.transport.netty.NettyTransport;
-
-import java.util.Arrays;
-import java.util.List;
 
 /**
  * A module to handle registering and binding all network related classes.
@@ -301,6 +301,7 @@ public class NetworkModule extends AbstractModule {
     private final ExtensionPoint.ClassSet<RestHandler> restHandlers = new ExtensionPoint.ClassSet<>("rest_handler", RestHandler.class);
     // we must separate the cat rest handlers so RestCatAction can collect them...
     private final ExtensionPoint.ClassSet<AbstractCatAction> catHandlers = new ExtensionPoint.ClassSet<>("cat_handler", AbstractCatAction.class);
+    private final NamedWriteableRegistry namedWriteableRegistry;
 
     /**
      * Creates a network module that custom networking classes can be plugged into.
@@ -308,11 +309,13 @@ public class NetworkModule extends AbstractModule {
      * @param networkService A constructed network service object to bind.
      * @param settings The settings for the node
      * @param transportClient True if only transport classes should be allowed to be registered, false otherwise.
+     * @param namedWriteableRegistry registry for named writeables for use during streaming
      */
-    public NetworkModule(NetworkService networkService, Settings settings, boolean transportClient) {
+    public NetworkModule(NetworkService networkService, Settings settings, boolean transportClient, NamedWriteableRegistry namedWriteableRegistry) {
         this.networkService = networkService;
         this.settings = settings;
         this.transportClient = transportClient;
+        this.namedWriteableRegistry = namedWriteableRegistry;
         registerTransportService(NETTY_TRANSPORT, TransportService.class);
         registerTransport(LOCAL_TRANSPORT, LocalTransport.class);
         registerTransport(NETTY_TRANSPORT, NettyTransport.class);
@@ -364,7 +367,7 @@ public class NetworkModule extends AbstractModule {
     @Override
     protected void configure() {
         bind(NetworkService.class).toInstance(networkService);
-        bind(NamedWriteableRegistry.class).asEagerSingleton();
+        bind(NamedWriteableRegistry.class).toInstance(namedWriteableRegistry);
 
         transportServiceTypes.bindType(binder(), settings, TRANSPORT_SERVICE_TYPE_KEY, NETTY_TRANSPORT);
         String defaultTransport = DiscoveryNode.localNode(settings) ? LOCAL_TRANSPORT : NETTY_TRANSPORT;

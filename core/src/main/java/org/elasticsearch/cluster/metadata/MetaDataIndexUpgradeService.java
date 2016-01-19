@@ -21,7 +21,6 @@ package org.elasticsearch.cluster.metadata;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -70,7 +69,6 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
         }
         checkSupportedVersion(indexMetaData);
         IndexMetaData newMetaData = indexMetaData;
-        newMetaData = addDefaultUnitsIfNeeded(newMetaData);
         checkMappingsCompatibility(newMetaData);
         newMetaData = markAsUpgraded(newMetaData);
         return newMetaData;
@@ -113,103 +111,6 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
         return false;
     }
 
-    /** All known byte-sized settings for an index. */
-    public static final Set<String> INDEX_BYTES_SIZE_SETTINGS = unmodifiableSet(newHashSet(
-                                    "index.merge.policy.floor_segment",
-                                    "index.merge.policy.max_merged_segment",
-                                    "index.merge.policy.max_merge_size",
-                                    "index.merge.policy.min_merge_size",
-                                    "index.shard.recovery.file_chunk_size",
-                                    "index.shard.recovery.translog_size",
-                                    "index.store.throttle.max_bytes_per_sec",
-                                    "index.translog.flush_threshold_size",
-                                    "index.translog.fs.buffer_size",
-                                    "index.version_map_size"));
-
-    /** All known time settings for an index. */
-    public static final Set<String> INDEX_TIME_SETTINGS = unmodifiableSet(newHashSet(
-                                    "index.gateway.wait_for_mapping_update_post_recovery",
-                                    "index.shard.wait_for_mapping_update_post_recovery",
-                                    "index.gc_deletes",
-                                    "index.indexing.slowlog.threshold.index.debug",
-                                    "index.indexing.slowlog.threshold.index.info",
-                                    "index.indexing.slowlog.threshold.index.trace",
-                                    "index.indexing.slowlog.threshold.index.warn",
-                                    "index.refresh_interval",
-                                    "index.search.slowlog.threshold.fetch.debug",
-                                    "index.search.slowlog.threshold.fetch.info",
-                                    "index.search.slowlog.threshold.fetch.trace",
-                                    "index.search.slowlog.threshold.fetch.warn",
-                                    "index.search.slowlog.threshold.query.debug",
-                                    "index.search.slowlog.threshold.query.info",
-                                    "index.search.slowlog.threshold.query.trace",
-                                    "index.search.slowlog.threshold.query.warn",
-                                    "index.shadow.wait_for_initial_commit",
-                                    "index.store.stats_refresh_interval",
-                                    "index.translog.flush_threshold_period",
-                                    "index.translog.interval",
-                                    "index.translog.sync_interval",
-                                    "index.shard.inactive_time",
-                                    UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING));
-
-    /**
-     * Elasticsearch 2.0 requires units on byte/memory and time settings; this method adds the default unit to any such settings that are
-     * missing units.
-     */
-    private IndexMetaData addDefaultUnitsIfNeeded(IndexMetaData indexMetaData) {
-        if (indexMetaData.getCreationVersion().before(Version.V_2_0_0_beta1)) {
-            // TODO: can we somehow only do this *once* for a pre-2.0 index?  Maybe we could stuff a "fake marker setting" here?  Seems hackish...
-            // Created lazily if we find any settings that are missing units:
-            Settings settings = indexMetaData.getSettings();
-            Settings.Builder newSettings = null;
-            for(String byteSizeSetting : INDEX_BYTES_SIZE_SETTINGS) {
-                String value = settings.get(byteSizeSetting);
-                if (value != null) {
-                    try {
-                        Long.parseLong(value);
-                    } catch (NumberFormatException nfe) {
-                        continue;
-                    }
-                    // It's a naked number that previously would be interpreted as default unit (bytes); now we add it:
-                    logger.warn("byte-sized index setting [{}] with value [{}] is missing units; assuming default units (b) but in future versions this will be a hard error", byteSizeSetting, value);
-                    if (newSettings == null) {
-                        newSettings = Settings.builder();
-                        newSettings.put(settings);
-                    }
-                    newSettings.put(byteSizeSetting, value + "b");
-                }
-            }
-            for(String timeSetting : INDEX_TIME_SETTINGS) {
-                String value = settings.get(timeSetting);
-                if (value != null) {
-                    try {
-                        Long.parseLong(value);
-                    } catch (NumberFormatException nfe) {
-                        continue;
-                    }
-                    // It's a naked number that previously would be interpreted as default unit (ms); now we add it:
-                    logger.warn("time index setting [{}] with value [{}] is missing units; assuming default units (ms) but in future versions this will be a hard error", timeSetting, value);
-                    if (newSettings == null) {
-                        newSettings = Settings.builder();
-                        newSettings.put(settings);
-                    }
-                    newSettings.put(timeSetting, value + "ms");
-                }
-            }
-            if (newSettings != null) {
-                // At least one setting was changed:
-                return IndexMetaData.builder(indexMetaData)
-                    .version(indexMetaData.getVersion())
-                    .settings(newSettings.build())
-                    .build();
-            }
-        }
-
-        // No changes:
-        return indexMetaData;
-    }
-
-
     /**
      * Checks the mappings for compatibility with the current version
      */
@@ -217,14 +118,14 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
         try {
             // We cannot instantiate real analysis server at this point because the node might not have
             // been started yet. However, we don't really need real analyzers at this stage - so we can fake it
-            IndexSettings indexSettings = new IndexSettings(indexMetaData, this.settings, Collections.emptyList());
+            IndexSettings indexSettings = new IndexSettings(indexMetaData, this.settings);
             SimilarityService similarityService = new SimilarityService(indexSettings, Collections.emptyMap());
 
             try (AnalysisService analysisService = new FakeAnalysisService(indexSettings)) {
                 try (MapperService mapperService = new MapperService(indexSettings, analysisService, similarityService, mapperRegistry, () -> null)) {
                     for (ObjectCursor<MappingMetaData> cursor : indexMetaData.getMappings().values()) {
                         MappingMetaData mappingMetaData = cursor.value;
-                        mapperService.merge(mappingMetaData.type(), mappingMetaData.source(), false, false);
+                        mapperService.merge(mappingMetaData.type(), mappingMetaData.source(), MapperService.MergeReason.MAPPING_RECOVERY, false);
                     }
                 }
             }

@@ -312,11 +312,11 @@ public class CopyToMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject().endObject().string();
 
         MapperService mapperService = createIndex("test").mapperService();
-        DocumentMapper docMapperBefore = mapperService.merge("type1", new CompressedXContent(mappingBefore), true, false);
+        DocumentMapper docMapperBefore = mapperService.merge("type1", new CompressedXContent(mappingBefore), MapperService.MergeReason.MAPPING_UPDATE, false);
 
         assertEquals(Arrays.asList("foo", "bar"), docMapperBefore.mappers().getMapper("copy_test").copyTo().copyToFields());
 
-        DocumentMapper docMapperAfter = mapperService.merge("type1", new CompressedXContent(mappingAfter), false, false);
+        DocumentMapper docMapperAfter = mapperService.merge("type1", new CompressedXContent(mappingAfter), MapperService.MergeReason.MAPPING_UPDATE, false);
 
         assertEquals(Arrays.asList("baz", "bar"), docMapperAfter.mappers().getMapper("copy_test").copyTo().copyToFields());
         assertEquals(Arrays.asList("foo", "bar"), docMapperBefore.mappers().getMapper("copy_test").copyTo().copyToFields());

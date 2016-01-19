@@ -33,7 +33,8 @@ import java.util.function.Supplier;
 
 /**
  */
-public abstract class TransportClusterInfoAction<Request extends ClusterInfoRequest, Response extends ActionResponse> extends TransportMasterNodeReadAction<Request, Response> {
+public abstract class TransportClusterInfoAction<Request extends ClusterInfoRequest<Request>, Response extends ActionResponse>
+        extends TransportMasterNodeReadAction<Request, Response> {
 
     public TransportClusterInfoAction(Settings settings, String actionName, TransportService transportService,
                                       ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters,

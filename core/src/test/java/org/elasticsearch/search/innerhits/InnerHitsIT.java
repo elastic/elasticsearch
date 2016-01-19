@@ -40,6 +40,7 @@ import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.InternalSettingsPlugin;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -72,7 +73,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class InnerHitsIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(MockScriptEngine.TestPlugin.class);
+        return pluginList(MockScriptEngine.TestPlugin.class, InternalSettingsPlugin.class);
     }
 
     public void testSimpleNested() throws Exception {

@@ -20,6 +20,72 @@
 package org.elasticsearch.plan.a;
 
 import org.antlr.v4.runtime.ParserRuleContext;
+import org.elasticsearch.plan.a.Definition.Cast;
+import org.elasticsearch.plan.a.Definition.Constructor;
+import org.elasticsearch.plan.a.Definition.Field;
+import org.elasticsearch.plan.a.Definition.Method;
+import org.elasticsearch.plan.a.Definition.Pair;
+import org.elasticsearch.plan.a.Definition.Sort;
+import org.elasticsearch.plan.a.Definition.Struct;
+import org.elasticsearch.plan.a.Definition.Transform;
+import org.elasticsearch.plan.a.Definition.Type;
+import org.elasticsearch.plan.a.Metadata.ExpressionMetadata;
+import org.elasticsearch.plan.a.Metadata.ExtNodeMetadata;
+import org.elasticsearch.plan.a.Metadata.ExternalMetadata;
+import org.elasticsearch.plan.a.Metadata.StatementMetadata;
+import org.elasticsearch.plan.a.PlanAParser.AfterthoughtContext;
+import org.elasticsearch.plan.a.PlanAParser.ArgumentsContext;
+import org.elasticsearch.plan.a.PlanAParser.AssignmentContext;
+import org.elasticsearch.plan.a.PlanAParser.BinaryContext;
+import org.elasticsearch.plan.a.PlanAParser.BlockContext;
+import org.elasticsearch.plan.a.PlanAParser.BoolContext;
+import org.elasticsearch.plan.a.PlanAParser.BreakContext;
+import org.elasticsearch.plan.a.PlanAParser.CastContext;
+import org.elasticsearch.plan.a.PlanAParser.CharContext;
+import org.elasticsearch.plan.a.PlanAParser.CompContext;
+import org.elasticsearch.plan.a.PlanAParser.ConditionalContext;
+import org.elasticsearch.plan.a.PlanAParser.ContinueContext;
+import org.elasticsearch.plan.a.PlanAParser.DeclContext;
+import org.elasticsearch.plan.a.PlanAParser.DeclarationContext;
+import org.elasticsearch.plan.a.PlanAParser.DecltypeContext;
+import org.elasticsearch.plan.a.PlanAParser.DeclvarContext;
+import org.elasticsearch.plan.a.PlanAParser.DoContext;
+import org.elasticsearch.plan.a.PlanAParser.EmptyContext;
+import org.elasticsearch.plan.a.PlanAParser.ExprContext;
+import org.elasticsearch.plan.a.PlanAParser.ExpressionContext;
+import org.elasticsearch.plan.a.PlanAParser.ExtbraceContext;
+import org.elasticsearch.plan.a.PlanAParser.ExtcallContext;
+import org.elasticsearch.plan.a.PlanAParser.ExtcastContext;
+import org.elasticsearch.plan.a.PlanAParser.ExtdotContext;
+import org.elasticsearch.plan.a.PlanAParser.ExternalContext;
+import org.elasticsearch.plan.a.PlanAParser.ExtfieldContext;
+import org.elasticsearch.plan.a.PlanAParser.ExtnewContext;
+import org.elasticsearch.plan.a.PlanAParser.ExtprecContext;
+import org.elasticsearch.plan.a.PlanAParser.ExtstartContext;
+import org.elasticsearch.plan.a.PlanAParser.ExtstringContext;
+import org.elasticsearch.plan.a.PlanAParser.ExttypeContext;
+import org.elasticsearch.plan.a.PlanAParser.ExtvarContext;
+import org.elasticsearch.plan.a.PlanAParser.FalseContext;
+import org.elasticsearch.plan.a.PlanAParser.ForContext;
+import org.elasticsearch.plan.a.PlanAParser.IfContext;
+import org.elasticsearch.plan.a.PlanAParser.IncrementContext;
+import org.elasticsearch.plan.a.PlanAParser.InitializerContext;
+import org.elasticsearch.plan.a.PlanAParser.MultipleContext;
+import org.elasticsearch.plan.a.PlanAParser.NullContext;
+import org.elasticsearch.plan.a.PlanAParser.NumericContext;
+import org.elasticsearch.plan.a.PlanAParser.PostincContext;
+import org.elasticsearch.plan.a.PlanAParser.PrecedenceContext;
+import org.elasticsearch.plan.a.PlanAParser.PreincContext;
+import org.elasticsearch.plan.a.PlanAParser.ReturnContext;
+import org.elasticsearch.plan.a.PlanAParser.SingleContext;
+import org.elasticsearch.plan.a.PlanAParser.SourceContext;
+import org.elasticsearch.plan.a.PlanAParser.StatementContext;
+import org.elasticsearch.plan.a.PlanAParser.ThrowContext;
+import org.elasticsearch.plan.a.PlanAParser.TrapContext;
+import org.elasticsearch.plan.a.PlanAParser.TrueContext;
+import org.elasticsearch.plan.a.PlanAParser.TryContext;
+import org.elasticsearch.plan.a.PlanAParser.UnaryContext;
+import org.elasticsearch.plan.a.PlanAParser.WhileContext;
 
 import java.util.ArrayDeque;
 import java.util.Arrays;
@@ -28,81 +94,18 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.plan.a.Adapter.ExpressionMetadata;
-import static org.elasticsearch.plan.a.Adapter.ExtNodeMetadata;
-import static org.elasticsearch.plan.a.Adapter.ExternalMetadata;
-import static org.elasticsearch.plan.a.Adapter.StatementMetadata;
-import static org.elasticsearch.plan.a.Adapter.error;
-import static org.elasticsearch.plan.a.Definition.Cast;
-import static org.elasticsearch.plan.a.Definition.Constructor;
-import static org.elasticsearch.plan.a.Definition.Field;
-import static org.elasticsearch.plan.a.Definition.Method;
-import static org.elasticsearch.plan.a.Definition.Pair;
-import static org.elasticsearch.plan.a.Definition.Sort;
-import static org.elasticsearch.plan.a.Definition.Struct;
-import static org.elasticsearch.plan.a.Definition.Transform;
-import static org.elasticsearch.plan.a.Definition.Type;
+import static org.elasticsearch.plan.a.Metadata.error;
 import static org.elasticsearch.plan.a.PlanAParser.ADD;
-import static org.elasticsearch.plan.a.PlanAParser.AfterthoughtContext;
-import static org.elasticsearch.plan.a.PlanAParser.ArgumentsContext;
-import static org.elasticsearch.plan.a.PlanAParser.AssignmentContext;
 import static org.elasticsearch.plan.a.PlanAParser.BWAND;
 import static org.elasticsearch.plan.a.PlanAParser.BWOR;
 import static org.elasticsearch.plan.a.PlanAParser.BWXOR;
-import static org.elasticsearch.plan.a.PlanAParser.BinaryContext;
-import static org.elasticsearch.plan.a.PlanAParser.BlockContext;
-import static org.elasticsearch.plan.a.PlanAParser.BoolContext;
-import static org.elasticsearch.plan.a.PlanAParser.BreakContext;
-import static org.elasticsearch.plan.a.PlanAParser.CastContext;
-import static org.elasticsearch.plan.a.PlanAParser.CharContext;
-import static org.elasticsearch.plan.a.PlanAParser.CompContext;
-import static org.elasticsearch.plan.a.PlanAParser.ConditionalContext;
-import static org.elasticsearch.plan.a.PlanAParser.ContinueContext;
 import static org.elasticsearch.plan.a.PlanAParser.DIV;
-import static org.elasticsearch.plan.a.PlanAParser.DeclContext;
-import static org.elasticsearch.plan.a.PlanAParser.DeclarationContext;
-import static org.elasticsearch.plan.a.PlanAParser.DecltypeContext;
-import static org.elasticsearch.plan.a.PlanAParser.DeclvarContext;
-import static org.elasticsearch.plan.a.PlanAParser.DoContext;
-import static org.elasticsearch.plan.a.PlanAParser.EmptyContext;
-import static org.elasticsearch.plan.a.PlanAParser.ExprContext;
-import static org.elasticsearch.plan.a.PlanAParser.ExpressionContext;
-import static org.elasticsearch.plan.a.PlanAParser.ExtbraceContext;
-import static org.elasticsearch.plan.a.PlanAParser.ExtcallContext;
-import static org.elasticsearch.plan.a.PlanAParser.ExtcastContext;
-import static org.elasticsearch.plan.a.PlanAParser.ExtdotContext;
-import static org.elasticsearch.plan.a.PlanAParser.ExternalContext;
-import static org.elasticsearch.plan.a.PlanAParser.ExtfieldContext;
-import static org.elasticsearch.plan.a.PlanAParser.ExtnewContext;
-import static org.elasticsearch.plan.a.PlanAParser.ExtprecContext;
-import static org.elasticsearch.plan.a.PlanAParser.ExtstartContext;
-import static org.elasticsearch.plan.a.PlanAParser.ExtstringContext;
-import static org.elasticsearch.plan.a.PlanAParser.ExttypeContext;
-import static org.elasticsearch.plan.a.PlanAParser.ExtvarContext;
-import static org.elasticsearch.plan.a.PlanAParser.FalseContext;
-import static org.elasticsearch.plan.a.PlanAParser.ForContext;
-import static org.elasticsearch.plan.a.PlanAParser.IfContext;
-import static org.elasticsearch.plan.a.PlanAParser.IncrementContext;
-import static org.elasticsearch.plan.a.PlanAParser.InitializerContext;
 import static org.elasticsearch.plan.a.PlanAParser.LSH;
 import static org.elasticsearch.plan.a.PlanAParser.MUL;
-import static org.elasticsearch.plan.a.PlanAParser.MultipleContext;
-import static org.elasticsearch.plan.a.PlanAParser.NullContext;
-import static org.elasticsearch.plan.a.PlanAParser.NumericContext;
-import static org.elasticsearch.plan.a.PlanAParser.PostincContext;
-import static org.elasticsearch.plan.a.PlanAParser.PrecedenceContext;
-import static org.elasticsearch.plan.a.PlanAParser.PreincContext;
 import static org.elasticsearch.plan.a.PlanAParser.REM;
 import static org.elasticsearch.plan.a.PlanAParser.RSH;
-import static org.elasticsearch.plan.a.PlanAParser.ReturnContext;
 import static org.elasticsearch.plan.a.PlanAParser.SUB;
-import static org.elasticsearch.plan.a.PlanAParser.SingleContext;
-import static org.elasticsearch.plan.a.PlanAParser.SourceContext;
-import static org.elasticsearch.plan.a.PlanAParser.StatementContext;
-import static org.elasticsearch.plan.a.PlanAParser.TrueContext;
 import static org.elasticsearch.plan.a.PlanAParser.USH;
-import static org.elasticsearch.plan.a.PlanAParser.UnaryContext;
-import static org.elasticsearch.plan.a.PlanAParser.WhileContext;
 
 class Analyzer extends PlanAParserBaseVisitor<Void> {
     private static class Variable {
@@ -117,31 +120,30 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
         }
     }
 
-    static void analyze(final Adapter adapter) {
-        new Analyzer(adapter);
+    static void analyze(final Metadata metadata) {
+        new Analyzer(metadata);
     }
 
-    private final Adapter adapter;
+    private final Metadata metadata;
     private final Definition definition;
     private final CompilerSettings settings;
 
-    private final Deque<Integer> scopes;
-    private final Deque<Variable> variables;
+    private final Deque<Integer> scopes = new ArrayDeque<>();
+    private final Deque<Variable> variables = new ArrayDeque<>();
 
-    private Analyzer(final Adapter adapter) {
-        this.adapter = adapter;
-        definition = adapter.definition;
-        settings = adapter.settings;
-
-        scopes = new ArrayDeque<>();
-        variables = new ArrayDeque<>();
+    private Analyzer(final Metadata metadata) {
+        this.metadata = metadata;
+        definition = metadata.definition;
+        settings = metadata.settings;
 
         incrementScope();
-        addVariable(null, "this", definition.execType);
-        addVariable(null, "input", definition.smapType);
+        addVariable(null, "#this", definition.execType);
+        metadata.inputValueSlot = addVariable(null, "input", definition.smapType).slot;
+        metadata.scoreValueSlot = addVariable(null, "_score", definition.floatType).slot;
+        metadata.loopCounterSlot = addVariable(null, "#loop", definition.intType).slot;
 
-        adapter.createStatementMetadata(adapter.root);
-        visit(adapter.root);
+        metadata.createStatementMetadata(metadata.root);
+        visit(metadata.root);
 
         decrementScope();
     }
@@ -179,7 +181,7 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
                 throw new IllegalArgumentException("Argument name [" + name + "] already defined within the scope.");
             } else {
                 throw new IllegalArgumentException(
-                        error(source) + "Variable name [" + name + "] already defined within the scope.");
+                    error(source) + "Variable name [" + name + "] already defined within the scope.");
             }
         }
 
@@ -201,34 +203,24 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
 
     @Override
     public Void visitSource(final SourceContext ctx) {
-        final StatementMetadata sourcesmd = adapter.getStatementMetadata(ctx);
+        final StatementMetadata sourcesmd = metadata.getStatementMetadata(ctx);
         final List<StatementContext> statectxs = ctx.statement();
         final StatementContext lastctx = statectxs.get(statectxs.size() - 1);
 
         incrementScope();
 
         for (final StatementContext statectx : statectxs) {
-            if (sourcesmd.allExit) {
+            if (sourcesmd.allLast) {
                 throw new IllegalArgumentException(error(statectx) +
-                        "Statement will never be executed because all prior paths exit.");
+                    "Statement will never be executed because all prior paths escape.");
             }
 
-            final StatementMetadata statesmd = adapter.createStatementMetadata(statectx);
-            statesmd.last = statectx == lastctx;
+            final StatementMetadata statesmd = metadata.createStatementMetadata(statectx);
+            statesmd.lastSource = statectx == lastctx;
             visit(statectx);
 
-            if (statesmd.anyContinue) {
-                throw new IllegalArgumentException(error(statectx) +
-                        "Cannot have a continue statement outside of a loop.");
-            }
-
-            if (statesmd.anyBreak) {
-                throw new IllegalArgumentException(error(statectx) +
-                        "Cannot have a break statement outside of a loop.");
-            }
-
-            sourcesmd.allExit = statesmd.allExit;
-            sourcesmd.allReturn = statesmd.allReturn;
+            sourcesmd.methodEscape = statesmd.methodEscape;
+            sourcesmd.allLast = statesmd.allLast;
         }
 
         decrementScope();
@@ -238,12 +230,10 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
 
     @Override
     public Void visitIf(final IfContext ctx) {
-        final StatementMetadata ifsmd = adapter.getStatementMetadata(ctx);
+        final StatementMetadata ifsmd = metadata.getStatementMetadata(ctx);
 
-        incrementScope();
-
-        final ExpressionContext exprctx = adapter.updateExpressionTree(ctx.expression());
-        final ExpressionMetadata expremd = adapter.createExpressionMetadata(exprctx);
+        final ExpressionContext exprctx = metadata.updateExpressionTree(ctx.expression());
+        final ExpressionMetadata expremd = metadata.createExpressionMetadata(exprctx);
         expremd.to = definition.booleanType;
         visit(exprctx);
         markCast(expremd);
@@ -253,83 +243,84 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
         }
 
         final BlockContext blockctx0 = ctx.block(0);
-        final StatementMetadata blocksmd0 = adapter.createStatementMetadata(blockctx0);
-        blocksmd0.last = ifsmd.last;
+        final StatementMetadata blocksmd0 = metadata.createStatementMetadata(blockctx0);
+        blocksmd0.lastSource = ifsmd.lastSource;
+        blocksmd0.inLoop = ifsmd.inLoop;
+        blocksmd0.lastLoop = ifsmd.lastLoop;
+        incrementScope();
         visit(blockctx0);
+        decrementScope();
 
-        ifsmd.anyReturn = blocksmd0.anyReturn;
-        ifsmd.anyBreak = blocksmd0.anyBreak;
         ifsmd.anyContinue = blocksmd0.anyContinue;
+        ifsmd.anyBreak = blocksmd0.anyBreak;
+
+        ifsmd.count = blocksmd0.count;
 
         if (ctx.ELSE() != null) {
             final BlockContext blockctx1 = ctx.block(1);
-            final StatementMetadata blocksmd1 = adapter.createStatementMetadata(blockctx1);
-            blocksmd1.last = ifsmd.last;
+            final StatementMetadata blocksmd1 = metadata.createStatementMetadata(blockctx1);
+            blocksmd1.lastSource = ifsmd.lastSource;
+            incrementScope();
             visit(blockctx1);
+            decrementScope();
 
-            ifsmd.allExit = blocksmd0.allExit && blocksmd1.allExit;
-            ifsmd.allReturn = blocksmd0.allReturn && blocksmd1.allReturn;
-            ifsmd.anyReturn |= blocksmd1.anyReturn;
-            ifsmd.allBreak = blocksmd0.allBreak && blocksmd1.allBreak;
-            ifsmd.anyBreak |= blocksmd1.anyBreak;
-            ifsmd.allContinue = blocksmd0.allContinue && blocksmd1.allContinue;
+            ifsmd.methodEscape = blocksmd0.methodEscape && blocksmd1.methodEscape;
+            ifsmd.loopEscape = blocksmd0.loopEscape && blocksmd1.loopEscape;
+            ifsmd.allLast = blocksmd0.allLast && blocksmd1.allLast;
             ifsmd.anyContinue |= blocksmd1.anyContinue;
-        }
+            ifsmd.anyBreak |= blocksmd1.anyBreak;
 
-        decrementScope();
+            ifsmd.count = Math.max(ifsmd.count, blocksmd1.count);
+        }
 
         return null;
     }
 
     @Override
     public Void visitWhile(final WhileContext ctx) {
-        final StatementMetadata whilesmd = adapter.getStatementMetadata(ctx);
+        final StatementMetadata whilesmd = metadata.getStatementMetadata(ctx);
 
         incrementScope();
 
-        final ExpressionContext exprctx = adapter.updateExpressionTree(ctx.expression());
-        final ExpressionMetadata expremd = adapter.createExpressionMetadata(exprctx);
+        final ExpressionContext exprctx = metadata.updateExpressionTree(ctx.expression());
+        final ExpressionMetadata expremd = metadata.createExpressionMetadata(exprctx);
         expremd.to = definition.booleanType;
         visit(exprctx);
         markCast(expremd);
 
-        boolean exitrequired = false;
+        boolean continuous = false;
 
         if (expremd.postConst != null) {
-            boolean constant = (boolean)expremd.postConst;
+            continuous = (boolean)expremd.postConst;
 
-            if (!constant) {
+            if (!continuous) {
                 throw new IllegalArgumentException(error(ctx) + "The loop will never be executed.");
             }
 
-            exitrequired = true;
+            if (ctx.empty() != null) {
+                throw new IllegalArgumentException(error(ctx) + "The loop will never exit.");
+            }
         }
 
         final BlockContext blockctx = ctx.block();
 
         if (blockctx != null) {
-            final StatementMetadata blocksmd = adapter.createStatementMetadata(blockctx);
+            final StatementMetadata blocksmd = metadata.createStatementMetadata(blockctx);
+            blocksmd.beginLoop = true;
+            blocksmd.inLoop = true;
             visit(blockctx);
 
-            if (blocksmd.allReturn) {
-                throw new IllegalArgumentException(error(ctx) + "All paths return so the loop is not necessary.");
+            if (blocksmd.loopEscape && !blocksmd.anyContinue) {
+                throw new IllegalArgumentException(error(ctx) + "All paths escape so the loop is not necessary.");
             }
 
-            if (blocksmd.allBreak) {
-                throw new IllegalArgumentException(error(ctx) + "All paths break so the loop is not necessary.");
+            if (continuous && !blocksmd.anyBreak) {
+                whilesmd.methodEscape = true;
+                whilesmd.allLast = true;
             }
-
-            if (exitrequired && !blocksmd.anyReturn && !blocksmd.anyBreak) {
-                throw new IllegalArgumentException(error(ctx) + "The loop will never exit.");
-            }
-
-            if (exitrequired && blocksmd.anyReturn && !blocksmd.anyBreak) {
-                whilesmd.allExit = true;
-                whilesmd.allReturn = true;
-            }
-        } else if (exitrequired) {
-            throw new IllegalArgumentException(error(ctx) + "The loop will never exit.");
         }
+
+        whilesmd.count = 1;
 
         decrementScope();
 
@@ -338,48 +329,40 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
 
     @Override
     public Void visitDo(final DoContext ctx) {
-        final StatementMetadata dosmd = adapter.getStatementMetadata(ctx);
+        final StatementMetadata dosmd = metadata.getStatementMetadata(ctx);
 
         incrementScope();
 
         final BlockContext blockctx = ctx.block();
-        final StatementMetadata blocksmd = adapter.createStatementMetadata(blockctx);
+        final StatementMetadata blocksmd = metadata.createStatementMetadata(blockctx);
+        blocksmd.beginLoop = true;
+        blocksmd.inLoop = true;
         visit(blockctx);
 
-        if (blocksmd.allReturn) {
-            throw new IllegalArgumentException(error(ctx) + "All paths return so the loop is not necessary.");
+        if (blocksmd.loopEscape && !blocksmd.anyContinue) {
+            throw new IllegalArgumentException(error(ctx) + "All paths escape so the loop is not necessary.");
         }
 
-        if (blocksmd.allBreak) {
-            throw new IllegalArgumentException(error(ctx) + "All paths break so the loop is not necessary.");
-        }
-
-        if (blocksmd.allContinue) {
-            throw new IllegalArgumentException(error(ctx) + "The loop will never exit.");
-        }
-
-        final ExpressionContext exprctx = adapter.updateExpressionTree(ctx.expression());
-        final ExpressionMetadata expremd = adapter.createExpressionMetadata(exprctx);
+        final ExpressionContext exprctx = metadata.updateExpressionTree(ctx.expression());
+        final ExpressionMetadata expremd = metadata.createExpressionMetadata(exprctx);
         expremd.to = definition.booleanType;
         visit(exprctx);
         markCast(expremd);
 
         if (expremd.postConst != null) {
-            final boolean exitrequired = (boolean)expremd.postConst;
+            final boolean continuous = (boolean)expremd.postConst;
 
-            if (exitrequired && !blocksmd.anyReturn && !blocksmd.anyBreak) {
-                throw new IllegalArgumentException(error(ctx) + "The loop will never exit.");
+            if (!continuous) {
+                throw new IllegalArgumentException(error(ctx) + "All paths escape so the loop is not necessary.");
             }
 
-            if (exitrequired && blocksmd.anyReturn && !blocksmd.anyBreak) {
-                dosmd.allExit = true;
-                dosmd.allReturn = true;
-            }
-
-            if (!exitrequired && !blocksmd.anyContinue) {
-                throw new IllegalArgumentException(error(ctx) + "All paths exit so the loop is not necessary.");
+            if (!blocksmd.anyBreak) {
+                dosmd.methodEscape = true;
+                dosmd.allLast = true;
             }
         }
+
+        dosmd.count = 1;
 
         decrementScope();
 
@@ -388,71 +371,67 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
 
     @Override
     public Void visitFor(final ForContext ctx) {
-        final StatementMetadata forsmd = adapter.getStatementMetadata(ctx);
-        boolean exitrequired = false;
+        final StatementMetadata forsmd = metadata.getStatementMetadata(ctx);
+        boolean continuous = false;
 
         incrementScope();
 
         final InitializerContext initctx = ctx.initializer();
 
         if (initctx != null) {
-            adapter.createStatementMetadata(initctx);
+            metadata.createStatementMetadata(initctx);
             visit(initctx);
         }
 
-        final ExpressionContext exprctx = adapter.updateExpressionTree(ctx.expression());
+        final ExpressionContext exprctx = metadata.updateExpressionTree(ctx.expression());
 
         if (exprctx != null) {
-            final ExpressionMetadata expremd = adapter.createExpressionMetadata(exprctx);
+            final ExpressionMetadata expremd = metadata.createExpressionMetadata(exprctx);
             expremd.to = definition.booleanType;
             visit(exprctx);
             markCast(expremd);
 
             if (expremd.postConst != null) {
-                boolean constant = (boolean)expremd.postConst;
+                continuous = (boolean)expremd.postConst;
 
-                if (!constant) {
+                if (!continuous) {
                     throw new IllegalArgumentException(error(ctx) + "The loop will never be executed.");
                 }
 
-                exitrequired = true;
+                if (ctx.empty() != null) {
+                    throw new IllegalArgumentException(error(ctx) + "The loop is continuous.");
+                }
             }
         } else {
-            exitrequired = true;
+            continuous = true;
         }
 
         final AfterthoughtContext atctx = ctx.afterthought();
 
         if (atctx != null) {
-            adapter.createStatementMetadata(atctx);
+            metadata.createStatementMetadata(atctx);
             visit(atctx);
         }
 
         final BlockContext blockctx = ctx.block();
 
         if (blockctx != null) {
-            final StatementMetadata blocksmd = adapter.createStatementMetadata(blockctx);
+            final StatementMetadata blocksmd = metadata.createStatementMetadata(blockctx);
+            blocksmd.beginLoop = true;
+            blocksmd.inLoop = true;
             visit(blockctx);
 
-            if (blocksmd.allReturn) {
-                throw new IllegalArgumentException(error(ctx) + "All paths return so the loop is not necessary.");
+            if (blocksmd.loopEscape && !blocksmd.anyContinue) {
+                throw new IllegalArgumentException(error(ctx) + "All paths escape so the loop is not necessary.");
             }
 
-            if (blocksmd.allBreak) {
-                throw new IllegalArgumentException(error(ctx) + "All paths break so the loop is not necessary.");
+            if (continuous && !blocksmd.anyBreak) {
+                forsmd.methodEscape = true;
+                forsmd.allLast = true;
             }
-
-            if (exitrequired && !blocksmd.anyReturn && !blocksmd.anyBreak) {
-                throw new IllegalArgumentException(error(ctx) + "The loop will never exit.");
-            }
-
-            if (exitrequired && blocksmd.anyReturn && !blocksmd.anyBreak) {
-                forsmd.allExit = true;
-                forsmd.allReturn = true;
-            }
-        } else if (exitrequired) {
-            throw new IllegalArgumentException(error(ctx) + "The loop will never exit.");
         }
+
+        forsmd.count = 1;
 
         decrementScope();
 
@@ -461,97 +440,185 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
 
     @Override
     public Void visitDecl(final DeclContext ctx) {
+        final StatementMetadata declsmd = metadata.getStatementMetadata(ctx);
+
         final DeclarationContext declctx = ctx.declaration();
-        adapter.createStatementMetadata(declctx);
+        metadata.createStatementMetadata(declctx);
         visit(declctx);
+
+        declsmd.count = 1;
 
         return null;
     }
 
     @Override
     public Void visitContinue(final ContinueContext ctx) {
-        final StatementMetadata continuesmd = adapter.getStatementMetadata(ctx);
+        final StatementMetadata continuesmd = metadata.getStatementMetadata(ctx);
 
-        continuesmd.allExit = true;
-        continuesmd.allContinue = true;
+        if (!continuesmd.inLoop) {
+            throw new IllegalArgumentException(error(ctx) + "Cannot have a continue statement outside of a loop.");
+        }
+
+        if (continuesmd.lastLoop) {
+            throw new IllegalArgumentException(error(ctx) + "Unnessary continue statement at the end of a loop.");
+        }
+
+        continuesmd.allLast = true;
         continuesmd.anyContinue = true;
+
+        continuesmd.count = 1;
 
         return null;
     }
 
     @Override
     public Void visitBreak(final BreakContext ctx) {
-        final StatementMetadata breaksmd = adapter.getStatementMetadata(ctx);
+        final StatementMetadata breaksmd = metadata.getStatementMetadata(ctx);
 
-        breaksmd.allExit = true;
-        breaksmd.allBreak = true;
+        if (!breaksmd.inLoop) {
+            throw new IllegalArgumentException(error(ctx) + "Cannot have a break statement outside of a loop.");
+        }
+
+        breaksmd.loopEscape = true;
+        breaksmd.allLast = true;
         breaksmd.anyBreak = true;
+
+        breaksmd.count = 1;
 
         return null;
     }
 
     @Override
     public Void visitReturn(final ReturnContext ctx) {
-        final StatementMetadata returnsmd = adapter.getStatementMetadata(ctx);
+        final StatementMetadata returnsmd = metadata.getStatementMetadata(ctx);
 
-        final ExpressionContext exprctx = adapter.updateExpressionTree(ctx.expression());
-        final ExpressionMetadata expremd = adapter.createExpressionMetadata(exprctx);
+        final ExpressionContext exprctx = metadata.updateExpressionTree(ctx.expression());
+        final ExpressionMetadata expremd = metadata.createExpressionMetadata(exprctx);
         expremd.to = definition.objectType;
         visit(exprctx);
         markCast(expremd);
 
-        returnsmd.allExit = true;
-        returnsmd.allReturn = true;
-        returnsmd.anyReturn = true;
+        returnsmd.methodEscape = true;
+        returnsmd.loopEscape = true;
+        returnsmd.allLast = true;
+
+        returnsmd.count = 1;
+
+        return null;
+    }
+
+    @Override
+    public Void visitTry(final TryContext ctx) {
+        final StatementMetadata trysmd = metadata.getStatementMetadata(ctx);
+
+        final BlockContext blockctx = ctx.block();
+        final StatementMetadata blocksmd = metadata.createStatementMetadata(blockctx);
+        blocksmd.lastSource = trysmd.lastSource;
+        blocksmd.inLoop = trysmd.inLoop;
+        blocksmd.lastLoop = trysmd.lastLoop;
+        incrementScope();
+        visit(blockctx);
+        decrementScope();
+
+        trysmd.methodEscape = blocksmd.methodEscape;
+        trysmd.loopEscape = blocksmd.loopEscape;
+        trysmd.allLast = blocksmd.allLast;
+        trysmd.anyContinue = blocksmd.anyContinue;
+        trysmd.anyBreak = blocksmd.anyBreak;
+
+        int trapcount = 0;
+
+        for (final TrapContext trapctx : ctx.trap()) {
+            final StatementMetadata trapsmd = metadata.createStatementMetadata(trapctx);
+            trapsmd.lastSource = trysmd.lastSource;
+            trapsmd.inLoop = trysmd.inLoop;
+            trapsmd.lastLoop = trysmd.lastLoop;
+            incrementScope();
+            visit(trapctx);
+            decrementScope();
+
+            trysmd.methodEscape &= trapsmd.methodEscape;
+            trysmd.loopEscape &= trapsmd.loopEscape;
+            trysmd.allLast &= trapsmd.allLast;
+            trysmd.anyContinue |= trapsmd.anyContinue;
+            trysmd.anyBreak |= trapsmd.anyBreak;
+
+            trapcount = Math.max(trapcount, trapsmd.count);
+        }
+
+        trysmd.count = blocksmd.count + trapcount;
+
+        return null;
+    }
+
+    @Override
+    public Void visitThrow(final ThrowContext ctx) {
+        final StatementMetadata throwsmd = metadata.getStatementMetadata(ctx);
+
+        final ExpressionContext exprctx = metadata.updateExpressionTree(ctx.expression());
+        final ExpressionMetadata expremd = metadata.createExpressionMetadata(exprctx);
+        expremd.to = definition.exceptionType;
+        visit(exprctx);
+        markCast(expremd);
+
+        throwsmd.methodEscape = true;
+        throwsmd.loopEscape = true;
+        throwsmd.allLast = true;
+
+        throwsmd.count = 1;
 
         return null;
     }
 
     @Override
     public Void visitExpr(final ExprContext ctx) {
-        final StatementMetadata exprsmd = adapter.getStatementMetadata(ctx);
-        final ExpressionContext exprctx = adapter.updateExpressionTree(ctx.expression());
-        final ExpressionMetadata expremd = adapter.createExpressionMetadata(exprctx);
-        expremd.read = exprsmd.last;
+        final StatementMetadata exprsmd = metadata.getStatementMetadata(ctx);
+        final ExpressionContext exprctx = metadata.updateExpressionTree(ctx.expression());
+        final ExpressionMetadata expremd = metadata.createExpressionMetadata(exprctx);
+        expremd.read = exprsmd.lastSource;
         visit(exprctx);
 
-        if (!expremd.statement && !exprsmd.last) {
+        if (!expremd.statement && !exprsmd.lastSource) {
             throw new IllegalArgumentException(error(ctx) + "Not a statement.");
         }
 
-        final boolean rtn = exprsmd.last && expremd.from.sort != Sort.VOID;
-        exprsmd.allExit = rtn;
-        exprsmd.allReturn = rtn;
-        exprsmd.anyReturn = rtn;
+        final boolean rtn = exprsmd.lastSource && expremd.from.sort != Sort.VOID;
+        exprsmd.methodEscape = rtn;
+        exprsmd.loopEscape = rtn;
+        exprsmd.allLast = rtn;
         expremd.to = rtn ? definition.objectType : expremd.from;
         markCast(expremd);
+
+        exprsmd.count = 1;
 
         return null;
     }
 
     @Override
     public Void visitMultiple(final MultipleContext ctx) {
-        final StatementMetadata multiplesmd = adapter.getStatementMetadata(ctx);
+        final StatementMetadata multiplesmd = metadata.getStatementMetadata(ctx);
         final List<StatementContext> statectxs = ctx.statement();
         final StatementContext lastctx = statectxs.get(statectxs.size() - 1);
 
         for (StatementContext statectx : statectxs) {
-            if (multiplesmd.allExit) {
+            if (multiplesmd.allLast) {
                 throw new IllegalArgumentException(error(statectx) +
-                        "Statement will never be executed because all prior paths exit.");
+                    "Statement will never be executed because all prior paths escape.");
             }
 
-            final StatementMetadata statesmd = adapter.createStatementMetadata(statectx);
-            statesmd.last = multiplesmd.last && statectx == lastctx;
+            final StatementMetadata statesmd = metadata.createStatementMetadata(statectx);
+            statesmd.lastSource = multiplesmd.lastSource && statectx == lastctx;
+            statesmd.inLoop = multiplesmd.inLoop;
+            statesmd.lastLoop = (multiplesmd.beginLoop || multiplesmd.lastLoop) && statectx == lastctx;
             visit(statectx);
 
-            multiplesmd.allExit = statesmd.allExit;
-            multiplesmd.allReturn = statesmd.allReturn && !statesmd.anyBreak && !statesmd.anyContinue;
-            multiplesmd.anyReturn |= statesmd.anyReturn;
-            multiplesmd.allBreak = !statesmd.anyReturn && statesmd.allBreak && !statesmd.anyContinue;
-            multiplesmd.anyBreak |= statesmd.anyBreak;
-            multiplesmd.allContinue = !statesmd.anyReturn && !statesmd.anyBreak && statesmd.allContinue;
+            multiplesmd.methodEscape = statesmd.methodEscape;
+            multiplesmd.loopEscape = statesmd.loopEscape;
+            multiplesmd.allLast = statesmd.allLast;
             multiplesmd.anyContinue |= statesmd.anyContinue;
+            multiplesmd.anyBreak |= statesmd.anyBreak;
+
+            multiplesmd.count += statesmd.count;
         }
 
         return null;
@@ -559,20 +626,22 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
 
     @Override
     public Void visitSingle(final SingleContext ctx) {
-        final StatementMetadata singlesmd = adapter.getStatementMetadata(ctx);
+        final StatementMetadata singlesmd = metadata.getStatementMetadata(ctx);
 
         final StatementContext statectx = ctx.statement();
-        final StatementMetadata statesmd = adapter.createStatementMetadata(statectx);
-        statesmd.last = singlesmd.last;
+        final StatementMetadata statesmd = metadata.createStatementMetadata(statectx);
+        statesmd.lastSource = singlesmd.lastSource;
+        statesmd.inLoop = singlesmd.inLoop;
+        statesmd.lastLoop = singlesmd.beginLoop || singlesmd.lastLoop;
         visit(statectx);
 
-        singlesmd.allExit = statesmd.allExit;
-        singlesmd.allReturn = statesmd.allReturn;
-        singlesmd.anyReturn = statesmd.anyReturn;
-        singlesmd.allBreak = statesmd.allBreak;
-        singlesmd.anyBreak = statesmd.anyBreak;
-        singlesmd.allContinue = statesmd.allContinue;
+        singlesmd.methodEscape = statesmd.methodEscape;
+        singlesmd.loopEscape = statesmd.loopEscape;
+        singlesmd.allLast = statesmd.allLast;
         singlesmd.anyContinue = statesmd.anyContinue;
+        singlesmd.anyBreak = statesmd.anyBreak;
+
+        singlesmd.count = statesmd.count;
 
         return null;
     }
@@ -585,13 +654,13 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
     @Override
     public Void visitInitializer(InitializerContext ctx) {
         final DeclarationContext declctx = ctx.declaration();
-        final ExpressionContext exprctx = adapter.updateExpressionTree(ctx.expression());
+        final ExpressionContext exprctx = metadata.updateExpressionTree(ctx.expression());
 
         if (declctx != null) {
-            adapter.createStatementMetadata(declctx);
+            metadata.createStatementMetadata(declctx);
             visit(declctx);
         } else if (exprctx != null) {
-            final ExpressionMetadata expremd = adapter.createExpressionMetadata(exprctx);
+            final ExpressionMetadata expremd = metadata.createExpressionMetadata(exprctx);
             expremd.read = false;
             visit(exprctx);
 
@@ -600,7 +669,7 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
 
             if (!expremd.statement) {
                 throw new IllegalArgumentException(error(exprctx) +
-                        "The intializer of a for loop must be a statement.");
+                    "The intializer of a for loop must be a statement.");
             }
         } else {
             throw new IllegalStateException(error(ctx) + "Unexpected parser state.");
@@ -611,10 +680,10 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
 
     @Override
     public Void visitAfterthought(AfterthoughtContext ctx) {
-        ExpressionContext exprctx = adapter.updateExpressionTree(ctx.expression());
+        final ExpressionContext exprctx = metadata.updateExpressionTree(ctx.expression());
 
         if (exprctx != null) {
-            final ExpressionMetadata expremd = adapter.createExpressionMetadata(exprctx);
+            final ExpressionMetadata expremd = metadata.createExpressionMetadata(exprctx);
             expremd.read = false;
             visit(exprctx);
 
@@ -623,7 +692,7 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
 
             if (!expremd.statement) {
                 throw new IllegalArgumentException(error(exprctx) +
-                        "The afterthought of a for loop must be a statement.");
+                    "The afterthought of a for loop must be a statement.");
             }
         }
 
@@ -633,11 +702,11 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
     @Override
     public Void visitDeclaration(final DeclarationContext ctx) {
         final DecltypeContext decltypectx = ctx.decltype();
-        final ExpressionMetadata decltypeemd = adapter.createExpressionMetadata(decltypectx);
+        final ExpressionMetadata decltypeemd = metadata.createExpressionMetadata(decltypectx);
         visit(decltypectx);
 
         for (final DeclvarContext declvarctx : ctx.declvar()) {
-            final ExpressionMetadata declvaremd = adapter.createExpressionMetadata(declvarctx);
+            final ExpressionMetadata declvaremd = metadata.createExpressionMetadata(declvarctx);
             declvaremd.to = decltypeemd.from;
             visit(declvarctx);
         }
@@ -647,7 +716,7 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
 
     @Override
     public Void visitDecltype(final DecltypeContext ctx) {
-        final ExpressionMetadata decltypeemd = adapter.getExpressionMetadata(ctx);
+        final ExpressionMetadata decltypeemd = metadata.getExpressionMetadata(ctx);
 
         final String name = ctx.getText();
         decltypeemd.from = definition.getType(name);
@@ -657,18 +726,55 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
 
     @Override
     public Void visitDeclvar(final DeclvarContext ctx) {
-        final ExpressionMetadata declvaremd = adapter.getExpressionMetadata(ctx);
+        final ExpressionMetadata declvaremd = metadata.getExpressionMetadata(ctx);
 
         final String name = ctx.ID().getText();
         declvaremd.postConst = addVariable(ctx, name, declvaremd.to).slot;
 
-        final ExpressionContext exprctx = adapter.updateExpressionTree(ctx.expression());
+        final ExpressionContext exprctx = metadata.updateExpressionTree(ctx.expression());
 
         if (exprctx != null) {
-            final ExpressionMetadata expremd = adapter.createExpressionMetadata(exprctx);
+            final ExpressionMetadata expremd = metadata.createExpressionMetadata(exprctx);
             expremd.to = declvaremd.to;
             visit(exprctx);
             markCast(expremd);
+        }
+
+        return null;
+    }
+
+    @Override
+    public Void visitTrap(final TrapContext ctx) {
+        final StatementMetadata trapsmd = metadata.getStatementMetadata(ctx);
+
+        final String type = ctx.TYPE().getText();
+        trapsmd.exception = definition.getType(type);
+
+        try {
+            trapsmd.exception.clazz.asSubclass(Exception.class);
+        } catch (final ClassCastException exception) {
+            throw new IllegalArgumentException(error(ctx) + "Invalid exception type [" + trapsmd.exception.name + "].");
+        }
+
+        final String id = ctx.ID().getText();
+        trapsmd.slot = addVariable(ctx, id, trapsmd.exception).slot;
+
+        final BlockContext blockctx = ctx.block();
+
+        if (blockctx != null) {
+            final StatementMetadata blocksmd = metadata.createStatementMetadata(blockctx);
+            blocksmd.lastSource = trapsmd.lastSource;
+            blocksmd.inLoop = trapsmd.inLoop;
+            blocksmd.lastLoop = trapsmd.lastLoop;
+            visit(blockctx);
+
+            trapsmd.methodEscape = blocksmd.methodEscape;
+            trapsmd.loopEscape = blocksmd.loopEscape;
+            trapsmd.allLast = blocksmd.allLast;
+            trapsmd.anyContinue = blocksmd.anyContinue;
+            trapsmd.anyBreak = blocksmd.anyBreak;
+        } else if (ctx.emptyscope() == null) {
+            throw new IllegalStateException(error(ctx) + "Unexpected parser state.");
         }
 
         return null;
@@ -681,7 +787,7 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
 
     @Override
     public Void visitNumeric(final NumericContext ctx) {
-        final ExpressionMetadata numericemd = adapter.getExpressionMetadata(ctx);
+        final ExpressionMetadata numericemd = metadata.getExpressionMetadata(ctx);
         final boolean negate = ctx.parent instanceof UnaryContext && ((UnaryContext)ctx.parent).SUB() != null;
 
         if (ctx.DECIMAL() != null) {
@@ -770,7 +876,7 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
 
     @Override
     public Void visitChar(final CharContext ctx) {
-        final ExpressionMetadata charemd = adapter.getExpressionMetadata(ctx);
+        final ExpressionMetadata charemd = metadata.getExpressionMetadata(ctx);
 
         if (ctx.CHAR() == null) {
             throw new IllegalStateException(error(ctx) + "Unexpected parser state.");
@@ -784,7 +890,7 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
 
     @Override
     public Void visitTrue(final TrueContext ctx) {
-        final ExpressionMetadata trueemd = adapter.getExpressionMetadata(ctx);
+        final ExpressionMetadata trueemd = metadata.getExpressionMetadata(ctx);
 
         if (ctx.TRUE() == null) {
             throw new IllegalStateException(error(ctx) + "Unexpected parser state.");
@@ -798,7 +904,7 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
 
     @Override
     public Void visitFalse(final FalseContext ctx) {
-        final ExpressionMetadata falseemd = adapter.getExpressionMetadata(ctx);
+        final ExpressionMetadata falseemd = metadata.getExpressionMetadata(ctx);
 
         if (ctx.FALSE() == null) {
             throw new IllegalStateException(error(ctx) + "Unexpected parser state.");
@@ -812,7 +918,7 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
 
     @Override
     public Void visitNull(final NullContext ctx) {
-        final ExpressionMetadata nullemd = adapter.getExpressionMetadata(ctx);
+        final ExpressionMetadata nullemd = metadata.getExpressionMetadata(ctx);
 
         if (ctx.NULL() == null) {
             throw new IllegalStateException(error(ctx) + "Unexpected parser state.");
@@ -835,10 +941,10 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
 
     @Override
     public Void visitExternal(final ExternalContext ctx) {
-        final ExpressionMetadata extemd = adapter.getExpressionMetadata(ctx);
+        final ExpressionMetadata extemd = metadata.getExpressionMetadata(ctx);
 
         final ExtstartContext extstartctx = ctx.extstart();
-        final ExternalMetadata extstartemd = adapter.createExternalMetadata(extstartctx);
+        final ExternalMetadata extstartemd = metadata.createExternalMetadata(extstartctx);
         extstartemd.read = extemd.read;
         visit(extstartctx);
 
@@ -852,10 +958,10 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
 
     @Override
     public Void visitPostinc(final PostincContext ctx) {
-        final ExpressionMetadata postincemd = adapter.getExpressionMetadata(ctx);
+        final ExpressionMetadata postincemd = metadata.getExpressionMetadata(ctx);
 
         final ExtstartContext extstartctx = ctx.extstart();
-        final ExternalMetadata extstartemd = adapter.createExternalMetadata(extstartctx);
+        final ExternalMetadata extstartemd = metadata.createExternalMetadata(extstartctx);
         extstartemd.read = postincemd.read;
         extstartemd.storeExpr = ctx.increment();
         extstartemd.token = ADD;
@@ -871,10 +977,10 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
 
     @Override
     public Void visitPreinc(final PreincContext ctx) {
-        final ExpressionMetadata preincemd = adapter.getExpressionMetadata(ctx);
+        final ExpressionMetadata preincemd = metadata.getExpressionMetadata(ctx);
 
         final ExtstartContext extstartctx = ctx.extstart();
-        final ExternalMetadata extstartemd = adapter.createExternalMetadata(extstartctx);
+        final ExternalMetadata extstartemd = metadata.createExternalMetadata(extstartctx);
         extstartemd.read = preincemd.read;
         extstartemd.storeExpr = ctx.increment();
         extstartemd.token = ADD;
@@ -890,10 +996,10 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
 
     @Override
     public Void visitUnary(final UnaryContext ctx) {
-        final ExpressionMetadata unaryemd = adapter.getExpressionMetadata(ctx);
+        final ExpressionMetadata unaryemd = metadata.getExpressionMetadata(ctx);
 
-        final ExpressionContext exprctx = adapter.updateExpressionTree(ctx.expression());
-        final ExpressionMetadata expremd = adapter.createExpressionMetadata(exprctx);
+        final ExpressionContext exprctx = metadata.updateExpressionTree(ctx.expression());
+        final ExpressionMetadata expremd = metadata.createExpressionMetadata(exprctx);
 
         if (ctx.BOOLNOT() != null) {
             expremd.to = definition.booleanType;
@@ -912,7 +1018,7 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
 
             if (promote == null) {
                 throw new ClassCastException("Cannot apply [" + ctx.getChild(0).getText() + "] " +
-                        "operation to type [" + expremd.from.name + "].");
+                    "operation to type [" + expremd.from.name + "].");
             }
 
             expremd.to = promote;
@@ -981,17 +1087,17 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
 
     @Override
     public Void visitCast(final CastContext ctx) {
-        final ExpressionMetadata castemd = adapter.getExpressionMetadata(ctx);
+        final ExpressionMetadata castemd = metadata.getExpressionMetadata(ctx);
 
         final DecltypeContext decltypectx = ctx.decltype();
-        final ExpressionMetadata decltypemd = adapter.createExpressionMetadata(decltypectx);
+        final ExpressionMetadata decltypemd = metadata.createExpressionMetadata(decltypectx);
         visit(decltypectx);
 
         final Type type = decltypemd.from;
         castemd.from = type;
 
-        final ExpressionContext exprctx = adapter.updateExpressionTree(ctx.expression());
-        final ExpressionMetadata expremd = adapter.createExpressionMetadata(exprctx);
+        final ExpressionContext exprctx = metadata.updateExpressionTree(ctx.expression());
+        final ExpressionMetadata expremd = metadata.createExpressionMetadata(exprctx);
         expremd.to = type;
         expremd.explicit = true;
         visit(exprctx);
@@ -1008,26 +1114,26 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
 
     @Override
     public Void visitBinary(final BinaryContext ctx) {
-        final ExpressionMetadata binaryemd = adapter.getExpressionMetadata(ctx);
+        final ExpressionMetadata binaryemd = metadata.getExpressionMetadata(ctx);
 
-        final ExpressionContext exprctx0 = adapter.updateExpressionTree(ctx.expression(0));
-        final ExpressionMetadata expremd0 = adapter.createExpressionMetadata(exprctx0);
+        final ExpressionContext exprctx0 = metadata.updateExpressionTree(ctx.expression(0));
+        final ExpressionMetadata expremd0 = metadata.createExpressionMetadata(exprctx0);
         visit(exprctx0);
 
-        final ExpressionContext exprctx1 = adapter.updateExpressionTree(ctx.expression(1));
-        final ExpressionMetadata expremd1 = adapter.createExpressionMetadata(exprctx1);
+        final ExpressionContext exprctx1 = metadata.updateExpressionTree(ctx.expression(1));
+        final ExpressionMetadata expremd1 = metadata.createExpressionMetadata(exprctx1);
         visit(exprctx1);
 
         final boolean decimal = ctx.MUL() != null || ctx.DIV() != null || ctx.REM() != null || ctx.SUB() != null;
         final boolean add = ctx.ADD() != null;
         final boolean xor = ctx.BWXOR() != null;
         final Type promote = add ? promoteAdd(expremd0.from, expremd1.from) :
-                             xor ? promoteXor(expremd0.from, expremd1.from) :
-                                   promoteNumeric(expremd0.from, expremd1.from, decimal, true);
+            xor ? promoteXor(expremd0.from, expremd1.from) :
+                promoteNumeric(expremd0.from, expremd1.from, decimal, true);
 
         if (promote == null) {
             throw new ClassCastException("Cannot apply [" + ctx.getChild(1).getText() + "] " +
-                    "operation to types [" + expremd0.from.name + "] and [" + expremd1.from.name + "].");
+                "operation to types [" + expremd0.from.name + "] and [" + expremd1.from.name + "].");
         }
 
         final Sort sort = promote.sort;
@@ -1234,16 +1340,16 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
 
     @Override
     public Void visitComp(final CompContext ctx) {
-        final ExpressionMetadata compemd = adapter.getExpressionMetadata(ctx);
+        final ExpressionMetadata compemd = metadata.getExpressionMetadata(ctx);
         final boolean equality = ctx.EQ() != null || ctx.NE() != null;
         final boolean reference = ctx.EQR() != null || ctx.NER() != null;
 
-        final ExpressionContext exprctx0 = adapter.updateExpressionTree(ctx.expression(0));
-        final ExpressionMetadata expremd0 = adapter.createExpressionMetadata(exprctx0);
+        final ExpressionContext exprctx0 = metadata.updateExpressionTree(ctx.expression(0));
+        final ExpressionMetadata expremd0 = metadata.createExpressionMetadata(exprctx0);
         visit(exprctx0);
 
-        final ExpressionContext exprctx1 = adapter.updateExpressionTree(ctx.expression(1));
-        final ExpressionMetadata expremd1 = adapter.createExpressionMetadata(exprctx1);
+        final ExpressionContext exprctx1 = metadata.updateExpressionTree(ctx.expression(1));
+        final ExpressionMetadata expremd1 = metadata.createExpressionMetadata(exprctx1);
         visit(exprctx1);
 
         if (expremd0.isNull && expremd1.isNull) {
@@ -1251,12 +1357,12 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
         }
 
         final Type promote = equality ? promoteEquality(expremd0.from, expremd1.from) :
-                reference ? promoteReference(expremd0.from, expremd1.from) :
-                            promoteNumeric(expremd0.from, expremd1.from, true, true);
+            reference ? promoteReference(expremd0.from, expremd1.from) :
+                promoteNumeric(expremd0.from, expremd1.from, true, true);
 
         if (promote == null) {
             throw new ClassCastException("Cannot apply [" + ctx.getChild(1).getText() + "] " +
-                    "operation to types [" + expremd0.from.name + "] and [" + expremd1.from.name + "].");
+                "operation to types [" + expremd0.from.name + "] and [" + expremd1.from.name + "].");
         }
 
         expremd0.to = promote;
@@ -1356,16 +1462,16 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
 
     @Override
     public Void visitBool(final BoolContext ctx) {
-        final ExpressionMetadata boolemd = adapter.getExpressionMetadata(ctx);
+        final ExpressionMetadata boolemd = metadata.getExpressionMetadata(ctx);
 
-        final ExpressionContext exprctx0 = adapter.updateExpressionTree(ctx.expression(0));
-        final ExpressionMetadata expremd0 = adapter.createExpressionMetadata(exprctx0);
+        final ExpressionContext exprctx0 = metadata.updateExpressionTree(ctx.expression(0));
+        final ExpressionMetadata expremd0 = metadata.createExpressionMetadata(exprctx0);
         expremd0.to = definition.booleanType;
         visit(exprctx0);
         markCast(expremd0);
 
-        final ExpressionContext exprctx1 = adapter.updateExpressionTree(ctx.expression(1));
-        final ExpressionMetadata expremd1 = adapter.createExpressionMetadata(exprctx1);
+        final ExpressionContext exprctx1 = metadata.updateExpressionTree(ctx.expression(1));
+        final ExpressionMetadata expremd1 = metadata.createExpressionMetadata(exprctx1);
         expremd1.to = definition.booleanType;
         visit(exprctx1);
         markCast(expremd1);
@@ -1388,10 +1494,10 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
 
     @Override
     public Void visitConditional(final ConditionalContext ctx) {
-        final ExpressionMetadata condemd = adapter.getExpressionMetadata(ctx);
+        final ExpressionMetadata condemd = metadata.getExpressionMetadata(ctx);
 
-        final ExpressionContext exprctx0 = adapter.updateExpressionTree(ctx.expression(0));
-        final ExpressionMetadata expremd0 = adapter.createExpressionMetadata(exprctx0);
+        final ExpressionContext exprctx0 = metadata.updateExpressionTree(ctx.expression(0));
+        final ExpressionMetadata expremd0 = metadata.createExpressionMetadata(exprctx0);
         expremd0.to = definition.booleanType;
         visit(exprctx0);
         markCast(expremd0);
@@ -1400,14 +1506,14 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
             throw new IllegalArgumentException(error(ctx) + "Unnecessary conditional statement.");
         }
 
-        final ExpressionContext exprctx1 = adapter.updateExpressionTree(ctx.expression(1));
-        final ExpressionMetadata expremd1 = adapter.createExpressionMetadata(exprctx1);
+        final ExpressionContext exprctx1 = metadata.updateExpressionTree(ctx.expression(1));
+        final ExpressionMetadata expremd1 = metadata.createExpressionMetadata(exprctx1);
         expremd1.to = condemd.to;
         expremd1.explicit = condemd.explicit;
         visit(exprctx1);
 
-        final ExpressionContext exprctx2 = adapter.updateExpressionTree(ctx.expression(2));
-        final ExpressionMetadata expremd2 = adapter.createExpressionMetadata(exprctx2);
+        final ExpressionContext exprctx2 = metadata.updateExpressionTree(ctx.expression(2));
+        final ExpressionMetadata expremd2 = metadata.createExpressionMetadata(exprctx2);
         expremd2.to = condemd.to;
         expremd2.explicit = condemd.explicit;
         visit(exprctx2);
@@ -1432,13 +1538,13 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
 
     @Override
     public Void visitAssignment(final AssignmentContext ctx) {
-        final ExpressionMetadata assignemd = adapter.getExpressionMetadata(ctx);
+        final ExpressionMetadata assignemd = metadata.getExpressionMetadata(ctx);
 
         final ExtstartContext extstartctx = ctx.extstart();
-        final ExternalMetadata extstartemd = adapter.createExternalMetadata(extstartctx);
+        final ExternalMetadata extstartemd = metadata.createExternalMetadata(extstartctx);
 
         extstartemd.read = assignemd.read;
-        extstartemd.storeExpr = adapter.updateExpressionTree(ctx.expression());
+        extstartemd.storeExpr = metadata.updateExpressionTree(ctx.expression());
 
         if (ctx.AMUL() != null) {
             extstartemd.token = MUL;
@@ -1483,22 +1589,22 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
         final ExtstringContext stringctx = ctx.extstring();
 
         if (precctx != null) {
-            adapter.createExtNodeMetadata(ctx, precctx);
+            metadata.createExtNodeMetadata(ctx, precctx);
             visit(precctx);
         } else if (castctx != null) {
-            adapter.createExtNodeMetadata(ctx, castctx);
+            metadata.createExtNodeMetadata(ctx, castctx);
             visit(castctx);
         } else if (typectx != null) {
-            adapter.createExtNodeMetadata(ctx, typectx);
+            metadata.createExtNodeMetadata(ctx, typectx);
             visit(typectx);
         } else if (varctx != null) {
-            adapter.createExtNodeMetadata(ctx, varctx);
+            metadata.createExtNodeMetadata(ctx, varctx);
             visit(varctx);
         } else if (newctx != null) {
-            adapter.createExtNodeMetadata(ctx, newctx);
+            metadata.createExtNodeMetadata(ctx, newctx);
             visit(newctx);
         } else if (stringctx != null) {
-            adapter.createExtNodeMetadata(ctx, stringctx);
+            metadata.createExtNodeMetadata(ctx, stringctx);
             visit(stringctx);
         } else {
             throw new IllegalStateException();
@@ -1509,9 +1615,9 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
 
     @Override
     public Void visitExtprec(final ExtprecContext ctx) {
-        final ExtNodeMetadata precenmd = adapter.getExtNodeMetadata(ctx);
+        final ExtNodeMetadata precenmd = metadata.getExtNodeMetadata(ctx);
         final ParserRuleContext parent = precenmd.parent;
-        final ExternalMetadata parentemd = adapter.getExternalMetadata(parent);
+        final ExternalMetadata parentemd = metadata.getExternalMetadata(parent);
 
         final ExtprecContext precctx = ctx.extprec();
         final ExtcastContext castctx = ctx.extcast();
@@ -1528,22 +1634,22 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
         }
 
         if (precctx != null) {
-            adapter.createExtNodeMetadata(parent, precctx);
+            metadata.createExtNodeMetadata(parent, precctx);
             visit(precctx);
         } else if (castctx != null) {
-            adapter.createExtNodeMetadata(parent, castctx);
+            metadata.createExtNodeMetadata(parent, castctx);
             visit(castctx);
         } else if (typectx != null) {
-            adapter.createExtNodeMetadata(parent, typectx);
+            metadata.createExtNodeMetadata(parent, typectx);
             visit(typectx);
         } else if (varctx != null) {
-            adapter.createExtNodeMetadata(parent, varctx);
+            metadata.createExtNodeMetadata(parent, varctx);
             visit(varctx);
         } else if (newctx != null) {
-            adapter.createExtNodeMetadata(parent, newctx);
+            metadata.createExtNodeMetadata(parent, newctx);
             visit(newctx);
         } else if (stringctx != null) {
-            adapter.createExtNodeMetadata(ctx, stringctx);
+            metadata.createExtNodeMetadata(ctx, stringctx);
             visit(stringctx);
         } else {
             throw new IllegalStateException(error(ctx) + "Unexpected parser state.");
@@ -1554,12 +1660,12 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
         if (dotctx != null) {
             --parentemd.scope;
 
-            adapter.createExtNodeMetadata(parent, dotctx);
+            metadata.createExtNodeMetadata(parent, dotctx);
             visit(dotctx);
         } else if (bracectx != null) {
             --parentemd.scope;
 
-            adapter.createExtNodeMetadata(parent, bracectx);
+            metadata.createExtNodeMetadata(parent, bracectx);
             visit(bracectx);
         }
 
@@ -1568,9 +1674,9 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
 
     @Override
     public Void visitExtcast(final ExtcastContext ctx) {
-        final ExtNodeMetadata castenmd = adapter.getExtNodeMetadata(ctx);
+        final ExtNodeMetadata castenmd = metadata.getExtNodeMetadata(ctx);
         final ParserRuleContext parent = castenmd.parent;
-        final ExternalMetadata parentemd = adapter.getExternalMetadata(parent);
+        final ExternalMetadata parentemd = metadata.getExternalMetadata(parent);
 
         final ExtprecContext precctx = ctx.extprec();
         final ExtcastContext castctx = ctx.extcast();
@@ -1580,29 +1686,29 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
         final ExtstringContext stringctx = ctx.extstring();
 
         if (precctx != null) {
-            adapter.createExtNodeMetadata(parent, precctx);
+            metadata.createExtNodeMetadata(parent, precctx);
             visit(precctx);
         } else if (castctx != null) {
-            adapter.createExtNodeMetadata(parent, castctx);
+            metadata.createExtNodeMetadata(parent, castctx);
             visit(castctx);
         } else if (typectx != null) {
-            adapter.createExtNodeMetadata(parent, typectx);
+            metadata.createExtNodeMetadata(parent, typectx);
             visit(typectx);
         } else if (varctx != null) {
-            adapter.createExtNodeMetadata(parent, varctx);
+            metadata.createExtNodeMetadata(parent, varctx);
             visit(varctx);
         } else if (newctx != null) {
-            adapter.createExtNodeMetadata(parent, newctx);
+            metadata.createExtNodeMetadata(parent, newctx);
             visit(newctx);
         } else if (stringctx != null) {
-            adapter.createExtNodeMetadata(ctx, stringctx);
+            metadata.createExtNodeMetadata(ctx, stringctx);
             visit(stringctx);
         } else {
             throw new IllegalStateException(error(ctx) + "Unexpected parser state.");
         }
 
         final DecltypeContext declctx = ctx.decltype();
-        final ExpressionMetadata declemd = adapter.createExpressionMetadata(declctx);
+        final ExpressionMetadata declemd = metadata.createExpressionMetadata(declctx);
         visit(declctx);
 
         castenmd.castTo = getLegalCast(ctx, parentemd.current, declemd.from, true);
@@ -1615,9 +1721,9 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
 
     @Override
     public Void visitExtbrace(final ExtbraceContext ctx) {
-        final ExtNodeMetadata braceenmd = adapter.getExtNodeMetadata(ctx);
+        final ExtNodeMetadata braceenmd = metadata.getExtNodeMetadata(ctx);
         final ParserRuleContext parent = braceenmd.parent;
-        final ExternalMetadata parentemd = adapter.getExternalMetadata(parent);
+        final ExternalMetadata parentemd = metadata.getExternalMetadata(parent);
 
         final boolean array = parentemd.current.sort == Sort.ARRAY;
         final boolean def = parentemd.current.sort == Sort.DEF;
@@ -1643,8 +1749,8 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
 
         braceenmd.last = parentemd.scope == 0 && dotctx == null && bracectx == null;
 
-        final ExpressionContext exprctx = adapter.updateExpressionTree(ctx.expression());
-        final ExpressionMetadata expremd = adapter.createExpressionMetadata(exprctx);
+        final ExpressionContext exprctx = metadata.updateExpressionTree(ctx.expression());
+        final ExpressionMetadata expremd = metadata.createExpressionMetadata(exprctx);
 
         if (array || def) {
             expremd.to = array ? definition.intType : definition.objectType;
@@ -1653,15 +1759,15 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
 
             braceenmd.target = "#brace";
             braceenmd.type = def ? definition.defType :
-                    definition.getType(parentemd.current.struct, parentemd.current.type.getDimensions() - 1);
+                definition.getType(parentemd.current.struct, parentemd.current.type.getDimensions() - 1);
             analyzeLoadStoreExternal(ctx);
             parentemd.current = braceenmd.type;
 
             if (dotctx != null) {
-                adapter.createExtNodeMetadata(parent, dotctx);
+                metadata.createExtNodeMetadata(parent, dotctx);
                 visit(dotctx);
             } else if (bracectx != null) {
-                adapter.createExtNodeMetadata(parent, bracectx);
+                metadata.createExtNodeMetadata(parent, bracectx);
                 visit(bracectx);
             }
         } else {
@@ -1680,16 +1786,16 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
 
                 if (getter != null && (getter.rtn.sort == Sort.VOID || getter.arguments.size() != 1)) {
                     throw new IllegalArgumentException(error(ctx) +
-                            "Illegal map get shortcut for type [" + parentemd.current.name + "].");
+                        "Illegal map get shortcut for type [" + parentemd.current.name + "].");
                 }
 
                 if (setter != null && setter.arguments.size() != 2) {
                     throw new IllegalArgumentException(error(ctx) +
-                            "Illegal map set shortcut for type [" + parentemd.current.name + "].");
+                        "Illegal map set shortcut for type [" + parentemd.current.name + "].");
                 }
 
                 if (getter != null && setter != null && (!getter.arguments.get(0).equals(setter.arguments.get(0))
-                        || !getter.rtn.equals(setter.arguments.get(1)))) {
+                    || !getter.rtn.equals(setter.arguments.get(1)))) {
                     throw new IllegalArgumentException(error(ctx) + "Shortcut argument types must match.");
                 }
 
@@ -1697,21 +1803,21 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
                 settype = setter == null ? null : setter.arguments.get(1);
             } else if (list) {
                 getter = parentemd.current.struct.methods.get("get");
-                setter = parentemd.current.struct.methods.get("add");
+                setter = parentemd.current.struct.methods.get("set");
 
                 if (getter != null && (getter.rtn.sort == Sort.VOID || getter.arguments.size() != 1 ||
-                        getter.arguments.get(0).sort != Sort.INT)) {
+                    getter.arguments.get(0).sort != Sort.INT)) {
                     throw new IllegalArgumentException(error(ctx) +
-                            "Illegal list get shortcut for type [" + parentemd.current.name + "].");
+                        "Illegal list get shortcut for type [" + parentemd.current.name + "].");
                 }
 
                 if (setter != null && (setter.arguments.size() != 2 || setter.arguments.get(0).sort != Sort.INT)) {
                     throw new IllegalArgumentException(error(ctx) +
-                            "Illegal list set shortcut for type [" + parentemd.current.name + "].");
+                        "Illegal list set shortcut for type [" + parentemd.current.name + "].");
                 }
 
                 if (getter != null && setter != null && (!getter.arguments.get(0).equals(setter.arguments.get(0))
-                        || !getter.rtn.equals(setter.arguments.get(1)))) {
+                    || !getter.rtn.equals(setter.arguments.get(1)))) {
                     throw new IllegalArgumentException(error(ctx) + "Shortcut argument types must match.");
                 }
 
@@ -1735,7 +1841,7 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
 
         if (braceenmd.target == null) {
             throw new IllegalArgumentException(error(ctx) +
-                    "Attempting to address a non-array type [" + parentemd.current.name + "] as an array.");
+                "Attempting to address a non-array type [" + parentemd.current.name + "] as an array.");
         }
 
         return null;
@@ -1743,17 +1849,17 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
 
     @Override
     public Void visitExtdot(final ExtdotContext ctx) {
-        final ExtNodeMetadata dotemnd = adapter.getExtNodeMetadata(ctx);
+        final ExtNodeMetadata dotemnd = metadata.getExtNodeMetadata(ctx);
         final ParserRuleContext parent = dotemnd.parent;
 
         final ExtcallContext callctx = ctx.extcall();
         final ExtfieldContext fieldctx = ctx.extfield();
 
         if (callctx != null) {
-            adapter.createExtNodeMetadata(parent, callctx);
+            metadata.createExtNodeMetadata(parent, callctx);
             visit(callctx);
         } else if (fieldctx != null) {
-            adapter.createExtNodeMetadata(parent, fieldctx);
+            metadata.createExtNodeMetadata(parent, fieldctx);
             visit(fieldctx);
         }
 
@@ -1762,9 +1868,9 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
 
     @Override
     public Void visitExttype(final ExttypeContext ctx) {
-        final ExtNodeMetadata typeenmd = adapter.getExtNodeMetadata(ctx);
+        final ExtNodeMetadata typeenmd = metadata.getExtNodeMetadata(ctx);
         final ParserRuleContext parent = typeenmd.parent;
-        final ExternalMetadata parentemd = adapter.getExternalMetadata(parent);
+        final ExternalMetadata parentemd = metadata.getExternalMetadata(parent);
 
         if (parentemd.current != null) {
             throw new IllegalArgumentException(error(ctx) + "Unexpected static type.");
@@ -1776,7 +1882,7 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
         parentemd.statik = true;
 
         final ExtdotContext dotctx = ctx.extdot();
-        adapter.createExtNodeMetadata(parent, dotctx);
+        metadata.createExtNodeMetadata(parent, dotctx);
         visit(dotctx);
 
         return null;
@@ -1784,9 +1890,9 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
 
     @Override
     public Void visitExtcall(final ExtcallContext ctx) {
-        final ExtNodeMetadata callenmd = adapter.getExtNodeMetadata(ctx);
+        final ExtNodeMetadata callenmd = metadata.getExtNodeMetadata(ctx);
         final ParserRuleContext parent = callenmd.parent;
-        final ExternalMetadata parentemd = adapter.getExternalMetadata(parent);
+        final ExternalMetadata parentemd = metadata.getExternalMetadata(parent);
 
         final ExtdotContext dotctx = ctx.extdot();
         final ExtbraceContext bracectx = ctx.extbrace();
@@ -1811,7 +1917,7 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
 
         if (method == null && !def) {
             throw new IllegalArgumentException(
-                    error(ctx) + "Unknown call [" + name + "] on type [" + struct.name + "].");
+                error(ctx) + "Unknown call [" + name + "] on type [" + struct.name + "].");
         } else if (method != null) {
             types = new Type[method.arguments.size()];
             method.arguments.toArray(types);
@@ -1823,8 +1929,8 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
 
             if (size != types.length) {
                 throw new IllegalArgumentException(error(ctx) + "When calling [" + name + "] on type " +
-                        "[" + struct.name + "] expected [" + types.length + "] arguments," +
-                        " but found [" + arguments.size() + "].");
+                    "[" + struct.name + "] expected [" + types.length + "] arguments," +
+                    " but found [" + arguments.size() + "].");
             }
         } else {
             types = new Type[arguments.size()];
@@ -1837,8 +1943,8 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
         }
 
         for (int argument = 0; argument < size; ++argument) {
-            final ExpressionContext exprctx = adapter.updateExpressionTree(arguments.get(argument));
-            final ExpressionMetadata expremd = adapter.createExpressionMetadata(exprctx);
+            final ExpressionContext exprctx = metadata.updateExpressionTree(arguments.get(argument));
+            final ExpressionMetadata expremd = metadata.createExpressionMetadata(exprctx);
             expremd.to = types[argument];
             visit(exprctx);
             markCast(expremd);
@@ -1847,10 +1953,10 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
         parentemd.statik = false;
 
         if (dotctx != null) {
-            adapter.createExtNodeMetadata(parent, dotctx);
+            metadata.createExtNodeMetadata(parent, dotctx);
             visit(dotctx);
         } else if (bracectx != null) {
-            adapter.createExtNodeMetadata(parent, bracectx);
+            metadata.createExtNodeMetadata(parent, bracectx);
             visit(bracectx);
         }
 
@@ -1859,9 +1965,9 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
 
     @Override
     public Void visitExtvar(final ExtvarContext ctx) {
-        final ExtNodeMetadata varenmd = adapter.getExtNodeMetadata(ctx);
+        final ExtNodeMetadata varenmd = metadata.getExtNodeMetadata(ctx);
         final ParserRuleContext parent = varenmd.parent;
-        final ExternalMetadata parentemd = adapter.getExternalMetadata(parent);
+        final ExternalMetadata parentemd = metadata.getExternalMetadata(parent);
 
         final String name = ctx.ID().getText();
 
@@ -1886,10 +1992,10 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
         parentemd.current = varenmd.type;
 
         if (dotctx != null) {
-            adapter.createExtNodeMetadata(parent, dotctx);
+            metadata.createExtNodeMetadata(parent, dotctx);
             visit(dotctx);
         } else if (bracectx != null) {
-            adapter.createExtNodeMetadata(parent, bracectx);
+            metadata.createExtNodeMetadata(parent, bracectx);
             visit(bracectx);
         }
 
@@ -1898,9 +2004,9 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
 
     @Override
     public Void visitExtfield(final ExtfieldContext ctx) {
-        final ExtNodeMetadata memberenmd = adapter.getExtNodeMetadata(ctx);
+        final ExtNodeMetadata memberenmd = metadata.getExtNodeMetadata(ctx);
         final ParserRuleContext parent = memberenmd.parent;
-        final ExternalMetadata parentemd = adapter.getExternalMetadata(parent);
+        final ExternalMetadata parentemd = metadata.getExternalMetadata(parent);
 
         if (ctx.EXTID() == null && ctx.EXTINTEGER() == null) {
             throw new IllegalArgumentException(error(ctx) + "Unexpected parser state.");
@@ -1924,7 +2030,7 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
                     throw new IllegalArgumentException(error(ctx) + "Must read array field [length].");
                 } else if (store) {
                     throw new IllegalArgumentException(
-                            error(ctx) + "Cannot write to read-only array field [length].");
+                        error(ctx) + "Cannot write to read-only array field [length].");
                 }
 
                 memberenmd.target = "#length";
@@ -1945,7 +2051,7 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
             if (field != null) {
                 if (store && java.lang.reflect.Modifier.isFinal(field.reflect.getModifiers())) {
                     throw new IllegalArgumentException(error(ctx) + "Cannot write to read-only" +
-                            " field [" + value + "] for type [" + struct.name + "].");
+                        " field [" + value + "] for type [" + struct.name + "].");
                 }
 
                 memberenmd.target = field;
@@ -1962,12 +2068,12 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
 
                 if (getter != null && (getter.rtn.sort == Sort.VOID || !getter.arguments.isEmpty())) {
                     throw new IllegalArgumentException(error(ctx) +
-                            "Illegal get shortcut on field [" + value + "] for type [" + struct.name + "].");
+                        "Illegal get shortcut on field [" + value + "] for type [" + struct.name + "].");
                 }
 
                 if (setter != null && (setter.rtn.sort != Sort.VOID || setter.arguments.size() != 1)) {
                     throw new IllegalArgumentException(error(ctx) +
-                            "Illegal set shortcut on field [" + value + "] for type [" + struct.name + "].");
+                        "Illegal set shortcut on field [" + value + "] for type [" + struct.name + "].");
                 }
 
                 Type settype = setter == null ? null : setter.arguments.get(0);
@@ -1983,13 +2089,13 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
                             if (getter != null && (getter.rtn.sort == Sort.VOID || getter.arguments.size() != 1 ||
                                 getter.arguments.get(0).sort != Sort.STRING)) {
                                 throw new IllegalArgumentException(error(ctx) +
-                                        "Illegal map get shortcut [" + value + "] for type [" + struct.name + "].");
+                                    "Illegal map get shortcut [" + value + "] for type [" + struct.name + "].");
                             }
 
                             if (setter != null && (setter.arguments.size() != 2 ||
-                                    setter.arguments.get(0).sort != Sort.STRING)) {
+                                setter.arguments.get(0).sort != Sort.STRING)) {
                                 throw new IllegalArgumentException(error(ctx) +
-                                        "Illegal map set shortcut [" + value + "] for type [" + struct.name + "].");
+                                    "Illegal map set shortcut [" + value + "] for type [" + struct.name + "].");
                             }
 
                             if (getter != null && setter != null && !getter.rtn.equals(setter.arguments.get(1))) {
@@ -2006,18 +2112,18 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
                             parentemd.current.clazz.asSubclass(List.class);
 
                             getter = parentemd.current.struct.methods.get("get");
-                            setter = parentemd.current.struct.methods.get("add");
+                            setter = parentemd.current.struct.methods.get("set");
 
                             if (getter != null && (getter.rtn.sort == Sort.VOID || getter.arguments.size() != 1 ||
-                                    getter.arguments.get(0).sort != Sort.INT)) {
+                                getter.arguments.get(0).sort != Sort.INT)) {
                                 throw new IllegalArgumentException(error(ctx) +
-                                        "Illegal list get shortcut [" + value + "] for type [" + struct.name + "].");
+                                    "Illegal list get shortcut [" + value + "] for type [" + struct.name + "].");
                             }
 
                             if (setter != null && (setter.rtn.sort != Sort.VOID || setter.arguments.size() != 2 ||
-                                    setter.arguments.get(0).sort != Sort.INT)) {
+                                setter.arguments.get(0).sort != Sort.INT)) {
                                 throw new IllegalArgumentException(error(ctx) +
-                                        "Illegal list add shortcut [" + value + "] for type [" + struct.name + "].");
+                                    "Illegal list set shortcut [" + value + "] for type [" + struct.name + "].");
                             }
 
                             if (getter != null && setter != null && !getter.rtn.equals(setter.arguments.get(1))) {
@@ -2030,7 +2136,7 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
                                 constant = Integer.parseInt(value);
                             } catch (NumberFormatException exception) {
                                 throw new IllegalArgumentException(error(ctx) +
-                                        "Illegal list shortcut value [" + value + "].");
+                                    "Illegal list shortcut value [" + value + "].");
                             }
                         } catch (ClassCastException exception) {
                             //Do nothing.
@@ -2050,17 +2156,17 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
 
             if (memberenmd.target == null) {
                 throw new IllegalArgumentException(
-                        error(ctx) + "Unknown field [" + value + "] for type [" + struct.name + "].");
+                    error(ctx) + "Unknown field [" + value + "] for type [" + struct.name + "].");
             }
         }
 
         parentemd.statik = false;
 
         if (dotctx != null) {
-            adapter.createExtNodeMetadata(parent, dotctx);
+            metadata.createExtNodeMetadata(parent, dotctx);
             visit(dotctx);
         } else if (bracectx != null) {
-            adapter.createExtNodeMetadata(parent, bracectx);
+            metadata.createExtNodeMetadata(parent, bracectx);
             visit(bracectx);
         }
 
@@ -2069,9 +2175,9 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
 
     @Override
     public Void visitExtnew(ExtnewContext ctx) {
-        final ExtNodeMetadata newenmd = adapter.getExtNodeMetadata(ctx);
+        final ExtNodeMetadata newenmd = metadata.getExtNodeMetadata(ctx);
         final ParserRuleContext parent = newenmd.parent;
-        final ExternalMetadata parentemd = adapter.getExternalMetadata(parent);
+        final ExternalMetadata parentemd = metadata.getExternalMetadata(parent);
 
         final ExtdotContext dotctx = ctx.extdot();
         final ExtbraceContext bracectx = ctx.extbrace();
@@ -2129,7 +2235,7 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
                 parentemd.current = newenmd.type;
             } else {
                 throw new IllegalArgumentException(
-                        error(ctx) + "Unknown new call on type [" + struct.name + "].");
+                    error(ctx) + "Unknown new call on type [" + struct.name + "].");
             }
         } else {
             throw new IllegalArgumentException(error(ctx) + "Unknown parser state.");
@@ -2137,23 +2243,23 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
 
         if (size != types.length) {
             throw new IllegalArgumentException(error(ctx) + "When calling [" + name + "] on type " +
-                    "[" + struct.name + "] expected [" + types.length + "] arguments," +
-                    " but found [" + arguments.size() + "].");
+                "[" + struct.name + "] expected [" + types.length + "] arguments," +
+                " but found [" + arguments.size() + "].");
         }
 
         for (int argument = 0; argument < size; ++argument) {
-            final ExpressionContext exprctx = adapter.updateExpressionTree(arguments.get(argument));
-            final ExpressionMetadata expremd = adapter.createExpressionMetadata(exprctx);
+            final ExpressionContext exprctx = metadata.updateExpressionTree(arguments.get(argument));
+            final ExpressionMetadata expremd = metadata.createExpressionMetadata(exprctx);
             expremd.to = types[argument];
             visit(exprctx);
             markCast(expremd);
         }
 
         if (dotctx != null) {
-            adapter.createExtNodeMetadata(parent, dotctx);
+            metadata.createExtNodeMetadata(parent, dotctx);
             visit(dotctx);
         } else if (bracectx != null) {
-            adapter.createExtNodeMetadata(parent, bracectx);
+            metadata.createExtNodeMetadata(parent, bracectx);
             visit(bracectx);
         }
 
@@ -2162,9 +2268,9 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
 
     @Override
     public Void visitExtstring(final ExtstringContext ctx) {
-        final ExtNodeMetadata memberenmd = adapter.getExtNodeMetadata(ctx);
+        final ExtNodeMetadata memberenmd = metadata.getExtNodeMetadata(ctx);
         final ParserRuleContext parent = memberenmd.parent;
-        final ExternalMetadata parentemd = adapter.getExternalMetadata(parent);
+        final ExternalMetadata parentemd = metadata.getExternalMetadata(parent);
 
         final String string = ctx.STRING().getText();
 
@@ -2182,7 +2288,7 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
             throw new IllegalArgumentException(error(ctx) + "Must read String constant [" + string + "].");
         } else if (store) {
             throw new IllegalArgumentException(
-                    error(ctx) + "Cannot write to read-only String constant [" + string + "].");
+                error(ctx) + "Cannot write to read-only String constant [" + string + "].");
         }
 
         memberenmd.target = string;
@@ -2194,10 +2300,10 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
         }
 
         if (dotctx != null) {
-            adapter.createExtNodeMetadata(parent, dotctx);
+            metadata.createExtNodeMetadata(parent, dotctx);
             visit(dotctx);
         } else if (bracectx != null) {
-            adapter.createExtNodeMetadata(parent, bracectx);
+            metadata.createExtNodeMetadata(parent, bracectx);
             visit(bracectx);
         }
 
@@ -2211,7 +2317,7 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
 
     @Override
     public Void visitIncrement(IncrementContext ctx) {
-        final ExpressionMetadata incremd = adapter.getExpressionMetadata(ctx);
+        final ExpressionMetadata incremd = metadata.getExpressionMetadata(ctx);
         final Sort sort = incremd.to == null ? null : incremd.to.sort;
         final boolean positive = ctx.INCR() != null;
 
@@ -2242,13 +2348,13 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
     }
 
     private void analyzeLoadStoreExternal(final ParserRuleContext source) {
-        final ExtNodeMetadata extenmd = adapter.getExtNodeMetadata(source);
+        final ExtNodeMetadata extenmd = metadata.getExtNodeMetadata(source);
         final ParserRuleContext parent = extenmd.parent;
-        final ExternalMetadata parentemd = adapter.getExternalMetadata(parent);
+        final ExternalMetadata parentemd = metadata.getExternalMetadata(parent);
 
         if (extenmd.last && parentemd.storeExpr != null) {
             final ParserRuleContext store = parentemd.storeExpr;
-            final ExpressionMetadata storeemd = adapter.createExpressionMetadata(parentemd.storeExpr);
+            final ExpressionMetadata storeemd = metadata.createExpressionMetadata(parentemd.storeExpr);
             final int token = parentemd.token;
 
             if (token > 0) {
@@ -2259,12 +2365,12 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
                 final boolean decimal = token == MUL || token == DIV || token == REM || token == SUB;
 
                 extenmd.promote = add ? promoteAdd(extenmd.type, storeemd.from) :
-                                  xor ? promoteXor(extenmd.type, storeemd.from) :
-                                        promoteNumeric(extenmd.type, storeemd.from, decimal, true);
+                    xor ? promoteXor(extenmd.type, storeemd.from) :
+                        promoteNumeric(extenmd.type, storeemd.from, decimal, true);
 
                 if (extenmd.promote == null) {
                     throw new IllegalArgumentException("Cannot apply compound assignment to " +
-                            " types [" + extenmd.type.name + "] and [" + storeemd.from.name + "].");
+                        "types [" + extenmd.type.name + "] and [" + storeemd.from.name + "].");
                 }
 
                 extenmd.castFrom = getLegalCast(source, extenmd.type, extenmd.promote, false);
@@ -2722,7 +2828,7 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
             from.clazz.asSubclass(to.clazz);
 
             return cast;
-        } catch (ClassCastException cce0) {
+        } catch (final ClassCastException cce0) {
             try {
                 if (explicit) {
                     to.clazz.asSubclass(from.clazz);
@@ -2730,11 +2836,11 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
                     return cast;
                 } else {
                     throw new ClassCastException(
-                            error(source) + "Cannot cast from [" + from.name + "] to [" + to.name + "].");
-                }
-            } catch (ClassCastException cce1) {
-                throw new ClassCastException(
                         error(source) + "Cannot cast from [" + from.name + "] to [" + to.name + "].");
+                }
+            } catch (final ClassCastException cce1) {
+                throw new ClassCastException(
+                    error(source) + "Cannot cast from [" + from.name + "] to [" + to.name + "].");
             }
         }
     }
@@ -2744,7 +2850,7 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
 
         if (transform == null) {
             throw new ClassCastException(
-                    error(source) + "Cannot cast from [" + cast.from.name + "] to [" + cast.to.name + "].");
+                error(source) + "Cannot cast from [" + cast.from.name + "] to [" + cast.to.name + "].");
         }
 
         return transform;
@@ -2782,8 +2888,8 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
                 }
             } else {
                 throw new IllegalStateException(error(source) + "No valid constant cast from " +
-                        "[" + cast.from.clazz.getCanonicalName() + "] to " +
-                        "[" + cast.to.clazz.getCanonicalName() + "].");
+                    "[" + cast.from.clazz.getCanonicalName() + "] to " +
+                    "[" + cast.to.clazz.getCanonicalName() + "].");
             }
         }
     }
@@ -2800,10 +2906,10 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
                 return jmethod.invoke(object);
             }
         } catch (IllegalAccessException | IllegalArgumentException |
-                java.lang.reflect.InvocationTargetException | NullPointerException |
-                ExceptionInInitializerError exception) {
+            java.lang.reflect.InvocationTargetException | NullPointerException |
+            ExceptionInInitializerError exception) {
             throw new IllegalStateException(error(source) + "Unable to invoke transform to cast constant from " +
-                    "[" + transform.from.name + "] to [" + transform.to.name + "].");
+                "[" + transform.from.name + "] to [" + transform.to.name + "].");
         }
     }
 
@@ -2813,7 +2919,7 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
         if (sort == Sort.DEF) {
             return definition.defType;
         } else if ((sort == Sort.DOUBLE || sort == Sort.DOUBLE_OBJ || sort == Sort.NUMBER) && decimal) {
-             return primitive ? definition.doubleType : definition.doubleobjType;
+            return primitive ? definition.doubleType : definition.doubleobjType;
         } else if ((sort == Sort.FLOAT || sort == Sort.FLOAT_OBJ) && decimal) {
             return primitive ? definition.floatType : definition.floatobjType;
         } else if (sort == Sort.LONG || sort == Sort.LONG_OBJ || sort == Sort.NUMBER) {
@@ -2835,7 +2941,7 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
 
         if (decimal) {
             if (sort0 == Sort.DOUBLE || sort0 == Sort.DOUBLE_OBJ || sort0 == Sort.NUMBER ||
-                    sort1 == Sort.DOUBLE || sort1 == Sort.DOUBLE_OBJ || sort1 == Sort.NUMBER) {
+                sort1 == Sort.DOUBLE || sort1 == Sort.DOUBLE_OBJ || sort1 == Sort.NUMBER) {
                 return primitive ? definition.doubleType : definition.doubleobjType;
             } else if (sort0 == Sort.FLOAT || sort0 == Sort.FLOAT_OBJ || sort1 == Sort.FLOAT || sort1 == Sort.FLOAT_OBJ) {
                 return primitive ? definition.floatType : definition.floatobjType;
@@ -2843,8 +2949,8 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
         }
 
         if (sort0 == Sort.LONG || sort0 == Sort.LONG_OBJ || sort0 == Sort.NUMBER ||
-                sort1 == Sort.LONG || sort1 == Sort.LONG_OBJ || sort1 == Sort.NUMBER) {
-             return primitive ? definition.longType : definition.longobjType;
+            sort1 == Sort.LONG || sort1 == Sort.LONG_OBJ || sort1 == Sort.NUMBER) {
+            return primitive ? definition.longType : definition.longobjType;
         } else if (sort0.numeric && sort1.numeric) {
             return primitive ? definition.intType : definition.intobjType;
         }
@@ -2885,7 +2991,7 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
         final boolean primitive = sort0.primitive && sort1.primitive;
 
         if (sort0.bool && sort1.bool) {
-            return primitive ? definition.booleanType : definition.byteobjType;
+            return primitive ? definition.booleanType : definition.booleanobjType;
         }
 
         if (sort0.numeric && sort1.numeric) {

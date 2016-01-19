@@ -125,7 +125,7 @@ public class CancelAllocationCommand implements AllocationCommand {
 
     /**
      * Creates a new {@link CancelAllocationCommand}
-     * 
+     *
      * @param shardId id of the shard which allocation should be canceled
      * @param node id of the node that manages the shard which allocation should be canceled
      */

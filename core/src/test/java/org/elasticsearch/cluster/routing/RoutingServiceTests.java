@@ -69,7 +69,7 @@ public class RoutingServiceTests extends ESAllocationTestCase {
     public void testNoDelayedUnassigned() throws Exception {
         AllocationService allocation = createAllocationService(Settings.EMPTY, new DelayedShardsMockGatewayAllocator());
         MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT).put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING, "0"))
+                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT).put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "0"))
                         .numberOfShards(1).numberOfReplicas(1))
                 .build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
@@ -97,7 +97,7 @@ public class RoutingServiceTests extends ESAllocationTestCase {
     public void testDelayedUnassignedScheduleReroute() throws Exception {
         MockAllocationService allocation = createAllocationService(Settings.EMPTY, new DelayedShardsMockGatewayAllocator());
         MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT).put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING, "100ms"))
+                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT).put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms"))
                         .numberOfShards(1).numberOfReplicas(1))
                 .build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
@@ -144,9 +144,9 @@ public class RoutingServiceTests extends ESAllocationTestCase {
         try {
             MockAllocationService allocation = createAllocationService(Settings.EMPTY, new DelayedShardsMockGatewayAllocator());
             MetaData metaData = MetaData.builder()
-                    .put(IndexMetaData.builder("short_delay").settings(settings(Version.CURRENT).put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING, "100ms"))
+                    .put(IndexMetaData.builder("short_delay").settings(settings(Version.CURRENT).put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms"))
                             .numberOfShards(1).numberOfReplicas(1))
-                    .put(IndexMetaData.builder("long_delay").settings(settings(Version.CURRENT).put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING, "10s"))
+                    .put(IndexMetaData.builder("long_delay").settings(settings(Version.CURRENT).put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "10s"))
                             .numberOfShards(1).numberOfReplicas(1))
                     .build();
             ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metaData(metaData)

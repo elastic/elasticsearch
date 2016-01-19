@@ -32,7 +32,7 @@ import org.elasticsearch.gateway.GatewayAllocator;
 /**
  * The {@link ShardsAllocator} class offers methods for allocating shard within a cluster.
  * These methods include moving shards and re-balancing the cluster. It also allows management
- * of shards by their state. 
+ * of shards by their state.
  */
 public class ShardsAllocators extends AbstractComponent implements ShardsAllocator {
 

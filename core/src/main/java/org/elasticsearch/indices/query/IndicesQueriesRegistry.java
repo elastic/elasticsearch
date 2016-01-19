@@ -19,39 +19,18 @@
 
 package org.elasticsearch.indices.query;
 
-import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.NamedWriteable;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.query.EmptyQueryBuilder;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryParser;
-
-import java.util.HashMap;
 import java.util.Map;
-import java.util.Set;
 
-import static java.util.Collections.unmodifiableMap;
+import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.query.QueryParser;
 
 public class IndicesQueriesRegistry extends AbstractComponent {
     private Map<String, QueryParser<?>> queryParsers;
 
-    @Inject
-    public IndicesQueriesRegistry(Settings settings, Set<QueryParser> injectedQueryParsers, NamedWriteableRegistry namedWriteableRegistry) {
+    public IndicesQueriesRegistry(Settings settings, Map<String, QueryParser<?>> queryParsers) {
         super(settings);
-        Map<String, QueryParser<?>> queryParsers = new HashMap<>();
-        for (@SuppressWarnings("unchecked") QueryParser<? extends QueryBuilder> queryParser : injectedQueryParsers) {
-            for (String name : queryParser.names()) {
-                queryParsers.put(name, queryParser);
-            }
-            @SuppressWarnings("unchecked") NamedWriteable<? extends QueryBuilder> qb = queryParser.getBuilderPrototype();
-            namedWriteableRegistry.registerPrototype(QueryBuilder.class, qb);
-        }
-        // EmptyQueryBuilder is not registered as query parser but used internally.
-        // We need to register it with the NamedWriteableRegistry in order to serialize it
-        namedWriteableRegistry.registerPrototype(QueryBuilder.class, EmptyQueryBuilder.PROTOTYPE);
-        this.queryParsers = unmodifiableMap(queryParsers);
+        this.queryParsers = queryParsers;
     }
 
     /**

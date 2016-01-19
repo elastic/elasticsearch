@@ -68,12 +68,6 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         assertTrue("shadow replicas for replica shards with shadow settings",IndexService.useShadowEngine(false, shadowSettings));
     }
 
-    public IndexService newIndexService() {
-        Settings settings = Settings.builder().put("name", "indexServiceTests").build();
-        return createIndex("test", settings);
-    }
-
-
     public static CompressedXContent filter(QueryBuilder filterBuilder) throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder();
         filterBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -82,7 +76,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testFilteringAliases() throws Exception {
-        IndexService indexService = newIndexService();
+        IndexService indexService = createIndex("test", Settings.EMPTY);
         IndexShard shard = indexService.getShard(0);
         add(indexService, "cats", filter(termQuery("animal", "cat")));
         add(indexService, "dogs", filter(termQuery("animal", "dog")));
@@ -106,7 +100,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testAliasFilters() throws Exception {
-        IndexService indexService = newIndexService();
+        IndexService indexService = createIndex("test", Settings.EMPTY);
         IndexShard shard = indexService.getShard(0);
 
         add(indexService, "cats", filter(termQuery("animal", "cat")));
@@ -123,7 +117,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testRemovedAliasFilter() throws Exception {
-        IndexService indexService = newIndexService();
+        IndexService indexService = createIndex("test", Settings.EMPTY);
         IndexShard shard = indexService.getShard(0);
 
         add(indexService, "cats", filter(termQuery("animal", "cat")));
@@ -137,7 +131,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testUnknownAliasFilter() throws Exception {
-        IndexService indexService = newIndexService();
+        IndexService indexService = createIndex("test", Settings.EMPTY);
         IndexShard shard = indexService.getShard(0);
 
         add(indexService, "cats", filter(termQuery("animal", "cat")));
@@ -162,7 +156,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testBaseAsyncTask() throws InterruptedException, IOException {
-        IndexService indexService = newIndexService();
+        IndexService indexService = createIndex("test", Settings.EMPTY);
         AtomicReference<CountDownLatch> latch = new AtomicReference<>(new CountDownLatch(1));
         AtomicReference<CountDownLatch> latch2 = new AtomicReference<>(new CountDownLatch(1));
         final AtomicInteger count = new AtomicInteger();
@@ -221,13 +215,13 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testRefreshTaskIsUpdated() throws IOException {
-        IndexService indexService = newIndexService();
+        IndexService indexService = createIndex("test", Settings.EMPTY);
         IndexService.AsyncRefreshTask refreshTask = indexService.getRefreshTask();
         assertEquals(1000, refreshTask.getInterval().millis());
         assertTrue(indexService.getRefreshTask().mustReschedule());
 
         // now disable
-        IndexMetaData metaData = IndexMetaData.builder(indexService.getMetaData()).settings(Settings.builder().put(indexService.getMetaData().getSettings()).put(IndexSettings.INDEX_REFRESH_INTERVAL, -1)).build();
+        IndexMetaData metaData = IndexMetaData.builder(indexService.getMetaData()).settings(Settings.builder().put(indexService.getMetaData().getSettings()).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)).build();
         indexService.updateMetaData(metaData);
         assertNotSame(refreshTask, indexService.getRefreshTask());
         assertTrue(refreshTask.isClosed());
@@ -235,7 +229,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         assertFalse(indexService.getRefreshTask().mustReschedule());
 
         // set it to 100ms
-        metaData = IndexMetaData.builder(indexService.getMetaData()).settings(Settings.builder().put(indexService.getMetaData().getSettings()).put(IndexSettings.INDEX_REFRESH_INTERVAL, "100ms")).build();
+        metaData = IndexMetaData.builder(indexService.getMetaData()).settings(Settings.builder().put(indexService.getMetaData().getSettings()).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "100ms")).build();
         indexService.updateMetaData(metaData);
         assertNotSame(refreshTask, indexService.getRefreshTask());
         assertTrue(refreshTask.isClosed());
@@ -246,7 +240,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         assertEquals(100, refreshTask.getInterval().millis());
 
         // set it to 200ms
-        metaData = IndexMetaData.builder(indexService.getMetaData()).settings(Settings.builder().put(indexService.getMetaData().getSettings()).put(IndexSettings.INDEX_REFRESH_INTERVAL, "200ms")).build();
+        metaData = IndexMetaData.builder(indexService.getMetaData()).settings(Settings.builder().put(indexService.getMetaData().getSettings()).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "200ms")).build();
         indexService.updateMetaData(metaData);
         assertNotSame(refreshTask, indexService.getRefreshTask());
         assertTrue(refreshTask.isClosed());
@@ -257,7 +251,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         assertEquals(200, refreshTask.getInterval().millis());
 
         // set it to 200ms again
-        metaData = IndexMetaData.builder(indexService.getMetaData()).settings(Settings.builder().put(indexService.getMetaData().getSettings()).put(IndexSettings.INDEX_REFRESH_INTERVAL, "200ms")).build();
+        metaData = IndexMetaData.builder(indexService.getMetaData()).settings(Settings.builder().put(indexService.getMetaData().getSettings()).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "200ms")).build();
         indexService.updateMetaData(metaData);
         assertSame(refreshTask, indexService.getRefreshTask());
         assertTrue(indexService.getRefreshTask().mustReschedule());
@@ -270,7 +264,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testFsyncTaskIsRunning() throws IOException {
-        IndexService indexService = newIndexService();
+        IndexService indexService = createIndex("test", Settings.EMPTY);
         IndexService.AsyncTranslogFSync fsyncTask = indexService.getFsyncTask();
         assertNotNull(fsyncTask);
         assertEquals(5000, fsyncTask.getInterval().millis());
@@ -283,14 +277,14 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testRefreshActuallyWorks() throws Exception {
-        IndexService indexService = newIndexService();
+        IndexService indexService = createIndex("test", Settings.EMPTY);
         ensureGreen("test");
         IndexService.AsyncRefreshTask refreshTask = indexService.getRefreshTask();
         assertEquals(1000, refreshTask.getInterval().millis());
         assertTrue(indexService.getRefreshTask().mustReschedule());
 
         // now disable
-        IndexMetaData metaData = IndexMetaData.builder(indexService.getMetaData()).settings(Settings.builder().put(indexService.getMetaData().getSettings()).put(IndexSettings.INDEX_REFRESH_INTERVAL, -1)).build();
+        IndexMetaData metaData = IndexMetaData.builder(indexService.getMetaData()).settings(Settings.builder().put(indexService.getMetaData().getSettings()).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)).build();
         indexService.updateMetaData(metaData);
         client().prepareIndex("test", "test", "1").setSource("{\"foo\": \"bar\"}").get();
         IndexShard shard = indexService.getShard(0);
@@ -299,7 +293,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
             assertEquals(0, search.totalHits);
         }
         // refresh every millisecond
-        metaData = IndexMetaData.builder(indexService.getMetaData()).settings(Settings.builder().put(indexService.getMetaData().getSettings()).put(IndexSettings.INDEX_REFRESH_INTERVAL, "1ms")).build();
+        metaData = IndexMetaData.builder(indexService.getMetaData()).settings(Settings.builder().put(indexService.getMetaData().getSettings()).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "1ms")).build();
         indexService.updateMetaData(metaData);
         assertBusy(() -> {
             try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
@@ -313,8 +307,8 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
 
     public void testAsyncFsyncActuallyWorks() throws Exception {
         Settings settings = Settings.builder()
-            .put(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL, "10ms") // very often :)
-            .put(IndexSettings.INDEX_TRANSLOG_DURABILITY, Translog.Durability.ASYNC)
+            .put(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey(), "10ms") // very often :)
+            .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.ASYNC)
             .build();
         IndexService indexService = createIndex("test", settings);
         ensureGreen("test");
@@ -328,7 +322,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
 
     public void testNoFsyncTaskIfDisabled() {
         Settings settings = Settings.builder()
-            .put(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL, "0ms") // disable
+            .put(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey(), "0ms") // disable
             .build();
         IndexService indexService = createIndex("test", settings);
         assertNull(indexService.getFsyncTask());

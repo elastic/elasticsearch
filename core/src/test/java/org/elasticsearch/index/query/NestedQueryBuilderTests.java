@@ -52,7 +52,7 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
                 DATE_FIELD_NAME, "type=date",
                 OBJECT_FIELD_NAME, "type=object",
                 "nested1", "type=nested"
-        ).string()), false, false);
+        ).string()), MapperService.MergeReason.MAPPING_UPDATE, false);
     }
 
     @Override

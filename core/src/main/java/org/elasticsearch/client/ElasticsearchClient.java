@@ -40,7 +40,8 @@ public interface ElasticsearchClient {
      * @param <RequestBuilder> The request builder type.
      * @return A future allowing to get back the response.
      */
-    <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> ActionFuture<Response> execute(final Action<Request, Response, RequestBuilder> action, final Request request);
+    <Request extends ActionRequest<Request>, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> ActionFuture<Response> execute(
+            final Action<Request, Response, RequestBuilder> action, final Request request);
 
     /**
      * Executes a generic action, denoted by an {@link Action}.
@@ -52,7 +53,8 @@ public interface ElasticsearchClient {
      * @param <Response>       The response type.
      * @param <RequestBuilder> The request builder type.
      */
-    <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void execute(final Action<Request, Response, RequestBuilder> action, final Request request, ActionListener<Response> listener);
+    <Request extends ActionRequest<Request>, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void execute(
+            final Action<Request, Response, RequestBuilder> action, final Request request, ActionListener<Response> listener);
 
     /**
      * Prepares a request builder to execute, specified by {@link Action}.
@@ -63,7 +65,8 @@ public interface ElasticsearchClient {
      * @param <RequestBuilder> The request builder.
      * @return The request builder, that can, at a later stage, execute the request.
      */
-    <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> RequestBuilder prepareExecute(final Action<Request, Response, RequestBuilder> action);
+    <Request extends ActionRequest<Request>, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> RequestBuilder prepareExecute(
+            final Action<Request, Response, RequestBuilder> action);
 
     /**
      * Returns the threadpool used to execute requests on this client

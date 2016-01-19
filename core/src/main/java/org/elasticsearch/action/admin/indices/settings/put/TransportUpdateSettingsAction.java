@@ -62,7 +62,7 @@ public class TransportUpdateSettingsAction extends TransportMasterNodeAction<Upd
         if (globalBlock != null) {
             return globalBlock;
         }
-        if (request.settings().getAsMap().size() == 1 && (request.settings().get(IndexMetaData.SETTING_BLOCKS_METADATA) != null || request.settings().get(IndexMetaData.SETTING_READ_ONLY) != null )) {
+        if (request.settings().getAsMap().size() == 1 && IndexMetaData.INDEX_BLOCKS_METADATA_SETTING.exists(request.settings()) || IndexMetaData.INDEX_READ_ONLY_SETTING.exists(request.settings())) {
             return null;
         }
         return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, indexNameExpressionResolver.concreteIndices(state, request));

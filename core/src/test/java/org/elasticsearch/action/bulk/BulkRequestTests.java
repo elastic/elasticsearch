@@ -110,7 +110,7 @@ public class BulkRequestTests extends ESTestCase {
 
     public void testBulkAddIterable() {
         BulkRequest bulkRequest = Requests.bulkRequest();
-        List<ActionRequest> requests = new ArrayList<>();
+        List<ActionRequest<?>> requests = new ArrayList<>();
         requests.add(new IndexRequest("test", "test", "id").source("field", "value"));
         requests.add(new UpdateRequest("test", "test", "id").doc("field", "value"));
         requests.add(new DeleteRequest("test", "test", "id"));

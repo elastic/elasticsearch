@@ -61,6 +61,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.Callback;
@@ -81,6 +82,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.sql.Time;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -126,7 +128,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     static final int VERSION_START = 0;
     static final int VERSION = VERSION_WRITE_THROWABLE;
     static final String CORRUPTED = "corrupted_";
-    public static final String INDEX_STORE_STATS_REFRESH_INTERVAL = "index.store.stats_refresh_interval";
+    public static final Setting<TimeValue> INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING = Setting.timeSetting("index.store.stats_refresh_interval", TimeValue.timeValueSeconds(10), false, Setting.Scope.INDEX);
 
     private final AtomicBoolean isClosed = new AtomicBoolean(false);
     private final StoreDirectory directory;
@@ -154,7 +156,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         this.directory = new StoreDirectory(directoryService.newDirectory(), Loggers.getLogger("index.store.deletes", settings, shardId));
         this.shardLock = shardLock;
         this.onClose = onClose;
-        final TimeValue refreshInterval = settings.getAsTime(INDEX_STORE_STATS_REFRESH_INTERVAL, TimeValue.timeValueSeconds(10));
+        final TimeValue refreshInterval = indexSettings.getValue(INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING);
         this.statsCache = new StoreStatsCache(refreshInterval, directory, directoryService);
         logger.debug("store stats are refreshed with refresh_interval [{}]", refreshInterval);
 

@@ -42,7 +42,7 @@ public class PluginsServiceTests extends ESTestCase {
         }
         @Override
         public Settings additionalSettings() {
-            return Settings.builder().put("foo.bar", "1").put(IndexModule.STORE_TYPE, IndexModule.Type.MMAPFS.getSettingsKey()).build();
+            return Settings.builder().put("foo.bar", "1").put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.MMAPFS.getSettingsKey()).build();
         }
     }
     public static class AdditionalSettingsPlugin2 extends Plugin {
@@ -90,12 +90,12 @@ public class PluginsServiceTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put("path.home", createTempDir())
             .put("my.setting", "test")
-            .put(IndexModule.STORE_TYPE, IndexModule.Type.SIMPLEFS.getSettingsKey()).build();
+            .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.SIMPLEFS.getSettingsKey()).build();
         PluginsService service = newPluginsService(settings, AdditionalSettingsPlugin1.class);
         Settings newSettings = service.updatedSettings();
         assertEquals("test", newSettings.get("my.setting")); // previous settings still exist
         assertEquals("1", newSettings.get("foo.bar")); // added setting exists
-        assertEquals(IndexModule.Type.SIMPLEFS.getSettingsKey(), newSettings.get(IndexModule.STORE_TYPE)); // does not override pre existing settings
+        assertEquals(IndexModule.Type.SIMPLEFS.getSettingsKey(), newSettings.get(IndexModule.INDEX_STORE_TYPE_SETTING.getKey())); // does not override pre existing settings
     }
 
     public void testAdditionalSettingsClash() {

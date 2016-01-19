@@ -384,12 +384,6 @@ public class SumIT extends AbstractNumericTestCase {
                     final LeafSearchLookup leafLookup = lookup.getLeafSearchLookup(context);
 
                     return new LeafSearchScript() {
-
-                        @Override
-                        public Object unwrap(Object value) {
-                            return null;
-                        }
-
                         @Override
                         public void setNextVar(String name, Object value) {
                         }

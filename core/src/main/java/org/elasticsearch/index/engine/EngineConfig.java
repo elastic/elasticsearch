@@ -25,6 +25,7 @@ import org.apache.lucene.index.SnapshotDeletionPolicy;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.similarities.Similarity;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -37,6 +38,8 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.threadpool.ThreadPool;
+
+import java.util.Set;
 
 /*
  * Holds all the configuration that is used to create an {@link Engine}.
@@ -64,16 +67,30 @@ public final class EngineConfig {
     private final QueryCache queryCache;
     private final QueryCachingPolicy queryCachingPolicy;
 
+    static {
+
+    }
     /**
      * Index setting to change the low level lucene codec used for writing new segments.
      * This setting is <b>not</b> realtime updateable.
      */
-    public static final String INDEX_CODEC_SETTING = "index.codec";
+    public static final Setting<String> INDEX_CODEC_SETTING = new Setting<>("index.codec", "default", (s) -> {
+        switch(s) {
+            case "default":
+            case "best_compression":
+            case "lucene_default":
+                return s;
+            default:
+                if (Codec.availableCodecs().contains(s) == false) { // we don't error message the not officially supported ones
+                    throw new IllegalArgumentException("unknown value for [index.codec] must be one of [default, best_compression] but was: " + s);
+                }
+                return s;
+        }
+    }, false, Setting.Scope.INDEX);
 
     /** if set to true the engine will start even if the translog id in the commit point can not be found */
     public static final String INDEX_FORCE_NEW_TRANSLOG = "index.engine.force_new_translog";
 
-    private static final String DEFAULT_CODEC_NAME = "default";
     private TranslogConfig translogConfig;
     private boolean create = false;
 
@@ -97,7 +114,7 @@ public final class EngineConfig {
         this.similarity = similarity;
         this.codecService = codecService;
         this.eventListener = eventListener;
-        codecName = settings.get(EngineConfig.INDEX_CODEC_SETTING, EngineConfig.DEFAULT_CODEC_NAME);
+        codecName = indexSettings.getValue(INDEX_CODEC_SETTING);
         // We give IndexWriter a "huge" (256 MB) buffer, so it won't flush on its own unless the ES indexing buffer is also huge and/or
         // there are not too many shards allocated to this node.  Instead, IndexingMemoryController periodically checks
         // and refreshes the most heap-consuming shards when total indexing heap usage across all shards is too high:

@@ -35,11 +35,14 @@ import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.geo.RandomGeoGenerator;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
@@ -52,6 +55,12 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return pluginList(InternalSettingsPlugin.class);
+    }
+
     public void testLatLonValues() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", true).endObject().endObject()
@@ -662,12 +671,12 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
                 .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", true)
                 .field("geohash", true).endObject().endObject().endObject().endObject().string();
         MapperService mapperService = createIndex("test", settings).mapperService();
-        DocumentMapper stage1 = mapperService.merge("type", new CompressedXContent(stage1Mapping), true, false);
+        DocumentMapper stage1 = mapperService.merge("type", new CompressedXContent(stage1Mapping), MapperService.MergeReason.MAPPING_UPDATE, false);
         String stage2Mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", false)
                 .field("geohash", false).endObject().endObject().endObject().endObject().string();
         try {
-            mapperService.merge("type", new CompressedXContent(stage2Mapping), false, false);
+            mapperService.merge("type", new CompressedXContent(stage2Mapping), MapperService.MergeReason.MAPPING_UPDATE, false);
             fail();
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("mapper [point] has different [lat_lon]"));
@@ -679,7 +688,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         stage2Mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", true)
                 .field("geohash", true).endObject().endObject().endObject().endObject().string();
-        mapperService.merge("type", new CompressedXContent(stage2Mapping), false, false);
+        mapperService.merge("type", new CompressedXContent(stage2Mapping), MapperService.MergeReason.MAPPING_UPDATE, false);
     }
 
     public void testGeoHashSearch() throws Exception {

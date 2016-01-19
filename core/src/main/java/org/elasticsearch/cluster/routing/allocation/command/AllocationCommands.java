@@ -67,7 +67,9 @@ public class AllocationCommands {
     }
 
     static {
-        registerFactory(AllocateAllocationCommand.NAME, new AllocateAllocationCommand.Factory());
+        registerFactory(AllocateEmptyPrimaryAllocationCommand.NAME, new AllocateEmptyPrimaryAllocationCommand.Factory());
+        registerFactory(AllocateStalePrimaryAllocationCommand.NAME, new AllocateStalePrimaryAllocationCommand.Factory());
+        registerFactory(AllocateReplicaAllocationCommand.NAME, new AllocateReplicaAllocationCommand.Factory());
         registerFactory(CancelAllocationCommand.NAME, new CancelAllocationCommand.Factory());
         registerFactory(MoveAllocationCommand.NAME, new MoveAllocationCommand.Factory());
     }
@@ -76,7 +78,7 @@ public class AllocationCommands {
 
     /**
      * Creates a new set of {@link AllocationCommands}
-     *   
+     *
      * @param commands {@link AllocationCommand}s that are wrapped by this instance
      */
     public AllocationCommands(AllocationCommand... commands) {
@@ -122,7 +124,7 @@ public class AllocationCommands {
      * Reads a {@link AllocationCommands} from a {@link StreamInput}
      * @param in {@link StreamInput} to read from
      * @return {@link AllocationCommands} read
-     * 
+     *
      * @throws IOException if something happens during read
      */
     public static AllocationCommands readFrom(StreamInput in) throws IOException {
@@ -137,7 +139,7 @@ public class AllocationCommands {
 
     /**
      * Writes {@link AllocationCommands} to a {@link StreamOutput}
-     * 
+     *
      * @param commands Commands to write
      * @param out {@link StreamOutput} to write the commands to
      * @throws IOException if something happens during write
@@ -149,7 +151,7 @@ public class AllocationCommands {
             lookupFactorySafe(command.name()).writeTo(command, out);
         }
     }
-    
+
     /**
      * Reads {@link AllocationCommands} from a {@link XContentParser}
      * <pre>
@@ -161,7 +163,7 @@ public class AllocationCommands {
      * </pre>
      * @param parser {@link XContentParser} to read the commands from
      * @return {@link AllocationCommands} read
-     * @throws IOException if something bad happens while reading the stream 
+     * @throws IOException if something bad happens while reading the stream
      */
     public static AllocationCommands fromXContent(XContentParser parser) throws IOException {
         AllocationCommands commands = new AllocationCommands();
@@ -203,10 +205,10 @@ public class AllocationCommands {
         }
         return commands;
     }
-    
+
     /**
      * Writes {@link AllocationCommands} to a {@link XContentBuilder}
-     * 
+     *
      * @param commands {@link AllocationCommands} to write
      * @param builder {@link XContentBuilder} to use
      * @param params Parameters to use for building

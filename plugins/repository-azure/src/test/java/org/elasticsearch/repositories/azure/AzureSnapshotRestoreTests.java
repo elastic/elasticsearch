@@ -86,8 +86,8 @@ public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyTestCa
         // During restore we frequently restore index to exactly the same state it was before, that might cause the same
         // checksum file to be written twice during restore operation
         return Settings.builder().put(super.indexSettings())
-                .put(MockFSDirectoryService.RANDOM_PREVENT_DOUBLE_WRITE, false)
-                .put(MockFSDirectoryService.RANDOM_NO_DELETE_OPEN_FILE, false)
+                .put(MockFSDirectoryService.RANDOM_PREVENT_DOUBLE_WRITE_SETTING.getKey(), false)
+                .put(MockFSDirectoryService.RANDOM_NO_DELETE_OPEN_FILE_SETTING.getKey(), false)
                 .build();
     }
 

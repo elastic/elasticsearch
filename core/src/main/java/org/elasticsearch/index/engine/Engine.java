@@ -1065,7 +1065,7 @@ public abstract class Engine implements Closeable {
         }
     }
 
-    public static class CommitId implements Writeable {
+    public static class CommitId implements Writeable<CommitId> {
 
         private final byte[] id;
 

@@ -32,6 +32,7 @@ import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -51,6 +52,7 @@ import java.util.List;
  *
  */
 public abstract class NumberFieldMapper extends FieldMapper implements AllFieldMapper.IncludeInAll {
+    private static final Setting<Boolean> COERCE_SETTING = Setting.boolSetting("index.mapping.coerce", true, false, Setting.Scope.INDEX); // this is private since it has a different default
 
     public static class Defaults {
 
@@ -89,7 +91,7 @@ public abstract class NumberFieldMapper extends FieldMapper implements AllFieldM
                 return new Explicit<>(ignoreMalformed, true);
             }
             if (context.indexSettings() != null) {
-                return new Explicit<>(context.indexSettings().getAsBoolean("index.mapping.ignore_malformed", Defaults.IGNORE_MALFORMED.value()), false);
+                return new Explicit<>(IGNORE_MALFORMED_SETTING.get(context.indexSettings()), false);
             }
             return Defaults.IGNORE_MALFORMED;
         }
@@ -104,7 +106,7 @@ public abstract class NumberFieldMapper extends FieldMapper implements AllFieldM
                 return new Explicit<>(coerce, true);
             }
             if (context.indexSettings() != null) {
-                return new Explicit<>(context.indexSettings().getAsBoolean("index.mapping.coerce", Defaults.COERCE.value()), false);
+                return new Explicit<>(COERCE_SETTING.get(context.indexSettings()), false);
             }
             return Defaults.COERCE;
         }

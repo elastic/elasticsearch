@@ -30,9 +30,12 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.core.LongFieldMapper;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.InternalSettingsPlugin;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.LinkedHashMap;
 
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
@@ -41,6 +44,11 @@ import static org.hamcrest.CoreMatchers.equalTo;
 
 
 public class UpdateMappingTests extends ESSingleNodeTestCase {
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return pluginList(InternalSettingsPlugin.class);
+    }
+
     public void testAllEnabledAfterDisabled() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("_all").field("enabled", false).endObject().endObject();
         XContentBuilder mappingUpdate = XContentFactory.jsonBuilder().startObject().startObject("_all").field("enabled", true).endObject().startObject("properties").startObject("text").field("type", "string").endObject().endObject().endObject();
@@ -76,7 +84,7 @@ public class UpdateMappingTests extends ESSingleNodeTestCase {
     private void testNoConflictWhileMergingAndMappingChanged(XContentBuilder mapping, XContentBuilder mappingUpdate, XContentBuilder expectedMapping) throws IOException {
         IndexService indexService = createIndex("test", Settings.settingsBuilder().build(), "type", mapping);
         // simulate like in MetaDataMappingService#putMapping
-        indexService.mapperService().merge("type", new CompressedXContent(mappingUpdate.bytes()), false, false);
+        indexService.mapperService().merge("type", new CompressedXContent(mappingUpdate.bytes()), MapperService.MergeReason.MAPPING_UPDATE, false);
         // make sure mappings applied
         CompressedXContent mappingAfterUpdate = indexService.mapperService().documentMapper("type").mappingSource();
         assertThat(mappingAfterUpdate.toString(), equalTo(expectedMapping.string()));
@@ -99,7 +107,7 @@ public class UpdateMappingTests extends ESSingleNodeTestCase {
         CompressedXContent mappingBeforeUpdate = indexService.mapperService().documentMapper("type").mappingSource();
         // simulate like in MetaDataMappingService#putMapping
         try {
-            indexService.mapperService().merge("type", new CompressedXContent(mappingUpdate.bytes()), true, false);
+            indexService.mapperService().merge("type", new CompressedXContent(mappingUpdate.bytes()), MapperService.MergeReason.MAPPING_UPDATE, false);
             fail();
         } catch (IllegalArgumentException e) {
             // expected
@@ -120,14 +128,14 @@ public class UpdateMappingTests extends ESSingleNodeTestCase {
                 .endObject().endObject().endObject();
 
         try {
-            mapperService.merge("type", new CompressedXContent(update.string()), false, false);
+            mapperService.merge("type", new CompressedXContent(update.string()), MapperService.MergeReason.MAPPING_UPDATE, false);
             fail();
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("mapper [foo] of different type, current_type [long], merged_type [double]"));
         }
 
         try {
-            mapperService.merge("type", new CompressedXContent(update.string()), false, false);
+            mapperService.merge("type", new CompressedXContent(update.string()), MapperService.MergeReason.MAPPING_UPDATE, false);
             fail();
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("mapper [foo] of different type, current_type [long], merged_type [double]"));
@@ -147,7 +155,7 @@ public class UpdateMappingTests extends ESSingleNodeTestCase {
                 .endObject().endObject().endObject();
 
         try {
-            mapperService.merge("type2", new CompressedXContent(update.string()), false, false);
+            mapperService.merge("type2", new CompressedXContent(update.string()), MapperService.MergeReason.MAPPING_UPDATE, false);
             fail();
         } catch (IllegalArgumentException e) {
             // expected
@@ -155,7 +163,7 @@ public class UpdateMappingTests extends ESSingleNodeTestCase {
         }
 
         try {
-            mapperService.merge("type2", new CompressedXContent(update.string()), false, false);
+            mapperService.merge("type2", new CompressedXContent(update.string()), MapperService.MergeReason.MAPPING_UPDATE, false);
             fail();
         } catch (IllegalArgumentException e) {
             // expected
@@ -174,15 +182,15 @@ public class UpdateMappingTests extends ESSingleNodeTestCase {
         XContentBuilder mapping2 = XContentFactory.jsonBuilder().startObject().startObject("type2").endObject().endObject();
         MapperService mapperService = createIndex("test", Settings.settingsBuilder().build()).mapperService();
 
-        mapperService.merge("type1", new CompressedXContent(mapping1.string()), false, false);
-        mapperService.merge("type2", new CompressedXContent(mapping2.string()), false, false);
+        mapperService.merge("type1", new CompressedXContent(mapping1.string()), MapperService.MergeReason.MAPPING_UPDATE, false);
+        mapperService.merge("type2", new CompressedXContent(mapping2.string()), MapperService.MergeReason.MAPPING_UPDATE, false);
 
         XContentBuilder update = XContentFactory.jsonBuilder().startObject().startObject("type2")
                 .startObject("properties").startObject("foo").field("type", "double").endObject()
                 .endObject().endObject().endObject();
 
         try {
-            mapperService.merge("type2", new CompressedXContent(update.string()), false, false);
+            mapperService.merge("type2", new CompressedXContent(update.string()), MapperService.MergeReason.MAPPING_UPDATE, false);
             fail();
         } catch (IllegalArgumentException e) {
             // expected
@@ -190,7 +198,7 @@ public class UpdateMappingTests extends ESSingleNodeTestCase {
         }
 
         try {
-            mapperService.merge("type2", new CompressedXContent(update.string()), false, false);
+            mapperService.merge("type2", new CompressedXContent(update.string()), MapperService.MergeReason.MAPPING_UPDATE, false);
             fail();
         } catch (IllegalArgumentException e) {
             // expected
@@ -209,14 +217,14 @@ public class UpdateMappingTests extends ESSingleNodeTestCase {
         MapperService mapperService = createIndex("test", Settings.settingsBuilder().build()).mapperService();
 
         try {
-            mapperService.merge("type", new CompressedXContent(mapping.string()), false, false);
+            mapperService.merge("type", new CompressedXContent(mapping.string()), MapperService.MergeReason.MAPPING_UPDATE, false);
             fail();
         } catch (IllegalArgumentException e) {
             assertTrue(e.getMessage().contains("Field [_id] is defined twice in [type]"));
         }
 
         try {
-            mapperService.merge("type", new CompressedXContent(mapping.string()), false, false);
+            mapperService.merge("type", new CompressedXContent(mapping.string()), MapperService.MergeReason.MAPPING_UPDATE, false);
             fail();
         } catch (IllegalArgumentException e) {
             assertTrue(e.getMessage().contains("Field [_id] is defined twice in [type]"));
@@ -233,14 +241,14 @@ public class UpdateMappingTests extends ESSingleNodeTestCase {
         MapperService mapperService = createIndex("test", settings).mapperService();
 
         try {
-            mapperService.merge("type", new CompressedXContent(mapping.string()), false, false);
+            mapperService.merge("type", new CompressedXContent(mapping.string()), MapperService.MergeReason.MAPPING_UPDATE, false);
             fail();
         } catch (IllegalArgumentException e) {
             assertTrue(e.getMessage().contains("Field [_id] is defined twice in [type]"));
         }
 
         try {
-            mapperService.merge("type", new CompressedXContent(mapping.string()), false, false);
+            mapperService.merge("type", new CompressedXContent(mapping.string()), MapperService.MergeReason.MAPPING_UPDATE, false);
             fail();
         } catch (IllegalArgumentException e) {
             assertTrue(e.getMessage().contains("Field [_id] is defined twice in [type]"));

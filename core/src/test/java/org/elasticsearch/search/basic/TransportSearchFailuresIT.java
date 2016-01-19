@@ -54,7 +54,7 @@ public class TransportSearchFailuresIT extends ESIntegTestCase {
 
     public void testFailedSearchWithWrongQuery() throws Exception {
         logger.info("Start Testing failed search with wrong query");
-        assertAcked(prepareCreate("test", 1, settingsBuilder().put("routing.hash.type", "simple")));
+        assertAcked(prepareCreate("test", 1));
         ensureYellow();
 
         NumShards test = getNumShards("test");

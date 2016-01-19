@@ -43,9 +43,9 @@ public class InternalEngineSettingsTests extends ESSingleNodeTestCase {
             long gcDeletes = random().nextLong() & (Long.MAX_VALUE >> 11);
 
             Settings build = Settings.builder()
-                    .put(IndexSettings.INDEX_GC_DELETES_SETTING, gcDeletes, TimeUnit.MILLISECONDS)
+                    .put(IndexSettings.INDEX_GC_DELETES_SETTING.getKey(), gcDeletes, TimeUnit.MILLISECONDS)
                     .build();
-            assertEquals(gcDeletes, build.getAsTime(IndexSettings.INDEX_GC_DELETES_SETTING, null).millis());
+            assertEquals(gcDeletes, build.getAsTime(IndexSettings.INDEX_GC_DELETES_SETTING.getKey(), null).millis());
 
             client().admin().indices().prepareUpdateSettings("foo").setSettings(build).get();
             LiveIndexWriterConfig currentIndexWriterConfig = engine.getCurrentIndexWriterConfig();
@@ -58,7 +58,7 @@ public class InternalEngineSettingsTests extends ESSingleNodeTestCase {
         }
 
         Settings settings = Settings.builder()
-                .put(IndexSettings.INDEX_GC_DELETES_SETTING, 1000, TimeUnit.MILLISECONDS)
+                .put(IndexSettings.INDEX_GC_DELETES_SETTING.getKey(), 1000, TimeUnit.MILLISECONDS)
                 .build();
         client().admin().indices().prepareUpdateSettings("foo").setSettings(settings).get();
         assertEquals(engine.getGcDeletesInMillis(), 1000);
@@ -66,7 +66,7 @@ public class InternalEngineSettingsTests extends ESSingleNodeTestCase {
 
 
         settings = Settings.builder()
-                .put(IndexSettings.INDEX_GC_DELETES_SETTING, "0ms")
+                .put(IndexSettings.INDEX_GC_DELETES_SETTING.getKey(), "0ms")
                 .build();
 
         client().admin().indices().prepareUpdateSettings("foo").setSettings(settings).get();
@@ -74,7 +74,7 @@ public class InternalEngineSettingsTests extends ESSingleNodeTestCase {
         assertTrue(engine.config().isEnableGcDeletes());
 
         settings = Settings.builder()
-                .put(IndexSettings.INDEX_GC_DELETES_SETTING, 1000, TimeUnit.MILLISECONDS)
+                .put(IndexSettings.INDEX_GC_DELETES_SETTING.getKey(), 1000, TimeUnit.MILLISECONDS)
                 .build();
         client().admin().indices().prepareUpdateSettings("foo").setSettings(settings).get();
         assertEquals(engine.getGcDeletesInMillis(), 1000);

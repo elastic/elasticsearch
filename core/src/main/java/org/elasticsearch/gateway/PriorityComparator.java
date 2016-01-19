@@ -56,7 +56,7 @@ public abstract class PriorityComparator implements Comparator<ShardRouting> {
     }
 
     private int priority(Settings settings) {
-        return settings.getAsInt(IndexMetaData.SETTING_PRIORITY, 1);
+        return IndexMetaData.INDEX_PRIORITY_SETTING.get(settings);
     }
 
     private long timeCreated(Settings settings) {

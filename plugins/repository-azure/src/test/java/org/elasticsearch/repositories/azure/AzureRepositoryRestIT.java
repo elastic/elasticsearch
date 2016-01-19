@@ -21,21 +21,13 @@ package org.elasticsearch.repositories.azure;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-import org.elasticsearch.plugin.repository.azure.AzureRepositoryPlugin;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.RestTestCandidate;
 import org.elasticsearch.test.rest.parser.RestTestParseException;
 
 import java.io.IOException;
-import java.util.Collection;
 
 public class AzureRepositoryRestIT extends ESRestTestCase {
-
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(AzureRepositoryPlugin.class);
-    }
 
     public AzureRepositoryRestIT(@Name("yaml") RestTestCandidate testCandidate) {
         super(testCandidate);

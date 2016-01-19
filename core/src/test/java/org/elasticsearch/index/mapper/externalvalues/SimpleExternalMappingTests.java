@@ -32,9 +32,12 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.indices.mapper.MapperRegistry;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.VersionUtils;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -45,6 +48,11 @@ import static org.hamcrest.Matchers.notNullValue;
 /**
  */
 public class SimpleExternalMappingTests extends ESSingleNodeTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return pluginList(InternalSettingsPlugin.class);
+    }
 
     public void testExternalValues() throws Exception {
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.CURRENT);

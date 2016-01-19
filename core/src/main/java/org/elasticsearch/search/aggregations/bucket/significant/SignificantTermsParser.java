@@ -28,6 +28,7 @@ import org.elasticsearch.search.aggregations.bucket.significant.heuristics.Signi
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicParserMapper;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
+import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParser;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -53,7 +54,7 @@ public class SignificantTermsParser implements Aggregator.Parser {
     @Override
     public AggregatorFactory parse(String aggregationName, XContentParser parser, SearchContext context) throws IOException {
         SignificantTermsParametersParser aggParser = new SignificantTermsParametersParser(significanceHeuristicParserMapper);
-        ValuesSourceParser vsParser = ValuesSourceParser.any(aggregationName, SignificantStringTerms.TYPE, context)
+        ValuesSourceParser<ValuesSource> vsParser = ValuesSourceParser.any(aggregationName, SignificantStringTerms.TYPE, context)
                 .scriptable(false)
                 .formattable(true)
                 .build();

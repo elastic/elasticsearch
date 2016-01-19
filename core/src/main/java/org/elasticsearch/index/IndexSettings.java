@@ -25,6 +25,8 @@ import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.IndexScopedSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -32,45 +34,64 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 import org.elasticsearch.index.translog.Translog;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Predicate;
 
 /**
  * This class encapsulates all index level settings and handles settings updates.
  * It's created per index and available to all index level classes and allows them to retrieve
  * the latest updated settings instance. Classes that need to listen to settings updates can register
- * a settings consumer at index creation via {@link IndexModule#addIndexSettingsListener(Consumer)} that will
+ * a settings consumer at index creation via {@link IndexModule#addSettingsUpdateConsumer(Setting, Consumer)} that will
  * be called for each settings update.
  */
 public final class IndexSettings {
 
-    public static final String DEFAULT_FIELD = "index.query.default_field";
-    public static final String QUERY_STRING_LENIENT = "index.query_string.lenient";
-    public static final String QUERY_STRING_ANALYZE_WILDCARD = "indices.query.query_string.analyze_wildcard";
-    public static final String QUERY_STRING_ALLOW_LEADING_WILDCARD = "indices.query.query_string.allowLeadingWildcard";
-    public static final String ALLOW_UNMAPPED = "index.query.parse.allow_unmapped_fields";
-    public static final String INDEX_TRANSLOG_SYNC_INTERVAL = "index.translog.sync_interval";
-    public static final String INDEX_TRANSLOG_DURABILITY = "index.translog.durability";
-    public static final String INDEX_REFRESH_INTERVAL = "index.refresh_interval";
+    public static final Setting<String> DEFAULT_FIELD_SETTING = new Setting<>("index.query.default_field", AllFieldMapper.NAME, Function.identity(), false, Setting.Scope.INDEX);
+    public static final Setting<Boolean> QUERY_STRING_LENIENT_SETTING = Setting.boolSetting("index.query_string.lenient", false, false, Setting.Scope.INDEX);
+    public static final Setting<Boolean> QUERY_STRING_ANALYZE_WILDCARD = Setting.boolSetting("indices.query.query_string.analyze_wildcard", false, false, Setting.Scope.CLUSTER);
+    public static final Setting<Boolean> QUERY_STRING_ALLOW_LEADING_WILDCARD = Setting.boolSetting("indices.query.query_string.allowLeadingWildcard", true, false, Setting.Scope.CLUSTER);
+    public static final Setting<Boolean> ALLOW_UNMAPPED = Setting.boolSetting("index.query.parse.allow_unmapped_fields", true, false, Setting.Scope.INDEX);
+    public static final Setting<TimeValue> INDEX_TRANSLOG_SYNC_INTERVAL_SETTING = Setting.timeSetting("index.translog.sync_interval", TimeValue.timeValueSeconds(5), false, Setting.Scope.INDEX);
+    public static final Setting<Translog.Durability> INDEX_TRANSLOG_DURABILITY_SETTING = new Setting<>("index.translog.durability", Translog.Durability.REQUEST.name(), (value) -> Translog.Durability.valueOf(value.toUpperCase(Locale.ROOT)), true, Setting.Scope.INDEX);
+    public static final Setting<Boolean> INDEX_WARMER_ENABLED_SETTING = Setting.boolSetting("index.warmer.enabled", true, true, Setting.Scope.INDEX);
+    public static final Setting<Boolean> INDEX_TTL_DISABLE_PURGE_SETTING = Setting.boolSetting("index.ttl.disable_purge", false, true, Setting.Scope.INDEX);
+    public static final Setting<String> INDEX_CHECK_ON_STARTUP = new Setting<>("index.shard.check_on_startup", "false", (s) -> {
+        switch(s) {
+            case "false":
+            case "true":
+            case "fix":
+            case "checksum":
+                return s;
+            default:
+                throw new IllegalArgumentException("unknown value for [index.shard.check_on_startup] must be one of [true, false, fix, checksum] but was: " + s);
+        }
+    }, false, Setting.Scope.INDEX);
+
+    /**
+     * Index setting describing the maximum value of from + size on a query.
+     * The Default maximum value of from + size on a query is 10,000. This was chosen as
+     * a conservative default as it is sure to not cause trouble. Users can
+     * certainly profile their cluster and decide to set it to 100,000
+     * safely. 1,000,000 is probably way to high for any cluster to set
+     * safely.
+     */
+    public static final Setting<Integer> MAX_RESULT_WINDOW_SETTING = Setting.intSetting("index.max_result_window", 10000, 1, true, Setting.Scope.INDEX);
     public static final TimeValue DEFAULT_REFRESH_INTERVAL = new TimeValue(1, TimeUnit.SECONDS);
-    public static final String INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE = "index.translog.flush_threshold_size";
-    public static final TimeValue DEFAULT_GC_DELETES = TimeValue.timeValueSeconds(60);
+    public static final Setting<TimeValue> INDEX_REFRESH_INTERVAL_SETTING = Setting.timeSetting("index.refresh_interval", DEFAULT_REFRESH_INTERVAL, new TimeValue(-1, TimeUnit.MILLISECONDS), true, Setting.Scope.INDEX);
+    public static final Setting<ByteSizeValue> INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTTING = Setting.byteSizeSetting("index.translog.flush_threshold_size", new ByteSizeValue(512, ByteSizeUnit.MB), true, Setting.Scope.INDEX);
+
 
     /**
      * Index setting to enable / disable deletes garbage collection.
      * This setting is realtime updateable
      */
-    public static final String INDEX_GC_DELETES_SETTING = "index.gc_deletes";
+    public static final TimeValue DEFAULT_GC_DELETES = TimeValue.timeValueSeconds(60);
+    public static final Setting<TimeValue> INDEX_GC_DELETES_SETTING = Setting.timeSetting("index.gc_deletes", DEFAULT_GC_DELETES, new TimeValue(-1, TimeUnit.MILLISECONDS), true, Setting.Scope.INDEX);
 
     private final String uuid;
-    private final List<Consumer<Settings>> updateListeners;
     private final Index index;
     private final Version version;
     private final ESLogger logger;
@@ -94,9 +115,11 @@ public final class IndexSettings {
     private volatile ByteSizeValue flushThresholdSize;
     private final MergeSchedulerConfig mergeSchedulerConfig;
     private final MergePolicyConfig mergePolicyConfig;
-
+    private final IndexScopedSettings scopedSettings;
     private long gcDeletesInMillis = DEFAULT_GC_DELETES.millis();
-
+    private volatile boolean warmerEnabled;
+    private volatile int maxResultWindow;
+    private volatile boolean TTLPurgeDisabled;
 
     /**
      * Returns the default search field for this index.
@@ -139,10 +162,13 @@ public final class IndexSettings {
      *
      * @param indexMetaData the index metadata this settings object is associated with
      * @param nodeSettings the nodes settings this index is allocated on.
-     * @param updateListeners a collection of listeners / consumers that should be notified if one or more settings are updated
      */
-    public IndexSettings(final IndexMetaData indexMetaData, final Settings nodeSettings, final Collection<Consumer<Settings>> updateListeners) {
-        this(indexMetaData, nodeSettings, updateListeners, (index) -> Regex.simpleMatch(index, indexMetaData.getIndex()));
+    public IndexSettings(final IndexMetaData indexMetaData, final Settings nodeSettings) {
+        this(indexMetaData, nodeSettings, (index) -> Regex.simpleMatch(index, indexMetaData.getIndex()), IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
+    }
+
+    IndexSettings(final IndexMetaData indexMetaData, final Settings nodeSettings, IndexScopedSettings indexScopedSettings) {
+        this(indexMetaData, nodeSettings, (index) -> Regex.simpleMatch(index, indexMetaData.getIndex()), indexScopedSettings);
     }
 
     /**
@@ -151,13 +177,12 @@ public final class IndexSettings {
      *
      * @param indexMetaData the index metadata this settings object is associated with
      * @param nodeSettings the nodes settings this index is allocated on.
-     * @param updateListeners a collection of listeners / consumers that should be notified if one or more settings are updated
      * @param indexNameMatcher a matcher that can resolve an expression to the index name or index alias
      */
-    public IndexSettings(final IndexMetaData indexMetaData, final Settings nodeSettings, final Collection<Consumer<Settings>> updateListeners, final Predicate<String> indexNameMatcher) {
+    public IndexSettings(final IndexMetaData indexMetaData, final Settings nodeSettings, final Predicate<String> indexNameMatcher, IndexScopedSettings indexScopedSettings) {
+        scopedSettings = indexScopedSettings.copy(nodeSettings, indexMetaData);
         this.nodeSettings = nodeSettings;
         this.settings = Settings.builder().put(nodeSettings).put(indexMetaData.getSettings()).build();
-        this.updateListeners = Collections.unmodifiableList( new ArrayList<>(updateListeners));
         this.index = new Index(indexMetaData.getIndex());
         version = Version.indexCreated(settings);
         uuid = settings.get(IndexMetaData.SETTING_INDEX_UUID, IndexMetaData.INDEX_UUID_NA_VALUE);
@@ -167,32 +192,44 @@ public final class IndexSettings {
         numberOfShards = settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_SHARDS, null);
         isShadowReplicaIndex = IndexMetaData.isIndexUsingShadowReplicas(settings);
 
-        this.defaultField = settings.get(DEFAULT_FIELD, AllFieldMapper.NAME);
-        this.queryStringLenient = settings.getAsBoolean(QUERY_STRING_LENIENT, false);
-        this.queryStringAnalyzeWildcard = settings.getAsBoolean(QUERY_STRING_ANALYZE_WILDCARD, false);
-        this.queryStringAllowLeadingWildcard = settings.getAsBoolean(QUERY_STRING_ALLOW_LEADING_WILDCARD, true);
+        this.defaultField = DEFAULT_FIELD_SETTING.get(settings);
+        this.queryStringLenient = QUERY_STRING_LENIENT_SETTING.get(settings);
+        this.queryStringAnalyzeWildcard = QUERY_STRING_ANALYZE_WILDCARD.get(nodeSettings);
+        this.queryStringAllowLeadingWildcard = QUERY_STRING_ALLOW_LEADING_WILDCARD.get(nodeSettings);
         this.parseFieldMatcher = new ParseFieldMatcher(settings);
-        this.defaultAllowUnmappedFields = settings.getAsBoolean(ALLOW_UNMAPPED, true);
+        this.defaultAllowUnmappedFields = scopedSettings.get(ALLOW_UNMAPPED);
         this.indexNameMatcher = indexNameMatcher;
-        final String value = settings.get(INDEX_TRANSLOG_DURABILITY, Translog.Durability.REQUEST.name());
-        this.durability = getFromSettings(settings, Translog.Durability.REQUEST);
-        syncInterval = settings.getAsTime(INDEX_TRANSLOG_SYNC_INTERVAL, TimeValue.timeValueSeconds(5));
-        refreshInterval =  settings.getAsTime(INDEX_REFRESH_INTERVAL, DEFAULT_REFRESH_INTERVAL);
-        flushThresholdSize = settings.getAsBytesSize(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE, new ByteSizeValue(512, ByteSizeUnit.MB));
-        mergeSchedulerConfig = new MergeSchedulerConfig(settings);
-        gcDeletesInMillis = settings.getAsTime(IndexSettings.INDEX_GC_DELETES_SETTING, DEFAULT_GC_DELETES).getMillis();
-        this.mergePolicyConfig = new MergePolicyConfig(logger, settings);
+        this.durability = scopedSettings.get(INDEX_TRANSLOG_DURABILITY_SETTING);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_DURABILITY_SETTING, this::setTranslogDurability);
+        syncInterval = INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.get(settings);
+        refreshInterval = scopedSettings.get(INDEX_REFRESH_INTERVAL_SETTING);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_REFRESH_INTERVAL_SETTING, this::setRefreshInterval);
+        flushThresholdSize = scopedSettings.get(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTTING);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTTING, this::setTranslogFlushThresholdSize);
+        mergeSchedulerConfig = new MergeSchedulerConfig(this);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_GC_DELETES_SETTING, this::setGCDeletes);
+        gcDeletesInMillis = scopedSettings.get(INDEX_GC_DELETES_SETTING).getMillis();
+        warmerEnabled = scopedSettings.get(INDEX_WARMER_ENABLED_SETTING);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_WARMER_ENABLED_SETTING, this::setEnableWarmer);
+        maxResultWindow = scopedSettings.get(MAX_RESULT_WINDOW_SETTING);
+        scopedSettings.addSettingsUpdateConsumer(MAX_RESULT_WINDOW_SETTING, this::setMaxResultWindow);
+        TTLPurgeDisabled = scopedSettings.get(INDEX_TTL_DISABLE_PURGE_SETTING);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_TTL_DISABLE_PURGE_SETTING, this::setTTLPurgeDisabled);
+        this.mergePolicyConfig = new MergePolicyConfig(logger, this);
         assert indexNameMatcher.test(indexMetaData.getIndex());
+
     }
 
+    private void setTranslogFlushThresholdSize(ByteSizeValue byteSizeValue) {
+        this.flushThresholdSize = byteSizeValue;
+    }
 
-    /**
-     * Creates a new {@link IndexSettings} instance adding the given listeners to the settings
-     */
-    IndexSettings newWithListener(final Collection<Consumer<Settings>> updateListeners) {
-        ArrayList<Consumer<Settings>> newUpdateListeners = new ArrayList<>(updateListeners);
-        newUpdateListeners.addAll(this.updateListeners);
-        return new IndexSettings(indexMetaData, nodeSettings, newUpdateListeners, indexNameMatcher);
+    private void setGCDeletes(TimeValue timeValue) {
+        this.gcDeletesInMillis = timeValue.getMillis();
+    }
+
+    private void setRefreshInterval(TimeValue timeValue) {
+        this.refreshInterval = timeValue;
     }
 
     /**
@@ -321,31 +358,13 @@ public final class IndexSettings {
         }
         this.indexMetaData = indexMetaData;
         final Settings existingSettings = this.settings;
-        if (existingSettings.getByPrefix(IndexMetaData.INDEX_SETTING_PREFIX).getAsMap().equals(newSettings.getByPrefix(IndexMetaData.INDEX_SETTING_PREFIX).getAsMap())) {
+        if (existingSettings.filter(IndexScopedSettings.INDEX_SETTINGS_KEY_PREDICATE).getAsMap().equals(newSettings.filter(IndexScopedSettings.INDEX_SETTINGS_KEY_PREDICATE).getAsMap())) {
             // nothing to update, same settings
             return false;
         }
-        final Settings mergedSettings = this.settings = Settings.builder().put(nodeSettings).put(newSettings).build();
-        for (final Consumer<Settings> consumer : updateListeners) {
-            try {
-                consumer.accept(mergedSettings);
-            } catch (Exception e) {
-                logger.warn("failed to refresh index settings for [{}]", e, mergedSettings);
-            }
-        }
-        try {
-            updateSettings(mergedSettings);
-        } catch (Exception e) {
-            logger.warn("failed to refresh index settings for [{}]", e, mergedSettings);
-        }
+        scopedSettings.applySettings(newSettings);
+        this.settings = Settings.builder().put(nodeSettings).put(newSettings).build();
         return true;
-    }
-
-    /**
-     * Returns all settings update consumers
-     */
-    List<Consumer<Settings>> getUpdateListeners() { // for testing
-        return updateListeners;
     }
 
     /**
@@ -355,60 +374,19 @@ public final class IndexSettings {
         return durability;
     }
 
-    private Translog.Durability getFromSettings(Settings settings, Translog.Durability defaultValue) {
-        final String value = settings.get(INDEX_TRANSLOG_DURABILITY, defaultValue.name());
-        try {
-            return Translog.Durability.valueOf(value.toUpperCase(Locale.ROOT));
-        } catch (IllegalArgumentException ex) {
-            logger.warn("Can't apply {} illegal value: {} using {} instead, use one of: {}", INDEX_TRANSLOG_DURABILITY, value, defaultValue, Arrays.toString(Translog.Durability.values()));
-            return defaultValue;
-        }
+    private void setTranslogDurability(Translog.Durability durability) {
+        this.durability = durability;
     }
 
-    private void updateSettings(Settings settings) {
-        final Translog.Durability durability = getFromSettings(settings, this.durability);
-        if (durability != this.durability) {
-            logger.info("updating durability from [{}] to [{}]", this.durability, durability);
-            this.durability = durability;
-        }
+    /**
+     * Returns true if index warmers are enabled, otherwise <code>false</code>
+     */
+    public boolean isWarmerEnabled() {
+        return warmerEnabled;
+    }
 
-        TimeValue refreshInterval = settings.getAsTime(IndexSettings.INDEX_REFRESH_INTERVAL, this.refreshInterval);
-        if (!refreshInterval.equals(this.refreshInterval)) {
-            logger.info("updating refresh_interval from [{}] to [{}]", this.refreshInterval, refreshInterval);
-            this.refreshInterval = refreshInterval;
-        }
-
-        ByteSizeValue flushThresholdSize = settings.getAsBytesSize(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE, this.flushThresholdSize);
-        if (!flushThresholdSize.equals(this.flushThresholdSize)) {
-            logger.info("updating flush_threshold_size from [{}] to [{}]", this.flushThresholdSize, flushThresholdSize);
-            this.flushThresholdSize = flushThresholdSize;
-        }
-
-        final int maxThreadCount = settings.getAsInt(MergeSchedulerConfig.MAX_THREAD_COUNT, mergeSchedulerConfig.getMaxThreadCount());
-        if (maxThreadCount != mergeSchedulerConfig.getMaxThreadCount()) {
-            logger.info("updating [{}] from [{}] to [{}]", MergeSchedulerConfig.MAX_THREAD_COUNT, mergeSchedulerConfig.getMaxMergeCount(), maxThreadCount);
-            mergeSchedulerConfig.setMaxThreadCount(maxThreadCount);
-        }
-
-        final int maxMergeCount = settings.getAsInt(MergeSchedulerConfig.MAX_MERGE_COUNT, mergeSchedulerConfig.getMaxMergeCount());
-        if (maxMergeCount != mergeSchedulerConfig.getMaxMergeCount()) {
-            logger.info("updating [{}] from [{}] to [{}]", MergeSchedulerConfig.MAX_MERGE_COUNT, mergeSchedulerConfig.getMaxMergeCount(), maxMergeCount);
-            mergeSchedulerConfig.setMaxMergeCount(maxMergeCount);
-        }
-
-        final boolean autoThrottle = settings.getAsBoolean(MergeSchedulerConfig.AUTO_THROTTLE, mergeSchedulerConfig.isAutoThrottle());
-        if (autoThrottle != mergeSchedulerConfig.isAutoThrottle()) {
-            logger.info("updating [{}] from [{}] to [{}]", MergeSchedulerConfig.AUTO_THROTTLE, mergeSchedulerConfig.isAutoThrottle(), autoThrottle);
-            mergeSchedulerConfig.setAutoThrottle(autoThrottle);
-        }
-
-        long gcDeletesInMillis = settings.getAsTime(IndexSettings.INDEX_GC_DELETES_SETTING, TimeValue.timeValueMillis(this.gcDeletesInMillis)).getMillis();
-        if (gcDeletesInMillis != this.gcDeletesInMillis) {
-            logger.info("updating {} from [{}] to [{}]", IndexSettings.INDEX_GC_DELETES_SETTING, TimeValue.timeValueMillis(this.gcDeletesInMillis), TimeValue.timeValueMillis(gcDeletesInMillis));
-            this.gcDeletesInMillis = gcDeletesInMillis;
-        }
-
-        mergePolicyConfig.onRefreshSettings(settings);
+    private void setEnableWarmer(boolean enableWarmer) {
+        this.warmerEnabled = enableWarmer;
     }
 
     /**
@@ -437,6 +415,18 @@ public final class IndexSettings {
     public MergeSchedulerConfig getMergeSchedulerConfig() { return mergeSchedulerConfig; }
 
     /**
+     * Returns the max result window for search requests, describing the maximum value of from + size on a query.
+     */
+    public int getMaxResultWindow() {
+        return this.maxResultWindow;
+    }
+
+    private void setMaxResultWindow(int maxResultWindow) {
+        this.maxResultWindow = maxResultWindow;
+    }
+
+
+    /**
      * Returns the GC deletes cycle in milliseconds.
      */
     public long getGcDeletesInMillis() {
@@ -450,4 +440,22 @@ public final class IndexSettings {
         return mergePolicyConfig.getMergePolicy();
     }
 
+    /**
+     * Returns <code>true</code> if the TTL purge is disabled for this index. Default is <code>false</code>
+     */
+    public boolean isTTLPurgeDisabled() {
+        return TTLPurgeDisabled;
+    }
+
+    private  void setTTLPurgeDisabled(boolean ttlPurgeDisabled) {
+        this.TTLPurgeDisabled = ttlPurgeDisabled;
+    }
+
+
+    public <T> T getValue(Setting<T> setting) {
+        return scopedSettings.get(setting);
+    }
+
+
+    public IndexScopedSettings getScopedSettings() { return scopedSettings;}
 }

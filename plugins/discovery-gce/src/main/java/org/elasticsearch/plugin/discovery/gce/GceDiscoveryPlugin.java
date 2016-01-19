@@ -21,6 +21,7 @@ package org.elasticsearch.plugin.discovery.gce;
 
 import com.google.api.client.http.HttpHeaders;
 import com.google.api.client.util.ClassInfo;
+
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.cloud.gce.GceComputeService;
 import org.elasticsearch.cloud.gce.GceModule;
@@ -91,6 +92,7 @@ public class GceDiscoveryPlugin extends Plugin {
     }
 
     @Override
+    @SuppressWarnings("rawtypes") // Supertype uses raw type
     public Collection<Class<? extends LifecycleComponent>> nodeServices() {
         Collection<Class<? extends LifecycleComponent>> services = new ArrayList<>();
         if (isDiscoveryAlive(settings, logger)) {

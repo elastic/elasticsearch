@@ -51,6 +51,14 @@ public abstract class PrioritizedRunnable implements Runnable, Comparable<Priori
         return creationDate;
     }
 
+    /**
+     * The elapsed time in milliseconds since this instance was created,
+     * as calculated by the difference between {@link System#nanoTime()}
+     * at the time of creation, and {@link System#nanoTime()} at the
+     * time of invocation of this method
+     *
+     * @return the age in milliseconds calculated
+     */
     public long getAgeInMillis() {
         return TimeUnit.MILLISECONDS.convert(relativeTimeProvider.getAsLong() - creationDate, TimeUnit.NANOSECONDS);
     }

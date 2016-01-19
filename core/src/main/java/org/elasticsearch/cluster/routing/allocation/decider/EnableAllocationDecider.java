@@ -32,7 +32,7 @@ import java.util.Locale;
 
 /**
  * This allocation decider allows shard allocations / rebalancing via the cluster wide settings {@link #CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING} /
- * {@link #CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING} and the per index setting {@link #INDEX_ROUTING_ALLOCATION_ENABLE} / {@link #INDEX_ROUTING_REBALANCE_ENABLE}.
+ * {@link #CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING} and the per index setting {@link #INDEX_ROUTING_ALLOCATION_ENABLE_SETTING} / {@link #INDEX_ROUTING_REBALANCE_ENABLE_SETTING}.
  * The per index settings overrides the cluster wide setting.
  *
  * <p>
@@ -61,10 +61,10 @@ public class EnableAllocationDecider extends AllocationDecider {
     public static final String NAME = "enable";
 
     public static final Setting<Allocation> CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING = new Setting<>("cluster.routing.allocation.enable", Allocation.ALL.name(), Allocation::parse, true, Setting.Scope.CLUSTER);
-    public static final String INDEX_ROUTING_ALLOCATION_ENABLE= "index.routing.allocation.enable";
+    public static final Setting<Allocation> INDEX_ROUTING_ALLOCATION_ENABLE_SETTING = new Setting<>("index.routing.allocation.enable", Allocation.ALL.name(), Allocation::parse, true, Setting.Scope.INDEX);
 
     public static final Setting<Rebalance> CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING = new Setting<>("cluster.routing.rebalance.enable", Rebalance.ALL.name(), Rebalance::parse, true, Setting.Scope.CLUSTER);
-    public static final String INDEX_ROUTING_REBALANCE_ENABLE = "index.routing.rebalance.enable";
+    public static final Setting<Rebalance> INDEX_ROUTING_REBALANCE_ENABLE_SETTING = new Setting<>("index.routing.rebalance.enable", Rebalance.ALL.name(), Rebalance::parse, true, Setting.Scope.INDEX);
 
     private volatile Rebalance enableRebalance;
     private volatile Allocation enableAllocation;
@@ -92,11 +92,10 @@ public class EnableAllocationDecider extends AllocationDecider {
             return allocation.decision(Decision.YES, NAME, "allocation disabling is ignored");
         }
 
-        IndexMetaData indexMetaData = allocation.metaData().index(shardRouting.getIndex());
-        String enableIndexValue = indexMetaData.getSettings().get(INDEX_ROUTING_ALLOCATION_ENABLE);
+        final IndexMetaData indexMetaData = allocation.metaData().index(shardRouting.getIndex());
         final Allocation enable;
-        if (enableIndexValue != null) {
-            enable = Allocation.parse(enableIndexValue);
+        if (INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.exists(indexMetaData.getSettings())) {
+            enable = INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.get(indexMetaData.getSettings());
         } else {
             enable = this.enableAllocation;
         }
@@ -129,10 +128,9 @@ public class EnableAllocationDecider extends AllocationDecider {
         }
 
         Settings indexSettings = allocation.routingNodes().metaData().index(shardRouting.index()).getSettings();
-        String enableIndexValue = indexSettings.get(INDEX_ROUTING_REBALANCE_ENABLE);
         final Rebalance enable;
-        if (enableIndexValue != null) {
-            enable = Rebalance.parse(enableIndexValue);
+        if (INDEX_ROUTING_REBALANCE_ENABLE_SETTING.exists(indexSettings)) {
+            enable = INDEX_ROUTING_REBALANCE_ENABLE_SETTING.get(indexSettings);
         } else {
             enable = this.enableRebalance;
         }
@@ -160,7 +158,7 @@ public class EnableAllocationDecider extends AllocationDecider {
 
     /**
      * Allocation values or rather their string representation to be used used with
-     * {@link EnableAllocationDecider#CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING} / {@link EnableAllocationDecider#INDEX_ROUTING_ALLOCATION_ENABLE}
+     * {@link EnableAllocationDecider#CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING} / {@link EnableAllocationDecider#INDEX_ROUTING_ALLOCATION_ENABLE_SETTING}
      * via cluster / index settings.
      */
     public enum Allocation {
@@ -186,7 +184,7 @@ public class EnableAllocationDecider extends AllocationDecider {
 
     /**
      * Rebalance values or rather their string representation to be used used with
-     * {@link EnableAllocationDecider#CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING} / {@link EnableAllocationDecider#INDEX_ROUTING_REBALANCE_ENABLE}
+     * {@link EnableAllocationDecider#CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING} / {@link EnableAllocationDecider#INDEX_ROUTING_REBALANCE_ENABLE_SETTING}
      * via cluster / index settings.
      */
     public enum Rebalance {

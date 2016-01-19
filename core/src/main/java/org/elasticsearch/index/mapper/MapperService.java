@@ -20,6 +20,7 @@
 package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.hppc.ObjectHashSet;
+
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
 import org.apache.lucene.index.IndexOptions;
@@ -33,11 +34,11 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchGenerationException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisService;
@@ -59,7 +60,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -78,9 +78,26 @@ import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
  */
 public class MapperService extends AbstractIndexComponent implements Closeable {
 
+    /**
+     * The reason why a mapping is being merged.
+     */
+    public enum MergeReason {
+        /**
+         * Create or update a mapping.
+         */
+        MAPPING_UPDATE,
+        /**
+         * Recovery of an existing mapping, for instance because of a restart,
+         * if a shard was moved to a different node or for administrative
+         * purposes.
+         */
+        MAPPING_RECOVERY;
+    }
+
     public static final String DEFAULT_MAPPING = "_default_";
-    public static final String INDEX_MAPPER_DYNAMIC_SETTING = "index.mapper.dynamic";
+    public static final Setting<Long> INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING = Setting.longSetting("index.mapping.nested_fields.limit", 50l, 0, true, Setting.Scope.INDEX);
     public static final boolean INDEX_MAPPER_DYNAMIC_DEFAULT = true;
+    public static final Setting<Boolean> INDEX_MAPPER_DYNAMIC_SETTING = Setting.boolSetting("index.mapper.dynamic", INDEX_MAPPER_DYNAMIC_DEFAULT, false, Setting.Scope.INDEX);
     private static ObjectHashSet<String> META_FIELDS = ObjectHashSet.from(
             "_uid", "_id", "_type", "_all", "_parent", "_routing", "_index",
             "_size", "_timestamp", "_ttl"
@@ -128,7 +145,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         this.searchQuoteAnalyzer = new MapperAnalyzerWrapper(analysisService.defaultSearchQuoteAnalyzer(), p -> p.searchQuoteAnalyzer());
         this.mapperRegistry = mapperRegistry;
 
-        this.dynamic = this.indexSettings.getSettings().getAsBoolean(INDEX_MAPPER_DYNAMIC_SETTING, INDEX_MAPPER_DYNAMIC_DEFAULT);
+        this.dynamic = this.indexSettings.getValue(INDEX_MAPPER_DYNAMIC_SETTING);
         defaultPercolatorMappingSource = "{\n" +
             "\"_default_\":{\n" +
                 "\"properties\" : {\n" +
@@ -203,7 +220,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         typeListeners.remove(listener);
     }
 
-    public DocumentMapper merge(String type, CompressedXContent mappingSource, boolean applyDefault, boolean updateAllTypes) {
+    public DocumentMapper merge(String type, CompressedXContent mappingSource, MergeReason reason, boolean updateAllTypes) {
         if (DEFAULT_MAPPING.equals(type)) {
             // verify we can parse it
             // NOTE: never apply the default here
@@ -221,14 +238,18 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             return mapper;
         } else {
             synchronized (this) {
-                // only apply the default mapping if we don't have the type yet
-                applyDefault &= mappers.containsKey(type) == false;
-                return merge(parse(type, mappingSource, applyDefault), updateAllTypes);
+                final boolean applyDefault =
+                        // the default was already applied if we are recovering
+                        reason != MergeReason.MAPPING_RECOVERY
+                        // only apply the default mapping if we don't have the type yet
+                        && mappers.containsKey(type) == false;
+                DocumentMapper mergeWith = parse(type, mappingSource, applyDefault);
+                return merge(mergeWith, reason, updateAllTypes);
             }
         }
     }
 
-    private synchronized DocumentMapper merge(DocumentMapper mapper, boolean updateAllTypes) {
+    private synchronized DocumentMapper merge(DocumentMapper mapper, MergeReason reason, boolean updateAllTypes) {
         if (mapper.type().length() == 0) {
             throw new InvalidTypeNameException("mapping type name is empty");
         }
@@ -281,6 +302,11 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             }
         }
         fullPathObjectMappers = Collections.unmodifiableMap(fullPathObjectMappers);
+
+        if (reason == MergeReason.MAPPING_UPDATE) {
+            checkNestedFieldsLimit(fullPathObjectMappers);
+        }
+
         Set<String> parentTypes = this.parentTypes;
         if (oldMapper == null && newMapper.parentFieldMapper().active()) {
             parentTypes = new HashSet<>(parentTypes.size() + 1);
@@ -390,6 +416,19 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             if (fullPathObjectMappers.containsKey(fieldMapper.name())) {
                 throw new IllegalArgumentException("Field [" + fieldMapper.name() + "] is defined as a field in mapping [" + type + "] but this name is already used for an object in other types");
             }
+        }
+    }
+
+    private void checkNestedFieldsLimit(Map<String, ObjectMapper> fullPathObjectMappers) {
+        long allowedNestedFields = indexSettings.getValue(INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING);
+        long actualNestedFields = 0;
+        for (ObjectMapper objectMapper : fullPathObjectMappers.values()) {
+            if (objectMapper.nested().isNested()) {
+                actualNestedFields++;
+            }
+        }
+        if (allowedNestedFields >= 0 && actualNestedFields > allowedNestedFields) {
+            throw new IllegalArgumentException("Limit of nested fields [" + allowedNestedFields + "] in index [" + index().name() + "] has been exceeded");
         }
     }
 

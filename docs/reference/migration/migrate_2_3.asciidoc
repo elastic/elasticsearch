@@ -1,0 +1,19 @@
+[[breaking-changes-2.3]]
+== Breaking changes in 2.3
+
+This section discusses the changes that you need to be aware of when migrating
+your application to Elasticsearch 2.3.
+
+* <<breaking_23_index_apis>>
+
+[[breaking_23_index_apis]]
+=== Mappings
+
+==== Limit to the number of `nested` fields
+
+Indexing a document with 100 nested fields actually indexes 101 documents as each nested
+document is indexed as a separate document. To safeguard against ill-defined mappings
+the number of nested fields that can be defined per index has been limited to 50.
+This default limit can be changed with the index setting `index.mapping.nested_fields.limit`.
+Note that the limit is only checked when new indices are created or mappings are updated. It
+will thus only affect existing pre-2.3 indices if their mapping is changed.

@@ -442,7 +442,7 @@ public class TransportActionFilterChainTests extends ESTestCase {
         void execute(String action, ActionResponse response, ActionListener listener, ActionFilterChain chain);
     }
 
-    public static class TestRequest extends ActionRequest {
+    public static class TestRequest extends ActionRequest<TestRequest> {
         @Override
         public ActionRequestValidationException validate() {
             return null;

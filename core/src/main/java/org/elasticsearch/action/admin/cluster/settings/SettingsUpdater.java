@@ -22,13 +22,8 @@ package org.elasticsearch.action.admin.cluster.settings;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.cluster.ClusterState.builder;
 
@@ -57,11 +52,11 @@ final class SettingsUpdater {
         boolean changed = false;
         Settings.Builder transientSettings = Settings.settingsBuilder();
         transientSettings.put(currentState.metaData().transientSettings());
-        changed |= apply(transientToApply, transientSettings, transientUpdates, "transient");
+        changed |= clusterSettings.updateDynamicSettings(transientToApply, transientSettings, transientUpdates, "transient");
 
         Settings.Builder persistentSettings = Settings.settingsBuilder();
         persistentSettings.put(currentState.metaData().persistentSettings());
-        changed |= apply(persistentToApply, persistentSettings, persistentUpdates, "persistent");
+        changed |= clusterSettings.updateDynamicSettings(persistentToApply, persistentSettings, persistentUpdates, "persistent");
 
         if (!changed) {
             return currentState;
@@ -86,42 +81,5 @@ final class SettingsUpdater {
         return build;
     }
 
-    private boolean apply(Settings toApply, Settings.Builder target, Settings.Builder updates, String type) {
-        boolean changed = false;
-        final Set<String> toRemove = new HashSet<>();
-        Settings.Builder settingsBuilder = Settings.settingsBuilder();
-        for (Map.Entry<String, String> entry : toApply.getAsMap().entrySet()) {
-            if (entry.getValue() == null) {
-                toRemove.add(entry.getKey());
-            } else if (clusterSettings.isLoggerSetting(entry.getKey()) || clusterSettings.hasDynamicSetting(entry.getKey())) {
-                settingsBuilder.put(entry.getKey(), entry.getValue());
-                updates.put(entry.getKey(), entry.getValue());
-                changed = true;
-            } else {
-                throw new IllegalArgumentException(type + " setting [" + entry.getKey() + "], not dynamically updateable");
-            }
 
-        }
-        changed |= applyDeletes(toRemove, target);
-        target.put(settingsBuilder.build());
-        return changed;
-    }
-
-    private final boolean applyDeletes(Set<String> deletes, Settings.Builder builder) {
-        boolean changed = false;
-        for (String entry : deletes) {
-            Set<String> keysToRemove = new HashSet<>();
-            Set<String> keySet = builder.internalMap().keySet();
-            for (String key : keySet) {
-                if (Regex.simpleMatch(entry, key)) {
-                    keysToRemove.add(key);
-                }
-            }
-            for (String key : keysToRemove) {
-                builder.remove(key);
-                changed = true;
-            }
-        }
-        return changed;
-    }
 }

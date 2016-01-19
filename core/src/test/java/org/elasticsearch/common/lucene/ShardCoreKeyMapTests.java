@@ -22,8 +22,10 @@ package org.elasticsearch.common.lucene;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.RandomIndexWriter;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.index.shard.ShardId;
@@ -53,6 +55,25 @@ public class ShardCoreKeyMapTests extends ESTestCase {
                 }
             }
         }
+    }
+
+    public void testAddingAClosedReader() throws Exception {
+        LeafReader reader;
+        try (Directory dir = newDirectory();
+                RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+            writer.addDocument(new Document());
+            try (DirectoryReader dirReader = ElasticsearchDirectoryReader.wrap(writer.getReader(), new ShardId("index1", 1))) {
+                reader = dirReader.leaves().get(0).reader();
+            }
+        }
+        ShardCoreKeyMap map = new ShardCoreKeyMap();
+        try {
+            map.add(reader);
+            fail("Expected AlreadyClosedException");
+        } catch (AlreadyClosedException e) {
+            // What we wanted
+        }
+        assertEquals(0, map.size());
     }
 
     public void testBasics() throws IOException {

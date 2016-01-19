@@ -410,7 +410,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
                 // simulate node failure
                 totalShards += map.get(entry.getKey()).size();
                 totalFailedShards += map.get(entry.getKey()).size();
-                transport.handleResponse(requestId, new Exception());
+                transport.handleRemoteError(requestId, new Exception());
             } else {
                 List<ShardRouting> shards = map.get(entry.getKey());
                 List<TransportBroadcastByNodeAction.EmptyResult> shardResults = new ArrayList<>();

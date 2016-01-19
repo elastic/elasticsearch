@@ -31,6 +31,7 @@ import org.elasticsearch.plugin.repository.azure.AzureRepositoryPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.test.store.MockFSDirectoryService;
+import org.elasticsearch.test.store.MockFSIndexStore;
 import org.junit.After;
 import org.junit.Before;
 
@@ -85,7 +86,7 @@ public abstract class AbstractAzureRepositoryServiceTestCase extends AbstractAzu
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(AzureRepositoryPlugin.class, TestPlugin.class);
+        return pluginList(AzureRepositoryPlugin.class, TestPlugin.class, MockFSIndexStore.TestPlugin.class);
     }
 
     @Override
@@ -93,8 +94,8 @@ public abstract class AbstractAzureRepositoryServiceTestCase extends AbstractAzu
         // During restore we frequently restore index to exactly the same state it was before, that might cause the same
         // checksum file to be written twice during restore operation
         return Settings.builder().put(super.indexSettings())
-                .put(MockFSDirectoryService.RANDOM_PREVENT_DOUBLE_WRITE, false)
-                .put(MockFSDirectoryService.RANDOM_NO_DELETE_OPEN_FILE, false)
+                .put(MockFSDirectoryService.RANDOM_PREVENT_DOUBLE_WRITE_SETTING.getKey(), false)
+                .put(MockFSDirectoryService.RANDOM_NO_DELETE_OPEN_FILE_SETTING.getKey(), false)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
                 .build();
     }

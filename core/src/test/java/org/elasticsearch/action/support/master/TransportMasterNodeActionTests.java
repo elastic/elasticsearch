@@ -297,14 +297,14 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         assertThat(capturedRequest.action, equalTo("testAction"));
 
         if (failsWithConnectTransportException) {
-            transport.handleResponse(capturedRequest.requestId, new ConnectTransportException(remoteNode, "Fake error"));
+            transport.handleRemoteError(capturedRequest.requestId, new ConnectTransportException(remoteNode, "Fake error"));
             assertFalse(listener.isDone());
             clusterService.setState(ClusterStateCreationUtils.state(localNode, localNode, allNodes));
             assertTrue(listener.isDone());
             listener.get();
         } else {
             Throwable t = new Throwable();
-            transport.handleResponse(capturedRequest.requestId, t);
+            transport.handleRemoteError(capturedRequest.requestId, t);
             assertTrue(listener.isDone());
             try {
                 listener.get();

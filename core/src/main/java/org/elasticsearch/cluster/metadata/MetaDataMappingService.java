@@ -143,7 +143,7 @@ public class MetaDataMappingService extends AbstractComponent {
                 removeIndex = true;
                 for (ObjectCursor<MappingMetaData> metaData : indexMetaData.getMappings().values()) {
                     // don't apply the default mapping, it has been applied when the mapping was created
-                    indexService.mapperService().merge(metaData.value.type(), metaData.value.source(), false, true);
+                    indexService.mapperService().merge(metaData.value.type(), metaData.value.source(), MapperService.MergeReason.MAPPING_RECOVERY, true);
                 }
             }
 
@@ -223,7 +223,7 @@ public class MetaDataMappingService extends AbstractComponent {
                             IndexService indexService = indicesService.createIndex(nodeServicesProvider, indexMetaData, Collections.emptyList());
                             // add mappings for all types, we need them for cross-type validation
                             for (ObjectCursor<MappingMetaData> mapping : indexMetaData.getMappings().values()) {
-                                indexService.mapperService().merge(mapping.value.type(), mapping.value.source(), false, request.updateAllTypes());
+                                indexService.mapperService().merge(mapping.value.type(), mapping.value.source(), MapperService.MergeReason.MAPPING_RECOVERY, request.updateAllTypes());
                             }
                         }
                     }
@@ -303,7 +303,7 @@ public class MetaDataMappingService extends AbstractComponent {
                 if (existingMapper != null) {
                     existingSource = existingMapper.mappingSource();
                 }
-                DocumentMapper mergedMapper = indexService.mapperService().merge(mappingType, mappingUpdateSource, true, request.updateAllTypes());
+                DocumentMapper mergedMapper = indexService.mapperService().merge(mappingType, mappingUpdateSource, MapperService.MergeReason.MAPPING_UPDATE, request.updateAllTypes());
                 CompressedXContent updatedSource = mergedMapper.mappingSource();
 
                 if (existingSource != null) {

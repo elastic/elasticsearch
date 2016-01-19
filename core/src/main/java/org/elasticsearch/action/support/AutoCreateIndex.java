@@ -44,7 +44,7 @@ public final class AutoCreateIndex {
     @Inject
     public AutoCreateIndex(Settings settings, IndexNameExpressionResolver resolver) {
         this.resolver = resolver;
-        dynamicMappingDisabled = !settings.getAsBoolean(MapperService.INDEX_MAPPER_DYNAMIC_SETTING, MapperService.INDEX_MAPPER_DYNAMIC_DEFAULT);
+        dynamicMappingDisabled = !MapperService.INDEX_MAPPER_DYNAMIC_SETTING.get(settings);
         String value = settings.get("action.auto_create_index");
         if (value == null || Booleans.isExplicitTrue(value)) {
             needToCheck = true;

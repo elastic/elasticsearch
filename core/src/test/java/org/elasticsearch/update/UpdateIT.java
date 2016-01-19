@@ -33,10 +33,10 @@ import org.elasticsearch.client.transport.NoNodeAvailableException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
-import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
@@ -154,12 +154,6 @@ public class UpdateIT extends ESIntegTestCase {
 
                     return ctx;
                 }
-
-                @Override
-                public Object unwrap(Object value) {
-                    return value;
-                }
-
             };
         }
 
@@ -245,12 +239,6 @@ public class UpdateIT extends ESIntegTestCase {
                     source.put(field, currentValue.longValue() + inc.longValue());
                     return ctx;
                 }
-
-                @Override
-                public Object unwrap(Object value) {
-                    return value;
-                }
-
             };
         }
 
@@ -336,12 +324,6 @@ public class UpdateIT extends ESIntegTestCase {
                     source.put("balance", oldBalance.intValue() - deduction);
                     return ctx;
                 }
-
-                @Override
-                public Object unwrap(Object value) {
-                    return value;
-                }
-
             };
         }
 
@@ -428,12 +410,6 @@ public class UpdateIT extends ESIntegTestCase {
 
                     return ctx;
                 }
-
-                @Override
-                public Object unwrap(Object value) {
-                    return value;
-                }
-
             };
         }
 

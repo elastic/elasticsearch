@@ -19,10 +19,14 @@
 
 package org.elasticsearch.script.groovy;
 
-import groovy.lang.Binding;
-import groovy.lang.GroovyClassLoader;
-import groovy.lang.GroovyCodeSource;
-import groovy.lang.Script;
+import java.io.IOException;
+import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
+import java.security.AccessControlContext;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
+import java.util.HashMap;
+import java.util.Map;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorer;
@@ -56,14 +60,10 @@ import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
 
-import java.io.IOException;
-import java.math.BigDecimal;
-import java.nio.charset.StandardCharsets;
-import java.security.AccessControlContext;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
-import java.util.HashMap;
-import java.util.Map;
+import groovy.lang.Binding;
+import groovy.lang.GroovyClassLoader;
+import groovy.lang.GroovyCodeSource;
+import groovy.lang.Script;
 
 /**
  * Provides the infrastructure for Groovy as a scripting language for Elasticsearch
@@ -333,12 +333,6 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
         public double runAsDouble() {
             return ((Number) run()).doubleValue();
         }
-
-        @Override
-        public Object unwrap(Object value) {
-            return value;
-        }
-
     }
 
     /**

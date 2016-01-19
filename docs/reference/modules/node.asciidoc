@@ -86,9 +86,6 @@ must always be aware of how many master-eligible nodes exist in
 your cluster. In order for the election of the master node to be
 _safe_, you must setup a quorum for master election.
 
-To properly setup quorum, you must know how many master-eligible
-nodes (standalone or not) exist across the entire cluster.
-
 [cols="<,<,<",options="header",]
 |=======================================================================
 |Setting |Default |Description
@@ -160,8 +157,8 @@ the appropriate place(s).
 
 WARNING: Unnecessarily adding too many client nodes to a cluster
 can increase the burden on the entire cluster because the
-elected master node must await acknowledgement of the cluster
-state from every node!
+elected master node must await acknowledgement of cluster
+state updates from every node!
 
 Unlike master nodes and data nodes, the entire purpose of
 client nodes is to handle and route requests. This means that it
@@ -175,7 +172,7 @@ collecting a large, distributed aggregation). The routing aspect
 is a convenience, but the focus on any node should be on the burden
 that they offload from other nodes.
 
-To create a standalone data node:
+To create a standalone client node:
 
 [source,yaml]
 -------------------
@@ -224,7 +221,8 @@ directory cannot be accidentally shared and any node
 attempting to go above the set number (e.g., the second
 node) will be prevented from starting.
 
-NOTE: Running multiple nodes on the same machine is not
+NOTE: While useful for testing, running multiple nodes
+on the same machine in production on the same machine is not
 generally recommended and this setting helps to prevent
 using the same configuration to start multiple nodes
 accidentally.

@@ -117,6 +117,9 @@ public class Queries {
         if (minimumShouldMatch == null) {
             return query;
         }
+        if (query.isCoordDisabled()) {
+            return query;
+        }
         int optionalClauses = 0;
         for (BooleanClause c : query.clauses()) {
             if (c.getOccur() == BooleanClause.Occur.SHOULD) {

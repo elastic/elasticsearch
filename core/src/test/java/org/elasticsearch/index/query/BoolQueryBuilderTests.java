@@ -272,6 +272,17 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         assertEquals(3, bq.getMinimumNumberShouldMatch());
     }
 
+    public void testMinShouldMatchDisableCoord() throws Exception {
+        BooleanQuery bq = (BooleanQuery) parseQuery(
+                boolQuery()
+                        .should(termQuery("foo", "bar"))
+                        .should(termQuery("foo2", "bar2"))
+                        .minimumNumberShouldMatch("3")
+                        .disableCoord(true)
+                        .buildAsBytes()).toQuery(createShardContext());
+        assertEquals(0, bq.getMinimumNumberShouldMatch());
+    }
+
     public void testFromJson() throws IOException {
         String query =
                 "{" +

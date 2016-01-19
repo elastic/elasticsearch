@@ -1,5 +1,3 @@
-package org.elasticsearch.plan.a;
-
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -18,6 +16,8 @@ package org.elasticsearch.plan.a;
  * specific language governing permissions and limitations
  * under the License.
  */
+
+package org.elasticsearch.plan.a;
 
 public class Utility {
     public static boolean NumberToboolean(final Number value) {

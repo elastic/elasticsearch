@@ -19,22 +19,19 @@
 
 package org.elasticsearch.plan.a;
 
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.script.ScriptModule;
-
-public final class PlanAPlugin extends Plugin {
-
-    @Override
-    public String name() {
-        return "lang-plan-a";
-    }
-
-    @Override
-    public String description() {
-        return "Plan A scripting language for Elasticsearch";
-    }
-
-    public void onModule(final ScriptModule module) {
-        module.addScriptEngine(PlanAScriptEngineService.class);
+/**
+ * The PlanAError class is used to throw internal errors caused by Plan A scripts that cannot be
+ * caught using a standard {@link Exception}.  This prevents the user from catching this specific error
+ * (as Exceptions are available in the Plan A API, but Errors are not,) and possibly continuing to do
+ * something hazardous.  The alternative was extending {@link Throwable}, but that seemed worse than using
+ * an {@link Error} in this case.
+ */
+public class PlanAError extends Error {
+    /**
+     * Constructor.
+     * @param message The error message.
+     */
+    public PlanAError(final String message) {
+       super(message);
     }
 }

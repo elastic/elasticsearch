@@ -56,13 +56,13 @@ class Metadata {
         boolean lastSource = false;
 
         /**
-         * The topLoop variable will be set to true when a loop node is initially visited.  This will not be
-         * propagated down the parse tree afterwards, though.  This is used to determine
+         * The beginLoop variable will be set to true whenever a loop node is initially visited including inner
+         * loops.  This will not be propagated down the parse tree afterwards, though.  This is used to determine
          * whether or not inLoop should be set further down the tree.  Note that inLoop alone is not enough
          * information to determine whether we are in the last statement of a loop because we may inside of
          * multiple loops, so this variable is necessary.
          */
-        boolean topLoop = false;
+        boolean beginLoop = false;
 
         /**
          * The inLoop variable is set to true when inside a loop.  This will be propagated down the parse tree.  This
@@ -134,7 +134,10 @@ class Metadata {
          */
         int slot = -1;
 
-        // The constructor takes in the associated ANTLR node.
+        /**
+         * Constructor.
+         * @param source The associated ANTLR node.
+         */
         private StatementMetadata(final ParserRuleContext source) {
             this.source = source;
         }
@@ -154,7 +157,7 @@ class Metadata {
          * The read variable is used to determine whether or not the value of an expression will be read from.
          * This is set to false when the expression is the left-hand side of an assignment that is not chained or
          * when a method call is made alone.  This will propagate down the tree as far as necessary.
-         * The {@link Writer} uses this to determine when a value amy need to be popped from the stack
+         * The {@link Writer} uses this to determine when a value may need to be popped from the stack
          * such as when a method call returns a value that is never read.
          */
         boolean read = true;
@@ -220,7 +223,10 @@ class Metadata {
          */
         Cast cast = null;
 
-        // The constructor takes in the associated ANTLR node.
+        /**
+         * Constructor.
+         * @param source The associated ANTLR node.
+         */
         private ExpressionMetadata(final ParserRuleContext source) {
             this.source = source;
         }
@@ -307,7 +313,10 @@ class Metadata {
          */
         Object constant = null;
 
-        // The constructor takes in the associated ANTLR node.
+        /**
+         * Constructor.
+         * @param source The associated ANTLR node.
+         */
         private ExternalMetadata(final ParserRuleContext source) {
             this.source = source;
         }
@@ -366,7 +375,11 @@ class Metadata {
          */
         Cast castTo = null;
 
-        // The constructor takes in the top-level ANTLR node for variable/method chain and the associated ANTLR node.
+        /**
+         * Constructor.
+         * @param parent The top-level ANTLR node for the variable/method chain.
+         * @param source The associated ANTLR node.
+         */
         private ExtNodeMetadata(final ParserRuleContext parent, final ParserRuleContext source) {
             this.parent = parent;
             this.source = source;
@@ -383,59 +396,67 @@ class Metadata {
     }
 
     /**
-     * The definition variable acts as both the Plan A API and white-list for what types and methods are allowed.
+     * Acts as both the Plan A API and white-list for what types and methods are allowed.
      */
     final Definition definition;
 
     /**
-     * The source variable is the original text of the input script.  This is used to write out the source code into
+     * The original text of the input script.  This is used to write out the source code into
      * the byte code file for debugging purposes.
      */
     final String source;
 
     /**
-     * The root variable is the root node of the ANTLR tree for the Plan A script.
+     * Toot node of the ANTLR tree for the Plan A script.
      */
     final ParserRuleContext root;
 
     /**
-     * The settings variable is used to determine certain compile-time constraints such as whether or not
-     * numeric overflow is allowed and how many statements are allowed before a loop will throw an exception.
+     * Used to determine certain compile-time constraints such as whether or not numeric overflow is allowed
+     * and how many statements are allowed before a loop will throw an exception.
      */
     final CompilerSettings settings;
 
     /**
-     * The inputValueSlot variable is used to determine what slot the input variable is stored in.  This is used in
-     * the {@link Writer} whenever the input variable is accessed.
+     * Used to determine what slot the input variable is stored in.  This is used in the {@link Writer} whenever
+     * the input variable is accessed.
      */
     int inputValueSlot = -1;
 
     /**
-     * The scoreValueSlot variable is used to determine what slot the score variable is stored in.  This is used in
-     * the {@link Writer} whenever the score variable is accessed.
+     * Used to determine what slot the score variable is stored in.  This is used in the {@link Writer} whenever
+     * the score variable is accessed.
      */
     int scoreValueSlot = -1;
 
     /**
-     * The scoreValueSlot variable is used to determine what slot the loopCounter variable is stored in.  This is used
-     * in the {@link Writer} whenever the loop variable is accessed.
+     * Used to determine what slot the loopCounter variable is stored in.  This is used n the {@link Writer} whenever
+     * the loop variable is accessed.
      */
     int loopCounterSlot = -1;
 
-    // The statementMetadata variable maps the relevant ANTLR node to its metadata.
+    /**
+     * Maps the relevant ANTLR node to its metadata.
+     */
     private final Map<ParserRuleContext, StatementMetadata> statementMetadata = new HashMap<>();
 
-    // The expressionMetadata variable maps the relevant ANTLR node to its metadata.
+    /**
+     * Maps the relevant ANTLR node to its metadata.
+     */
     private final Map<ParserRuleContext, ExpressionMetadata> expressionMetadata = new HashMap<>();
 
-    // The externalMetadata variable maps the relevant ANTLR node to its metadata.
+    /**
+     * Maps the relevant ANTLR node to its metadata.
+     */
     private final Map<ParserRuleContext, ExternalMetadata> externalMetadata = new HashMap<>();
 
-    // The extNodeMetadata variable maps the relevant ANTLR node to its metadata.
+    /**
+     * Maps the relevant ANTLR node to its metadata.
+     */
     private final Map<ParserRuleContext, ExtNodeMetadata> extNodeMetadata = new HashMap<>();
 
     /**
-     * The Metadata constructor.
+     * Constructor.
      * @param definition The Plan A definition.
      * @param source The source text for the script.
      * @param root The root ANTLR node.
@@ -461,7 +482,7 @@ class Metadata {
     }
 
     /**
-     * Retrieves StatementMetadata from teh statementMetadata map.
+     * Retrieves StatementMetadata from the statementMetadata map.
      * @param source The ANTLR node for this metadata.
      * @return The retrieved StatementMetadata.
      */
@@ -525,7 +546,7 @@ class Metadata {
     }
 
     /**
-     * Retrieves ExpressionMetadata from teh expressionMetadata map.
+     * Retrieves ExpressionMetadata from the expressionMetadata map.
      * @param source The ANTLR node for this metadata.
      * @return The retrieved ExpressionMetadata.
      */
@@ -553,7 +574,7 @@ class Metadata {
     }
 
     /**
-     * Retrieves ExternalMetadata from teh externalMetadata map.
+     * Retrieves ExternalMetadata from the externalMetadata map.
      * @param source The ANTLR node for this metadata.
      * @return The retrieved ExternalMetadata.
      */
@@ -581,7 +602,7 @@ class Metadata {
     }
 
     /**
-     * Retrieves ExtNodeMetadata from teh extNodeMetadata map.
+     * Retrieves ExtNodeMetadata from the extNodeMetadata map.
      * @param source The ANTLR node for this metadata.
      * @return The retrieved ExtNodeMetadata.
      */

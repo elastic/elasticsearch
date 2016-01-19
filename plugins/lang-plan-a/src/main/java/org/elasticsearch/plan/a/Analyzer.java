@@ -306,7 +306,7 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
 
         if (blockctx != null) {
             final StatementMetadata blocksmd = metadata.createStatementMetadata(blockctx);
-            blocksmd.topLoop = true;
+            blocksmd.beginLoop = true;
             blocksmd.inLoop = true;
             visit(blockctx);
 
@@ -335,7 +335,7 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
 
         final BlockContext blockctx = ctx.block();
         final StatementMetadata blocksmd = metadata.createStatementMetadata(blockctx);
-        blocksmd.topLoop = true;
+        blocksmd.beginLoop = true;
         blocksmd.inLoop = true;
         visit(blockctx);
 
@@ -417,7 +417,7 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
 
         if (blockctx != null) {
             final StatementMetadata blocksmd = metadata.createStatementMetadata(blockctx);
-            blocksmd.topLoop = true;
+            blocksmd.beginLoop = true;
             blocksmd.inLoop = true;
             visit(blockctx);
 
@@ -609,7 +609,7 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
             final StatementMetadata statesmd = metadata.createStatementMetadata(statectx);
             statesmd.lastSource = multiplesmd.lastSource && statectx == lastctx;
             statesmd.inLoop = multiplesmd.inLoop;
-            statesmd.lastLoop = (multiplesmd.topLoop || multiplesmd.lastLoop) && statectx == lastctx;
+            statesmd.lastLoop = (multiplesmd.beginLoop || multiplesmd.lastLoop) && statectx == lastctx;
             visit(statectx);
 
             multiplesmd.methodEscape = statesmd.methodEscape;
@@ -632,7 +632,7 @@ class Analyzer extends PlanAParserBaseVisitor<Void> {
         final StatementMetadata statesmd = metadata.createStatementMetadata(statectx);
         statesmd.lastSource = singlesmd.lastSource;
         statesmd.inLoop = singlesmd.inLoop;
-        statesmd.lastLoop = singlesmd.topLoop || singlesmd.lastLoop;
+        statesmd.lastLoop = singlesmd.beginLoop || singlesmd.lastLoop;
         visit(statectx);
 
         singlesmd.methodEscape = statesmd.methodEscape;

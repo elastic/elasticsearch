@@ -33,10 +33,14 @@ final class CompilerSettings {
      */
     public static final String MAX_LOOP_COUNTER = "max_loop_counter";
 
-    // Whether or not to allow numeric values to overflow without exception.
+    /**
+     * Whether or not to allow numeric values to overflow without exception.
+     */
     private boolean numericOverflow = true;
 
-    // The maximum number of statements allowed to be run in a loop.
+    /**
+     * The maximum number of statements allowed to be run in a loop.
+     */
     private int maxLoopCounter = 10000;
 
     /**

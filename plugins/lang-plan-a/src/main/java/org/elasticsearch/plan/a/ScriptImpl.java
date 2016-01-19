@@ -33,8 +33,19 @@ import java.util.Map;
  * to run a previously compiled Plan A script.
  */
 final class ScriptImpl implements ExecutableScript, LeafSearchScript {
+    /**
+     * The Plan A Executable script that can be run.
+     */
     private final Executable executable;
+
+    /**
+     * A map that can be used to access input parameters at run-time.
+     */
     private final Map<String, Object> variables;
+
+    /**
+     * The lookup is used to access search field values at run-time.
+     */
     private final LeafSearchLookup lookup;
 
     /**

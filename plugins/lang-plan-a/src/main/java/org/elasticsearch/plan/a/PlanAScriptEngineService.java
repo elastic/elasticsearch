@@ -50,12 +50,19 @@ public class PlanAScriptEngineService extends AbstractComponent implements Scrip
      */
     public static final String NAME = "plan-a";
 
-    // Default compiler settings to be used.
+    /**
+     * Default compiler settings to be used.
+     */
     private static final CompilerSettings DEFAULT_COMPILER_SETTINGS = new CompilerSettings();
 
-    // Context used during compilation.
+    /**
+     * Permissions context used during compilation.
+     */
     private static final AccessControlContext COMPILATION_CONTEXT;
 
+    /**
+     * Setup the allowed permissions.
+     */
     static {
         final Permissions none = new Permissions();
         none.setReadOnly();
@@ -64,15 +71,20 @@ public class PlanAScriptEngineService extends AbstractComponent implements Scrip
         });
     }
 
-    // Used for testing.
+    /**
+     * Used only for testing.
+     */
     private Definition definition = null;
 
-    // Used for testing.
+    /**
+     * Used only for testing.
+     */
     void setDefinition(final Definition definition) {
         this.definition = definition;
     }
 
     /**
+     * Constructor.
      * @param settings The settings to initialize the engine with.
      */
     @Inject
@@ -81,6 +93,7 @@ public class PlanAScriptEngineService extends AbstractComponent implements Scrip
     }
 
     /**
+     * Get the type name(s) for the language.
      * @return Always contains only the single name of the language.
      */
     @Override
@@ -89,6 +102,7 @@ public class PlanAScriptEngineService extends AbstractComponent implements Scrip
     }
 
     /**
+     * Get the extension(s) for the language.
      * @return Always contains only the single extension of the language.
      */
     @Override
@@ -97,6 +111,7 @@ public class PlanAScriptEngineService extends AbstractComponent implements Scrip
     }
 
     /**
+     * Whether or not the engine is secure.
      * @return Always true as the engine should be secure at runtime.
      */
     @Override
@@ -184,6 +199,7 @@ public class PlanAScriptEngineService extends AbstractComponent implements Scrip
     public SearchScript search(final CompiledScript compiledScript, final SearchLookup lookup, final Map<String, Object> vars) {
         return new SearchScript() {
             /**
+             * Get the search script that will have access to search field values.
              * @param context The LeafReaderContext to be used.
              * @return A script that will have the search fields from the current context available for use.
              */
@@ -193,6 +209,7 @@ public class PlanAScriptEngineService extends AbstractComponent implements Scrip
             }
 
             /**
+             * Whether or not the score is needed.
              * @return Always true as it's assumed score is needed.
              */
             @Override

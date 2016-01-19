@@ -25,8 +25,6 @@ dependencyLicenses {
   mapping from: /google-.*/, to: 'google'
 }
 
-compileJava.options.compilerArgs << '-Xlint:-rawtypes,-unchecked'
-
 test {
   // this is needed for insecure plugins, remove if possible!
   systemProperty 'tests.artifact', project.name 

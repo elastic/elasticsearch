@@ -124,23 +124,23 @@ public class AttachmentMapper extends FieldMapper {
 
         private Boolean langDetect = null;
 
-        private Mapper.Builder contentBuilder;
+        private Mapper.Builder<?, ?> contentBuilder;
 
-        private Mapper.Builder titleBuilder = stringField(FieldNames.TITLE);
+        private Mapper.Builder<?, ?> titleBuilder = stringField(FieldNames.TITLE);
 
-        private Mapper.Builder nameBuilder = stringField(FieldNames.NAME);
+        private Mapper.Builder<?, ?> nameBuilder = stringField(FieldNames.NAME);
 
-        private Mapper.Builder authorBuilder = stringField(FieldNames.AUTHOR);
+        private Mapper.Builder<?, ?> authorBuilder = stringField(FieldNames.AUTHOR);
 
-        private Mapper.Builder keywordsBuilder = stringField(FieldNames.KEYWORDS);
+        private Mapper.Builder<?, ?> keywordsBuilder = stringField(FieldNames.KEYWORDS);
 
-        private Mapper.Builder dateBuilder = dateField(FieldNames.DATE);
+        private Mapper.Builder<?, ?> dateBuilder = dateField(FieldNames.DATE);
 
-        private Mapper.Builder contentTypeBuilder = stringField(FieldNames.CONTENT_TYPE);
+        private Mapper.Builder<?, ?> contentTypeBuilder = stringField(FieldNames.CONTENT_TYPE);
 
-        private Mapper.Builder contentLengthBuilder = integerField(FieldNames.CONTENT_LENGTH);
+        private Mapper.Builder<?, ?> contentLengthBuilder = integerField(FieldNames.CONTENT_LENGTH);
 
-        private Mapper.Builder languageBuilder = stringField(FieldNames.LANGUAGE);
+        private Mapper.Builder<?, ?> languageBuilder = stringField(FieldNames.LANGUAGE);
 
         public Builder(String name) {
             super(name, new AttachmentFieldType(), new AttachmentFieldType());
@@ -148,47 +148,47 @@ public class AttachmentMapper extends FieldMapper {
             this.contentBuilder = stringField(FieldNames.CONTENT);
         }
 
-        public Builder content(Mapper.Builder content) {
+        public Builder content(Mapper.Builder<?, ?> content) {
             this.contentBuilder = content;
             return this;
         }
 
-        public Builder date(Mapper.Builder date) {
+        public Builder date(Mapper.Builder<?, ?> date) {
             this.dateBuilder = date;
             return this;
         }
 
-        public Builder author(Mapper.Builder author) {
+        public Builder author(Mapper.Builder<?, ?> author) {
             this.authorBuilder = author;
             return this;
         }
 
-        public Builder title(Mapper.Builder title) {
+        public Builder title(Mapper.Builder<?, ?> title) {
             this.titleBuilder = title;
             return this;
         }
 
-        public Builder name(Mapper.Builder name) {
+        public Builder name(Mapper.Builder<?, ?> name) {
             this.nameBuilder = name;
             return this;
         }
 
-        public Builder keywords(Mapper.Builder keywords) {
+        public Builder keywords(Mapper.Builder<?, ?> keywords) {
             this.keywordsBuilder = keywords;
             return this;
         }
 
-        public Builder contentType(Mapper.Builder contentType) {
+        public Builder contentType(Mapper.Builder<?, ?> contentType) {
             this.contentTypeBuilder = contentType;
             return this;
         }
 
-        public Builder contentLength(Mapper.Builder contentType) {
+        public Builder contentLength(Mapper.Builder<?, ?> contentType) {
             this.contentLengthBuilder = contentType;
             return this;
         }
 
-        public Builder language(Mapper.Builder language) {
+        public Builder language(Mapper.Builder<?, ?> language) {
             this.languageBuilder = language;
             return this;
         }
@@ -202,7 +202,7 @@ public class AttachmentMapper extends FieldMapper {
                 if (contentBuilder instanceof FieldMapper.Builder == false) {
                     throw new IllegalStateException("content field for attachment must be a field mapper");
                 }
-                ((FieldMapper.Builder)contentBuilder).indexName(name);
+                ((FieldMapper.Builder<?, ?>)contentBuilder).indexName(name);
                 contentBuilder.name = name + "." + FieldNames.CONTENT;
                 contentMapper = (FieldMapper) contentBuilder.build(context);
                 context.path().add(name);
@@ -299,9 +299,9 @@ public class AttachmentMapper extends FieldMapper {
             return mapperBuilder;
         }
 
-        @SuppressWarnings({"unchecked"})
         @Override
-        public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        @SuppressWarnings("unchecked")  // Safe because we know how our maps are shaped
+        public Mapper.Builder<?, ?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             AttachmentMapper.Builder builder = new AttachmentMapper.Builder(name);
 
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
@@ -316,7 +316,7 @@ public class AttachmentMapper extends FieldMapper {
                         Map<String, Object> propNode = (Map<String, Object>) entry1.getValue();
 
                         Mapper.Builder<?, ?> mapperBuilder = findMapperBuilder(propNode, propName, parserContext);
-                        if (parseMultiField((FieldMapper.Builder) mapperBuilder, fieldName, parserContext, propName, propNode)) {
+                        if (parseMultiField((FieldMapper.Builder<?, ?>) mapperBuilder, fieldName, parserContext, propName, propNode)) {
                             fieldsIterator.remove();
                         } else if (propName.equals(name) && parserContext.indexVersionCreated().before(Version.V_2_0_0_beta1)) {
                             builder.content(mapperBuilder);

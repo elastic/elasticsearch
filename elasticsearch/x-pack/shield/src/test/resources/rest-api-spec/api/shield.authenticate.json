@@ -1,0 +1,13 @@
+{
+  "shield.authenticate": {
+    "documentation": "Retrieve details about the currently authenticated user",
+    "methods": [ "GET" ],
+    "url": {
+      "path": "/_shield/authenticate",
+      "paths": [ "/_shield/authenticate" ],
+      "parts": {},
+      "params": {}
+    },
+    "body": null
+  }
+}

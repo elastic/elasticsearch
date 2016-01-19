@@ -1,0 +1,11 @@
+---
+"Test authenticate api":
+
+  - do:
+      cluster.health:
+          wait_for_status: yellow
+  - do:
+      shield.authenticate: {}
+
+  - match: { username: "test_user" }
+  - match: { roles.0:  "admin" }

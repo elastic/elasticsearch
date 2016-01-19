@@ -19,6 +19,7 @@
 
 package org.elasticsearch.plan.a;
 
+import java.text.ParseException;
 import java.util.Collections;
 
 public class WhenThingsGoWrongTests extends ScriptTestCase {
@@ -107,7 +108,25 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
                 "The maximum number of statements that can be executed in a loop has been reached."));
         }
 
-        exec("try { throw new PlanAError(\"test\") } catch (PlanAError) {}");
-        fail("should have hit PlanAError");
+        try {
+            exec("try { int x } catch (PlanAError error) {}");
+            fail("should have hit ParseException");
+        } catch (RuntimeException expected) {
+            assertTrue(expected.getMessage().contains(
+                "unexpected token ['PlanAError'] was expecting one of [TYPE]."));
+        }
+
+    }
+
+    public void testLoopLimits() {
+        exec("for (int x = 0; x < 9999; ++x) {}");
+
+        try {
+            exec("for (int x = 0; x < 10000; ++x) {}");
+            fail("should have hit PlanAError");
+        } catch (PlanAError expected) {
+            assertTrue(expected.getMessage().contains(
+                "The maximum number of statements that can be executed in a loop has been reached."));
+        }
     }
 }

@@ -162,7 +162,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
     public static final Setting<Boolean> INDEX_SHARED_FILESYSTEM_SETTING = Setting.boolSetting(SETTING_SHARED_FILESYSTEM, false, false, Setting.Scope.INDEX);
 
     public static final String SETTING_AUTO_EXPAND_REPLICAS = "index.auto_expand_replicas";
-    public static final Setting<AutoExpandReplicas> SETTING_AUTO_EXPAND_REPLICAS_SETTING = AutoExpandReplicas.SETTING;
+    public static final Setting<AutoExpandReplicas> INDEX_AUTO_EXPAND_REPLICAS_SETTING = AutoExpandReplicas.SETTING;
     public static final String SETTING_READ_ONLY = "index.blocks.read_only";
     public static final Setting<Boolean> INDEX_READ_ONLY_SETTING = Setting.boolSetting(SETTING_READ_ONLY, false, true, Setting.Scope.INDEX);
 

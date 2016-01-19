@@ -33,7 +33,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.inject.ModuleTestCase;
 import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.IndexScopeSettings;
+import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
@@ -103,7 +103,7 @@ public class ClusterModuleTests extends ModuleTestCase {
         final SettingsFilter settingsFilter = new SettingsFilter(Settings.EMPTY);
         SettingsModule module = new SettingsModule(Settings.EMPTY, settingsFilter);
         module.registerSetting(Setting.boolSetting("foo.bar", false, true, Setting.Scope.INDEX));
-        assertInstanceBinding(module, IndexScopeSettings.class, service -> service.hasDynamicSetting("foo.bar"));
+        assertInstanceBinding(module, IndexScopedSettings.class, service -> service.hasDynamicSetting("foo.bar"));
     }
 
     public void testRegisterAllocationDeciderDuplicate() {

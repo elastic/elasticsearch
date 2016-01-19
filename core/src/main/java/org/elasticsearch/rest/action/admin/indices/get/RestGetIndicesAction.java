@@ -29,7 +29,7 @@ import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.IndexScopeSettings;
+import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -53,12 +53,12 @@ import static org.elasticsearch.rest.RestStatus.OK;
  */
 public class RestGetIndicesAction extends BaseRestHandler {
 
-    private final IndexScopeSettings indexScopeSettings;
+    private final IndexScopedSettings indexScopedSettings;
 
     @Inject
-    public RestGetIndicesAction(Settings settings, RestController controller, Client client, IndexScopeSettings indexScopeSettings) {
+    public RestGetIndicesAction(Settings settings, RestController controller, Client client, IndexScopedSettings indexScopedSettings) {
         super(settings, controller, client);
-        this.indexScopeSettings = indexScopeSettings;
+        this.indexScopedSettings = indexScopedSettings;
         controller.registerHandler(GET, "/{index}", this);
         controller.registerHandler(GET, "/{index}/{type}", this);
     }
@@ -143,7 +143,7 @@ public class RestGetIndicesAction extends BaseRestHandler {
                 builder.endObject();
                 if (renderDefaults) {
                     builder.startObject("defaults");
-                    indexScopeSettings.diff(settings, settings).toXContent(builder, request);
+                    indexScopedSettings.diff(settings, settings).toXContent(builder, request);
                     builder.endObject();
                 }
             }

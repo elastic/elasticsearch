@@ -26,10 +26,9 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.IndexScopeSettings;
+import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
@@ -43,12 +42,12 @@ import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestGetSettingsAction extends BaseRestHandler {
 
-    private final IndexScopeSettings indexScopeSettings;
+    private final IndexScopedSettings indexScopedSettings;
 
     @Inject
-    public RestGetSettingsAction(Settings settings, RestController controller, Client client, IndexScopeSettings indexScopeSettings) {
+    public RestGetSettingsAction(Settings settings, RestController controller, Client client, IndexScopedSettings indexScopedSettings) {
         super(settings, controller, client);
-        this.indexScopeSettings = indexScopeSettings;
+        this.indexScopedSettings = indexScopedSettings;
         controller.registerHandler(GET, "/{index}/_settings/{name}", this);
         controller.registerHandler(GET, "/_settings/{name}", this);
         controller.registerHandler(GET, "/{index}/_setting/{name}", this);
@@ -81,7 +80,7 @@ public class RestGetSettingsAction extends BaseRestHandler {
                     builder.endObject();
                     if (renderDefaults) {
                         builder.startObject("defaults");
-                        indexScopeSettings.diff(cursor.value, settings).toXContent(builder, request);
+                        indexScopedSettings.diff(cursor.value, settings).toXContent(builder, request);
                         builder.endObject();
                     }
                     builder.endObject();

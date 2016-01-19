@@ -170,19 +170,19 @@ public class ScopedSettingsTests extends ESTestCase {
     }
 
     public void testGetSetting() {
-        IndexScopeSettings settings = new IndexScopeSettings(
+        IndexScopedSettings settings = new IndexScopedSettings(
            Settings.EMPTY,
-            IndexScopeSettings.BUILT_IN_INDEX_SETTINGS);
-        IndexScopeSettings copy = settings.copy(Settings.builder().put("index.store.type", "boom").build(), newIndexMeta("foo", Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 3).build()));
+            IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
+        IndexScopedSettings copy = settings.copy(Settings.builder().put("index.store.type", "boom").build(), newIndexMeta("foo", Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 3).build()));
         assertEquals(3, copy.get(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING).intValue());
         assertEquals(1, copy.get(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING).intValue());
         assertEquals("boom", copy.get(IndexModule.INDEX_STORE_TYPE_SETTING)); // test fallback to node settings
     }
 
     public void testValidate() {
-        IndexScopeSettings settings = new IndexScopeSettings(
+        IndexScopedSettings settings = new IndexScopedSettings(
             Settings.EMPTY,
-            IndexScopeSettings.BUILT_IN_INDEX_SETTINGS);
+            IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
         settings.validate(Settings.builder().put("index.store.type", "boom"));
         settings.validate(Settings.builder().put("index.store.type", "boom").build());
         try {
@@ -207,7 +207,7 @@ public class ScopedSettingsTests extends ESTestCase {
         }
 
         try {
-            settings.validate("index.number_of_replicas", "true");
+            settings.validate("index.number_of_replicas", Settings.builder().put("index.number_of_replicas", "true").build());
             fail();
         } catch (IllegalArgumentException e) {
             assertEquals("Failed to parse value [true] for setting [index.number_of_replicas]", e.getMessage());

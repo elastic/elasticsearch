@@ -24,7 +24,7 @@ import org.elasticsearch.common.settings.Setting;
 /**
  * This class acts as a functional wrapper around the <tt>index.auto_expand_replicas</tt> setting.
  * This setting or rather it's value is expanded into a min and max value which requires special handling
- * based on the number of datanodes in the cluster. This class handels all the parsing and streamlines the access to these values.
+ * based on the number of datanodes in the cluster. This class handles all the parsing and streamlines the access to these values.
  */
 final class AutoExpandReplicas {
     // the value we recognize in the "max" position to mean all the nodes
@@ -62,7 +62,7 @@ final class AutoExpandReplicas {
     private final int maxReplicas;
     private final boolean enabled;
 
-    AutoExpandReplicas(int minReplicas, int maxReplicas, boolean enabled) {
+    private AutoExpandReplicas(int minReplicas, int maxReplicas, boolean enabled) {
         if (minReplicas > maxReplicas) {
             throw new IllegalArgumentException("[" + IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS + "] minReplicas must be =< maxReplicas but wasn't " + minReplicas + " > "  + maxReplicas);
         }
@@ -81,7 +81,7 @@ final class AutoExpandReplicas {
 
     @Override
     public String toString() {
-        return enabled == false ? Boolean.toString(enabled) : minReplicas + "-" + maxReplicas;
+        return enabled ? minReplicas + "-" + maxReplicas : "false";
     }
 
     boolean isEnabled() {

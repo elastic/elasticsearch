@@ -183,9 +183,7 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
      * Validates that all settings in the builder are registered and valid
      */
     public final void validate(Settings.Builder settingsBuilder) {
-        for (Map.Entry<String, String> entry : settingsBuilder.internalMap().entrySet()) {
-            validate(entry.getKey(), entry.getValue());
-        }
+        validate(settingsBuilder.build());
     }
 
     /**
@@ -193,7 +191,7 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
      */
     public final void validate(Settings settings) {
         for (Map.Entry<String, String> entry : settings.getAsMap().entrySet()) {
-            validate(entry.getKey(), entry.getValue());
+            validate(entry.getKey(), settings);
         }
     }
 
@@ -201,13 +199,12 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
     /**
      * Validates that the setting is valid
      */
-    public final void validate(String key, String value) {
-        Settings.Builder builder = Settings.builder().put(key, value);
+    public final void validate(String key, Settings settings) {
         Setting setting = get(key);
         if (setting == null) {
             throw new IllegalArgumentException("unknown setting [" + key + "]");
         }
-        setting.get(builder.build());
+        setting.get(settings);
     }
 
     /**
@@ -317,22 +314,49 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
 
     /**
      * Updates a target settings builder with new, updated or deleted settings from a given settings builder.
+     * <p>
+     * Note: This method will only allow updates to dynamic settings. if a non-dynamic setting is updated an {@link IllegalArgumentException} is thrown instead.
+     *</p>
      * @param toApply the new settings to apply
      * @param target the target settings builder that the updates are applied to. All keys that have explicit null value in toApply will be removed from this builder
      * @param updates a settings builder that holds all updates applied to target
      * @param type a free text string to allow better exceptions messages
-     * @param all if <code>true</code> all settings are updated otherwise only dynamic settings are updated. if set to <code>false</code> and a non-dynamic setting is updated an exception is thrown
      * @return <code>true</code> if the target has changed otherwise <code>false</code>
      */
-    public boolean updateSettings(Settings toApply, Settings.Builder target, Settings.Builder updates, String type, boolean all) {
+    public boolean updateDynamicSettings(Settings toApply, Settings.Builder target, Settings.Builder updates, String type) {
+        return updateSettings(toApply, target, updates, type, true);
+    }
+
+    /**
+     * Updates a target settings builder with new, updated or deleted settings from a given settings builder.
+     * @param toApply the new settings to apply
+     * @param target the target settings builder that the updates are applied to. All keys that have explicit null value in toApply will be removed from this builder
+     * @param updates a settings builder that holds all updates applied to target
+     * @param type a free text string to allow better exceptions messages
+     * @return <code>true</code> if the target has changed otherwise <code>false</code>
+     */
+    public boolean updateSettings(Settings toApply, Settings.Builder target, Settings.Builder updates, String type) {
+        return updateSettings(toApply, target, updates, type, false);
+    }
+
+    /**
+     * Updates a target settings builder with new, updated or deleted settings from a given settings builder.
+     * @param toApply the new settings to apply
+     * @param target the target settings builder that the updates are applied to. All keys that have explicit null value in toApply will be removed from this builder
+     * @param updates a settings builder that holds all updates applied to target
+     * @param type a free text string to allow better exceptions messages
+     * @param onlyDynamic  if <code>false</code> all settings are updated otherwise only dynamic settings are updated. if set to <code>true</code> and a non-dynamic setting is updated an exception is thrown.
+     * @return <code>true</code> if the target has changed otherwise <code>false</code>
+     */
+    private boolean updateSettings(Settings toApply, Settings.Builder target, Settings.Builder updates, String type, boolean onlyDynamic) {
         boolean changed = false;
         final Set<String> toRemove = new HashSet<>();
         Settings.Builder settingsBuilder = Settings.settingsBuilder();
         for (Map.Entry<String, String> entry : toApply.getAsMap().entrySet()) {
             if (entry.getValue() == null) {
                 toRemove.add(entry.getKey());
-            } else if ((all && get(entry.getKey()) != null) || hasDynamicSetting(entry.getKey())) {
-                validate(entry.getKey(), entry.getValue());
+            } else if ((onlyDynamic == false && get(entry.getKey()) != null) || hasDynamicSetting(entry.getKey())) {
+                validate(entry.getKey(), toApply);
                 settingsBuilder.put(entry.getKey(), entry.getValue());
                 updates.put(entry.getKey(), entry.getValue());
                 changed = true;

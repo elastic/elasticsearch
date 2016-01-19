@@ -29,7 +29,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaDataIndexTemplateService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.IndexScopeSettings;
+import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -40,15 +40,15 @@ import org.elasticsearch.transport.TransportService;
 public class TransportPutIndexTemplateAction extends TransportMasterNodeAction<PutIndexTemplateRequest, PutIndexTemplateResponse> {
 
     private final MetaDataIndexTemplateService indexTemplateService;
-    private final IndexScopeSettings indexScopeSettings;
+    private final IndexScopedSettings indexScopedSettings;
 
     @Inject
     public TransportPutIndexTemplateAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                            ThreadPool threadPool, MetaDataIndexTemplateService indexTemplateService,
-                                           ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, IndexScopeSettings indexScopeSettings) {
+                                           ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, IndexScopedSettings indexScopedSettings) {
         super(settings, PutIndexTemplateAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, PutIndexTemplateRequest::new);
         this.indexTemplateService = indexTemplateService;
-        this.indexScopeSettings = indexScopeSettings;
+        this.indexScopedSettings = indexScopedSettings;
     }
 
     @Override
@@ -75,7 +75,7 @@ public class TransportPutIndexTemplateAction extends TransportMasterNodeAction<P
         }
         final Settings.Builder templateSettingsBuilder = Settings.settingsBuilder();
         templateSettingsBuilder.put(request.settings()).normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX);
-        indexScopeSettings.validate(templateSettingsBuilder);
+        indexScopedSettings.validate(templateSettingsBuilder);
         indexTemplateService.putTemplate(new MetaDataIndexTemplateService.PutRequest(cause, request.name())
                 .template(request.template())
                 .order(request.order())

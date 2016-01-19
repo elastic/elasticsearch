@@ -25,7 +25,7 @@ import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.settings.IndexScopeSettings;
+import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -115,7 +115,7 @@ public final class IndexSettings {
     private volatile ByteSizeValue flushThresholdSize;
     private final MergeSchedulerConfig mergeSchedulerConfig;
     private final MergePolicyConfig mergePolicyConfig;
-    private final IndexScopeSettings scopedSettings;
+    private final IndexScopedSettings scopedSettings;
     private long gcDeletesInMillis = DEFAULT_GC_DELETES.millis();
     private volatile boolean warmerEnabled;
     private volatile int maxResultWindow;
@@ -164,10 +164,10 @@ public final class IndexSettings {
      * @param nodeSettings the nodes settings this index is allocated on.
      */
     public IndexSettings(final IndexMetaData indexMetaData, final Settings nodeSettings) {
-        this(indexMetaData, nodeSettings, (index) -> Regex.simpleMatch(index, indexMetaData.getIndex()), IndexScopeSettings.DEFAULT_SCOPED_SETTINGS);
+        this(indexMetaData, nodeSettings, (index) -> Regex.simpleMatch(index, indexMetaData.getIndex()), IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
     }
 
-    IndexSettings(final IndexMetaData indexMetaData, final Settings nodeSettings, IndexScopeSettings indexScopedSettings) {
+    IndexSettings(final IndexMetaData indexMetaData, final Settings nodeSettings, IndexScopedSettings indexScopedSettings) {
         this(indexMetaData, nodeSettings, (index) -> Regex.simpleMatch(index, indexMetaData.getIndex()), indexScopedSettings);
     }
 
@@ -179,7 +179,7 @@ public final class IndexSettings {
      * @param nodeSettings the nodes settings this index is allocated on.
      * @param indexNameMatcher a matcher that can resolve an expression to the index name or index alias
      */
-    public IndexSettings(final IndexMetaData indexMetaData, final Settings nodeSettings, final Predicate<String> indexNameMatcher, IndexScopeSettings indexScopedSettings) {
+    public IndexSettings(final IndexMetaData indexMetaData, final Settings nodeSettings, final Predicate<String> indexNameMatcher, IndexScopedSettings indexScopedSettings) {
         scopedSettings = indexScopedSettings.copy(nodeSettings, indexMetaData);
         this.nodeSettings = nodeSettings;
         this.settings = Settings.builder().put(nodeSettings).put(indexMetaData.getSettings()).build();
@@ -358,7 +358,7 @@ public final class IndexSettings {
         }
         this.indexMetaData = indexMetaData;
         final Settings existingSettings = this.settings;
-        if (existingSettings.filter(IndexScopeSettings.INDEX_SETTINGS_KEY_PREDICATE).getAsMap().equals(newSettings.filter(IndexScopeSettings.INDEX_SETTINGS_KEY_PREDICATE).getAsMap())) {
+        if (existingSettings.filter(IndexScopedSettings.INDEX_SETTINGS_KEY_PREDICATE).getAsMap().equals(newSettings.filter(IndexScopedSettings.INDEX_SETTINGS_KEY_PREDICATE).getAsMap())) {
             // nothing to update, same settings
             return false;
         }
@@ -457,5 +457,5 @@ public final class IndexSettings {
     }
 
 
-    public IndexScopeSettings getScopedSettings() { return scopedSettings;}
+    public IndexScopedSettings getScopedSettings() { return scopedSettings;}
 }

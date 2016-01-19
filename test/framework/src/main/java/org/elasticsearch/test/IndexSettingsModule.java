@@ -22,14 +22,13 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.settings.IndexScopeSettings;
+import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -60,10 +59,10 @@ public class IndexSettingsModule extends AbstractModule {
             .put(settings)
             .build();
         IndexMetaData metaData = IndexMetaData.builder(index.getName()).settings(build).build();
-        Set<Setting<?>> settingSet = new HashSet<>(IndexScopeSettings.BUILT_IN_INDEX_SETTINGS);
+        Set<Setting<?>> settingSet = new HashSet<>(IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
         if (setting.length > 0) {
             settingSet.addAll(Arrays.asList(setting));
         }
-        return new IndexSettings(metaData, Settings.EMPTY, (idx) -> Regex.simpleMatch(idx, metaData.getIndex()), new IndexScopeSettings(Settings.EMPTY, settingSet));
+        return new IndexSettings(metaData, Settings.EMPTY, (idx) -> Regex.simpleMatch(idx, metaData.getIndex()), new IndexScopedSettings(Settings.EMPTY, settingSet));
     }
 }

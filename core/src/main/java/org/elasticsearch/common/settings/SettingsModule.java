@@ -20,7 +20,6 @@
 package org.elasticsearch.common.settings;
 
 import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.index.IndexSettings;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -44,22 +43,22 @@ public class SettingsModule extends AbstractModule {
         for (Setting<?> setting : ClusterSettings.BUILT_IN_CLUSTER_SETTINGS) {
             registerSetting(setting);
         }
-        for (Setting<?> setting : IndexScopeSettings.BUILT_IN_INDEX_SETTINGS) {
+        for (Setting<?> setting : IndexScopedSettings.BUILT_IN_INDEX_SETTINGS) {
             registerSetting(setting);
         }
     }
 
     @Override
     protected void configure() {
-        final IndexScopeSettings indexScopeSettings = new IndexScopeSettings(settings, new HashSet<>(this.indexSettings.values()));
+        final IndexScopedSettings indexScopedSettings = new IndexScopedSettings(settings, new HashSet<>(this.indexSettings.values()));
         // by now we are fully configured, lets check node level settings for unregistered index settings
-        indexScopeSettings.validate(settings.filter(IndexScopeSettings.INDEX_SETTINGS_KEY_PREDICATE));
+        indexScopedSettings.validate(settings.filter(IndexScopedSettings.INDEX_SETTINGS_KEY_PREDICATE));
         bind(Settings.class).toInstance(settings);
         bind(SettingsFilter.class).toInstance(settingsFilter);
         final ClusterSettings clusterSettings = new ClusterSettings(settings, new HashSet<>(this.clusterSettings.values()));
 
         bind(ClusterSettings.class).toInstance(clusterSettings);
-        bind(IndexScopeSettings.class).toInstance(indexScopeSettings);
+        bind(IndexScopedSettings.class).toInstance(indexScopedSettings);
     }
 
     public void registerSetting(Setting<?> setting) {

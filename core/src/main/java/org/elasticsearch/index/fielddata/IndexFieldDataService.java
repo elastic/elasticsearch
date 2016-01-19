@@ -23,6 +23,7 @@ import org.apache.lucene.util.Accountable;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.plain.AbstractGeoPointDVIndexFieldData;
@@ -55,9 +56,17 @@ import static java.util.Collections.unmodifiableMap;
 /**
  */
 public class IndexFieldDataService extends AbstractIndexComponent implements Closeable {
-
-    public static final String FIELDDATA_CACHE_KEY = "index.fielddata.cache";
     public static final String FIELDDATA_CACHE_VALUE_NODE = "node";
+    public static final String FIELDDATA_CACHE_KEY = "index.fielddata.cache";
+    public static final Setting<String> INDEX_FIELDDATA_CACHE_KEY = new Setting<>(FIELDDATA_CACHE_KEY, (s) -> FIELDDATA_CACHE_VALUE_NODE, (s) -> {
+        switch (s) {
+            case "node":
+            case "none":
+                return s;
+            default:
+                throw new IllegalArgumentException("failed to parse [" + s + "] must be one of [node,node]");
+        }
+    }, false, Setting.Scope.INDEX);
 
     private static final IndexFieldData.Builder MISSING_DOC_VALUES_BUILDER = (indexProperties, fieldType, cache, breakerService, mapperService1) -> {
         throw new IllegalStateException("Can't load fielddata on [" + fieldType.name()
@@ -228,7 +237,7 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
             if (cache == null) {
                 //  we default to node level cache, which in turn defaults to be unbounded
                 // this means changing the node level settings is simple, just set the bounds there
-                String cacheType = type.getSettings().get("cache", indexSettings.getSettings().get(FIELDDATA_CACHE_KEY, FIELDDATA_CACHE_VALUE_NODE));
+                String cacheType = type.getSettings().get("cache", indexSettings.getValue(INDEX_FIELDDATA_CACHE_KEY));
                 if (FIELDDATA_CACHE_VALUE_NODE.equals(cacheType)) {
                     cache = indicesFieldDataCache.buildIndexFieldDataCache(listener, index(), fieldName, type);
                 } else if ("none".equals(cacheType)){

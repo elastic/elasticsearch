@@ -228,7 +228,7 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
 
     public void testDelayedAllocation() {
         RoutingAllocation allocation = onePrimaryOnNode1And1Replica(yesAllocationDeciders(),
-                Settings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING, TimeValue.timeValueHours(1)).build(), UnassignedInfo.Reason.NODE_LEFT);
+                Settings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueHours(1)).build(), UnassignedInfo.Reason.NODE_LEFT);
         testAllocator.addData(node1, true, "MATCH", new StoreFileMetaData("file1", 10, "MATCH_CHECKSUM"));
         if (randomBoolean()) {
             // we sometime return empty list of files, make sure we test this as well
@@ -241,7 +241,7 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
         assertThat(allocation.routingNodes().unassigned().ignored().get(0).shardId(), equalTo(shardId));
 
         allocation = onePrimaryOnNode1And1Replica(yesAllocationDeciders(),
-                Settings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING, TimeValue.timeValueHours(1)).build(), UnassignedInfo.Reason.NODE_LEFT);
+                Settings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueHours(1)).build(), UnassignedInfo.Reason.NODE_LEFT);
         testAllocator.addData(node2, false, "MATCH", new StoreFileMetaData("file1", 10, "MATCH_CHECKSUM"));
         AllocationService.updateLeftDelayOfUnassignedShards(allocation, Settings.EMPTY);
         changed = testAllocator.allocateUnassigned(allocation);

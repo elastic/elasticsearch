@@ -40,7 +40,7 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
     public void testCacheAggs() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("index")
                 .addMapping("type", "f", "type=date")
-                .setSettings(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED, true).get());
+                .setSettings(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true).get());
         indexRandom(true,
                 client().prepareIndex("index", "type").setSource("f", "2014-03-10T00:00:00.000Z"),
                 client().prepareIndex("index", "type").setSource("f", "2014-05-13T00:00:00.000Z"));

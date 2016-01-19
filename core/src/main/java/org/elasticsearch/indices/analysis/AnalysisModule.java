@@ -78,7 +78,7 @@ public final class AnalysisModule extends AbstractModule {
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .build();
         IndexMetaData metaData = IndexMetaData.builder("_na_").settings(build).build();
-        NA_INDEX_SETTINGS = new IndexSettings(metaData, Settings.EMPTY, Collections.emptyList());
+        NA_INDEX_SETTINGS = new IndexSettings(metaData, Settings.EMPTY);
     }
     private static final IndexSettings NA_INDEX_SETTINGS;
     private final Environment environment;

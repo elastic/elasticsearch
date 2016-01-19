@@ -38,6 +38,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.MemorySizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -78,7 +79,7 @@ public class IndicesRequestCache extends AbstractComponent implements RemovalLis
      * A setting to enable or disable request caching on an index level. Its dynamic by default
      * since we are checking on the cluster state IndexMetaData always.
      */
-    public static final String INDEX_CACHE_REQUEST_ENABLED = "index.requests.cache.enable";
+    public static final Setting<Boolean> INDEX_CACHE_REQUEST_ENABLED_SETTING = Setting.boolSetting("index.requests.cache.enable", true, true, Setting.Scope.INDEX);
     public static final String INDICES_CACHE_REQUEST_CLEAN_INTERVAL = "indices.requests.cache.clean_interval";
 
     public static final String INDICES_CACHE_QUERY_SIZE = "indices.requests.cache.size";
@@ -118,9 +119,6 @@ public class IndicesRequestCache extends AbstractComponent implements RemovalLis
         threadPool.schedule(cleanInterval, ThreadPool.Names.SAME, reaper);
     }
 
-    private boolean isCacheEnabled(Settings settings, boolean defaultEnable) {
-        return settings.getAsBoolean(INDEX_CACHE_REQUEST_ENABLED, defaultEnable);
-    }
 
     private void buildCache() {
         long sizeInBytes = MemorySizeValue.parseBytesSizeValueOrHeapRatio(size, INDICES_CACHE_QUERY_SIZE).bytes();
@@ -182,7 +180,7 @@ public class IndicesRequestCache extends AbstractComponent implements RemovalLis
         }
         // if not explicitly set in the request, use the index setting, if not, use the request
         if (request.requestCache() == null) {
-            if (!isCacheEnabled(index.getSettings(), Boolean.FALSE)) {
+            if (INDEX_CACHE_REQUEST_ENABLED_SETTING.get(index.getSettings()) == false) {
                 return false;
             }
         } else if (!request.requestCache()) {

@@ -34,8 +34,8 @@ public class SettingsModule extends AbstractModule {
 
     private final Settings settings;
     private final SettingsFilter settingsFilter;
-    private final Map<String, Setting<?>> clusterDynamicSettings = new HashMap<>();
-
+    private final Map<String, Setting<?>> clusterSettings = new HashMap<>();
+    private final Map<String, Setting<?>> indexSettings = new HashMap<>();
 
     public SettingsModule(Settings settings, SettingsFilter settingsFilter) {
         this.settings = settings;
@@ -43,26 +43,38 @@ public class SettingsModule extends AbstractModule {
         for (Setting<?> setting : ClusterSettings.BUILT_IN_CLUSTER_SETTINGS) {
             registerSetting(setting);
         }
+        for (Setting<?> setting : IndexScopedSettings.BUILT_IN_INDEX_SETTINGS) {
+            registerSetting(setting);
+        }
     }
 
     @Override
     protected void configure() {
+        final IndexScopedSettings indexScopedSettings = new IndexScopedSettings(settings, new HashSet<>(this.indexSettings.values()));
+        // by now we are fully configured, lets check node level settings for unregistered index settings
+        indexScopedSettings.validate(settings.filter(IndexScopedSettings.INDEX_SETTINGS_KEY_PREDICATE));
         bind(Settings.class).toInstance(settings);
         bind(SettingsFilter.class).toInstance(settingsFilter);
-        final ClusterSettings clusterSettings = new ClusterSettings(settings, new HashSet<>(clusterDynamicSettings.values()));
+        final ClusterSettings clusterSettings = new ClusterSettings(settings, new HashSet<>(this.clusterSettings.values()));
+
         bind(ClusterSettings.class).toInstance(clusterSettings);
+        bind(IndexScopedSettings.class).toInstance(indexScopedSettings);
     }
 
     public void registerSetting(Setting<?> setting) {
         switch (setting.getScope()) {
             case CLUSTER:
-                if (clusterDynamicSettings.containsKey(setting.getKey())) {
+                if (clusterSettings.containsKey(setting.getKey())) {
                     throw new IllegalArgumentException("Cannot register setting [" + setting.getKey() + "] twice");
                 }
-                clusterDynamicSettings.put(setting.getKey(), setting);
+                clusterSettings.put(setting.getKey(), setting);
                 break;
             case INDEX:
-                throw new UnsupportedOperationException("not yet implemented");
+                if (indexSettings.containsKey(setting.getKey())) {
+                    throw new IllegalArgumentException("Cannot register setting [" + setting.getKey() + "] twice");
+                }
+                indexSettings.put(setting.getKey(), setting);
+                break;
         }
     }
 

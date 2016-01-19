@@ -16,18 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.index;
 
-package org.elasticsearch.recovery;
+import java.util.Locale;
 
-import org.elasticsearch.common.settings.Settings;
-
-/**
- *
- */
-public class SmallTranslogSizeRecoveryIT extends SimpleRecoveryIT {
-
-    @Override
-    protected Settings recoverySettings() {
-        return Settings.settingsBuilder().put("index.shard.recovery.translog_size", "3b").build();
+public enum SlowLogLevel {
+    WARN, TRACE, INFO, DEBUG;
+    public static SlowLogLevel parse(String level) {
+        return valueOf(level.toUpperCase(Locale.ROOT));
     }
 }

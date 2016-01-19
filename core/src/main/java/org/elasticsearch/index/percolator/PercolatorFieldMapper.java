@@ -119,7 +119,7 @@ public class PercolatorFieldMapper extends FieldMapper {
         this.queryShardContext = queryShardContext;
         this.queryTermsField = queryTermsField;
         this.unknownQueryField = unknownQueryField;
-        this.mapUnmappedFieldAsString = indexSettings.getAsBoolean(PercolatorQueriesRegistry.MAP_UNMAPPED_FIELDS_AS_STRING, false);
+        this.mapUnmappedFieldAsString = PercolatorQueriesRegistry.INDEX_MAP_UNMAPPED_FIELDS_AS_STRING_SETTING.get(indexSettings);
     }
 
     @Override

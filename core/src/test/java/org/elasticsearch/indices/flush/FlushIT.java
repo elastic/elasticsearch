@@ -153,7 +153,7 @@ public class FlushIT extends ESIntegTestCase {
         createIndex("test");
 
         client().admin().indices().prepareUpdateSettings("test").setSettings(
-                Settings.builder().put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE, new ByteSizeValue(1, ByteSizeUnit.PB)).put("index.refresh_interval", -1).put("index.number_of_replicas", internalCluster().numDataNodes() - 1))
+                Settings.builder().put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTTING.getKey(), new ByteSizeValue(1, ByteSizeUnit.PB)).put("index.refresh_interval", -1).put("index.number_of_replicas", internalCluster().numDataNodes() - 1))
                 .get();
         ensureGreen();
         final AtomicBoolean stop = new AtomicBoolean(false);

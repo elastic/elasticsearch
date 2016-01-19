@@ -47,6 +47,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.InternalSettingsPlugin;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -453,7 +454,9 @@ public class UpdateIT extends ESIntegTestCase {
                 PutFieldValuesScriptPlugin.class,
                 FieldIncrementScriptPlugin.class,
                 ScriptedUpsertScriptPlugin.class,
-                ExtractContextInSourceScriptPlugin.class);
+                ExtractContextInSourceScriptPlugin.class,
+                InternalSettingsPlugin.class // uses index.merge.enabled
+        );
     }
 
     private void createTestIndex() throws Exception {

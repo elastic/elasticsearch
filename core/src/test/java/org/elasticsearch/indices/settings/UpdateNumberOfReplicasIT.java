@@ -263,16 +263,16 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
 
     public void testUpdateWithInvalidNumberOfReplicas() {
         createIndex("test");
+        final int value = randomIntBetween(-10, -1);
         try {
             client().admin().indices().prepareUpdateSettings("test")
                 .setSettings(Settings.settingsBuilder()
-                        .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(-10, -1))
+                        .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, value)
                 )
                 .execute().actionGet();
             fail("should have thrown an exception about the replica shard count");
         } catch (IllegalArgumentException e) {
-            assertThat("message contains error about shard count: " + e.getMessage(),
-                e.getMessage().contains("the value of the setting index.number_of_replicas must be a non negative integer"), equalTo(true));
+            assertEquals("Failed to parse value [" + value + "] for setting [index.number_of_replicas] must be >= 0", e.getMessage());
         }
     }
 }

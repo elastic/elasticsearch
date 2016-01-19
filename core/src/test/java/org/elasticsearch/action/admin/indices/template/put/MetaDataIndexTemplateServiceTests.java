@@ -93,7 +93,7 @@ public class MetaDataIndexTemplateServiceTests extends ESTestCase {
                 null,
                 new HashSet<>(),
                 null,
-                null);
+                null, null);
         MetaDataIndexTemplateService service = new MetaDataIndexTemplateService(Settings.EMPTY, null, createIndexService, new AliasValidator(Settings.EMPTY));
 
         final List<Throwable> throwables = new ArrayList<>();

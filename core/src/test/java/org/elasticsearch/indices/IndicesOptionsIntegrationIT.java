@@ -46,10 +46,16 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.suggest.SuggestRequestBuilder;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.suggest.SuggestBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
+
+import java.util.Collection;
+import java.util.function.Function;
 
 import static org.elasticsearch.action.percolate.PercolateSourceBuilder.docBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -60,6 +66,12 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return pluginList(TestPlugin.class); //
+    }
+
     public void testSpecifiedIndexUnavailableMultipleIndices() throws Exception {
         createIndex("test1");
         ensureYellow();
@@ -617,6 +629,29 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().prepareClose("barbaz").get());
         verify(client().admin().indices().preparePutMapping("barbaz").setType("type4").setSource("field", "type=string"), false);
         assertThat(client().admin().indices().prepareGetMappings("barbaz").get().mappings().get("barbaz").get("type4"), notNullValue());
+    }
+
+    public static final class TestPlugin extends Plugin {
+        @Override
+        public String name() {
+            return "index-a-setting";
+        }
+
+        @Override
+        public String description() {
+            return "a plugin that adds a dynamic tst setting";
+        }
+
+        private static final Setting<String> INDEX_A = new Setting<>("index.a", "", Function.identity(), true, Setting.Scope.INDEX);
+        private static final Setting<String> INDEX_C = new Setting<>("index.c", "", Function.identity(), true, Setting.Scope.INDEX);
+        private static final Setting<String> INDEX_E = new Setting<>("index.e", "", Function.identity(), false, Setting.Scope.INDEX);
+
+
+        public void onModule(SettingsModule module) {
+            module.registerSetting(INDEX_A);
+            module.registerSetting(INDEX_C);
+            module.registerSetting(INDEX_E);
+        }
     }
 
     public void testUpdateSettings() throws Exception {

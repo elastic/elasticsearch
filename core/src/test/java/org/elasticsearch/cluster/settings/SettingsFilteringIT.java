@@ -23,8 +23,10 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -60,6 +62,10 @@ public class SettingsFilteringIT extends ESIntegTestCase {
         @Override
         public String description() {
             return "Settings Filtering Plugin";
+        }
+
+        public void onModule(SettingsModule module) {
+            module.registerSetting(Setting.groupSetting("index.filter_test.", false, Setting.Scope.INDEX));
         }
 
         @Override

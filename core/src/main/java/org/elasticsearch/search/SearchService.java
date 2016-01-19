@@ -121,7 +121,7 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
  */
 public class SearchService extends AbstractLifecycleComponent<SearchService> implements IndexEventListener {
 
-    public static final String NORMS_LOADING_KEY = "index.norms.loading";
+    public static final Setting<Loading> INDEX_NORMS_LOADING_SETTING = new Setting<>("index.norms.loading", Loading.LAZY.toString(), (s) -> Loading.parse(s, Loading.LAZY), false, Setting.Scope.INDEX);
     public static final String DEFAULT_KEEPALIVE_KEY = "search.default_keep_alive";
     public static final String KEEPALIVE_INTERVAL_KEY = "search.keep_alive_interval";
 
@@ -962,7 +962,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
         }
         @Override
         public TerminationHandle warmNewReaders(final IndexShard indexShard, final Engine.Searcher searcher) {
-            final Loading defaultLoading = Loading.parse(indexShard.getIndexSettings().getSettings().get(NORMS_LOADING_KEY), Loading.LAZY);
+            final Loading defaultLoading = indexShard.indexSettings().getValue(INDEX_NORMS_LOADING_SETTING);
             final MapperService mapperService = indexShard.mapperService();
             final ObjectSet<String> warmUp = new ObjectHashSet<>();
             for (DocumentMapper docMapper : mapperService.docMappers(false)) {

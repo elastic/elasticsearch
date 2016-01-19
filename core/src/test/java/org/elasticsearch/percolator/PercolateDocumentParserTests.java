@@ -77,9 +77,7 @@ public class PercolateDocumentParserTests extends ESTestCase {
                 Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                         .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
                         .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
-                        .build(),
-                Settings.EMPTY, Collections.emptyList()
-        );
+                        .build(), Settings.EMPTY);
         AnalysisService analysisService = new AnalysisService(indexSettings, Collections.<String, AnalyzerProvider>emptyMap(), Collections.<String, TokenizerFactory>emptyMap(), Collections.<String, CharFilterFactory>emptyMap(), Collections.<String, TokenFilterFactory>emptyMap());
         IndicesModule indicesModule = new IndicesModule();
         mapperService = new MapperService(indexSettings, analysisService, new SimilarityService(indexSettings, Collections.emptyMap()), indicesModule.getMapperRegistry(), () -> null);

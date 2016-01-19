@@ -77,6 +77,7 @@ import java.util.Map;
  * Configures classes and services that are shared by indices on each node.
  */
 public class IndicesModule extends AbstractModule {
+
     private final Map<String, Mapper.TypeParser> mapperParsers
         = new LinkedHashMap<>();
     // Use a LinkedHashMap for metadataMappers because iteration order matters

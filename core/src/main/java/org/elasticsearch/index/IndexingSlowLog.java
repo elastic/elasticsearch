@@ -23,7 +23,7 @@ import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.engine.Engine;
@@ -31,15 +31,12 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.shard.IndexingOperationListener;
 
 import java.io.IOException;
-import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
 /**
  */
 public final class IndexingSlowLog implements IndexingOperationListener {
-
     private boolean reformat;
-
     private long indexWarnThreshold;
     private long indexInfoThreshold;
     private long indexDebugThreshold;
@@ -51,21 +48,33 @@ public final class IndexingSlowLog implements IndexingOperationListener {
      */
     private int maxSourceCharsToLog;
 
-    private String level;
+    private SlowLogLevel level;
 
     private final ESLogger indexLogger;
     private final ESLogger deleteLogger;
 
     private static final String INDEX_INDEXING_SLOWLOG_PREFIX = "index.indexing.slowlog";
-    public static final String INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_WARN = INDEX_INDEXING_SLOWLOG_PREFIX +".threshold.index.warn";
-    public static final String INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_INFO = INDEX_INDEXING_SLOWLOG_PREFIX +".threshold.index.info";
-    public static final String INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_DEBUG = INDEX_INDEXING_SLOWLOG_PREFIX +".threshold.index.debug";
-    public static final String INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_TRACE = INDEX_INDEXING_SLOWLOG_PREFIX +".threshold.index.trace";
-    public static final String INDEX_INDEXING_SLOWLOG_REFORMAT = INDEX_INDEXING_SLOWLOG_PREFIX +".reformat";
-    public static final String INDEX_INDEXING_SLOWLOG_LEVEL = INDEX_INDEXING_SLOWLOG_PREFIX +".level";
-    public static final String INDEX_INDEXING_SLOWLOG_MAX_SOURCE_CHARS_TO_LOG = INDEX_INDEXING_SLOWLOG_PREFIX + ".source";
+    public static final Setting<TimeValue> INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_WARN_SETTING = Setting.timeSetting(INDEX_INDEXING_SLOWLOG_PREFIX +".threshold.index.warn", TimeValue.timeValueNanos(-1), TimeValue.timeValueMillis(-1), true, Setting.Scope.INDEX);
+    public static final Setting<TimeValue> INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_INFO_SETTING = Setting.timeSetting(INDEX_INDEXING_SLOWLOG_PREFIX +".threshold.index.info", TimeValue.timeValueNanos(-1), TimeValue.timeValueMillis(-1), true, Setting.Scope.INDEX);
+    public static final Setting<TimeValue> INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_DEBUG_SETTING = Setting.timeSetting(INDEX_INDEXING_SLOWLOG_PREFIX +".threshold.index.debug", TimeValue.timeValueNanos(-1), TimeValue.timeValueMillis(-1), true, Setting.Scope.INDEX);
+    public static final Setting<TimeValue> INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_TRACE_SETTING = Setting.timeSetting(INDEX_INDEXING_SLOWLOG_PREFIX +".threshold.index.trace", TimeValue.timeValueNanos(-1), TimeValue.timeValueMillis(-1), true, Setting.Scope.INDEX);
+    public static final Setting<Boolean> INDEX_INDEXING_SLOWLOG_REFORMAT_SETTING = Setting.boolSetting(INDEX_INDEXING_SLOWLOG_PREFIX +".reformat", true, true, Setting.Scope.INDEX);
+    public static final Setting<SlowLogLevel> INDEX_INDEXING_SLOWLOG_LEVEL_SETTING = new Setting<>(INDEX_INDEXING_SLOWLOG_PREFIX +".level", SlowLogLevel.TRACE.name(), SlowLogLevel::parse, true, Setting.Scope.INDEX);
+    /**
+     * Reads how much of the source to log. The user can specify any value they
+     * like and numbers are interpreted the maximum number of characters to log
+     * and everything else is interpreted as Elasticsearch interprets booleans
+     * which is then converted to 0 for false and Integer.MAX_VALUE for true.
+     */
+    public static final Setting<Integer> INDEX_INDEXING_SLOWLOG_MAX_SOURCE_CHARS_TO_LOG_SETTING = new Setting<>(INDEX_INDEXING_SLOWLOG_PREFIX + ".source", "1000", (value) -> {
+        try {
+            return Integer.parseInt(value, 10);
+        } catch (NumberFormatException e) {
+            return Booleans.parseBoolean(value, true) ? Integer.MAX_VALUE : 0;
+        }
+    }, true, Setting.Scope.INDEX);
 
-    IndexingSlowLog(Settings indexSettings) {
+    IndexingSlowLog(IndexSettings indexSettings) {
         this(indexSettings, Loggers.getLogger(INDEX_INDEXING_SLOWLOG_PREFIX + ".index"),
                 Loggers.getLogger(INDEX_INDEXING_SLOWLOG_PREFIX + ".delete"));
     }
@@ -73,77 +82,62 @@ public final class IndexingSlowLog implements IndexingOperationListener {
     /**
      * Build with the specified loggers. Only used to testing.
      */
-    IndexingSlowLog(Settings indexSettings, ESLogger indexLogger, ESLogger deleteLogger) {
+    IndexingSlowLog(IndexSettings indexSettings, ESLogger indexLogger, ESLogger deleteLogger) {
         this.indexLogger = indexLogger;
         this.deleteLogger = deleteLogger;
 
-        this.reformat = indexSettings.getAsBoolean(INDEX_INDEXING_SLOWLOG_REFORMAT, true);
-        this.indexWarnThreshold = indexSettings.getAsTime(INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_WARN, TimeValue.timeValueNanos(-1)).nanos();
-        this.indexInfoThreshold = indexSettings.getAsTime(INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_INFO, TimeValue.timeValueNanos(-1)).nanos();
-        this.indexDebugThreshold = indexSettings.getAsTime(INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_DEBUG, TimeValue.timeValueNanos(-1)).nanos();
-        this.indexTraceThreshold = indexSettings.getAsTime(INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_TRACE, TimeValue.timeValueNanos(-1)).nanos();
-        this.level = indexSettings.get(INDEX_INDEXING_SLOWLOG_LEVEL, "TRACE").toUpperCase(Locale.ROOT);
-        this.maxSourceCharsToLog = readSourceToLog(indexSettings);
-
-        indexLogger.setLevel(level);
-        deleteLogger.setLevel(level);
+        indexSettings.getScopedSettings().addSettingsUpdateConsumer(INDEX_INDEXING_SLOWLOG_REFORMAT_SETTING, this::setReformat);
+        this.reformat = indexSettings.getValue(INDEX_INDEXING_SLOWLOG_REFORMAT_SETTING);
+        indexSettings.getScopedSettings().addSettingsUpdateConsumer(INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_WARN_SETTING, this::setWarnThreshold);
+        this.indexWarnThreshold = indexSettings.getValue(INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_WARN_SETTING).nanos();
+        indexSettings.getScopedSettings().addSettingsUpdateConsumer(INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_INFO_SETTING, this::setInfoThreshold);
+        this.indexInfoThreshold = indexSettings.getValue(INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_INFO_SETTING).nanos();
+        indexSettings.getScopedSettings().addSettingsUpdateConsumer(INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_DEBUG_SETTING, this::setDebugThreshold);
+        this.indexDebugThreshold = indexSettings.getValue(INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_DEBUG_SETTING).nanos();
+        indexSettings.getScopedSettings().addSettingsUpdateConsumer(INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_TRACE_SETTING, this::setTraceThreshold);
+        this.indexTraceThreshold = indexSettings.getValue(INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_TRACE_SETTING).nanos();
+        indexSettings.getScopedSettings().addSettingsUpdateConsumer(INDEX_INDEXING_SLOWLOG_LEVEL_SETTING, this::setLevel);
+        setLevel(indexSettings.getValue(INDEX_INDEXING_SLOWLOG_LEVEL_SETTING));
+        indexSettings.getScopedSettings().addSettingsUpdateConsumer(INDEX_INDEXING_SLOWLOG_MAX_SOURCE_CHARS_TO_LOG_SETTING, this::setMaxSourceCharsToLog);
+        this.maxSourceCharsToLog = indexSettings.getValue(INDEX_INDEXING_SLOWLOG_MAX_SOURCE_CHARS_TO_LOG_SETTING);
     }
 
-    synchronized void onRefreshSettings(Settings settings) {
-        long indexWarnThreshold = settings.getAsTime(INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_WARN, TimeValue.timeValueNanos(this.indexWarnThreshold)).nanos();
-        if (indexWarnThreshold != this.indexWarnThreshold) {
-            this.indexWarnThreshold = indexWarnThreshold;
-        }
-        long indexInfoThreshold = settings.getAsTime(INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_INFO, TimeValue.timeValueNanos(this.indexInfoThreshold)).nanos();
-        if (indexInfoThreshold != this.indexInfoThreshold) {
-            this.indexInfoThreshold = indexInfoThreshold;
-        }
-        long indexDebugThreshold = settings.getAsTime(INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_DEBUG, TimeValue.timeValueNanos(this.indexDebugThreshold)).nanos();
-        if (indexDebugThreshold != this.indexDebugThreshold) {
-            this.indexDebugThreshold = indexDebugThreshold;
-        }
-        long indexTraceThreshold = settings.getAsTime(INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_TRACE, TimeValue.timeValueNanos(this.indexTraceThreshold)).nanos();
-        if (indexTraceThreshold != this.indexTraceThreshold) {
-            this.indexTraceThreshold = indexTraceThreshold;
-        }
-
-        String level = settings.get(INDEX_INDEXING_SLOWLOG_LEVEL, this.level);
-        if (!level.equals(this.level)) {
-            this.indexLogger.setLevel(level.toUpperCase(Locale.ROOT));
-            this.deleteLogger.setLevel(level.toUpperCase(Locale.ROOT));
-            this.level = level;
-        }
-
-        boolean reformat = settings.getAsBoolean(INDEX_INDEXING_SLOWLOG_REFORMAT, this.reformat);
-        if (reformat != this.reformat) {
-            this.reformat = reformat;
-        }
-
-        int maxSourceCharsToLog = readSourceToLog(settings);
-        if (maxSourceCharsToLog != this.maxSourceCharsToLog) {
-            this.maxSourceCharsToLog = maxSourceCharsToLog;
-        }
+    private void setMaxSourceCharsToLog(int maxSourceCharsToLog) {
+        this.maxSourceCharsToLog = maxSourceCharsToLog;
     }
+
+    private void setLevel(SlowLogLevel level) {
+        this.level = level;
+        this.indexLogger.setLevel(level.name());
+        this.deleteLogger.setLevel(level.name());
+    }
+
+    private void setWarnThreshold(TimeValue warnThreshold) {
+        this.indexWarnThreshold = warnThreshold.nanos();
+    }
+
+    private void setInfoThreshold(TimeValue infoThreshold) {
+        this.indexInfoThreshold = infoThreshold.nanos();
+    }
+
+    private void setDebugThreshold(TimeValue debugThreshold) {
+        this.indexDebugThreshold = debugThreshold.nanos();
+    }
+
+    private void setTraceThreshold(TimeValue traceThreshold) {
+        this.indexTraceThreshold = traceThreshold.nanos();
+    }
+
+    private void setReformat(boolean reformat) {
+        this.reformat = reformat;
+    }
+
 
     public void postIndex(Engine.Index index) {
         final long took = index.endTime() - index.startTime();
         postIndexing(index.parsedDoc(), took);
     }
 
-    /**
-     * Reads how much of the source to log. The user can specify any value they
-     * like and numbers are interpreted the maximum number of characters to log
-     * and everything else is interpreted as Elasticsearch interprets booleans
-     * which is then converted to 0 for false and Integer.MAX_VALUE for true.
-     */
-    private int readSourceToLog(Settings settings) {
-        String sourceToLog = settings.get(INDEX_INDEXING_SLOWLOG_MAX_SOURCE_CHARS_TO_LOG, "1000");
-        try {
-            return Integer.parseInt(sourceToLog, 10);
-        } catch (NumberFormatException e) {
-            return Booleans.parseBoolean(sourceToLog, true) ? Integer.MAX_VALUE : 0;
-        }
-    }
 
     private void postIndexing(ParsedDocument doc, long tookInNanos) {
         if (indexWarnThreshold >= 0 && tookInNanos > indexWarnThreshold) {
@@ -194,4 +188,33 @@ public final class IndexingSlowLog implements IndexingOperationListener {
             return sb.toString();
         }
     }
+
+    boolean isReformat() {
+        return reformat;
+    }
+
+    long getIndexWarnThreshold() {
+        return indexWarnThreshold;
+    }
+
+    long getIndexInfoThreshold() {
+        return indexInfoThreshold;
+    }
+
+    long getIndexTraceThreshold() {
+        return indexTraceThreshold;
+    }
+
+    long getIndexDebugThreshold() {
+        return indexDebugThreshold;
+    }
+
+    int getMaxSourceCharsToLog() {
+        return maxSourceCharsToLog;
+    }
+
+    SlowLogLevel getLevel() {
+        return level;
+    }
+
 }

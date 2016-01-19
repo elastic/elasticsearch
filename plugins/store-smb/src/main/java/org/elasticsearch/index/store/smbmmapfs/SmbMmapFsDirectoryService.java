@@ -40,6 +40,6 @@ public class SmbMmapFsDirectoryService extends FsDirectoryService {
     @Override
     protected Directory newFSDirectory(Path location, LockFactory lockFactory) throws IOException {
         logger.debug("wrapping MMapDirectory for SMB");
-        return new SmbDirectoryWrapper(new MMapDirectory(location, buildLockFactory(indexSettings)));
+        return new SmbDirectoryWrapper(new MMapDirectory(location, indexSettings.getValue(INDEX_LOCK_FACTOR_SETTING)));
     }
 }

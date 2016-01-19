@@ -367,7 +367,7 @@ public class NestedMappingTests extends ESSingleNodeTestCase {
 
         // explicitly setting limit to 0 prevents nested fields
         try {
-            createIndex("test2", Settings.builder().put(MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING, 0).build())
+            createIndex("test2", Settings.builder().put(MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING.getKey(), 0).build())
                 .mapperService().merge("type", new CompressedXContent(mapping.apply("type")), MergeReason.MAPPING_UPDATE, false);
             fail("Expected IllegalArgumentException");
         } catch (IllegalArgumentException e) {
@@ -376,14 +376,14 @@ public class NestedMappingTests extends ESSingleNodeTestCase {
 
         // setting limit to 1 with 2 nested fields fails
         try {
-            createIndex("test3", Settings.builder().put(MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING, 1).build())
+            createIndex("test3", Settings.builder().put(MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING.getKey(), 1).build())
                 .mapperService().merge("type", new CompressedXContent(mapping.apply("type")), MergeReason.MAPPING_UPDATE, false);
             fail("Expected IllegalArgumentException");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("Limit of nested fields [1] in index [test3] has been exceeded"));
         }
 
-        MapperService mapperService = createIndex("test4", Settings.builder().put(MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING, 2)
+        MapperService mapperService = createIndex("test4", Settings.builder().put(MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING.getKey(), 2)
             .build()).mapperService();
         mapperService.merge("type1", new CompressedXContent(mapping.apply("type1")), MergeReason.MAPPING_UPDATE, false);
         // merging same fields, but different type is ok
@@ -399,7 +399,7 @@ public class NestedMappingTests extends ESSingleNodeTestCase {
         }
 
         // do not check nested fields limit if mapping is not updated
-        createIndex("test5", Settings.builder().put(MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING, 0).build())
+        createIndex("test5", Settings.builder().put(MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING.getKey(), 0).build())
             .mapperService().merge("type", new CompressedXContent(mapping.apply("type")), MergeReason.MAPPING_RECOVERY, false);
     }
 }

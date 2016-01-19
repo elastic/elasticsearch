@@ -30,6 +30,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -60,7 +61,7 @@ import java.util.concurrent.TimeUnit;
  */
 public final class PercolatorQueriesRegistry extends AbstractIndexShardComponent implements Closeable {
 
-    public final static String MAP_UNMAPPED_FIELDS_AS_STRING = "index.percolator.map_unmapped_fields_as_string";
+    public final static Setting<Boolean> INDEX_MAP_UNMAPPED_FIELDS_AS_STRING_SETTING = Setting.boolSetting("index.percolator.map_unmapped_fields_as_string", false, false, Setting.Scope.INDEX);
 
     private final ConcurrentMap<BytesRef, Query> percolateQueries = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
     private final QueryShardContext queryShardContext;
@@ -72,7 +73,7 @@ public final class PercolatorQueriesRegistry extends AbstractIndexShardComponent
     public PercolatorQueriesRegistry(ShardId shardId, IndexSettings indexSettings, QueryShardContext queryShardContext) {
         super(shardId, indexSettings);
         this.queryShardContext = queryShardContext;
-        this.mapUnmappedFieldsAsString = this.indexSettings.getSettings().getAsBoolean(MAP_UNMAPPED_FIELDS_AS_STRING, false);
+        this.mapUnmappedFieldsAsString = indexSettings.getValue(INDEX_MAP_UNMAPPED_FIELDS_AS_STRING_SETTING);
     }
 
     public ConcurrentMap<BytesRef, Query> getPercolateQueries() {

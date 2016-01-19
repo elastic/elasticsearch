@@ -62,7 +62,6 @@ import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.search.stats.SearchSlowLog;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexSearcherWrapper;
 import org.elasticsearch.index.shard.IndexShard;
@@ -141,7 +140,7 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
         this.engineFactory = engineFactory;
         // initialize this last -- otherwise if the wrapper requires any other member to be non-null we fail with an NPE
         this.searcherWrapper = wrapperFactory.newWrapper(this);
-        this.slowLog = new IndexingSlowLog(indexSettings.getSettings());
+        this.slowLog = new IndexingSlowLog(indexSettings);
 
         // Add our slowLog to the incoming IndexingOperationListeners:
         this.listeners = new IndexingOperationListener[1+listenersIn.length];
@@ -154,7 +153,7 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
             this.fsyncTask = null;
         }
         this.refreshTask = new AsyncRefreshTask(this);
-        searchSlowLog = new SearchSlowLog(indexSettings.getSettings());
+        searchSlowLog = new SearchSlowLog(indexSettings);
     }
 
     public int numberOfShards() {
@@ -567,29 +566,12 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
 
     public synchronized void updateMetaData(final IndexMetaData metadata) {
         if (indexSettings.updateIndexMetaData(metadata)) {
-            final Settings settings = indexSettings.getSettings();
             for (final IndexShard shard : this.shards.values()) {
                 try {
                     shard.onSettingsChanged();
                 } catch (Exception e) {
                     logger.warn("[{}] failed to notify shard about setting change", e, shard.shardId().id());
                 }
-            }
-            try {
-                indexStore.onRefreshSettings(settings);
-            } catch (Exception e) {
-                logger.warn("failed to refresh index store settings", e);
-            }
-            try {
-                slowLog.onRefreshSettings(settings); // this will be refactored soon anyway so duplication is ok here
-            } catch (Exception e) {
-                logger.warn("failed to refresh slowlog settings", e);
-            }
-
-            try {
-                searchSlowLog.onRefreshSettings(settings); // this will be refactored soon anyway so duplication is ok here
-            } catch (Exception e) {
-                logger.warn("failed to refresh slowlog settings", e);
             }
             if (refreshTask.getInterval().equals(indexSettings.getRefreshInterval()) == false) {
                 rescheduleRefreshTasks();

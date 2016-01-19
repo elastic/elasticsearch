@@ -1581,7 +1581,7 @@ class Definition {
                 " [" + name + "] within the same struct [" + owner.name + "].");
         }
 
-        final Class[] classes = new Class[args.length];
+        final Class<?>[] classes = new Class<?>[args.length];
 
         for (int count = 0; count < classes.length; ++count) {
             if (genargs != null) {
@@ -1669,7 +1669,7 @@ class Definition {
                 " [" + args.length + "] within the struct [" + owner.name + "].");
         }
 
-        final Class[] classes = new Class[args.length];
+        final Class<?>[] classes = new Class<?>[args.length];
 
         for (int count = 0; count < classes.length; ++count) {
             if (genargs != null) {

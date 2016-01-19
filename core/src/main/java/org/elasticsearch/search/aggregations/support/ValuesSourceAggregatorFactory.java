@@ -78,19 +78,20 @@ public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource> ext
             boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
             throws IOException;
 
+    @SuppressWarnings("unchecked") // Safe because we check the types with isAssignableFrom
     private void resolveValuesSourceConfigFromAncestors(String aggName, AggregatorFactory parent, Class<VS> requiredValuesSourceType) {
-        ValuesSourceConfig config;
+        ValuesSourceConfig<?> config;
         while (parent != null) {
             if (parent instanceof ValuesSourceAggregatorFactory) {
-                config = ((ValuesSourceAggregatorFactory) parent).config;
+                config = ((ValuesSourceAggregatorFactory<?>) parent).config;
                 if (config != null && config.valid()) {
                     if (requiredValuesSourceType == null || requiredValuesSourceType.isAssignableFrom(config.valueSourceType)) {
                         ValueFormat format = config.format;
-                        this.config = config;
+                        this.config = (ValuesSourceConfig<VS>) config;
                         // if the user explicitly defined a format pattern, we'll do our best to keep it even when we inherit the
                         // value source form one of the ancestor aggregations
                         if (this.config.formatPattern != null && format != null && format instanceof ValueFormat.Patternable) {
-                            this.config.format = ((ValueFormat.Patternable) format).create(this.config.formatPattern);
+                            this.config.format = ((ValueFormat.Patternable<?>) format).create(this.config.formatPattern);
                         }
                         return;
                     }

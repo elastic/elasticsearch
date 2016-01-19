@@ -33,7 +33,8 @@ import java.util.function.Supplier;
  * A base class for read operations that needs to be performed on the master node.
  * Can also be executed on the local node if needed.
  */
-public abstract class TransportMasterNodeReadAction<Request extends MasterNodeReadRequest, Response extends ActionResponse> extends TransportMasterNodeAction<Request, Response> {
+public abstract class TransportMasterNodeReadAction<Request extends MasterNodeReadRequest<Request>, Response extends ActionResponse>
+        extends TransportMasterNodeAction<Request, Response> {
 
     public static final String FORCE_LOCAL_SETTING = "action.master.force_local";
 

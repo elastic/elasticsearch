@@ -19,6 +19,11 @@
 
 package org.elasticsearch.search.builder;
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.TimeUnit;
+
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -44,9 +49,9 @@ import org.elasticsearch.index.query.EmptyQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionParser;
-import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsBuilder;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsBuilder.InnerHit;
@@ -63,11 +68,6 @@ import org.elasticsearch.threadpool.ThreadPoolModule;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.TimeUnit;
-
 import static org.hamcrest.Matchers.equalTo;
 
 public class SearchSourceBuilderTests extends ESTestCase {
@@ -83,26 +83,33 @@ public class SearchSourceBuilderTests extends ESTestCase {
                 .put("name", SearchSourceBuilderTests.class.toString())
                 .put("path.home", createTempDir())
                 .build();
+        namedWriteableRegistry = new NamedWriteableRegistry();
         injector = new ModulesBuilder().add(
                 new SettingsModule(settings, new SettingsFilter(settings)),
                 new ThreadPoolModule(new ThreadPool(settings)),
-                new IndicesModule() {
+                new SearchModule(settings, namedWriteableRegistry) {
                     @Override
-                    public void configure() {
-                        // skip services
-                        bindQueryParsersExtension();
+                    protected void configureSearch() {
+                        // skip me so we don't need transport
+                    }
+                    @Override
+                    protected void configureAggs() {
+                        // skip me so we don't need scripting
+                    }
+                    @Override
+                    protected void configureSuggesters() {
+                        // skip me so we don't need IndicesService
                     }
                 },
                 new AbstractModule() {
                     @Override
                     protected void configure() {
                         Multibinder.newSetBinder(binder(), ScoreFunctionParser.class);
-                        bind(NamedWriteableRegistry.class).asEagerSingleton();
+                        bind(NamedWriteableRegistry.class).toInstance(namedWriteableRegistry);
                     }
                 }
         ).createInjector();
         indicesQueriesRegistry = injector.getInstance(IndicesQueriesRegistry.class);
-        namedWriteableRegistry = injector.getInstance(NamedWriteableRegistry.class);
     }
 
     @AfterClass
@@ -274,8 +281,7 @@ public class SearchSourceBuilderTests extends ESTestCase {
             int numRescores = randomIntBetween(1, 5);
             for (int i = 0; i < numRescores; i++) {
                 // NORELEASE need a random rescore builder method
-                RescoreBuilder rescoreBuilder = new RescoreBuilder();
-                rescoreBuilder.rescorer(RescoreBuilder.queryRescorer(QueryBuilders.termQuery(randomAsciiOfLengthBetween(5, 20),
+                RescoreBuilder rescoreBuilder = new RescoreBuilder(RescoreBuilder.queryRescorer(QueryBuilders.termQuery(randomAsciiOfLengthBetween(5, 20),
                         randomAsciiOfLengthBetween(5, 20))));
                 builder.addRescorer(rescoreBuilder);
             }

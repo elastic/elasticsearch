@@ -35,6 +35,7 @@ public class ScriptEngineTests extends ScriptTestCase {
         assertEquals(3, ((Number)value).intValue());
     }
 
+    @SuppressWarnings("unchecked") // We know its Map<String, Object> because we put them there in the test
     public void testMapAccess() {
         Map<String, Object> vars = new HashMap<>();
         Map<String, Object> obj2 = new HashMap<>();
@@ -54,6 +55,7 @@ public class ScriptEngineTests extends ScriptTestCase {
         assertEquals("2", value);
     }
 
+    @SuppressWarnings("unchecked") // We know its Map<String, Object> because we put them there ourselves
     public void testAccessListInScript() {
         Map<String, Object> vars = new HashMap<>();
         Map<String, Object> obj2 = new HashMap<>();

@@ -38,18 +38,18 @@ public class SpanOrQueryBuilder extends AbstractQueryBuilder<SpanOrQueryBuilder>
 
     public static final String NAME = "span_or";
 
-    private final List<SpanQueryBuilder> clauses = new ArrayList<>();
+    private final List<SpanQueryBuilder<?>> clauses = new ArrayList<>();
 
     static final SpanOrQueryBuilder PROTOTYPE = new SpanOrQueryBuilder(SpanTermQueryBuilder.PROTOTYPE);
 
-    public SpanOrQueryBuilder(SpanQueryBuilder initialClause) {
+    public SpanOrQueryBuilder(SpanQueryBuilder<?> initialClause) {
         if (initialClause == null) {
             throw new IllegalArgumentException("query must include at least one clause");
         }
         clauses.add(initialClause);
     }
 
-    public SpanOrQueryBuilder clause(SpanQueryBuilder clause) {
+    public SpanOrQueryBuilder clause(SpanQueryBuilder<?> clause) {
         if (clause == null) {
             throw new IllegalArgumentException("inner bool query clause cannot be null");
         }
@@ -60,7 +60,7 @@ public class SpanOrQueryBuilder extends AbstractQueryBuilder<SpanOrQueryBuilder>
     /**
      * @return the {@link SpanQueryBuilder} clauses that were set for this query
      */
-    public List<SpanQueryBuilder> clauses() {
+    public List<SpanQueryBuilder<?>> clauses() {
         return this.clauses;
     }
 
@@ -68,7 +68,7 @@ public class SpanOrQueryBuilder extends AbstractQueryBuilder<SpanOrQueryBuilder>
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
         builder.startArray(SpanOrQueryParser.CLAUSES_FIELD.getPreferredName());
-        for (SpanQueryBuilder clause : clauses) {
+        for (SpanQueryBuilder<?> clause : clauses) {
             clause.toXContent(builder, params);
         }
         builder.endArray();
@@ -89,10 +89,10 @@ public class SpanOrQueryBuilder extends AbstractQueryBuilder<SpanOrQueryBuilder>
 
     @Override
     protected SpanOrQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        List<QueryBuilder> clauses = readQueries(in);
-        SpanOrQueryBuilder queryBuilder = new SpanOrQueryBuilder((SpanQueryBuilder)clauses.get(0));
+        List<QueryBuilder<?>> clauses = readQueries(in);
+        SpanOrQueryBuilder queryBuilder = new SpanOrQueryBuilder((SpanQueryBuilder<?>)clauses.get(0));
         for (int i = 1; i < clauses.size(); i++) {
-            queryBuilder.clauses.add((SpanQueryBuilder)clauses.get(i));
+            queryBuilder.clauses.add((SpanQueryBuilder<?>)clauses.get(i));
         }
         return queryBuilder;
 

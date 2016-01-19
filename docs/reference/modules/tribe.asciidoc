@@ -56,13 +56,14 @@ tribe:
         metadata: true
 --------------------------------
 
-The tribe node can also configure blocks on indices explicitly:
+The tribe node can also configure blocks on selected indices:
 
 [source,yaml]
 --------------------------------
 tribe:
     blocks:
-        indices.write: hk*,ldn*
+        write.indices:    hk*,ldn*
+        metadata.indices: hk*,ldn*
 --------------------------------
 
 When there is a conflict and multiple clusters hold the same index, by default

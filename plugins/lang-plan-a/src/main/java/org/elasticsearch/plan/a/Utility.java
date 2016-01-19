@@ -157,7 +157,7 @@ public class Utility {
     }
 
     public static Character byteToCharacter(final byte value) {
-        return (char)(byte)value;
+        return (char)value;
     }
 
     public static Integer byteToInteger(final byte value) {
@@ -193,7 +193,7 @@ public class Utility {
     }
 
     public static Character shortToCharacter(final short value) {
-        return (char)(short)value;
+        return (char)value;
     }
 
     public static Integer shortToInteger(final short value) {
@@ -261,19 +261,19 @@ public class Utility {
     }
 
     public static int CharacterToint(final Character value) {
-        return (int)value;
+        return value;
     }
 
     public static long CharacterTolong(final Character value) {
-        return (long)value;
+        return value;
     }
 
     public static float CharacterTofloat(final Character value) {
-        return (float)value;
+        return value;
     }
 
     public static double CharacterTodouble(final Character value) {
-        return (double)value;
+        return value;
     }
 
     public static Boolean CharacterToBoolean(final Character value) {
@@ -317,7 +317,7 @@ public class Utility {
     }
 
     public static Character intToCharacter(final int value) {
-        return (char)(int)value;
+        return (char)value;
     }
 
     public static Long intToLong(final int value) {
@@ -353,7 +353,7 @@ public class Utility {
     }
 
     public static Character longToCharacter(final long value) {
-        return (char)(long)value;
+        return (char)value;
     }
 
     public static Integer longToInteger(final long value) {
@@ -389,7 +389,7 @@ public class Utility {
     }
 
     public static Character floatToCharacter(final float value) {
-        return (char)(float)value;
+        return (char)value;
     }
 
     public static Integer floatToInteger(final float value) {
@@ -425,7 +425,7 @@ public class Utility {
     }
 
     public static Character doubleToCharacter(final double value) {
-        return (char)(double)value;
+        return (char)value;
     }
 
     public static Integer doubleToInteger(final double value) {

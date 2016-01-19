@@ -164,7 +164,50 @@ public class DiskUsageTests extends ESTestCase {
         assertDiskUsage(mostNode_3, node3FSInfo[1]);
     }
 
+    public void testFillDiskUsageSomeInvalidValues() {
+        ImmutableOpenMap.Builder<String, DiskUsage> newLeastAvailableUsages = ImmutableOpenMap.builder();
+        ImmutableOpenMap.Builder<String, DiskUsage> newMostAvailableUsages = ImmutableOpenMap.builder();
+        FsInfo.Path[] node1FSInfo =  new FsInfo.Path[] {
+                new FsInfo.Path("/middle", "/dev/sda", 100, 90, 80),
+                new FsInfo.Path("/least", "/dev/sdb", -1, -1, -1),
+                new FsInfo.Path("/most", "/dev/sdc", 300, 290, 280),
+        };
+        FsInfo.Path[] node2FSInfo = new FsInfo.Path[] {
+                new FsInfo.Path("/least_most", "/dev/sda", -2, -1, -1),
+        };
+
+        FsInfo.Path[] node3FSInfo =  new FsInfo.Path[] {
+                new FsInfo.Path("/most", "/dev/sda", 100, 90, 70),
+                new FsInfo.Path("/least", "/dev/sda", 10, -8, 0),
+        };
+        NodeStats[] nodeStats = new NodeStats[] {
+                new NodeStats(new DiscoveryNode("node_1", DummyTransportAddress.INSTANCE, Version.CURRENT), 0,
+                        null,null,null,null,null,new FsInfo(0, node1FSInfo), null,null,null,null,null),
+                new NodeStats(new DiscoveryNode("node_2", DummyTransportAddress.INSTANCE, Version.CURRENT), 0,
+                        null,null,null,null,null, new FsInfo(0, node2FSInfo), null,null,null,null,null),
+                new NodeStats(new DiscoveryNode("node_3", DummyTransportAddress.INSTANCE, Version.CURRENT), 0,
+                        null,null,null,null,null, new FsInfo(0, node3FSInfo), null,null,null,null,null)
+        };
+        InternalClusterInfoService.fillDiskUsagePerNode(logger, nodeStats, newLeastAvailableUsages, newMostAvailableUsages);
+        DiskUsage leastNode_1 = newLeastAvailableUsages.get("node_1");
+        DiskUsage mostNode_1 = newMostAvailableUsages.get("node_1");
+        assertNull("node1 should have been skipped", leastNode_1);
+        assertDiskUsage(mostNode_1, node1FSInfo[2]);
+
+        DiskUsage leastNode_2 = newLeastAvailableUsages.get("node_2");
+        DiskUsage mostNode_2 = newMostAvailableUsages.get("node_2");
+        assertNull("node2 should have been skipped", leastNode_2);
+        assertNull("node2 should have been skipped", mostNode_2);
+
+        DiskUsage leastNode_3 = newLeastAvailableUsages.get("node_3");
+        DiskUsage mostNode_3 = newMostAvailableUsages.get("node_3");
+        assertDiskUsage(leastNode_3, node3FSInfo[1]);
+        assertDiskUsage(mostNode_3, node3FSInfo[0]);
+    }
+
     private void assertDiskUsage(DiskUsage usage, FsInfo.Path path) {
+        assertNotNull(usage);
+        assertNotNull(path);
         assertEquals(usage.toString(), usage.getPath(), path.getPath());
         assertEquals(usage.toString(), usage.getTotalBytes(), path.getTotal().bytes());
         assertEquals(usage.toString(), usage.getFreeBytes(), path.getAvailable().bytes());

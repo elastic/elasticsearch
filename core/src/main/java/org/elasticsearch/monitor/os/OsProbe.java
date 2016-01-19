@@ -111,8 +111,9 @@ public class OsProbe {
      * Returns the system load averages
      */
     public double[] getSystemLoadAverage() {
-        if (Constants.LINUX) {
-            double[] loadAverage = readProcLoadavg("/proc/loadavg");
+        if (Constants.LINUX || Constants.FREE_BSD) {
+            final String procLoadAvg = Constants.LINUX ? "/proc/loadavg" : "/compat/linux/proc/loadavg";
+            double[] loadAverage = readProcLoadavg(procLoadAvg);
             if (loadAverage != null) {
                 return loadAverage;
             }

@@ -135,8 +135,8 @@ public class TestMergeMapperTests extends ESSingleNodeTestCase {
                 .startObject("properties").startObject("field").field("type", "string").field("analyzer", "standard").field("ignore_above", 14).endObject().endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper existing = mapperService.merge("type", new CompressedXContent(mapping1), true, false);
-        DocumentMapper merged = mapperService.merge("type", new CompressedXContent(mapping2), false, false);
+        DocumentMapper existing = mapperService.merge("type", new CompressedXContent(mapping1), MapperService.MergeReason.MAPPING_UPDATE, false);
+        DocumentMapper merged = mapperService.merge("type", new CompressedXContent(mapping2), MapperService.MergeReason.MAPPING_UPDATE, false);
 
         assertThat(((NamedAnalyzer) existing.mappers().getMapper("field").fieldType().searchAnalyzer()).name(), equalTo("whitespace"));
 
@@ -146,7 +146,7 @@ public class TestMergeMapperTests extends ESSingleNodeTestCase {
 
     public void testConcurrentMergeTest() throws Throwable {
         final MapperService mapperService = createIndex("test").mapperService();
-        mapperService.merge("test", new CompressedXContent("{\"test\":{}}"), true, false);
+        mapperService.merge("test", new CompressedXContent("{\"test\":{}}"), MapperService.MergeReason.MAPPING_UPDATE, false);
         final DocumentMapper documentMapper = mapperService.documentMapper("test");
 
         DocumentFieldMappers dfm = documentMapper.mappers();
@@ -172,7 +172,7 @@ public class TestMergeMapperTests extends ESSingleNodeTestCase {
                         Mapping update = doc.dynamicMappingsUpdate();
                         assert update != null;
                         lastIntroducedFieldName.set(fieldName);
-                        mapperService.merge("test", new CompressedXContent(update.toString()), false, false);
+                        mapperService.merge("test", new CompressedXContent(update.toString()), MapperService.MergeReason.MAPPING_UPDATE, false);
                     }
                 } catch (Throwable t) {
                     error.set(t);

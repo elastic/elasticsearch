@@ -95,6 +95,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     public static final String DEFAULT_MAPPING = "_default_";
     public static final String INDEX_MAPPER_DYNAMIC_SETTING = "index.mapper.dynamic";
+    public static final String INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING = "index.mapping.nested_fields.limit";
     public static final boolean INDEX_MAPPER_DYNAMIC_DEFAULT = true;
     private static ObjectHashSet<String> META_FIELDS = ObjectHashSet.from(
             "_uid", "_id", "_type", "_all", "_parent", "_routing", "_index",
@@ -242,12 +243,12 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                         // only apply the default mapping if we don't have the type yet
                         && mappers.containsKey(type) == false;
                 DocumentMapper mergeWith = parse(type, mappingSource, applyDefault);
-                return merge(mergeWith, updateAllTypes);
+                return merge(mergeWith, reason, updateAllTypes);
             }
         }
     }
 
-    private synchronized DocumentMapper merge(DocumentMapper mapper, boolean updateAllTypes) {
+    private synchronized DocumentMapper merge(DocumentMapper mapper, MergeReason reason, boolean updateAllTypes) {
         if (mapper.type().length() == 0) {
             throw new InvalidTypeNameException("mapping type name is empty");
         }
@@ -300,6 +301,11 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             }
         }
         fullPathObjectMappers = Collections.unmodifiableMap(fullPathObjectMappers);
+
+        if (reason == MergeReason.MAPPING_UPDATE) {
+            checkNestedFieldsLimit(fullPathObjectMappers);
+        }
+
         Set<String> parentTypes = this.parentTypes;
         if (oldMapper == null && newMapper.parentFieldMapper().active()) {
             parentTypes = new HashSet<>(parentTypes.size() + 1);
@@ -409,6 +415,19 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             if (fullPathObjectMappers.containsKey(fieldMapper.name())) {
                 throw new IllegalArgumentException("Field [" + fieldMapper.name() + "] is defined as a field in mapping [" + type + "] but this name is already used for an object in other types");
             }
+        }
+    }
+
+    private void checkNestedFieldsLimit(Map<String, ObjectMapper> fullPathObjectMappers) {
+        long allowedNestedFields = indexSettings.getSettings().getAsLong(INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING, 50L);
+        long actualNestedFields = 0;
+        for (ObjectMapper objectMapper : fullPathObjectMappers.values()) {
+            if (objectMapper.nested().isNested()) {
+                actualNestedFields++;
+            }
+        }
+        if (allowedNestedFields >= 0 && actualNestedFields > allowedNestedFields) {
+            throw new IllegalArgumentException("Limit of nested fields [" + allowedNestedFields + "] in index [" + index().name() + "] has been exceeded");
         }
     }
 

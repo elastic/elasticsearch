@@ -18,7 +18,12 @@
  */
 package org.elasticsearch.script.mustache;
 
-import com.github.mustachejava.Mustache;
+import java.lang.ref.SoftReference;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
+import java.util.Collections;
+import java.util.Map;
+
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -34,11 +39,7 @@ import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.lookup.SearchLookup;
 
-import java.lang.ref.SoftReference;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
-import java.util.Collections;
-import java.util.Map;
+import com.github.mustachejava.Mustache;
 
 /**
  * Main entry point handling template registration, compilation and
@@ -173,11 +174,6 @@ public class MustacheScriptEngineService extends AbstractComponent implements Sc
                 throw new ScriptException("Error running " + template, e);
             }
             return result.bytes();
-        }
-
-        @Override
-        public Object unwrap(Object value) {
-            return value;
         }
     }
 }

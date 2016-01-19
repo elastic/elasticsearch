@@ -19,14 +19,14 @@
 
 package org.elasticsearch.plan.a;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.script.ScoreAccessor;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
-
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  * ScriptImpl can be used as either an {@link ExecutableScript} or a {@link LeafSearchScript}
@@ -112,16 +112,6 @@ final class ScriptImpl implements ExecutableScript, LeafSearchScript {
     @Override
     public long runAsLong() {
         return ((Number)run()).longValue();
-    }
-
-    /**
-     * This method has no effect in Plan A.
-     * @param value The value to unwrap.
-     * @return The value passed in.
-     */
-    @Override
-    public Object unwrap(final Object value) {
-        return value;
     }
 
     /**

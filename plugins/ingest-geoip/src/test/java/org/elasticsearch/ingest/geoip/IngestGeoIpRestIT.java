@@ -31,11 +31,6 @@ import java.util.Collection;
 
 public class IngestGeoIpRestIT extends ESRestTestCase {
 
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(IngestGeoIpPlugin.class);
-    }
-
     public IngestGeoIpRestIT(@Name("yaml") RestTestCandidate testCandidate) {
         super(testCandidate);
     }

@@ -32,11 +32,6 @@ import java.util.Collection;
 
 public class IngestGrokRestIT extends ESRestTestCase {
 
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(IngestGrokPlugin.class);
-    }
-
     public IngestGrokRestIT(@Name("yaml") RestTestCandidate testCandidate) {
         super(testCandidate);
     }

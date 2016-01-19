@@ -38,7 +38,7 @@ import java.util.Map;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.ingest.core.IngestDocument.MetaData;
 
-public class SimulatePipelineRequest extends ActionRequest {
+public class SimulatePipelineRequest extends ActionRequest<SimulatePipelineRequest> {
 
     private String id;
     private boolean verbose;

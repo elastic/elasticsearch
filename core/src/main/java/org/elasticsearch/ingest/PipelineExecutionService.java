@@ -52,7 +52,7 @@ public class PipelineExecutionService {
         });
     }
 
-    public void execute(Iterable<ActionRequest> actionRequests,
+    public void execute(Iterable<ActionRequest<?>> actionRequests,
                         BiConsumer<IndexRequest, Throwable> itemFailureHandler, Consumer<Boolean> completionHandler) {
         threadPool.executor(ThreadPool.Names.INDEX).execute(() -> {
             for (ActionRequest actionRequest : actionRequests) {

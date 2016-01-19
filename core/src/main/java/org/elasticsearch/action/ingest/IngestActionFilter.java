@@ -55,7 +55,7 @@ public final class IngestActionFilter extends AbstractComponent implements Actio
     }
 
     @Override
-    public void apply(Task task, String action, ActionRequest request, ActionListener listener, ActionFilterChain chain) {
+    public void apply(Task task, String action, ActionRequest<?> request, ActionListener<?> listener, ActionFilterChain chain) {
         if (IndexAction.NAME.equals(action)) {
             assert request instanceof IndexRequest;
             IndexRequest indexRequest = (IndexRequest) request;
@@ -89,7 +89,7 @@ public final class IngestActionFilter extends AbstractComponent implements Actio
     }
 
     @Override
-    public void apply(String action, ActionResponse response, ActionListener listener, ActionFilterChain chain) {
+    public void apply(String action, ActionResponse response, ActionListener<?> listener, ActionFilterChain chain) {
         chain.proceed(action, response, listener);
     }
 
@@ -131,7 +131,7 @@ public final class IngestActionFilter extends AbstractComponent implements Actio
         return Integer.MAX_VALUE;
     }
 
-    final static class BulkRequestModifier implements Iterator<ActionRequest> {
+    final static class BulkRequestModifier implements Iterator<ActionRequest<?>> {
 
         final BulkRequest bulkRequest;
         final Set<Integer> failedSlots;

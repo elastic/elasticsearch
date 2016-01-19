@@ -211,7 +211,7 @@ public class IngestClientIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getMockPlugins() {
-        return Collections.emptyList();
+        return Collections.singletonList(TestSeedPlugin.class);
     }
 
     public static class IngestPlugin extends Plugin {

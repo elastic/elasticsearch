@@ -43,7 +43,7 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
     /** Default for flag controlling whether matches are required to be in-order */
     public static boolean DEFAULT_IN_ORDER = true;
 
-    private final List<SpanQueryBuilder> clauses = new ArrayList<>();
+    private final List<SpanQueryBuilder<?>> clauses = new ArrayList<>();
 
     private final int slop;
 
@@ -55,7 +55,7 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
      * @param initialClause an initial span query clause
      * @param slop controls the maximum number of intervening unmatched positions permitted
      */
-    public SpanNearQueryBuilder(SpanQueryBuilder initialClause, int slop) {
+    public SpanNearQueryBuilder(SpanQueryBuilder<?> initialClause, int slop) {
         if (initialClause == null) {
             throw new IllegalArgumentException("query must include at least one clause");
         }
@@ -70,7 +70,7 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
         return this.slop;
     }
 
-    public SpanNearQueryBuilder clause(SpanQueryBuilder clause) {
+    public SpanNearQueryBuilder clause(SpanQueryBuilder<?> clause) {
         if (clause == null) {
             throw new IllegalArgumentException("query clauses cannot be null");
         }
@@ -81,7 +81,7 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
     /**
      * @return the {@link SpanQueryBuilder} clauses that were set for this query
      */
-    public List<SpanQueryBuilder> clauses() {
+    public List<SpanQueryBuilder<?>> clauses() {
         return this.clauses;
     }
 
@@ -106,7 +106,7 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
         builder.startArray(SpanNearQueryParser.CLAUSES_FIELD.getPreferredName());
-        for (SpanQueryBuilder clause : clauses) {
+        for (SpanQueryBuilder<?> clause : clauses) {
             clause.toXContent(builder, params);
         }
         builder.endArray();
@@ -129,10 +129,10 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
 
     @Override
     protected SpanNearQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        List<QueryBuilder> clauses = readQueries(in);
-        SpanNearQueryBuilder queryBuilder = new SpanNearQueryBuilder((SpanQueryBuilder)clauses.get(0), in.readVInt());
+        List<QueryBuilder<?>> clauses = readQueries(in);
+        SpanNearQueryBuilder queryBuilder = new SpanNearQueryBuilder((SpanQueryBuilder<?>)clauses.get(0), in.readVInt());
         for (int i = 1; i < clauses.size(); i++) {
-            queryBuilder.clauses.add((SpanQueryBuilder)clauses.get(i));
+            queryBuilder.clauses.add((SpanQueryBuilder<?>)clauses.get(i));
         }
         queryBuilder.inOrder = in.readBoolean();
         return queryBuilder;

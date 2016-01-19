@@ -20,6 +20,7 @@
 package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.hppc.ObjectHashSet;
+
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
 import org.apache.lucene.index.IndexOptions;
@@ -33,7 +34,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchGenerationException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -60,7 +60,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -78,6 +77,22 @@ import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
  *
  */
 public class MapperService extends AbstractIndexComponent implements Closeable {
+
+    /**
+     * The reason why a mapping is being merged.
+     */
+    public enum MergeReason {
+        /**
+         * Create or update a mapping.
+         */
+        MAPPING_UPDATE,
+        /**
+         * Recovery of an existing mapping, for instance because of a restart,
+         * if a shard was moved to a different node or for administrative
+         * purposes.
+         */
+        MAPPING_RECOVERY;
+    }
 
     public static final String DEFAULT_MAPPING = "_default_";
     public static final boolean INDEX_MAPPER_DYNAMIC_DEFAULT = true;
@@ -204,7 +219,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         typeListeners.remove(listener);
     }
 
-    public DocumentMapper merge(String type, CompressedXContent mappingSource, boolean applyDefault, boolean updateAllTypes) {
+    public DocumentMapper merge(String type, CompressedXContent mappingSource, MergeReason reason, boolean updateAllTypes) {
         if (DEFAULT_MAPPING.equals(type)) {
             // verify we can parse it
             // NOTE: never apply the default here
@@ -222,9 +237,13 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             return mapper;
         } else {
             synchronized (this) {
-                // only apply the default mapping if we don't have the type yet
-                applyDefault &= mappers.containsKey(type) == false;
-                return merge(parse(type, mappingSource, applyDefault), updateAllTypes);
+                final boolean applyDefault =
+                        // the default was already applied if we are recovering
+                        reason != MergeReason.MAPPING_RECOVERY
+                        // only apply the default mapping if we don't have the type yet
+                        && mappers.containsKey(type) == false;
+                DocumentMapper mergeWith = parse(type, mappingSource, applyDefault);
+                return merge(mergeWith, updateAllTypes);
             }
         }
     }

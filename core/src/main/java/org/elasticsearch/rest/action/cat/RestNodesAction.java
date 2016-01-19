@@ -266,9 +266,9 @@ public class RestNodesAction extends AbstractCatAction {
 
             table.addCell(osStats == null ? null : Short.toString(osStats.getCpu().getPercent()));
             boolean hasLoadAverage = osStats != null && osStats.getCpu().getLoadAverage() != null;
-            table.addCell(!hasLoadAverage ? null : String.format(Locale.ROOT, "%.2f", osStats.getCpu().getLoadAverage()[0]));
-            table.addCell(!hasLoadAverage ? null : String.format(Locale.ROOT, "%.2f", osStats.getCpu().getLoadAverage()[1]));
-            table.addCell(!hasLoadAverage ? null : String.format(Locale.ROOT, "%.2f", osStats.getCpu().getLoadAverage()[2]));
+            table.addCell(!hasLoadAverage || osStats.getCpu().getLoadAverage()[0] == -1 ? null : String.format(Locale.ROOT, "%.2f", osStats.getCpu().getLoadAverage()[0]));
+            table.addCell(!hasLoadAverage || osStats.getCpu().getLoadAverage()[1] == -1 ? null : String.format(Locale.ROOT, "%.2f", osStats.getCpu().getLoadAverage()[1]));
+            table.addCell(!hasLoadAverage || osStats.getCpu().getLoadAverage()[2] == -1 ? null : String.format(Locale.ROOT, "%.2f", osStats.getCpu().getLoadAverage()[2]));
             table.addCell(jvmStats == null ? null : jvmStats.getUptime());
             table.addCell(node.clientNode() ? "c" : node.dataNode() ? "d" : "-");
             table.addCell(masterId == null ? "x" : masterId.equals(node.id()) ? "*" : node.masterNode() ? "m" : "-");

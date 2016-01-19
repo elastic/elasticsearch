@@ -25,6 +25,7 @@ import org.elasticsearch.search.aggregations.bucket.BucketUtils;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms.Order;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsParametersParser.OrderElement;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
+import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParser;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -45,7 +46,8 @@ public class TermsParser implements Aggregator.Parser {
     @Override
     public AggregatorFactory parse(String aggregationName, XContentParser parser, SearchContext context) throws IOException {
         TermsParametersParser aggParser = new TermsParametersParser();
-        ValuesSourceParser vsParser = ValuesSourceParser.any(aggregationName, StringTerms.TYPE, context).scriptable(true).formattable(true).build();
+        ValuesSourceParser<ValuesSource> vsParser = ValuesSourceParser.any(aggregationName, StringTerms.TYPE, context).scriptable(true)
+                .formattable(true).build();
         IncludeExclude.Parser incExcParser = new IncludeExclude.Parser();
         aggParser.parse(aggregationName, parser, context, vsParser, incExcParser);
 

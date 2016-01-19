@@ -19,16 +19,13 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.BooleanQuery;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentParser;
-
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 /**
  * Parser for bool query
@@ -44,11 +41,6 @@ public class BoolQueryParser implements QueryParser<BoolQueryBuilder> {
     public static final ParseField MINIMUM_SHOULD_MATCH = new ParseField("minimum_should_match");
     public static final ParseField MINIMUM_NUMBER_SHOULD_MATCH = new ParseField("minimum_number_should_match");
     public static final ParseField ADJUST_PURE_NEGATIVE = new ParseField("adjust_pure_negative");
-
-    @Inject
-    public BoolQueryParser(Settings settings) {
-        BooleanQuery.setMaxClauseCount(settings.getAsInt("index.query.bool.max_clause_count", settings.getAsInt("indices.query.bool.max_clause_count", BooleanQuery.getMaxClauseCount())));
-    }
 
     @Override
     public String[] names() {

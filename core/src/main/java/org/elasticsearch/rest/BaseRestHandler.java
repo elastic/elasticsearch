@@ -71,7 +71,7 @@ public abstract class BaseRestHandler extends AbstractComponent implements RestH
             this.headers = headers;
         }
 
-        private static void copyHeadersAndContext(ActionRequest actionRequest, RestRequest restRequest, Set<String> headers) {
+        private static void copyHeadersAndContext(ActionRequest<?> actionRequest, RestRequest restRequest, Set<String> headers) {
             for (String usefulHeader : headers) {
                 String headerValue = restRequest.header(usefulHeader);
                 if (headerValue != null) {
@@ -82,7 +82,8 @@ public abstract class BaseRestHandler extends AbstractComponent implements RestH
         }
 
         @Override
-        protected <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void doExecute(Action<Request, Response, RequestBuilder> action, Request request, ActionListener<Response> listener) {
+        protected <Request extends ActionRequest<Request>, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void doExecute(
+                Action<Request, Response, RequestBuilder> action, Request request, ActionListener<Response> listener) {
             copyHeadersAndContext(request, restRequest, headers);
             super.doExecute(action, request, listener);
         }

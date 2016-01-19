@@ -28,6 +28,7 @@ import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValueType;
+import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParser;
 import org.elasticsearch.search.internal.SearchContext;
@@ -78,7 +79,7 @@ public class DateHistogramParser implements Aggregator.Parser {
     @Override
     public AggregatorFactory parse(String aggregationName, XContentParser parser, SearchContext context) throws IOException {
 
-        ValuesSourceParser vsParser = ValuesSourceParser.numeric(aggregationName, InternalDateHistogram.TYPE, context)
+        ValuesSourceParser<Numeric> vsParser = ValuesSourceParser.numeric(aggregationName, InternalDateHistogram.TYPE, context)
                 .targetValueType(ValueType.DATE)
                 .formattable(true)
                 .timezoneAware(true)
@@ -190,7 +191,7 @@ public class DateHistogramParser implements Aggregator.Parser {
                 .timeZone(vsParser.input().timezone())
                 .offset(offset).build();
 
-        ValuesSourceConfig config = vsParser.config();
+        ValuesSourceConfig<Numeric> config = vsParser.config();
         return new HistogramAggregator.Factory(aggregationName, config, rounding, order, keyed, minDocCount, extendedBounds,
                 new InternalDateHistogram.Factory());
 

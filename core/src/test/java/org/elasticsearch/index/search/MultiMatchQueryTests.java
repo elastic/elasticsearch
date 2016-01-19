@@ -64,7 +64,7 @@ public class MultiMatchQueryTests extends ESSingleNodeTestCase {
                 "        }\n" +
                 "    }\n" +
                 "}";
-        mapperService.merge("person", new CompressedXContent(mapping), true, false);
+        mapperService.merge("person", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE, false);
         this.indexService = indexService;
     }
 

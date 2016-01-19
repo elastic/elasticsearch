@@ -412,8 +412,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 } else {
                     logger.debug("[{}] {} mapping [{}] (source suppressed due to length, use TRACE level if needed)", index, op, mappingType);
                 }
-                // we don't apply default, since it has been applied when the mappings were parsed initially
-                mapperService.merge(mappingType, mappingSource, false, true);
+                mapperService.merge(mappingType, mappingSource, MapperService.MergeReason.MAPPING_RECOVERY, true);
                 if (!mapperService.documentMapper(mappingType).mappingSource().equals(mappingSource)) {
                     logger.debug("[{}] parsed mapping [{}], and got different sources\noriginal:\n{}\nparsed:\n{}", index, mappingType, mappingSource, mapperService.documentMapper(mappingType).mappingSource());
                     requiresRefresh = true;

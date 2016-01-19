@@ -200,7 +200,7 @@ public class ActionModule extends AbstractModule {
     private final Map<String, ActionEntry> actions = new HashMap<>();
     private final List<Class<? extends ActionFilter>> actionFilters = new ArrayList<>();
 
-    static class ActionEntry<Request extends ActionRequest, Response extends ActionResponse> {
+    static class ActionEntry<Request extends ActionRequest<Request>, Response extends ActionResponse> {
         public final GenericAction<Request, Response> action;
         public final Class<? extends TransportAction<Request, Response>> transportAction;
         public final Class[] supportTransportActions;
@@ -229,7 +229,7 @@ public class ActionModule extends AbstractModule {
      * @param <Request>               The request type.
      * @param <Response>              The response type.
      */
-    public <Request extends ActionRequest, Response extends ActionResponse> void registerAction(GenericAction<Request, Response> action, Class<? extends TransportAction<Request, Response>> transportAction, Class... supportTransportActions) {
+    public <Request extends ActionRequest<Request>, Response extends ActionResponse> void registerAction(GenericAction<Request, Response> action, Class<? extends TransportAction<Request, Response>> transportAction, Class... supportTransportActions) {
         actions.put(action.name(), new ActionEntry<>(action, transportAction, supportTransportActions));
     }
 

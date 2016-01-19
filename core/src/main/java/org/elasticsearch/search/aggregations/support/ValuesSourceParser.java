@@ -48,13 +48,16 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- *
+ * Parses a description of where to load the value sent by a user into a
+ * ValuesSourceConfig which can be used to work with the values in various ways,
+ * one of which is to create an actual ValueSource (done with the help of
+ * AggregationContext).
  */
 public class ValuesSourceParser<VS extends ValuesSource> {
 
     static final ParseField TIME_ZONE = new ParseField("time_zone");
 
-    public static Builder any(String aggName, InternalAggregation.Type aggType, SearchContext context) {
+    public static Builder<ValuesSource> any(String aggName, InternalAggregation.Type aggType, SearchContext context) {
         return new Builder<>(aggName, aggType, context, ValuesSource.class);
     }
 

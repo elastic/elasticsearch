@@ -40,7 +40,7 @@ import static org.elasticsearch.action.support.PlainActionFuture.newFuture;
 /**
  *
  */
-public abstract class TransportAction<Request extends ActionRequest, Response extends ActionResponse> extends AbstractComponent {
+public abstract class TransportAction<Request extends ActionRequest<Request>, Response extends ActionResponse> extends AbstractComponent {
 
     protected final ThreadPool threadPool;
     protected final String actionName;
@@ -66,7 +66,7 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
         return future;
     }
 
-    public final void execute(Request request, ActionListener<Response> listener) {
+    public final Task execute(Request request, ActionListener<Response> listener) {
         Task task = taskManager.register("transport", actionName, request);
         if (task == null) {
             execute(null, request, listener);
@@ -85,6 +85,7 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
                 }
             });
         }
+        return task;
     }
 
     private final void execute(Task task, Request request, ActionListener<Response> listener) {
@@ -114,7 +115,7 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
 
     protected abstract void doExecute(Request request, ActionListener<Response> listener);
 
-    private static class RequestFilterChain<Request extends ActionRequest, Response extends ActionResponse> implements ActionFilterChain {
+    private static class RequestFilterChain<Request extends ActionRequest<Request>, Response extends ActionResponse> implements ActionFilterChain {
 
         private final TransportAction<Request, Response> action;
         private final AtomicInteger index = new AtomicInteger();

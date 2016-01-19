@@ -231,7 +231,8 @@ public class InternalEngine extends Engine {
     protected void recoverFromTranslog(EngineConfig engineConfig, Translog.TranslogGeneration translogGeneration) throws IOException {
         int opsRecovered = 0;
         final TranslogRecoveryPerformer handler = engineConfig.getTranslogRecoveryPerformer();
-        try (Translog.Snapshot snapshot = translog.newSnapshot()) {
+        try {
+            Translog.Snapshot snapshot = translog.newSnapshot();
             Translog.Operation operation;
             while ((operation = snapshot.next()) != null) {
                 try {

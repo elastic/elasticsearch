@@ -778,7 +778,7 @@ class Definition {
         addMethod("Def", "DefToLong", null, true, longobjType, new Type[] {defType}, null, null);
         addMethod("Def", "DefToFloat", null, true, floatobjType, new Type[] {defType}, null, null);
         addMethod("Def", "DefToDouble", null, true, doubleobjType, new Type[] {defType}, null, null);
-        
+
         addMethod("List", "addLast", "add", false, booleanType, new Type[] {objectType}, null, new Type[] {defType});
         addMethod("List", "add", null, false, voidType, new Type[] {intType, objectType}, null, new Type[] {intType, defType});
         addMethod("List", "get", null, false, objectType, new Type[] {intType}, defType, null);
@@ -984,7 +984,7 @@ class Definition {
         addTransform(defType, longobjType, "Def", "DefToLong", true);
         addTransform(defType, floatobjType, "Def", "DefToFloat", true);
         addTransform(defType, doubleobjType, "Def", "DefToDouble", true);
-        
+
         addTransform(numberType, booleanType, "Utility", "NumberToboolean", true);
         addTransform(numberType, byteType, "Number", "byteValue", false);
         addTransform(numberType, shortType, "Number", "shortValue", false);
@@ -1255,7 +1255,7 @@ class Definition {
                     " [" + name + "] within the same struct [" + owner.name + "].");
         }
 
-        final Class[] classes = new Class[args.length];
+        final Class<?>[] classes = new Class<?>[args.length];
 
         for (int count = 0; count < classes.length; ++count) {
             if (genargs != null) {
@@ -1343,7 +1343,7 @@ class Definition {
                     " [" + args.length + "] within the struct [" + owner.name + "].");
         }
 
-        final Class[] classes = new Class[args.length];
+        final Class<?>[] classes = new Class<?>[args.length];
 
         for (int count = 0; count < classes.length; ++count) {
             if (genargs != null) {

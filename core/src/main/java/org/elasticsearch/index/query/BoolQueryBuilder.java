@@ -49,13 +49,13 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
 
     static final BoolQueryBuilder PROTOTYPE = new BoolQueryBuilder();
 
-    private final List<QueryBuilder> mustClauses = new ArrayList<>();
+    private final List<QueryBuilder<?>> mustClauses = new ArrayList<>();
 
-    private final List<QueryBuilder> mustNotClauses = new ArrayList<>();
+    private final List<QueryBuilder<?>> mustNotClauses = new ArrayList<>();
 
-    private final List<QueryBuilder> filterClauses = new ArrayList<>();
+    private final List<QueryBuilder<?>> filterClauses = new ArrayList<>();
 
-    private final List<QueryBuilder> shouldClauses = new ArrayList<>();
+    private final List<QueryBuilder<?>> shouldClauses = new ArrayList<>();
 
     private boolean disableCoord = DISABLE_COORD_DEFAULT;
 
@@ -67,7 +67,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
      * Adds a query that <b>must</b> appear in the matching documents and will
      * contribute to scoring. No <tt>null</tt> value allowed.
      */
-    public BoolQueryBuilder must(QueryBuilder queryBuilder) {
+    public BoolQueryBuilder must(QueryBuilder<?> queryBuilder) {
         if (queryBuilder == null) {
             throw new IllegalArgumentException("inner bool query clause cannot be null");
         }
@@ -78,7 +78,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
     /**
      * Gets the queries that <b>must</b> appear in the matching documents.
      */
-    public List<QueryBuilder> must() {
+    public List<QueryBuilder<?>> must() {
         return this.mustClauses;
     }
 
@@ -86,7 +86,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
      * Adds a query that <b>must</b> appear in the matching documents but will
      * not contribute to scoring. No <tt>null</tt> value allowed.
      */
-    public BoolQueryBuilder filter(QueryBuilder queryBuilder) {
+    public BoolQueryBuilder filter(QueryBuilder<?> queryBuilder) {
         if (queryBuilder == null) {
             throw new IllegalArgumentException("inner bool query clause cannot be null");
         }
@@ -95,9 +95,9 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
     }
 
     /**
-     * Gets the queries that <b>must</b> appear in the matching documents but don't conntribute to scoring
+     * Gets the queries that <b>must</b> appear in the matching documents but don't contribute to scoring
      */
-    public List<QueryBuilder> filter() {
+    public List<QueryBuilder<?>> filter() {
         return this.filterClauses;
     }
 
@@ -105,7 +105,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
      * Adds a query that <b>must not</b> appear in the matching documents.
      * No <tt>null</tt> value allowed.
      */
-    public BoolQueryBuilder mustNot(QueryBuilder queryBuilder) {
+    public BoolQueryBuilder mustNot(QueryBuilder<?> queryBuilder) {
         if (queryBuilder == null) {
             throw new IllegalArgumentException("inner bool query clause cannot be null");
         }
@@ -116,7 +116,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
     /**
      * Gets the queries that <b>must not</b> appear in the matching documents.
      */
-    public List<QueryBuilder> mustNot() {
+    public List<QueryBuilder<?>> mustNot() {
         return this.mustNotClauses;
     }
 
@@ -127,7 +127,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
      *
      * @see #minimumNumberShouldMatch(int)
      */
-    public BoolQueryBuilder should(QueryBuilder queryBuilder) {
+    public BoolQueryBuilder should(QueryBuilder<?> queryBuilder) {
         if (queryBuilder == null) {
             throw new IllegalArgumentException("inner bool query clause cannot be null");
         }
@@ -141,7 +141,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
      * @see #should(QueryBuilder)
      *  @see #minimumNumberShouldMatch(int)
      */
-    public List<QueryBuilder> should() {
+    public List<QueryBuilder<?>> should() {
         return this.shouldClauses;
     }
 
@@ -244,12 +244,12 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         builder.endObject();
     }
 
-    private static void doXArrayContent(String field, List<QueryBuilder> clauses, XContentBuilder builder, Params params) throws IOException {
+    private static void doXArrayContent(String field, List<QueryBuilder<?>> clauses, XContentBuilder builder, Params params) throws IOException {
         if (clauses.isEmpty()) {
             return;
         }
         builder.startArray(field);
-        for (QueryBuilder clause : clauses) {
+        for (QueryBuilder<?> clause : clauses) {
             clause.toXContent(builder, params);
         }
         builder.endArray();
@@ -282,8 +282,8 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         return adjustPureNegative ? fixNegativeQueryIfNeeded(query) : query;
     }
 
-    private static void addBooleanClauses(QueryShardContext context, BooleanQuery.Builder booleanQueryBuilder, List<QueryBuilder> clauses, Occur occurs) throws IOException {
-        for (QueryBuilder query : clauses) {
+    private static void addBooleanClauses(QueryShardContext context, BooleanQuery.Builder booleanQueryBuilder, List<QueryBuilder<?>> clauses, Occur occurs) throws IOException {
+        for (QueryBuilder<?> query : clauses) {
             Query luceneQuery = null;
             switch (occurs) {
                 case MUST:
@@ -321,7 +321,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
     @Override
     protected BoolQueryBuilder doReadFrom(StreamInput in) throws IOException {
         BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
-        List<QueryBuilder> queryBuilders = readQueries(in);
+        List<QueryBuilder<?>> queryBuilders = readQueries(in);
         boolQueryBuilder.mustClauses.addAll(queryBuilders);
         queryBuilders = readQueries(in);
         boolQueryBuilder.mustNotClauses.addAll(queryBuilders);

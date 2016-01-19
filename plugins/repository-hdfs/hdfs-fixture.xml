@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<project name="hdfs-integration-tests">
+
+  <import file="${elasticsearch.integ.antfile.default}"/>
+
+  <!-- our pid file for easy cleanup -->
+  <property name="hdfs.pidfile" location="${integ.scratch}/hdfs.pid"/>
+
+  <!-- if this exists, HDFS is running (maybe) -->
+  <available property="hdfs.pidfile.exists" file="${hdfs.pidfile}"/>
+
+  <!-- start up minihdfs -->
+  <target name="setup-fixture">
+     <echo>START HER UP</echo>
+  </target>
+
+  <!-- shut down minihdfs -->
+  <target name="teardown-fixture">
+     <echo>TEAR HER DOWN</echo>
+  </target>
+
+</project>

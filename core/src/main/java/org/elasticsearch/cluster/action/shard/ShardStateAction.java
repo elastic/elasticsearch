@@ -127,8 +127,7 @@ public class ShardStateAction extends AbstractComponent {
         Discovery.FailedToCommitClusterStateException.class
     };
 
-    // visible for testing
-    static boolean isMasterChannelException(TransportException exp) {
+    private static boolean isMasterChannelException(TransportException exp) {
         return ExceptionsHelper.unwrap(exp, MASTER_CHANNEL_EXCEPTIONS) != null;
     }
 

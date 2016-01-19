@@ -19,14 +19,6 @@
 
 package org.elasticsearch.plan.a;
 
-import java.util.ArrayDeque;
-import java.util.Deque;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.elasticsearch.script.ScoreAccessor;
@@ -35,11 +27,14 @@ import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
-import static org.elasticsearch.plan.a.Metadata.ExpressionMetadata;
-import static org.elasticsearch.plan.a.Metadata.ExtNodeMetadata;
-import static org.elasticsearch.plan.a.Metadata.ExternalMetadata;
-import static org.elasticsearch.plan.a.Metadata.StatementMetadata;
-import static org.elasticsearch.plan.a.Metadata.error;
+import java.util.ArrayDeque;
+import java.util.Deque;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
 import static org.elasticsearch.plan.a.Definition.Cast;
 import static org.elasticsearch.plan.a.Definition.Constructor;
 import static org.elasticsearch.plan.a.Definition.Field;
@@ -47,6 +42,11 @@ import static org.elasticsearch.plan.a.Definition.Method;
 import static org.elasticsearch.plan.a.Definition.Sort;
 import static org.elasticsearch.plan.a.Definition.Transform;
 import static org.elasticsearch.plan.a.Definition.Type;
+import static org.elasticsearch.plan.a.Metadata.ExpressionMetadata;
+import static org.elasticsearch.plan.a.Metadata.ExtNodeMetadata;
+import static org.elasticsearch.plan.a.Metadata.ExternalMetadata;
+import static org.elasticsearch.plan.a.Metadata.StatementMetadata;
+import static org.elasticsearch.plan.a.Metadata.error;
 import static org.elasticsearch.plan.a.PlanAParser.ADD;
 import static org.elasticsearch.plan.a.PlanAParser.AfterthoughtContext;
 import static org.elasticsearch.plan.a.PlanAParser.ArgumentsContext;

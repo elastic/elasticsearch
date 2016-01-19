@@ -11,13 +11,25 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.marvel.agent.exporter.local.LocalExporter;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.marvel.cleaner.AbstractIndicesCleanerTestCase;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.InternalSettingsPlugin;
 import org.joda.time.DateTime;
+
+import java.util.ArrayList;
+import java.util.Collection;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
 public class LocalIndicesCleanerTests extends AbstractIndicesCleanerTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        ArrayList<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
+        plugins.add(InternalSettingsPlugin.class);
+        return plugins;
+    }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {

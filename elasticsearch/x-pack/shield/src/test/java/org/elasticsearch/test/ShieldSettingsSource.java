@@ -136,7 +136,7 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
                 .put("shield.authz.store.files.roles", writeFile(folder, "roles.yml", configRoles()))
                 // Test framework sometimes randomily selects the 'index' or 'none' cache and that makes the
                 // validation in ShieldPlugin fail.
-                .put(IndexModule.QUERY_CACHE_TYPE, ShieldPlugin.OPT_OUT_QUERY_CACHE)
+                .put(IndexModule.INDEX_QUERY_CACHE_TYPE_SETTING.getKey(), ShieldPlugin.OPT_OUT_QUERY_CACHE)
                 .put(getNodeSSLSettings());
 
         setUser(builder, nodeClientUsername(), nodeClientPassword());

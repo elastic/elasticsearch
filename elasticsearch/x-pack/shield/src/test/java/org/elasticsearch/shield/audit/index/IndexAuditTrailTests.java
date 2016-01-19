@@ -167,7 +167,7 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
                         // For tests we forcefully configure Shield's custom query cache because the test framework randomizes the query cache impl,
                         // but if shield is disabled then we don't need to forcefully set the query cache
                         if (useShield == false) {
-                            builder.remove(IndexModule.QUERY_CACHE_TYPE);
+                            builder.remove(IndexModule.INDEX_QUERY_CACHE_TYPE_SETTING.getKey());
                         }
                         return builder.build();
                     }

@@ -32,6 +32,7 @@ import org.elasticsearch.shield.crypto.InternalCryptoService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.TestCluster;
+import org.elasticsearch.test.store.MockFSIndexStore;
 import org.elasticsearch.test.transport.AssertingLocalTransport;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.watcher.WatcherLifeCycleService;
@@ -124,7 +125,6 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
 
                 //TODO: for now lets isolate watcher tests from marvel (randomize this later)
                 .put("marvel.enabled", false)
-
                 // we do this by default in core, but for watcher this isn't needed and only adds noise.
                 .put("index.store.mock.check_index_on_close", false)
                 .put("scroll.size", randomIntBetween(1, 100))
@@ -147,6 +147,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         Set<Class<? extends Plugin>> plugins = new HashSet<>(super.getMockPlugins());
         plugins.remove(MockTransportService.TestPlugin.class); // shield has its own transport service
         plugins.remove(AssertingLocalTransport.TestPlugin.class); // shield has its own transport
+        plugins.add(MockFSIndexStore.TestPlugin.class); // we have to explicitly add it otherwise we will fail to set the check_index_on_close setting
         return plugins;
     }
 
@@ -676,7 +677,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                         .put("shield.audit.enabled", auditLogsEnabled)
                         // Test framework sometimes randomily selects the 'index' or 'none' cache and that makes the
                         // validation in ShieldPlugin fail. Shield can only run with this query cache impl
-                        .put(IndexModule.QUERY_CACHE_TYPE, ShieldPlugin.OPT_OUT_QUERY_CACHE)
+                        .put(IndexModule.INDEX_QUERY_CACHE_TYPE_SETTING.getKey(), ShieldPlugin.OPT_OUT_QUERY_CACHE)
                         .build();
             } catch (IOException ex) {
                 throw new RuntimeException("failed to build settings for shield", ex);

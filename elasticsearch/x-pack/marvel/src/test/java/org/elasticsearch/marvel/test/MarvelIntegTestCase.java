@@ -25,6 +25,7 @@ import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.crypto.InternalCryptoService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.TestCluster;
+import org.elasticsearch.test.store.MockFSIndexStore;
 import org.elasticsearch.test.transport.AssertingLocalTransport;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xpack.XPackPlugin;
@@ -74,7 +75,6 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
 
                 //TODO: for now lets isolate marvel tests from watcher (randomize this later)
                 .put("watcher.enabled", false)
-
                 // we do this by default in core, but for marvel this isn't needed and only adds noise.
                 .put("index.store.mock.check_index_on_close", false);
 
@@ -102,6 +102,7 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
         Set<Class<? extends Plugin>> plugins = new HashSet<>(super.getMockPlugins());
         plugins.remove(MockTransportService.TestPlugin.class); // shield has its own transport service
         plugins.remove(AssertingLocalTransport.TestPlugin.class); // shield has its own transport
+        plugins.add(MockFSIndexStore.TestPlugin.class);
         return plugins;
     }
 
@@ -397,7 +398,7 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
                         .put("shield.audit.enabled", auditLogsEnabled)
                                 // Test framework sometimes randomily selects the 'index' or 'none' cache and that makes the
                                 // validation in ShieldPlugin fail. Shield can only run with this query cache impl
-                        .put(IndexModule.QUERY_CACHE_TYPE, ShieldPlugin.OPT_OUT_QUERY_CACHE);
+                        .put(IndexModule.INDEX_QUERY_CACHE_TYPE_SETTING.getKey(), ShieldPlugin.OPT_OUT_QUERY_CACHE);
             } catch (IOException ex) {
                 throw new RuntimeException("failed to build settings for shield", ex);
             }

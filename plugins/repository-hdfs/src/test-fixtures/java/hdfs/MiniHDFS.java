@@ -24,6 +24,7 @@ import org.apache.hadoop.hdfs.DFSConfigKeys;
 import org.apache.hadoop.hdfs.MiniDFSCluster;
 
 import java.io.IOException;
+import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -40,14 +41,19 @@ import java.lang.management.ManagementFactory;
 public class MiniHDFS {
 
     private static String PORT_FILE_NAME = "ports";
-    private static String PID_FILE_NAME = "pid";
 
     public static void main(String[] args) throws Exception {
+        // This is evil, but screw it, we need to debug stuff !
+        PrintStream out = new PrintStream("log.txt", "UTF-8");
+        System.setOut(out);
+        System.setErr(out);
+
         if (args.length != 1) {
-           throw new IllegalArgumentException("MiniHDFS <baseDirectory>");
+           throw new IllegalArgumentException("MiniHDFS <pidFile>");
         }
         // configure Paths
-        Path baseDir = Paths.get(args[0]);
+        Path baseDir = Paths.get(".");
+        Path pidFile = Paths.get(args[0]);
         // hadoop-home/, so logs will not complain
         if (System.getenv("HADOOP_HOME") == null) {
             Path hadoopHome = baseDir.resolve("hadoop-home");
@@ -69,11 +75,6 @@ public class MiniHDFS {
         Path tmp = Files.createTempFile(baseDir, null, null);
         String pid = ManagementFactory.getRuntimeMXBean().getName().split("@")[0];
         Files.write(tmp, pid.getBytes(StandardCharsets.UTF_8));
-        Files.move(tmp, baseDir.resolve(PID_FILE_NAME), StandardCopyOption.ATOMIC_MOVE);
-
-        // write our port file
-        tmp = Files.createTempFile(baseDir, null, null);
-        Files.write(tmp, Integer.toString(dfs.getNameNodePort()).getBytes(StandardCharsets.UTF_8));
-        Files.move(tmp, baseDir.resolve(PORT_FILE_NAME), StandardCopyOption.ATOMIC_MOVE);
+        Files.move(tmp, pidFile, StandardCopyOption.ATOMIC_MOVE);
     }
 }

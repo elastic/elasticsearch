@@ -15,9 +15,9 @@
   <description>Repository HDFS plugin</description>
 
   <properties>
-        <elasticsearch.plugin.classname>org.elasticsearch.repositories.hdfs.HdfsPlugin</elasticsearch.plugin.classname>
-        <tests.rest.suite>hdfs_repository</tests.rest.suite>
-        <tests.rest.load_packaged>false</tests.rest.load_packaged>
+    <elasticsearch.plugin.classname>org.elasticsearch.repositories.hdfs.HdfsPlugin</elasticsearch.plugin.classname>
+    <tests.rest.suite>hdfs_repository</tests.rest.suite>
+    <tests.rest.load_packaged>false</tests.rest.load_packaged>
   </properties>
 
   <!-- WARNING: AUTOMATICALLY GENERATED -->
@@ -26,6 +26,7 @@
   <!--             also remove guava (we must use the es version) -->
   <!--             also add slf4j (make it a compile-time dep) -->
   <dependencies>
+
     <dependency>
       <groupId>org.slf4j</groupId>
       <artifactId>slf4j-api</artifactId>
@@ -875,7 +876,7 @@
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-assembly-plugin</artifactId>
       </plugin>
-      <!-- integration tests: hdfs fixture -->
+      <!-- integration tests: startup/shutdown hdfs fixture -->
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-antrun-plugin</artifactId>
@@ -890,7 +891,10 @@
             <configuration>
               <skip>${skip.integ.tests}</skip>
               <target>
-                <ant antfile="hdfs-fixture.xml" target="setup-fixture"/>
+                <taskdef resource="org/apache/ivy/ant/antlib.xml"
+                         uri="antlib:org.apache.ivy.ant"
+                         classpathref="maven.plugin.classpath"/>
+                <ant antfile="hdfs-fixture.xml" target="setup-hdfs-fixture"/>
               </target>
             </configuration>
           </execution>
@@ -903,13 +907,35 @@
             <configuration>
               <skip>${skip.integ.tests}</skip>
               <target>
-                <ant antfile="hdfs-fixture.xml" target="teardown-fixture"/>
+                <ant antfile="hdfs-fixture.xml" target="teardown-hdfs-fixture"/>
               </target>
             </configuration>
           </execution>
         </executions>
+        <dependencies>
+          <dependency>
+            <groupId>org.apache.ivy</groupId>
+            <artifactId>ivy</artifactId>
+            <version>2.4.0</version>
+          </dependency>
+        </dependencies>
       </plugin>
     </plugins>
   </build>
+
+  <profiles>
+      <profile>
+        <!-- native libraries are needed to start miniHDFS on windows -->
+        <id>windows-no-worky-with-hdfs-without-pain</id>
+        <activation>
+          <os>
+            <family>windows</family>
+          </os>
+        </activation>
+        <properties>
+          <skip.integ.tests>true</skip.integ.tests>
+        </properties>
+      </profile>
+  </profiles>
 
 </project>

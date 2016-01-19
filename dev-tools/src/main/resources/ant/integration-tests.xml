@@ -242,12 +242,20 @@
   <macrodef name="stop-node">
     <attribute name="es.pidfile" default="${integ.pidfile}"/>
     <sequential>
+      <stop-process es.pidfile="@{es.pidfile}" es.pidname="org.elasticsearch.bootstrap.Elasticsearch"/>
+    </sequential>
+  </macrodef>
+
+  <macrodef name="stop-process">
+    <attribute name="es.pidfile"/>
+    <attribute name="es.pidname"/>
+    <sequential>
       <local name="integ.pid"/>
 
       <extract-pid file="@{es.pidfile}" property="integ.pid"/>
-      <echo>Shutting down external node PID ${integ.pid}</echo>
+      <echo>Shutting down @{es.pidname} PID ${integ.pid}</echo>
       <!-- verify with jps that this actually is the correct pid.
-      See if we can find the line "pid org.elasticsearch.bootstrap.Elasticsearch" in the output of jps -l.-->
+      See if we can find the line "pidno pidname" in the output of jps -l.-->
       <local name="jps.pidline"/>
       <local name="jps.executable"/>
       <local name="environment"/>
@@ -258,13 +266,13 @@
         <redirector outputproperty="jps.pidline">
           <outputfilterchain>
             <linecontains>
-              <contains value="${integ.pid} org.elasticsearch.bootstrap.Elasticsearch"/>
+              <contains value="${integ.pid} @{es.pidname}"/>
             </linecontains>
           </outputfilterchain>
         </redirector>
       </exec>
       <fail
-          message="pid file at @{es.pidfile} is ${integ.pid} but jps -l did not report any process with org.elasticsearch.bootstrap.Elasticsearch and this pid.
+          message="pid file at @{es.pidfile} is ${integ.pid} but jps -l did not report any process with @{es.pidname} and this pid.
           Did you run mvn clean? Maybe an old pid file is still lying around.">
         <condition>
           <equals arg1="${jps.pidline}" arg2=""/>

@@ -1,22 +1,69 @@
 <?xml version="1.0"?>
-<project name="hdfs-integration-tests">
+<project name="hdfs-integration-tests" xmlns:ivy="antlib:org.apache.ivy.ant">
 
   <import file="${elasticsearch.integ.antfile.default}"/>
 
+  <!-- don't even try giving hdfs strange directories! -->
+  <property name="fixture.scratch" location="${basedir}/target/hdfs-fixture"/>
+
   <!-- our pid file for easy cleanup -->
-  <property name="hdfs.pidfile" location="${integ.scratch}/hdfs.pid"/>
+  <property name="hdfs.pidfile" location="${fixture.scratch}/hdfs.pid"/>
+
+  <!-- our port, currently wired to this -->
+  <property name="hdfs.port" value="9999"/>
 
   <!-- if this exists, HDFS is running (maybe) -->
   <available property="hdfs.pidfile.exists" file="${hdfs.pidfile}"/>
 
   <!-- start up minihdfs -->
-  <target name="setup-fixture">
-     <echo>START HER UP</echo>
+  <target name="setup-hdfs-fixture" depends="teardown-hdfs-fixture">
+     <sequential>
+       <!-- acquire path of minicluster -->
+       <ivy:cachepath file="${basedir}/hdfs-fixture-dependencies.xml" pathid="hdfs.classpath" log="download-only"/>
+         
+       <!-- compile small driver -->
+       <tempfile property="fixture.driver.classes" destDir="${fixture.scratch}" prefix="build"/>
+       <mkdir dir="${fixture.driver.classes}"/>
+       <property environment="env"/>
+       <javac srcdir="${basedir}/src/test-fixtures" 
+              destdir="${fixture.driver.classes}" 
+              executable="${env.JAVA_HOME}/bin/javac" 
+              includeAntRuntime="false"
+              classpathref="hdfs.classpath"
+              fork="true"/>
+
+       <!-- path = driver + dependencies -->
+       <path id="cluster.path">
+         <path refid="hdfs.classpath"/>
+         <pathelement location="${fixture.driver.classes}"/>
+       </path>
+
+       <!-- spawn hdfs cluster -->
+       <java classpathref="cluster.path" classname="hdfs.MiniHDFS"
+             fork="true" spawn="true" dir="${fixture.driver.classes}">
+         <arg value="${hdfs.pidfile}"/>
+       </java>
+
+       <echo>Waiting for MiniHDFS to become available on port ${hdfs.port}...</echo>
+
+       <!-- now wait -->
+       <waitfor maxwait="30" maxwaitunit="second">
+         <and>
+           <available file="${hdfs.pidfile}"/>
+           <socket server="127.0.0.1" port="${hdfs.port}"/>
+         </and>
+       </waitfor>
+
+       <!-- print pid when successful -->
+       <local name="hdfs.pid"/>
+       <extract-pid file="${hdfs.pidfile}" property="hdfs.pid"/>
+       <echo>MiniHDFS started PID ${hdfs.pid}</echo>
+     </sequential>
   </target>
 
   <!-- shut down minihdfs -->
-  <target name="teardown-fixture">
-     <echo>TEAR HER DOWN</echo>
+  <target name="teardown-hdfs-fixture" if="hdfs.pidfile.exists">
+    <stop-process es.pidfile="${hdfs.pidfile}" es.pidname="hdfs.MiniHDFS"/>
   </target>
 
 </project>

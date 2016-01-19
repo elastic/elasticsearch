@@ -246,12 +246,20 @@
                     <include>api/search.json</include>
                     <include>api/indices.analyze.json</include>
                     <include>api/indices.create.json</include>
+                    <include>api/indices.recovery.json</include>
                     <include>api/indices.refresh.json</include>
+                    <include>api/indices.close.json</include>
                     <include>api/nodes.info.json</include>
                     <include>api/count.json</include>
                     <!-- used in repository plugin REST tests -->
                     <include>api/snapshot.create_repository.json</include>
                     <include>api/snapshot.get_repository.json</include>
+                    <include>api/snapshot.verify_repository.json</include>
+                    <include>api/snapshot.delete_repository.json</include>
+                    <include>api/snapshot.create.json</include>
+                    <include>api/snapshot.get.json</include>
+                    <include>api/snapshot.delete.json</include>
+                    <include>api/snapshot.restore.json</include>
                 </includes>
             </testResource>
             <!-- shared test resources like log4j.properties -->

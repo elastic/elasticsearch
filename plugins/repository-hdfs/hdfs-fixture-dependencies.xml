@@ -1,0 +1,16 @@
+<ivy-module version="2.0"  xmlns:maven="http://ant.apache.org/ivy/maven">
+  <info organisation="org.elasticsearch.test.fixture" module="hdfs-fixture"/>
+  <dependencies>
+    <!-- ivy doesn't understand multiple jars for the same artifact, we have
+         to coerce it: https://bugzilla.redhat.com/show_bug.cgi?id=1127804 -->
+    <dependency org="org.apache.hadoop" name="hadoop-common" rev="2.7.1">
+      <artifact name="hadoop-common" ext="jar"/>
+      <artifact name="hadoop-common" type="test" ext="jar" maven:classifier="tests" />
+    </dependency>
+    <dependency org="org.apache.hadoop" name="hadoop-hdfs" rev="2.7.1">
+      <artifact name="hadoop-hdfs" ext="jar"/>
+      <artifact name="hadoop-hdfs" type="test" ext="jar" maven:classifier="tests" />
+    </dependency>
+    <dependency org="org.apache.hadoop" name="hadoop-minicluster" rev="2.7.1"/>
+  </dependencies>
+</ivy-module>

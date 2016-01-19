@@ -24,7 +24,6 @@ import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
-
 import java.io.IOException;
 
 public class QueryParseContext {

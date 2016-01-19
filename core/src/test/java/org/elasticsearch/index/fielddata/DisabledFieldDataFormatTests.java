@@ -57,6 +57,7 @@ public class DisabledFieldDataFormatTests extends ESSingleNodeTestCase {
                         .collectMode(aggCollectionMode)).execute().actionGet();
                 assertFailures(resp);
             } catch (SearchPhaseExecutionException e) {
+                e.printStackTrace();
                 // expected
             }
         }

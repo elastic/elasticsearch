@@ -48,9 +48,10 @@ import java.util.Set;
 import java.util.function.Predicate;
 
 /**
- * Encapsulates all valid cluster level settings.
+ * Encapsulates all valid index level settings.
+ * @see org.elasticsearch.common.settings.Setting.Scope#INDEX
  */
-public final class IndexScopeSettings extends AbstractScopedSettings {
+public final class IndexScopedSettings extends AbstractScopedSettings {
 
     public static final Predicate<String> INDEX_SETTINGS_KEY_PREDICATE = (s) -> s.startsWith(IndexMetaData.INDEX_SETTING_PREFIX);
 
@@ -137,17 +138,17 @@ public final class IndexScopeSettings extends AbstractScopedSettings {
 
     )));
 
-    public static final IndexScopeSettings DEFAULT_SCOPED_SETTINGS = new IndexScopeSettings(Settings.EMPTY, IndexScopeSettings.BUILT_IN_INDEX_SETTINGS);
+    public static final IndexScopedSettings DEFAULT_SCOPED_SETTINGS = new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
 
-    public IndexScopeSettings(Settings settings, Set<Setting<?>> settingsSet) {
+    public IndexScopedSettings(Settings settings, Set<Setting<?>> settingsSet) {
         super(settings, settingsSet, Setting.Scope.INDEX);
     }
 
-    private IndexScopeSettings(Settings settings, IndexScopeSettings other, IndexMetaData metaData) {
+    private IndexScopedSettings(Settings settings, IndexScopedSettings other, IndexMetaData metaData) {
         super(settings, metaData.getSettings(), other);
     }
 
-    public IndexScopeSettings copy(Settings settings, IndexMetaData metaData) {
-        return new IndexScopeSettings(settings, this, metaData);
+    public IndexScopedSettings copy(Settings settings, IndexMetaData metaData) {
+        return new IndexScopedSettings(settings, this, metaData);
     }
 }

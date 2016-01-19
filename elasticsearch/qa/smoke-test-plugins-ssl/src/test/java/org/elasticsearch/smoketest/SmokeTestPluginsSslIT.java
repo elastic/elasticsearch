@@ -11,13 +11,11 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.support.Headers;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.RestTestCandidate;
 import org.elasticsearch.test.rest.client.RestClient;
 import org.elasticsearch.test.rest.parser.RestTestParseException;
-import org.elasticsearch.xpack.XPackPlugin;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -25,8 +23,6 @@ import java.io.IOException;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Collection;
-import java.util.Collections;
 
 import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 
@@ -74,20 +70,4 @@ public class SmokeTestPluginsSslIT extends ESRestTestCase {
                 .put(RestClient.TRUSTSTORE_PASSWORD, KEYSTORE_PASS)
                 .build();
     }
-
-    @Override
-    protected Settings externalClusterClientSettings() {
-        return Settings.builder()
-                .put("shield.user", USER + ":" + PASS)
-                .put("shield.transport.ssl", true)
-                .put("shield.ssl.keystore.path", keyStore)
-                .put("shield.ssl.keystore.password", KEYSTORE_PASS)
-                .build();
-    }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return Collections.<Class<? extends Plugin>>singleton(XPackPlugin.class);
-    }
-
 }

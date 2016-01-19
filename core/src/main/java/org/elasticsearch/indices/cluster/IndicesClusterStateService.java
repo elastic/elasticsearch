@@ -563,8 +563,9 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                             indexShard.shardId(), indexShard.state(), nodes.masterNode());
                 }
                 if (nodes.masterNode() != null) {
-                    shardStateAction.shardStarted(state, shardRouting, indexMetaData.getIndexUUID(),
-                            "master " + nodes.masterNode() + " marked shard as initializing, but shard state is [" + indexShard.state() + "], mark shard as started");
+                    shardStateAction.shardStarted(shardRouting, indexMetaData.getIndexUUID(),
+                        "master " + nodes.masterNode() + " marked shard as initializing, but shard state is [" + indexShard.state() + "], mark shard as started",
+                        SHARD_STATE_ACTION_LISTENER);
                 }
                 return;
             } else {
@@ -645,7 +646,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
             threadPool.generic().execute(() -> {
                 try {
                     if (indexShard.recoverFromStore(nodes.localNode())) {
-                        shardStateAction.shardStarted(state, shardRouting, indexMetaData.getIndexUUID(), "after recovery from store");
+                        shardStateAction.shardStarted(shardRouting, indexMetaData.getIndexUUID(), "after recovery from store", SHARD_STATE_ACTION_LISTENER);
                     }
                 } catch (Throwable t) {
                     handleRecoveryFailure(indexService, shardRouting, true, t);
@@ -663,7 +664,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                     final IndexShardRepository indexShardRepository = repositoriesService.indexShardRepository(restoreSource.snapshotId().getRepository());
                     if (indexShard.restoreFromRepository(indexShardRepository, nodes.localNode())) {
                         restoreService.indexShardRestoreCompleted(restoreSource.snapshotId(), sId);
-                        shardStateAction.shardStarted(state, shardRouting, indexMetaData.getIndexUUID(), "after recovery from repository");
+                        shardStateAction.shardStarted(shardRouting, indexMetaData.getIndexUUID(), "after recovery from repository", SHARD_STATE_ACTION_LISTENER);
                     }
                 } catch (Throwable first) {
                     try {
@@ -733,7 +734,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
 
         @Override
         public void onRecoveryDone(RecoveryState state) {
-            shardStateAction.shardStarted(clusterService.state(), shardRouting, indexMetaData.getIndexUUID(), "after recovery (replica) from node [" + state.getSourceNode() + "]");
+            shardStateAction.shardStarted(shardRouting, indexMetaData.getIndexUUID(), "after recovery (replica) from node [" + state.getSourceNode() + "]", SHARD_STATE_ACTION_LISTENER);
         }
 
         @Override

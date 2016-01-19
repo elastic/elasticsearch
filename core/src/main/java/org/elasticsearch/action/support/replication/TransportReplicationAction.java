@@ -889,7 +889,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                                         }
 
                                         @Override
-                                        public void onShardFailedFailure(Exception e) {
+                                        public void onFailure(Throwable t) {
                                             // TODO: handle catastrophic non-channel failures
                                             onReplicaFailure(nodeId, exp);
                                         }

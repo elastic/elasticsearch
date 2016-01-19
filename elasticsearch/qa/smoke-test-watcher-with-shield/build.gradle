@@ -26,7 +26,7 @@ integTest {
     setupCommand 'setupWatcherManagerUser',
                  'bin/x-pack/esusers', 'useradd', 'watcher_manager', '-p', 'changeme', '-r', 'watcher_manager'
     setupCommand 'setupPowerlessUser',
-                 'bin/x-pack/esusers', 'useradd', 'powerless_user', '-p', 'changeme', '-r', 'crapy_role'
+                 'bin/x-pack/esusers', 'useradd', 'powerless_user', '-p', 'changeme', '-r', 'crappy_role'
     waitCondition = { node, ant ->
       File tmpFile = new File(node.cwd, 'wait.success')
       ant.get(src: "http://${node.httpUri()}",

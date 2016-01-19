@@ -7,14 +7,16 @@ watcher_manager:
   cluster: manage_watcher, cluster:monitor/nodes/info, cluster:monitor/health
   indices:
     '.watch_history-*': all
+  run_as: powerless_user, watcher_manager
 
 watcher_monitor:
   cluster: monitor_watcher
   indices:
     '.watch_history-*': read
 
-crapy_role:
+crappy_role:
   cluster:
     - cluster:monitor/nodes/info
     - cluster:monitor/health
     - cluster:monitor/nodes/liveness
+

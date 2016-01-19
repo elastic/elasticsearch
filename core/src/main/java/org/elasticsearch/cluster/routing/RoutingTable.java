@@ -114,6 +114,16 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
         return shard;
     }
 
+    /**
+     * All shards for the provided {@link ShardId}
+     * @return All the shard routing entries for the given index and shard id
+     * @throws IndexNotFoundException if provided index does not exist
+     * @throws ShardNotFoundException if provided shard id is unknown
+     */
+    public IndexShardRoutingTable shardRoutingTable(ShardId shardId) {
+        return shardRoutingTable(shardId.getIndex(), shardId.getId());
+    }
+
     public RoutingTable validateRaiseException(MetaData metaData) throws RoutingValidationException {
         RoutingTableValidation validation = validate(metaData);
         if (!validation.valid()) {

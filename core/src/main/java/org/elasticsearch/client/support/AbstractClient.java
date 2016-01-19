@@ -1683,8 +1683,7 @@ public abstract class AbstractClient extends AbstractComponent implements Client
             @Override
             protected <Request extends ActionRequest<Request>, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void doExecute(Action<Request, Response, RequestBuilder> action, Request request, ActionListener<Response> listener) {
                 ThreadContext threadContext = threadPool().getThreadContext();
-                try (ThreadContext.StoredContext ctx = threadContext.stashContext()) {
-                    threadContext.putHeader(headers);
+                try (ThreadContext.StoredContext ctx = threadContext.stashContext(headers)) {
                     super.doExecute(action, request, listener);
                 }
             }

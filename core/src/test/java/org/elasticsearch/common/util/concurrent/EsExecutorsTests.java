@@ -335,25 +335,48 @@ public class EsExecutorsTests extends ESTestCase {
         threadContext.putTransient("foo", one);
         EsThreadPoolExecutor executor = EsExecutors.newFixed(getTestName(), pool, queue, EsExecutors.daemonThreadFactory("dummy"), threadContext);
         try {
-            executor.execute(new Runnable() {
-                @Override
-                public void run() {
-                    try {
-                        latch.await();
-                    } catch (InterruptedException e) {
-                        fail();
-                    }
-                    assertEquals(threadContext.getHeader("foo"), "bar");
-                    assertSame(threadContext.getTransient("foo"), one);
-                    assertNull(threadContext.getHeader("bar"));
-                    assertNull(threadContext.getTransient("bar"));
-                    executed.countDown();
+            executor.execute(() -> {
+                try {
+                    latch.await();
+                } catch (InterruptedException e) {
+                    fail();
                 }
+                assertEquals(threadContext.getHeader("foo"), "bar");
+                assertSame(threadContext.getTransient("foo"), one);
+                assertNull(threadContext.getHeader("bar"));
+                assertNull(threadContext.getTransient("bar"));
+                executed.countDown();
             });
             threadContext.putTransient("bar", "boom");
             threadContext.putHeader("bar", "boom");
             latch.countDown();
             executed.await();
+
+        } finally {
+            latch.countDown();
+            terminate(executor);
+        }
+    }
+
+    public void testGetTasks() throws InterruptedException {
+        int pool = between(1, 10);
+        int queue = between(0, 100);
+        final CountDownLatch latch = new CountDownLatch(1);
+        final CountDownLatch executed = new CountDownLatch(1);
+        EsThreadPoolExecutor executor = EsExecutors.newFixed(getTestName(), pool, queue, EsExecutors.daemonThreadFactory("dummy"), threadContext);
+        try {
+            Runnable r = () -> {
+                latch.countDown();
+                try {
+                    executed.await();
+                } catch (InterruptedException e) {
+                    fail();
+                }
+            };
+            executor.execute(r);
+            latch.await();
+            executor.getTasks().forEach((runnable) -> assertSame(runnable, r));
+            executed.countDown();
 
         } finally {
             latch.countDown();

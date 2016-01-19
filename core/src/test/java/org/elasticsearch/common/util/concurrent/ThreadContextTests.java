@@ -25,6 +25,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
 
 public class ThreadContextTests extends ESTestCase {
 
@@ -42,6 +43,30 @@ public class ThreadContextTests extends ESTestCase {
             assertEquals("1", threadContext.getHeader("default"));
         }
 
+        assertEquals("bar", threadContext.getHeader("foo"));
+        assertEquals(new Integer(1), threadContext.getTransient("ctx.foo"));
+        assertEquals("1", threadContext.getHeader("default"));
+    }
+
+    public void testStashContextWithMerge() {
+        Settings build = Settings.builder().put("request.headers.default", "1").build();
+        ThreadContext threadContext = new ThreadContext(build);
+        threadContext.putHeader("foo", "bar");
+        threadContext.putTransient("ctx.foo", new Integer(1));
+        assertEquals("bar", threadContext.getHeader("foo"));
+        assertEquals(new Integer(1), threadContext.getTransient("ctx.foo"));
+        assertEquals("1", threadContext.getHeader("default"));
+        HashMap<String, String> toMerge = new HashMap<>();
+        toMerge.put("foo", "baz");
+        toMerge.put("simon", "says");
+        try (ThreadContext.StoredContext ctx = threadContext.stashContext(toMerge)) {
+            assertEquals("bar", threadContext.getHeader("foo"));
+            assertEquals("says", threadContext.getHeader("simon"));
+            assertEquals(new Integer(1), threadContext.getTransient("ctx.foo"));
+            assertEquals("1", threadContext.getHeader("default"));
+        }
+
+        assertNull(threadContext.getHeader("simon"));
         assertEquals("bar", threadContext.getHeader("foo"));
         assertEquals(new Integer(1), threadContext.getTransient("ctx.foo"));
         assertEquals("1", threadContext.getHeader("default"));

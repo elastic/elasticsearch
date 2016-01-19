@@ -102,6 +102,18 @@ public final class ThreadContext implements Closeable, Writeable<ThreadContext.T
     }
 
     /**
+     * Removes the current context and resets a new context that contains a merge of the current context and the given headers. The removed context can be
+     * restored when closing the returned {@link StoredContext}
+     */
+    public StoredContext stashContext(Map<String, String> headers) {
+        final ThreadContextStruct context = threadLocal.get();
+        threadLocal.set(context.putHeaders(headers));
+        return () -> {
+            threadLocal.set(context);
+        };
+    }
+
+    /**
      * Just like {@link #stashContext()} but no default context is set.
      */
     public StoredContext newStoredContext() {
@@ -214,8 +226,8 @@ public final class ThreadContext implements Closeable, Writeable<ThreadContext.T
             if (headers.isEmpty()) {
                 return this;
             } else {
-                Map<String, String> newHeaders = new HashMap<>(this.headers);
-                newHeaders.putAll(headers);
+                Map<String, String> newHeaders = new HashMap<>(headers); // first add the new headers
+                newHeaders.putAll(this.headers); // now add the new ones - we do a merge and preserve already existing ones
                 return new ThreadContextStruct(newHeaders, transientHeaders);
             }
         }

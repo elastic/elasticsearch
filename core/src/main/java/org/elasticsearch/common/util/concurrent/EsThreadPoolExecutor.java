@@ -24,6 +24,7 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
 
 /**
  * An extension to thread pool executor, allowing (in the future) to add specific additional stats to it.
@@ -103,6 +104,14 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
                 throw ex;
             }
         }
+    }
+
+    /**
+     * Returns a stream of all pending tasks. This is similar to {@link #getQueue()} but will expose the originally submitted
+     * {@link Runnable} instances rather than potentially wrapped ones.
+     */
+    public Stream<Runnable> getTasks() {
+        return this.getQueue().stream().map(this::unwrap);
     }
 
     @Override

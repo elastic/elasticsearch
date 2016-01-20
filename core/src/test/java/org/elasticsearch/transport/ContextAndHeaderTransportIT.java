@@ -79,7 +79,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
 @ClusterScope(scope = SUITE)
-public class ContextAndHeaderTransportTests extends ESIntegTestCase {
+public class ContextAndHeaderTransportIT extends ESIntegTestCase {
     private static final List<RequestAndHeaders> requests =  new CopyOnWriteArrayList<>();
     private String randomHeaderKey = randomAsciiOfLength(10);
     private String randomHeaderValue = randomAsciiOfLength(20);

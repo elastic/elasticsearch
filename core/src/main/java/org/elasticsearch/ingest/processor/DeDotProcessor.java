@@ -41,7 +41,7 @@ public class DeDotProcessor implements Processor {
     private final String processorTag;
     private final String separator;
 
-    public DeDotProcessor(String processorTag, String separator) {
+    DeDotProcessor(String processorTag, String separator) {
         this.processorTag = processorTag;
         this.separator = separator;
     }

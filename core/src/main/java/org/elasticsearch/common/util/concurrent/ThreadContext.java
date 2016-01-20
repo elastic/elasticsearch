@@ -43,21 +43,19 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * and directly added as the headers of the threads {@link ThreadContext} (see {@link #readHeaders(StreamInput)}. In order to not modify the context that is currently
  * active on this thread the network code uses a try/with pattern to stash it's current context, read headers into a fresh one and once the request is handled or a handler thread
  * is forked (which in turn inherits the context) it restores the previous context. For instance:
- *
+ * </p>
  * <pre>
  *     // current context is stashed and replaced with a default context
  *     try (StoredContext context = threadContext.stashContext()) {
  *         threadContext.readHeaders(in); // read headers into current context
  *         if (fork) {
- *             threadPool.execute(() -> request.handle()); // inherits context
+ *             threadPool.execute(() -&gt; request.handle()); // inherits context
  *         } else {
  *             request.handle();
  *         }
  *     }
  *     // previous context is restored on StoredContext#close()
  * </pre>
- *
- * </p>
  *
  */
 public final class ThreadContext implements Closeable, Writeable<ThreadContext.ThreadContextStruct>{

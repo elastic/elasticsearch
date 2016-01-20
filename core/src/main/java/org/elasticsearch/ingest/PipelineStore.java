@@ -20,6 +20,7 @@
 package org.elasticsearch.ingest;
 
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
@@ -136,7 +137,7 @@ public class PipelineStore extends AbstractComponent implements Closeable, Clust
         }
         Map<String, PipelineConfiguration> pipelines = currentIngestMetadata.getPipelines();
         if (pipelines.containsKey(request.id()) == false) {
-            throw new PipelineMissingException(request.id());
+            throw new ResourceNotFoundException("pipeline [{}] is missing", request.id());
         } else {
             pipelines = new HashMap<>(pipelines);
             pipelines.remove(request.id());

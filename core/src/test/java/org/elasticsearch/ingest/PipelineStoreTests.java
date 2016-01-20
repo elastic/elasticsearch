@@ -19,6 +19,7 @@
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.cluster.ClusterName;
@@ -129,7 +130,7 @@ public class PipelineStoreTests extends ESTestCase {
         try {
             store.innerDelete(deleteRequest, clusterState);
             fail("exception expected");
-        } catch (PipelineMissingException e) {
+        } catch (ResourceNotFoundException e) {
             assertThat(e.getMessage(), equalTo("pipeline [_id] is missing"));
         }
     }

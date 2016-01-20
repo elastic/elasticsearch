@@ -635,7 +635,9 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
                     case STARTED:
                     case RELOCATED:
                         try {
-                            shard.refresh("schedule");
+                            if (shard.isRefreshNeeded()) {
+                                shard.refresh("schedule");
+                            }
                         } catch (EngineClosedException | AlreadyClosedException ex) {
                             // fine - continue;
                         }

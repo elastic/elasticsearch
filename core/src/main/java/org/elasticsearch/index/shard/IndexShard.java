@@ -541,25 +541,23 @@ public class IndexShard extends AbstractIndexShardComponent {
     /** Writes all indexing changes to disk and opens a new searcher reflecting all changes.  This can throw {@link EngineClosedException}. */
     public void refresh(String source) {
         verifyNotClosed();
-        if (getEngine().refreshNeeded()) {
-            if (canIndex()) {
-                long bytes = getEngine().getIndexBufferRAMBytesUsed();
-                writingBytes.addAndGet(bytes);
-                try {
-                    logger.debug("refresh with source [{}] indexBufferRAMBytesUsed [{}]", source, new ByteSizeValue(bytes));
-                    long time = System.nanoTime();
-                    getEngine().refresh(source);
-                    refreshMetric.inc(System.nanoTime() - time);
-                } finally {
-                    logger.debug("remove [{}] writing bytes for shard [{}]", new ByteSizeValue(bytes), shardId());
-                    writingBytes.addAndGet(-bytes);
-                }
-            } else {
-                logger.debug("refresh with source [{}]", source);
+        if (canIndex()) {
+            long bytes = getEngine().getIndexBufferRAMBytesUsed();
+            writingBytes.addAndGet(bytes);
+            try {
+                logger.debug("refresh with source [{}] indexBufferRAMBytesUsed [{}]", source, new ByteSizeValue(bytes));
                 long time = System.nanoTime();
                 getEngine().refresh(source);
                 refreshMetric.inc(System.nanoTime() - time);
+            } finally {
+                logger.debug("remove [{}] writing bytes for shard [{}]", new ByteSizeValue(bytes), shardId());
+                writingBytes.addAndGet(-bytes);
             }
+        } else {
+            logger.debug("refresh with source [{}]", source);
+            long time = System.nanoTime();
+            getEngine().refresh(source);
+            refreshMetric.inc(System.nanoTime() - time);
         }
     }
 
@@ -1512,6 +1510,17 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     EngineFactory getEngineFactory() {
         return engineFactory;
+    }
+
+    /**
+     * Returns <code>true</code> iff one or more changes to the engine are not visible to via the current searcher.
+     * Otherwise <code>false</code>.
+     *
+     * @throws EngineClosedException if the engine is already closed
+     * @throws AlreadyClosedException if the internal indexwriter in the engine is already closed
+     */
+    public boolean isRefreshNeeded() {
+        return getEngine().refreshNeeded();
     }
 
 }

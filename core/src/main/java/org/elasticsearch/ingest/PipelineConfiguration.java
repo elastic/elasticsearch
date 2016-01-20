@@ -19,10 +19,14 @@
 
 package org.elasticsearch.ingest;
 
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Build;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -43,39 +47,44 @@ public final class PipelineConfiguration implements Writeable<PipelineConfigurat
         return PROTOTYPE.readFrom(in);
     }
 
+    public static class Builder {
+
+        private final static ObjectParser<Builder, Void> PARSER = new ObjectParser<>("pipeline_config", null);
+
+        static {
+            PARSER.declareString(Builder::setId, new ParseField("id"));
+            PARSER.declareField((parser, builder, aVoid) -> {
+                XContentBuilder contentBuilder = XContentBuilder.builder(parser.contentType().xContent());
+                XContentHelper.copyCurrentEvent(contentBuilder.generator(), parser);
+                builder.setConfig(contentBuilder.bytes());
+            }, new ParseField("config"), ObjectParser.ValueType.OBJECT);
+        }
+
+        private String id;
+        private BytesReference config;
+
+        public Builder(XContentParser parser) throws IOException {
+            PARSER.parse(parser, this);
+        }
+
+        public void setId(String id) {
+            this.id = id;
+        }
+
+        public void setConfig(BytesReference config) {
+            this.config = config;
+        }
+
+        public PipelineConfiguration build() {
+            return new PipelineConfiguration(id, config);
+        }
+    }
+
     private final String id;
     // Store config as bytes reference, because the config is only used when the pipeline store reads the cluster state
     // and the way the map of maps config is read requires a deep copy (it removes instead of gets entries to check for unused options)
     // also the get pipeline api just directly returns this to the caller
     private final BytesReference config;
-
-    PipelineConfiguration(XContentParser parser) throws IOException {
-        String id = null;
-        BytesReference config = null;
-
-        XContentParser.Token token;
-        String currentFieldName = null;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            switch (token) {
-                case FIELD_NAME:
-                    currentFieldName = parser.currentName();
-                    break;
-                case VALUE_STRING:
-                    if ("id".equals(currentFieldName)) {
-                        id = parser.text();
-                    }
-                    break;
-                case START_OBJECT:
-                    XContentBuilder builder = XContentBuilder.builder(parser.contentType().xContent());
-                    XContentHelper.copyCurrentEvent(builder.generator(), parser);
-                    config = builder.bytes();
-                    break;
-            }
-        }
-
-        this.id = Objects.requireNonNull(id);
-        this.config = Objects.requireNonNull(config);
-    }
 
     public PipelineConfiguration(String id, BytesReference config) {
         this.id = id;

@@ -21,8 +21,11 @@ package org.elasticsearch.ingest;
 
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -39,6 +42,7 @@ public final class IngestMetadata extends AbstractDiffable<MetaData.Custom> impl
 
     public final static String TYPE = "ingest";
     public final static IngestMetadata PROTO = new IngestMetadata();
+    private final ParseField PIPELINES_FIELD = new ParseField("pipeline");
 
     // We can't use Pipeline class directly in cluster state, because we don't have the processor factories around when
     // IngestMetadata is registered as custom metadata.
@@ -82,33 +86,26 @@ public final class IngestMetadata extends AbstractDiffable<MetaData.Custom> impl
 
     @Override
     public MetaData.Custom fromXContent(XContentParser parser) throws IOException {
-        XContentParser.Token token;
-        String currentFieldName = null;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            switch (token) {
-                case FIELD_NAME:
-                    currentFieldName = parser.currentName();
-                    break;
-                case START_ARRAY:
-                    if ("pipelines".equals(currentFieldName)) {
-                        Map<String, PipelineConfiguration> pipelines = new HashMap<>();
-                        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                            if (token == XContentParser.Token.START_OBJECT) {
-                                PipelineConfiguration pipeline = new PipelineConfiguration(parser);
-                                pipelines.put(pipeline.getId(), pipeline);
-                            }
-                        }
-                        return new IngestMetadata(pipelines);
-                    }
-                    break;
+        ObjectParser<Void, Void> ingestMetaDataParser = new ObjectParser<>("ingest_metadata", null);
+
+        Map<String, PipelineConfiguration> pipelines = new HashMap<>();
+        ingestMetaDataParser.declareField((parser1, aVoid, aVoid2) -> {
+            XContentParser.Token token;
+            while ((token = parser1.nextToken()) != XContentParser.Token.END_ARRAY) {
+                if (token == XContentParser.Token.START_OBJECT) {
+                    PipelineConfiguration pipeline = new PipelineConfiguration.Builder(parser1).build();
+                    pipelines.put(pipeline.getId(), pipeline);
+                }
             }
-        }
-        return PROTO;
+        }, PIPELINES_FIELD, ObjectParser.ValueType.OBJECT);
+        ingestMetaDataParser.parse(parser);
+
+        return new IngestMetadata(pipelines);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startArray("pipelines");
+        builder.startArray(PIPELINES_FIELD.getPreferredName());
         for (PipelineConfiguration pipeline : pipelines.values()) {
             pipeline.toXContent(builder, params);
         }

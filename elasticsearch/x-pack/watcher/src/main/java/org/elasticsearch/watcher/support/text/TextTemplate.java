@@ -170,15 +170,15 @@ public class TextTemplate implements ToXContent {
         return new Builder.Inline(template.bytes().toUtf8()).contentType(template.contentType());
     }
 
-    public static Builder inline(String text) {
+    public static Builder<Builder.Inline> inline(String text) {
         return new Builder.Inline(text);
     }
 
-    public static Builder file(String file) {
+    public static Builder<Builder.File> file(String file) {
         return new Builder.File(file);
     }
 
-    public static Builder indexed(String id) {
+    public static Builder<Builder.Indexed> indexed(String id) {
         return new Builder.Indexed(id);
     }
 

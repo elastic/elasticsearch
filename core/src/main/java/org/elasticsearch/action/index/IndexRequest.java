@@ -368,7 +368,7 @@ public class IndexRequest extends ReplicationRequest<IndexRequest> implements Do
     /**
      * Sets the ingest pipeline to be executed before indexing the document
      */
-    public IndexRequest pipeline(String pipeline) {
+    public IndexRequest setPipeline(String pipeline) {
         this.pipeline = pipeline;
         return this;
     }
@@ -376,7 +376,7 @@ public class IndexRequest extends ReplicationRequest<IndexRequest> implements Do
     /**
      * Returns the ingest pipeline to be executed before indexing the document
      */
-    public String pipeline() {
+    public String getPipeline() {
         return this.pipeline;
     }
 

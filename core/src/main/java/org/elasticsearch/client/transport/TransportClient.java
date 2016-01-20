@@ -49,6 +49,7 @@ import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.indices.breaker.CircuitBreakerModule;
 import org.elasticsearch.monitor.MonitorService;
+import org.elasticsearch.node.NodeModule;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsModule;
@@ -150,7 +151,8 @@ public class TransportClient extends AbstractClient {
                         // noop
                     }
                 });
-                modules.add(new ActionModule(settings, true));
+                boolean ingestEnabled = NodeModule.isNodeIngestEnabled(settings);
+                modules.add(new ActionModule(ingestEnabled, true));
                 modules.add(new CircuitBreakerModule(settings));
 
                 pluginsService.processModules(modules);

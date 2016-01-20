@@ -65,7 +65,7 @@ public final class IngestProxyActionFilter implements ActionFilter {
             ingestAction = IndexAction.INSTANCE;
             assert request instanceof IndexRequest;
             IndexRequest indexRequest = (IndexRequest) request;
-            isIngestRequest = Strings.hasText(indexRequest.pipeline());
+            isIngestRequest = Strings.hasText(indexRequest.getPipeline());
         } else if (BulkAction.NAME.equals(action)) {
             ingestAction = BulkAction.INSTANCE;
             assert request instanceof BulkRequest;
@@ -73,7 +73,7 @@ public final class IngestProxyActionFilter implements ActionFilter {
             for (ActionRequest actionRequest : bulkRequest.requests()) {
                 if (actionRequest instanceof IndexRequest) {
                     IndexRequest indexRequest = (IndexRequest) actionRequest;
-                    if (Strings.hasText(indexRequest.pipeline())) {
+                    if (Strings.hasText(indexRequest.getPipeline())) {
                         isIngestRequest = true;
                         break;
                     }

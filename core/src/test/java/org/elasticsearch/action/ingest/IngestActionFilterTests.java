@@ -99,7 +99,7 @@ public class IngestActionFilterTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testApplyIngestIdViaRequestParam() throws Exception {
         Task task = mock(Task.class);
-        IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").pipeline("_id");
+        IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").setPipeline("_id");
         indexRequest.source("field", "value");
         ActionListener actionListener = mock(ActionListener.class);
         ActionFilterChain actionFilterChain = mock(ActionFilterChain.class);
@@ -113,7 +113,7 @@ public class IngestActionFilterTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testApplyExecuted() throws Exception {
         Task task = mock(Task.class);
-        IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").pipeline("_id");
+        IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").setPipeline("_id");
         indexRequest.source("field", "value");
         ActionListener actionListener = mock(ActionListener.class);
         ActionFilterChain actionFilterChain = mock(ActionFilterChain.class);
@@ -135,7 +135,7 @@ public class IngestActionFilterTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testApplyFailed() throws Exception {
         Task task = mock(Task.class);
-        IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").pipeline("_id");
+        IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").setPipeline("_id");
         indexRequest.source("field", "value");
         ActionListener actionListener = mock(ActionListener.class);
         ActionFilterChain actionFilterChain = mock(ActionFilterChain.class);
@@ -196,7 +196,7 @@ public class IngestActionFilterTests extends ESTestCase {
                 }
                 bulkRequest.add(request);
             } else {
-                IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").pipeline("_id");
+                IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").setPipeline("_id");
                 indexRequest.source("field1", "value1");
                 bulkRequest.add(indexRequest);
             }
@@ -239,9 +239,9 @@ public class IngestActionFilterTests extends ESTestCase {
         ActionListener actionListener = mock(ActionListener.class);
         ActionFilterChain actionFilterChain = mock(ActionFilterChain.class);
 
-        IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").pipeline("_id").source("field", "value");
+        IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").setPipeline("_id").source("field", "value");
         filter.apply(task, IndexAction.NAME, indexRequest, actionListener, actionFilterChain);
-        assertThat(indexRequest.pipeline(), nullValue());
+        assertThat(indexRequest.getPipeline(), nullValue());
         filter.apply(task, IndexAction.NAME, indexRequest, actionListener, actionFilterChain);
         verify(executionService, times(1)).execute(same(indexRequest), any(Consumer.class), any(Consumer.class));
         verify(actionFilterChain, times(2)).proceed(task, IndexAction.NAME, indexRequest, actionListener);

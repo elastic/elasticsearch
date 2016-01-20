@@ -190,7 +190,8 @@ public class Node implements Releasable {
             modules.add(new ClusterModule(this.settings));
             modules.add(new IndicesModule());
             modules.add(new SearchModule(settings, namedWriteableRegistry));
-            modules.add(new ActionModule(settings, false));
+            boolean ingestEnabled = NodeModule.isNodeIngestEnabled(settings);
+            modules.add(new ActionModule(ingestEnabled, false));
             modules.add(new GatewayModule(settings));
             modules.add(new NodeClientModule());
             modules.add(new PercolatorModule());

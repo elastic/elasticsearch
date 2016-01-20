@@ -29,7 +29,7 @@ public class GetPipelineRequestBuilder extends MasterNodeReadOperationRequestBui
     }
 
     public GetPipelineRequestBuilder setIds(String... ids) {
-        request.ids(ids);
+        request.setIds(ids);
         return this;
     }
 

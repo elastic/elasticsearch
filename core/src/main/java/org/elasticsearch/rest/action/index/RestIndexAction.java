@@ -77,7 +77,7 @@ public class RestIndexAction extends BaseRestHandler {
         if (request.hasParam("ttl")) {
             indexRequest.ttl(request.param("ttl"));
         }
-        indexRequest.pipeline(request.param("pipeline"));
+        indexRequest.setPipeline(request.param("pipeline"));
         indexRequest.source(request.content());
         indexRequest.timeout(request.paramAsTime("timeout", IndexRequest.DEFAULT_TIMEOUT));
         indexRequest.refresh(request.paramAsBoolean("refresh", indexRequest.refresh()));

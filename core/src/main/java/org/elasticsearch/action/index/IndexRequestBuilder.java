@@ -283,7 +283,7 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
      * Sets the ingest pipeline to be executed before indexing the document
      */
     public IndexRequestBuilder setPipeline(String pipeline) {
-        request.pipeline(pipeline);
+        request.setPipeline(pipeline);
         return this;
     }
 }

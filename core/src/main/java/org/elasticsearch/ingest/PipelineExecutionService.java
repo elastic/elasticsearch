@@ -41,7 +41,7 @@ public class PipelineExecutionService {
     }
 
     public void execute(IndexRequest request, Consumer<Throwable> failureHandler, Consumer<Boolean> completionHandler) {
-        Pipeline pipeline = getPipeline(request.pipeline());
+        Pipeline pipeline = getPipeline(request.getPipeline());
         threadPool.executor(ThreadPool.Names.INDEX).execute(() -> {
             try {
                 innerExecute(request, pipeline);
@@ -58,11 +58,11 @@ public class PipelineExecutionService {
             for (ActionRequest actionRequest : actionRequests) {
                 if ((actionRequest instanceof IndexRequest)) {
                     IndexRequest indexRequest = (IndexRequest) actionRequest;
-                    if (Strings.hasText(indexRequest.pipeline())) {
+                    if (Strings.hasText(indexRequest.getPipeline())) {
                         try {
-                            innerExecute(indexRequest, getPipeline(indexRequest.pipeline()));
+                            innerExecute(indexRequest, getPipeline(indexRequest.getPipeline()));
                             //this shouldn't be needed here but we do it for consistency with index api which requires it to prevent double execution
-                            indexRequest.pipeline(null);
+                            indexRequest.setPipeline(null);
                         } catch (Throwable e) {
                             itemFailureHandler.accept(indexRequest, e);
                         }

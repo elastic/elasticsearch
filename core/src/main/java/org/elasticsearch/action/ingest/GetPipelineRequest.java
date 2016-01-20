@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -32,21 +33,20 @@ public class GetPipelineRequest extends MasterNodeReadRequest<GetPipelineRequest
 
     private String[] ids;
 
-    public void ids(String... ids) {
-        this.ids = ids;
+    public void setIds(String... ids) {
+        this.ids = Objects.requireNonNull(ids);
+        if (ids.length == 0) {
+            throw new IllegalArgumentException("No ids specified");
+        }
     }
 
-    public String[] ids() {
+    public String[] getIds() {
         return ids;
     }
 
     @Override
     public ActionRequestValidationException validate() {
-        ActionRequestValidationException validationException = null;
-        if (ids == null || ids.length == 0) {
-            validationException = addValidationError("ids is missing", validationException);
-        }
-        return validationException;
+        return null;
     }
 
     @Override

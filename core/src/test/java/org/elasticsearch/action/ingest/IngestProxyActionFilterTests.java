@@ -102,10 +102,10 @@ public class IngestProxyActionFilterTests extends ESTestCase {
         ActionRequest request;
         if (randomBoolean()) {
             action = IndexAction.NAME;
-            request = new IndexRequest().pipeline("_id");
+            request = new IndexRequest().setPipeline("_id");
         } else {
             action = BulkAction.NAME;
-            request = new BulkRequest().add(new IndexRequest().pipeline("_id"));
+            request = new BulkRequest().add(new IndexRequest().setPipeline("_id"));
         }
         try {
             filter.apply(task, action, request, actionListener, actionFilterChain);
@@ -169,7 +169,7 @@ public class IngestProxyActionFilterTests extends ESTestCase {
         };
         doAnswer(answer).when(transportService).sendRequest(any(DiscoveryNode.class), any(String.class), any(TransportRequest.class), any(TransportResponseHandler.class));
 
-        IndexRequest indexRequest = new IndexRequest().pipeline("_id");
+        IndexRequest indexRequest = new IndexRequest().setPipeline("_id");
         filter.apply(task, IndexAction.NAME, indexRequest, actionListener, actionFilterChain);
 
         verify(transportService).sendRequest(argThat(new IngestNodeMatcher()), eq(IndexAction.NAME), same(indexRequest), any(TransportResponseHandler.class));
@@ -193,7 +193,7 @@ public class IngestProxyActionFilterTests extends ESTestCase {
         doAnswer(answer).when(transportService).sendRequest(any(DiscoveryNode.class), any(String.class), any(TransportRequest.class), any(TransportResponseHandler.class));
 
         BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(new IndexRequest().pipeline("_id"));
+        bulkRequest.add(new IndexRequest().setPipeline("_id"));
         int numNoPipelineRequests = randomIntBetween(0, 10);
         for (int i = 0; i < numNoPipelineRequests; i++) {
             bulkRequest.add(new IndexRequest());
@@ -224,10 +224,10 @@ public class IngestProxyActionFilterTests extends ESTestCase {
         ActionRequest request;
         if (randomBoolean()) {
             action = IndexAction.NAME;
-            request = new IndexRequest().pipeline("_id");
+            request = new IndexRequest().setPipeline("_id");
         } else {
             action = BulkAction.NAME;
-            request = new BulkRequest().add(new IndexRequest().pipeline("_id"));
+            request = new BulkRequest().add(new IndexRequest().setPipeline("_id"));
         }
 
         filter.apply(task, action, request, actionListener, actionFilterChain);

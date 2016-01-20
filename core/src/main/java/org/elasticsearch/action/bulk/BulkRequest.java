@@ -28,6 +28,7 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -383,15 +384,15 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
                     if ("index".equals(action)) {
                         if (opType == null) {
                             internalAdd(new IndexRequest(index, type, id).routing(routing).parent(parent).timestamp(timestamp).ttl(ttl).version(version).versionType(versionType)
-                                    .pipeline(pipeline).source(data.slice(from, nextMarker - from)), payload);
+                                    .setPipeline(pipeline).source(data.slice(from, nextMarker - from)), payload);
                         } else {
                             internalAdd(new IndexRequest(index, type, id).routing(routing).parent(parent).timestamp(timestamp).ttl(ttl).version(version).versionType(versionType)
-                                    .create("create".equals(opType)).pipeline(pipeline)
+                                    .create("create".equals(opType)).setPipeline(pipeline)
                                     .source(data.slice(from, nextMarker - from)), payload);
                         }
                     } else if ("create".equals(action)) {
                         internalAdd(new IndexRequest(index, type, id).routing(routing).parent(parent).timestamp(timestamp).ttl(ttl).version(version).versionType(versionType)
-                                .create(true).pipeline(pipeline)
+                                .create(true).setPipeline(pipeline)
                                 .source(data.slice(from, nextMarker - from)), payload);
                     } else if ("update".equals(action)) {
                         UpdateRequest updateRequest = new UpdateRequest(index, type, id).routing(routing).parent(parent).retryOnConflict(retryOnConflict)
@@ -480,6 +481,22 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
             }
         }
         return -1;
+    }
+
+    /**
+     * @return Whether this bulk request contains index request with an ingest pipeline enabled.
+     */
+    public boolean hasIndexRequestsWithPipelines() {
+        for (ActionRequest actionRequest : requests) {
+            if (actionRequest instanceof IndexRequest) {
+                IndexRequest indexRequest = (IndexRequest) actionRequest;
+                if (Strings.hasText(indexRequest.getPipeline())) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     @Override

@@ -56,36 +56,29 @@ public final class IngestActionFilter extends AbstractComponent implements Actio
 
     @Override
     public void apply(Task task, String action, ActionRequest<?> request, ActionListener<?> listener, ActionFilterChain chain) {
-        if (IndexAction.NAME.equals(action)) {
-            assert request instanceof IndexRequest;
-            IndexRequest indexRequest = (IndexRequest) request;
-            if (Strings.hasText(indexRequest.pipeline())) {
-                processIndexRequest(task, action, listener, chain, (IndexRequest) request);
-                return;
-            }
-        }
-        if (BulkAction.NAME.equals(action)) {
-            assert request instanceof BulkRequest;
-            BulkRequest bulkRequest = (BulkRequest) request;
-            boolean isIngestRequest = false;
-            for (ActionRequest actionRequest : bulkRequest.requests()) {
-                if (actionRequest instanceof IndexRequest) {
-                    IndexRequest indexRequest = (IndexRequest) actionRequest;
-                    if (Strings.hasText(indexRequest.pipeline())) {
-                        isIngestRequest = true;
-                        break;
-                    }
+        switch (action) {
+            case IndexAction.NAME:
+                IndexRequest indexRequest = (IndexRequest) request;
+                if (Strings.hasText(indexRequest.getPipeline())) {
+                    processIndexRequest(task, action, listener, chain, (IndexRequest) request);
+                } else {
+                    chain.proceed(task, action, request, listener);
                 }
-            }
-            if (isIngestRequest) {
-                @SuppressWarnings("unchecked")
-                ActionListener<BulkResponse> actionListener = (ActionListener<BulkResponse>) listener;
-                processBulkIndexRequest(task, bulkRequest, action, chain, actionListener);
-                return;
-            }
+                break;
+            case BulkAction.NAME:
+                BulkRequest bulkRequest = (BulkRequest) request;
+                if (bulkRequest.hasIndexRequestsWithPipelines()) {
+                    @SuppressWarnings("unchecked")
+                    ActionListener<BulkResponse> actionListener = (ActionListener<BulkResponse>) listener;
+                    processBulkIndexRequest(task, bulkRequest, action, chain, actionListener);
+                } else {
+                    chain.proceed(task, action, request, listener);
+                }
+                break;
+            default:
+                chain.proceed(task, action, request, listener);
+                break;
         }
-
-        chain.proceed(task, action, request, listener);
     }
 
     @Override
@@ -96,13 +89,13 @@ public final class IngestActionFilter extends AbstractComponent implements Actio
     void processIndexRequest(Task task, String action, ActionListener listener, ActionFilterChain chain, IndexRequest indexRequest) {
 
         executionService.execute(indexRequest, t -> {
-            logger.error("failed to execute pipeline [{}]", t, indexRequest.pipeline());
+            logger.error("failed to execute pipeline [{}]", t, indexRequest.getPipeline());
             listener.onFailure(t);
         }, success -> {
             // TransportIndexAction uses IndexRequest and same action name on the node that receives the request and the node that
             // processes the primary action. This could lead to a pipeline being executed twice for the same
             // index request, hence we set the pipeline to null once its execution completed.
-            indexRequest.pipeline(null);
+            indexRequest.setPipeline(null);
             chain.proceed(task, action, indexRequest, listener);
         });
     }
@@ -110,7 +103,7 @@ public final class IngestActionFilter extends AbstractComponent implements Actio
     void processBulkIndexRequest(Task task, BulkRequest original, String action, ActionFilterChain chain, ActionListener<BulkResponse> listener) {
         BulkRequestModifier bulkRequestModifier = new BulkRequestModifier(original);
         executionService.execute(() -> bulkRequestModifier, (indexRequest, throwable) -> {
-            logger.debug("failed to execute pipeline [{}] for document [{}/{}/{}]", indexRequest.pipeline(), indexRequest.index(), indexRequest.type(), indexRequest.id(), throwable);
+            logger.debug("failed to execute pipeline [{}] for document [{}/{}/{}]", indexRequest.getPipeline(), indexRequest.index(), indexRequest.type(), indexRequest.id(), throwable);
             bulkRequestModifier.markCurrentItemAsFailed(throwable);
         }, (success) -> {
             BulkRequest bulkRequest = bulkRequestModifier.getBulkRequest();

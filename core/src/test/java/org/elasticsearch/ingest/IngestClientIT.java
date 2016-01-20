@@ -145,7 +145,7 @@ public class IngestClientIT extends ESIntegTestCase {
         int numRequests = scaledRandomIntBetween(32, 128);
         BulkRequest bulkRequest = new BulkRequest();
         for (int i = 0; i < numRequests; i++) {
-            IndexRequest indexRequest = new IndexRequest("index", "type", Integer.toString(i)).pipeline("_id");
+            IndexRequest indexRequest = new IndexRequest("index", "type", Integer.toString(i)).setPipeline("_id");
             indexRequest.source("field", "value", "fail", i % 2 == 0);
             bulkRequest.add(indexRequest);
         }
@@ -180,7 +180,7 @@ public class IngestClientIT extends ESIntegTestCase {
         client().putPipeline(putPipelineRequest).get();
 
         GetPipelineRequest getPipelineRequest = new GetPipelineRequest();
-        getPipelineRequest.ids("_id");
+        getPipelineRequest.setIds("_id");
         GetPipelineResponse getResponse = client().getPipeline(getPipelineRequest).get();
         assertThat(getResponse.isFound(), is(true));
         assertThat(getResponse.pipelines().size(), equalTo(1));

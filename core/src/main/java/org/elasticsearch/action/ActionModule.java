@@ -227,8 +227,8 @@ public class ActionModule extends AbstractModule {
     private final boolean ingestEnabled;
     private final boolean proxy;
 
-    public ActionModule(Settings settings, boolean proxy) {
-        this.ingestEnabled = NodeModule.isNodeIngestEnabled(settings);
+    public ActionModule(boolean ingestEnabled, boolean proxy) {
+        this.ingestEnabled = ingestEnabled;
         this.proxy = proxy;
     }
 

@@ -42,6 +42,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
@@ -51,7 +52,7 @@ import static java.util.Collections.unmodifiableMap;
 
 /**
  */
-public class NodeService extends AbstractComponent {
+public class NodeService extends AbstractComponent implements Closeable {
 
     private final ThreadPool threadPool;
     private final MonitorService monitorService;
@@ -186,5 +187,10 @@ public class NodeService extends AbstractComponent {
 
     public IngestService getIngestService() {
         return ingestService;
+    }
+
+    @Override
+    public void close() throws IOException {
+        indicesService.close();
     }
 }

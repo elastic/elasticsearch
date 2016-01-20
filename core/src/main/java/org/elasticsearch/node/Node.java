@@ -355,11 +355,11 @@ public class Node implements Releasable {
         StopWatch stopWatch = new StopWatch("node_close");
         stopWatch.start("tribe");
         injector.getInstance(TribeService.class).close();
-        stopWatch.stop().start("ingest_service");
+        stopWatch.stop().start("node_service");
         try {
-            injector.getInstance(NodeService.class).getIngestService().close();
+            injector.getInstance(NodeService.class).close();
         } catch (IOException e) {
-            logger.warn("IngestService close failed", e);
+            logger.warn("NodeService close failed", e);
         }
         stopWatch.stop().start("http");
         if (settings.getAsBoolean("http.enabled", true)) {

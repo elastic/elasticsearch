@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.internal;
 
+import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
@@ -26,6 +27,7 @@ import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
@@ -45,6 +47,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.ParsedQuery;
@@ -238,19 +241,34 @@ public class DefaultSearchContext extends SearchContext {
     }
 
     @Override
+    @Nullable
     public Query searchFilter(String[] types) {
-        Query filter = mapperService().searchFilter(types);
-        if (filter == null && aliasFilter == null) {
+        return createSearchFilter(types, aliasFilter, mapperService().hasNested());
+    }
+
+    // extracted to static helper method to make writing unit tests easier:
+    static Query createSearchFilter(String[] types, Query aliasFilter, boolean hasNestedFields) {
+        Query typesFilter = null;
+        if (types != null && types.length >= 1) {
+            BytesRef[] typesBytes = new BytesRef[types.length];
+            for (int i = 0; i < typesBytes.length; i++) {
+                typesBytes[i] = new BytesRef(types[i]);
+            }
+            typesFilter = new TermsQuery(TypeFieldMapper.NAME, typesBytes);
+        } else if (hasNestedFields) {
+            typesFilter = Queries.newNonNestedFilter();
+        } else if (aliasFilter == null) {
             return null;
         }
         BooleanQuery.Builder bq = new BooleanQuery.Builder();
-        if (filter != null) {
-            bq.add(filter, Occur.MUST);
+        if (typesFilter != null) {
+            bq.add(typesFilter, Occur.FILTER);
         }
         if (aliasFilter != null) {
-            bq.add(aliasFilter, Occur.MUST);
+            bq.add(aliasFilter, Occur.FILTER);
         }
-        return new ConstantScoreQuery(bq.build());
+
+        return bq.build();
     }
 
     @Override

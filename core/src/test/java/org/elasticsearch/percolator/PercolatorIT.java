@@ -163,12 +163,6 @@ public class PercolatorIT extends ESIntegTestCase {
         assertThat(response.getMatches(), arrayWithSize(1));
         assertThat(convertFromTextArray(response.getMatches(), "test"), arrayContaining("4"));
 
-        logger.info("--> Search dummy doc, percolate queries must not be included");
-        SearchResponse searchResponse = client().prepareSearch("test", "test").execute().actionGet();
-        assertThat(searchResponse.getHits().totalHits(), equalTo(1L));
-        assertThat(searchResponse.getHits().getAt(0).type(), equalTo("type"));
-        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("1"));
-
         logger.info("--> Percolate non existing doc");
         try {
             client().preparePercolate()
@@ -657,14 +651,6 @@ public class PercolatorIT extends ESIntegTestCase {
         assertMatchCount(response, 1l);
         assertThat(response.getMatches(), arrayWithSize(1));
         assertThat(convertFromTextArray(response.getMatches(), "test"), arrayContaining("4"));
-
-        logger.info("--> Search normals docs, percolate queries must not be included");
-        SearchResponse searchResponse = client().prepareSearch("test").execute().actionGet();
-        assertThat(searchResponse.getHits().totalHits(), equalTo(4L));
-        assertThat(searchResponse.getHits().getAt(0).type(), equalTo("type"));
-        assertThat(searchResponse.getHits().getAt(1).type(), equalTo("type"));
-        assertThat(searchResponse.getHits().getAt(2).type(), equalTo("type"));
-        assertThat(searchResponse.getHits().getAt(3).type(), equalTo("type"));
     }
 
     public void testPercolatingExistingDocs_routing() throws Exception {

@@ -15,6 +15,7 @@ your application to Elasticsearch 3.0.
 * <<breaking_30_non_loopback>>
 * <<breaking_30_thread_pool>>
 * <<breaking_30_allocation>>
+* <<breaking_30_percolator>>
 
 [[breaking_30_search_changes]]
 === Warmers
@@ -625,6 +626,7 @@ in the case where shard copies can be found. Previously, a node not holding the 
 holding shard copies were satisfying the allocation deciders. Now, the shard will be assigned to a node having a shard copy,
 even if none of the nodes holding a shard copy satisfy the allocation deciders.
 
+[[breaking_30_percolator]]
 === Percolator
 
 Adding percolator queries and modifications to existing percolator queries are no longer visible in immediately
@@ -640,3 +642,5 @@ The percolate api can no longer accept documents that have fields that don't exi
 
 When percolating an existing document then specifying a document in the source of the percolate request is not allowed
 any more.
+
+Percolator documents are no longer excluded from the search response.

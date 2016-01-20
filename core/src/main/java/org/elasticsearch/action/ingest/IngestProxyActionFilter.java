@@ -42,6 +42,7 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -122,19 +123,13 @@ public final class IngestProxyActionFilter implements ActionFilter {
 
     private DiscoveryNode randomIngestNode() {
         assert NodeModule.isNodeIngestEnabled(clusterService.localNode().attributes()) == false;
-        List<DiscoveryNode> ingestNodes = new ArrayList<>();
-        for (DiscoveryNode node : clusterService.state().nodes()) {
-            if (NodeModule.isNodeIngestEnabled(node.getAttributes())) {
-                ingestNodes.add(node);
-            }
-        }
-
-        if (ingestNodes.isEmpty()) {
+        DiscoveryNode[] ingestNodes = clusterService.state().getNodes().getIngestNodes().values().toArray(DiscoveryNode.class);
+        if (ingestNodes.length == 0) {
             throw new IllegalStateException("There are no ingest nodes in this cluster, unable to forward request to an ingest node.");
         }
 
         int index = getNodeNumber();
-        return ingestNodes.get((index) % ingestNodes.size());
+        return ingestNodes[(index) % ingestNodes.length];
     }
 
     private int getNodeNumber() {

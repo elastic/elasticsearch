@@ -28,6 +28,7 @@ import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActionFilterChain;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -66,7 +67,7 @@ public class IngestProxyActionFilterTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     private IngestProxyActionFilter buildFilter(int ingestNodes, int totalNodes) {
-        ClusterState clusterState = mock(ClusterState.class);
+        ClusterState.Builder clusterState = new ClusterState.Builder(new ClusterName("_name"));
         DiscoveryNodes.Builder builder = new DiscoveryNodes.Builder();
         DiscoveryNode localNode = null;
         for (int i = 0; i < totalNodes; i++) {
@@ -83,10 +84,10 @@ public class IngestProxyActionFilterTests extends ESTestCase {
                 localNode = node;
             }
         }
-        when(clusterState.nodes()).thenReturn(builder.build());
+        clusterState.nodes(builder);
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.localNode()).thenReturn(localNode);
-        when(clusterService.state()).thenReturn(clusterState);
+        when(clusterService.state()).thenReturn(clusterState.build());
         transportService = mock(TransportService.class);
         return new IngestProxyActionFilter(clusterService, transportService);
     }

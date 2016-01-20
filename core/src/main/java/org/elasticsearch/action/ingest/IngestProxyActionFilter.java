@@ -31,6 +31,7 @@ import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
@@ -110,7 +111,8 @@ public final class IngestProxyActionFilter implements ActionFilter {
 
     private DiscoveryNode randomIngestNode() {
         assert NodeModule.isNodeIngestEnabled(clusterService.localNode().attributes()) == false;
-        DiscoveryNode[] ingestNodes = clusterService.state().getNodes().getIngestNodes().values().toArray(DiscoveryNode.class);
+        DiscoveryNodes nodes = clusterService.state().getNodes();
+        DiscoveryNode[] ingestNodes = nodes.getIngestNodes().values().toArray(DiscoveryNode.class);
         if (ingestNodes.length == 0) {
             throw new IllegalStateException("There are no ingest nodes in this cluster, unable to forward request to an ingest node.");
         }

@@ -255,14 +255,17 @@ public class DefaultSearchContext extends SearchContext {
                 typesBytes[i] = new BytesRef(types[i]);
             }
             typesFilter = new TermsQuery(TypeFieldMapper.NAME, typesBytes);
-        } else if (hasNestedFields) {
-            typesFilter = Queries.newNonNestedFilter();
-        } else if (aliasFilter == null) {
+        }
+
+        if (typesFilter == null && aliasFilter == null && hasNestedFields == false) {
             return null;
         }
+
         BooleanQuery.Builder bq = new BooleanQuery.Builder();
         if (typesFilter != null) {
             bq.add(typesFilter, Occur.FILTER);
+        } else if (hasNestedFields) {
+            bq.add(Queries.newNonNestedFilter(), Occur.FILTER);
         }
         if (aliasFilter != null) {
             bq.add(aliasFilter, Occur.FILTER);

@@ -55,8 +55,17 @@ public class DefaultSearchContextTests extends ESTestCase {
         expectedQuery = new BooleanQuery.Builder().add(Queries.newNonNestedFilter(), FILTER).build();
         assertThat(searchFilter, equalTo(expectedQuery));
 
-        searchFilter = DefaultSearchContext.createSearchFilter(null, new MatchAllDocsQuery(), randomBoolean());
-        expectedQuery = new BooleanQuery.Builder().add(new MatchAllDocsQuery(), FILTER).build();
+        searchFilter = DefaultSearchContext.createSearchFilter(null, new MatchAllDocsQuery(), true);
+        expectedQuery = new BooleanQuery.Builder()
+            .add(new MatchAllDocsQuery(), FILTER)
+            .add(Queries.newNonNestedFilter(), FILTER)
+            .build();
+        assertThat(searchFilter, equalTo(expectedQuery));
+
+        searchFilter = DefaultSearchContext.createSearchFilter(null, new MatchAllDocsQuery(), false);
+        expectedQuery = new BooleanQuery.Builder()
+            .add(new MatchAllDocsQuery(), FILTER)
+            .build();
         assertThat(searchFilter, equalTo(expectedQuery));
     }
 

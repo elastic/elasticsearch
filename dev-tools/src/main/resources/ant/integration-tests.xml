@@ -1,5 +1,5 @@
 <?xml version="1.0"?>
-<project name="elasticsearch-integration-tests">
+<project name="elasticsearch-integration-tests" xmlns:if="ant:if">
   <!-- our pid file for easy cleanup -->
   <property name="integ.pidfile" location="${integ.scratch}/es.pid"/>
 
@@ -144,6 +144,7 @@
       <attribute name="es.transport.tcp.port" default="${integ.transport.port}"/>
       <attribute name="es.pidfile" default="${integ.pidfile}"/>
       <attribute name="jvm.args" default="${tests.jvm.argline}"/>
+      <attribute name="use.dash.p.for.pid.file.param" default="false"/>
       <element name="additional-args" optional="true"/>
     <sequential>
       <!-- make sure no elasticsearch instance is currently running and listening on the port we need -->
@@ -154,6 +155,12 @@
           <socket server="localhost" port="@{es.http.port}"></socket>
         </condition>
       </fail>
+      <condition property="use.dash" value="true">
+        <equals arg1="@{use.dash.p.for.pid.file.param}" arg2="true" />
+      </condition>
+      <condition property="use.no.dash" value="true">
+        <equals arg1="@{use.dash.p.for.pid.file.param}" arg2="false" />
+      </condition>
       <!-- run bin/elasticsearch with args -->
       <echo>Starting up external cluster...</echo>
 
@@ -163,10 +170,12 @@
           <env key="JAVA_HOME" value="${java.home}"/>
           <!-- we pass these as gc options, even if they arent, to avoid conflicting gc options -->
           <env key="ES_GC_OPTS" value="@{jvm.args}"/>
+          <arg value="-p" if:set="use.dash"/>
+          <arg value="@{es.pidfile}" if:set="use.dash"/>
+          <arg value="-Des.pidfile=@{es.pidfile}" if:set="use.no.dash"/>
           <arg value="-Des.cluster.name=@{es.cluster.name}"/>
           <arg value="-Des.http.port=@{es.http.port}"/>
           <arg value="-Des.transport.tcp.port=@{es.transport.tcp.port}"/>
-          <arg value="-Des.pidfile=@{es.pidfile}"/>
           <arg value="-Des.discovery.zen.ping.unicast.hosts=@{es.unicast.hosts}"/>
           <arg value="-Des.path.repo=@{home}/repo"/>
           <arg value="-Des.path.shared_data=@{home}/../"/>

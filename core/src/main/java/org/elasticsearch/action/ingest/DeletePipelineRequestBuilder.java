@@ -29,7 +29,7 @@ public class DeletePipelineRequestBuilder extends ActionRequestBuilder<DeletePip
     }
 
     public DeletePipelineRequestBuilder setId(String id) {
-        request.id(id);
+        request.setId(id);
         return this;
     }
 

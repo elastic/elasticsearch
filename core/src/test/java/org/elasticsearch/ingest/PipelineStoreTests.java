@@ -23,7 +23,6 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -120,7 +119,7 @@ public class PipelineStoreTests extends ESTestCase {
 
         // Delete pipeline:
         DeletePipelineRequest deleteRequest = new DeletePipelineRequest();
-        deleteRequest.id("_id");
+        deleteRequest.setId("_id");
         clusterState = store.innerDelete(deleteRequest, clusterState);
         store.innerUpdatePipelines(clusterState);
         assertThat(store.get("_id"), nullValue());
@@ -181,7 +180,7 @@ public class PipelineStoreTests extends ESTestCase {
         assertThat(pipeline.getProcessors().get(0).getType(), equalTo("set"));
 
         DeletePipelineRequest deleteRequest = new DeletePipelineRequest();
-        deleteRequest.id(id);
+        deleteRequest.setId(id);
         clusterState = store.innerDelete(deleteRequest, clusterState);
         store.innerUpdatePipelines(clusterState);
         pipeline = store.get(id);

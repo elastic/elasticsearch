@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -32,11 +33,11 @@ public class DeletePipelineRequest extends AcknowledgedRequest<DeletePipelineReq
 
     private String id;
 
-    public void id(String id) {
-        this.id = id;
+    public void setId(String id) {
+        this.id = Objects.requireNonNull(id);
     }
 
-    public String id() {
+    public String getId() {
         return id;
     }
 

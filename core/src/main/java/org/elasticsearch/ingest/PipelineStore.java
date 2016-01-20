@@ -113,7 +113,7 @@ public class PipelineStore extends AbstractComponent implements Closeable, Clust
      * Deletes the pipeline specified by id in the request.
      */
     public void delete(ClusterService clusterService, DeletePipelineRequest request, ActionListener<WritePipelineResponse> listener) {
-        clusterService.submitStateUpdateTask("delete-pipeline-" + request.id(), new AckedClusterStateUpdateTask<WritePipelineResponse>(request, listener) {
+        clusterService.submitStateUpdateTask("delete-pipeline-" + request.getId(), new AckedClusterStateUpdateTask<WritePipelineResponse>(request, listener) {
 
             @Override
             protected WritePipelineResponse newResponse(boolean acknowledged) {
@@ -133,11 +133,11 @@ public class PipelineStore extends AbstractComponent implements Closeable, Clust
             return currentState;
         }
         Map<String, PipelineConfiguration> pipelines = currentIngestMetadata.getPipelines();
-        if (pipelines.containsKey(request.id()) == false) {
-            throw new ResourceNotFoundException("pipeline [{}] is missing", request.id());
+        if (pipelines.containsKey(request.getId()) == false) {
+            throw new ResourceNotFoundException("pipeline [{}] is missing", request.getId());
         } else {
             pipelines = new HashMap<>(pipelines);
-            pipelines.remove(request.id());
+            pipelines.remove(request.getId());
             ClusterState.Builder newState = ClusterState.builder(currentState);
             newState.metaData(MetaData.builder(currentState.getMetaData())
                 .putCustom(IngestMetadata.TYPE, new IngestMetadata(pipelines))

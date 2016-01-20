@@ -200,7 +200,7 @@ public class IngestClientIT extends ESIntegTestCase {
         assertThat(doc.get("processed"), equalTo(true));
 
         DeletePipelineRequest deletePipelineRequest = new DeletePipelineRequest();
-        deletePipelineRequest.id("_id");
+        deletePipelineRequest.setId("_id");
         WritePipelineResponse response = client().deletePipeline(deletePipelineRequest).get();
         assertThat(response.isAcknowledged(), is(true));
 

@@ -225,4 +225,33 @@ public class ScopedSettingsTests extends ESTestCase {
         return metaData;
     }
 
+    public void testKeyPattern() {
+        assertTrue(AbstractScopedSettings.isValidKey("a.b.c-b.d"));
+        assertTrue(AbstractScopedSettings.isValidKey("a.b.c.d"));
+        assertTrue(AbstractScopedSettings.isValidKey("a.b_012.c_b.d"));
+        assertTrue(AbstractScopedSettings.isValidKey("a"));
+        assertFalse(AbstractScopedSettings.isValidKey("a b"));
+        assertFalse(AbstractScopedSettings.isValidKey(""));
+        assertFalse(AbstractScopedSettings.isValidKey("\""));
+
+        try {
+            new IndexScopedSettings(
+                Settings.EMPTY, Collections.singleton(Setting.groupSetting("boo .", false, Setting.Scope.INDEX)));
+            fail();
+        } catch (IllegalArgumentException e) {
+            assertEquals("illegal settings key: [boo .]", e.getMessage());
+        }
+        new IndexScopedSettings(
+            Settings.EMPTY, Collections.singleton(Setting.groupSetting("boo.", false, Setting.Scope.INDEX)));
+        try {
+            new IndexScopedSettings(
+                Settings.EMPTY, Collections.singleton(Setting.boolSetting("boo.", true, false, Setting.Scope.INDEX)));
+            fail();
+        } catch (IllegalArgumentException e) {
+            assertEquals("illegal settings key: [boo.]", e.getMessage());
+        }
+        new IndexScopedSettings(
+            Settings.EMPTY, Collections.singleton(Setting.boolSetting("boo", true, false, Setting.Scope.INDEX)));
+    }
+
 }

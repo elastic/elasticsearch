@@ -19,10 +19,10 @@
 
 package org.elasticsearch.ingest.processor;
 
+import org.elasticsearch.ingest.core.AbstractProcessor;
 import org.elasticsearch.ingest.core.AbstractProcessorFactory;
 import org.elasticsearch.ingest.core.IngestDocument;
 import org.elasticsearch.ingest.core.ConfigurationUtils;
-import org.elasticsearch.ingest.core.Processor;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -33,7 +33,7 @@ import java.util.Map;
  * Processor that converts fields content to a different type. Supported types are: integer, float, boolean and string.
  * Throws exception if the field is not there or the conversion fails.
  */
-public class ConvertProcessor implements Processor {
+public class ConvertProcessor extends AbstractProcessor {
 
     enum Type {
         INTEGER {
@@ -91,12 +91,11 @@ public class ConvertProcessor implements Processor {
 
     public static final String TYPE = "convert";
 
-    private final String processorTag;
     private final String field;
     private final Type convertType;
 
-    ConvertProcessor(String processorTag, String field, Type convertType) {
-        this.processorTag = processorTag;
+    ConvertProcessor(String tag, String field, Type convertType) {
+        super(tag);
         this.field = field;
         this.convertType = convertType;
     }
@@ -133,11 +132,6 @@ public class ConvertProcessor implements Processor {
     @Override
     public String getType() {
         return TYPE;
-    }
-
-    @Override
-    public String getTag() {
-        return processorTag;
     }
 
     public static class Factory extends AbstractProcessorFactory<ConvertProcessor> {

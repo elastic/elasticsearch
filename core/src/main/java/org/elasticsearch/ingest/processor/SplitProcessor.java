@@ -19,10 +19,10 @@
 
 package org.elasticsearch.ingest.processor;
 
+import org.elasticsearch.ingest.core.AbstractProcessor;
 import org.elasticsearch.ingest.core.AbstractProcessorFactory;
 import org.elasticsearch.ingest.core.IngestDocument;
 import org.elasticsearch.ingest.core.ConfigurationUtils;
-import org.elasticsearch.ingest.core.Processor;
 
 import java.util.Arrays;
 import java.util.Map;
@@ -32,16 +32,15 @@ import java.util.Map;
  * New field value will be an array containing all of the different extracted items.
  * Throws exception if the field is null or a type other than string.
  */
-public class SplitProcessor implements Processor {
+public class SplitProcessor extends AbstractProcessor {
 
     public static final String TYPE = "split";
 
-    private final String processorTag;
     private final String field;
     private final String separator;
 
-    SplitProcessor(String processorTag, String field, String separator) {
-        this.processorTag = processorTag;
+    SplitProcessor(String tag, String field, String separator) {
+        super(tag);
         this.field = field;
         this.separator = separator;
     }
@@ -66,11 +65,6 @@ public class SplitProcessor implements Processor {
     @Override
     public String getType() {
         return TYPE;
-    }
-
-    @Override
-    public String getTag() {
-        return processorTag;
     }
 
     public static class Factory extends AbstractProcessorFactory<SplitProcessor> {

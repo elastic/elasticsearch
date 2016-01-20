@@ -19,6 +19,7 @@
 
 package org.elasticsearch.ingest.processor;
 
+import org.elasticsearch.ingest.core.AbstractProcessor;
 import org.elasticsearch.ingest.core.AbstractProcessorFactory;
 import org.elasticsearch.ingest.core.IngestDocument;
 import org.elasticsearch.ingest.core.TemplateService;
@@ -30,15 +31,14 @@ import java.util.Map;
 /**
  * Processor that removes existing fields. Nothing happens if the field is not present.
  */
-public class RemoveProcessor implements Processor {
+public class RemoveProcessor extends AbstractProcessor {
 
     public static final String TYPE = "remove";
 
-    private final String processorTag;
     private final TemplateService.Template field;
 
-    RemoveProcessor(String processorTag, TemplateService.Template field) {
-        this.processorTag = processorTag;
+    RemoveProcessor(String tag, TemplateService.Template field) {
+        super(tag);
         this.field = field;
     }
 
@@ -56,10 +56,6 @@ public class RemoveProcessor implements Processor {
         return TYPE;
     }
 
-    @Override
-    public String getTag() {
-        return processorTag;
-    }
     public static class Factory extends AbstractProcessorFactory<RemoveProcessor> {
 
         private final TemplateService templateService;

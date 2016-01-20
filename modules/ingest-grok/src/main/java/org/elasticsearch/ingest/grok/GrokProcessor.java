@@ -19,24 +19,23 @@
 
 package org.elasticsearch.ingest.grok;
 
+import org.elasticsearch.ingest.core.AbstractProcessor;
 import org.elasticsearch.ingest.core.AbstractProcessorFactory;
 import org.elasticsearch.ingest.core.ConfigurationUtils;
 import org.elasticsearch.ingest.core.IngestDocument;
-import org.elasticsearch.ingest.core.Processor;
 
 import java.util.HashMap;
 import java.util.Map;
 
-public final class GrokProcessor implements Processor {
+public final class GrokProcessor extends AbstractProcessor {
 
     public static final String TYPE = "grok";
 
-    private final String processorTag;
     private final String matchField;
     private final Grok grok;
 
-    public GrokProcessor(String processorTag, Grok grok, String matchField) {
-        this.processorTag = processorTag;
+    public GrokProcessor(String tag, Grok grok, String matchField) {
+        super(tag);
         this.matchField = matchField;
         this.grok = grok;
     }
@@ -55,11 +54,6 @@ public final class GrokProcessor implements Processor {
     @Override
     public String getType() {
         return TYPE;
-    }
-
-    @Override
-    public String getTag() {
-        return processorTag;
     }
 
     String getMatchField() {

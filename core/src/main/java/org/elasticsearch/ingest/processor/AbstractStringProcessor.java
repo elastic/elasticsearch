@@ -19,6 +19,7 @@
 
 package org.elasticsearch.ingest.processor;
 
+import org.elasticsearch.ingest.core.AbstractProcessor;
 import org.elasticsearch.ingest.core.AbstractProcessorFactory;
 import org.elasticsearch.ingest.core.ConfigurationUtils;
 import org.elasticsearch.ingest.core.IngestDocument;
@@ -30,13 +31,11 @@ import java.util.Map;
  * Base class for processors that manipulate strings and require a single "fields" array config value, which
  * holds a list of field names in string format.
  */
-public abstract class AbstractStringProcessor implements Processor {
-
-    private final String processorTag;
+public abstract class AbstractStringProcessor extends AbstractProcessor {
     private final String field;
 
-    protected AbstractStringProcessor(String processorTag, String field) {
-        this.processorTag = processorTag;
+    protected AbstractStringProcessor(String tag, String field) {
+        super(tag);
         this.field = field;
     }
 
@@ -51,11 +50,6 @@ public abstract class AbstractStringProcessor implements Processor {
             throw new IllegalArgumentException("field [" + field + "] is null, cannot process it.");
         }
         document.setFieldValue(field, process(val));
-    }
-
-    @Override
-    public String getTag() {
-        return processorTag;
     }
 
     protected abstract String process(String value);

@@ -19,12 +19,12 @@
 
 package org.elasticsearch.ingest.processor;
 
+import org.elasticsearch.ingest.core.AbstractProcessor;
 import org.elasticsearch.ingest.core.AbstractProcessorFactory;
 import org.elasticsearch.ingest.core.IngestDocument;
 import org.elasticsearch.ingest.core.TemplateService;
 import org.elasticsearch.ingest.core.ValueSource;
 import org.elasticsearch.ingest.core.ConfigurationUtils;
-import org.elasticsearch.ingest.core.Processor;
 
 import java.util.Map;
 
@@ -33,16 +33,15 @@ import java.util.Map;
  * provided values will be added. If the field is a scalar it will be converted to a single item list and the provided
  * values will be added to the newly created list.
  */
-public class AppendProcessor implements Processor {
+public class AppendProcessor extends AbstractProcessor {
 
     public static final String TYPE = "append";
 
-    private final String processorTag;
     private final TemplateService.Template field;
     private final ValueSource value;
 
-    AppendProcessor(String processorTag, TemplateService.Template field, ValueSource value) {
-        this.processorTag = processorTag;
+    AppendProcessor(String tag, TemplateService.Template field, ValueSource value) {
+        super(tag);
         this.field = field;
         this.value = value;
     }
@@ -63,11 +62,6 @@ public class AppendProcessor implements Processor {
     @Override
     public String getType() {
         return TYPE;
-    }
-
-    @Override
-    public String getTag() {
-        return processorTag;
     }
 
     public static final class Factory extends AbstractProcessorFactory<AppendProcessor> {

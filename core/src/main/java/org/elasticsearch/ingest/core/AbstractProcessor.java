@@ -17,35 +17,22 @@
  * under the License.
  */
 
-package org.elasticsearch.ingest.processor;
+
+package org.elasticsearch.ingest.core;
 
 /**
- * Processor that trims the content of string fields.
- * Throws exception is the field is not of type string.
+ * An Abstract Processor that holds a processorTag field to be used
+ * by other processors.
  */
-public class TrimProcessor extends AbstractStringProcessor {
+public abstract class AbstractProcessor implements Processor {
+    protected final String tag;
 
-    public static final String TYPE = "trim";
-
-    TrimProcessor(String processorTag, String field) {
-        super(processorTag, field);
+    protected AbstractProcessor(String tag) {
+        this.tag = tag;
     }
 
     @Override
-    protected String process(String value) {
-        return value.trim();
-    }
-
-    @Override
-    public String getType() {
-        return TYPE;
-    }
-
-    public static class Factory extends AbstractStringProcessor.Factory<TrimProcessor> {
-        @Override
-        protected TrimProcessor newProcessor(String tag, String field) {
-            return new TrimProcessor(tag, field);
-        }
+    public String getTag() {
+        return tag;
     }
 }
-

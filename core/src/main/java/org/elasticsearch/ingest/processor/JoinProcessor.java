@@ -19,6 +19,7 @@
 
 package org.elasticsearch.ingest.processor;
 
+import org.elasticsearch.ingest.core.AbstractProcessor;
 import org.elasticsearch.ingest.core.AbstractProcessorFactory;
 import org.elasticsearch.ingest.core.IngestDocument;
 import org.elasticsearch.ingest.core.ConfigurationUtils;
@@ -32,16 +33,15 @@ import java.util.stream.Collectors;
  * Processor that joins the different items of an array into a single string value using a separator between each item.
  * Throws exception is the specified field is not an array.
  */
-public class JoinProcessor implements Processor {
+public class JoinProcessor extends AbstractProcessor {
 
     public static final String TYPE = "join";
 
-    private final String processorTag;
     private final String field;
     private final String separator;
 
-    JoinProcessor(String processorTag, String field, String separator) {
-        this.processorTag = processorTag;
+    JoinProcessor(String tag, String field, String separator) {
+        super(tag);
         this.field = field;
         this.separator = separator;
     }
@@ -69,11 +69,6 @@ public class JoinProcessor implements Processor {
     @Override
     public String getType() {
         return TYPE;
-    }
-
-    @Override
-    public String getTag() {
-        return processorTag;
     }
 
     public static class Factory extends AbstractProcessorFactory<JoinProcessor> {

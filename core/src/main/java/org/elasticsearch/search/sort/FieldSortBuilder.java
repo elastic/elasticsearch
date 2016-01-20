@@ -235,7 +235,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
     public int hashCode() {
         return Objects.hash(this.fieldName, this.nestedFilter, this.nestedPath,
                 this.missing, this.order, this.sortMode, this.unmappedType);
-    };
+    }
 
     @Override
     public String getWriteableName() {
@@ -291,7 +291,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
     }
 
     @Override
-    public FieldSortBuilder fromXContent(QueryParseContext context) throws IOException {
+    public FieldSortBuilder fromXContent(QueryParseContext context, String elementName) throws IOException {
         XContentParser parser = context.parser();
 
         String fieldName = null;

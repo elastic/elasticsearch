@@ -19,13 +19,9 @@
 
 package org.elasticsearch.search.sort;
 
-import org.apache.lucene.queryparser.classic.QueryParser;
-import org.apache.lucene.search.BooleanClause;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.index.query.Operator;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -55,13 +51,14 @@ public enum SortOrder implements Writeable<SortOrder> {
         }
     };
     
-    private static final SortOrder PROTOTYPE = ASC;
+    public static final SortOrder DEFAULT = DESC;
+    private static final SortOrder PROTOTYPE = DEFAULT;
 
     @Override
     public SortOrder readFrom(StreamInput in) throws IOException {
         int ordinal = in.readVInt();
         if (ordinal < 0 || ordinal >= values().length) {
-            throw new IOException("Unknown Operator ordinal [" + ordinal + "]");
+            throw new IOException("Unknown SortOrder ordinal [" + ordinal + "]");
         }
         return values()[ordinal];
     }
@@ -78,10 +75,4 @@ public enum SortOrder implements Writeable<SortOrder> {
     public static SortOrder fromString(String op) {
         return valueOf(op.toUpperCase(Locale.ROOT));
     }
-
-    private static IllegalArgumentException newSortOrderException(String op) {
-        return new IllegalArgumentException("SortOrder needs to be either " + CollectionUtils.arrayAsArrayList(values()) + ", but not [" + op + "]");
-    }
-   
-
 }

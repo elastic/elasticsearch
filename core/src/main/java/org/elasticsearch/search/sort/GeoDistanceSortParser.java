@@ -72,8 +72,8 @@ public class GeoDistanceSortParser implements SortParserTemp {
         NestedInnerQueryParseSupport nestedHelper = null;
 
         final boolean indexCreatedBeforeV2_0 = context.indexShard().getIndexSettings().getIndexVersionCreated().before(Version.V_2_0_0);
-        boolean coerce = false;
-        boolean ignoreMalformed = false;
+        boolean coerce = GeoDistanceSortBuilder.DEFAULT_COERCE;
+        boolean ignoreMalformed = GeoDistanceSortBuilder.DEFAULT_IGNORE_MALFORMED;
 
         XContentParser.Token token;
         String currentName = parser.currentName();

@@ -20,9 +20,7 @@
 package org.elasticsearch.search.sort;
 
 import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 
@@ -31,11 +29,11 @@ public interface ParameterParser<T extends ToXContent> {
      * Creates a new item from the json held by the {@link ParameterParser}
      * in {@link org.elasticsearch.common.xcontent.XContent} format
      *
-     * @param parseContext
+     * @param context
      *            the input parse context. The state on the parser contained in
      *            this context will be changed as a side effect of this method
      *            call
      * @return the new item
      */
-    T fromXContent(QueryParseContext context) throws IOException;
+    T fromXContent(QueryParseContext context, String elementName) throws IOException;
 }

@@ -56,7 +56,7 @@ public abstract class AbstractSearchSourceItemTestCase<T extends NamedWriteable<
     protected static NamedWriteableRegistry namedWriteableRegistry;
 
     private static final int NUMBER_OF_TESTBUILDERS = 20;
-    private static IndicesQueriesRegistry indicesQueriesRegistry;
+    static IndicesQueriesRegistry indicesQueriesRegistry;
 
     @BeforeClass
     public static void init() {
@@ -65,6 +65,7 @@ public abstract class AbstractSearchSourceItemTestCase<T extends NamedWriteable<
         namedWriteableRegistry.registerPrototype(IdsQueryBuilder.class, IdsQueryBuilder.PROTOTYPE);
         namedWriteableRegistry.registerPrototype(TermQueryBuilder.class, TermQueryBuilder.PROTOTYPE);
         namedWriteableRegistry.registerPrototype(FieldSortBuilder.class, FieldSortBuilder.PROTOTYPE);
+        namedWriteableRegistry.registerPrototype(GeoDistanceSortBuilder.class, GeoDistanceSortBuilder.PROTOTYPE);
 
         @SuppressWarnings("rawtypes")
         Set<QueryParser> injectedQueryParsers = new HashSet<>();
@@ -91,8 +92,7 @@ public abstract class AbstractSearchSourceItemTestCase<T extends NamedWriteable<
     public void testFromXContent() throws IOException {
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
             T testItem = createTestItem();
-            
-            
+
             XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
             if (randomBoolean()) {
                 builder.prettyPrint();
@@ -102,11 +102,18 @@ public abstract class AbstractSearchSourceItemTestCase<T extends NamedWriteable<
             builder.endObject();
 
             XContentParser itemParser = XContentHelper.createParser(builder.bytes());
-            XContentHelper.createParser(builder.bytes());
             itemParser.nextToken();
+            
+            /*
+             * filter out name of sort, or field name to sort on for element fieldSort 
+             */
+            itemParser.nextToken();
+            String elementName = itemParser.currentName();
+            itemParser.nextToken();
+
             QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
             context.reset(itemParser);
-            NamedWriteable<T> parsedItem = testItem.fromXContent(context);
+            NamedWriteable<T> parsedItem = testItem.fromXContent(context, elementName);
             assertNotSame(testItem, parsedItem);
             assertEquals(testItem, parsedItem);
             assertEquals(testItem.hashCode(), parsedItem.hashCode());

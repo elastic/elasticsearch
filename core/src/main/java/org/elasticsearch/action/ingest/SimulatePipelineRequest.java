@@ -34,6 +34,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.ingest.core.IngestDocument.MetaData;
@@ -58,7 +59,7 @@ public class SimulatePipelineRequest extends ActionRequest<SimulatePipelineReque
     }
 
     public void setId(String id) {
-        this.id = id;
+        this.id = Objects.requireNonNull(id);
     }
 
     public boolean isVerbose() {
@@ -74,7 +75,7 @@ public class SimulatePipelineRequest extends ActionRequest<SimulatePipelineReque
     }
 
     public void setSource(BytesReference source) {
-        this.source = source;
+        this.source = Objects.requireNonNull(source);
     }
 
     @Override

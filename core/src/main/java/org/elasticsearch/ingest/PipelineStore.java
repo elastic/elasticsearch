@@ -157,12 +157,12 @@ public class PipelineStore extends AbstractComponent implements Closeable, Clust
     public void put(PutPipelineRequest request, ActionListener<WritePipelineResponse> listener) throws IllegalArgumentException {
         try {
             // validates the pipeline and processor configuration before submitting a cluster update task:
-            Map<String, Object> pipelineConfig = XContentHelper.convertToMap(request.source(), false).v2();
-            constructPipeline(request.id(), pipelineConfig);
+            Map<String, Object> pipelineConfig = XContentHelper.convertToMap(request.getSource(), false).v2();
+            constructPipeline(request.getId(), pipelineConfig);
         } catch (Exception e) {
             throw new IllegalArgumentException("Invalid pipeline configuration", e);
         }
-        clusterService.submitStateUpdateTask("put-pipeline-" + request.id(), new AckedClusterStateUpdateTask<WritePipelineResponse>(request, listener) {
+        clusterService.submitStateUpdateTask("put-pipeline-" + request.getId(), new AckedClusterStateUpdateTask<WritePipelineResponse>(request, listener) {
 
             @Override
             protected WritePipelineResponse newResponse(boolean acknowledged) {
@@ -185,7 +185,7 @@ public class PipelineStore extends AbstractComponent implements Closeable, Clust
             pipelines = new HashMap<>();
         }
 
-        pipelines.put(request.id(), new PipelineConfiguration(request.id(), request.source()));
+        pipelines.put(request.getId(), new PipelineConfiguration(request.getId(), request.getSource()));
         ClusterState.Builder newState = ClusterState.builder(currentState);
         newState.metaData(MetaData.builder(currentState.getMetaData())
             .putCustom(IngestMetadata.TYPE, new IngestMetadata(pipelines))

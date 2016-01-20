@@ -40,9 +40,9 @@ public class RestPutPipelineAction extends BaseRestHandler {
     @Override
     protected void handleRequest(RestRequest restRequest, RestChannel channel, Client client) throws Exception {
         PutPipelineRequest request = new PutPipelineRequest();
-        request.id(restRequest.param("id"));
+        request.setId(restRequest.param("id"));
         if (restRequest.hasContent()) {
-            request.source(restRequest.content());
+            request.setSource(restRequest.content());
         }
         request.masterNodeTimeout(restRequest.paramAsTime("master_timeout", request.masterNodeTimeout()));
         request.timeout(restRequest.paramAsTime("timeout", request.timeout()));

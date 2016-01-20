@@ -85,8 +85,8 @@ public class PipelineStoreTests extends ESTestCase {
 
         // add a new pipeline:
         PutPipelineRequest putRequest = new PutPipelineRequest();
-        putRequest.id(id);
-        putRequest.source(new BytesArray("{\"processors\": []}"));
+        putRequest.setId(id);
+        putRequest.setSource(new BytesArray("{\"processors\": []}"));
         clusterState = store.innerPut(putRequest, clusterState);
         store.innerUpdatePipelines(clusterState);
         pipeline = store.get(id);
@@ -97,8 +97,8 @@ public class PipelineStoreTests extends ESTestCase {
 
         // overwrite existing pipeline:
         putRequest = new PutPipelineRequest();
-        putRequest.id(id);
-        putRequest.source(new BytesArray("{\"processors\": [], \"description\": \"_description\"}"));
+        putRequest.setId(id);
+        putRequest.setSource(new BytesArray("{\"processors\": [], \"description\": \"_description\"}"));
         clusterState = store.innerPut(putRequest, clusterState);
         store.innerUpdatePipelines(clusterState);
         pipeline = store.get(id);
@@ -170,8 +170,8 @@ public class PipelineStoreTests extends ESTestCase {
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
 
         PutPipelineRequest putRequest = new PutPipelineRequest();
-        putRequest.id(id);
-        putRequest.source(new BytesArray("{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\"}}]}"));
+        putRequest.setId(id);
+        putRequest.setSource(new BytesArray("{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\"}}]}"));
         clusterState = store.innerPut(putRequest, clusterState);
         store.innerUpdatePipelines(clusterState);
         pipeline = store.get(id);

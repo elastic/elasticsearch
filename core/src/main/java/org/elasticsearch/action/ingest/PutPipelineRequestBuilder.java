@@ -20,7 +20,6 @@
 package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.bytes.BytesReference;
 
@@ -31,12 +30,12 @@ public class PutPipelineRequestBuilder extends ActionRequestBuilder<PutPipelineR
     }
 
     public PutPipelineRequestBuilder setId(String id) {
-        request.id(id);
+        request.setId(id);
         return this;
     }
 
     public PutPipelineRequestBuilder setSource(BytesReference source) {
-        request.source(source);
+        request.setSource(source);
         return this;
     }
 

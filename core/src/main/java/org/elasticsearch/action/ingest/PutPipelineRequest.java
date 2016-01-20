@@ -26,6 +26,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -36,30 +37,23 @@ public class PutPipelineRequest extends AcknowledgedRequest<PutPipelineRequest> 
 
     @Override
     public ActionRequestValidationException validate() {
-        ActionRequestValidationException validationException = null;
-        if (id == null) {
-            validationException = addValidationError("id is missing", validationException);
-        }
-        if (source == null) {
-            validationException = addValidationError("source is missing", validationException);
-        }
-        return validationException;
+        return null;
     }
 
-    public String id() {
+    public String getId() {
         return id;
     }
 
-    public void id(String id) {
-        this.id = id;
+    public void setId(String id) {
+        this.id = Objects.requireNonNull(id);
     }
 
-    public BytesReference source() {
+    public BytesReference getSource() {
         return source;
     }
 
-    public void source(BytesReference source) {
-        this.source = source;
+    public void setSource(BytesReference source) {
+        this.source = Objects.requireNonNull(source);
     }
 
     @Override

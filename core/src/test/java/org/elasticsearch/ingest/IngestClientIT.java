@@ -129,8 +129,8 @@ public class IngestClientIT extends ESIntegTestCase {
         createIndex("index");
 
         PutPipelineRequest putPipelineRequest = new PutPipelineRequest();
-        putPipelineRequest.id("_id");
-        putPipelineRequest.source(jsonBuilder().startObject()
+        putPipelineRequest.setId("_id");
+        putPipelineRequest.setSource(jsonBuilder().startObject()
             .field("description", "my_pipeline")
             .startArray("processors")
             .startObject()
@@ -167,8 +167,8 @@ public class IngestClientIT extends ESIntegTestCase {
 
     public void test() throws Exception {
         PutPipelineRequest putPipelineRequest = new PutPipelineRequest();
-        putPipelineRequest.id("_id");
-        putPipelineRequest.source(jsonBuilder().startObject()
+        putPipelineRequest.setId("_id");
+        putPipelineRequest.setSource(jsonBuilder().startObject()
                         .field("description", "my_pipeline")
                         .startArray("processors")
                         .startObject()

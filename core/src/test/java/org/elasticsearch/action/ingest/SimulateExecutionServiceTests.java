@@ -164,10 +164,10 @@ public class SimulateExecutionServiceTests extends ESTestCase {
         Pipeline pipeline = new Pipeline("_id", "_description", new CompoundProcessor(processor, processor));
         SimulateDocumentResult actualItemResponse = executionService.executeDocument(pipeline, ingestDocument, false);
         assertThat(processor.getInvokedCounter(), equalTo(2));
-        assertThat(actualItemResponse, instanceOf(SimulateDocumentSimpleResult.class));
-        SimulateDocumentSimpleResult simulateDocumentSimpleResult = (SimulateDocumentSimpleResult) actualItemResponse;
-        assertThat(simulateDocumentSimpleResult.getIngestDocument(), equalTo(ingestDocument));
-        assertThat(simulateDocumentSimpleResult.getFailure(), nullValue());
+        assertThat(actualItemResponse, instanceOf(SimulateDocumentBaseResult.class));
+        SimulateDocumentBaseResult simulateDocumentBaseResult = (SimulateDocumentBaseResult) actualItemResponse;
+        assertThat(simulateDocumentBaseResult.getIngestDocument(), equalTo(ingestDocument));
+        assertThat(simulateDocumentBaseResult.getFailure(), nullValue());
     }
 
     public void testExecuteVerboseItemWithFailure() throws Exception {
@@ -196,11 +196,11 @@ public class SimulateExecutionServiceTests extends ESTestCase {
         Pipeline pipeline = new Pipeline("_id", "_description", new CompoundProcessor(processor, processor));
         SimulateDocumentResult actualItemResponse = executionService.executeDocument(pipeline, ingestDocument, false);
         assertThat(processor.getInvokedCounter(), equalTo(1));
-        assertThat(actualItemResponse, instanceOf(SimulateDocumentSimpleResult.class));
-        SimulateDocumentSimpleResult simulateDocumentSimpleResult = (SimulateDocumentSimpleResult) actualItemResponse;
-        assertThat(simulateDocumentSimpleResult.getIngestDocument(), nullValue());
-        assertThat(simulateDocumentSimpleResult.getFailure(), instanceOf(RuntimeException.class));
-        RuntimeException runtimeException = (RuntimeException) simulateDocumentSimpleResult.getFailure();
+        assertThat(actualItemResponse, instanceOf(SimulateDocumentBaseResult.class));
+        SimulateDocumentBaseResult simulateDocumentBaseResult = (SimulateDocumentBaseResult) actualItemResponse;
+        assertThat(simulateDocumentBaseResult.getIngestDocument(), nullValue());
+        assertThat(simulateDocumentBaseResult.getFailure(), instanceOf(RuntimeException.class));
+        RuntimeException runtimeException = (RuntimeException) simulateDocumentBaseResult.getFailure();
         assertThat(runtimeException.getMessage(), equalTo("processor failed"));
     }
 }

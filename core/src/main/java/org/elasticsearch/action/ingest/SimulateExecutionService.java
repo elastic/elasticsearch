@@ -71,15 +71,15 @@ class SimulateExecutionService {
             try {
                 executeVerboseDocument(pipelineProcessor, currentIngestDocument, processorResultList);
             } catch (Exception e) {
-                return new SimulateDocumentSimpleResult(e);
+                return new SimulateDocumentBaseResult(e);
             }
             return new SimulateDocumentVerboseResult(processorResultList);
         } else {
             try {
                 pipeline.execute(ingestDocument);
-                return new SimulateDocumentSimpleResult(ingestDocument);
+                return new SimulateDocumentBaseResult(ingestDocument);
             } catch (Exception e) {
-                return new SimulateDocumentSimpleResult(e);
+                return new SimulateDocumentBaseResult(e);
             }
         }
     }

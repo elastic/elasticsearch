@@ -27,22 +27,25 @@ import org.elasticsearch.ingest.core.IngestDocument;
 import java.io.IOException;
 import java.util.Collections;
 
-public class SimulateDocumentSimpleResult implements SimulateDocumentResult<SimulateDocumentSimpleResult> {
+/**
+ * Holds the end result of what a pipeline did to sample document provided via the simulate api.
+ */
+public final class SimulateDocumentBaseResult implements SimulateDocumentResult<SimulateDocumentBaseResult> {
 
-    private static final SimulateDocumentSimpleResult PROTOTYPE = new SimulateDocumentSimpleResult(new WriteableIngestDocument(new IngestDocument(Collections.emptyMap(), Collections.emptyMap())));
+    private static final SimulateDocumentBaseResult PROTOTYPE = new SimulateDocumentBaseResult(new WriteableIngestDocument(new IngestDocument(Collections.emptyMap(), Collections.emptyMap())));
 
     private WriteableIngestDocument ingestDocument;
     private Exception failure;
 
-    public SimulateDocumentSimpleResult(IngestDocument ingestDocument) {
+    public SimulateDocumentBaseResult(IngestDocument ingestDocument) {
         this.ingestDocument = new WriteableIngestDocument(ingestDocument);
     }
 
-    private SimulateDocumentSimpleResult(WriteableIngestDocument ingestDocument) {
+    private SimulateDocumentBaseResult(WriteableIngestDocument ingestDocument) {
         this.ingestDocument = ingestDocument;
     }
 
-    public SimulateDocumentSimpleResult(Exception failure) {
+    public SimulateDocumentBaseResult(Exception failure) {
         this.failure = failure;
     }
 
@@ -57,17 +60,17 @@ public class SimulateDocumentSimpleResult implements SimulateDocumentResult<Simu
         return failure;
     }
 
-    public static SimulateDocumentSimpleResult readSimulateDocumentSimpleResult(StreamInput in) throws IOException {
+    public static SimulateDocumentBaseResult readSimulateDocumentSimpleResult(StreamInput in) throws IOException {
         return PROTOTYPE.readFrom(in);
     }
 
     @Override
-    public SimulateDocumentSimpleResult readFrom(StreamInput in) throws IOException {
+    public SimulateDocumentBaseResult readFrom(StreamInput in) throws IOException {
         if (in.readBoolean()) {
             Exception exception = in.readThrowable();
-            return new SimulateDocumentSimpleResult(exception);
+            return new SimulateDocumentBaseResult(exception);
         }
-        return new SimulateDocumentSimpleResult(new WriteableIngestDocument(in));
+        return new SimulateDocumentBaseResult(new WriteableIngestDocument(in));
     }
 
     @Override

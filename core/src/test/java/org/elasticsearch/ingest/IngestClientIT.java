@@ -28,7 +28,7 @@ import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.GetPipelineRequest;
 import org.elasticsearch.action.ingest.GetPipelineResponse;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
-import org.elasticsearch.action.ingest.SimulateDocumentSimpleResult;
+import org.elasticsearch.action.ingest.SimulateDocumentBaseResult;
 import org.elasticsearch.action.ingest.SimulatePipelineRequest;
 import org.elasticsearch.action.ingest.SimulatePipelineResponse;
 import org.elasticsearch.action.ingest.WritePipelineResponse;
@@ -114,15 +114,15 @@ public class IngestClientIT extends ESIntegTestCase {
         assertThat(response.isVerbose(), equalTo(false));
         assertThat(response.getPipelineId(), equalTo("_id"));
         assertThat(response.getResults().size(), equalTo(1));
-        assertThat(response.getResults().get(0), instanceOf(SimulateDocumentSimpleResult.class));
-        SimulateDocumentSimpleResult simulateDocumentSimpleResult = (SimulateDocumentSimpleResult) response.getResults().get(0);
+        assertThat(response.getResults().get(0), instanceOf(SimulateDocumentBaseResult.class));
+        SimulateDocumentBaseResult simulateDocumentBaseResult = (SimulateDocumentBaseResult) response.getResults().get(0);
         Map<String, Object> source = new HashMap<>();
         source.put("foo", "bar");
         source.put("fail", false);
         source.put("processed", true);
         IngestDocument ingestDocument = new IngestDocument("index", "type", "id", null, null, null, null, source);
-        assertThat(simulateDocumentSimpleResult.getIngestDocument().getSourceAndMetadata(), equalTo(ingestDocument.getSourceAndMetadata()));
-        assertThat(simulateDocumentSimpleResult.getFailure(), nullValue());
+        assertThat(simulateDocumentBaseResult.getIngestDocument().getSourceAndMetadata(), equalTo(ingestDocument.getSourceAndMetadata()));
+        assertThat(simulateDocumentBaseResult.getFailure(), nullValue());
     }
 
     public void testBulkWithIngestFailures() throws Exception {

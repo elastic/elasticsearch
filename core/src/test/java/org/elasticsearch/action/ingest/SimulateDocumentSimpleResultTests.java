@@ -34,23 +34,23 @@ public class SimulateDocumentSimpleResultTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
         boolean isFailure = randomBoolean();
-        SimulateDocumentSimpleResult simulateDocumentSimpleResult;
+        SimulateDocumentBaseResult simulateDocumentBaseResult;
         if (isFailure) {
-            simulateDocumentSimpleResult = new SimulateDocumentSimpleResult(new IllegalArgumentException("test"));
+            simulateDocumentBaseResult = new SimulateDocumentBaseResult(new IllegalArgumentException("test"));
         } else {
             IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
-            simulateDocumentSimpleResult = new SimulateDocumentSimpleResult(ingestDocument);
+            simulateDocumentBaseResult = new SimulateDocumentBaseResult(ingestDocument);
         }
 
         BytesStreamOutput out = new BytesStreamOutput();
-        simulateDocumentSimpleResult.writeTo(out);
+        simulateDocumentBaseResult.writeTo(out);
         StreamInput streamInput = StreamInput.wrap(out.bytes());
-        SimulateDocumentSimpleResult otherSimulateDocumentSimpleResult = SimulateDocumentSimpleResult.readSimulateDocumentSimpleResult(streamInput);
+        SimulateDocumentBaseResult otherSimulateDocumentBaseResult = SimulateDocumentBaseResult.readSimulateDocumentSimpleResult(streamInput);
 
-        assertThat(otherSimulateDocumentSimpleResult.getIngestDocument(), equalTo(simulateDocumentSimpleResult.getIngestDocument()));
+        assertThat(otherSimulateDocumentBaseResult.getIngestDocument(), equalTo(simulateDocumentBaseResult.getIngestDocument()));
         if (isFailure) {
-            assertThat(otherSimulateDocumentSimpleResult.getFailure(), instanceOf(IllegalArgumentException.class));
-            IllegalArgumentException e = (IllegalArgumentException) otherSimulateDocumentSimpleResult.getFailure();
+            assertThat(otherSimulateDocumentBaseResult.getFailure(), instanceOf(IllegalArgumentException.class));
+            IllegalArgumentException e = (IllegalArgumentException) otherSimulateDocumentBaseResult.getFailure();
             assertThat(e.getMessage(), equalTo("test"));
         }
     }

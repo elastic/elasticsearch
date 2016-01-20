@@ -21,14 +21,17 @@ package org.elasticsearch.action.ingest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-public class SimulateDocumentVerboseResult implements SimulateDocumentResult<SimulateDocumentVerboseResult> {
+/**
+ * Holds the result of what a pipeline did to a sample document via the simulate api, but instead of {@link SimulateDocumentBaseResult}
+ * this result class holds the intermediate result each processor did to the sample document.
+ */
+public final class SimulateDocumentVerboseResult implements SimulateDocumentResult<SimulateDocumentVerboseResult> {
 
     private static final SimulateDocumentVerboseResult PROTOTYPE = new SimulateDocumentVerboseResult(Collections.emptyList());
 

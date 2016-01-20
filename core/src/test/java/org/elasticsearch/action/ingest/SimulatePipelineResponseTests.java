@@ -58,14 +58,14 @@ public class SimulatePipelineResponseTests extends ESTestCase {
                 }
                 results.add(new SimulateDocumentVerboseResult(processorResults));
             } else {
-                results.add(new SimulateDocumentSimpleResult(ingestDocument));
-                SimulateDocumentSimpleResult simulateDocumentSimpleResult;
+                results.add(new SimulateDocumentBaseResult(ingestDocument));
+                SimulateDocumentBaseResult simulateDocumentBaseResult;
                 if (isFailure) {
-                    simulateDocumentSimpleResult = new SimulateDocumentSimpleResult(new IllegalArgumentException("test"));
+                    simulateDocumentBaseResult = new SimulateDocumentBaseResult(new IllegalArgumentException("test"));
                 } else {
-                    simulateDocumentSimpleResult = new SimulateDocumentSimpleResult(ingestDocument);
+                    simulateDocumentBaseResult = new SimulateDocumentBaseResult(ingestDocument);
                 }
-                results.add(simulateDocumentSimpleResult);
+                results.add(simulateDocumentBaseResult);
             }
         }
 
@@ -100,15 +100,15 @@ public class SimulatePipelineResponseTests extends ESTestCase {
                     }
                 }
             } else {
-                SimulateDocumentSimpleResult expectedSimulateDocumentSimpleResult = (SimulateDocumentSimpleResult) expectedResultIterator.next();
-                assertThat(result, instanceOf(SimulateDocumentSimpleResult.class));
-                SimulateDocumentSimpleResult simulateDocumentSimpleResult = (SimulateDocumentSimpleResult) result;
-                assertThat(simulateDocumentSimpleResult.getIngestDocument(), equalTo(expectedSimulateDocumentSimpleResult.getIngestDocument()));
-                if (expectedSimulateDocumentSimpleResult.getFailure() == null) {
-                    assertThat(simulateDocumentSimpleResult.getFailure(), nullValue());
+                SimulateDocumentBaseResult expectedSimulateDocumentBaseResult = (SimulateDocumentBaseResult) expectedResultIterator.next();
+                assertThat(result, instanceOf(SimulateDocumentBaseResult.class));
+                SimulateDocumentBaseResult simulateDocumentBaseResult = (SimulateDocumentBaseResult) result;
+                assertThat(simulateDocumentBaseResult.getIngestDocument(), equalTo(expectedSimulateDocumentBaseResult.getIngestDocument()));
+                if (expectedSimulateDocumentBaseResult.getFailure() == null) {
+                    assertThat(simulateDocumentBaseResult.getFailure(), nullValue());
                 } else {
-                    assertThat(simulateDocumentSimpleResult.getFailure(), instanceOf(IllegalArgumentException.class));
-                    IllegalArgumentException e = (IllegalArgumentException) simulateDocumentSimpleResult.getFailure();
+                    assertThat(simulateDocumentBaseResult.getFailure(), instanceOf(IllegalArgumentException.class));
+                    IllegalArgumentException e = (IllegalArgumentException) simulateDocumentBaseResult.getFailure();
                     assertThat(e.getMessage(), equalTo("test"));
                 }
             }

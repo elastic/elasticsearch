@@ -38,6 +38,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -175,8 +176,8 @@ public abstract class PrimaryShardAllocator extends AbstractComponent {
      */
     protected NodesAndVersions buildAllocationIdBasedNodes(ShardRouting shard, boolean matchAnyShard, Set<String> ignoreNodes,
                                                            Set<String> lastActiveAllocationIds, AsyncShardFetch.FetchResult<TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> shardState) {
-        List<DiscoveryNode> matchingNodes = new ArrayList<>();
-        List<DiscoveryNode> nonMatchingNodes = new ArrayList<>();
+        LinkedList<DiscoveryNode> matchingNodes = new LinkedList<>();
+        LinkedList<DiscoveryNode> nonMatchingNodes = new LinkedList<>();
         long highestVersion = -1;
         for (TransportNodesListGatewayStartedShards.NodeGatewayStartedShards nodeShardState : shardState.getData().values()) {
             DiscoveryNode node = nodeShardState.getNode();
@@ -200,10 +201,18 @@ public abstract class PrimaryShardAllocator extends AbstractComponent {
 
             if (allocationId != null) {
                 if (lastActiveAllocationIds.contains(allocationId)) {
-                    matchingNodes.add(node);
+                    if (nodeShardState.primary()) {
+                        matchingNodes.addFirst(node);
+                    } else {
+                        matchingNodes.addLast(node);
+                    }
                     highestVersion = Math.max(highestVersion, nodeShardState.version());
                 } else if (matchAnyShard) {
-                    nonMatchingNodes.add(node);
+                    if (nodeShardState.primary()) {
+                        nonMatchingNodes.addFirst(node);
+                    } else {
+                        nonMatchingNodes.addLast(node);
+                    }
                     highestVersion = Math.max(highestVersion, nodeShardState.version());
                 }
             }

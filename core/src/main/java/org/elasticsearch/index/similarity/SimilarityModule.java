@@ -52,6 +52,7 @@ public class SimilarityModule extends AbstractModule {
         addSimilarity("IB", IBSimilarityProvider.class);
         addSimilarity("LMDirichlet", LMDirichletSimilarityProvider.class);
         addSimilarity("LMJelinekMercer", LMJelinekMercerSimilarityProvider.class);
+        addSimilarity("DFI", DFISimilarityProvider.class);
     }
 
     /**

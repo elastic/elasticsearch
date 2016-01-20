@@ -108,6 +108,13 @@ All options but the first option need a normalization value.
 Type name: `DFR`
 
 [float]
+[[dfi]]
+==== DFI similarity
+
+Similarity that implements the http://trec.nist.gov/pubs/trec21/papers/irra.web.nb.pdf[divergence from independence] 
+model (normalized chi-squared distance)
+
+[float]
 [[ib]]
 ==== IB similarity.
 

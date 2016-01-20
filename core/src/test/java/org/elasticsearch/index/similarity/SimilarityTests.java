@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.similarity;
 
+import org.apache.lucene.search.similarities.ClassicSimilarity;
+import org.apache.lucene.search.similarities.DFISimilarity;
 import org.apache.lucene.search.similarities.AfterEffectL;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.BasicModelG;
@@ -35,6 +37,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.DocumentMapperParser;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Test;
 
@@ -83,18 +89,18 @@ public class SimilarityTests extends ESSingleNodeTestCase {
                 .endObject().endObject().string();
 
         Settings indexSettings = Settings.settingsBuilder()
-                .put("index.similarity.my_similarity.type", "BM25")
-                .put("index.similarity.my_similarity.k1", 2.0f)
-                .put("index.similarity.my_similarity.b", 1.5f)
-                .put("index.similarity.my_similarity.discount_overlaps", false)
-                .build();
+            .put("index.similarity.my_similarity.type", "BM25")
+            .put("index.similarity.my_similarity.k1", 2.0f)
+            .put("index.similarity.my_similarity.b", 0.5f)
+            .put("index.similarity.my_similarity.discount_overlaps", false)
+            .build();
         IndexService indexService = createIndex("foo", indexSettings);
         DocumentMapper documentMapper = indexService.mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
         assertThat(documentMapper.mappers().getMapper("field1").fieldType().similarity(), instanceOf(BM25SimilarityProvider.class));
 
         BM25Similarity similarity = (BM25Similarity) documentMapper.mappers().getMapper("field1").fieldType().similarity().get();
         assertThat(similarity.getK1(), equalTo(2.0f));
-        assertThat(similarity.getB(), equalTo(1.5f));
+        assertThat(similarity.getB(), equalTo(0.5f));
         assertThat(similarity.getDiscountOverlaps(), equalTo(false));
     }
 
@@ -150,7 +156,23 @@ public class SimilarityTests extends ESSingleNodeTestCase {
         assertThat(((NormalizationH2) similarity.getNormalization()).getC(), equalTo(3f));
     }
 
-    @Test
+    public void testResolveSimilaritiesFromMapping_DFI() throws IOException {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("properties")
+            .startObject("field1").field("type", "string").field("similarity", "my_similarity").endObject()
+            .endObject()
+            .endObject().endObject().string();
+
+        Settings indexSettings = Settings.settingsBuilder()
+            .put("index.similarity.my_similarity.type", "DFI")
+            .build();
+        IndexService indexService = createIndex("foo", indexSettings);
+        DocumentMapper documentMapper = indexService.mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
+        MappedFieldType fieldType = documentMapper.mappers().getMapper("field1").fieldType();
+        assertThat(fieldType.similarity(), instanceOf(DFISimilarityProvider.class));
+        assertThat(fieldType.similarity().get(), instanceOf(DFISimilarity.class));
+    }
+
     public void testResolveSimilaritiesFromMapping_LMDirichlet() throws IOException {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties")

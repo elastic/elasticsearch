@@ -34,8 +34,10 @@ import org.elasticsearch.index.query.support.QueryParsers;
 import java.io.IOException;
 
 /**
- *
+ * @deprecated Fuzzy queries are not useful enough. This class will be removed with 3.0. In most cases you may want to use a match query
+ * with the fuzziness parameter for strings or range queries for numeric and date fields.
  */
+@Deprecated
 public class FuzzyQueryParser implements QueryParser {
 
     public static final String NAME = "fuzzy";

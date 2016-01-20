@@ -214,6 +214,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
         assertThat(validateQueryResponse.getQueryExplanation().get(0).getExplanation(), containsString("field:\"foo (one* two*)\""));
     }
 
+    @SuppressWarnings("deprecation") // fuzzy queries will be removed in 3.0
     @Test
     public void explainWithRewriteValidateQuery() throws Exception {
         client().admin().indices().prepareCreate("test")

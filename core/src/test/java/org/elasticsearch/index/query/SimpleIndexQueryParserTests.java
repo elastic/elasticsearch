@@ -449,6 +449,7 @@ public class SimpleIndexQueryParserTests extends ESSingleNodeTestCase {
         return (TermQuery) q;
     }
 
+    @SuppressWarnings("deprecation") // fuzzy queries will be removed in 3.0
     @Test
     public void testFuzzyQueryBuilder() throws IOException {
         IndexQueryParserService queryParser = queryParser();
@@ -469,6 +470,7 @@ public class SimpleIndexQueryParserTests extends ESSingleNodeTestCase {
         assertThat(fuzzyQuery.getRewriteMethod(), instanceOf(MultiTermQuery.TopTermsBlendedFreqScoringRewrite.class));
     }
 
+    @SuppressWarnings("deprecation") // fuzzy queries will be removed in 3.0
     @Test
     public void testFuzzyQueryWithFieldsBuilder() throws IOException {
         IndexQueryParserService queryParser = queryParser();

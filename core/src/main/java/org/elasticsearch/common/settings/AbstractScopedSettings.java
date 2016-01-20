@@ -33,6 +33,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.regex.Pattern;
 
 /**
  * A basic setting service that can be used for per-index and per-cluster settings.
@@ -44,6 +45,9 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
     private final Map<String, Setting<?>> complexMatchers = new HashMap<>();
     private final Map<String, Setting<?>> keySettings = new HashMap<>();
     private final Setting.Scope scope;
+    private static final Pattern KEY_PATTERN = Pattern.compile("^(?:[-\\w]+[.])*[-\\w]+$");
+    private static final Pattern GROUP_KEY_PATTERN = Pattern.compile("^(?:[-\\w]+[.])+$");
+
 
     protected AbstractScopedSettings(Settings settings, Set<Setting<?>> settingsSet, Setting.Scope scope) {
         super(settings);
@@ -67,11 +71,25 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
         if (setting.getScope() != scope) {
             throw new IllegalArgumentException("Setting must be a " + scope + " setting but was: " + setting.getScope());
         }
+        if (isValidKey(setting.getKey()) == false && (setting.isGroupSetting() && isValidGroupKey(setting.getKey())) == false) {
+            throw new IllegalArgumentException("illegal settings key: [" + setting.getKey() + "]");
+        }
         if (setting.hasComplexMatcher()) {
             complexMatchers.putIfAbsent(setting.getKey(), setting);
         } else {
             keySettings.putIfAbsent(setting.getKey(), setting);
         }
+    }
+
+    /**
+     * Returns <code>true</code> iff the given key is a valid settings key otherwise <code>false</code>
+     */
+    public static boolean isValidKey(String key) {
+        return KEY_PATTERN.matcher(key).matches();
+    }
+
+    private static boolean isValidGroupKey(String key) {
+        return GROUP_KEY_PATTERN.matcher(key).matches();
     }
 
     public Setting.Scope getScope() {

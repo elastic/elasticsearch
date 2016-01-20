@@ -19,6 +19,7 @@
 
 package org.elasticsearch.ingest.processor;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ingest.core.AbstractProcessorFactory;
 import org.elasticsearch.ingest.core.IngestDocument;
 import org.elasticsearch.ingest.core.ConfigurationUtils;
@@ -78,9 +79,9 @@ public final class DateProcessor implements Processor {
         for (Function<String, DateTime> dateParser : dateParsers) {
             try {
                 dateTime = dateParser.apply(value);
-            } catch(Exception e) {
-                //try the next parser and keep track of the last exception
-                lastException = e;
+            } catch (Exception e) {
+                //try the next parser and keep track of the exceptions
+                lastException = ExceptionsHelper.useOrSuppress(lastException, e);
             }
         }
 

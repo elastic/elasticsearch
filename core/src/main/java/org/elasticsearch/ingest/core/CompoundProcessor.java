@@ -77,7 +77,7 @@ public class CompoundProcessor implements Processor {
                 } else {
                     executeOnFailure(ingestDocument, e, processor.getType());
                 }
-                return;
+                break;
             }
         }
     }

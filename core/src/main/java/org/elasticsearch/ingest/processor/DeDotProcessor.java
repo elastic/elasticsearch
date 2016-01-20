@@ -91,7 +91,9 @@ public class DeDotProcessor implements Processor {
         } else if (obj instanceof List) {
             @SuppressWarnings("unchecked")
             List<Object> list = (List) obj;
-            list.forEach(this::deDot);
+            for (Object value : list) {
+                deDot(value);
+            }
         }
     }
 

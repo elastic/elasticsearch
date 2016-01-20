@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<project name="smoke-test-comman-line-parameters"
+         xmlns:ac="antlib:net.sf.antcontrib">
+
+  <import file="${elasticsearch.integ.antfile.default}"/>
+
+  <target name="stop-one-node" if="integ.pidfile.exists">
+    <stop-node es.pidfile="${integ.pidfile}"/>
+  </target>
+  
+  <target name="start-one-node" depends="setup-workspace" unless="${shouldskip}">
+    <ac:trycatch property="failure.message">
+      <ac:try>
+        <startup-elasticsearch use.dash.p.for.pid.file.param="true"/>
+      </ac:try>
+      <ac:catch>
+        <echo>Failed to start node with message: ${failure.message}</echo>
+        <stop-node es.pidfile="${integ.pidfile}"/>
+      </ac:catch>
+    </ac:trycatch>
+  </target>
+</project>

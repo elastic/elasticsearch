@@ -98,7 +98,7 @@ public class PipelineExecutionServiceTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         BiConsumer<IndexRequest, Throwable> failureHandler = mock(BiConsumer.class);
         @SuppressWarnings("unchecked")
-        Consumer<Boolean> completionHandler = mock(Consumer.class);
+        Consumer<Throwable> completionHandler = mock(Consumer.class);
         executionService.execute(bulkRequest.requests(), failureHandler, completionHandler);
         verify(failureHandler, times(1)).accept(
             argThat(new CustomTypeSafeMatcher<IndexRequest>("failure handler was not called with the expected arguments") {
@@ -115,7 +115,7 @@ public class PipelineExecutionServiceTests extends ESTestCase {
                 }
             })
         );
-        verify(completionHandler, times(1)).accept(anyBoolean());
+        verify(completionHandler, times(1)).accept(null);
     }
 
     public void testExecuteSuccess() throws Exception {
@@ -311,11 +311,11 @@ public class PipelineExecutionServiceTests extends ESTestCase {
         when(store.get(pipelineId)).thenReturn(new Pipeline(pipelineId, null, processor));
 
         BiConsumer<IndexRequest, Throwable> requestItemErrorHandler = mock(BiConsumer.class);
-        Consumer<Boolean> completionHandler = mock(Consumer.class);
+        Consumer<Throwable> completionHandler = mock(Consumer.class);
         executionService.execute(bulkRequest.requests(), requestItemErrorHandler, completionHandler);
 
         verify(requestItemErrorHandler, times(numIndexRequests)).accept(any(IndexRequest.class), eq(error));
-        verify(completionHandler, times(1)).accept(true);
+        verify(completionHandler, times(1)).accept(null);
     }
 
     public void testBulkRequestExecution() throws Exception {
@@ -334,11 +334,11 @@ public class PipelineExecutionServiceTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         BiConsumer<IndexRequest, Throwable> requestItemErrorHandler = mock(BiConsumer.class);
         @SuppressWarnings("unchecked")
-        Consumer<Boolean> completionHandler = mock(Consumer.class);
+        Consumer<Throwable> completionHandler = mock(Consumer.class);
         executionService.execute(bulkRequest.requests(), requestItemErrorHandler, completionHandler);
 
         verify(requestItemErrorHandler, never()).accept(any(), any());
-        verify(completionHandler, times(1)).accept(true);
+        verify(completionHandler, times(1)).accept(null);
     }
 
     private IngestDocument eqID(String index, String type, String id, Map<String, Object> source) {

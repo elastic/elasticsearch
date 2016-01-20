@@ -105,16 +105,21 @@ public final class IngestActionFilter extends AbstractComponent implements Actio
         executionService.execute(() -> bulkRequestModifier, (indexRequest, throwable) -> {
             logger.debug("failed to execute pipeline [{}] for document [{}/{}/{}]", indexRequest.getPipeline(), indexRequest.index(), indexRequest.type(), indexRequest.id(), throwable);
             bulkRequestModifier.markCurrentItemAsFailed(throwable);
-        }, (success) -> {
-            BulkRequest bulkRequest = bulkRequestModifier.getBulkRequest();
-            ActionListener<BulkResponse> actionListener = bulkRequestModifier.wrapActionListenerIfNeeded(listener);
-            if (bulkRequest.requests().isEmpty()) {
-                // at this stage, the transport bulk action can't deal with a bulk request with no requests,
-                // so we stop and send an empty response back to the client.
-                // (this will happen if pre-processing all items in the bulk failed)
-                actionListener.onResponse(new BulkResponse(new BulkItemResponse[0], 0));
+        }, (throwable) -> {
+            if (throwable != null) {
+                logger.error("failed to execute pipeline for a bulk request", throwable);
+                listener.onFailure(throwable);
             } else {
-                chain.proceed(task, action, bulkRequest, actionListener);
+                BulkRequest bulkRequest = bulkRequestModifier.getBulkRequest();
+                ActionListener<BulkResponse> actionListener = bulkRequestModifier.wrapActionListenerIfNeeded(listener);
+                if (bulkRequest.requests().isEmpty()) {
+                    // at this stage, the transport bulk action can't deal with a bulk request with no requests,
+                    // so we stop and send an empty response back to the client.
+                    // (this will happen if pre-processing all items in the bulk failed)
+                    actionListener.onResponse(new BulkResponse(new BulkItemResponse[0], 0));
+                } else {
+                    chain.proceed(task, action, bulkRequest, actionListener);
+                }
             }
         });
     }

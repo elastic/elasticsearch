@@ -22,6 +22,7 @@ package org.elasticsearch.ingest;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.ingest.core.IngestDocument;
 import org.elasticsearch.ingest.core.Pipeline;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -42,34 +43,49 @@ public class PipelineExecutionService {
 
     public void execute(IndexRequest request, Consumer<Throwable> failureHandler, Consumer<Boolean> completionHandler) {
         Pipeline pipeline = getPipeline(request.getPipeline());
-        threadPool.executor(ThreadPool.Names.INDEX).execute(() -> {
-            try {
+        threadPool.executor(ThreadPool.Names.INDEX).execute(new AbstractRunnable() {
+
+            @Override
+            public void onFailure(Throwable t) {
+                failureHandler.accept(t);
+            }
+
+            @Override
+            protected void doRun() throws Exception {
                 innerExecute(request, pipeline);
                 completionHandler.accept(true);
-            } catch (Exception e) {
-                failureHandler.accept(e);
             }
         });
     }
 
     public void execute(Iterable<ActionRequest<?>> actionRequests,
-                        BiConsumer<IndexRequest, Throwable> itemFailureHandler, Consumer<Boolean> completionHandler) {
-        threadPool.executor(ThreadPool.Names.INDEX).execute(() -> {
-            for (ActionRequest actionRequest : actionRequests) {
-                if ((actionRequest instanceof IndexRequest)) {
-                    IndexRequest indexRequest = (IndexRequest) actionRequest;
-                    if (Strings.hasText(indexRequest.getPipeline())) {
-                        try {
-                            innerExecute(indexRequest, getPipeline(indexRequest.getPipeline()));
-                            //this shouldn't be needed here but we do it for consistency with index api which requires it to prevent double execution
-                            indexRequest.setPipeline(null);
-                        } catch (Throwable e) {
-                            itemFailureHandler.accept(indexRequest, e);
+                        BiConsumer<IndexRequest, Throwable> itemFailureHandler,
+                        Consumer<Throwable> completionHandler) {
+        threadPool.executor(ThreadPool.Names.INDEX).execute(new AbstractRunnable() {
+
+            @Override
+            public void onFailure(Throwable t) {
+                completionHandler.accept(t);
+            }
+
+            @Override
+            protected void doRun() throws Exception {
+                for (ActionRequest actionRequest : actionRequests) {
+                    if ((actionRequest instanceof IndexRequest)) {
+                        IndexRequest indexRequest = (IndexRequest) actionRequest;
+                        if (Strings.hasText(indexRequest.getPipeline())) {
+                            try {
+                                innerExecute(indexRequest, getPipeline(indexRequest.getPipeline()));
+                                //this shouldn't be needed here but we do it for consistency with index api which requires it to prevent double execution
+                                indexRequest.setPipeline(null);
+                            } catch (Throwable e) {
+                                itemFailureHandler.accept(indexRequest, e);
+                            }
                         }
                     }
                 }
+                completionHandler.accept(null);
             }
-            completionHandler.accept(true);
         });
     }
 

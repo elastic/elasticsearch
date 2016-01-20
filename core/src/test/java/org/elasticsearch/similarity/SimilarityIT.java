@@ -55,7 +55,7 @@ public class SimilarityIT extends ESIntegTestCase {
                         .put("index.number_of_replicas", 0)
                         .put("similarity.custom.type", "BM25")
                         .put("similarity.custom.k1", 2.0f)
-                        .put("similarity.custom.b", 1.5f)
+                        .put("similarity.custom.b", 0.5f)
                 ).execute().actionGet();
 
         client().prepareIndex("test", "type1", "1").setSource("field1", "the quick brown fox jumped over the lazy dog",

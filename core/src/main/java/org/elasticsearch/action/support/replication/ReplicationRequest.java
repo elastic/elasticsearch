@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.support.replication;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -57,6 +58,8 @@ public class ReplicationRequest<T extends ReplicationRequest<T>> extends ChildTa
 
     private WriteConsistencyLevel consistencyLevel = WriteConsistencyLevel.DEFAULT;
     private volatile boolean canHaveDuplicates = false;
+
+    private long routedBasedOnClusterVersion = 0;
 
     public ReplicationRequest() {
 
@@ -170,6 +173,20 @@ public class ReplicationRequest<T extends ReplicationRequest<T>> extends ChildTa
         return (T) this;
     }
 
+    /**
+     * Sets the minimum version of the cluster state that is required on the next node before we redirect to another primary.
+     * Used to prevent redirect loops, see also {@link TransportReplicationAction.ReroutePhase#doRun()}
+     */
+    @SuppressWarnings("unchecked")
+    T routedBasedOnClusterVersion(long routedBasedOnClusterVersion) {
+        this.routedBasedOnClusterVersion = routedBasedOnClusterVersion;
+        return (T) this;
+    }
+
+    long routedBasedOnClusterVersion() {
+        return routedBasedOnClusterVersion;
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
@@ -192,6 +209,9 @@ public class ReplicationRequest<T extends ReplicationRequest<T>> extends ChildTa
         index = in.readString();
         canHaveDuplicates = in.readBoolean();
         // no need to serialize threaded* parameters, since they only matter locally
+        if (in.getVersion().onOrAfter(Version.V_2_4_0)) {
+            routedBasedOnClusterVersion = in.readVLong();
+        }
     }
 
     @Override
@@ -207,6 +227,9 @@ public class ReplicationRequest<T extends ReplicationRequest<T>> extends ChildTa
         timeout.writeTo(out);
         out.writeString(index);
         out.writeBoolean(canHaveDuplicates);
+        if (out.getVersion().onOrAfter(Version.V_2_4_0)) {
+            out.writeVLong(routedBasedOnClusterVersion);
+        }
     }
 
     @Override

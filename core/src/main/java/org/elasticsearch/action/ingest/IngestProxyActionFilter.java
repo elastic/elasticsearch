@@ -59,34 +59,30 @@ public final class IngestProxyActionFilter implements ActionFilter {
 
     @Override
     public void apply(Task task, String action, ActionRequest request, ActionListener listener, ActionFilterChain chain) {
-        Action ingestAction = null;
-        boolean isIngestRequest = false;
-        if (IndexAction.NAME.equals(action)) {
-            ingestAction = IndexAction.INSTANCE;
-            assert request instanceof IndexRequest;
-            IndexRequest indexRequest = (IndexRequest) request;
-            isIngestRequest = Strings.hasText(indexRequest.getPipeline());
-        } else if (BulkAction.NAME.equals(action)) {
-            ingestAction = BulkAction.INSTANCE;
-            assert request instanceof BulkRequest;
-            BulkRequest bulkRequest = (BulkRequest) request;
-            for (ActionRequest actionRequest : bulkRequest.requests()) {
-                if (actionRequest instanceof IndexRequest) {
-                    IndexRequest indexRequest = (IndexRequest) actionRequest;
-                    if (Strings.hasText(indexRequest.getPipeline())) {
-                        isIngestRequest = true;
-                        break;
-                    }
+        Action ingestAction;
+        switch (action) {
+            case IndexAction.NAME:
+                ingestAction = IndexAction.INSTANCE;
+                IndexRequest indexRequest = (IndexRequest) request;
+                if (Strings.hasText(indexRequest.getPipeline())) {
+                    forwardIngestRequest(ingestAction, request, listener);
+                } else {
+                    chain.proceed(task, action, request, listener);
                 }
-            }
+                break;
+            case BulkAction.NAME:
+                ingestAction = BulkAction.INSTANCE;
+                BulkRequest bulkRequest = (BulkRequest) request;
+                if (bulkRequest.hasIndexRequestsWithPipelines()) {
+                    forwardIngestRequest(ingestAction, request, listener);
+                } else {
+                    chain.proceed(task, action, request, listener);
+                }
+                break;
+            default:
+                chain.proceed(task, action, request, listener);
+                break;
         }
-
-        if (isIngestRequest) {
-            assert ingestAction != null;
-            forwardIngestRequest(ingestAction, request, listener);
-            return;
-        }
-        chain.proceed(task, action, request, listener);
     }
 
     private void forwardIngestRequest(Action action, ActionRequest request, ActionListener listener) {

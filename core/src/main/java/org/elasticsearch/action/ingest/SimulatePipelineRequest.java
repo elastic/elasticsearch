@@ -45,13 +45,19 @@ public class SimulatePipelineRequest extends ActionRequest<SimulatePipelineReque
     private boolean verbose;
     private BytesReference source;
 
+    public SimulatePipelineRequest(BytesReference source) {
+        if (source == null) {
+            throw new IllegalArgumentException("source is missing");
+        }
+        this.source = source;
+    }
+
+    SimulatePipelineRequest() {
+    }
+
     @Override
     public ActionRequestValidationException validate() {
-        ActionRequestValidationException validationException = null;
-        if (source == null) {
-            validationException = addValidationError("source is missing", validationException);
-        }
-        return validationException;
+        return null;
     }
 
     public String getId() {
@@ -59,7 +65,7 @@ public class SimulatePipelineRequest extends ActionRequest<SimulatePipelineReque
     }
 
     public void setId(String id) {
-        this.id = Objects.requireNonNull(id);
+        this.id = id;
     }
 
     public boolean isVerbose() {
@@ -72,10 +78,6 @@ public class SimulatePipelineRequest extends ActionRequest<SimulatePipelineReque
 
     public BytesReference getSource() {
         return source;
-    }
-
-    public void setSource(BytesReference source) {
-        this.source = Objects.requireNonNull(source);
     }
 
     @Override

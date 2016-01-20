@@ -82,9 +82,7 @@ public class PipelineStoreTests extends ESTestCase {
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
 
         // add a new pipeline:
-        PutPipelineRequest putRequest = new PutPipelineRequest();
-        putRequest.setId(id);
-        putRequest.setSource(new BytesArray("{\"processors\": []}"));
+        PutPipelineRequest putRequest = new PutPipelineRequest(id, new BytesArray("{\"processors\": []}"));
         clusterState = store.innerPut(putRequest, clusterState);
         store.innerUpdatePipelines(clusterState);
         pipeline = store.get(id);
@@ -94,9 +92,7 @@ public class PipelineStoreTests extends ESTestCase {
         assertThat(pipeline.getProcessors().size(), equalTo(0));
 
         // overwrite existing pipeline:
-        putRequest = new PutPipelineRequest();
-        putRequest.setId(id);
-        putRequest.setSource(new BytesArray("{\"processors\": [], \"description\": \"_description\"}"));
+        putRequest = new PutPipelineRequest(id, new BytesArray("{\"processors\": [], \"description\": \"_description\"}"));
         clusterState = store.innerPut(putRequest, clusterState);
         store.innerUpdatePipelines(clusterState);
         pipeline = store.get(id);
@@ -118,8 +114,7 @@ public class PipelineStoreTests extends ESTestCase {
         assertThat(store.get("_id"), notNullValue());
 
         // Delete pipeline:
-        DeletePipelineRequest deleteRequest = new DeletePipelineRequest();
-        deleteRequest.setId("_id");
+        DeletePipelineRequest deleteRequest = new DeletePipelineRequest("_id");
         clusterState = store.innerDelete(deleteRequest, clusterState);
         store.innerUpdatePipelines(clusterState);
         assertThat(store.get("_id"), nullValue());
@@ -167,9 +162,7 @@ public class PipelineStoreTests extends ESTestCase {
         assertThat(pipeline, nullValue());
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
 
-        PutPipelineRequest putRequest = new PutPipelineRequest();
-        putRequest.setId(id);
-        putRequest.setSource(new BytesArray("{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\"}}]}"));
+        PutPipelineRequest putRequest = new PutPipelineRequest(id, new BytesArray("{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\"}}]}"));
         clusterState = store.innerPut(putRequest, clusterState);
         store.innerUpdatePipelines(clusterState);
         pipeline = store.get(id);
@@ -179,8 +172,7 @@ public class PipelineStoreTests extends ESTestCase {
         assertThat(pipeline.getProcessors().size(), equalTo(1));
         assertThat(pipeline.getProcessors().get(0).getType(), equalTo("set"));
 
-        DeletePipelineRequest deleteRequest = new DeletePipelineRequest();
-        deleteRequest.setId(id);
+        DeletePipelineRequest deleteRequest = new DeletePipelineRequest(id);
         clusterState = store.innerDelete(deleteRequest, clusterState);
         store.innerUpdatePipelines(clusterState);
         pipeline = store.get(id);

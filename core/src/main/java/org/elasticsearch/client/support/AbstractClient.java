@@ -334,6 +334,7 @@ import org.elasticsearch.client.ClusterAdminClient;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -820,8 +821,8 @@ public abstract class AbstractClient extends AbstractComponent implements Client
     }
 
     @Override
-    public PutPipelineRequestBuilder preparePutPipeline() {
-        return new PutPipelineRequestBuilder(this, PutPipelineAction.INSTANCE);
+    public PutPipelineRequestBuilder preparePutPipeline(String id, BytesReference source) {
+        return new PutPipelineRequestBuilder(this, PutPipelineAction.INSTANCE, id, source);
     }
 
     @Override
@@ -850,8 +851,8 @@ public abstract class AbstractClient extends AbstractComponent implements Client
     }
 
     @Override
-    public GetPipelineRequestBuilder prepareGetPipeline() {
-        return new GetPipelineRequestBuilder(this, GetPipelineAction.INSTANCE);
+    public GetPipelineRequestBuilder prepareGetPipeline(String... ids) {
+        return new GetPipelineRequestBuilder(this, GetPipelineAction.INSTANCE, ids);
     }
 
     @Override
@@ -865,8 +866,8 @@ public abstract class AbstractClient extends AbstractComponent implements Client
     }
 
     @Override
-    public SimulatePipelineRequestBuilder prepareSimulatePipeline() {
-        return new SimulatePipelineRequestBuilder(this, SimulatePipelineAction.INSTANCE);
+    public SimulatePipelineRequestBuilder prepareSimulatePipeline(BytesReference source) {
+        return new SimulatePipelineRequestBuilder(this, SimulatePipelineAction.INSTANCE, source);
     }
 
     static class Admin implements AdminClient {

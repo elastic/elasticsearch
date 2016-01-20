@@ -35,32 +35,32 @@ public class PutPipelineRequest extends AcknowledgedRequest<PutPipelineRequest> 
     private String id;
     private BytesReference source;
 
-    @Override
-    public ActionRequestValidationException validate() {
-        ActionRequestValidationException validationException = null;
+    public PutPipelineRequest(String id, BytesReference source) {
         if (id == null) {
-            validationException = addValidationError("id is missing", validationException);
+            throw new IllegalArgumentException("id is missing");
         }
         if (source == null) {
-            validationException = addValidationError("source is missing", validationException);
+            throw new IllegalArgumentException("source is missing");
         }
-        return validationException;
+
+        this.id = id;
+        this.source = source;
+    }
+
+    PutPipelineRequest() {
+    }
+
+    @Override
+    public ActionRequestValidationException validate() {
+        return null;
     }
 
     public String getId() {
         return id;
     }
 
-    public void setId(String id) {
-        this.id = Objects.requireNonNull(id);
-    }
-
     public BytesReference getSource() {
         return source;
-    }
-
-    public void setSource(BytesReference source) {
-        this.source = Objects.requireNonNull(source);
     }
 
     @Override

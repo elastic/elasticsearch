@@ -28,6 +28,7 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
+import org.elasticsearch.rest.action.support.RestActions;
 
 public class RestPutPipelineAction extends BaseRestHandler {
 
@@ -39,11 +40,7 @@ public class RestPutPipelineAction extends BaseRestHandler {
 
     @Override
     protected void handleRequest(RestRequest restRequest, RestChannel channel, Client client) throws Exception {
-        PutPipelineRequest request = new PutPipelineRequest();
-        request.setId(restRequest.param("id"));
-        if (restRequest.hasContent()) {
-            request.setSource(restRequest.content());
-        }
+        PutPipelineRequest request = new PutPipelineRequest(restRequest.param("id"), RestActions.getRestContent(restRequest));
         request.masterNodeTimeout(restRequest.paramAsTime("master_timeout", request.masterNodeTimeout()));
         request.timeout(restRequest.paramAsTime("timeout", request.timeout()));
         client.putPipeline(request, new AcknowledgedRestListener<>(channel));

@@ -68,20 +68,18 @@ public class IngestClientIT extends ESIntegTestCase {
     }
 
     public void testSimulate() throws Exception {
-        client().preparePutPipeline()
-                .setId("_id")
-                .setSource(jsonBuilder().startObject()
-                        .field("description", "my_pipeline")
-                        .startArray("processors")
-                        .startObject()
-                        .startObject("test")
-                        .endObject()
-                        .endObject()
-                        .endArray()
-                        .endObject().bytes())
+        BytesReference pipelineSource = jsonBuilder().startObject()
+            .field("description", "my_pipeline")
+            .startArray("processors")
+            .startObject()
+            .startObject("test")
+            .endObject()
+            .endObject()
+            .endArray()
+            .endObject().bytes();
+        client().preparePutPipeline("_id", pipelineSource)
                 .get();
-        GetPipelineResponse getResponse = client().prepareGetPipeline()
-                .setIds("_id")
+        GetPipelineResponse getResponse = client().prepareGetPipeline("_id")
                 .get();
         assertThat(getResponse.isFound(), is(true));
         assertThat(getResponse.pipelines().size(), equalTo(1));
@@ -102,13 +100,11 @@ public class IngestClientIT extends ESIntegTestCase {
             .endObject().bytes();
         SimulatePipelineResponse response;
         if (randomBoolean()) {
-            response = client().prepareSimulatePipeline()
-                .setId("_id")
-                .setSource(bytes).get();
+            response = client().prepareSimulatePipeline(bytes)
+                .setId("_id").get();
         } else {
-            SimulatePipelineRequest request = new SimulatePipelineRequest();
+            SimulatePipelineRequest request = new SimulatePipelineRequest(bytes);
             request.setId("_id");
-            request.setSource(bytes);
             response = client().simulatePipeline(request).get();
         }
         assertThat(response.isVerbose(), equalTo(false));
@@ -128,9 +124,7 @@ public class IngestClientIT extends ESIntegTestCase {
     public void testBulkWithIngestFailures() throws Exception {
         createIndex("index");
 
-        PutPipelineRequest putPipelineRequest = new PutPipelineRequest();
-        putPipelineRequest.setId("_id");
-        putPipelineRequest.setSource(jsonBuilder().startObject()
+        BytesReference source = jsonBuilder().startObject()
             .field("description", "my_pipeline")
             .startArray("processors")
             .startObject()
@@ -138,8 +132,8 @@ public class IngestClientIT extends ESIntegTestCase {
             .endObject()
             .endObject()
             .endArray()
-            .endObject().bytes());
-
+            .endObject().bytes();
+        PutPipelineRequest putPipelineRequest = new PutPipelineRequest("_id", source);
         client().putPipeline(putPipelineRequest).get();
 
         int numRequests = scaledRandomIntBetween(32, 128);
@@ -166,21 +160,19 @@ public class IngestClientIT extends ESIntegTestCase {
     }
 
     public void test() throws Exception {
-        PutPipelineRequest putPipelineRequest = new PutPipelineRequest();
-        putPipelineRequest.setId("_id");
-        putPipelineRequest.setSource(jsonBuilder().startObject()
-                        .field("description", "my_pipeline")
-                        .startArray("processors")
-                        .startObject()
-                        .startObject("test")
-                        .endObject()
-                        .endObject()
-                        .endArray()
-                        .endObject().bytes());
+        BytesReference source = jsonBuilder().startObject()
+            .field("description", "my_pipeline")
+            .startArray("processors")
+            .startObject()
+            .startObject("test")
+            .endObject()
+            .endObject()
+            .endArray()
+            .endObject().bytes();
+        PutPipelineRequest putPipelineRequest = new PutPipelineRequest("_id", source);
         client().putPipeline(putPipelineRequest).get();
 
-        GetPipelineRequest getPipelineRequest = new GetPipelineRequest();
-        getPipelineRequest.setIds("_id");
+        GetPipelineRequest getPipelineRequest = new GetPipelineRequest("_id");
         GetPipelineResponse getResponse = client().getPipeline(getPipelineRequest).get();
         assertThat(getResponse.isFound(), is(true));
         assertThat(getResponse.pipelines().size(), equalTo(1));
@@ -199,12 +191,11 @@ public class IngestClientIT extends ESIntegTestCase {
         assertThat(doc.get("field"), equalTo("value2"));
         assertThat(doc.get("processed"), equalTo(true));
 
-        DeletePipelineRequest deletePipelineRequest = new DeletePipelineRequest();
-        deletePipelineRequest.setId("_id");
+        DeletePipelineRequest deletePipelineRequest = new DeletePipelineRequest("_id");
         WritePipelineResponse response = client().deletePipeline(deletePipelineRequest).get();
         assertThat(response.isAcknowledged(), is(true));
 
-        getResponse = client().prepareGetPipeline().setIds("_id").get();
+        getResponse = client().prepareGetPipeline("_id").get();
         assertThat(getResponse.isFound(), is(false));
         assertThat(getResponse.pipelines().size(), equalTo(0));
     }

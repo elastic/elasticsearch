@@ -40,8 +40,7 @@ public class RestGetPipelineAction extends BaseRestHandler {
 
     @Override
     protected void handleRequest(RestRequest restRequest, RestChannel channel, Client client) throws Exception {
-        GetPipelineRequest request = new GetPipelineRequest();
-        request.setIds(Strings.splitStringByCommaToArray(restRequest.param("id")));
+        GetPipelineRequest request = new GetPipelineRequest(Strings.splitStringByCommaToArray(restRequest.param("id")));
         request.masterNodeTimeout(restRequest.paramAsTime("master_timeout", request.masterNodeTimeout()));
         client.getPipeline(request, new RestStatusToXContentListener<>(channel));
     }

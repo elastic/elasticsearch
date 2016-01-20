@@ -43,14 +43,9 @@ public class RestSimulatePipelineAction extends BaseRestHandler {
 
     @Override
     protected void handleRequest(RestRequest restRequest, RestChannel channel, Client client) throws Exception {
-        SimulatePipelineRequest request = new SimulatePipelineRequest();
+        SimulatePipelineRequest request = new SimulatePipelineRequest(RestActions.getRestContent(restRequest));
         request.setId(restRequest.param("id"));
         request.setVerbose(restRequest.paramAsBoolean("verbose", false));
-
-        if (RestActions.hasBodyContent(restRequest)) {
-            request.setSource(RestActions.getRestContent(restRequest));
-        }
-
         client.simulatePipeline(request, new RestToXContentListener<>(channel));
     }
 }

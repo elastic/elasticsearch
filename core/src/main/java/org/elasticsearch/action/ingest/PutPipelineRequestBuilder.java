@@ -29,14 +29,8 @@ public class PutPipelineRequestBuilder extends ActionRequestBuilder<PutPipelineR
         super(client, action, new PutPipelineRequest());
     }
 
-    public PutPipelineRequestBuilder setId(String id) {
-        request.setId(id);
-        return this;
-    }
-
-    public PutPipelineRequestBuilder setSource(BytesReference source) {
-        request.setSource(source);
-        return this;
+    public PutPipelineRequestBuilder(ElasticsearchClient client, PutPipelineAction action, String id, BytesReference source) {
+        super(client, action, new PutPipelineRequest(id, source));
     }
 
 }

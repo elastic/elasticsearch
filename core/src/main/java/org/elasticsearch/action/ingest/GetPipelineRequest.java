@@ -33,11 +33,14 @@ public class GetPipelineRequest extends MasterNodeReadRequest<GetPipelineRequest
 
     private String[] ids;
 
-    public void setIds(String... ids) {
-        this.ids = Objects.requireNonNull(ids);
-        if (ids.length == 0) {
+    public GetPipelineRequest(String... ids) {
+        if (ids == null || ids.length == 0) {
             throw new IllegalArgumentException("No ids specified");
         }
+        this.ids = ids;
+    }
+
+    GetPipelineRequest() {
     }
 
     public String[] getIds() {
@@ -46,11 +49,7 @@ public class GetPipelineRequest extends MasterNodeReadRequest<GetPipelineRequest
 
     @Override
     public ActionRequestValidationException validate() {
-        ActionRequestValidationException validationException = null;
-        if (ids == null) {
-            validationException = addValidationError("ids is missing", validationException);
-        }
-        return validationException;
+        return null;
     }
 
     @Override

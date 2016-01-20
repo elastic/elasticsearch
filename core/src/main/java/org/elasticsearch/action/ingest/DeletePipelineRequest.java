@@ -33,6 +33,16 @@ public class DeletePipelineRequest extends AcknowledgedRequest<DeletePipelineReq
 
     private String id;
 
+    public DeletePipelineRequest(String id) {
+        if (id == null) {
+            throw new IllegalArgumentException("id is missing");
+        }
+        this.id = id;
+    }
+
+    DeletePipelineRequest() {
+    }
+
     public void setId(String id) {
         this.id = Objects.requireNonNull(id);
     }
@@ -43,11 +53,7 @@ public class DeletePipelineRequest extends AcknowledgedRequest<DeletePipelineReq
 
     @Override
     public ActionRequestValidationException validate() {
-        ActionRequestValidationException validationException = null;
-        if (id == null) {
-            validationException = addValidationError("id is missing", validationException);
-        }
-        return validationException;
+        return null;
     }
 
     @Override

@@ -29,6 +29,10 @@ public class SimulatePipelineRequestBuilder extends ActionRequestBuilder<Simulat
         super(client, action, new SimulatePipelineRequest());
     }
 
+    public SimulatePipelineRequestBuilder(ElasticsearchClient client, SimulatePipelineAction action, BytesReference source) {
+        super(client, action, new SimulatePipelineRequest(source));
+    }
+
     public SimulatePipelineRequestBuilder setId(String id) {
         request.setId(id);
         return this;
@@ -36,11 +40,6 @@ public class SimulatePipelineRequestBuilder extends ActionRequestBuilder<Simulat
 
     public SimulatePipelineRequestBuilder setVerbose(boolean verbose) {
         request.setVerbose(verbose);
-        return this;
-    }
-
-    public SimulatePipelineRequestBuilder setSource(BytesReference source) {
-        request.setSource(source);
         return this;
     }
 

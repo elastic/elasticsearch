@@ -28,9 +28,8 @@ public class DeletePipelineRequestBuilder extends ActionRequestBuilder<DeletePip
         super(client, action, new DeletePipelineRequest());
     }
 
-    public DeletePipelineRequestBuilder setId(String id) {
-        request.setId(id);
-        return this;
+    public DeletePipelineRequestBuilder(ElasticsearchClient client, DeletePipelineAction action, String id) {
+        super(client, action, new DeletePipelineRequest(id));
     }
 
 }

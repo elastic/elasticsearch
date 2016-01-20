@@ -39,8 +39,7 @@ public class RestDeletePipelineAction extends BaseRestHandler {
 
     @Override
     protected void handleRequest(RestRequest restRequest, RestChannel channel, Client client) throws Exception {
-        DeletePipelineRequest request = new DeletePipelineRequest();
-        request.setId(restRequest.param("id"));
+        DeletePipelineRequest request = new DeletePipelineRequest(restRequest.param("id"));
         request.masterNodeTimeout(restRequest.paramAsTime("master_timeout", request.masterNodeTimeout()));
         request.timeout(restRequest.paramAsTime("timeout", request.timeout()));
         client.deletePipeline(request, new AcknowledgedRestListener<>(channel));

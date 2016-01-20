@@ -93,6 +93,7 @@ import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.support.Headers;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
 
@@ -616,7 +617,7 @@ public interface Client extends ElasticsearchClient, Releasable {
     /**
      * Stores an ingest pipeline
      */
-    PutPipelineRequestBuilder preparePutPipeline();
+    PutPipelineRequestBuilder preparePutPipeline(String id, BytesReference source);
 
     /**
      * Deletes a stored ingest pipeline
@@ -646,7 +647,7 @@ public interface Client extends ElasticsearchClient, Releasable {
     /**
      * Returns a stored ingest pipeline
      */
-    GetPipelineRequestBuilder prepareGetPipeline();
+    GetPipelineRequestBuilder prepareGetPipeline(String... ids);
 
     /**
      * Simulates an ingest pipeline
@@ -661,7 +662,7 @@ public interface Client extends ElasticsearchClient, Releasable {
     /**
      * Simulates an ingest pipeline
      */
-    SimulatePipelineRequestBuilder prepareSimulatePipeline();
+    SimulatePipelineRequestBuilder prepareSimulatePipeline(BytesReference source);
 
     /**
      * Returns this clients settings

@@ -20,6 +20,7 @@ package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.bulk.BulkAction;
@@ -59,7 +60,7 @@ public final class IngestProxyActionFilter implements ActionFilter {
     }
 
     @Override
-    public void apply(Task task, String action, ActionRequest request, ActionListener listener, ActionFilterChain chain) {
+    public void apply(Task task, String action, ActionRequest<?> request, ActionListener<?> listener, ActionFilterChain chain) {
         Action ingestAction;
         switch (action) {
             case IndexAction.NAME:
@@ -86,33 +87,19 @@ public final class IngestProxyActionFilter implements ActionFilter {
         }
     }
 
-    private void forwardIngestRequest(Action action, ActionRequest request, ActionListener listener) {
-        transportService.sendRequest(randomIngestNode(), action.name(), request, new TransportResponseHandler<TransportResponse>() {
+    @SuppressWarnings("unchecked")
+    private void forwardIngestRequest(Action<?, ?, ?> action, ActionRequest request, ActionListener<?> listener) {
+        transportService.sendRequest(randomIngestNode(), action.name(), request, new ActionListenerResponseHandler(listener) {
             @Override
             public TransportResponse newInstance() {
                 return action.newResponse();
             }
 
-            @Override
-            @SuppressWarnings("unchecked")
-            public void handleResponse(TransportResponse response) {
-                listener.onResponse(response);
-            }
-
-            @Override
-            public void handleException(TransportException exp) {
-                listener.onFailure(exp);
-            }
-
-            @Override
-            public String executor() {
-                return ThreadPool.Names.SAME;
-            }
         });
     }
 
     @Override
-    public void apply(String action, ActionResponse response, ActionListener listener, ActionFilterChain chain) {
+    public void apply(String action, ActionResponse response, ActionListener<?> listener, ActionFilterChain chain) {
         chain.proceed(action, response, listener);
     }
 

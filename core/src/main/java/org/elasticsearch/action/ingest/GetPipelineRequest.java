@@ -46,7 +46,11 @@ public class GetPipelineRequest extends MasterNodeReadRequest<GetPipelineRequest
 
     @Override
     public ActionRequestValidationException validate() {
-        return null;
+        ActionRequestValidationException validationException = null;
+        if (ids == null) {
+            validationException = addValidationError("ids is missing", validationException);
+        }
+        return validationException;
     }
 
     @Override

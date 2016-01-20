@@ -37,7 +37,14 @@ public class PutPipelineRequest extends AcknowledgedRequest<PutPipelineRequest> 
 
     @Override
     public ActionRequestValidationException validate() {
-        return null;
+        ActionRequestValidationException validationException = null;
+        if (id == null) {
+            validationException = addValidationError("id is missing", validationException);
+        }
+        if (source == null) {
+            validationException = addValidationError("source is missing", validationException);
+        }
+        return validationException;
     }
 
     public String getId() {

@@ -37,9 +37,9 @@ public class IngestService implements Closeable {
     private final PipelineExecutionService pipelineExecutionService;
     private final ProcessorsRegistry processorsRegistry;
 
-    public IngestService(Settings settings, ThreadPool threadPool, ClusterService clusterService, ProcessorsRegistry processorsRegistry) {
+    public IngestService(Settings settings, ThreadPool threadPool, ProcessorsRegistry processorsRegistry) {
         this.processorsRegistry = processorsRegistry;
-        this.pipelineStore = new PipelineStore(settings, clusterService);
+        this.pipelineStore = new PipelineStore(settings);
         this.pipelineExecutionService = new PipelineExecutionService(pipelineStore, threadPool);
     }
 

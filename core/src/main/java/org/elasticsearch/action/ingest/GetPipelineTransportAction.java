@@ -58,7 +58,7 @@ public class GetPipelineTransportAction extends TransportMasterNodeReadAction<Ge
 
     @Override
     protected void masterOperation(GetPipelineRequest request, ClusterState state, ActionListener<GetPipelineResponse> listener) throws Exception {
-        listener.onResponse(new GetPipelineResponse(pipelineStore.getPipelines(request.getIds())));
+        listener.onResponse(new GetPipelineResponse(pipelineStore.getPipelines(state, request.getIds())));
     }
 
     @Override

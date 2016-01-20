@@ -51,7 +51,6 @@ import java.util.function.Function;
 
 public class PipelineStore extends AbstractComponent implements Closeable, ClusterStateListener {
 
-    private final ClusterService clusterService;
     private final Pipeline.Factory factory = new Pipeline.Factory();
     private Map<String, Processor.Factory> processorFactoryRegistry;
 
@@ -61,10 +60,8 @@ public class PipelineStore extends AbstractComponent implements Closeable, Clust
     // are loaded, so in the cluster state we just save the pipeline config and here we keep the actual pipelines around.
     volatile Map<String, Pipeline> pipelines = new HashMap<>();
 
-    public PipelineStore(Settings settings, ClusterService clusterService) {
+    public PipelineStore(Settings settings) {
         super(settings);
-        this.clusterService = clusterService;
-        clusterService.add(this);
     }
 
     public void buildProcessorFactoryRegistry(ProcessorsRegistry processorsRegistry, ScriptService scriptService) {
@@ -115,7 +112,7 @@ public class PipelineStore extends AbstractComponent implements Closeable, Clust
     /**
      * Deletes the pipeline specified by id in the request.
      */
-    public void delete(DeletePipelineRequest request, ActionListener<WritePipelineResponse> listener) {
+    public void delete(ClusterService clusterService, DeletePipelineRequest request, ActionListener<WritePipelineResponse> listener) {
         clusterService.submitStateUpdateTask("delete-pipeline-" + request.id(), new AckedClusterStateUpdateTask<WritePipelineResponse>(request, listener) {
 
             @Override
@@ -154,7 +151,7 @@ public class PipelineStore extends AbstractComponent implements Closeable, Clust
      *
      * @throws IllegalArgumentException If the pipeline holds incorrect configuration
      */
-    public void put(PutPipelineRequest request, ActionListener<WritePipelineResponse> listener) throws IllegalArgumentException {
+    public void put(ClusterService clusterService, PutPipelineRequest request, ActionListener<WritePipelineResponse> listener) throws IllegalArgumentException {
         try {
             // validates the pipeline and processor configuration before submitting a cluster update task:
             Map<String, Object> pipelineConfig = XContentHelper.convertToMap(request.getSource(), false).v2();
@@ -210,8 +207,8 @@ public class PipelineStore extends AbstractComponent implements Closeable, Clust
      */
     // Returning PipelineConfiguration instead of Pipeline, because Pipeline and Processor interface don't
     // know how to serialize themselves.
-    public List<PipelineConfiguration> getPipelines(String... ids) {
-        IngestMetadata ingestMetadata = clusterService.state().getMetaData().custom(IngestMetadata.TYPE);
+    public List<PipelineConfiguration> getPipelines(ClusterState clusterState, String... ids) {
+        IngestMetadata ingestMetadata = clusterState.getMetaData().custom(IngestMetadata.TYPE);
         return innerGetPipelines(ingestMetadata, ids);
     }
 

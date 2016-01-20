@@ -50,8 +50,7 @@ public class PipelineStoreTests extends ESTestCase {
 
     @Before
     public void init() throws Exception {
-        ClusterService clusterService = mock(ClusterService.class);
-        store = new PipelineStore(Settings.EMPTY, clusterService);
+        store = new PipelineStore(Settings.EMPTY);
         ProcessorsRegistry registry = new ProcessorsRegistry();
         registry.registerProcessor("set", (templateService) -> new SetProcessor.Factory(TestTemplateService.instance()));
         store.buildProcessorFactoryRegistry(registry, null);

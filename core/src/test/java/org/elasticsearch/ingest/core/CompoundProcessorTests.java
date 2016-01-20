@@ -20,11 +20,17 @@
 package org.elasticsearch.ingest.core;
 
 import org.elasticsearch.ingest.TestProcessor;
+import org.elasticsearch.ingest.TestTemplateService;
+import org.elasticsearch.ingest.processor.AppendProcessor;
+import org.elasticsearch.ingest.processor.SetProcessor;
+import org.elasticsearch.ingest.processor.SplitProcessor;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.equalTo;

@@ -30,9 +30,8 @@ final class AutoExpandReplicas {
     // the value we recognize in the "max" position to mean all the nodes
     private static final String ALL_NODES_VALUE = "all";
     public static final Setting<AutoExpandReplicas> SETTING = new Setting<>(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "false", (value) -> {
-        // TODO change the following back to be final, https://github.com/elastic/elasticsearch/issues/16097
-        int min;
-        int max;
+        final int min;
+        final int max;
         if (Booleans.parseBoolean(value, true) == false) {
             return new AutoExpandReplicas(0, 0, false);
         }

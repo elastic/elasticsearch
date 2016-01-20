@@ -45,8 +45,8 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
     private final Map<String, Setting<?>> complexMatchers = new HashMap<>();
     private final Map<String, Setting<?>> keySettings = new HashMap<>();
     private final Setting.Scope scope;
-    private static final Pattern KEY_PATTERN = Pattern.compile("^([\\w\\d_-]+[.])*[\\w\\d_-]+$");
-    private static final Pattern GROUP_KEY_PATTERN = Pattern.compile("^([\\w\\d_-]+[.])+");
+    private static final Pattern KEY_PATTERN = Pattern.compile("^(?:[-\\w]+[.])*[-\\w]+$");
+    private static final Pattern GROUP_KEY_PATTERN = Pattern.compile("^(?:[-\\w]+[.])+$");
 
 
     protected AbstractScopedSettings(Settings settings, Set<Setting<?>> settingsSet, Setting.Scope scope) {

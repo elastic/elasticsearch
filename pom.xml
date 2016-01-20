@@ -689,6 +689,7 @@
                             <!-- true if we are running tests from maven (as opposed to IDE, etc).
                                  allows us to assert certain things work, like libsigar -->
                             <tests.maven>true</tests.maven>
+                            <jna.nosys>true</jna.nosys>
                         </systemProperties>
                         <listeners>
                             <report-text

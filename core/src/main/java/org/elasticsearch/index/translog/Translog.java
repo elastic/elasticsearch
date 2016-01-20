@@ -1234,7 +1234,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
     }
 
-    void trimUnreferencedReaders() {
+    void trimUnreferencedReaders() throws IOException {
         try (ReleasableLock ignored = writeLock.acquire()) {
             if (closed.get()) {
                 // we're shutdown potentially on some tragic event - don't delete anything
@@ -1247,9 +1247,9 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             for (final TranslogReader unreferencedReader : unreferenced) {
                 Path translogPath = unreferencedReader.path();
                 logger.trace("delete translog file - not referenced and not current anymore {}", translogPath);
-                IOUtils.closeWhileHandlingException(unreferencedReader);
-                IOUtils.deleteFilesIgnoringExceptions(translogPath,
-                        translogPath.resolveSibling(getCommitCheckpointFileName(unreferencedReader.getGeneration())));
+                unreferencedReader.close();
+                Files.delete(translogPath);
+                Files.delete(translogPath.resolveSibling(getCommitCheckpointFileName(unreferencedReader.getGeneration())));
             }
             readers.removeAll(unreferenced);
         }

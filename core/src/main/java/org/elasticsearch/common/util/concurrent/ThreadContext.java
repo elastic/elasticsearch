@@ -127,7 +127,7 @@ public final class ThreadContext implements Closeable, Writeable<ThreadContext.T
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        threadLocal.get().writeTo(out);
+        threadLocal.get().writeTo(out, defaultHeader);
     }
 
     @Override
@@ -284,6 +284,18 @@ public final class ThreadContext implements Closeable, Writeable<ThreadContext.T
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            throw new UnsupportedOperationException("use the other write to");
+        }
+
+        public void writeTo(StreamOutput out, Map<String, String> defaultHeaders) throws IOException {
+            final Map<String, String> headers;
+            if (defaultHeaders.isEmpty()) {
+                headers = this.headers;
+            } else {
+                headers = new HashMap<>(defaultHeaders);
+                headers.putAll(this.headers);
+            }
+
             int keys = headers.size();
             out.writeVInt(keys);
             for (Map.Entry<String, String> entry : headers.entrySet()) {

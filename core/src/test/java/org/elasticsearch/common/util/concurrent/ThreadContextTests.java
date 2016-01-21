@@ -161,6 +161,54 @@ public class ThreadContextTests extends ESTestCase {
         assertEquals("1", threadContext.getHeader("default"));
     }
 
+    public void testSerializeInDifferentContext() throws IOException {
+        BytesStreamOutput out = new BytesStreamOutput();
+        {
+            Settings build = Settings.builder().put("request.headers.default", "1").build();
+            ThreadContext threadContext = new ThreadContext(build);
+            threadContext.putHeader("foo", "bar");
+            threadContext.putTransient("ctx.foo", new Integer(1));
+
+            assertEquals("bar", threadContext.getHeader("foo"));
+            assertNotNull(threadContext.getTransient("ctx.foo"));
+            assertEquals("1", threadContext.getHeader("default"));
+            threadContext.writeTo(out);
+        }
+        {
+            Settings otherSettings = Settings.builder().put("request.headers.default", "5").build();
+            ThreadContext otherhreadContext = new ThreadContext(otherSettings);
+            otherhreadContext.readHeaders(StreamInput.wrap(out.bytes()));
+
+            assertEquals("bar", otherhreadContext.getHeader("foo"));
+            assertNull(otherhreadContext.getTransient("ctx.foo"));
+            assertEquals("1", otherhreadContext.getHeader("default"));
+        }
+    }
+    
+    public void testSerializeInDifferentContextNoDefaults() throws IOException {
+        BytesStreamOutput out = new BytesStreamOutput();
+        {
+            ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+            threadContext.putHeader("foo", "bar");
+            threadContext.putTransient("ctx.foo", new Integer(1));
+
+            assertEquals("bar", threadContext.getHeader("foo"));
+            assertNotNull(threadContext.getTransient("ctx.foo"));
+            assertNull(threadContext.getHeader("default"));
+            threadContext.writeTo(out);
+        }
+        {
+            Settings otherSettings = Settings.builder().put("request.headers.default", "5").build();
+            ThreadContext otherhreadContext = new ThreadContext(otherSettings);
+            otherhreadContext.readHeaders(StreamInput.wrap(out.bytes()));
+
+            assertEquals("bar", otherhreadContext.getHeader("foo"));
+            assertNull(otherhreadContext.getTransient("ctx.foo"));
+            assertEquals("5", otherhreadContext.getHeader("default"));
+        }
+    }
+
+
     public void testCanResetDefault() {
         Settings build = Settings.builder().put("request.headers.default", "1").build();
         ThreadContext threadContext = new ThreadContext(build);

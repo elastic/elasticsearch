@@ -265,7 +265,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         FileChannel channel = FileChannel.open(path, StandardOpenOption.READ);
         try {
             assert Translog.parseIdFromFileName(path) == checkpoint.generation : "expected generation: " + Translog.parseIdFromFileName(path) + " but got: " + checkpoint.generation;
-            TranslogReader reader = TranslogReader.open(channel, path, checkpoint, translogUUID);
+            TranslogReader reader = TranslogReader.open(channel, path, checkpoint, translogUUID, shardId());
             channel = null;
             return reader;
         } finally {
@@ -1258,9 +1258,9 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     void closeFilesIfNoPendingViews() throws IOException {
         try (ReleasableLock ignored = writeLock.acquire()) {
             if (closed.get() && outstandingViews.isEmpty()) {
-                logger.trace("closing files. translog is closed and there are no pending views");
                 ArrayList<Closeable> toClose = new ArrayList<>(readers);
                 toClose.add(current);
+                logger.trace("closing [{}] files. translog is closed and there are no pending views", toClose.size());
                 IOUtils.close(toClose);
             }
         }

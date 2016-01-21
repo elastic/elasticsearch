@@ -20,6 +20,7 @@
 package org.elasticsearch.index.translog;
 
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -87,7 +88,7 @@ public class TranslogVersionTests extends ESTestCase {
     public TranslogReader openReader(Path path, long id) throws IOException {
         FileChannel channel = FileChannel.open(path, StandardOpenOption.READ);
         try {
-            TranslogReader reader = TranslogReader.open(channel, path, new Checkpoint(Files.size(path), 1, id), null);
+            TranslogReader reader = TranslogReader.open(channel, path, new Checkpoint(Files.size(path), 1, id), null, new ShardId("test", 0));
             channel = null;
             return reader;
         } finally {

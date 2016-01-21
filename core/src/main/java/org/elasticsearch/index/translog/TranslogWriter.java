@@ -48,7 +48,6 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     public static final int VERSION_CHECKPOINTS = 2; // since 2.0 we have checkpoints?
     public static final int VERSION = VERSION_CHECKPOINTS;
 
-    private final ShardId shardId;
     /* the offset in bytes that was written when the file was last synced*/
     private volatile long lastSyncedOffset;
     /* the number of translog operations written to this file */
@@ -64,11 +63,11 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
 
 
     public TranslogWriter(ShardId shardId, long generation, FileChannel channel, Path path, ByteSizeValue bufferSize) throws IOException {
-        super(generation, channel, path, channel.position());
-        this.shardId = shardId;
+        super(generation, channel, path, channel.position(), shardId);
         this.outputStream = new BufferedChannelOutputStream(java.nio.channels.Channels.newOutputStream(channel), bufferSize.bytesAsInt());
         this.lastSyncedOffset = channel.position();
         totalOffset = lastSyncedOffset;
+        logger.trace("writer created. path [{}]", path);
     }
 
     static int getHeaderLength(String translogUUID) {
@@ -115,6 +114,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         assert throwable != null : "throwable must not be null in a tragic event";
         if (tragedy == null) {
             tragedy = throwable;
+            logger.trace("closing due to a tragic exception", throwable);
         } else if (tragedy != throwable) {
             // it should be safe to call closeWithTragicEvents on multiple layers without
             // worrying about self suppression.
@@ -192,7 +192,18 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
             throw e;
         }
         if (closed.compareAndSet(false, true)) {
-            return new TranslogReader(generation, channel, path, firstOperationOffset, getWrittenOffset(), operationCounter);
+            logger.trace("closing into a reader. path [{}]", path);
+            try {
+                return new TranslogReader(generation, channel, path, firstOperationOffset, getWrittenOffset(), operationCounter, shardId);
+            } catch (Throwable t) {
+                // close the channel, as we are closed and failed to create a new reader
+                try {
+                    channel.close();
+                } catch (Throwable tWhileClosing) {
+                    t.addSuppressed(tWhileClosing);
+                }
+                throw t;
+            }
         } else {
             throw new AlreadyClosedException("translog [" + getGeneration() + "] is already closed (path [" + path + "]", tragedy);
         }
@@ -275,6 +286,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     @Override
     public final void close() throws IOException {
         if (closed.compareAndSet(false, true)) {
+            logger.trace("closing channel on writer close. path [{}]", path);
             channel.close();
         }
     }

@@ -21,6 +21,10 @@ package org.elasticsearch.index.translog;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -36,14 +40,17 @@ public abstract class BaseTranslogReader implements Comparable<BaseTranslogReade
     protected final FileChannel channel;
     protected final Path path;
     protected final long firstOperationOffset;
+    protected final ESLogger logger;
+    protected final ShardId shardId;
 
-    public BaseTranslogReader(long generation, FileChannel channel, Path path, long firstOperationOffset) {
+    public BaseTranslogReader(long generation, FileChannel channel, Path path, long firstOperationOffset, ShardId shardId) {
         assert Translog.parseIdFromFileName(path) == generation : "generation missmatch. Path: " + Translog.parseIdFromFileName(path) + " but generation: " + generation;
-
+        this.shardId = shardId;
         this.generation = generation;
         this.path = path;
         this.channel = channel;
         this.firstOperationOffset = firstOperationOffset;
+        this.logger = Loggers.getLogger(getClass(), Settings.EMPTY, shardId, "tlog." + generation);
     }
 
     public long getGeneration() {
@@ -89,7 +96,7 @@ public abstract class BaseTranslogReader implements Comparable<BaseTranslogReade
     }
 
     public Translog.Snapshot newSnapshot() {
-        return new TranslogSnapshot(generation, channel, path, firstOperationOffset, sizeInBytes(), totalOperations());
+        return new TranslogSnapshot(generation, channel, path, firstOperationOffset, sizeInBytes(), totalOperations(), shardId);
     }
 
     /**

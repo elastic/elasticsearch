@@ -19,6 +19,7 @@
 package org.elasticsearch.index.translog;
 
 import org.elasticsearch.common.io.Channels;
+import org.elasticsearch.index.shard.ShardId;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -40,8 +41,8 @@ public class TranslogSnapshot extends BaseTranslogReader implements Translog.Sna
      * Create a snapshot of translog file channel. The length parameter should be consistent with totalOperations and point
      * at the end of the last operation in this snapshot.
      */
-    public TranslogSnapshot(long generation, FileChannel channel, Path path, long firstOperationOffset, long length, int totalOperations) {
-        super(generation, channel, path, firstOperationOffset);
+    public TranslogSnapshot(long generation, FileChannel channel, Path path, long firstOperationOffset, long length, int totalOperations, ShardId shardId) {
+        super(generation, channel, path, firstOperationOffset, shardId);
         this.length = length;
         this.totalOperations = totalOperations;
         this.reusableBuffer = ByteBuffer.allocate(1024);

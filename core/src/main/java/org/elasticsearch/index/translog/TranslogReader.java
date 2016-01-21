@@ -29,6 +29,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
+import org.elasticsearch.index.shard.ShardId;
 
 import java.io.Closeable;
 import java.io.EOFException;
@@ -54,16 +55,17 @@ public class TranslogReader extends BaseTranslogReader implements Closeable {
      * Create a reader of translog file channel. The length parameter should be consistent with totalOperations and point
      * at the end of the last operation in this snapshot.
      */
-    public TranslogReader(long generation, FileChannel channel, Path path, long firstOperationOffset, long length, int totalOperations) {
-        super(generation, channel, path, firstOperationOffset);
+    public TranslogReader(long generation, FileChannel channel, Path path, long firstOperationOffset, long length, int totalOperations, ShardId shardId) {
+        super(generation, channel, path, firstOperationOffset, shardId);
         this.length = length;
         this.totalOperations = totalOperations;
+        this.logger.trace("reader created. path [{}]", path);
     }
 
     /**
      * Given a file, opens an {@link TranslogReader}, taking of checking and validating the file header.
      */
-    public static TranslogReader open(FileChannel channel, Path path, Checkpoint checkpoint, String translogUUID) throws IOException {
+    public static TranslogReader open(FileChannel channel, Path path, Checkpoint checkpoint, String translogUUID, ShardId shardId) throws IOException {
 
         try {
             InputStreamStreamInput headerStream = new InputStreamStreamInput(java.nio.channels.Channels.newInputStream(channel)); // don't close
@@ -116,7 +118,7 @@ public class TranslogReader extends BaseTranslogReader implements Closeable {
                         if (uuidBytes.bytesEquals(ref) == false) {
                             throw new TranslogCorruptedException("expected shard UUID [" + uuidBytes + "] but got: [" + ref + "] this translog file belongs to a different translog. path:" + path);
                         }
-                        return new TranslogReader(checkpoint.generation, channel, path, ref.length + CodecUtil.headerLength(TranslogWriter.TRANSLOG_CODEC) + RamUsageEstimator.NUM_BYTES_INT, checkpoint.offset, checkpoint.numOps);
+                        return new TranslogReader(checkpoint.generation, channel, path, ref.length + CodecUtil.headerLength(TranslogWriter.TRANSLOG_CODEC) + RamUsageEstimator.NUM_BYTES_INT, checkpoint.offset, checkpoint.numOps, shardId);
                     default:
                         throw new TranslogCorruptedException("No known translog stream version: " + version + " path:" + path);
                 }
@@ -158,6 +160,7 @@ public class TranslogReader extends BaseTranslogReader implements Closeable {
     @Override
     public final void close() throws IOException {
         if (closed.compareAndSet(false, true)) {
+            logger.trace("closing channel on reader close. path [{}]", path);
             channel.close();
         }
     }

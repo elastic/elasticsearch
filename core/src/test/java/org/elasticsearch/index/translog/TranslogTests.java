@@ -1742,6 +1742,7 @@ public class TranslogTests extends ESTestCase {
     public void testWithRandomException() throws IOException {
         final int runs = randomIntBetween(5, 10);
         for (int run = 0; run < runs; run++) {
+            logger.info("--> run [{}]", run);
             Path tempDir = createTempDir();
             final FailSwitch fail = new FailSwitch();
             fail.failRandomly();
@@ -1793,6 +1794,8 @@ public class TranslogTests extends ESTestCase {
             } catch (TranslogException | MockDirectoryWrapper.FakeIOException ex) {
                 // failed - that's ok, we didn't even create it
             }
+
+            logger.info("--> finished writing in run [{}]", run);
             // now randomly open this failing tlog again just to make sure we can also recover from failing during recovery
             if (randomBoolean()) {
                 try {
@@ -1802,6 +1805,7 @@ public class TranslogTests extends ESTestCase {
                 }
             }
 
+            logger.info("--> validating translog. run [{}]", run);
             try (Translog translog = new Translog(config)) {
                 Translog.Snapshot snapshot = translog.newSnapshot();
                 assertEquals(syncedDocs.size(), snapshot.totalOperations());

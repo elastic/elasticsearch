@@ -146,6 +146,27 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             StringFieldMapper.Builder builder = stringField(name);
+            // hack for the fact that string can't just accept true/false for
+            // the index property and still accepts no/not_analyzed/analyzed
+            final Object indexO = node.remove("index");
+            if (indexO != null) {
+                final String index = Strings.toUnderscoreCase(indexO.toString());
+                switch (index) {
+                case "analyzed":
+                    builder.tokenized(true);
+                    node.put("index", true);
+                    break;
+                case "not_analyzed":
+                    builder.tokenized(false);
+                    node.put("index", true);
+                    break;
+                case "no":
+                    node.put("index", false);
+                    break;
+                default:
+                    throw new IllegalArgumentException("Can't parse [index] value [" + index + "], expected [true], [false], [no], [not_analyzed] or [analyzed]");
+                }
+            }
             parseTextField(builder, name, node, parserContext);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
@@ -366,6 +387,17 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
         super.doMerge(mergeWith, updateAllTypes);
         this.includeInAll = ((StringFieldMapper) mergeWith).includeInAll;
         this.ignoreAbove = ((StringFieldMapper) mergeWith).ignoreAbove;
+    }
+
+    @Override
+    protected String indexTokenizeOption(boolean indexed, boolean tokenized) {
+        if (!indexed) {
+            return "no";
+        } else if (tokenized) {
+            return "analyzed";
+        } else {
+            return "not_analyzed";
+        }
     }
 
     @Override

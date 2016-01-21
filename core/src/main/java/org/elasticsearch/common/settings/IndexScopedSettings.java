@@ -152,4 +152,17 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
     public IndexScopedSettings copy(Settings settings, IndexMetaData metaData) {
         return new IndexScopedSettings(settings, this, metaData);
     }
+
+    public boolean isPrivateSetting(String key) {
+        switch (key) {
+            case IndexMetaData.SETTING_CREATION_DATE:
+            case IndexMetaData.SETTING_INDEX_UUID:
+            case IndexMetaData.SETTING_VERSION_CREATED:
+            case IndexMetaData.SETTING_VERSION_UPGRADED:
+            case MergePolicyConfig.INDEX_MERGE_ENABLED:
+                return true;
+            default:
+                return false;
+        }
+    }
 }

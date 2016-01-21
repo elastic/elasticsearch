@@ -19,6 +19,7 @@
 
 package org.elasticsearch.ingest.processor;
 
+import org.elasticsearch.ingest.core.AbstractProcessor;
 import org.elasticsearch.ingest.core.AbstractProcessorFactory;
 import org.elasticsearch.ingest.core.IngestDocument;
 import org.elasticsearch.ingest.core.ConfigurationUtils;
@@ -29,16 +30,15 @@ import java.util.Map;
 /**
  * Processor that allows to rename existing fields. Will throw exception if the field is not present.
  */
-public class RenameProcessor implements Processor {
+public class RenameProcessor extends AbstractProcessor {
 
     public static final String TYPE = "rename";
 
-    private final String processorTag;
     private final String oldFieldName;
     private final String newFieldName;
 
-    RenameProcessor(String processorTag, String oldFieldName, String newFieldName) {
-        this.processorTag = processorTag;
+    RenameProcessor(String tag, String oldFieldName, String newFieldName) {
+        super(tag);
         this.oldFieldName = oldFieldName;
         this.newFieldName = newFieldName;
     }
@@ -74,11 +74,6 @@ public class RenameProcessor implements Processor {
     @Override
     public String getType() {
         return TYPE;
-    }
-
-    @Override
-    public String getTag() {
-        return processorTag;
     }
 
     public static class Factory extends AbstractProcessorFactory<RenameProcessor> {

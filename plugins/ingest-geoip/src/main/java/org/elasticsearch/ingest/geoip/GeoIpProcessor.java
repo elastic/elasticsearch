@@ -32,9 +32,9 @@ import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.ingest.core.AbstractProcessor;
 import org.elasticsearch.ingest.core.AbstractProcessorFactory;
 import org.elasticsearch.ingest.core.IngestDocument;
-import org.elasticsearch.ingest.core.Processor;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -53,18 +53,17 @@ import java.util.Set;
 import static org.elasticsearch.ingest.core.ConfigurationUtils.readOptionalList;
 import static org.elasticsearch.ingest.core.ConfigurationUtils.readStringProperty;
 
-public final class GeoIpProcessor implements Processor {
+public final class GeoIpProcessor extends AbstractProcessor {
 
     public static final String TYPE = "geoip";
 
-    private final String processorTag;
     private final String sourceField;
     private final String targetField;
     private final DatabaseReader dbReader;
     private final Set<Field> fields;
 
-    GeoIpProcessor(String processorTag, String sourceField, DatabaseReader dbReader, String targetField, Set<Field> fields) throws IOException {
-        this.processorTag = processorTag;
+    GeoIpProcessor(String tag, String sourceField, DatabaseReader dbReader, String targetField, Set<Field> fields) throws IOException {
+        super(tag);
         this.sourceField = sourceField;
         this.targetField = targetField;
         this.dbReader = dbReader;
@@ -101,11 +100,6 @@ public final class GeoIpProcessor implements Processor {
     @Override
     public String getType() {
         return TYPE;
-    }
-
-    @Override
-    public String getTag() {
-        return processorTag;
     }
 
     String getSourceField() {

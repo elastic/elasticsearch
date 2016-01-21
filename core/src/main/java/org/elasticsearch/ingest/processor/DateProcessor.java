@@ -20,10 +20,10 @@
 package org.elasticsearch.ingest.processor;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.ingest.core.AbstractProcessor;
 import org.elasticsearch.ingest.core.AbstractProcessorFactory;
 import org.elasticsearch.ingest.core.IngestDocument;
 import org.elasticsearch.ingest.core.ConfigurationUtils;
-import org.elasticsearch.ingest.core.Processor;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.ISODateTimeFormat;
@@ -36,12 +36,11 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
 
-public final class DateProcessor implements Processor {
+public final class DateProcessor extends AbstractProcessor {
 
     public static final String TYPE = "date";
     static final String DEFAULT_TARGET_FIELD = "@timestamp";
 
-    private final String processorTag;
     private final DateTimeZone timezone;
     private final Locale locale;
     private final String matchField;
@@ -49,8 +48,8 @@ public final class DateProcessor implements Processor {
     private final List<String> matchFormats;
     private final List<Function<String, DateTime>> dateParsers;
 
-    DateProcessor(String processorTag, DateTimeZone timezone, Locale locale, String matchField, List<String> matchFormats, String targetField) {
-        this.processorTag = processorTag;
+    DateProcessor(String tag, DateTimeZone timezone, Locale locale, String matchField, List<String> matchFormats, String targetField) {
+        super(tag);
         this.timezone = timezone;
         this.locale = locale;
         this.matchField = matchField;
@@ -95,11 +94,6 @@ public final class DateProcessor implements Processor {
     @Override
     public String getType() {
         return TYPE;
-    }
-
-    @Override
-    public String getTag() {
-        return processorTag;
     }
 
     DateTimeZone getTimezone() {

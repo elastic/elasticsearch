@@ -45,8 +45,8 @@ public class UppercaseProcessor extends AbstractStringProcessor {
 
     public static class Factory extends AbstractStringProcessor.Factory<UppercaseProcessor> {
         @Override
-        protected UppercaseProcessor newProcessor(String processorTag, String field) {
-            return new UppercaseProcessor(processorTag, field);
+        protected UppercaseProcessor newProcessor(String tag, String field) {
+            return new UppercaseProcessor(tag, field);
         }
     }
 }

@@ -19,12 +19,12 @@
 
 package org.elasticsearch.ingest.processor;
 
+import org.elasticsearch.ingest.core.AbstractProcessor;
 import org.elasticsearch.ingest.core.AbstractProcessorFactory;
 import org.elasticsearch.ingest.core.IngestDocument;
 import org.elasticsearch.ingest.core.TemplateService;
 import org.elasticsearch.ingest.core.ValueSource;
 import org.elasticsearch.ingest.core.ConfigurationUtils;
-import org.elasticsearch.ingest.core.Processor;
 
 import java.util.Map;
 
@@ -32,16 +32,15 @@ import java.util.Map;
  * Processor that adds new fields with their corresponding values. If the field is already present, its value
  * will be replaced with the provided one.
  */
-public class SetProcessor implements Processor {
+public class SetProcessor extends AbstractProcessor {
 
     public static final String TYPE = "set";
 
-    private final String processorTag;
     private final TemplateService.Template field;
     private final ValueSource value;
 
-    SetProcessor(String processorTag, TemplateService.Template field, ValueSource value) {
-        this.processorTag = processorTag;
+    SetProcessor(String tag, TemplateService.Template field, ValueSource value) {
+        super(tag);
         this.field = field;
         this.value = value;
     }
@@ -62,11 +61,6 @@ public class SetProcessor implements Processor {
     @Override
     public String getType() {
         return TYPE;
-    }
-
-    @Override
-    public String getTag() {
-        return processorTag;
     }
 
     public static final class Factory extends AbstractProcessorFactory<SetProcessor> {

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.ingest.processor;
 
+import org.elasticsearch.ingest.core.AbstractProcessor;
 import org.elasticsearch.ingest.core.AbstractProcessorFactory;
 import org.elasticsearch.ingest.core.IngestDocument;
 import org.elasticsearch.ingest.core.ConfigurationUtils;
@@ -32,17 +33,16 @@ import java.util.regex.Pattern;
  * Processor that allows to search for patterns in field content and replace them with corresponding string replacement.
  * Support fields of string type only, throws exception if a field is of a different type.
  */
-public class GsubProcessor implements Processor {
+public class GsubProcessor extends AbstractProcessor {
 
     public static final String TYPE = "gsub";
 
-    private final String processorTag;
     private final String field;
     private final Pattern pattern;
     private final String replacement;
 
-    GsubProcessor(String processorTag, String field, Pattern pattern, String replacement) {
-        this.processorTag = processorTag;
+    GsubProcessor(String tag, String field, Pattern pattern, String replacement) {
+        super(tag);
         this.field = field;
         this.pattern = pattern;
         this.replacement = replacement;
@@ -75,11 +75,6 @@ public class GsubProcessor implements Processor {
     @Override
     public String getType() {
         return TYPE;
-    }
-
-    @Override
-    public String getTag() {
-        return processorTag;
     }
 
     public static class Factory extends AbstractProcessorFactory<GsubProcessor> {

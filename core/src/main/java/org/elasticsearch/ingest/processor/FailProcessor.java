@@ -19,6 +19,7 @@
 
 package org.elasticsearch.ingest.processor;
 
+import org.elasticsearch.ingest.core.AbstractProcessor;
 import org.elasticsearch.ingest.core.AbstractProcessorFactory;
 import org.elasticsearch.ingest.core.ConfigurationUtils;
 import org.elasticsearch.ingest.core.IngestDocument;
@@ -31,15 +32,14 @@ import java.util.Map;
  * Processor that raises a runtime exception with a provided
  * error message.
  */
-public class FailProcessor implements Processor {
+public class FailProcessor extends AbstractProcessor {
 
     public static final String TYPE = "fail";
 
-    private final String processorTag;
     private final TemplateService.Template message;
 
-    FailProcessor(String processorTag, TemplateService.Template message) {
-        this.processorTag = processorTag;
+    FailProcessor(String tag, TemplateService.Template message) {
+        super(tag);
         this.message = message;
     }
 
@@ -55,11 +55,6 @@ public class FailProcessor implements Processor {
     @Override
     public String getType() {
         return TYPE;
-    }
-
-    @Override
-    public String getTag() {
-        return processorTag;
     }
 
     public static class Factory extends AbstractProcessorFactory<FailProcessor> {

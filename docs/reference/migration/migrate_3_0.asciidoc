@@ -257,6 +257,11 @@ amount of heap as long as the total indexing buffer heap used across all shards 
 [[breaking_30_mapping_changes]]
 === Mapping changes
 
+==== Default doc values settings
+
+Doc values are now also on by default on numeric and boolean fields that are
+not indexed.
+
 ==== Transform removed
 
 The `transform` feature from mappings has been removed. It made issues very hard to debug.

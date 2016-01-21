@@ -281,17 +281,19 @@ public class SimpleNumericTests extends ESSingleNodeTestCase {
     public void testDocValues() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties")
-                .startObject("int")
+                .startObject("int1")
                     .field("type", "integer")
-                    .startObject("fielddata")
-                        .field("format", "doc_values")
-                    .endObject()
                 .endObject()
-                .startObject("double")
+                .startObject("int2")
+                    .field("type", "integer")
+                    .field("index", false)
+                .endObject()
+                .startObject("double1")
                     .field("type", "double")
-                    .startObject("fielddata")
-                        .field("format", "doc_values")
-                    .endObject()
+                .endObject()
+                .startObject("double2")
+                    .field("type", "integer")
+                    .field("index", false)
                 .endObject()
                 .endObject()
                 .endObject().endObject().string();
@@ -300,13 +302,56 @@ public class SimpleNumericTests extends ESSingleNodeTestCase {
 
         ParsedDocument parsedDoc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
-                .field("int", "1234")
-                .field("double", "1234")
+                .field("int1", "1234")
+                .field("double1", "1234")
+                .field("int2", "1234")
+                .field("double2", "1234")
                 .endObject()
                 .bytes());
-        final Document doc = parsedDoc.rootDoc();
-        assertEquals(DocValuesType.SORTED_NUMERIC, SimpleStringMappingTests.docValuesType(doc, "int"));
-        assertEquals(DocValuesType.SORTED_NUMERIC, SimpleStringMappingTests.docValuesType(doc, "double"));
+        Document doc = parsedDoc.rootDoc();
+        assertEquals(DocValuesType.SORTED_NUMERIC, SimpleStringMappingTests.docValuesType(doc, "int1"));
+        assertEquals(DocValuesType.SORTED_NUMERIC, SimpleStringMappingTests.docValuesType(doc, "double1"));
+        assertEquals(DocValuesType.SORTED_NUMERIC, SimpleStringMappingTests.docValuesType(doc, "int2"));
+        assertEquals(DocValuesType.SORTED_NUMERIC, SimpleStringMappingTests.docValuesType(doc, "double2"));
+
+    }
+
+    public void testBwCompatDocValues() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties")
+                .startObject("int1")
+                    .field("type", "integer")
+                .endObject()
+                .startObject("int2")
+                    .field("type", "integer")
+                    .field("index", "no")
+                .endObject()
+                .startObject("double1")
+                    .field("type", "double")
+                .endObject()
+                .startObject("double2")
+                    .field("type", "integer")
+                    .field("index", "no")
+                .endObject()
+                .endObject()
+                .endObject().endObject().string();
+
+        Settings oldIndexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_2_2_0).build();
+        DocumentMapper defaultMapper = createIndex("test", oldIndexSettings).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
+
+        ParsedDocument parsedDoc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
+                .startObject()
+                .field("int1", "1234")
+                .field("double1", "1234")
+                .field("int2", "1234")
+                .field("double2", "1234")
+                .endObject()
+                .bytes());
+        Document doc = parsedDoc.rootDoc();
+        assertEquals(DocValuesType.SORTED_NUMERIC, SimpleStringMappingTests.docValuesType(doc, "int1"));
+        assertEquals(DocValuesType.SORTED_NUMERIC, SimpleStringMappingTests.docValuesType(doc, "double1"));
+        assertEquals(DocValuesType.NONE, SimpleStringMappingTests.docValuesType(doc, "int2"));
+        assertEquals(DocValuesType.NONE, SimpleStringMappingTests.docValuesType(doc, "double2"));
     }
 
     public void testDocValuesOnNested() throws Exception {

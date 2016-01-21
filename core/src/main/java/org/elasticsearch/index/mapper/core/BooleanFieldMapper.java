@@ -225,7 +225,9 @@ public class BooleanFieldMapper extends FieldMapper {
         if (value == null) {
             return;
         }
-        fields.add(new Field(fieldType().name(), value ? "T" : "F", fieldType()));
+        if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
+            fields.add(new Field(fieldType().name(), value ? "T" : "F", fieldType()));
+        }
         if (fieldType().hasDocValues()) {
             fields.add(new SortedNumericDocValuesField(fieldType().name(), value ? 1 : 0));
         }

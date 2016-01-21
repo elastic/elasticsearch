@@ -45,11 +45,14 @@ import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper.Builder;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.VersionUtils;
 import org.junit.Before;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
@@ -62,6 +65,11 @@ import static org.hamcrest.Matchers.nullValue;
  */
 public class SimpleStringMappingTests extends ESSingleNodeTestCase {
     private static Settings DOC_VALUES_SETTINGS = Settings.builder().put(FieldDataType.FORMAT_KEY, FieldDataType.DOC_VALUES_FORMAT_VALUE).build();
+
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return pluginList(InternalSettingsPlugin.class);
+    }
 
     IndexService indexService;
     DocumentMapperParser parser;
@@ -404,6 +412,70 @@ public class SimpleStringMappingTests extends ESSingleNodeTestCase {
     }
 
     public void testDocValues() throws Exception {
+        // doc values only work on non-analyzed content
+        final BuilderContext ctx = new BuilderContext(indexService.getIndexSettings().getSettings(), new ContentPath(1));
+        try {
+            new StringFieldMapper.Builder("anything").docValues(true).build(ctx);
+            fail();
+        } catch (Exception e) { /* OK */ }
+
+        assertFalse(new Builder("anything").index(false).build(ctx).fieldType().hasDocValues());
+        assertTrue(new Builder("anything").index(true).tokenized(false).build(ctx).fieldType().hasDocValues());
+        assertFalse(new Builder("anything").index(true).tokenized(true).build(ctx).fieldType().hasDocValues());
+        assertFalse(new Builder("anything").index(false).tokenized(false).docValues(false).build(ctx).fieldType().hasDocValues());
+        assertTrue(new Builder("anything").index(false).docValues(true).build(ctx).fieldType().hasDocValues());
+
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties")
+                .startObject("str1")
+                    .field("type", "string")
+                    .field("index", "no")
+                .endObject()
+                .startObject("str2")
+                    .field("type", "string")
+                    .field("index", "not_analyzed")
+                .endObject()
+                .startObject("str3")
+                    .field("type", "string")
+                    .field("index", "analyzed")
+                .endObject()
+                .startObject("str4")
+                    .field("type", "string")
+                    .field("index", "not_analyzed")
+                    .field("doc_values", false)
+                .endObject()
+                .startObject("str5")
+                    .field("type", "string")
+                    .field("index", "no")
+                    .field("doc_values", false)
+                .endObject()
+                .endObject()
+                .endObject().endObject().string();
+
+        DocumentMapper defaultMapper = parser.parse("type", new CompressedXContent(mapping));
+
+        ParsedDocument parsedDoc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
+                .startObject()
+                .field("str1", "1234")
+                .field("str2", "1234")
+                .field("str3", "1234")
+                .field("str4", "1234")
+                .field("str5", "1234")
+                .endObject()
+                .bytes());
+        final Document doc = parsedDoc.rootDoc();
+        assertEquals(DocValuesType.NONE, docValuesType(doc, "str1"));
+        assertEquals(DocValuesType.SORTED_SET, docValuesType(doc, "str2"));
+        assertEquals(DocValuesType.NONE, docValuesType(doc, "str3"));
+        assertEquals(DocValuesType.NONE, docValuesType(doc, "str4"));
+        assertEquals(DocValuesType.NONE, docValuesType(doc, "str5"));
+
+    }
+
+    public void testBwCompatDocValues() throws Exception {
+        Settings oldIndexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_2_2_0).build();
+        indexService = createIndex("test_old", oldIndexSettings);
+        parser = indexService.mapperService().documentMapperParser();
         // doc values only work on non-analyzed content
         final BuilderContext ctx = new BuilderContext(indexService.getIndexSettings().getSettings(), new ContentPath(1));
         try {

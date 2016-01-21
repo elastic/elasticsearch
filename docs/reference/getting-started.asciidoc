@@ -132,7 +132,7 @@ It will then create a bunch of files and folders in your current directory. We t
 cd elasticsearch-{version}/bin
 --------------------------------------------------
 
-And now we are ready to start our node and single cluster (Windows users should run the elasticsearch.bat file):
+And now we are ready to start our node and single cluster (Windows users should run the elasticsearch.bat file, in some versions you need run it with "Run as administrator" option):
 
 [source,sh]
 --------------------------------------------------

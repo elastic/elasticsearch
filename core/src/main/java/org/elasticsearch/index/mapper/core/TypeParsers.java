@@ -172,7 +172,7 @@ public class TypeParsers {
                 builder.store(parseStore(name, propNode.toString(), parserContext));
                 iterator.remove();
             } else if (propName.equals("index")) {
-                parseIndex(name, propNode.toString(), builder);
+                builder.index(parseIndex(name, propNode.toString(), parserContext));
                 iterator.remove();
             } else if (propName.equals(DOC_VALUES)) {
                 builder.docValues(nodeBooleanValue(propNode, parserContext));
@@ -328,18 +328,29 @@ public class TypeParsers {
         }
     }
 
-    public static void parseIndex(String fieldName, String index, FieldMapper.Builder builder) throws MapperParsingException {
-        index = Strings.toUnderscoreCase(index);
-        if ("no".equals(index)) {
-            builder.index(false);
-        } else if ("not_analyzed".equals(index)) {
-            builder.index(true);
-            builder.tokenized(false);
-        } else if ("analyzed".equals(index)) {
-            builder.index(true);
-            builder.tokenized(true);
+    public static boolean parseIndex(String fieldName, String index, Mapper.TypeParser.ParserContext parserContext) throws MapperParsingException {
+        if (parserContext.indexVersionCreated().onOrAfter(Version.V_3_0_0)) {
+            switch (index) {
+            case "true":
+                return true;
+            case "false":
+                return false;
+            default:
+                throw new IllegalArgumentException("Can't parse [index] value [" + index + "], expected [true] or [false]");
+            }
         } else {
-            throw new MapperParsingException("wrong value for index [" + index + "] for field [" + fieldName + "]");
+            final String normalizedIndex = Strings.toUnderscoreCase(index);
+            switch (normalizedIndex) {
+            case "true":
+            case "not_analyzed":
+            case "analyzed":
+                return true;
+            case "false":
+            case "no":
+                return false;
+            default:
+                throw new IllegalArgumentException("Can't parse [index] value [" + index + "], expected [true], [false], [no], [not_analyzed] or [analyzed]");
+            }
         }
     }
 

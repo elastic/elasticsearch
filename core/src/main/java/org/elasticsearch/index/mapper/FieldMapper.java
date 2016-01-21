@@ -398,7 +398,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         boolean defaultIndexed = defaultFieldType.indexOptions() != IndexOptions.NONE;
         if (includeDefaults || indexed != defaultIndexed ||
             fieldType().tokenized() != defaultFieldType.tokenized()) {
-            builder.field("index", indexTokenizeOptionToString(indexed, fieldType().tokenized()));
+            builder.field("index", indexTokenizeOption(indexed, fieldType().tokenized()));
         }
         if (includeDefaults || fieldType().stored() != defaultFieldType.stored()) {
             builder.field("store", fieldType().stored());
@@ -495,14 +495,9 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         }
     }
 
-    protected static String indexTokenizeOptionToString(boolean indexed, boolean tokenized) {
-        if (!indexed) {
-            return "no";
-        } else if (tokenized) {
-            return "analyzed";
-        } else {
-            return "not_analyzed";
-        }
+    /* Only protected so that string can override it */
+    protected Object indexTokenizeOption(boolean indexed, boolean tokenized) {
+        return indexed;
     }
 
     protected boolean hasCustomFieldDataSettings() {

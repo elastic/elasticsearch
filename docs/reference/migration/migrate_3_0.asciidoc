@@ -273,6 +273,12 @@ float by default instead of a double. The reasoning is that floats should be
 more than enough for most cases but would decrease storage requirements
 significantly.
 
+==== `index` property
+
+On all types but `string`, the `index` property now only accepts `true`/`false`
+instead of `not_analyzed`/`no`. The `string` field still accepts
+`analyzed`/`not_analyzed`/`no`.
+
 ==== `_source`'s `format` option
 
 The `_source` mapping does not support the `format` option anymore. This option

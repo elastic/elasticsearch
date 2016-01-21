@@ -65,6 +65,7 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.routing.ShardRouting.readShardRoutingEntry;
 
@@ -227,34 +228,38 @@ public class ShardStateAction extends AbstractComponent {
         @Override
         public BatchResult<ShardRoutingEntry> execute(ClusterState currentState, List<ShardRoutingEntry> tasks) throws Exception {
             BatchResult.Builder<ShardRoutingEntry> batchResultBuilder = BatchResult.builder();
-            Set<ShardRoutingEntry> nonTrivialTasks = Collections.newSetFromMap(new IdentityHashMap<>());
-            List<FailedRerouteAllocation.FailedShard> failedShards = new ArrayList<>(tasks.size());
+            Set<ShardRoutingEntry> tasksRequiringAllocationService = Collections.newSetFromMap(new IdentityHashMap<>());
+
             for (ShardRoutingEntry task : tasks) {
                 RoutingNodes.RoutingNodeIterator routingNodeIterator =
                     currentState.getRoutingNodes().routingNodeIter(task.getShardRouting().currentNodeId());
                 if (routingNodeIterator != null) {
                     for (ShardRouting maybe : routingNodeIterator) {
                         if (task.getShardRouting().isSameAllocation(maybe)) {
-                            nonTrivialTasks.add(task);
-                            failedShards.add(new FailedRerouteAllocation.FailedShard(task.shardRouting, task.message, task.failure));
+                            tasksRequiringAllocationService.add(task);
                             break;
                         }
                     }
                 }
-                if (!nonTrivialTasks.contains(task)) {
+                if (!tasksRequiringAllocationService.contains(task)) {
                     // the requested shard does not exist
                     batchResultBuilder.success(task);
                 }
             }
             ClusterState maybeUpdatedState = currentState;
             try {
+                List<FailedRerouteAllocation.FailedShard> failedShards =
+                    tasksRequiringAllocationService
+                        .stream()
+                        .map(task -> new FailedRerouteAllocation.FailedShard(task.shardRouting, task.message, task.failure))
+                        .collect(Collectors.toList());
                 RoutingAllocation.Result result = allocationService.applyFailedShards(currentState, failedShards);
                 if (result.changed()) {
                     maybeUpdatedState = ClusterState.builder(currentState).routingResult(result).build();
                 }
-                batchResultBuilder.successes(nonTrivialTasks);
+                batchResultBuilder.successes(tasksRequiringAllocationService);
             } catch (Throwable t) {
-                batchResultBuilder.failures(nonTrivialTasks, t);
+                batchResultBuilder.failures(tasksRequiringAllocationService, t);
             }
             return batchResultBuilder.build(maybeUpdatedState);
         }

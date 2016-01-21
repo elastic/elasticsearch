@@ -21,6 +21,7 @@ package org.elasticsearch.search.suggest.completion;
 import org.apache.lucene.search.suggest.document.FuzzyCompletionQuery;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -45,19 +46,30 @@ import java.util.Set;
  * indexing.
  */
 public class CompletionSuggestionBuilder extends SuggestBuilder.SuggestionBuilder<CompletionSuggestionBuilder> {
+
+    final static String SUGGESTION_NAME = "completion";
+    static final ParseField PAYLOAD_FIELD = new ParseField("payload");
+    static final ParseField CONTEXTS_FIELD = new ParseField("contexts", "context");
     private FuzzyOptionsBuilder fuzzyOptionsBuilder;
     private RegexOptionsBuilder regexOptionsBuilder;
     private final Map<String, List<ToXContent>> queryContexts = new HashMap<>();
     private final Set<String> payloadFields = new HashSet<>();
 
     public CompletionSuggestionBuilder(String name) {
-        super(name, "completion");
+        super(name, SUGGESTION_NAME);
     }
 
     /**
      * Options for fuzzy queries
      */
     public static class FuzzyOptionsBuilder implements ToXContent {
+        static final ParseField FUZZY_OPTIONS = new ParseField("fuzzy");
+        static final ParseField TRANSPOSITION_FIELD = new ParseField("transpositions");
+        static final ParseField MIN_LENGTH_FIELD = new ParseField("min_length");
+        static final ParseField PREFIX_LENGTH_FIELD = new ParseField("prefix_length");
+        static final ParseField UNICODE_AWARE_FIELD = new ParseField("unicode_aware");
+        static final ParseField MAX_DETERMINIZED_STATES_FIELD = new ParseField("max_determinized_states");
+
         private int editDistance = FuzzyCompletionQuery.DEFAULT_MAX_EDITS;
         private boolean transpositions = FuzzyCompletionQuery.DEFAULT_TRANSPOSITIONS;
         private int fuzzyMinLength = FuzzyCompletionQuery.DEFAULT_MIN_FUZZY_LENGTH;
@@ -179,13 +191,13 @@ public class CompletionSuggestionBuilder extends SuggestBuilder.SuggestionBuilde
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject("fuzzy");
+            builder.startObject(FUZZY_OPTIONS.getPreferredName());
             builder.field(Fuzziness.FIELD.getPreferredName(), editDistance);
-            builder.field("transpositions", transpositions);
-            builder.field("min_length", fuzzyMinLength);
-            builder.field("prefix_length", fuzzyPrefixLength);
-            builder.field("unicode_aware", unicodeAware);
-            builder.field("max_determinized_states", maxDeterminizedStates);
+            builder.field(TRANSPOSITION_FIELD.getPreferredName(), transpositions);
+            builder.field(MIN_LENGTH_FIELD.getPreferredName(), fuzzyMinLength);
+            builder.field(PREFIX_LENGTH_FIELD.getPreferredName(), fuzzyPrefixLength);
+            builder.field(UNICODE_AWARE_FIELD.getPreferredName(), unicodeAware);
+            builder.field(MAX_DETERMINIZED_STATES_FIELD.getPreferredName(), maxDeterminizedStates);
             builder.endObject();
             return builder;
         }
@@ -195,6 +207,9 @@ public class CompletionSuggestionBuilder extends SuggestBuilder.SuggestionBuilde
      * Options for regular expression queries
      */
     public static class RegexOptionsBuilder implements ToXContent {
+        static final ParseField REGEX_OPTIONS = new ParseField("regex");
+        static final ParseField FLAGS_VALUE = new ParseField("flags", "flags_value");
+        static final ParseField MAX_DETERMINIZED_STATES = new ParseField("max_determinized_states");
         private int flagsValue = RegExp.ALL;
         private int maxDeterminizedStates = Operations.DEFAULT_MAX_DETERMINIZED_STATES;
 
@@ -228,9 +243,9 @@ public class CompletionSuggestionBuilder extends SuggestBuilder.SuggestionBuilde
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject("regex");
-            builder.field("flags_value", flagsValue);
-            builder.field("max_determinized_states", maxDeterminizedStates);
+            builder.startObject(REGEX_OPTIONS.getPreferredName());
+            builder.field(FLAGS_VALUE.getPreferredName(), flagsValue);
+            builder.field(MAX_DETERMINIZED_STATES.getPreferredName(), maxDeterminizedStates);
             builder.endObject();
             return builder;
         }
@@ -322,7 +337,7 @@ public class CompletionSuggestionBuilder extends SuggestBuilder.SuggestionBuilde
     @Override
     protected XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
         if (payloadFields != null) {
-            builder.startArray("payload");
+            builder.startArray(PAYLOAD_FIELD.getPreferredName());
             for (String field : payloadFields) {
                 builder.value(field);
             }
@@ -335,7 +350,7 @@ public class CompletionSuggestionBuilder extends SuggestBuilder.SuggestionBuilde
             regexOptionsBuilder.toXContent(builder, params);
         }
         if (queryContexts.isEmpty() == false) {
-            builder.startObject("contexts");
+            builder.startObject(CONTEXTS_FIELD.getPreferredName());
             for (Map.Entry<String, List<ToXContent>> entry : this.queryContexts.entrySet()) {
                 builder.startArray(entry.getKey());
                 for (ToXContent queryContext : entry.getValue()) {

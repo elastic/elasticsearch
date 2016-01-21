@@ -10,8 +10,9 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.shield.User;
-import org.elasticsearch.shield.authz.Permission;
-import org.elasticsearch.shield.authz.Privilege;
+import org.elasticsearch.shield.authz.permission.Role;
+import org.elasticsearch.shield.authz.privilege.ClusterPrivilege;
+import org.elasticsearch.shield.authz.privilege.IndexPrivilege;
 
 /**
  *
@@ -20,13 +21,13 @@ public class IndexAuditUserHolder {
 
     private static final String NAME = "__indexing_audit_user";
     private static final String[] ROLE_NAMES = new String[] { "__indexing_audit_role" };
-    public static final Permission.Global.Role ROLE = Permission.Global.Role.builder(ROLE_NAMES[0])
-        .cluster(Privilege.Cluster.action(PutIndexTemplateAction.NAME))
-        .add(Privilege.Index.CREATE_INDEX, IndexAuditTrail.INDEX_NAME_PREFIX + "*")
-        .add(Privilege.Index.INDEX, IndexAuditTrail.INDEX_NAME_PREFIX + "*")
-        .add(Privilege.Index.action(IndicesExistsAction.NAME), IndexAuditTrail.INDEX_NAME_PREFIX + "*")
-        .add(Privilege.Index.action(BulkAction.NAME), IndexAuditTrail.INDEX_NAME_PREFIX + "*")
-        .add(Privilege.Index.action(PutMappingAction.NAME), IndexAuditTrail.INDEX_NAME_PREFIX + "*")
+    public static final Role ROLE = Role.builder(ROLE_NAMES[0])
+        .cluster(ClusterPrivilege.action(PutIndexTemplateAction.NAME))
+        .add(IndexPrivilege.CREATE_INDEX, IndexAuditTrail.INDEX_NAME_PREFIX + "*")
+        .add(IndexPrivilege.INDEX, IndexAuditTrail.INDEX_NAME_PREFIX + "*")
+        .add(IndexPrivilege.action(IndicesExistsAction.NAME), IndexAuditTrail.INDEX_NAME_PREFIX + "*")
+        .add(IndexPrivilege.action(BulkAction.NAME), IndexAuditTrail.INDEX_NAME_PREFIX + "*")
+        .add(IndexPrivilege.action(PutMappingAction.NAME), IndexAuditTrail.INDEX_NAME_PREFIX + "*")
         .build();
 
     private final User user;

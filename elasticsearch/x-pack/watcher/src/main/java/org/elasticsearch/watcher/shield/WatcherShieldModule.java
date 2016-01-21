@@ -9,7 +9,7 @@ import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.shield.authz.Privilege;
+import org.elasticsearch.shield.authz.privilege.ClusterPrivilege;
 
 /**
  *
@@ -31,7 +31,7 @@ public class WatcherShieldModule extends AbstractModule {
 
     void registerClusterPrivilege(String name, String... patterns) {
         try {
-            Privilege.Cluster.addCustom(name, patterns);
+            ClusterPrivilege.addCustom(name, patterns);
         } catch (Exception se) {
             logger.warn("could not register cluster privilege [{}]", name);
 

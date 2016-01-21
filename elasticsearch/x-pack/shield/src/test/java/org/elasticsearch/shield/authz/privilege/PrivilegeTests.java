@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.shield.authz;
+package org.elasticsearch.shield.authz.privilege;
 
 import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.MultiGetAction;
@@ -47,7 +47,7 @@ public class PrivilegeTests extends ESTestCase {
     }
 
     public void testSubActionPattern() throws Exception {
-        AutomatonPredicate predicate = new AutomatonPredicate(Automatons.patterns("foo" + Privilege.SUB_ACTION_SUFFIX_PATTERN));
+        AutomatonPredicate predicate = new AutomatonPredicate(Automatons.patterns("foo*"));
         assertThat(predicate.test("foo[n][nodes]"), is(true));
         assertThat(predicate.test("foo[n]"), is(true));
         assertThat(predicate.test("bar[n][nodes]"), is(false));
@@ -56,36 +56,36 @@ public class PrivilegeTests extends ESTestCase {
 
     public void testCluster() throws Exception {
         Privilege.Name name = new Privilege.Name("monitor");
-        Privilege.Cluster cluster = Privilege.Cluster.get(name);
-        assertThat(cluster, is(Privilege.Cluster.MONITOR));
+        ClusterPrivilege cluster = ClusterPrivilege.get(name);
+        assertThat(cluster, is(ClusterPrivilege.MONITOR));
 
         // since "all" implies "monitor", this should collapse to All
         name = new Privilege.Name("monitor", "all");
-        cluster = Privilege.Cluster.get(name);
-        assertThat(cluster, is(Privilege.Cluster.ALL));
+        cluster = ClusterPrivilege.get(name);
+        assertThat(cluster, is(ClusterPrivilege.ALL));
 
         name = new Privilege.Name("monitor", "none");
-        cluster = Privilege.Cluster.get(name);
-        assertThat(cluster, is(Privilege.Cluster.MONITOR));
+        cluster = ClusterPrivilege.get(name);
+        assertThat(cluster, is(ClusterPrivilege.MONITOR));
 
         Privilege.Name name2 = new Privilege.Name("none", "monitor");
-        Privilege.Cluster cluster2 = Privilege.Cluster.get(name2);
+        ClusterPrivilege cluster2 = ClusterPrivilege.get(name2);
         assertThat(cluster, is(cluster2));
     }
 
     public void testClusterTemplateActions() throws Exception {
         Privilege.Name name = new Privilege.Name("indices:admin/template/delete");
-        Privilege.Cluster cluster = Privilege.Cluster.get(name);
+        ClusterPrivilege cluster = ClusterPrivilege.get(name);
         assertThat(cluster, notNullValue());
         assertThat(cluster.predicate().test("indices:admin/template/delete"), is(true));
 
         name = new Privilege.Name("indices:admin/template/get");
-        cluster = Privilege.Cluster.get(name);
+        cluster = ClusterPrivilege.get(name);
         assertThat(cluster, notNullValue());
         assertThat(cluster.predicate().test("indices:admin/template/get"), is(true));
 
         name = new Privilege.Name("indices:admin/template/put");
-        cluster = Privilege.Cluster.get(name);
+        cluster = ClusterPrivilege.get(name);
         assertThat(cluster, notNullValue());
         assertThat(cluster.predicate().test("indices:admin/template/put"), is(true));
     }
@@ -93,28 +93,28 @@ public class PrivilegeTests extends ESTestCase {
     public void testClusterInvalidName() throws Exception {
         thrown.expect(IllegalArgumentException.class);
         Privilege.Name actionName = new Privilege.Name("foobar");
-        Privilege.Cluster.get(actionName);
+        ClusterPrivilege.get(actionName);
     }
 
     public void testClusterAction() throws Exception {
         Privilege.Name actionName = new Privilege.Name("cluster:admin/snapshot/delete");
-        Privilege.Cluster cluster = Privilege.Cluster.get(actionName);
+        ClusterPrivilege cluster = ClusterPrivilege.get(actionName);
         assertThat(cluster, notNullValue());
         assertThat(cluster.predicate().test("cluster:admin/snapshot/delete"), is(true));
         assertThat(cluster.predicate().test("cluster:admin/snapshot/dele"), is(false));
     }
 
     public void testClusterAddCustom() throws Exception {
-        Privilege.Cluster.addCustom("foo", "cluster:bar");
+        ClusterPrivilege.addCustom("foo", "cluster:bar");
         boolean found = false;
-        for (Privilege.Cluster cluster : Privilege.Cluster.values()) {
+        for (ClusterPrivilege cluster : ClusterPrivilege.values()) {
             if ("foo".equals(cluster.name.toString())) {
                 found = true;
                 assertThat(cluster.predicate().test("cluster:bar"), is(true));
             }
         }
         assertThat(found, is(true));
-        Privilege.Cluster cluster = Privilege.Cluster.get(new Privilege.Name("foo"));
+        ClusterPrivilege cluster = ClusterPrivilege.get(new Privilege.Name("foo"));
         assertThat(cluster, notNullValue());
         assertThat(cluster.name().toString(), is("foo"));
         assertThat(cluster.predicate().test("cluster:bar"), is(true));
@@ -122,7 +122,7 @@ public class PrivilegeTests extends ESTestCase {
 
     public void testClusterAddCustomInvalidPattern() throws Exception {
         try {
-            Privilege.Cluster.addCustom("foo", "bar");
+            ClusterPrivilege.addCustom("foo", "bar");
             fail("Expected IllegalArgumentException");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("cannot register custom cluster privilege [foo]"));
@@ -132,7 +132,7 @@ public class PrivilegeTests extends ESTestCase {
 
     public void testClusterAddCustomAlreadyExists() throws Exception {
         try {
-            Privilege.Cluster.addCustom("all", "bar");
+            ClusterPrivilege.addCustom("all", "bar");
             fail("Expected IllegalArgumentException");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("cannot register custom cluster privilege [all]"));
@@ -142,19 +142,19 @@ public class PrivilegeTests extends ESTestCase {
 
     public void testIndexAction() throws Exception {
         Privilege.Name actionName = new Privilege.Name("indices:admin/mapping/delete");
-        Privilege.Index index = Privilege.Index.get(actionName);
+        IndexPrivilege index = IndexPrivilege.get(actionName);
         assertThat(index, notNullValue());
         assertThat(index.predicate().test("indices:admin/mapping/delete"), is(true));
         assertThat(index.predicate().test("indices:admin/mapping/dele"), is(false));
     }
 
     public void testIndexCollapse() throws Exception {
-        Privilege.Index[] values = Privilege.Index.values().toArray(new Privilege.Index[Privilege.Index.values().size()]);
-        Privilege.Index first = values[randomIntBetween(0, values.length-1)];
-        Privilege.Index second = values[randomIntBetween(0, values.length-1)];
+        IndexPrivilege[] values = IndexPrivilege.values().toArray(new IndexPrivilege[IndexPrivilege.values().size()]);
+        IndexPrivilege first = values[randomIntBetween(0, values.length-1)];
+        IndexPrivilege second = values[randomIntBetween(0, values.length-1)];
 
         Privilege.Name name = new Privilege.Name(first.name().toString(), second.name().toString());
-        Privilege.Index index = Privilege.Index.get(name);
+        IndexPrivilege index = IndexPrivilege.get(name);
 
         if (first.implies(second)) {
             assertThat(index, is(first));
@@ -166,12 +166,12 @@ public class PrivilegeTests extends ESTestCase {
     }
 
     public void testIndexImplies() throws Exception {
-        Privilege.Index[] values = Privilege.Index.values().toArray(new Privilege.Index[Privilege.Index.values().size()]);
-        Privilege.Index first = values[randomIntBetween(0, values.length-1)];
-        Privilege.Index second = values[randomIntBetween(0, values.length-1)];
+        IndexPrivilege[] values = IndexPrivilege.values().toArray(new IndexPrivilege[IndexPrivilege.values().size()]);
+        IndexPrivilege first = values[randomIntBetween(0, values.length-1)];
+        IndexPrivilege second = values[randomIntBetween(0, values.length-1)];
 
         Privilege.Name name = new Privilege.Name(first.name().toString(), second.name().toString());
-        Privilege.Index index = Privilege.Index.get(name);
+        IndexPrivilege index = IndexPrivilege.get(name);
 
         assertThat(index.implies(first), is(true));
         assertThat(index.implies(second), is(true));
@@ -182,13 +182,13 @@ public class PrivilegeTests extends ESTestCase {
 
         if (second.implies(first)) {
             if (index != second) {
-                Privilege.Index idx = Privilege.Index.get(name);
+                IndexPrivilege idx = IndexPrivilege.get(name);
                 idx.name().toString();
             }
             assertThat(index, is(second));
         }
 
-        for (Privilege.Index other : Privilege.Index.values()) {
+        for (IndexPrivilege other : IndexPrivilege.values()) {
             if (first.implies(other) || second.implies(other) || index.isAlias(other)) {
                 assertThat("index privilege [" + index + "] should imply [" + other + "]", index.implies(other), is(true));
             } else if (other.implies(first) && other.implies(second)) {
@@ -198,16 +198,16 @@ public class PrivilegeTests extends ESTestCase {
     }
 
     public void testIndexAddCustom() throws Exception {
-        Privilege.Index.addCustom("foo", "indices:bar");
+        IndexPrivilege.addCustom("foo", "indices:bar");
         boolean found = false;
-        for (Privilege.Index index : Privilege.Index.values()) {
+        for (IndexPrivilege index : IndexPrivilege.values()) {
             if ("foo".equals(index.name.toString())) {
                 found = true;
                 assertThat(index.predicate().test("indices:bar"), is(true));
             }
         }
         assertThat(found, is(true));
-        Privilege.Index index = Privilege.Index.get(new Privilege.Name("foo"));
+        IndexPrivilege index = IndexPrivilege.get(new Privilege.Name("foo"));
         assertThat(index, notNullValue());
         assertThat(index.name().toString(), is("foo"));
         assertThat(index.predicate().test("indices:bar"), is(true));
@@ -215,7 +215,7 @@ public class PrivilegeTests extends ESTestCase {
 
     public void testIndexAddCustomInvalidPattern() throws Exception {
         try {
-            Privilege.Index.addCustom("foo", "bar");
+            IndexPrivilege.addCustom("foo", "bar");
             fail("Expected IllegalArgumentException");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("cannot register custom index privilege [foo]"));
@@ -225,7 +225,7 @@ public class PrivilegeTests extends ESTestCase {
 
     public void testIndexAddCustomAlreadyExists() throws Exception {
         try {
-            Privilege.Index.addCustom("all", "bar");
+            IndexPrivilege.addCustom("all", "bar");
             fail("Expected IllegalArgumentException");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("cannot register custom index privilege [all]"));
@@ -234,7 +234,7 @@ public class PrivilegeTests extends ESTestCase {
     }
 
     public void testSystem() throws Exception {
-        Predicate<String> predicate = Privilege.SYSTEM.predicate();
+        Predicate<String> predicate = SystemPrivilege.INSTANCE.predicate();
         assertThat(predicate.test("indices:monitor/whatever"), is(true));
         assertThat(predicate.test("cluster:monitor/whatever"), is(true));
         assertThat(predicate.test("cluster:admin/snapshot/status[nodes]"), is(false));
@@ -250,7 +250,7 @@ public class PrivilegeTests extends ESTestCase {
     }
 
     public void testSearchPrivilege() throws Exception {
-        Predicate<String> predicate = Privilege.Index.SEARCH.predicate();
+        Predicate<String> predicate = IndexPrivilege.SEARCH.predicate();
         assertThat(predicate.test(SearchAction.NAME), is(true));
         assertThat(predicate.test(SearchAction.NAME + "/whatever"), is(true));
         assertThat(predicate.test(MultiSearchAction.NAME), is(true));
@@ -265,7 +265,7 @@ public class PrivilegeTests extends ESTestCase {
     }
 
     public void testGetPrivilege() throws Exception {
-        Predicate<String> predicate = Privilege.Index.GET.predicate();
+        Predicate<String> predicate = IndexPrivilege.GET.predicate();
         assertThat(predicate.test(GetAction.NAME), is(true));
         assertThat(predicate.test(GetAction.NAME + "/whatever"), is(true));
         assertThat(predicate.test(MultiGetAction.NAME), is(true));

@@ -23,7 +23,7 @@ import org.elasticsearch.shield.action.interceptor.RequestInterceptor;
 import org.elasticsearch.shield.audit.AuditTrail;
 import org.elasticsearch.shield.authc.AuthenticationService;
 import org.elasticsearch.shield.authz.AuthorizationService;
-import org.elasticsearch.shield.authz.Privilege;
+import org.elasticsearch.shield.authz.privilege.HealthAndStatsPrivilege;
 import org.elasticsearch.shield.crypto.CryptoService;
 import org.elasticsearch.shield.license.ShieldLicenseState;
 import org.elasticsearch.tasks.Task;
@@ -41,7 +41,7 @@ import static org.elasticsearch.shield.support.Exceptions.authorizationError;
  */
 public class ShieldActionFilter extends AbstractComponent implements ActionFilter {
 
-    private static final Predicate<String> LICENSE_EXPIRATION_ACTION_MATCHER = Privilege.HEALTH_AND_STATS.predicate();
+    private static final Predicate<String> LICENSE_EXPIRATION_ACTION_MATCHER = HealthAndStatsPrivilege.INSTANCE.predicate();
 
     private final AuthenticationService authcService;
     private final AuthorizationService authzService;

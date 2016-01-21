@@ -10,8 +10,12 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.shield.ShieldPlugin;
 import org.elasticsearch.shield.audit.logfile.CapturingLogger;
 import org.elasticsearch.shield.authc.support.RefreshListener;
-import org.elasticsearch.shield.authz.Permission;
-import org.elasticsearch.shield.authz.Privilege;
+import org.elasticsearch.shield.authz.permission.ClusterPermission;
+import org.elasticsearch.shield.authz.permission.IndicesPermission;
+import org.elasticsearch.shield.authz.permission.Role;
+import org.elasticsearch.shield.authz.permission.RunAsPermission;
+import org.elasticsearch.shield.authz.privilege.ClusterPrivilege;
+import org.elasticsearch.shield.authz.privilege.IndexPrivilege;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -48,86 +52,86 @@ import static org.hamcrest.Matchers.startsWith;
 public class FileRolesStoreTests extends ESTestCase {
     public void testParseFile() throws Exception {
         Path path = getDataPath("roles.yml");
-        Map<String, Permission.Global.Role> roles = FileRolesStore.parseFile(path, Collections.<Permission.Global.Role>emptySet(),
+        Map<String, Role> roles = FileRolesStore.parseFile(path, Collections.<Role>emptySet(),
                 logger, Settings.builder().put(ShieldPlugin.DLS_FLS_ENABLED_SETTING, true).build());
         assertThat(roles, notNullValue());
         assertThat(roles.size(), is(10));
 
-        Permission.Global.Role role = roles.get("role1");
+        Role role = roles.get("role1");
         assertThat(role, notNullValue());
         assertThat(role.name(), equalTo("role1"));
         assertThat(role.cluster(), notNullValue());
-        assertThat(role.cluster().privilege(), is(Privilege.Cluster.ALL));
+        assertThat(role.cluster().privilege(), is(ClusterPrivilege.ALL));
         assertThat(role.indices(), notNullValue());
         assertThat(role.indices().groups(), notNullValue());
         assertThat(role.indices().groups().length, is(2));
-        assertThat(role.runAs(), is(Permission.RunAs.Core.NONE));
+        assertThat(role.runAs(), is(RunAsPermission.Core.NONE));
 
-        Permission.Global.Indices.Group group = role.indices().groups()[0];
+        IndicesPermission.Group group = role.indices().groups()[0];
         assertThat(group.indices(), notNullValue());
         assertThat(group.indices().length, is(2));
         assertThat(group.indices()[0], equalTo("idx1"));
         assertThat(group.indices()[1], equalTo("idx2"));
         assertThat(group.privilege(), notNullValue());
-        assertThat(group.privilege(), is(Privilege.Index.READ));
+        assertThat(group.privilege(), is(IndexPrivilege.READ));
 
         group = role.indices().groups()[1];
         assertThat(group.indices(), notNullValue());
         assertThat(group.indices().length, is(1));
         assertThat(group.indices()[0], equalTo("idx3"));
         assertThat(group.privilege(), notNullValue());
-        assertThat(group.privilege(), is(Privilege.Index.CRUD));
+        assertThat(group.privilege(), is(IndexPrivilege.CRUD));
 
         role = roles.get("role1.ab");
         assertThat(role, notNullValue());
         assertThat(role.name(), equalTo("role1.ab"));
         assertThat(role.cluster(), notNullValue());
-        assertThat(role.cluster().privilege(), is(Privilege.Cluster.ALL));
+        assertThat(role.cluster().privilege(), is(ClusterPrivilege.ALL));
         assertThat(role.indices(), notNullValue());
         assertThat(role.indices().groups(), notNullValue());
         assertThat(role.indices().groups().length, is(0));
-        assertThat(role.runAs(), is(Permission.RunAs.Core.NONE));
+        assertThat(role.runAs(), is(RunAsPermission.Core.NONE));
 
         role = roles.get("role2");
         assertThat(role, notNullValue());
         assertThat(role.name(), equalTo("role2"));
         assertThat(role.cluster(), notNullValue());
-        assertThat(role.cluster().privilege(), is(Privilege.Cluster.ALL)); // MONITOR is collapsed into ALL
+        assertThat(role.cluster().privilege(), is(ClusterPrivilege.ALL)); // MONITOR is collapsed into ALL
         assertThat(role.indices(), notNullValue());
-        assertThat(role.indices(), is(Permission.Indices.Core.NONE));
-        assertThat(role.runAs(), is(Permission.RunAs.Core.NONE));
+        assertThat(role.indices(), is(IndicesPermission.Core.NONE));
+        assertThat(role.runAs(), is(RunAsPermission.Core.NONE));
 
         role = roles.get("role3");
         assertThat(role, notNullValue());
         assertThat(role.name(), equalTo("role3"));
         assertThat(role.cluster(), notNullValue());
-        assertThat(role.cluster(), is(Permission.Cluster.Core.NONE));
+        assertThat(role.cluster(), is(ClusterPermission.Core.NONE));
         assertThat(role.indices(), notNullValue());
         assertThat(role.indices().groups(), notNullValue());
         assertThat(role.indices().groups().length, is(1));
-        assertThat(role.runAs(), is(Permission.RunAs.Core.NONE));
+        assertThat(role.runAs(), is(RunAsPermission.Core.NONE));
 
         group = role.indices().groups()[0];
         assertThat(group.indices(), notNullValue());
         assertThat(group.indices().length, is(1));
         assertThat(group.indices()[0], equalTo("/.*_.*/"));
         assertThat(group.privilege(), notNullValue());
-        assertThat(group.privilege().isAlias(Privilege.Index.union(Privilege.Index.READ, Privilege.Index.WRITE)), is(true));
+        assertThat(group.privilege().isAlias(IndexPrivilege.union(IndexPrivilege.READ, IndexPrivilege.WRITE)), is(true));
 
         role = roles.get("role4");
         assertThat(role, notNullValue());
         assertThat(role.name(), equalTo("role4"));
         assertThat(role.cluster(), notNullValue());
-        assertThat(role.cluster(), is(Permission.Cluster.Core.NONE));
-        assertThat(role.indices(), is(Permission.Indices.Core.NONE));
-        assertThat(role.runAs(), is(Permission.RunAs.Core.NONE));
+        assertThat(role.cluster(), is(ClusterPermission.Core.NONE));
+        assertThat(role.indices(), is(IndicesPermission.Core.NONE));
+        assertThat(role.runAs(), is(RunAsPermission.Core.NONE));
 
         role = roles.get("role_run_as");
         assertThat(role, notNullValue());
         assertThat(role.name(), equalTo("role_run_as"));
         assertThat(role.cluster(), notNullValue());
-        assertThat(role.cluster(), is(Permission.Cluster.Core.NONE));
-        assertThat(role.indices(), is(Permission.Indices.Core.NONE));
+        assertThat(role.cluster(), is(ClusterPermission.Core.NONE));
+        assertThat(role.indices(), is(IndicesPermission.Core.NONE));
         assertThat(role.runAs(), notNullValue());
         assertThat(role.runAs().check("user1"), is(true));
         assertThat(role.runAs().check("user2"), is(true));
@@ -137,8 +141,8 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(role, notNullValue());
         assertThat(role.name(), equalTo("role_run_as1"));
         assertThat(role.cluster(), notNullValue());
-        assertThat(role.cluster(), is(Permission.Cluster.Core.NONE));
-        assertThat(role.indices(), is(Permission.Indices.Core.NONE));
+        assertThat(role.cluster(), is(ClusterPermission.Core.NONE));
+        assertThat(role.indices(), is(IndicesPermission.Core.NONE));
         assertThat(role.runAs(), notNullValue());
         assertThat(role.runAs().check("user1"), is(true));
         assertThat(role.runAs().check("user2"), is(true));
@@ -148,8 +152,8 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(role, notNullValue());
         assertThat(role.name(), equalTo("role_fields"));
         assertThat(role.cluster(), notNullValue());
-        assertThat(role.cluster(), is(Permission.Cluster.Core.NONE));
-        assertThat(role.runAs(), is(Permission.RunAs.Core.NONE));
+        assertThat(role.cluster(), is(ClusterPermission.Core.NONE));
+        assertThat(role.runAs(), is(RunAsPermission.Core.NONE));
         assertThat(role.indices(), notNullValue());
         assertThat(role.indices().groups(), notNullValue());
         assertThat(role.indices().groups().length, is(1));
@@ -159,15 +163,15 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(group.indices().length, is(1));
         assertThat(group.indices()[0], equalTo("field_idx"));
         assertThat(group.privilege(), notNullValue());
-        assertThat(group.privilege().isAlias(Privilege.Index.READ), is(true));
+        assertThat(group.privilege().isAlias(IndexPrivilege.READ), is(true));
         assertThat(group.getFields(), contains("foo", "boo"));
 
         role = roles.get("role_query");
         assertThat(role, notNullValue());
         assertThat(role.name(), equalTo("role_query"));
         assertThat(role.cluster(), notNullValue());
-        assertThat(role.cluster(), is(Permission.Cluster.Core.NONE));
-        assertThat(role.runAs(), is(Permission.RunAs.Core.NONE));
+        assertThat(role.cluster(), is(ClusterPermission.Core.NONE));
+        assertThat(role.runAs(), is(RunAsPermission.Core.NONE));
         assertThat(role.indices(), notNullValue());
         assertThat(role.indices().groups(), notNullValue());
         assertThat(role.indices().groups().length, is(1));
@@ -177,7 +181,7 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(group.indices().length, is(1));
         assertThat(group.indices()[0], equalTo("query_idx"));
         assertThat(group.privilege(), notNullValue());
-        assertThat(group.privilege().isAlias(Privilege.Index.READ), is(true));
+        assertThat(group.privilege().isAlias(IndexPrivilege.READ), is(true));
         assertThat(group.getFields(), nullValue());
         assertThat(group.getQuery(), notNullValue());
 
@@ -185,8 +189,8 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(role, notNullValue());
         assertThat(role.name(), equalTo("role_query_fields"));
         assertThat(role.cluster(), notNullValue());
-        assertThat(role.cluster(), is(Permission.Cluster.Core.NONE));
-        assertThat(role.runAs(), is(Permission.RunAs.Core.NONE));
+        assertThat(role.cluster(), is(ClusterPermission.Core.NONE));
+        assertThat(role.runAs(), is(RunAsPermission.Core.NONE));
         assertThat(role.indices(), notNullValue());
         assertThat(role.indices().groups(), notNullValue());
         assertThat(role.indices().groups().length, is(1));
@@ -196,7 +200,7 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(group.indices().length, is(1));
         assertThat(group.indices()[0], equalTo("query_fields_idx"));
         assertThat(group.privilege(), notNullValue());
-        assertThat(group.privilege().isAlias(Privilege.Index.READ), is(true));
+        assertThat(group.privilege().isAlias(IndexPrivilege.READ), is(true));
         assertThat(group.getFields(), contains("foo", "boo"));
         assertThat(group.getQuery(), notNullValue());
     }
@@ -204,7 +208,7 @@ public class FileRolesStoreTests extends ESTestCase {
     public void testParseFileWithFLSAndDLSDisabled() throws Exception {
         Path path = getDataPath("roles.yml");
         CapturingLogger logger = new CapturingLogger(CapturingLogger.Level.ERROR);
-        Map<String, Permission.Global.Role> roles = FileRolesStore.parseFile(path, Collections.<Permission.Global.Role>emptySet(),
+        Map<String, Role> roles = FileRolesStore.parseFile(path, Collections.<Role>emptySet(),
                 logger, Settings.builder().put(ShieldPlugin.DLS_FLS_ENABLED_SETTING, false).build());
         assertThat(roles, notNullValue());
         assertThat(roles.size(), is(7));
@@ -224,7 +228,7 @@ public class FileRolesStoreTests extends ESTestCase {
      */
     public void testDefaultRolesFile() throws Exception {
         Path path = getDataPath("default_roles.yml");
-        Map<String, Permission.Global.Role> roles = FileRolesStore.parseFile(path, Collections.<Permission.Global.Role>emptySet(), logger, Settings.EMPTY);
+        Map<String, Role> roles = FileRolesStore.parseFile(path, Collections.<Role>emptySet(), logger, Settings.EMPTY);
         assertThat(roles, notNullValue());
         assertThat(roles.size(), is(8));
 
@@ -258,7 +262,7 @@ public class FileRolesStoreTests extends ESTestCase {
             threadPool = new ThreadPool("test");
             watcherService = new ResourceWatcherService(settings, threadPool);
             final CountDownLatch latch = new CountDownLatch(1);
-            FileRolesStore store = new FileRolesStore(settings, env, watcherService, Collections.<Permission.Global.Role>emptySet(), new RefreshListener() {
+            FileRolesStore store = new FileRolesStore(settings, env, watcherService, Collections.<Role>emptySet(), new RefreshListener() {
                 @Override
                 public void onRefresh() {
                     latch.countDown();
@@ -266,7 +270,7 @@ public class FileRolesStoreTests extends ESTestCase {
             });
             store.start();
 
-            Permission.Global.Role role = store.role("role1");
+            Role role = store.role("role1");
             assertThat(role, notNullValue());
             role = store.role("role5");
             assertThat(role, nullValue());
@@ -302,17 +306,17 @@ public class FileRolesStoreTests extends ESTestCase {
     public void testThatEmptyFileDoesNotResultInLoop() throws Exception {
         Path file = createTempFile();
         Files.write(file, Collections.singletonList("#"), StandardCharsets.UTF_8);
-        Map<String, Permission.Global.Role> roles = FileRolesStore.parseFile(file, Collections.<Permission.Global.Role>emptySet(), logger, Settings.EMPTY);
+        Map<String, Role> roles = FileRolesStore.parseFile(file, Collections.<Role>emptySet(), logger, Settings.EMPTY);
         assertThat(roles.keySet(), is(empty()));
     }
 
     public void testThatInvalidRoleDefinitions() throws Exception {
         Path path = getDataPath("invalid_roles.yml");
         CapturingLogger logger = new CapturingLogger(CapturingLogger.Level.ERROR);
-        Map<String, Permission.Global.Role> roles = FileRolesStore.parseFile(path, Collections.<Permission.Global.Role>emptySet(), logger, Settings.EMPTY);
+        Map<String, Role> roles = FileRolesStore.parseFile(path, Collections.<Role>emptySet(), logger, Settings.EMPTY);
         assertThat(roles.size(), is(1));
         assertThat(roles, hasKey("valid_role"));
-        Permission.Global.Role role = roles.get("valid_role");
+        Role role = roles.get("valid_role");
         assertThat(role, notNullValue());
         assertThat(role.name(), equalTo("valid_role"));
 
@@ -338,20 +342,20 @@ public class FileRolesStoreTests extends ESTestCase {
     }
 
     public void testReservedRoles() throws Exception {
-        Set<Permission.Global.Role> reservedRoles = singleton(Permission.Global.Role.builder("reserved")
-                        .cluster(Privilege.Cluster.ALL)
+        Set<Role> reservedRoles = singleton(Role.builder("reserved")
+                        .cluster(ClusterPrivilege.ALL)
                         .build());
 
         CapturingLogger logger = new CapturingLogger(CapturingLogger.Level.INFO);
 
         Path path = getDataPath("reserved_roles.yml");
-        Map<String, Permission.Global.Role> roles = FileRolesStore.parseFile(path, reservedRoles, logger, Settings.EMPTY);
+        Map<String, Role> roles = FileRolesStore.parseFile(path, reservedRoles, logger, Settings.EMPTY);
         assertThat(roles, notNullValue());
         assertThat(roles.size(), is(2));
 
         assertThat(roles, hasKey("admin"));
         assertThat(roles, hasKey("reserved"));
-        Permission.Global.Role reserved = roles.get("reserved");
+        Role reserved = roles.get("reserved");
 
         List<CapturingLogger.Msg> messages = logger.output(CapturingLogger.Level.WARN);
         assertThat(messages, notNullValue());
@@ -368,8 +372,8 @@ public class FileRolesStoreTests extends ESTestCase {
     }
 
     public void testReservedRolesNonExistentRolesFile() throws Exception {
-        Set<Permission.Global.Role> reservedRoles = singleton(Permission.Global.Role.builder("reserved")
-                        .cluster(Privilege.Cluster.ALL)
+        Set<Role> reservedRoles = singleton(Role.builder("reserved")
+                        .cluster(ClusterPrivilege.ALL)
                         .build());
 
         CapturingLogger logger = new CapturingLogger(CapturingLogger.Level.INFO);
@@ -377,12 +381,12 @@ public class FileRolesStoreTests extends ESTestCase {
         Path path = createTempFile();
         Files.delete(path);
         assertThat(Files.exists(path), is(false));
-        Map<String, Permission.Global.Role> roles = FileRolesStore.parseFile(path, reservedRoles, logger, Settings.EMPTY);
+        Map<String, Role> roles = FileRolesStore.parseFile(path, reservedRoles, logger, Settings.EMPTY);
         assertThat(roles, notNullValue());
         assertThat(roles.size(), is(1));
 
         assertThat(roles, hasKey("reserved"));
-        Permission.Global.Role reserved = roles.get("reserved");
+        Role reserved = roles.get("reserved");
 
         List<CapturingLogger.Msg> messages = logger.output(CapturingLogger.Level.WARN);
         assertThat(messages, notNullValue());

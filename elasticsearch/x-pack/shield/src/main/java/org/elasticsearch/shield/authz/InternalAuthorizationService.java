@@ -28,6 +28,12 @@ import org.elasticsearch.shield.authc.AuthenticationFailureHandler;
 import org.elasticsearch.shield.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.shield.authz.indicesresolver.DefaultIndicesAndAliasesResolver;
 import org.elasticsearch.shield.authz.indicesresolver.IndicesAndAliasesResolver;
+import org.elasticsearch.shield.authz.permission.ClusterPermission;
+import org.elasticsearch.shield.authz.permission.GlobalPermission;
+import org.elasticsearch.shield.authz.permission.Role;
+import org.elasticsearch.shield.authz.permission.RunAsPermission;
+import org.elasticsearch.shield.authz.privilege.ClusterPrivilege;
+import org.elasticsearch.shield.authz.privilege.IndexPrivilege;
 import org.elasticsearch.shield.authz.store.RolesStore;
 import org.elasticsearch.transport.TransportRequest;
 
@@ -70,15 +76,15 @@ public class InternalAuthorizationService extends AbstractComponent implements A
 
     @Override
     public List<String> authorizedIndicesAndAliases(User user, String action) {
-        String[] roles = user.roles();
-        if (roles.length == 0) {
+        String[] rolesNames = user.roles();
+        if (rolesNames.length == 0) {
             return Collections.emptyList();
         }
         List<Predicate<String>> predicates = new ArrayList<>();
-        for (String role : roles) {
-            Permission.Global.Role global = rolesStore.role(role);
-            if (global != null) {
-                predicates.add(global.indices().allowedIndicesMatcher(action));
+        for (String roleName : rolesNames) {
+            Role role = rolesStore.role(roleName);
+            if (role != null) {
+                predicates.add(role.indices().allowedIndicesMatcher(action));
             }
         }
 
@@ -107,7 +113,7 @@ public class InternalAuthorizationService extends AbstractComponent implements A
             throw denial(user, action, request);
         }
 
-        Permission.Global permission = permission(user.roles());
+        GlobalPermission permission = permission(user.roles());
         final boolean isRunAs = user.runAs() != null;
         // permission can be null as it might be that the user's role
         // is unknown
@@ -123,7 +129,7 @@ public class InternalAuthorizationService extends AbstractComponent implements A
         // check if the request is a run as request
         if (isRunAs) {
             // first we must authorize for the RUN_AS action
-            Permission.RunAs runAs = permission.runAs();
+            RunAsPermission runAs = permission.runAs();
             if (runAs != null && runAs.check(user.runAs().principal())) {
                 grantRunAs(user, action, request);
                 permission = permission(user.runAs().roles());
@@ -140,8 +146,8 @@ public class InternalAuthorizationService extends AbstractComponent implements A
 
         // first, we'll check if the action is a cluster action. If it is, we'll only check it
         // against the cluster permissions
-        if (Privilege.Cluster.ACTION_MATCHER.test(action)) {
-            Permission.Cluster cluster = permission.cluster();
+        if (ClusterPrivilege.ACTION_MATCHER.test(action)) {
+            ClusterPermission cluster = permission.cluster();
             if (cluster != null && cluster.check(action)) {
                 request.putInContext(INDICES_PERMISSIONS_KEY, IndicesAccessControl.ALLOW_ALL);
                 grant(user, action, request);
@@ -151,7 +157,7 @@ public class InternalAuthorizationService extends AbstractComponent implements A
         }
 
         // ok... this is not a cluster action, let's verify it's an indices action
-        if (!Privilege.Index.ACTION_MATCHER.test(action)) {
+        if (!IndexPrivilege.ACTION_MATCHER.test(action)) {
             throw denial(user, action, request);
         }
 
@@ -189,7 +195,7 @@ public class InternalAuthorizationService extends AbstractComponent implements A
         }
 
         //if we are creating an index we need to authorize potential aliases created at the same time
-        if (Privilege.Index.CREATE_INDEX_MATCHER.test(action)) {
+        if (IndexPrivilege.CREATE_INDEX_MATCHER.test(action)) {
             assert request instanceof CreateIndexRequest;
             Set<Alias> aliases = ((CreateIndexRequest) request).aliases();
             if (!aliases.isEmpty()) {
@@ -209,21 +215,21 @@ public class InternalAuthorizationService extends AbstractComponent implements A
         grant(user, action, request);
     }
 
-    private Permission.Global permission(String[] roleNames) {
+    private GlobalPermission permission(String[] roleNames) {
         if (roleNames.length == 0) {
-            return Permission.Global.NONE;
+            return GlobalPermission.NONE;
         }
 
         if (roleNames.length == 1) {
-            Permission.Global.Role role = rolesStore.role(roleNames[0]);
-            return role == null ? Permission.Global.NONE : role;
+            Role role = rolesStore.role(roleNames[0]);
+            return role == null ? GlobalPermission.NONE : role;
         }
 
         // we'll take all the roles and combine their associated permissions
 
-        Permission.Global.Compound.Builder roles = Permission.Global.Compound.builder();
+        GlobalPermission.Compound.Builder roles = GlobalPermission.Compound.builder();
         for (String roleName : roleNames) {
-            Permission.Global role = rolesStore.role(roleName);
+            GlobalPermission role = rolesStore.role(roleName);
             if (role != null) {
                 roles.add(role);
             }

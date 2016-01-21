@@ -3,15 +3,13 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.shield.authz.store;
-
-import org.elasticsearch.shield.authz.permission.Role;
+package org.elasticsearch.shield.authz.permission;
 
 /**
- * An interface for looking up a role given a string role name
+ * Represents a permission in the system.
  */
-public interface RolesStore {
+public interface Permission {
 
-    Role role(String role);
+    boolean isEmpty();
 
 }

@@ -6,9 +6,8 @@
 package org.elasticsearch.shield.authz.store;
 
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.shield.authz.Permission;
-import org.elasticsearch.shield.authz.RoleDescriptor;
 import org.elasticsearch.shield.authz.esnative.ESNativeRolesStore;
+import org.elasticsearch.shield.authz.permission.Role;
 
 /**
  * A composite roles store that combines file-based and index-based roles
@@ -25,9 +24,9 @@ public class CompositeRolesStore implements RolesStore {
         this.nativeRolesStore = nativeRolesStore;
     }
     
-    public Permission.Global.Role role(String role) {
+    public Role role(String role) {
         // Try the file first, then the index if it isn't there
-        Permission.Global.Role fileRole = fileRolesStore.role(role);
+        Role fileRole = fileRolesStore.role(role);
         if (fileRole != null) {
             return fileRole;
         }

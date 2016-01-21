@@ -7,8 +7,10 @@ package org.elasticsearch.shield.admin;
 
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateAction;
 import org.elasticsearch.shield.User;
-import org.elasticsearch.shield.authz.Permission;
-import org.elasticsearch.shield.authz.Privilege;
+import org.elasticsearch.shield.authz.permission.Role;
+import org.elasticsearch.shield.authz.privilege.ClusterPrivilege;
+import org.elasticsearch.shield.authz.privilege.IndexPrivilege;
+import org.elasticsearch.shield.authz.privilege.Privilege;
 
 /**
  * User holder for the shield internal user that manages the {@code .shield}
@@ -19,9 +21,9 @@ public class ShieldInternalUserHolder {
 
     private static final String NAME = "__es_internal_user";
     private static final String[] ROLES = new String[] { "__es_internal_role" };
-    public static final Permission.Global.Role ROLE = Permission.Global.Role.builder(ROLES[0])
-            .cluster(Privilege.Cluster.get(new Privilege.Name(PutIndexTemplateAction.NAME, "cluster:admin/shield/realm/cache/clear*", "cluster:admin/shield/roles/cache/clear*")))
-            .add(Privilege.Index.ALL, ShieldTemplateService.SHIELD_ADMIN_INDEX_NAME)
+    public static final Role ROLE = Role.builder(ROLES[0])
+            .cluster(ClusterPrivilege.get(new Privilege.Name(PutIndexTemplateAction.NAME, "cluster:admin/shield/realm/cache/clear*", "cluster:admin/shield/roles/cache/clear*")))
+            .add(IndexPrivilege.ALL, ShieldTemplateService.SHIELD_ADMIN_INDEX_NAME)
             .build();
     private static final User SHIELD_INTERNAL_USER = new User(NAME, ROLES);
 

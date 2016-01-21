@@ -14,8 +14,8 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.shield.authz.Permission;
-import org.elasticsearch.shield.authz.Privilege;
+import org.elasticsearch.shield.authz.permission.Role;
+import org.elasticsearch.shield.authz.privilege.IndexPrivilege;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
@@ -40,7 +40,7 @@ public class IndicesPermissionTests extends ESTestCase {
         // basics:
         BytesReference query = new BytesArray("{}");
         List<String> fields = Arrays.asList("_field");
-        Permission.Global.Role role = Permission.Global.Role.builder("_role").add(fields, query, Privilege.Index.ALL, "_index").build();
+        Role role = Role.builder("_role").add(fields, query, IndexPrivilege.ALL, "_index").build();
         IndicesAccessControl permissions = role.authorize(SearchAction.NAME, Sets.newHashSet("_index"), md);
         assertThat(permissions.getIndexPermissions("_index"), notNullValue());
         assertThat(permissions.getIndexPermissions("_index").getFields().size(), equalTo(1));
@@ -49,7 +49,7 @@ public class IndicesPermissionTests extends ESTestCase {
         assertThat(permissions.getIndexPermissions("_index").getQueries().iterator().next(), equalTo(query));
 
         // no document level security:
-        role = Permission.Global.Role.builder("_role").add(fields, null, Privilege.Index.ALL, "_index").build();
+        role = Role.builder("_role").add(fields, null, IndexPrivilege.ALL, "_index").build();
         permissions = role.authorize(SearchAction.NAME, Sets.newHashSet("_index"), md);
         assertThat(permissions.getIndexPermissions("_index"), notNullValue());
         assertThat(permissions.getIndexPermissions("_index").getFields().size(), equalTo(1));
@@ -57,7 +57,7 @@ public class IndicesPermissionTests extends ESTestCase {
         assertThat(permissions.getIndexPermissions("_index").getQueries(), nullValue());
 
         // no field level security:
-        role = Permission.Global.Role.builder("_role").add(null, query, Privilege.Index.ALL, "_index").build();
+        role = Role.builder("_role").add(null, query, IndexPrivilege.ALL, "_index").build();
         permissions = role.authorize(SearchAction.NAME, Sets.newHashSet("_index"), md);
         assertThat(permissions.getIndexPermissions("_index"), notNullValue());
         assertThat(permissions.getIndexPermissions("_index").getFields(), nullValue());
@@ -65,7 +65,7 @@ public class IndicesPermissionTests extends ESTestCase {
         assertThat(permissions.getIndexPermissions("_index").getQueries().iterator().next(), equalTo(query));
 
         // index group associated with an alias:
-        role = Permission.Global.Role.builder("_role").add(fields, query, Privilege.Index.ALL, "_alias").build();
+        role = Role.builder("_role").add(fields, query, IndexPrivilege.ALL, "_alias").build();
         permissions = role.authorize(SearchAction.NAME, Sets.newHashSet("_alias"), md);
         assertThat(permissions.getIndexPermissions("_index"), notNullValue());
         assertThat(permissions.getIndexPermissions("_index").getFields().size(), equalTo(1));

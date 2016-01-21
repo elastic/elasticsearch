@@ -43,18 +43,18 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.shield.admin.ShieldInternalUserHolder;
+import org.elasticsearch.shield.authz.privilege.SystemPrivilege;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.audit.AuditTrail;
 import org.elasticsearch.shield.authc.AuthenticationService;
 import org.elasticsearch.shield.authc.AuthenticationToken;
-import org.elasticsearch.shield.authz.Privilege;
+import org.elasticsearch.shield.authz.privilege.Privilege;
 import org.elasticsearch.shield.rest.RemoteHostHeader;
 import org.elasticsearch.shield.transport.filter.ShieldIpFilterRule;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportMessage;
-import org.elasticsearch.xpack.XPackPlugin;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
@@ -417,7 +417,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     public void accessGranted(User user, String action, TransportMessage<?> message) {
         if (!principalIsAuditor(user.principal())) {
             // special treatment for internal system actions - only log if explicitly told to
-            if ((user.isSystem() && Privilege.SYSTEM.predicate().test(action)) || ShieldInternalUserHolder.isShieldInternalUser(user)) {
+            if ((user.isSystem() && SystemPrivilege.INSTANCE.predicate().test(action)) || ShieldInternalUserHolder.isShieldInternalUser(user)) {
                 if (events.contains(SYSTEM_ACCESS_GRANTED)) {
                     try {
                         enqueue(message("access_granted", action, user, indices(message), message), "access_granted");

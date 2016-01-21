@@ -21,9 +21,7 @@ package org.elasticsearch.index;
 
 import org.apache.lucene.index.ConcurrentMergeScheduler;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.index.IndexSettings;
 
 /**
  * The merge scheduler (<code>ConcurrentMergeScheduler</code>) controls the execution of
@@ -62,9 +60,6 @@ public final class MergeSchedulerConfig {
     private volatile int maxMergeCount;
 
     MergeSchedulerConfig(IndexSettings indexSettings) {
-        indexSettings.getScopedSettings().addSettingsUpdateConsumer(MAX_THREAD_COUNT_SETTING, this::setMaxThreadCount);
-        indexSettings.getScopedSettings().addSettingsUpdateConsumer(MAX_MERGE_COUNT_SETTING, this::setMaxMergeCount);
-        indexSettings.getScopedSettings().addSettingsUpdateConsumer(AUTO_THROTTLE_SETTING, this::setAutoThrottle);
         maxThreadCount = indexSettings.getValue(MAX_THREAD_COUNT_SETTING);
         maxMergeCount = indexSettings.getValue(MAX_MERGE_COUNT_SETTING);
         this.autoThrottle = indexSettings.getValue(AUTO_THROTTLE_SETTING);

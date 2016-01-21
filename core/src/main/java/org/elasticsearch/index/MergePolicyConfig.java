@@ -141,14 +141,6 @@ public final class MergePolicyConfig {
     MergePolicyConfig(ESLogger logger, IndexSettings indexSettings) {
         this.logger = logger;
         IndexScopedSettings scopedSettings = indexSettings.getScopedSettings();
-        scopedSettings.addSettingsUpdateConsumer(INDEX_COMPOUND_FORMAT_SETTING, this::setNoCFSRatio);
-        scopedSettings.addSettingsUpdateConsumer(INDEX_MERGE_POLICY_EXPUNGE_DELETES_ALLOWED_SETTING, this::expungeDeletesAllowed);
-        scopedSettings.addSettingsUpdateConsumer(INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING, this::floorSegmentSetting);
-        scopedSettings.addSettingsUpdateConsumer(INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING, this::maxMergesAtOnce);
-        scopedSettings.addSettingsUpdateConsumer(INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_EXPLICIT_SETTING, this::maxMergesAtOnceExplicit);
-        scopedSettings.addSettingsUpdateConsumer(INDEX_MERGE_POLICY_MAX_MERGED_SEGMENT_SETTING, this::maxMergedSegment);
-        scopedSettings.addSettingsUpdateConsumer(INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING, this::segmentsPerTier);
-        scopedSettings.addSettingsUpdateConsumer(INDEX_MERGE_POLICY_RECLAIM_DELETES_WEIGHT_SETTING, this::reclaimDeletesWeight);
         double forceMergeDeletesPctAllowed = indexSettings.getValue(INDEX_MERGE_POLICY_EXPUNGE_DELETES_ALLOWED_SETTING); // percentage
         ByteSizeValue floorSegment = indexSettings.getValue(INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING);
         int maxMergeAtOnce = indexSettings.getValue(INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING);
@@ -176,35 +168,35 @@ public final class MergePolicyConfig {
         }
     }
 
-    private void reclaimDeletesWeight(Double reclaimDeletesWeight) {
+    void setReclaimDeletesWeight(Double reclaimDeletesWeight) {
         mergePolicy.setReclaimDeletesWeight(reclaimDeletesWeight);
     }
 
-    private void segmentsPerTier(Double segmentsPerTier) {
+    void setSegmentsPerTier(Double segmentsPerTier) {
         mergePolicy.setSegmentsPerTier(segmentsPerTier);
     }
 
-    private void maxMergedSegment(ByteSizeValue maxMergedSegment) {
+    void setMaxMergedSegment(ByteSizeValue maxMergedSegment) {
         mergePolicy.setMaxMergedSegmentMB(maxMergedSegment.mbFrac());
     }
 
-    private void maxMergesAtOnceExplicit(Integer maxMergeAtOnceExplicit) {
+    void setMaxMergesAtOnceExplicit(Integer maxMergeAtOnceExplicit) {
         mergePolicy.setMaxMergeAtOnceExplicit(maxMergeAtOnceExplicit);
     }
 
-    private void maxMergesAtOnce(Integer maxMergeAtOnce) {
+    void setMaxMergesAtOnce(Integer maxMergeAtOnce) {
         mergePolicy.setMaxMergeAtOnce(maxMergeAtOnce);
     }
 
-    private void floorSegmentSetting(ByteSizeValue floorSegementSetting) {
+    void setFloorSegmentSetting(ByteSizeValue floorSegementSetting) {
         mergePolicy.setFloorSegmentMB(floorSegementSetting.mbFrac());
     }
 
-    private void expungeDeletesAllowed(Double value) {
+    void setExpungeDeletesAllowed(Double value) {
         mergePolicy.setForceMergeDeletesPctAllowed(value);
     }
 
-    private void setNoCFSRatio(Double noCFSRatio) {
+    void setNoCFSRatio(Double noCFSRatio) {
         mergePolicy.setNoCFSRatio(noCFSRatio);
     }
 

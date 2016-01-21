@@ -19,6 +19,7 @@
 
 package org.elasticsearch.ingest.processor;
 
+import org.elasticsearch.ingest.core.AbstractProcessorFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.joda.time.DateTimeZone;
 
@@ -42,7 +43,7 @@ public class DateProcessorFactoryTests extends ESTestCase {
         config.put("match_field", sourceField);
         config.put("match_formats", Collections.singletonList("dd/MM/yyyyy"));
         String processorTag = randomAsciiOfLength(10);
-        config.put("processor_tag", processorTag);
+        config.put(AbstractProcessorFactory.TAG_KEY, processorTag);
         DateProcessor processor = factory.create(config);
         assertThat(processor.getTag(), equalTo(processorTag));
         assertThat(processor.getMatchField(), equalTo(sourceField));

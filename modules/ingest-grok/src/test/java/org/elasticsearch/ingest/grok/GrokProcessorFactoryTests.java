@@ -19,6 +19,7 @@
 
 package org.elasticsearch.ingest.grok;
 
+import org.elasticsearch.ingest.core.AbstractProcessorFactory;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
@@ -37,7 +38,7 @@ public class GrokProcessorFactoryTests extends ESTestCase {
         config.put("field", "_field");
         config.put("pattern", "(?<foo>\\w+)");
         String processorTag = randomAsciiOfLength(10);
-        config.put("processor_tag", processorTag);
+        config.put(AbstractProcessorFactory.TAG_KEY, processorTag);
         GrokProcessor processor = factory.create(config);
         assertThat(processor.getTag(), equalTo(processorTag));
         assertThat(processor.getMatchField(), equalTo("_field"));

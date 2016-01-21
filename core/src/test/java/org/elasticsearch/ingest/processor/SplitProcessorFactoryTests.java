@@ -19,6 +19,7 @@
 
 package org.elasticsearch.ingest.processor;
 
+import org.elasticsearch.ingest.core.AbstractProcessorFactory;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
@@ -34,7 +35,7 @@ public class SplitProcessorFactoryTests extends ESTestCase {
         config.put("field", "field1");
         config.put("separator", "\\.");
         String processorTag = randomAsciiOfLength(10);
-        config.put("processor_tag", processorTag);
+        config.put(AbstractProcessorFactory.TAG_KEY, processorTag);
         SplitProcessor splitProcessor = factory.create(config);
         assertThat(splitProcessor.getTag(), equalTo(processorTag));
         assertThat(splitProcessor.getField(), equalTo("field1"));

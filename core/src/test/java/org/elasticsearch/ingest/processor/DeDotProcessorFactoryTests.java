@@ -19,6 +19,7 @@
 
 package org.elasticsearch.ingest.processor;
 
+import org.elasticsearch.ingest.core.AbstractProcessorFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -40,7 +41,7 @@ public class DeDotProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("separator", "_");
         String processorTag = randomAsciiOfLength(10);
-        config.put("processor_tag", processorTag);
+        config.put(AbstractProcessorFactory.TAG_KEY, processorTag);
         DeDotProcessor deDotProcessor = factory.create(config);
         assertThat(deDotProcessor.getSeparator(), equalTo("_"));
         assertThat(deDotProcessor.getTag(), equalTo(processorTag));

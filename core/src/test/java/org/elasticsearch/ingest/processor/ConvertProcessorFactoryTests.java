@@ -19,7 +19,7 @@
 
 package org.elasticsearch.ingest.processor;
 
-import org.elasticsearch.ingest.processor.ConvertProcessor;
+import org.elasticsearch.ingest.core.AbstractProcessorFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
@@ -37,7 +37,7 @@ public class ConvertProcessorFactoryTests extends ESTestCase {
         config.put("field", "field1");
         config.put("type", type.toString());
         String processorTag = randomAsciiOfLength(10);
-        config.put("processor_tag", processorTag);
+        config.put(AbstractProcessorFactory.TAG_KEY, processorTag);
         ConvertProcessor convertProcessor = factory.create(config);
         assertThat(convertProcessor.getTag(), equalTo(processorTag));
         assertThat(convertProcessor.getField(), equalTo("field1"));

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.ingest.processor;
 
-import org.elasticsearch.ingest.processor.GsubProcessor;
+import org.elasticsearch.ingest.core.AbstractProcessorFactory;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
@@ -36,7 +36,7 @@ public class GsubProcessorFactoryTests extends ESTestCase {
         config.put("pattern", "\\.");
         config.put("replacement", "-");
         String processorTag = randomAsciiOfLength(10);
-        config.put("processor_tag", processorTag);
+        config.put(AbstractProcessorFactory.TAG_KEY, processorTag);
         GsubProcessor gsubProcessor = factory.create(config);
         assertThat(gsubProcessor.getTag(), equalTo(processorTag));
         assertThat(gsubProcessor.getField(), equalTo("field1"));

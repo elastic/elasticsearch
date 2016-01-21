@@ -20,6 +20,7 @@
 package org.elasticsearch.ingest.processor;
 
 import org.elasticsearch.ingest.TestTemplateService;
+import org.elasticsearch.ingest.core.AbstractProcessorFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -43,7 +44,7 @@ public class SetProcessorFactoryTests extends ESTestCase {
         config.put("field", "field1");
         config.put("value", "value1");
         String processorTag = randomAsciiOfLength(10);
-        config.put("processor_tag", processorTag);
+        config.put(AbstractProcessorFactory.TAG_KEY, processorTag);
         SetProcessor setProcessor = factory.create(config);
         assertThat(setProcessor.getTag(), equalTo(processorTag));
         assertThat(setProcessor.getField().execute(Collections.emptyMap()), equalTo("field1"));

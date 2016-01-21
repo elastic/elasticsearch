@@ -20,7 +20,7 @@
 package org.elasticsearch.ingest.processor;
 
 import org.elasticsearch.ingest.TestTemplateService;
-import org.elasticsearch.ingest.processor.FailProcessor;
+import org.elasticsearch.ingest.core.AbstractProcessorFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -43,7 +43,7 @@ public class FailProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("message", "error");
         String processorTag = randomAsciiOfLength(10);
-        config.put("processor_tag", processorTag);
+        config.put(AbstractProcessorFactory.TAG_KEY, processorTag);
         FailProcessor failProcessor = factory.create(config);
         assertThat(failProcessor.getTag(), equalTo(processorTag));
         assertThat(failProcessor.getMessage().execute(Collections.emptyMap()), equalTo("error"));

@@ -43,7 +43,7 @@ import static org.elasticsearch.common.Strings.hasLength;
 import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.lenientNodeBooleanValue;
 
 /**
  * Restore snapshot request
@@ -498,16 +498,16 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
                     throw new IllegalArgumentException("malformed indices section, should be an array of strings");
                 }
             } else if (name.equals("partial")) {
-                partial(nodeBooleanValue(entry.getValue()));
+                partial(lenientNodeBooleanValue(entry.getValue()));
             } else if (name.equals("settings")) {
                 if (!(entry.getValue() instanceof Map)) {
                     throw new IllegalArgumentException("malformed settings section");
                 }
                 settings((Map<String, Object>) entry.getValue());
             } else if (name.equals("include_global_state")) {
-                includeGlobalState = nodeBooleanValue(entry.getValue());
+                includeGlobalState = lenientNodeBooleanValue(entry.getValue());
             } else if (name.equals("include_aliases")) {
-                includeAliases = nodeBooleanValue(entry.getValue());
+                includeAliases = lenientNodeBooleanValue(entry.getValue());
             } else if (name.equals("rename_pattern")) {
                 if (entry.getValue() instanceof String) {
                     renamePattern((String) entry.getValue());

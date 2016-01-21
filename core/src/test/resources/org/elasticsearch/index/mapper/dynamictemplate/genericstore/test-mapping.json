@@ -5,7 +5,7 @@
                 "template_1":{
                     "match":"*",
                     "mapping":{
-                        "store":"yes"
+                        "store":true
                     }
                 }
             }

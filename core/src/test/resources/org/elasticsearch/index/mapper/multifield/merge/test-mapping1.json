@@ -4,7 +4,7 @@
             "name":{
                 type:"string",
                 index:"analyzed",
-                store:"yes"
+                store:true
             }
         }
     }

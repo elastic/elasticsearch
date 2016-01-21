@@ -207,10 +207,6 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
     }
 
     void importIndex(String indexName) throws IOException {
-        final Iterable<NodeEnvironment> instances = internalCluster().getInstances(NodeEnvironment.class);
-        for (NodeEnvironment nodeEnv : instances) { // upgrade multidata path
-            MultiDataPathUpgrader.upgradeMultiDataPath(nodeEnv, logger);
-        }
         // force reloading dangling indices with a cluster state republish
         client().admin().cluster().prepareReroute().get();
         ensureGreen(indexName);
@@ -218,6 +214,7 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
 
     // randomly distribute the files from src over dests paths
     public static void copyIndex(final ESLogger logger, final Path src, final String indexName, final Path... dests) throws IOException {
+        Path destinationDataPath = dests[randomInt(dests.length - 1)];
         for (Path dest : dests) {
             Path indexDir = dest.resolve(indexName);
             assertFalse(Files.exists(indexDir));
@@ -243,7 +240,7 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
                 }
 
                 Path relativeFile = src.relativize(file);
-                Path destFile = dests[randomInt(dests.length - 1)].resolve(indexName).resolve(relativeFile);
+                Path destFile = destinationDataPath.resolve(indexName).resolve(relativeFile);
                 logger.trace("--> Moving " + relativeFile.toString() + " to " + destFile.toString());
                 Files.move(file, destFile);
                 assertFalse(Files.exists(file));

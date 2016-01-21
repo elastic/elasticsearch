@@ -67,6 +67,7 @@ import static org.elasticsearch.index.query.QueryBuilders.idsQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.multiMatchQuery;
+import static org.elasticsearch.index.query.QueryBuilders.parentId;
 import static org.elasticsearch.index.query.QueryBuilders.prefixQuery;
 import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
@@ -208,7 +209,7 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getAt(0).field("_parent").value().toString(), equalTo("p1"));
 
         // TEST matching on parent
-        searchResponse = client().prepareSearch("test").setQuery(termQuery("_parent", "p1")).fields("_parent").get();
+        searchResponse = client().prepareSearch("test").setQuery(termQuery("_parent#parent", "p1")).fields("_parent").get();
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
         assertThat(searchResponse.getHits().getAt(0).id(), anyOf(equalTo("c1"), equalTo("c2")));
@@ -216,7 +217,7 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getAt(1).id(), anyOf(equalTo("c1"), equalTo("c2")));
         assertThat(searchResponse.getHits().getAt(1).field("_parent").value().toString(), equalTo("p1"));
 
-        searchResponse = client().prepareSearch("test").setQuery(queryStringQuery("_parent:p1")).fields("_parent").get();
+        searchResponse = client().prepareSearch("test").setQuery(queryStringQuery("_parent#parent:p1")).fields("_parent").get();
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
         assertThat(searchResponse.getHits().getAt(0).id(), anyOf(equalTo("c1"), equalTo("c2")));
@@ -953,70 +954,63 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getAt(0).score(), equalTo(3.0f));
     }
 
-    public void testParentFieldFilter() throws Exception {
+    public void testParentFieldQuery() throws Exception {
         assertAcked(prepareCreate("test")
                 .setSettings(settingsBuilder().put(indexSettings())
                         .put("index.refresh_interval", -1))
                 .addMapping("parent")
-                .addMapping("child", "_parent", "type=parent")
-                .addMapping("child2", "_parent", "type=parent"));
+                .addMapping("child", "_parent", "type=parent"));
         ensureGreen();
 
-        // test term filter
-        SearchResponse response = client().prepareSearch("test").setQuery(boolQuery().must(matchAllQuery()).filter(termQuery("_parent", "p1")))
+        SearchResponse response = client().prepareSearch("test").setQuery(termQuery("_parent", "p1"))
                 .get();
-        assertHitCount(response, 0l);
+        assertHitCount(response, 0L);
 
-        client().prepareIndex("test", "some_type", "1").setSource("field", "value").get();
-        client().prepareIndex("test", "parent", "p1").setSource("p_field", "value").get();
-        client().prepareIndex("test", "child", "c1").setSource("c_field", "value").setParent("p1").get();
-
-        response = client().prepareSearch("test").setQuery(boolQuery().must(matchAllQuery()).filter(termQuery("_parent", "p1"))).execute()
-                .actionGet();
-        assertHitCount(response, 0l);
+        client().prepareIndex("test", "child", "c1").setSource("{}").setParent("p1").get();
         refresh();
 
-        response = client().prepareSearch("test").setQuery(boolQuery().must(matchAllQuery()).filter(termQuery("_parent", "p1"))).execute()
-                .actionGet();
-        assertHitCount(response, 1l);
+        response = client().prepareSearch("test").setQuery(termQuery("_parent#parent", "p1")).get();
+        assertHitCount(response, 1L);
 
-        response = client().prepareSearch("test").setQuery(boolQuery().must(matchAllQuery()).filter(termQuery("_parent", "parent#p1"))).execute()
-                .actionGet();
-        assertHitCount(response, 1l);
+        response = client().prepareSearch("test").setQuery(queryStringQuery("_parent#parent:p1")).get();
+        assertHitCount(response, 1L);
 
-        client().prepareIndex("test", "parent2", "p1").setSource("p_field", "value").setRefresh(true).get();
-
-        response = client().prepareSearch("test").setQuery(boolQuery().must(matchAllQuery()).filter(termQuery("_parent", "p1"))).execute()
-                .actionGet();
-        assertHitCount(response, 1l);
-
-        response = client().prepareSearch("test").setQuery(boolQuery().must(matchAllQuery()).filter(termQuery("_parent", "parent#p1"))).execute()
-                .actionGet();
-        assertHitCount(response, 1l);
-
-        // test terms filter
-        client().prepareIndex("test", "child2", "c1").setSource("c_field", "value").setParent("p1").get();
-        response = client().prepareSearch("test").setQuery(boolQuery().must(matchAllQuery()).filter(termsQuery("_parent", "p1"))).execute()
-                .actionGet();
-        assertHitCount(response, 1l);
-
-        response = client().prepareSearch("test").setQuery(boolQuery().must(matchAllQuery()).filter(termsQuery("_parent", "parent#p1"))).execute()
-                .actionGet();
-        assertHitCount(response, 1l);
-
+        client().prepareIndex("test", "child", "c2").setSource("{}").setParent("p2").get();
         refresh();
-        response = client().prepareSearch("test").setQuery(boolQuery().must(matchAllQuery()).filter(termsQuery("_parent", "p1"))).execute()
-                .actionGet();
-        assertHitCount(response, 2l);
-
-        refresh();
-        response = client().prepareSearch("test").setQuery(boolQuery().must(matchAllQuery()).filter(termsQuery("_parent", "p1", "p1"))).execute()
-                .actionGet();
-        assertHitCount(response, 2l);
+        response = client().prepareSearch("test").setQuery(termsQuery("_parent#parent", "p1", "p2")).get();
+        assertHitCount(response, 2L);
 
         response = client().prepareSearch("test")
-                .setQuery(boolQuery().must(matchAllQuery()).filter(termsQuery("_parent", "parent#p1", "parent2#p1"))).get();
-        assertHitCount(response, 2l);
+                .setQuery(boolQuery()
+                    .should(termQuery("_parent#parent", "p1"))
+                    .should(termQuery("_parent#parent", "p2"))
+                ).get();
+        assertHitCount(response, 2L);
+    }
+
+    public void testParentIdQuery() throws Exception {
+        assertAcked(prepareCreate("test")
+            .setSettings(settingsBuilder().put(indexSettings())
+                .put("index.refresh_interval", -1))
+            .addMapping("parent")
+            .addMapping("child", "_parent", "type=parent"));
+        ensureGreen();
+
+        client().prepareIndex("test", "child", "c1").setSource("{}").setParent("p1").get();
+        refresh();
+
+        SearchResponse response = client().prepareSearch("test").setQuery(parentId("child", "p1")).get();
+        assertHitCount(response, 1L);
+
+        client().prepareIndex("test", "child", "c2").setSource("{}").setParent("p2").get();
+        refresh();
+
+        response = client().prepareSearch("test")
+            .setQuery(boolQuery()
+                .should(parentId("child", "p1"))
+                .should(parentId("child", "p2"))
+            ).get();
+        assertHitCount(response, 2L);
     }
 
     public void testHasChildNotBeingCached() throws IOException {
@@ -1459,7 +1453,7 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
         refresh();
 
         SearchResponse response = client().prepareSearch("test")
-                .setQuery(multiMatchQuery("1", "_parent"))
+                .setQuery(multiMatchQuery("1", "_parent#type1"))
                 .get();
 
         assertThat(response.getHits().totalHits(), equalTo(1l));

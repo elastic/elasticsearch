@@ -23,6 +23,7 @@ import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.TieredMergePolicy;
 import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -137,16 +138,9 @@ public final class MergePolicyConfig {
     public static final String INDEX_MERGE_ENABLED = "index.merge.enabled"; // don't convert to Setting<> and register... we only set this in tests and register via a plugin
 
 
-     MergePolicyConfig(ESLogger logger, IndexSettings indexSettings) {
+    MergePolicyConfig(ESLogger logger, IndexSettings indexSettings) {
         this.logger = logger;
-        indexSettings.getScopedSettings().addSettingsUpdateConsumer(INDEX_COMPOUND_FORMAT_SETTING, this::setNoCFSRatio);
-        indexSettings.getScopedSettings().addSettingsUpdateConsumer(INDEX_MERGE_POLICY_EXPUNGE_DELETES_ALLOWED_SETTING, this::expungeDeletesAllowed);
-        indexSettings.getScopedSettings().addSettingsUpdateConsumer(INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING, this::floorSegmentSetting);
-        indexSettings.getScopedSettings().addSettingsUpdateConsumer(INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING, this::maxMergesAtOnce);
-        indexSettings.getScopedSettings().addSettingsUpdateConsumer(INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_EXPLICIT_SETTING, this::maxMergesAtOnceExplicit);
-        indexSettings.getScopedSettings().addSettingsUpdateConsumer(INDEX_MERGE_POLICY_MAX_MERGED_SEGMENT_SETTING, this::maxMergedSegment);
-        indexSettings.getScopedSettings().addSettingsUpdateConsumer(INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING, this::segmentsPerTier);
-        indexSettings.getScopedSettings().addSettingsUpdateConsumer(INDEX_MERGE_POLICY_RECLAIM_DELETES_WEIGHT_SETTING, this::reclaimDeletesWeight);
+        IndexScopedSettings scopedSettings = indexSettings.getScopedSettings();
         double forceMergeDeletesPctAllowed = indexSettings.getValue(INDEX_MERGE_POLICY_EXPUNGE_DELETES_ALLOWED_SETTING); // percentage
         ByteSizeValue floorSegment = indexSettings.getValue(INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING);
         int maxMergeAtOnce = indexSettings.getValue(INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING);
@@ -168,39 +162,41 @@ public final class MergePolicyConfig {
         mergePolicy.setMaxMergedSegmentMB(maxMergedSegment.mbFrac());
         mergePolicy.setSegmentsPerTier(segmentsPerTier);
         mergePolicy.setReclaimDeletesWeight(reclaimDeletesWeight);
-        logger.debug("using [tiered] merge mergePolicy with expunge_deletes_allowed[{}], floor_segment[{}], max_merge_at_once[{}], max_merge_at_once_explicit[{}], max_merged_segment[{}], segments_per_tier[{}], reclaim_deletes_weight[{}]",
+        if (logger.isTraceEnabled()) {
+            logger.trace("using [tiered] merge mergePolicy with expunge_deletes_allowed[{}], floor_segment[{}], max_merge_at_once[{}], max_merge_at_once_explicit[{}], max_merged_segment[{}], segments_per_tier[{}], reclaim_deletes_weight[{}]",
                 forceMergeDeletesPctAllowed, floorSegment, maxMergeAtOnce, maxMergeAtOnceExplicit, maxMergedSegment, segmentsPerTier, reclaimDeletesWeight);
+        }
     }
 
-    private void reclaimDeletesWeight(Double reclaimDeletesWeight) {
+    void setReclaimDeletesWeight(Double reclaimDeletesWeight) {
         mergePolicy.setReclaimDeletesWeight(reclaimDeletesWeight);
     }
 
-    private void segmentsPerTier(Double segmentsPerTier) {
+    void setSegmentsPerTier(Double segmentsPerTier) {
         mergePolicy.setSegmentsPerTier(segmentsPerTier);
     }
 
-    private void maxMergedSegment(ByteSizeValue maxMergedSegment) {
+    void setMaxMergedSegment(ByteSizeValue maxMergedSegment) {
         mergePolicy.setMaxMergedSegmentMB(maxMergedSegment.mbFrac());
     }
 
-    private void maxMergesAtOnceExplicit(Integer maxMergeAtOnceExplicit) {
+    void setMaxMergesAtOnceExplicit(Integer maxMergeAtOnceExplicit) {
         mergePolicy.setMaxMergeAtOnceExplicit(maxMergeAtOnceExplicit);
     }
 
-    private void maxMergesAtOnce(Integer maxMergeAtOnce) {
+    void setMaxMergesAtOnce(Integer maxMergeAtOnce) {
         mergePolicy.setMaxMergeAtOnce(maxMergeAtOnce);
     }
 
-    private void floorSegmentSetting(ByteSizeValue floorSegementSetting) {
+    void setFloorSegmentSetting(ByteSizeValue floorSegementSetting) {
         mergePolicy.setFloorSegmentMB(floorSegementSetting.mbFrac());
     }
 
-    private void expungeDeletesAllowed(Double value) {
+    void setExpungeDeletesAllowed(Double value) {
         mergePolicy.setForceMergeDeletesPctAllowed(value);
     }
 
-    private void setNoCFSRatio(Double noCFSRatio) {
+    void setNoCFSRatio(Double noCFSRatio) {
         mergePolicy.setNoCFSRatio(noCFSRatio);
     }
 

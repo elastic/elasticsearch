@@ -15,6 +15,7 @@ your application to Elasticsearch 3.0.
 * <<breaking_30_non_loopback>>
 * <<breaking_30_thread_pool>>
 * <<breaking_30_allocation>>
+* <<breaking_30_percolator>>
 
 [[breaking_30_search_changes]]
 === Warmers
@@ -181,6 +182,12 @@ When `max_children` was set to `0` on the `has_child` query then there was no up
 are allowed to match. This has changed and `0` now really means to zero child documents are allowed. If no upper limit
 is needed then the `max_children` option shouldn't be defined at all on the `has_child` query.
 
+==== `_parent` field no longer indexed
+
+The join between parent and child documents no longer relies on indexed fields and therefor from `3.0.0` onwards
+the `_parent` indexed field won't be indexed. In order to find documents that referrer to a specific parent id
+the new `parent_id` query can be used. The get response and hits inside the search response remain to include
+the parent id under the `_parent` key.
 
 [[breaking_30_settings_changes]]
 === Settings changes
@@ -619,6 +626,7 @@ in the case where shard copies can be found. Previously, a node not holding the 
 holding shard copies were satisfying the allocation deciders. Now, the shard will be assigned to a node having a shard copy,
 even if none of the nodes holding a shard copy satisfy the allocation deciders.
 
+[[breaking_30_percolator]]
 === Percolator
 
 Adding percolator queries and modifications to existing percolator queries are no longer visible in immediately
@@ -634,3 +642,5 @@ The percolate api can no longer accept documents that have fields that don't exi
 
 When percolating an existing document then specifying a document in the source of the percolate request is not allowed
 any more.
+
+Percolator documents are no longer excluded from the search response.

@@ -91,8 +91,8 @@ public abstract class PrimaryShardAllocator extends AbstractComponent {
             }
 
             final IndexMetaData indexMetaData = metaData.index(shard.getIndex());
-            final IndexSettings indexSettings = new IndexSettings(indexMetaData, settings);
-
+            // don't go wild here and create a new IndexSetting object for every shard this could cause a lot of garbage
+            // on cluster restart if we allocate a boat load of shards
             if (shard.allocatedPostIndexCreate(indexMetaData) == false) {
                 // when we create a fresh index
                 continue;
@@ -108,13 +108,13 @@ public abstract class PrimaryShardAllocator extends AbstractComponent {
 
             final Set<String> lastActiveAllocationIds = indexMetaData.activeAllocationIds(shard.id());
             final boolean snapshotRestore = shard.restoreSource() != null;
-            final boolean recoverOnAnyNode = recoverOnAnyNode(indexSettings);
+            final boolean recoverOnAnyNode = recoverOnAnyNode(indexMetaData);
 
             final NodesAndVersions nodesAndVersions;
             final boolean enoughAllocationsFound;
 
             if (lastActiveAllocationIds.isEmpty()) {
-                assert indexSettings.getIndexVersionCreated().before(Version.V_3_0_0) : "trying to allocated a primary with an empty allocation id set, but index is new";
+                assert Version.indexCreated(indexMetaData.getSettings()).before(Version.V_3_0_0) : "trying to allocated a primary with an empty allocation id set, but index is new";
                 // when we load an old index (after upgrading cluster) or restore a snapshot of an old index
                 // fall back to old version-based allocation mode
                 // Note that once the shard has been active, lastActiveAllocationIds will be non-empty
@@ -356,9 +356,9 @@ public abstract class PrimaryShardAllocator extends AbstractComponent {
      * Return {@code true} if the index is configured to allow shards to be
      * recovered on any node
      */
-    private boolean recoverOnAnyNode(IndexSettings indexSettings) {
-        return indexSettings.isOnSharedFilesystem()
-            && IndexMetaData.INDEX_SHARED_FS_ALLOW_RECOVERY_ON_ANY_NODE_SETTING.get(indexSettings.getSettings());
+    private boolean recoverOnAnyNode(IndexMetaData metaData) {
+        return (IndexMetaData.isOnSharedFilesystem(metaData.getSettings()) || IndexMetaData.isOnSharedFilesystem(this.settings))
+            && IndexMetaData.INDEX_SHARED_FS_ALLOW_RECOVERY_ON_ANY_NODE_SETTING.get(metaData.getSettings(), this.settings);
     }
 
     protected abstract AsyncShardFetch.FetchResult<TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> fetchData(ShardRouting shard, RoutingAllocation allocation);

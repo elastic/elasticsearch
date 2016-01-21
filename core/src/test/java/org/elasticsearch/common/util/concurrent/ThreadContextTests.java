@@ -48,7 +48,7 @@ public class ThreadContextTests extends ESTestCase {
         assertEquals("1", threadContext.getHeader("default"));
     }
 
-    public void testStashContextWithMerge() {
+    public void testStashAndMerge() {
         Settings build = Settings.builder().put("request.headers.default", "1").build();
         ThreadContext threadContext = new ThreadContext(build);
         threadContext.putHeader("foo", "bar");
@@ -59,10 +59,10 @@ public class ThreadContextTests extends ESTestCase {
         HashMap<String, String> toMerge = new HashMap<>();
         toMerge.put("foo", "baz");
         toMerge.put("simon", "says");
-        try (ThreadContext.StoredContext ctx = threadContext.stashContext(toMerge)) {
+        try (ThreadContext.StoredContext ctx = threadContext.stashAndMergeHeaders(toMerge)) {
             assertEquals("bar", threadContext.getHeader("foo"));
             assertEquals("says", threadContext.getHeader("simon"));
-            assertEquals(new Integer(1), threadContext.getTransient("ctx.foo"));
+            assertNull(threadContext.getTransient("ctx.foo"));
             assertEquals("1", threadContext.getHeader("default"));
         }
 
@@ -160,4 +160,31 @@ public class ThreadContextTests extends ESTestCase {
         assertEquals(new Integer(1), threadContext.getTransient("ctx.foo"));
         assertEquals("1", threadContext.getHeader("default"));
     }
+
+    public void testCanResetDefault() {
+        Settings build = Settings.builder().put("request.headers.default", "1").build();
+        ThreadContext threadContext = new ThreadContext(build);
+        threadContext.putHeader("default", "2");
+        assertEquals("2", threadContext.getHeader("default"));
+    }
+
+    public void testStashAndMergeWithModifiedDefaults() {
+        Settings build = Settings.builder().put("request.headers.default", "1").build();
+        ThreadContext threadContext = new ThreadContext(build);
+        HashMap<String, String> toMerge = new HashMap<>();
+        toMerge.put("default", "2");
+        try (ThreadContext.StoredContext ctx = threadContext.stashAndMergeHeaders(toMerge)) {
+            assertEquals("2", threadContext.getHeader("default"));
+        }
+
+        build = Settings.builder().put("request.headers.default", "1").build();
+        threadContext = new ThreadContext(build);
+        threadContext.putHeader("default", "4");
+        toMerge = new HashMap<>();
+        toMerge.put("default", "2");
+        try (ThreadContext.StoredContext ctx = threadContext.stashAndMergeHeaders(toMerge)) {
+            assertEquals("4", threadContext.getHeader("default"));
+        }
+    }
+
 }

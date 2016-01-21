@@ -189,8 +189,10 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
         final Query childFilter;
         final ObjectMapper parentObjectMapper;
         final Query innerQuery;
+        boolean previous = context.hasParentQueryWithInnerHits();
         ObjectMapper objectMapper = context.nestedScope().getObjectMapper();
         try {
+            context.setHasParentQueryWithInnerHits(queryInnerHits != null);
             if (objectMapper == null) {
                 parentFilter = context.bitsetFilter(Queries.newNonNestedFilter());
             } else {
@@ -204,6 +206,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
             }
         } finally {
             context.nestedScope().previousLevel();
+            context.setHasParentQueryWithInnerHits(previous);
         }
 
         if (queryInnerHits != null) {
@@ -216,9 +219,13 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
                 if (innerHits != null) {
                     ParsedQuery parsedQuery = new ParsedQuery(innerQuery, context.copyNamedQueries());
 
-                    InnerHitsContext.NestedInnerHits nestedInnerHits = new InnerHitsContext.NestedInnerHits(innerHits.getSubSearchContext(), parsedQuery, null, parentObjectMapper, nestedObjectMapper);
+                    InnerHitsContext.NestedInnerHits nestedInnerHits = new InnerHitsContext.NestedInnerHits(innerHits.getSubSearchContext(), parsedQuery, context.getChildInnerHits(), parentObjectMapper, nestedObjectMapper);
                     String name = innerHits.getName() != null ? innerHits.getName() : path;
-                    context.addInnerHits(name, nestedInnerHits);
+                    if (context.hasParentQueryWithInnerHits()) {
+                        context.setChildInnerHits(name, nestedInnerHits);
+                    } else {
+                        context.addInnerHits(name, nestedInnerHits);
+                    }
                 }
             }
         }

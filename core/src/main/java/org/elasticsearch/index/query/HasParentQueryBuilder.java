@@ -26,13 +26,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.query.support.QueryInnerHits;
-import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
-import org.elasticsearch.search.fetch.innerhits.InnerHitsSubSearchContext;
 
 import java.io.IOException;
 import java.util.HashSet;
@@ -118,14 +115,7 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        Query innerQuery;
-        String[] previousTypes = QueryShardContext.setTypesWithPrevious(type);
-        try {
-            innerQuery = query.toQuery(context);
-        } finally {
-            QueryShardContext.setTypes(previousTypes);
-        }
-
+        Query innerQuery = HasChildQueryBuilder.processInnerQuery(context, query, type, innerHit);
         if (innerQuery == null) {
             return null;
         }
@@ -135,21 +125,7 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
                     + "] is not a valid type");
         }
 
-        if (innerHit != null) {
-            try (XContentParser parser = innerHit.getXcontentParser()) {
-                XContentParser.Token token = parser.nextToken();
-                if (token != XContentParser.Token.START_OBJECT) {
-                    throw new IllegalStateException("start object expected but was: [" + token + "]");
-                }
-                InnerHitsSubSearchContext innerHits = context.getInnerHitsContext(parser);
-                if (innerHits != null) {
-                    ParsedQuery parsedQuery = new ParsedQuery(innerQuery, context.copyNamedQueries());
-                    InnerHitsContext.ParentChildInnerHits parentChildInnerHits = new InnerHitsContext.ParentChildInnerHits(innerHits.getSubSearchContext(), parsedQuery, null, context.getMapperService(), parentDocMapper);
-                    String name = innerHits.getName() != null ? innerHits.getName() : type;
-                    context.addInnerHits(name, parentChildInnerHits);
-                }
-            }
-        }
+        HasChildQueryBuilder.processInnerHits(innerHit, context, innerQuery, type, parentDocMapper);
 
         Set<String> parentTypes = new HashSet<>(5);
         parentTypes.add(parentDocMapper.type());

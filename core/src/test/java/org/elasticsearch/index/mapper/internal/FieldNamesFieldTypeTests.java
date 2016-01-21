@@ -30,7 +30,7 @@ public class FieldNamesFieldTypeTests extends FieldTypeTestCase {
 
     @Before
     public void setupProperties() {
-        addModifier(new Modifier("enabled", true, true) {
+        addModifier(new Modifier("enabled", true) {
             @Override
             public void modify(MappedFieldType ft) {
                 FieldNamesFieldMapper.FieldNamesFieldType fnft = (FieldNamesFieldMapper.FieldNamesFieldType)ft;

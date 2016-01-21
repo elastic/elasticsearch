@@ -234,16 +234,9 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 fieldType.setFieldDataType(new FieldDataType(fieldType.fieldDataType().getType(), settings));
             }
             boolean defaultDocValues = fieldType.tokenized() == false && fieldType.indexOptions() != IndexOptions.NONE;
-            // backcompat for "fielddata: format: docvalues" for now...
-            boolean fieldDataDocValues = fieldType.fieldDataType() != null
-                && FieldDataType.DOC_VALUES_FORMAT_VALUE.equals(fieldType.fieldDataType().getFormat(context.indexSettings()));
-            if (fieldDataDocValues && docValuesSet && fieldType.hasDocValues() == false) {
-                // this forces the doc_values setting to be written, so fielddata does not mask the original setting
-                defaultDocValues = true;
-            }
             defaultFieldType.setHasDocValues(defaultDocValues);
             if (docValuesSet == false) {
-                fieldType.setHasDocValues(defaultDocValues || fieldDataDocValues);
+                fieldType.setHasDocValues(defaultDocValues);
             }
         }
     }

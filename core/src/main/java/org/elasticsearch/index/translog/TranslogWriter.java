@@ -197,11 +197,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                 return new TranslogReader(generation, channel, path, firstOperationOffset, getWrittenOffset(), operationCounter, shardId);
             } catch (Throwable t) {
                 // close the channel, as we are closed and failed to create a new reader
-                try {
-                    channel.close();
-                } catch (Throwable tWhileClosing) {
-                    t.addSuppressed(tWhileClosing);
-                }
+                IOUtils.closeWhileHandlingException(channel);
                 throw t;
             }
         } else {

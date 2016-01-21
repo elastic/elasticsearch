@@ -55,7 +55,7 @@ public final class IngestActionFilter extends AbstractComponent implements Actio
     }
 
     @Override
-    public void apply(Task task, String action, ActionRequest<?> request, ActionListener<?> listener, ActionFilterChain chain) {
+    public <Request extends ActionRequest<Request>, Response extends ActionResponse> void apply(Task task, String action, Request request, ActionListener<Response> listener, ActionFilterChain<Request, Response> chain) {
         switch (action) {
             case IndexAction.NAME:
                 IndexRequest indexRequest = (IndexRequest) request;
@@ -82,7 +82,7 @@ public final class IngestActionFilter extends AbstractComponent implements Actio
     }
 
     @Override
-    public void apply(String action, ActionResponse response, ActionListener<?> listener, ActionFilterChain chain) {
+    public <Response extends ActionResponse> void apply(String action, Response response, ActionListener<Response> listener, ActionFilterChain<?, Response> chain) {
         chain.proceed(action, response, listener);
     }
 

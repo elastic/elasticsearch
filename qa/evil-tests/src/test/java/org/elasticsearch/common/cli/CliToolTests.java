@@ -28,7 +28,9 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -115,9 +117,9 @@ public class CliToolTests extends CliToolTestCase {
     public void testMultiCommand() {
         Terminal terminal = new MockTerminal();
         int count = randomIntBetween(2, 7);
-        final AtomicReference<Boolean>[] executed = new AtomicReference[count];
-        for (int i = 0; i < executed.length; i++) {
-            executed[i] = new AtomicReference<>(false);
+        List<AtomicReference<Boolean>> executed = new ArrayList<>(count);
+        for (int i = 0; i < count; i++) {
+            executed.add(new AtomicReference<>(false));
         }
         NamedCommand[] cmds = new NamedCommand[count];
         for (int i = 0; i < count; i++) {
@@ -125,7 +127,7 @@ public class CliToolTests extends CliToolTestCase {
             cmds[i] = new NamedCommand("cmd" + index, terminal) {
                 @Override
                 public CliTool.ExitStatus execute(Settings settings, Environment env) throws Exception {
-                    executed[index].set(true);
+                    executed.get(index).set(true);
                     return OK;
                 }
             };
@@ -134,17 +136,17 @@ public class CliToolTests extends CliToolTestCase {
         int cmdIndex = randomIntBetween(0, count-1);
         CliTool.ExitStatus status = tool.execute("cmd" + cmdIndex);
         assertThat(status, is(OK));
-        for (int i = 0; i < executed.length; i++) {
-            assertThat(executed[i].get(), is(i == cmdIndex));
+        for (int i = 0; i < count; i++) {
+            assertThat(executed.get(i).get(), is(i == cmdIndex));
         }
     }
 
     public void testMultiCommandUnknownCommand() {
         Terminal terminal = new MockTerminal();
         int count = randomIntBetween(2, 7);
-        final AtomicReference<Boolean>[] executed = new AtomicReference[count];
-        for (int i = 0; i < executed.length; i++) {
-            executed[i] = new AtomicReference<>(false);
+        List<AtomicReference<Boolean>> executed = new ArrayList<>(count);
+        for (int i = 0; i < count; i++) {
+            executed.add(new AtomicReference<>(false));
         }
         NamedCommand[] cmds = new NamedCommand[count];
         for (int i = 0; i < count; i++) {
@@ -152,7 +154,7 @@ public class CliToolTests extends CliToolTestCase {
             cmds[i] = new NamedCommand("cmd" + index, terminal) {
                 @Override
                 public CliTool.ExitStatus execute(Settings settings, Environment env) throws Exception {
-                    executed[index].set(true);
+                    executed.get(index).set(true);
                     return OK;
                 }
             };
@@ -160,8 +162,8 @@ public class CliToolTests extends CliToolTestCase {
         MultiCmdTool tool = new MultiCmdTool("tool", terminal, cmds);
         CliTool.ExitStatus status = tool.execute("cmd" + count); // "cmd" + count doesn't exist
         assertThat(status, is(CliTool.ExitStatus.USAGE));
-        for (int i = 0; i < executed.length; i++) {
-            assertThat(executed[i].get(), is(false));
+        for (int i = 0; i < count; i++) {
+            assertThat(executed.get(i).get(), is(false));
         }
     }
 

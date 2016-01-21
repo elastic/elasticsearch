@@ -61,6 +61,8 @@ public class SettingsModule extends AbstractModule {
         for (Map.Entry<String, String> entry : settings.filter(IndexScopedSettings.INDEX_SETTINGS_KEY_PREDICATE.negate()).getAsMap().entrySet()) {
             if (clusterSettings.get(entry.getKey()) != null) {
                 clusterSettings.validate(entry.getKey(), settings);
+            } else if (AbstractScopedSettings.isValidKey(entry.getKey()) == false) {
+                throw new IllegalArgumentException("illegal settings key: [" + entry.getKey() + "]");
             }
         }
 

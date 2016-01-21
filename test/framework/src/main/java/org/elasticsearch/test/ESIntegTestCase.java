@@ -1803,7 +1803,16 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
         return new InternalTestCluster(nodeMode, seed, createTempDir(), minNumDataNodes, maxNumDataNodes,
                 InternalTestCluster.clusterName(scope.name(), seed) + "-cluster", nodeConfigurationSource, getNumClientNodes(),
-                InternalTestCluster.DEFAULT_ENABLE_HTTP_PIPELINING, nodePrefix, mockPlugins);
+                InternalTestCluster.DEFAULT_ENABLE_HTTP_PIPELINING, nodePrefix, mockPlugins, getClientWrapper());
+    }
+
+    /**
+     * Returns a function that allows to wrap / filter all clients that are exposed by the test cluster. This is useful
+     * for debugging or request / response pre and post processing. It also allows to intercept all calls done by the test
+     * framework. By default this method returns an identity function {@link Function#identity()}.
+     */
+    protected Function<Client,Client> getClientWrapper() {
+        return Function.identity();
     }
 
     /** Return the mock plugins the cluster should use */

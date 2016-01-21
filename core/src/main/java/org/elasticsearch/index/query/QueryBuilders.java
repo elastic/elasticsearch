@@ -490,6 +490,14 @@ public abstract class QueryBuilders {
         return new HasParentQueryBuilder(type, query);
     }
 
+    /**
+     * Constructs a new parent id query that returns all child documents of the specified type that
+     * point to the specified id.
+     */
+    public static ParentIdQueryBuilder parentId(String type, String id) {
+        return new ParentIdQueryBuilder(type, id);
+    }
+
     public static NestedQueryBuilder nestedQuery(String path, QueryBuilder query) {
         return new NestedQueryBuilder(path, query);
     }

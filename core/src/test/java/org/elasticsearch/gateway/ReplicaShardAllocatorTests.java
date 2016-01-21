@@ -43,6 +43,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
@@ -51,11 +52,9 @@ import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
 import org.elasticsearch.test.ESAllocationTestCase;
 import org.junit.Before;
 
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -289,7 +288,7 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
         MetaData metaData = MetaData.builder()
                 .put(IndexMetaData.builder(shardId.getIndex()).settings(settings(Version.CURRENT).put(settings))
                     .numberOfShards(1).numberOfReplicas(1)
-                    .putActiveAllocationIds(0, new HashSet<>(Arrays.asList(primaryShard.allocationId().getId()))))
+                    .putActiveAllocationIds(0, Sets.newHashSet(primaryShard.allocationId().getId())))
             .build();
         RoutingTable routingTable = RoutingTable.builder()
                 .add(IndexRoutingTable.builder(shardId.getIndex())
@@ -311,7 +310,7 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
         MetaData metaData = MetaData.builder()
                 .put(IndexMetaData.builder(shardId.getIndex()).settings(settings(Version.CURRENT))
                     .numberOfShards(1).numberOfReplicas(1)
-                    .putActiveAllocationIds(0, new HashSet<>(Arrays.asList(primaryShard.allocationId().getId()))))
+                    .putActiveAllocationIds(0, Sets.newHashSet(primaryShard.allocationId().getId())))
                 .build();
         RoutingTable routingTable = RoutingTable.builder()
                 .add(IndexRoutingTable.builder(shardId.getIndex())

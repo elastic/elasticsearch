@@ -162,8 +162,8 @@ public class ClusterRerouteIT extends ESIntegTestCase {
 
     public void testDelayWithALargeAmountOfShards() throws Exception {
         Settings commonSettings = settingsBuilder()
-                .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING, 1)
-                .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING, 1)
+                .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 1)
+                .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 1)
                 .build();
         logger.info("--> starting 4 nodes");
         String node_1 = internalCluster().startNode(commonSettings);

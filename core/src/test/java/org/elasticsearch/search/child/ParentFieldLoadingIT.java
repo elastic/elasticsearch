@@ -157,7 +157,7 @@ public class ParentFieldLoadingIT extends ESIntegTestCase {
                     MapperService mapperService = indexService.mapperService();
                     DocumentMapper documentMapper = mapperService.documentMapper("child");
                     if (documentMapper != null) {
-                        verified = documentMapper.parentFieldMapper().getChildJoinFieldType().fieldDataType().getLoading() == MappedFieldType.Loading.EAGER_GLOBAL_ORDINALS;
+                        verified = documentMapper.parentFieldMapper().fieldType().fieldDataType().getLoading() == MappedFieldType.Loading.EAGER_GLOBAL_ORDINALS;
                     }
                 }
                 assertTrue(verified);

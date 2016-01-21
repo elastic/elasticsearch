@@ -1033,22 +1033,8 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
             final Map<String, MappedFieldType> warmUp = new HashMap<>();
             for (DocumentMapper docMapper : mapperService.docMappers(false)) {
                 for (FieldMapper fieldMapper : docMapper.mappers()) {
-                    final FieldDataType fieldDataType;
-                    final String indexName;
-                    if (fieldMapper instanceof ParentFieldMapper) {
-                        MappedFieldType joinFieldType = ((ParentFieldMapper) fieldMapper).getChildJoinFieldType();
-                        if (joinFieldType == null) {
-                            continue;
-                        }
-                        fieldDataType = joinFieldType.fieldDataType();
-                        // TODO: this can be removed in 3.0 when the old parent/child impl is removed:
-                        // related to: https://github.com/elastic/elasticsearch/pull/12418
-                        indexName = fieldMapper.fieldType().name();
-                    } else {
-                        fieldDataType = fieldMapper.fieldType().fieldDataType();
-                        indexName = fieldMapper.fieldType().name();
-                    }
-
+                    final FieldDataType fieldDataType = fieldMapper.fieldType().fieldDataType();
+                    final String indexName = fieldMapper.fieldType().name();
                     if (fieldDataType == null) {
                         continue;
                     }
@@ -1101,21 +1087,8 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
             final Map<String, MappedFieldType> warmUpGlobalOrdinals = new HashMap<>();
             for (DocumentMapper docMapper : mapperService.docMappers(false)) {
                 for (FieldMapper fieldMapper : docMapper.mappers()) {
-                    final FieldDataType fieldDataType;
-                    final String indexName;
-                    if (fieldMapper instanceof ParentFieldMapper) {
-                        MappedFieldType joinFieldType = ((ParentFieldMapper) fieldMapper).getChildJoinFieldType();
-                        if (joinFieldType == null) {
-                            continue;
-                        }
-                        fieldDataType = joinFieldType.fieldDataType();
-                        // TODO: this can be removed in 3.0 when the old parent/child impl is removed:
-                        // related to: https://github.com/elastic/elasticsearch/pull/12418
-                        indexName = fieldMapper.fieldType().name();
-                    } else {
-                        fieldDataType = fieldMapper.fieldType().fieldDataType();
-                        indexName = fieldMapper.fieldType().name();
-                    }
+                    final FieldDataType fieldDataType = fieldMapper.fieldType().fieldDataType();
+                    final String indexName = fieldMapper.fieldType().name();
                     if (fieldDataType == null) {
                         continue;
                     }

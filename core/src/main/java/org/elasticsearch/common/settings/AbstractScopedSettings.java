@@ -31,6 +31,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.regex.Pattern;
@@ -41,44 +42,43 @@ import java.util.regex.Pattern;
  */
 public abstract class AbstractScopedSettings extends AbstractComponent {
     private Settings lastSettingsApplied = Settings.EMPTY;
-    private final List<SettingUpdater<?>> settingUpdaters = new ArrayList<>();
-    private final Map<String, Setting<?>> complexMatchers = new HashMap<>();
-    private final Map<String, Setting<?>> keySettings = new HashMap<>();
+    private final List<SettingUpdater<?>> settingUpdaters = new CopyOnWriteArrayList<>();
+    private final Map<String, Setting<?>> complexMatchers;
+    private final Map<String, Setting<?>> keySettings;
     private final Setting.Scope scope;
     private static final Pattern KEY_PATTERN = Pattern.compile("^(?:[-\\w]+[.])*[-\\w]+$");
     private static final Pattern GROUP_KEY_PATTERN = Pattern.compile("^(?:[-\\w]+[.])+$");
-
 
     protected AbstractScopedSettings(Settings settings, Set<Setting<?>> settingsSet, Setting.Scope scope) {
         super(settings);
         this.lastSettingsApplied = Settings.EMPTY;
         this.scope = scope;
-        for (Setting<?> entry : settingsSet) {
-            addSetting(entry);
+        Map<String, Setting<?>> complexMatchers = new HashMap<>();
+        Map<String, Setting<?>> keySettings = new HashMap<>();
+        for (Setting<?> setting : settingsSet) {
+            if (setting.getScope() != scope) {
+                throw new IllegalArgumentException("Setting must be a " + scope + " setting but was: " + setting.getScope());
+            }
+            if (isValidKey(setting.getKey()) == false && (setting.isGroupSetting() && isValidGroupKey(setting.getKey())) == false) {
+                throw new IllegalArgumentException("illegal settings key: [" + setting.getKey() + "]");
+            }
+            if (setting.hasComplexMatcher()) {
+                complexMatchers.putIfAbsent(setting.getKey(), setting);
+            } else {
+                keySettings.putIfAbsent(setting.getKey(), setting);
+            }
         }
+        this.complexMatchers = Collections.unmodifiableMap(complexMatchers);
+        this.keySettings = Collections.unmodifiableMap(keySettings);
     }
 
     protected AbstractScopedSettings(Settings nodeSettings, Settings scopeSettings, AbstractScopedSettings other) {
         super(nodeSettings);
         this.lastSettingsApplied = scopeSettings;
         this.scope = other.scope;
-        complexMatchers.putAll(other.complexMatchers);
-        keySettings.putAll(other.keySettings);
+        complexMatchers = other.complexMatchers;
+        keySettings = other.keySettings;
         settingUpdaters.addAll(other.settingUpdaters);
-    }
-
-    protected final void addSetting(Setting<?> setting) {
-        if (setting.getScope() != scope) {
-            throw new IllegalArgumentException("Setting must be a " + scope + " setting but was: " + setting.getScope());
-        }
-        if (isValidKey(setting.getKey()) == false && (setting.isGroupSetting() && isValidGroupKey(setting.getKey())) == false) {
-            throw new IllegalArgumentException("illegal settings key: [" + setting.getKey() + "]");
-        }
-        if (setting.hasComplexMatcher()) {
-            complexMatchers.putIfAbsent(setting.getKey(), setting);
-        } else {
-            keySettings.putIfAbsent(setting.getKey(), setting);
-        }
     }
 
     /**

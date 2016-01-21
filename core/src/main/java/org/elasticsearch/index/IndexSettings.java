@@ -167,10 +167,6 @@ public final class IndexSettings {
         this(indexMetaData, nodeSettings, (index) -> Regex.simpleMatch(index, indexMetaData.getIndex()), IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
     }
 
-    IndexSettings(final IndexMetaData indexMetaData, final Settings nodeSettings, IndexScopedSettings indexScopedSettings) {
-        this(indexMetaData, nodeSettings, (index) -> Regex.simpleMatch(index, indexMetaData.getIndex()), indexScopedSettings);
-    }
-
     /**
      * Creates a new {@link IndexSettings} instance. The given node settings will be merged with the settings in the metadata
      * while index level settings will overwrite node settings.
@@ -457,5 +453,5 @@ public final class IndexSettings {
     }
 
 
-    public IndexScopedSettings getScopedSettings() { return scopedSettings;}
+    IndexScopedSettings getScopedSettings() { return scopedSettings;}
 }

@@ -35,6 +35,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BiFunction;
 
 /**
  * Encapsulates a pipeline's id and configuration as a blob
@@ -46,36 +47,33 @@ public final class PipelineConfiguration implements Writeable<PipelineConfigurat
     public static PipelineConfiguration readPipelineConfiguration(StreamInput in) throws IOException {
         return PROTOTYPE.readFrom(in);
     }
+    private final static ObjectParser<Builder, Void> PARSER = new ObjectParser<>("pipeline_config", Builder::new);
+    static {
+        PARSER.declareString(Builder::setId, new ParseField("id"));
+        PARSER.declareField((parser, builder, aVoid) -> {
+            XContentBuilder contentBuilder = XContentBuilder.builder(parser.contentType().xContent());
+            XContentHelper.copyCurrentStructure(contentBuilder.generator(), parser);
+            builder.setConfig(contentBuilder.bytes());
+        }, new ParseField("config"), ObjectParser.ValueType.OBJECT);
+    }
 
-    public static class Builder {
-
-        private final static ObjectParser<Builder, Void> PARSER = new ObjectParser<>("pipeline_config", null);
-
-        static {
-            PARSER.declareString(Builder::setId, new ParseField("id"));
-            PARSER.declareField((parser, builder, aVoid) -> {
-                XContentBuilder contentBuilder = XContentBuilder.builder(parser.contentType().xContent());
-                XContentHelper.copyCurrentEvent(contentBuilder.generator(), parser);
-                builder.setConfig(contentBuilder.bytes());
-            }, new ParseField("config"), ObjectParser.ValueType.OBJECT);
-        }
+    public static BiFunction<XContentParser, Void,PipelineConfiguration> getParser() {
+        return (p, c) -> PARSER.apply(p ,c).build();
+    }
+    private static class Builder {
 
         private String id;
         private BytesReference config;
 
-        public Builder(XContentParser parser) throws IOException {
-            PARSER.parse(parser, this);
-        }
-
-        public void setId(String id) {
+        void setId(String id) {
             this.id = id;
         }
 
-        public void setConfig(BytesReference config) {
+        void setConfig(BytesReference config) {
             this.config = config;
         }
 
-        public PipelineConfiguration build() {
+        PipelineConfiguration build() {
             return new PipelineConfiguration(id, config);
         }
     }

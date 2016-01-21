@@ -35,7 +35,7 @@ final class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory.L
 
     private final long precisionThreshold;
 
-    CardinalityAggregatorFactory(String name, ValuesSourceConfig<ValuesSource> config, long precisionThreshold) {
+    CardinalityAggregatorFactory(String name, ValuesSourceConfig config, long precisionThreshold) {
         super(name, InternalCardinality.TYPE.name(), config);
         this.precisionThreshold = precisionThreshold;
     }

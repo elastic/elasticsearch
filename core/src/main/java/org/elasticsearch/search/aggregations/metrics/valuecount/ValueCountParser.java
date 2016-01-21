@@ -40,7 +40,7 @@ public class ValueCountParser implements Aggregator.Parser {
     @Override
     public AggregatorFactory parse(String aggregationName, XContentParser parser, SearchContext context) throws IOException {
 
-        ValuesSourceParser<?> vsParser = ValuesSourceParser.any(aggregationName, InternalValueCount.TYPE, context)
+        ValuesSourceParser vsParser = ValuesSourceParser.any(aggregationName, InternalValueCount.TYPE, context)
                 .build();
 
         XContentParser.Token token;
@@ -54,6 +54,6 @@ public class ValueCountParser implements Aggregator.Parser {
             }
         }
 
-        return new ValueCountAggregator.Factory<>(aggregationName, vsParser.config());
+        return new ValueCountAggregator.Factory(aggregationName, vsParser.config());
     }
 }

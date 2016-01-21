@@ -246,7 +246,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             boolean defaultDocValues = defaultDocValues(context.indexCreatedVersion());
             defaultFieldType.setHasDocValues(defaultDocValues);
             if (docValuesSet == false) {
-                fieldType.setHasDocValues(defaultDocValues || fieldDataDocValues);
+                fieldType.setHasDocValues(defaultDocValues);
             }
         }
     }

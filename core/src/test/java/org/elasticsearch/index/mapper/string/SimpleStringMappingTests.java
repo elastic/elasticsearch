@@ -33,7 +33,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
@@ -64,7 +63,6 @@ import static org.hamcrest.Matchers.nullValue;
 /**
  */
 public class SimpleStringMappingTests extends ESSingleNodeTestCase {
-    private static Settings DOC_VALUES_SETTINGS = Settings.builder().put(FieldDataType.FORMAT_KEY, FieldDataType.DOC_VALUES_FORMAT_VALUE).build();
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
@@ -369,46 +367,6 @@ public class SimpleStringMappingTests extends ESSingleNodeTestCase {
         assertThat(doc.rootDoc().getField("field6").fieldType().storeTermVectorOffsets(), equalTo(true));
         assertThat(doc.rootDoc().getField("field6").fieldType().storeTermVectorPositions(), equalTo(true));
         assertThat(doc.rootDoc().getField("field6").fieldType().storeTermVectorPayloads(), equalTo(true));
-    }
-
-    public void testDocValuesFielddata() throws Exception {
-        IndexService indexService = createIndex("index");
-        DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
-        final BuilderContext ctx = new BuilderContext(indexService.getIndexSettings().getSettings(), new ContentPath(1));
-
-        assertFalse(new Builder("anything").index(false).build(ctx).fieldType().hasDocValues());
-        assertTrue(new Builder("anything").index(false).fieldDataSettings(DOC_VALUES_SETTINGS).build(ctx).fieldType().hasDocValues());
-        assertTrue(new Builder("anything").index(false).docValues(true).build(ctx).fieldType().hasDocValues());
-
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("properties")
-            .startObject("str1")
-                .field("type", "string")
-                .startObject("fielddata")
-                    .field("format", "paged_bytes")
-                .endObject()
-            .endObject()
-            .startObject("str2")
-                .field("type", "string")
-                .field("index", "not_analyzed")
-                .startObject("fielddata")
-                    .field("format", "doc_values")
-                .endObject()
-            .endObject()
-            .endObject()
-            .endObject().endObject().string();
-
-        DocumentMapper defaultMapper = parser.parse("type", new CompressedXContent(mapping));
-
-        ParsedDocument parsedDoc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
-            .startObject()
-            .field("str1", "1234")
-            .field("str2", "1234")
-            .endObject()
-            .bytes());
-        final Document doc = parsedDoc.rootDoc();
-        assertEquals(DocValuesType.NONE, docValuesType(doc, "str1"));
-        assertEquals(DocValuesType.SORTED_SET, docValuesType(doc, "str2"));
     }
 
     public void testDocValues() throws Exception {

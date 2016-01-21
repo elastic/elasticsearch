@@ -51,7 +51,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.lenientNodeBooleanValue;
 
 /**
  *
@@ -122,7 +122,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());
                 Object fieldNode = entry.getValue();
                 if (fieldName.equals("enabled")) {
-                    builder.enabled(nodeBooleanValue(fieldNode));
+                    builder.enabled(lenientNodeBooleanValue(fieldNode));
                     iterator.remove();
                 } else if ("format".equals(fieldName) && parserContext.indexVersionCreated().before(Version.V_3_0_0)) {
                     // ignore on old indices, reject on and after 3.0

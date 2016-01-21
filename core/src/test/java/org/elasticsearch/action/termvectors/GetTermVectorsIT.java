@@ -152,7 +152,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
                 .addMapping("type1",
                         "field0", "type=integer,", // no tvs
                         "field1", "type=string,index=no", // no tvs
-                        "field2", "type=string,index=no,store=yes",  // no tvs
+                        "field2", "type=string,index=no,store=true",  // no tvs
                         "field3", "type=string,index=no,term_vector=yes", // no tvs
                         "field4", "type=string,index=not_analyzed", // yes tvs
                         "field5", "type=string,index=analyzed")); // yes tvs

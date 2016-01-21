@@ -337,7 +337,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
                         .startObject("properties")
                         .startObject("field1")
                         .field("type", "long")
-                        .field("store", "yes")
+                        .field("store", true)
                         .endObject()
                         .endObject()
                         .endObject()

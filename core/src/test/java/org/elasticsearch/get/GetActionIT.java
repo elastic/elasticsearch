@@ -253,12 +253,12 @@ public class GetActionIT extends ESIntegTestCase {
     public void testGetDocWithMultivaluedFields() throws Exception {
         String mapping1 = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties")
-                .startObject("field").field("type", "string").field("store", "yes").endObject()
+                .startObject("field").field("type", "string").field("store", true).endObject()
                 .endObject()
                 .endObject().endObject().string();
         String mapping2 = XContentFactory.jsonBuilder().startObject().startObject("type2")
                 .startObject("properties")
-                .startObject("field").field("type", "string").field("store", "yes").endObject()
+                .startObject("field").field("type", "string").field("store", true).endObject()
                 .endObject()
                 .endObject().endObject().string();
         assertAcked(prepareCreate("test")
@@ -751,7 +751,7 @@ public class GetActionIT extends ESIntegTestCase {
                         .startObject("field1").field("type", "object").startObject("properties")
                         .startObject("field2").field("type", "object").startObject("properties")
                                 .startObject("field3").field("type", "object").startObject("properties")
-                                    .startObject("field4").field("type", "string").field("store", "yes")
+                                    .startObject("field4").field("type", "string").field("store", true)
                                 .endObject().endObject()
                             .endObject().endObject()
                         .endObject().endObject()

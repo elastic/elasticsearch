@@ -11,7 +11,7 @@
           "not_indexed": {
             "type": "string",
             "index": "no",
-            "store": "yes"
+            "store": true
           }
         }
       },
@@ -23,7 +23,7 @@
           },
           "stored": {
             "type": "long",
-            "store": "yes"
+            "store": true
           }
         }
       }

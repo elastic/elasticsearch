@@ -263,12 +263,6 @@ fi
     install_and_check_plugin repository s3 aws-java-sdk-core-*.jar
 }
 
-@test "[$GROUP] install site example" {
-    # Doesn't use install_and_check_plugin because this is a site plugin
-    install_plugin site-example $(readlink -m site-example-*.zip)
-    assert_file_exist "$ESHOME/plugins/site-example/_site/index.html"
-}
-
 @test "[$GROUP] install store-smb plugin" {
     install_and_check_plugin store smb
 }

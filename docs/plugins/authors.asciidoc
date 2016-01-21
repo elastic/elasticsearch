@@ -3,28 +3,12 @@
 
 The Elasticsearch repository contains examples of:
 
-* a https://github.com/elastic/elasticsearch/tree/master/plugins/site-example[site plugin]
-  for serving static HTML, JavaScript, and CSS.
 * a https://github.com/elastic/elasticsearch/tree/master/plugins/jvm-example[Java plugin]
   which contains Java code.
 
 These examples provide the bare bones needed to get started.  For more
 information about how to write a plugin, we recommend looking at the plugins
 listed in this documentation for inspiration.
-
-[NOTE]
-.Site plugins
-====================================
-
-The example site plugin mentioned above contains all of the scaffolding needed
-for integrating with Gradle builds.  If you don't plan on using Gradle, then all
-you really need in your plugin is:
-
-* The `plugin-descriptor.properties` file
-* The `_site/` directory
-* The `_site/index.html` file
-
-====================================
 
 [float]
 === Plugin descriptor file
@@ -43,7 +27,7 @@ instance, see
 https://github.com/elastic/elasticsearch/blob/master/plugins/site-example/build.gradle[`/plugins/site-example/build.gradle`].
 
 [float]
-==== Mandatory elements for all plugins
+==== Mandatory elements for plugins
 
 
 [cols="<,<,<",options="header",]
@@ -56,23 +40,6 @@ https://github.com/elastic/elasticsearch/blob/master/plugins/site-example/build.
 
 |`name`                     |String  | the plugin name
 
-|=======================================================================
-
-
-
-[float]
-==== Mandatory elements for Java plugins
-
-
-[cols="<,<,<",options="header",]
-|=======================================================================
-|Element                    | Type   | Description
-
-|`jvm`                      |Boolean | true if the `classname` class should be loaded
-from jar files in the root directory of the plugin.
-Note that only jar files in the root directory are added to the classpath for the plugin!
-If you need other resources, package them into a resources jar.
-
 |`classname`                |String  | the name of the class to load, fully-qualified.
 
 |`java.version`             |String  | version of java the code is built against.
@@ -83,6 +50,9 @@ of nonnegative decimal integers separated by "."'s and may have leading zeros.
 
 |=======================================================================
 
+Note that only jar files in the root directory are added to the classpath for the plugin!
+If you need other resources, package them into a resources jar.
+
 [IMPORTANT]
 .Plugin release lifecycle
 ==============================================
@@ -92,20 +62,6 @@ This version is checked when the plugin is loaded so Elasticsearch will refuse t
 in the presence of plugins with the incorrect `elasticsearch.version`.
 
 ==============================================
-
-
-[float]
-==== Mandatory elements for Site plugins
-
-
-[cols="<,<,<",options="header",]
-|=======================================================================
-|Element                    | Type   | Description
-
-|`site`                     |Boolean | true to indicate contents of the `_site/`
-directory in the root of the plugin should be served.
-
-|=======================================================================
 
 
 [float]

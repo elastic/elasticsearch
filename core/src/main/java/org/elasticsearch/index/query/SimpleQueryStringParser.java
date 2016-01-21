@@ -87,7 +87,7 @@ public class SimpleQueryStringParser implements QueryParser {
 
         String currentFieldName = null;
         String queryBody = null;
-        float boost = 1.0f; 
+        float boost = 1.0f;
         String queryName = null;
         String minimumShouldMatch = null;
         Map<String, Float> fieldsAndWeights = null;
@@ -212,8 +212,10 @@ public class SimpleQueryStringParser implements QueryParser {
         if (queryName != null) {
             parseContext.addNamedQuery(queryName, query);
         }
-
-        if (minimumShouldMatch != null && query instanceof BooleanQuery) {
+        // If the coordination factor is disabled on a boolean query we don't apply the minimum should match.
+        // This is done to make sure that the minimum_should_match doesn't get applied when there is only one word
+        // and multiple variations of the same word in the query (synonyms for instance).
+        if (minimumShouldMatch != null && query instanceof BooleanQuery && !((BooleanQuery) query).isCoordDisabled()) {
             query = Queries.applyMinimumShouldMatch((BooleanQuery) query, minimumShouldMatch);
         }
 

@@ -1154,7 +1154,7 @@ public class SimpleIndexQueryParserTests extends ESSingleNodeTestCase {
 
         assertTrue("terms query disable_coord option mismatch", booleanQuery.isCoordDisabled());
         assertThat(booleanQuery.getBoost(), equalTo(2.0f));
-        assertThat(booleanQuery.getMinimumNumberShouldMatch(), equalTo(0));
+        assertThat(booleanQuery.getMinimumNumberShouldMatch(), equalTo(2));
     }
 
     @Test
@@ -2581,10 +2581,6 @@ public class SimpleIndexQueryParserTests extends ESSingleNodeTestCase {
         csq = (ConstantScoreQuery) queryParser.parse(constantScoreQuery(boolQuery().should(termQuery("foo", "bar")))).query();
         bq = (BooleanQuery) csq.getQuery();
         assertEquals(1, bq.getMinimumNumberShouldMatch());
-
-        csq = (ConstantScoreQuery) queryParser.parse(constantScoreQuery(boolQuery().disableCoord(true).should(termQuery("foo", "bar")))).query();
-        bq = (BooleanQuery) csq.getQuery();
-        assertEquals(0, bq.getMinimumNumberShouldMatch());
     }
 
     public void testTermsQueryFilter() throws Exception {

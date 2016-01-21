@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionModule;
@@ -100,7 +101,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         }
 
         @Override
-        protected boolean apply(String action, ActionRequest request, ActionListener listener) {
+        protected boolean apply(String action, ActionRequest<?> request, ActionListener<?> listener) {
             if (blockedActions.contains(action)) {
                 throw new ElasticsearchException("force exception on [" + action + "]");
             }
@@ -108,7 +109,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         }
 
         @Override
-        protected boolean apply(String action, ActionResponse response, ActionListener listener) {
+        protected boolean apply(String action, ActionResponse response, ActionListener<?> listener) {
             return true;
         }
 

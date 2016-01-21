@@ -644,3 +644,14 @@ When percolating an existing document then specifying a document in the source o
 any more.
 
 Percolator documents are no longer excluded from the search response.
+
+=== Default logging using systemd
+
+In previous versions of Elasticsearch, the default logging
+configuration routed standard output to /dev/null and standard error to
+the journal. However, there are often critical error messages at
+startup that are logged to standard output rather than standard error
+and these error messages would be lost to the nether. The default has
+changed to now route standard output to the journal and standard error
+to inherit this setting (these are the defaults for systemd). These
+settings can be modified by editing the elasticsearch.service file.

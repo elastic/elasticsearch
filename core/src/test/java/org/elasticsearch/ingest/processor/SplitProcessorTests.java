@@ -19,15 +19,20 @@
 
 package org.elasticsearch.ingest.processor;
 
+import org.elasticsearch.ingest.TestTemplateService;
+import org.elasticsearch.ingest.core.CompoundProcessor;
 import org.elasticsearch.ingest.core.IngestDocument;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.ingest.core.Processor;
+import org.elasticsearch.ingest.core.TemplateService;
 import org.elasticsearch.test.ESTestCase;
+import org.hamcrest.CoreMatchers;
 
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -76,5 +81,24 @@ public class SplitProcessorTests extends ESTestCase {
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("field [" + fieldName + "] of type [java.lang.Integer] cannot be cast to [java.lang.String]"));
         }
+    }
+
+    public void testSplitAppendable() throws Exception {
+        TemplateService templateService = TestTemplateService.instance();
+        Map splitConfig = new HashMap<>();
+        splitConfig.put("field", "flags");
+        splitConfig.put("separator", "\\|");
+        Processor splitProcessor = (new SplitProcessor.Factory()).create(splitConfig);
+        Map appendConfig = new HashMap<>();
+        appendConfig.put("field", "flags");
+        appendConfig.put("value", Collections.singletonList("additional_flag"));
+        Processor appendProcessor = (new AppendProcessor.Factory(templateService)).create(appendConfig);
+        CompoundProcessor compoundProcessor = new CompoundProcessor(splitProcessor, appendProcessor);
+        Map<String, Object> source = new HashMap<>();
+        source.put("flags", "new|hot|super|fun|interesting");
+        IngestDocument ingestDocument = new IngestDocument(source, new HashMap<>());
+        compoundProcessor.execute(ingestDocument);
+        List<String> expectedFlags = Arrays.asList("new", "hot", "super", "fun", "interesting", "additional_flag");
+        assertThat(ingestDocument.getFieldValue("flags", List.class), CoreMatchers.equalTo(expectedFlags));
     }
 }

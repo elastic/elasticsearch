@@ -17,10 +17,13 @@
  * under the License.
  */
 package org.elasticsearch.search.suggest.term;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.suggest.SuggestBuilder.SuggestionBuilder;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * Defines the actual suggest command. Each command uses the global options
@@ -39,7 +42,7 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
     private Integer prefixLength;
     private Integer minWordLength;
     private Float minDocFreq;
-    
+
     /**
      * @param name
      *            The name of this suggestion. This is a required parameter.
@@ -47,6 +50,9 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
     public TermSuggestionBuilder(String name) {
         super(name, "term");
     }
+
+    // for use when creating the term builder from an input stream
+    protected TermSuggestionBuilder() { }
 
     /**
      * The global suggest mode controls what suggested terms are included or
@@ -220,5 +226,62 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
             builder.field("min_doc_freq", minDocFreq);
         }
         return builder;
+    }
+
+    @Override
+    public TermSuggestionBuilder doReadFrom(StreamInput in) throws IOException {
+        TermSuggestionBuilder builder = new TermSuggestionBuilder();
+        return builder.suggestMode(in.readOptionalString())
+                      .setAccuracy(in.readOptionalFloat())
+                      .sort(in.readOptionalString())
+                      .stringDistance(in.readOptionalString())
+                      .maxEdits(in.readOptionalVInt())
+                      .maxInspections(in.readOptionalVInt())
+                      .maxTermFreq(in.readOptionalFloat())
+                      .prefixLength(in.readOptionalVInt())
+                      .minWordLength(in.readOptionalVInt())
+                      .minDocFreq(in.readOptionalFloat());
+    }
+
+    @Override
+    public void doWriteTo(StreamOutput out) throws IOException {
+        out.writeOptionalString(suggestMode);
+        out.writeOptionalFloat(accuracy);
+        out.writeOptionalString(sort);
+        out.writeOptionalString(stringDistance);
+        out.writeOptionalVInt(maxEdits);
+        out.writeOptionalVInt(maxInspections);
+        out.writeOptionalFloat(maxTermFreq);
+        out.writeOptionalVInt(prefixLength);
+        out.writeOptionalVInt(minWordLength);
+        out.writeOptionalFloat(minDocFreq);
+    }
+
+    @Override
+    public boolean equals(Object other) {
+        if (other == this) {
+            return true;
+        }
+        if (other == null || other.getClass() != this.getClass() || !super.equals(other)) {
+            return false;
+        }
+        TermSuggestionBuilder o = (TermSuggestionBuilder) other;
+        return Objects.equals(suggestMode, o.suggestMode) &&
+               Objects.equals(accuracy, o.accuracy) &&
+               Objects.equals(sort, o.sort) &&
+               Objects.equals(stringDistance, o.stringDistance) &&
+               Objects.equals(maxEdits, o.maxEdits) &&
+               Objects.equals(maxInspections, o.maxInspections) &&
+               Objects.equals(maxTermFreq, o.maxTermFreq) &&
+               Objects.equals(prefixLength, o.prefixLength) &&
+               Objects.equals(minWordLength, o.minWordLength) &&
+               Objects.equals(minDocFreq, o.minDocFreq);
+    }
+
+    @Override
+    public int hashCode() {
+        int result = super.hashCode();
+        return 37 * result + Objects.hash(suggestMode, accuracy, sort, stringDistance, maxEdits,
+                                          maxInspections, maxTermFreq, prefixLength, minWordLength, minDocFreq);
     }
 }

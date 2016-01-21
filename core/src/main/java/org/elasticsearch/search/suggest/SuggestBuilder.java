@@ -19,11 +19,15 @@
 package org.elasticsearch.search.suggest;
 
 import org.elasticsearch.action.support.ToXContentToBytes;
+import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Defines how to perform suggesting. This builders allows a number of global options to be specified and
@@ -37,16 +41,16 @@ public class SuggestBuilder extends ToXContentToBytes {
     private final String name;
     private String globalText;
 
-    private final List<SuggestionBuilder<?>> suggestions = new ArrayList<>();
+    private final List<SuggestionBuilder<? extends SuggestionBuilder>> suggestions = new ArrayList<>();
 
     public SuggestBuilder() {
         this.name = null;
     }
-    
+
     public SuggestBuilder(String name) {
         this.name = name;
     }
-    
+
     /**
      * Sets the text to provide suggestions for. The suggest text is a required option that needs
      * to be set either via this setter or via the {@link org.elasticsearch.search.suggest.SuggestBuilder.SuggestionBuilder#setText(String)} method.
@@ -63,15 +67,15 @@ public class SuggestBuilder extends ToXContentToBytes {
      * Adds an {@link org.elasticsearch.search.suggest.term.TermSuggestionBuilder} instance under a user defined name.
      * The order in which the <code>Suggestions</code> are added, is the same as in the response.
      */
-    public SuggestBuilder addSuggestion(SuggestionBuilder<?> suggestion) {
+    public SuggestBuilder addSuggestion(SuggestionBuilder<? extends SuggestionBuilder> suggestion) {
         suggestions.add(suggestion);
         return this;
     }
-    
+
     /**
      * Returns all suggestions with the defined names.
      */
-    public List<SuggestionBuilder<?>> getSuggestion() {
+    public List<SuggestionBuilder<? extends SuggestionBuilder>> getSuggestion() {
         return suggestions;
     }
 
@@ -82,7 +86,7 @@ public class SuggestBuilder extends ToXContentToBytes {
         } else {
             builder.startObject(name);
         }
-        
+
         if (globalText != null) {
             builder.field("text", globalText);
         }
@@ -93,7 +97,7 @@ public class SuggestBuilder extends ToXContentToBytes {
         return builder;
     }
 
-    public static abstract class SuggestionBuilder<T> extends ToXContentToBytes {
+    public static abstract class SuggestionBuilder<T extends SuggestionBuilder> extends ToXContentToBytes implements NamedWriteable<T> {
 
         private String name;
         private String suggester;
@@ -110,6 +114,9 @@ public class SuggestBuilder extends ToXContentToBytes {
             this.suggester = suggester;
         }
 
+        // for use when constructing builders from an input stream
+        protected SuggestionBuilder() { }
+
         /**
          * Same as in {@link SuggestBuilder#setText(String)}, but in the suggestion scope.
          */
@@ -125,6 +132,14 @@ public class SuggestBuilder extends ToXContentToBytes {
 
         protected void setRegex(String regex) {
             this.regex = regex;
+        }
+
+        protected void setName(String name) {
+            this.name = name;
+        }
+
+        protected void setSuggester(String suggester) {
+            this.suggester = suggester;
         }
 
         @Override
@@ -211,6 +226,69 @@ public class SuggestBuilder extends ToXContentToBytes {
         public T shardSize(Integer shardSize) {
             this.shardSize = shardSize;
             return (T)this;
+        }
+
+        @Override
+        public String getWriteableName() {
+            return name;
+        }
+
+        @Override
+        public final T readFrom(StreamInput in) throws IOException {
+            T builder = doReadFrom(in);
+            builder.setName(in.readString());
+            builder.setSuggester(in.readString());
+            builder.text(in.readOptionalString());
+            builder.setPrefix(in.readOptionalString());
+            builder.setRegex(in.readOptionalString());
+            builder.field(in.readOptionalString())
+                   .analyzer(in.readOptionalString())
+                   .size(in.readOptionalVInt())
+                   .shardSize(in.readOptionalVInt());
+            return builder;
+        }
+
+        @Override
+        public final void writeTo(StreamOutput out) throws IOException {
+            doWriteTo(out);
+            out.writeString(name);
+            out.writeString(suggester);
+            out.writeOptionalString(text);
+            out.writeOptionalString(prefix);
+            out.writeOptionalString(regex);
+            out.writeOptionalString(field);
+            out.writeOptionalString(analyzer);
+            out.writeOptionalVInt(size);
+            out.writeOptionalVInt(shardSize);
+        }
+
+        protected abstract T doReadFrom(StreamInput in) throws IOException;
+
+        protected abstract void doWriteTo(StreamOutput out) throws IOException;
+
+        @Override
+        public boolean equals(Object other) {
+            if (other == this) {
+                return true;
+            }
+            if (other == null || !(other instanceof SuggestionBuilder)) {
+                return false;
+            }
+            SuggestionBuilder o = (SuggestionBuilder) other;
+            return Objects.equals(name, o.name) &&
+                   Objects.equals(suggester, o.suggester) &&
+                   Objects.equals(text, o.text) &&
+                   Objects.equals(prefix, o.prefix) &&
+                   Objects.equals(regex, o.regex) &&
+                   Objects.equals(field, o.field) &&
+                   Objects.equals(analyzer, o.analyzer) &&
+                   Objects.equals(size, o.size) &&
+                   Objects.equals(shardSize, o.shardSize);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(name, suggester, text, prefix, regex, field, analyzer, size, shardSize);
         }
     }
 }

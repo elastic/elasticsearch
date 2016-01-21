@@ -45,7 +45,7 @@ public class SuggestRequestBuilder extends BroadcastOperationRequestBuilder<Sugg
     /**
      * Add a definition for suggestions to the request
      */
-    public <T> SuggestRequestBuilder addSuggestion(SuggestionBuilder<T> suggestion) {
+    public <T extends SuggestionBuilder> SuggestRequestBuilder addSuggestion(SuggestionBuilder<T> suggestion) {
         suggest.addSuggestion(suggestion);
         return this;
     }

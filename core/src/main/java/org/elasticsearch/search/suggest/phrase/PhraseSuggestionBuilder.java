@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.search.suggest.phrase;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.script.Template;
@@ -263,6 +265,16 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
         return builder;
     }
 
+    @Override
+    public PhraseSuggestionBuilder doReadFrom(StreamInput in) throws IOException {
+        return null;//TODO:
+    }
+
+    @Override
+    public void doWriteTo(StreamOutput out) throws IOException {
+        // TODO:
+    }
+
     /**
      * Creates a new {@link DirectCandidateGenerator}
      *
@@ -428,7 +440,7 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
         private Float minDocFreq;
 
         /**
-         * @param field Sets from what field to fetch the candidate suggestions from. 
+         * @param field Sets from what field to fetch the candidate suggestions from.
          */
         public DirectCandidateGenerator(String field) {
             super("direct_generator");

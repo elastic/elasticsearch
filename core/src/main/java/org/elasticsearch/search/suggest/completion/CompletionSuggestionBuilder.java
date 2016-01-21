@@ -21,6 +21,8 @@ package org.elasticsearch.search.suggest.completion;
 import org.apache.lucene.search.suggest.document.FuzzyCompletionQuery;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -346,5 +348,15 @@ public class CompletionSuggestionBuilder extends SuggestBuilder.SuggestionBuilde
             builder.endObject();
         }
         return builder;
+    }
+
+    @Override
+    public CompletionSuggestionBuilder doReadFrom(StreamInput in) throws IOException {
+        return null; //TODO
+    }
+
+    @Override
+    public void doWriteTo(StreamOutput out) throws IOException {
+        //TODO:
     }
 }

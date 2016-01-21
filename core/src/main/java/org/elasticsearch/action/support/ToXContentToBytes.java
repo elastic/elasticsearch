@@ -28,6 +28,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 
+import java.util.Objects;
+
 /**
  * Base class for {@link ToXContent} implementation that also support conversion to {@link BytesReference} for serialization purposes
  */
@@ -77,5 +79,21 @@ public abstract class ToXContentToBytes implements ToXContent {
         } catch (Exception e) {
             return "{ \"error\" : \"" + ExceptionsHelper.detailedMessage(e) + "\"}";
         }
+    }
+
+    @Override
+    public boolean equals(Object other) {
+        if (other == this) {
+            return true;
+        }
+        if (other == null || !(other instanceof ToXContentToBytes)) {
+            return false;
+        }
+        return Objects.equals(defaultType, ((ToXContentToBytes) other).defaultType);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(defaultType);
     }
 }

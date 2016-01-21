@@ -230,6 +230,15 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
+    public void writeOptionalFloat(@Nullable Float fl) throws IOException {
+        if (fl == null) {
+            writeBoolean(false);
+        } else {
+            writeBoolean(true);
+            writeFloat(fl);
+        }
+    }
+
     public void writeOptionalText(@Nullable Text text) throws IOException {
         if (text == null) {
             writeInt(-1);

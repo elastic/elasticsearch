@@ -32,6 +32,7 @@ import org.elasticsearch.script.Template;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -78,7 +79,7 @@ public class TemplateQueryParser implements QueryParser {
     public Query parse(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
         Template template = parse(parser, parseContext.parseFieldMatcher());
-        ExecutableScript executable = this.scriptService.executable(template, ScriptContext.Standard.SEARCH, SearchContext.current());
+        ExecutableScript executable = this.scriptService.executable(template, ScriptContext.Standard.SEARCH, SearchContext.current(), Collections.<String, String>emptyMap());
 
         BytesReference querySource = (BytesReference) executable.run();
 

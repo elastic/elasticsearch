@@ -414,7 +414,7 @@ public class DocumentMapper implements ToXContent {
         public Map<String, Object> transformSourceAsMap(Map<String, Object> sourceAsMap) {
             try {
                 // We use the ctx variable and the _source name to be consistent with the update api.
-                ExecutableScript executable = scriptService.executable(script, ScriptContext.Standard.MAPPING, null);
+                ExecutableScript executable = scriptService.executable(script, ScriptContext.Standard.MAPPING, null, Collections.<String, String>emptyMap());
                 Map<String, Object> ctx = new HashMap<>(1);
                 ctx.put("_source", sourceAsMap);
                 executable.setNextVar("ctx", ctx);

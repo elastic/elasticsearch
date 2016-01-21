@@ -62,7 +62,7 @@ public class NativeScriptEngineService extends AbstractComponent implements Scri
     }
 
     @Override
-    public Object compile(String script) {
+    public Object compile(String script, Map<String, String> params) {
         NativeScriptFactory scriptFactory = scripts.get(script);
         if (scriptFactory != null) {
             return scriptFactory;

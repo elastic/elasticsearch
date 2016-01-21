@@ -70,7 +70,7 @@ public class MockScriptEngine implements ScriptEngineService {
     }
 
     @Override
-    public Object compile(String script) {
+    public Object compile(String script, Map<String, String> params) {
         return Integer.parseInt(script);
     }
 

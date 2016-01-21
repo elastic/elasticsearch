@@ -26,6 +26,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -43,7 +44,7 @@ public class JavaScriptScriptMultiThreadedTests extends ESTestCase {
     @Test
     public void testExecutableNoRuntimeParams() throws Exception {
         final JavaScriptScriptEngineService se = new JavaScriptScriptEngineService(Settings.Builder.EMPTY_SETTINGS);
-        final Object compiled = se.compile("x + y");
+        final Object compiled = se.compile("x + y", Collections.<String, String>emptyMap());
         final AtomicBoolean failed = new AtomicBoolean();
 
         Thread[] threads = new Thread[50];
@@ -87,7 +88,7 @@ public class JavaScriptScriptMultiThreadedTests extends ESTestCase {
     @Test
     public void testExecutableWithRuntimeParams() throws Exception {
         final JavaScriptScriptEngineService se = new JavaScriptScriptEngineService(Settings.Builder.EMPTY_SETTINGS);
-        final Object compiled = se.compile("x + y");
+        final Object compiled = se.compile("x + y", Collections.<String, String>emptyMap());
         final AtomicBoolean failed = new AtomicBoolean();
 
         Thread[] threads = new Thread[50];
@@ -130,7 +131,7 @@ public class JavaScriptScriptMultiThreadedTests extends ESTestCase {
     @Test
     public void testExecute() throws Exception {
         final JavaScriptScriptEngineService se = new JavaScriptScriptEngineService(Settings.Builder.EMPTY_SETTINGS);
-        final Object compiled = se.compile("x + y");
+        final Object compiled = se.compile("x + y", Collections.<String, String>emptyMap());
         final AtomicBoolean failed = new AtomicBoolean();
 
         Thread[] threads = new Thread[50];

@@ -56,7 +56,7 @@ public class ScriptContextTests extends ESTestCase {
         for (ScriptService.ScriptType scriptType : ScriptService.ScriptType.values()) {
             try {
                 Script script = new Script("1", scriptType, MockScriptEngine.NAME, null);
-                scriptService.compile(script, new ScriptContext.Plugin(PLUGIN_NAME, "custom_globally_disabled_op"), contextAndHeaders);
+                scriptService.compile(script, new ScriptContext.Plugin(PLUGIN_NAME, "custom_globally_disabled_op"), contextAndHeaders, Collections.<String, String>emptyMap());
                 fail("script compilation should have been rejected");
             } catch (ScriptException e) {
                 assertTrue(e.getMessage(), e.getMessage().contains("scripts of type [" + scriptType + "], operation [" + PLUGIN_NAME + "_custom_globally_disabled_op] and lang [" + MockScriptEngine.NAME + "] are disabled"));
@@ -69,16 +69,16 @@ public class ScriptContextTests extends ESTestCase {
         ScriptService scriptService = makeScriptService();
         Script script = new Script("1", ScriptService.ScriptType.INLINE, MockScriptEngine.NAME, null);
         try {
-            scriptService.compile(script, new ScriptContext.Plugin(PLUGIN_NAME, "custom_exp_disabled_op"), contextAndHeaders);
+            scriptService.compile(script, new ScriptContext.Plugin(PLUGIN_NAME, "custom_exp_disabled_op"), contextAndHeaders, Collections.<String, String>emptyMap());
             fail("script compilation should have been rejected");
         } catch (ScriptException e) {
             assertTrue(e.getMessage(), e.getMessage().contains("scripts of type [inline], operation [" + PLUGIN_NAME + "_custom_exp_disabled_op] and lang [" + MockScriptEngine.NAME + "] are disabled"));
         }
 
         // still works for other script contexts
-        assertNotNull(scriptService.compile(script, ScriptContext.Standard.AGGS, contextAndHeaders));
-        assertNotNull(scriptService.compile(script, ScriptContext.Standard.SEARCH, contextAndHeaders));
-        assertNotNull(scriptService.compile(script, new ScriptContext.Plugin(PLUGIN_NAME, "custom_op"), contextAndHeaders));
+        assertNotNull(scriptService.compile(script, ScriptContext.Standard.AGGS, contextAndHeaders, Collections.<String, String>emptyMap()));
+        assertNotNull(scriptService.compile(script, ScriptContext.Standard.SEARCH, contextAndHeaders, Collections.<String, String>emptyMap()));
+        assertNotNull(scriptService.compile(script, new ScriptContext.Plugin(PLUGIN_NAME, "custom_op"), contextAndHeaders, Collections.<String, String>emptyMap()));
     }
 
     public void testUnknownPluginScriptContext() throws Exception {
@@ -87,7 +87,7 @@ public class ScriptContextTests extends ESTestCase {
         for (ScriptService.ScriptType scriptType : ScriptService.ScriptType.values()) {
             try {
                 Script script = new Script("1", scriptType, MockScriptEngine.NAME, null);
-                scriptService.compile(script, new ScriptContext.Plugin(PLUGIN_NAME, "unknown"), contextAndHeaders);
+                scriptService.compile(script, new ScriptContext.Plugin(PLUGIN_NAME, "unknown"), contextAndHeaders, Collections.<String, String>emptyMap());
                 fail("script compilation should have been rejected");
             } catch (IllegalArgumentException e) {
                 assertTrue(e.getMessage(), e.getMessage().contains("script context [" + PLUGIN_NAME + "_unknown] not supported"));
@@ -107,7 +107,7 @@ public class ScriptContextTests extends ESTestCase {
         for (ScriptService.ScriptType scriptType : ScriptService.ScriptType.values()) {
             try {
                 Script script = new Script("1", scriptType, MockScriptEngine.NAME, null);
-                scriptService.compile(script, context, contextAndHeaders);
+                scriptService.compile(script, context, contextAndHeaders, Collections.<String, String>emptyMap());
                 fail("script compilation should have been rejected");
             } catch (IllegalArgumentException e) {
                 assertTrue(e.getMessage(), e.getMessage().contains("script context [test] not supported"));

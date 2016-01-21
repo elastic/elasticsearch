@@ -108,7 +108,7 @@ public class UpdateIT extends ESIntegTestCase {
         }
 
         @Override
-        public Object compile(String script) {
+        public Object compile(String script, Map<String, String> params) {
             return new Object(); // unused
         }
 
@@ -206,7 +206,7 @@ public class UpdateIT extends ESIntegTestCase {
         }
 
         @Override
-        public Object compile(String script) {
+        public Object compile(String script, Map<String, String> params) {
             return script;
         }
 
@@ -297,7 +297,7 @@ public class UpdateIT extends ESIntegTestCase {
         }
 
         @Override
-        public Object compile(String script) {
+        public Object compile(String script, Map<String, String> params) {
             return new Object(); // unused
         }
 
@@ -388,7 +388,7 @@ public class UpdateIT extends ESIntegTestCase {
         }
 
         @Override
-        public Object compile(String script) {
+        public Object compile(String script, Map<String, String> params) {
             return new Object(); // unused
         }
 

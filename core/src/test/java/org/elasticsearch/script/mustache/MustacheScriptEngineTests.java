@@ -29,6 +29,7 @@ import org.junit.Test;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.nio.charset.Charset;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -54,7 +55,7 @@ public class MustacheScriptEngineTests extends ESTestCase {
                     + "\"negative\": {\"term\": {\"body\": {\"value\": \"solr\"}" + "}}, \"negative_boost\": {{boost_val}} } }}";
             Map<String, Object> vars = new HashMap<>();
             vars.put("boost_val", "0.3");
-            BytesReference o = (BytesReference) qe.executable(new CompiledScript(ScriptService.ScriptType.INLINE, "", "mustache", qe.compile(template)), vars).run();
+            BytesReference o = (BytesReference) qe.executable(new CompiledScript(ScriptService.ScriptType.INLINE, "", "mustache", qe.compile(template, Collections.<String, String>emptyMap())), vars).run();
             assertEquals("GET _search {\"query\": {\"boosting\": {\"positive\": {\"match\": {\"body\": \"gift\"}},"
                     + "\"negative\": {\"term\": {\"body\": {\"value\": \"solr\"}}}, \"negative_boost\": 0.3 } }}",
                     new String(o.toBytes(), Charset.forName("UTF-8")));
@@ -65,7 +66,7 @@ public class MustacheScriptEngineTests extends ESTestCase {
             Map<String, Object> vars = new HashMap<>();
             vars.put("boost_val", "0.3");
             vars.put("body_val", "\"quick brown\"");
-            BytesReference o = (BytesReference) qe.executable(new CompiledScript(ScriptService.ScriptType.INLINE, "", "mustache", qe.compile(template)), vars).run();
+            BytesReference o = (BytesReference) qe.executable(new CompiledScript(ScriptService.ScriptType.INLINE, "", "mustache", qe.compile(template, Collections.<String, String>emptyMap())), vars).run();
             assertEquals("GET _search {\"query\": {\"boosting\": {\"positive\": {\"match\": {\"body\": \"gift\"}},"
                     + "\"negative\": {\"term\": {\"body\": {\"value\": \"\\\"quick brown\\\"\"}}}, \"negative_boost\": 0.3 } }}",
                     new String(o.toBytes(), Charset.forName("UTF-8")));
@@ -86,9 +87,9 @@ public class MustacheScriptEngineTests extends ESTestCase {
         }
 
         Character[] specialChars = new Character[]{
-                '\"', 
-                '\\', 
-                '\u0000', 
+                '\"',
+                '\\',
+                '\u0000',
                 '\u0001',
                 '\u0002',
                 '\u0003',
@@ -104,9 +105,9 @@ public class MustacheScriptEngineTests extends ESTestCase {
                 '\u000F',
                 '\u001F'};
         String[] escapedChars = new String[]{
-                "\\\"", 
-                "\\\\", 
-                "\\u0000", 
+                "\\\"",
+                "\\\\",
+                "\\u0000",
                 "\\u0001",
                 "\\u0002",
                 "\\u0003",
@@ -150,14 +151,14 @@ public class MustacheScriptEngineTests extends ESTestCase {
         }
         return string;
     }
-    
+
     /**
      * From https://www.ietf.org/rfc/rfc4627.txt:
-     * 
+     *
      * All Unicode characters may be placed within the
      * quotation marks except for the characters that must be escaped:
      * quotation mark, reverse solidus, and the control characters (U+0000
-     * through U+001F). 
+     * through U+001F).
      * */
     private static boolean isEscapeChar(char c) {
         switch (c) {
@@ -165,7 +166,7 @@ public class MustacheScriptEngineTests extends ESTestCase {
         case '\\':
             return true;
         }
-        
+
         if (c < '\u002F')
             return true;
         return false;

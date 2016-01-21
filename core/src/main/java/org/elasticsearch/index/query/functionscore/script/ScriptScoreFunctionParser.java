@@ -37,6 +37,7 @@ import org.elasticsearch.script.ScriptParameterParser.ScriptParameterValue;
 import org.elasticsearch.script.SearchScript;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Map;
 
 import static com.google.common.collect.Maps.newHashMap;
@@ -100,7 +101,7 @@ public class ScriptScoreFunctionParser implements ScoreFunctionParser {
 
         SearchScript searchScript;
         try {
-            searchScript = parseContext.scriptService().search(parseContext.lookup(), script, ScriptContext.Standard.SEARCH);
+            searchScript = parseContext.scriptService().search(parseContext.lookup(), script, ScriptContext.Standard.SEARCH, Collections.<String, String>emptyMap());
             return new ScriptScoreFunction(script, searchScript);
         } catch (Exception e) {
             throw new QueryParsingException(parseContext, NAMES[0] + " the script could not be loaded", e);

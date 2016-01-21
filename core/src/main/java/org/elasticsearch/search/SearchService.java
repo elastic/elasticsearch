@@ -105,6 +105,7 @@ import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -752,7 +753,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
 
         BytesReference processedQuery;
         if (request.template() != null) {
-            ExecutableScript executable = this.scriptService.executable(request.template(), ScriptContext.Standard.SEARCH, searchContext);
+            ExecutableScript executable = this.scriptService.executable(request.template(), ScriptContext.Standard.SEARCH, searchContext, Collections.<String, String>emptyMap());
             processedQuery = (BytesReference) executable.run();
         } else {
             if (!hasLength(request.templateSource())) {
@@ -769,7 +770,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                     //Try to double parse for nested template id/file
                     parser = null;
                     try {
-                        ExecutableScript executable = this.scriptService.executable(template, ScriptContext.Standard.SEARCH, searchContext);
+                        ExecutableScript executable = this.scriptService.executable(template, ScriptContext.Standard.SEARCH, searchContext, Collections.<String, String>emptyMap());
                         processedQuery = (BytesReference) executable.run();
                         parser = XContentFactory.xContent(processedQuery).createParser(processedQuery);
                     } catch (ElasticsearchParseException epe) {
@@ -777,7 +778,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                         //for backwards compatibility and keep going
                         template = new Template(template.getScript(), ScriptService.ScriptType.FILE, MustacheScriptEngineService.NAME,
                                 null, template.getParams());
-                        ExecutableScript executable = this.scriptService.executable(template, ScriptContext.Standard.SEARCH, searchContext);
+                        ExecutableScript executable = this.scriptService.executable(template, ScriptContext.Standard.SEARCH, searchContext, Collections.<String, String>emptyMap());
                         processedQuery = (BytesReference) executable.run();
                     }
                     if (parser != null) {
@@ -788,7 +789,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                                 template = new Template(innerTemplate.getScript(), innerTemplate.getType(),
                                         MustacheScriptEngineService.NAME, null, template.getParams());
                                 ExecutableScript executable = this.scriptService.executable(template, ScriptContext.Standard.SEARCH,
-                                        searchContext);
+                                        searchContext, Collections.<String, String>emptyMap());
                                 processedQuery = (BytesReference) executable.run();
                             }
                         } catch (ScriptParseException e) {
@@ -796,7 +797,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                         }
                     }
                 } else {
-                    ExecutableScript executable = this.scriptService.executable(template, ScriptContext.Standard.SEARCH, searchContext);
+                    ExecutableScript executable = this.scriptService.executable(template, ScriptContext.Standard.SEARCH, searchContext, Collections.<String, String>emptyMap());
                     processedQuery = (BytesReference) executable.run();
                 }
             } catch (IOException e) {

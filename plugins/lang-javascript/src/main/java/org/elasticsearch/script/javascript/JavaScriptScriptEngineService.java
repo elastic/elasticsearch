@@ -62,7 +62,7 @@ public class JavaScriptScriptEngineService extends AbstractComponent implements 
     // one time initialization of rhino security manager integration
     private static final CodeSource DOMAIN;
     private static final int OPTIMIZATION_LEVEL = 1;
-    
+
     static {
         try {
             DOMAIN = new CodeSource(new URL("file:" + BootstrapInfo.UNTRUSTED_CODEBASE), (Certificate[]) null);
@@ -110,7 +110,7 @@ public class JavaScriptScriptEngineService extends AbstractComponent implements 
                 if (securityDomain != DOMAIN) {
                     throw new SecurityException("illegal securityDomain: " + securityDomain);
                 }
-                
+
                 return super.createClassLoader(parent, securityDomain);
             }
         });
@@ -157,7 +157,7 @@ public class JavaScriptScriptEngineService extends AbstractComponent implements 
     }
 
     @Override
-    public Object compile(String script) {
+    public Object compile(String script, Map<String, String> params) {
         Context ctx = Context.enter();
         try {
             return ctx.compileString(script, generateScriptName(), 1, DOMAIN);

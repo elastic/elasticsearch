@@ -27,6 +27,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Test;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -51,7 +52,7 @@ public class PythonScriptMultiThreadedTests extends ESTestCase {
     @Test
     public void testExecutableNoRuntimeParams() throws Exception {
         final PythonScriptEngineService se = new PythonScriptEngineService(Settings.Builder.EMPTY_SETTINGS);
-        final Object compiled = se.compile("x + y");
+        final Object compiled = se.compile("x + y", Collections.<String, String>emptyMap());
         final CompiledScript compiledScript = new CompiledScript(ScriptService.ScriptType.INLINE, "testExecutableNoRuntimeParams", "python", compiled);
         final AtomicBoolean failed = new AtomicBoolean();
 
@@ -138,7 +139,7 @@ public class PythonScriptMultiThreadedTests extends ESTestCase {
     @Test
     public void testExecute() throws Exception {
         final PythonScriptEngineService se = new PythonScriptEngineService(Settings.Builder.EMPTY_SETTINGS);
-        final Object compiled = se.compile("x + y");
+        final Object compiled = se.compile("x + y", Collections.<String, String>emptyMap());
         final CompiledScript compiledScript = new CompiledScript(ScriptService.ScriptType.INLINE, "testExecute", "python", compiled);
         final AtomicBoolean failed = new AtomicBoolean();
 

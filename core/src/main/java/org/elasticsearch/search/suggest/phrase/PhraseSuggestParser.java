@@ -40,6 +40,7 @@ import org.elasticsearch.search.suggest.SuggestionSearchContext;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionContext.DirectCandidateGenerator;
 
 import java.io.IOException;
+import java.util.Collections;
 
 public final class PhraseSuggestParser implements SuggestContextParser {
 
@@ -144,7 +145,7 @@ public final class PhraseSuggestParser implements SuggestContextParser {
                             }
                             Template template = Template.parse(parser, queryParserService.parseFieldMatcher());
                             CompiledScript compiledScript = suggester.scriptService().compile(template, ScriptContext.Standard.SEARCH,
-                                    headersContext);
+                                    headersContext, Collections.<String, String>emptyMap());
                             suggestion.setCollateQueryScript(compiledScript);
                         } else if ("params".equals(fieldName)) {
                             suggestion.setCollateScriptParams(parser.map());

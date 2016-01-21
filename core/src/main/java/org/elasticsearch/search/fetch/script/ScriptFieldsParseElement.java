@@ -30,6 +30,7 @@ import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.internal.SearchContext;
 
+import java.util.Collections;
 import java.util.Map;
 
 import static com.google.common.collect.Maps.newHashMap;
@@ -98,7 +99,7 @@ public class ScriptFieldsParseElement implements SearchParseElement {
                     throw new SearchParseException(context, "must specify a script in script fields", parser.getTokenLocation());
                 }
 
-                SearchScript searchScript = context.scriptService().search(context.lookup(), script, ScriptContext.Standard.SEARCH);
+                SearchScript searchScript = context.scriptService().search(context.lookup(), script, ScriptContext.Standard.SEARCH, Collections.<String, String>emptyMap());
                 context.scriptFields().add(new ScriptFieldsContext.ScriptField(fieldName, searchScript, ignoreException));
             }
         }

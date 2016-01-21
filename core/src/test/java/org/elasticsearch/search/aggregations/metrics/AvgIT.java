@@ -370,7 +370,7 @@ public class AvgIT extends AbstractNumericTestCase {
         }
 
         @Override
-        public Object compile(String script) {
+        public Object compile(String script, Map<String, String> params) {
             return script;
         }
 
@@ -506,7 +506,7 @@ public class AvgIT extends AbstractNumericTestCase {
         }
 
         @Override
-        public Object compile(String script) {
+        public Object compile(String script, Map<String, String> params) {
             return script;
         }
 

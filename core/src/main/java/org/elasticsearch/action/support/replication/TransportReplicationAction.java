@@ -648,7 +648,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                 if (logger.isTraceEnabled()) {
                     logger.trace("action [{}] completed on shard [{}] for request [{}] with cluster state version [{}]", transportPrimaryAction, shardId, request, state.version());
                 }
-                ReplicationPhase replicationPhase = new ReplicationPhase(primaryResponse.v2(), primaryResponse.v1(), shardId, channel, indexShardReference);
+                ReplicationPhase replicationPhase = new ReplicationPhase(request, primaryResponse.v2(), primaryResponse.v1(), shardId, channel, indexShardReference);
                 finishAndMoveToReplication(replicationPhase);
             } else {
                 // delegate primary phase to relocation target
@@ -771,6 +771,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
      */
     final class ReplicationPhase extends AbstractRunnable {
 
+        private final Request request;
         private final ReplicaRequest replicaRequest;
         private final Response finalResponse;
         private final TransportChannel channel;
@@ -784,9 +785,11 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         private final AtomicInteger pending;
         private final int totalShards;
         private final IndexShardReference indexShardReference;
+        private final long clusterStateVersion;
 
-        public ReplicationPhase(ReplicaRequest replicaRequest, Response finalResponse, ShardId shardId,
+        public ReplicationPhase(Request request, ReplicaRequest replicaRequest, Response finalResponse, ShardId shardId,
                                 TransportChannel channel, IndexShardReference indexShardReference) {
+            this.request = request;
             this.replicaRequest = replicaRequest;
             this.channel = channel;
             this.finalResponse = finalResponse;
@@ -836,6 +839,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                 logger.trace("replication phase started. pending [{}], action [{}], request [{}], cluster state version used [{}]", pending.get(),
                         transportReplicaAction, replicaRequest, state.version());
             }
+            this.clusterStateVersion = state.version();
         }
 
         /**
@@ -949,9 +953,65 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                                         }
 
                                         @Override
-                                        public void onFailure(Throwable t) {
-                                            // TODO: handle catastrophic non-channel failures
-                                            onReplicaFailure(nodeId, exp);
+                                        public void onFailure(Throwable shardFailedError) {
+                                            logger.error("[{}] catastrophic error while failing replica shard [{}] for [{}]", shardFailedError, shardId, shard, exp);
+                                            if (shardFailedError instanceof ShardStateAction.NoLongerPrimaryShardException) {
+                                                // we are no longer the primary, fail ourselves and start over
+                                                ShardRouting primaryShard = indexShardReference.routingEntry();
+                                                String message = String.format(Locale.ROOT, "primary shard [%s] was demoted while failing replica shard [%s] for [%s]", primaryShard, shard, exp);
+                                                shardStateAction.shardFailed(primaryShard, primaryShard, message, shardFailedError, new ShardStateAction.Listener() {
+                                                    @Override
+                                                    public void onSuccess() {
+                                                        if (clusterService.state().version() == clusterStateVersion) {
+                                                            new ClusterStateObserver(clusterService, null, logger, threadPool.getThreadContext()).waitForNextChange(new ClusterStateObserver.Listener() {
+                                                                @Override
+                                                                public void onNewClusterState(ClusterState state) {
+                                                                    // nothing to do, we just needed a new cluster state
+                                                                    if (logger.isTraceEnabled()) {
+                                                                        logger.trace("previous cluster state version [{}], new cluster state [{}]", clusterStateVersion, state.prettyPrint());
+                                                                    }
+                                                                }
+
+                                                                @Override
+                                                                public void onClusterServiceClose() {
+                                                                    logger.warn("[{}] node [{}] shutdown while waiting to fail demoted primary shard [{}] subsequent to [{}] while failing replica shard [{}]", shardId, clusterService.localNode(), primaryShard, exp, shard);
+                                                                    forceFinishAsFailed(new NodeClosedException(clusterService.localNode()));
+                                                                }
+
+                                                                @Override
+                                                                public void onTimeout(TimeValue timeout) {
+                                                                    // we wait indefinitely
+                                                                }
+                                                            });
+                                                        }
+                                                        new ReroutePhase(null, request, new ActionListener<Response>() {
+                                                            @Override
+                                                            public void onResponse(Response response) {
+                                                                Releasables.close(indexShardReference);
+                                                                try {
+                                                                    channel.sendResponse(response);
+                                                                } catch (IOException channelException) {
+                                                                    logger.warn("[{}] failed to send response back to client for action [" + transportReplicaAction + "] after failing demoted primary shard [{}]", channelException, shardId, response, primaryShard);
+                                                                }
+                                                            }
+
+                                                            @Override
+                                                            public void onFailure(Throwable reroutePhaseError) {
+                                                                logger.error("[{}] reroute phase failed while retrying request after failing demoted primary shard [{}] subsequent to failing shard [{}] caused by [{}]", reroutePhaseError, shardId, primaryShard, shard, exp);
+                                                                forceFinishAsFailed(reroutePhaseError);
+                                                            }
+                                                        }).run();
+                                                    }
+
+                                                    @Override
+                                                    public void onFailure(Throwable primaryShardFailedError) {
+                                                        logger.error("[{}] failed to fail demoted primary shard [{}] subsequent to failing shard [{}] caused by [{}]", primaryShardFailedError, shardId, primaryShard, shard, exp);
+                                                        forceFinishAsFailed(primaryShardFailedError);
+                                                    }
+                                                });
+                                            } else {
+                                                forceFinishAsFailed(shardFailedError);
+                                            }
                                         }
                                     }
                                 );

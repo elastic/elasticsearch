@@ -20,8 +20,6 @@
 package org.elasticsearch.ingest.core;
 
 import org.elasticsearch.ingest.TestProcessor;
-import org.elasticsearch.ingest.core.Pipeline;
-import org.elasticsearch.ingest.core.Processor;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
@@ -37,7 +35,7 @@ public class PipelineFactoryTests extends ESTestCase {
     public void testCreate() throws Exception {
         Map<String, Object> processorConfig0 = new HashMap<>();
         Map<String, Object> processorConfig1 = new HashMap<>();
-        processorConfig0.put(AbstractProcessorFactory.PROCESSOR_TAG_KEY, "first-processor");
+        processorConfig0.put(AbstractProcessorFactory.TAG_KEY, "first-processor");
         Map<String, Object> pipelineConfig = new HashMap<>();
         pipelineConfig.put(Pipeline.DESCRIPTION_KEY, "_description");
         pipelineConfig.put(Pipeline.PROCESSORS_KEY, Arrays.asList(Collections.singletonMap("test", processorConfig0), Collections.singletonMap("test", processorConfig1)));

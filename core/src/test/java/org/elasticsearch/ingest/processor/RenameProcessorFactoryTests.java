@@ -19,6 +19,7 @@
 
 package org.elasticsearch.ingest.processor;
 
+import org.elasticsearch.ingest.core.AbstractProcessorFactory;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
@@ -34,7 +35,7 @@ public class RenameProcessorFactoryTests extends ESTestCase {
         config.put("field", "old_field");
         config.put("to", "new_field");
         String processorTag = randomAsciiOfLength(10);
-        config.put("processor_tag", processorTag);
+        config.put(AbstractProcessorFactory.TAG_KEY, processorTag);
         RenameProcessor renameProcessor = factory.create(config);
         assertThat(renameProcessor.getTag(), equalTo(processorTag));
         assertThat(renameProcessor.getOldFieldName(), equalTo("old_field"));

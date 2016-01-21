@@ -20,6 +20,7 @@
 package org.elasticsearch.ingest.geoip;
 
 import com.maxmind.geoip2.DatabaseReader;
+import org.elasticsearch.ingest.core.AbstractProcessorFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.StreamsUtils;
 import org.junit.BeforeClass;
@@ -61,7 +62,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         config.put("source_field", "_field");
 
         String processorTag = randomAsciiOfLength(10);
-        config.put("processor_tag", processorTag);
+        config.put(AbstractProcessorFactory.TAG_KEY, processorTag);
 
         GeoIpProcessor processor = factory.create(config);
         assertThat(processor.getTag(), equalTo(processorTag));

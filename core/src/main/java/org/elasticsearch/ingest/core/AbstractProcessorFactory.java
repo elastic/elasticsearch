@@ -27,11 +27,11 @@ import java.util.Map;
  * Whether changes are made and what exactly is modified is up to the implementation.
  */
 public abstract class AbstractProcessorFactory<P extends Processor> implements Processor.Factory<P> {
-    static final String PROCESSOR_TAG_KEY = "processor_tag";
+    public static final String TAG_KEY = "tag";
 
     @Override
     public P create(Map<String, Object> config) throws Exception {
-        String tag = ConfigurationUtils.readOptionalStringProperty(config, PROCESSOR_TAG_KEY);
+        String tag = ConfigurationUtils.readOptionalStringProperty(config, TAG_KEY);
         return doCreate(tag, config);
     }
 

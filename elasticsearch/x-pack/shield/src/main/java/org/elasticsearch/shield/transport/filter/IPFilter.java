@@ -42,7 +42,7 @@ public class IPFilter {
     public static final String HTTP_PROFILE_NAME = ".http";
 
     public static final Setting<Boolean> IP_FILTER_ENABLED_HTTP_SETTING = Setting.boolSetting("shield.http.filter.enabled", true, true, Setting.Scope.CLUSTER);
-    public static final Setting<Boolean> IP_FILTER_ENABLED_SETTING = new Setting<>("shield.transport.filter.enabled", (s) -> IP_FILTER_ENABLED_HTTP_SETTING.getDefault(s), Booleans::parseBooleanExact, true, Setting.Scope.CLUSTER);
+    public static final Setting<Boolean> IP_FILTER_ENABLED_SETTING = new Setting<>("shield.transport.filter.enabled", (s) -> IP_FILTER_ENABLED_HTTP_SETTING.getDefaultRaw(s), Booleans::parseBooleanExact, true, Setting.Scope.CLUSTER);
     public static final Setting<List<String>> TRANSPORT_FILTER_ALLOW_SETTING = Setting.listSetting("shield.transport.filter.allow", Collections.emptyList(), Function.identity(), true, Setting.Scope.CLUSTER);
     public static final Setting<List<String>> TRANSPORT_FILTER_DENY_SETTING = Setting.listSetting("shield.transport.filter.deny", Collections.emptyList(), Function.identity(), true, Setting.Scope.CLUSTER);
 

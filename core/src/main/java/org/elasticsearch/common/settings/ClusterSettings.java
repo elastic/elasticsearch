@@ -38,6 +38,7 @@ import org.elasticsearch.cluster.service.InternalClusterService;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.DiscoveryService;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
@@ -46,6 +47,8 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.discovery.zen.fd.FaultDetection;
 import org.elasticsearch.discovery.zen.ping.unicast.UnicastZenPing;
 import org.elasticsearch.gateway.PrimaryShardAllocator;
+import org.elasticsearch.http.netty.NettyHttpChannel;
+import org.elasticsearch.http.netty.NettyHttpServerTransport;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.store.IndexStoreConfig;
 import org.elasticsearch.indices.analysis.HunspellService;
@@ -162,6 +165,12 @@ public final class ClusterSettings extends AbstractScopedSettings {
         GatewayService.RECOVER_AFTER_MASTER_NODES_SETTING,
         GatewayService.RECOVER_AFTER_NODES_SETTING,
         GatewayService.RECOVER_AFTER_TIME_SETTING,
+        NetworkModule.HTTP_ENABLED,
+        NettyHttpServerTransport.SETTING_CORS_ALLOW_CREDENTIALS,
+        NettyHttpServerTransport.SETTING_CORS_ENABLED,
+        NettyHttpServerTransport.SETTING_CORS_MAX_AGE,
+        NettyHttpServerTransport.SETTING_HTTP_DETAILED_ERRORS_ENABLED,
+        NettyHttpServerTransport.SETTING_PIPELINING,       
         HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING,
         HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING,
         HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_OVERHEAD_SETTING,

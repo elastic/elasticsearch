@@ -120,7 +120,6 @@ import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 public class Node implements Releasable {
 
     private static final String CLIENT_TYPE = "node";
-    public static final String HTTP_ENABLED = "http.enabled";
     public static final Setting<Boolean> WRITE_PORTS_FIELD_SETTING = Setting.boolSetting("node.portsfile", false, false, Setting.Scope.CLUSTER);
     private final Lifecycle lifecycle = new Lifecycle();
     private final Injector injector;

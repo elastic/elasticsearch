@@ -28,6 +28,8 @@ import org.elasticsearch.common.netty.OpenChannelsHandler;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.network.NetworkUtils;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Scope;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
@@ -94,19 +96,19 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
         NettyUtils.setup();
     }
 
-    public static final String SETTING_CORS_ENABLED = "http.cors.enabled";
+    public static final Setting<Boolean> SETTING_CORS_ENABLED = Setting.boolSetting("http.cors.enabled", false, false, Scope.CLUSTER);
     public static final String SETTING_CORS_ALLOW_ORIGIN = "http.cors.allow-origin";
-    public static final String SETTING_CORS_MAX_AGE = "http.cors.max-age";
+    public static final Setting<Integer> SETTING_CORS_MAX_AGE = Setting.intSetting("http.cors.max-age", 1728000, false, Scope.CLUSTER);    
     public static final String SETTING_CORS_ALLOW_METHODS = "http.cors.allow-methods";
     public static final String SETTING_CORS_ALLOW_HEADERS = "http.cors.allow-headers";
-    public static final String SETTING_CORS_ALLOW_CREDENTIALS = "http.cors.allow-credentials";
-    public static final String SETTING_PIPELINING = "http.pipelining";
+    public static final Setting<Boolean> SETTING_CORS_ALLOW_CREDENTIALS = Setting.boolSetting("http.cors.allow-credentials", false, false, Scope.CLUSTER);
+     
+    public static final Setting<Boolean> SETTING_PIPELINING = Setting.boolSetting("http.pipelining", true, false, Scope.CLUSTER);
     public static final String SETTING_PIPELINING_MAX_EVENTS = "http.pipelining.max_events";
     public static final String SETTING_HTTP_COMPRESSION = "http.compression";
     public static final String SETTING_HTTP_COMPRESSION_LEVEL = "http.compression_level";
-    public static final String SETTING_HTTP_DETAILED_ERRORS_ENABLED = "http.detailed_errors.enabled";
+    public static final Setting<Boolean> SETTING_HTTP_DETAILED_ERRORS_ENABLED = Setting.boolSetting("http.detailed_errors.enabled", true, false, Scope.CLUSTER);
 
-    public static final boolean DEFAULT_SETTING_PIPELINING = true;
     public static final int DEFAULT_SETTING_PIPELINING_MAX_EVENTS = 10000;
     public static final String DEFAULT_PORT_RANGE = "9200-9300";
 
@@ -196,7 +198,7 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
         this.reuseAddress = settings.getAsBoolean("http.netty.reuse_address", settings.getAsBoolean(TCP_REUSE_ADDRESS, NetworkUtils.defaultReuseAddress()));
         this.tcpSendBufferSize = settings.getAsBytesSize("http.netty.tcp_send_buffer_size", settings.getAsBytesSize(TCP_SEND_BUFFER_SIZE, TCP_DEFAULT_SEND_BUFFER_SIZE));
         this.tcpReceiveBufferSize = settings.getAsBytesSize("http.netty.tcp_receive_buffer_size", settings.getAsBytesSize(TCP_RECEIVE_BUFFER_SIZE, TCP_DEFAULT_RECEIVE_BUFFER_SIZE));
-        this.detailedErrorsEnabled = settings.getAsBoolean(SETTING_HTTP_DETAILED_ERRORS_ENABLED, true);
+        this.detailedErrorsEnabled = SETTING_HTTP_DETAILED_ERRORS_ENABLED.get(settings);
 
         long defaultReceiverPredictor = 512 * 1024;
         if (JvmInfo.jvmInfo().getMem().getDirectMemoryMax().bytes() > 0) {
@@ -216,7 +218,7 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
 
         this.compression = settings.getAsBoolean(SETTING_HTTP_COMPRESSION, false);
         this.compressionLevel = settings.getAsInt(SETTING_HTTP_COMPRESSION_LEVEL, 6);
-        this.pipelining = settings.getAsBoolean(SETTING_PIPELINING, DEFAULT_SETTING_PIPELINING);
+        this.pipelining = SETTING_PIPELINING.get(settings);
         this.pipeliningMaxEvents = settings.getAsInt(SETTING_PIPELINING_MAX_EVENTS, DEFAULT_SETTING_PIPELINING_MAX_EVENTS);
 
         // validate max content length

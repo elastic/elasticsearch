@@ -72,21 +72,25 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
     public IndexMetaData upgradeIndexMetaData(IndexMetaData indexMetaData) {
         // Throws an exception if there are too-old segments:
         if (isUpgraded(indexMetaData)) {
-            return archiveBrokenIndexSettings(indexMetaData);
+            assert indexMetaData == archiveBrokenIndexSettings(indexMetaData) : "all settings must have been upgraded before";
+            return indexMetaData;
         }
         checkSupportedVersion(indexMetaData);
         IndexMetaData newMetaData = indexMetaData;
+        // we have to run this first otherwise in we try to create IndexSettings
+        // with broken settings and fail in checkMappingsCompatibility
+        newMetaData = archiveBrokenIndexSettings(newMetaData);
+        // only run the check with the upgraded settings!!
         checkMappingsCompatibility(newMetaData);
-        newMetaData = markAsUpgraded(newMetaData);
-        return archiveBrokenIndexSettings(newMetaData);
+        return markAsUpgraded(newMetaData);
     }
 
 
     /**
      * Checks if the index was already opened by this version of Elasticsearch and doesn't require any additional checks.
      */
-    private boolean isUpgraded(IndexMetaData indexMetaData) {
-        return indexMetaData.getUpgradedVersion().onOrAfter(Version.V_3_0_0); // TODO should this be Version.CURRENT?
+    boolean isUpgraded(IndexMetaData indexMetaData) {
+        return indexMetaData.getUpgradedVersion().onOrAfter(Version.CURRENT);
     }
 
     /**

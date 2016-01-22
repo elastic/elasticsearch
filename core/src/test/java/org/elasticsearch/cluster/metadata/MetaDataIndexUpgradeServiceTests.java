@@ -23,6 +23,7 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 
 import java.util.Collections;
 
@@ -52,6 +53,28 @@ public class MetaDataIndexUpgradeServiceTests extends ESTestCase {
         src = newIndexMeta("foo", indexMetaData.getSettings()); // double archive?
         indexMetaData = service.archiveBrokenIndexSettings(src);
         assertSame(indexMetaData, src);
+    }
+
+    public void testUpgrad() {
+        MetaDataIndexUpgradeService service = new MetaDataIndexUpgradeService(Settings.EMPTY, new MapperRegistry(Collections.emptyMap(), Collections.emptyMap()), IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
+        IndexMetaData src = newIndexMeta("foo", Settings.builder().put("index.refresh_interval", "-200").build());
+        assertFalse(service.isUpgraded(src));
+        src = service.upgradeIndexMetaData(src);
+        assertTrue(service.isUpgraded(src));
+        assertEquals("-200", src.getSettings().get("archived.index.refresh_interval"));
+        assertNull(src.getSettings().get("index.refresh_interval"));
+        assertSame(src, service.upgradeIndexMetaData(src)); // no double upgrade
+    }
+
+    public void testIsUpgraded() {
+        MetaDataIndexUpgradeService service = new MetaDataIndexUpgradeService(Settings.EMPTY, new MapperRegistry(Collections.emptyMap(), Collections.emptyMap()), IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
+        IndexMetaData src = newIndexMeta("foo", Settings.builder().put("index.refresh_interval", "-200").build());
+        assertFalse(service.isUpgraded(src));
+        Version version = VersionUtils.randomVersionBetween(random(), VersionUtils.getFirstVersion(), VersionUtils.getPreviousVersion());
+        src = newIndexMeta("foo", Settings.builder().put(IndexMetaData.SETTING_VERSION_UPGRADED, version).build());
+        assertFalse(service.isUpgraded(src));
+        src = newIndexMeta("foo", Settings.builder().put(IndexMetaData.SETTING_VERSION_UPGRADED, Version.CURRENT).build());
+        assertTrue(service.isUpgraded(src));
     }
 
     public static IndexMetaData newIndexMeta(String name, Settings indexSettings) {

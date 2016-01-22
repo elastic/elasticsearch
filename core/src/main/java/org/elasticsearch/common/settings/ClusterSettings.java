@@ -38,6 +38,7 @@ import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
+import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.gateway.PrimaryShardAllocator;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.store.IndexStoreConfig;
@@ -140,6 +141,13 @@ public final class ClusterSettings extends AbstractScopedSettings {
         DiscoverySettings.PUBLISH_DIFF_ENABLE_SETTING,
         DiscoverySettings.COMMIT_TIMEOUT_SETTING,
         DiscoverySettings.NO_MASTER_BLOCK_SETTING,
+        GatewayService.EXPECTED_DATA_NODES_SETTING,
+        GatewayService.EXPECTED_MASTER_NODES_SETTING,
+        GatewayService.EXPECTED_NODES_SETTING,
+        GatewayService.RECOVER_AFTER_DATA_NODES_SETTING,
+        GatewayService.RECOVER_AFTER_MASTER_NODES_SETTING,
+        GatewayService.RECOVER_AFTER_NODES_SETTING,
+        GatewayService.RECOVER_AFTER_TIME_SETTING,
         HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING,
         HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING,
         HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_OVERHEAD_SETTING,

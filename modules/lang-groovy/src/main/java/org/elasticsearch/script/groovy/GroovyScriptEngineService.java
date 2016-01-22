@@ -19,15 +19,10 @@
 
 package org.elasticsearch.script.groovy;
 
-import java.io.IOException;
-import java.math.BigDecimal;
-import java.nio.charset.StandardCharsets;
-import java.security.AccessControlContext;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
-import java.util.HashMap;
-import java.util.Map;
-
+import groovy.lang.Binding;
+import groovy.lang.GroovyClassLoader;
+import groovy.lang.GroovyCodeSource;
+import groovy.lang.Script;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorer;
 import org.codehaus.groovy.ast.ClassCodeExpressionTransformer;
@@ -60,10 +55,16 @@ import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
 
-import groovy.lang.Binding;
-import groovy.lang.GroovyClassLoader;
-import groovy.lang.GroovyCodeSource;
-import groovy.lang.Script;
+import java.io.IOException;
+import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
+import java.security.AccessControlContext;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Provides the infrastructure for Groovy as a scripting language for Elasticsearch
@@ -74,6 +75,8 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
      * The name of the scripting engine/language.
      */
     public static final String NAME = "groovy";
+
+    public static final List<String> TYPES = Collections.singletonList(NAME);
     /**
      * The name of the Groovy compiler setting to use associated with activating <code>invokedynamic</code> support.
      */
@@ -158,13 +161,13 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
     }
 
     @Override
-    public String[] types() {
-        return new String[]{NAME};
+    public List<String> types() {
+        return TYPES;
     }
 
     @Override
-    public String[] extensions() {
-        return new String[]{NAME};
+    public List<String> extensions() {
+        return TYPES;
     }
 
     @Override

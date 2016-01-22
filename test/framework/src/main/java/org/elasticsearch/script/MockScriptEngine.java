@@ -26,13 +26,18 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 /**
  * A dummy script engine used for testing. Scripts must be a number. Running the script
  */
 public class MockScriptEngine implements ScriptEngineService {
+
     public static final String NAME = "mockscript";
+
+    public static final List<String> TYPES = Collections.singletonList(NAME);
 
     public static class TestPlugin extends Plugin {
 
@@ -50,19 +55,19 @@ public class MockScriptEngine implements ScriptEngineService {
         }
 
         public void onModule(ScriptModule module) {
-            module.addScriptEngine(MockScriptEngine.class);
+            module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(MockScriptEngine.class, MockScriptEngine.TYPES));
         }
 
     }
 
     @Override
-    public String[] types() {
-        return new String[]{ NAME };
+    public List<String> types() {
+        return TYPES;
     }
 
     @Override
-    public String[] extensions() {
-        return types();
+    public List<String> extensions() {
+        return TYPES;
     }
 
     @Override

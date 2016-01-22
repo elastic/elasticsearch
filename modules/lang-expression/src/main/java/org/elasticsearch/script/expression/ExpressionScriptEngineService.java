@@ -50,6 +50,8 @@ import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.text.ParseException;
 import java.util.Calendar;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -59,6 +61,8 @@ import java.util.Map;
 public class ExpressionScriptEngineService extends AbstractComponent implements ScriptEngineService {
 
     public static final String NAME = "expression";
+
+    public static final List<String> TYPES = Collections.singletonList(NAME);
 
     protected static final String GET_YEAR_METHOD         = "getYear";
     protected static final String GET_MONTH_METHOD        = "getMonth";
@@ -80,13 +84,13 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
     }
 
     @Override
-    public String[] types() {
-        return new String[]{NAME};
+    public List<String> types() {
+        return TYPES;
     }
 
     @Override
-    public String[] extensions() {
-        return new String[]{NAME};
+    public List<String> extensions() {
+        return TYPES;
     }
 
     @Override

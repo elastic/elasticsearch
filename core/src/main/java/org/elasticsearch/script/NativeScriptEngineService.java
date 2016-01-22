@@ -27,6 +27,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.unmodifiableMap;
@@ -38,6 +40,8 @@ public class NativeScriptEngineService extends AbstractComponent implements Scri
 
     public static final String NAME = "native";
 
+    public static final List<String> TYPES = Collections.singletonList(NAME);
+
     private final Map<String, NativeScriptFactory> scripts;
 
     @Inject
@@ -47,13 +51,13 @@ public class NativeScriptEngineService extends AbstractComponent implements Scri
     }
 
     @Override
-    public String[] types() {
-        return new String[]{NAME};
+    public List<String> types() {
+        return TYPES;
     }
 
     @Override
-    public String[] extensions() {
-        return new String[0];
+    public List<String> extensions() {
+        return Collections.emptyList();
     }
 
     @Override

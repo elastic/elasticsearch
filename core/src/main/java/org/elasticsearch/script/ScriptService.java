@@ -72,6 +72,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 
@@ -138,8 +139,11 @@ public class ScriptService extends AbstractComponent implements Closeable {
 
     @Inject
     public ScriptService(Settings settings, Environment env, Set<ScriptEngineService> scriptEngines,
-                         ResourceWatcherService resourceWatcherService, ScriptContextRegistry scriptContextRegistry) throws IOException {
+                         ResourceWatcherService resourceWatcherService, ScriptEngineRegistry scriptEngineRegistry, ScriptContextRegistry scriptContextRegistry, ScriptSettings scriptSettings) throws IOException {
         super(settings);
+        Objects.requireNonNull(scriptEngineRegistry);
+        Objects.requireNonNull(scriptContextRegistry);
+        Objects.requireNonNull(scriptSettings);
         this.parseFieldMatcher = new ParseFieldMatcher(settings);
         if (Strings.hasLength(settings.get(DISABLE_DYNAMIC_SCRIPTING_SETTING))) {
             throw new IllegalArgumentException(DISABLE_DYNAMIC_SCRIPTING_SETTING + " is not a supported setting, replace with fine-grained script settings. \n" +
@@ -168,8 +172,8 @@ public class ScriptService extends AbstractComponent implements Closeable {
         Map<String, ScriptEngineService> enginesByLangBuilder = new HashMap<>();
         Map<String, ScriptEngineService> enginesByExtBuilder = new HashMap<>();
         for (ScriptEngineService scriptEngine : scriptEngines) {
-            for (String type : scriptEngine.types()) {
-                enginesByLangBuilder.put(type, scriptEngine);
+            for (String language : scriptEngineRegistry.getLanguages(scriptEngine.getClass())) {
+                enginesByLangBuilder.put(language, scriptEngine);
             }
             for (String ext : scriptEngine.extensions()) {
                 enginesByExtBuilder.put(ext, scriptEngine);
@@ -178,7 +182,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
         this.scriptEnginesByLang = unmodifiableMap(enginesByLangBuilder);
         this.scriptEnginesByExt = unmodifiableMap(enginesByExtBuilder);
 
-        this.scriptModes = new ScriptModes(this.scriptEnginesByLang, scriptContextRegistry, settings);
+        this.scriptModes = new ScriptModes(scriptSettings, settings);
 
         // add file watcher for static scripts
         scriptsDirectory = env.scriptsFile();
@@ -538,12 +542,12 @@ public class ScriptService extends AbstractComponent implements Closeable {
                     try {
                         //we don't know yet what the script will be used for, but if all of the operations for this lang
                         // with file scripts are disabled, it makes no sense to even compile it and cache it.
-                        if (isAnyScriptContextEnabled(engineService.types()[0], engineService, ScriptType.FILE)) {
+                        if (isAnyScriptContextEnabled(engineService.types().get(0), engineService, ScriptType.FILE)) {
                             logger.info("compiling script file [{}]", file.toAbsolutePath());
                             try(InputStreamReader reader = new InputStreamReader(Files.newInputStream(file), StandardCharsets.UTF_8)) {
                                 String script = Streams.copyToString(reader);
                                 CacheKey cacheKey = new CacheKey(engineService, scriptNameExt.v1(), null, Collections.emptyMap());
-                                staticCache.put(cacheKey, new CompiledScript(ScriptType.FILE, scriptNameExt.v1(), engineService.types()[0], engineService.compile(script, Collections.emptyMap())));
+                                staticCache.put(cacheKey, new CompiledScript(ScriptType.FILE, scriptNameExt.v1(), engineService.types().get(0), engineService.compile(script, Collections.emptyMap())));
                                 scriptMetrics.onCompilation();
                             }
                         } else {
@@ -585,14 +589,16 @@ public class ScriptService extends AbstractComponent implements Closeable {
      * - loaded from an index
      * - loaded from file
      */
-    public static enum ScriptType {
+    public enum ScriptType {
 
-        INLINE(0, "inline"),
-        INDEXED(1, "id"),
-        FILE(2, "file");
+        INLINE(0, "inline", "inline", ScriptMode.SANDBOX),
+        INDEXED(1, "id", "indexed", ScriptMode.SANDBOX),
+        FILE(2, "file", "file", ScriptMode.ON);
 
         private final int val;
         private final ParseField parseField;
+        private final String scriptType;
+        private final ScriptMode defaultScriptMode;
 
         public static ScriptType readFrom(StreamInput in) throws IOException {
             int scriptTypeVal = in.readVInt();
@@ -613,19 +619,30 @@ public class ScriptService extends AbstractComponent implements Closeable {
             }
         }
 
-        private ScriptType(int val, String name) {
+        ScriptType(int val, String name, String scriptType, ScriptMode defaultScriptMode) {
             this.val = val;
             this.parseField = new ParseField(name);
+            this.scriptType = scriptType;
+            this.defaultScriptMode = defaultScriptMode;
         }
 
         public ParseField getParseField() {
             return parseField;
         }
 
+        public ScriptMode getDefaultScriptMode() {
+            return defaultScriptMode;
+        }
+
+        public String getScriptType() {
+            return scriptType;
+        }
+
         @Override
         public String toString() {
             return name().toLowerCase(Locale.ROOT);
         }
+
     }
 
     private static final class CacheKey {
@@ -635,7 +652,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
         final Map<String, String> params;
 
         private CacheKey(final ScriptEngineService service, final String name, final String code, final Map<String, String> params) {
-            this.lang = service.types()[0];
+            this.lang = service.types().get(0);
             this.name = name;
             this.code = code;
             this.params = params;

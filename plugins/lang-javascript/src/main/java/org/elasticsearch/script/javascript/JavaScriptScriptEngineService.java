@@ -19,18 +19,6 @@
 
 package org.elasticsearch.script.javascript;
 
-import java.io.IOException;
-import java.net.MalformedURLException;
-import java.net.URL;
-import java.security.AccessControlContext;
-import java.security.AccessController;
-import java.security.CodeSource;
-import java.security.PrivilegedAction;
-import java.security.cert.Certificate;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.atomic.AtomicLong;
-
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.SpecialPermission;
@@ -61,10 +49,26 @@ import org.mozilla.javascript.ScriptableObject;
 import org.mozilla.javascript.SecurityController;
 import org.mozilla.javascript.WrapFactory;
 
+import java.io.IOException;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.security.AccessControlContext;
+import java.security.AccessController;
+import java.security.CodeSource;
+import java.security.PrivilegedAction;
+import java.security.cert.Certificate;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
+
 /**
  *
  */
 public class JavaScriptScriptEngineService extends AbstractComponent implements ScriptEngineService {
+
+    public static final List<String> TYPES = Collections.unmodifiableList(Arrays.asList("js", "javascript"));
 
     private final AtomicLong counter = new AtomicLong();
 
@@ -155,13 +159,13 @@ public class JavaScriptScriptEngineService extends AbstractComponent implements 
     }
 
     @Override
-    public String[] types() {
-        return new String[]{"js", "javascript"};
+    public List<String> types() {
+        return TYPES;
     }
 
     @Override
-    public String[] extensions() {
-        return new String[]{"js"};
+    public List<String> extensions() {
+        return Collections.unmodifiableList(Arrays.asList("js"));
     }
 
     @Override

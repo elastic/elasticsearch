@@ -22,8 +22,8 @@ package org.elasticsearch.ingest.processor;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ingest.core.AbstractProcessor;
 import org.elasticsearch.ingest.core.AbstractProcessorFactory;
-import org.elasticsearch.ingest.core.IngestDocument;
 import org.elasticsearch.ingest.core.ConfigurationUtils;
+import org.elasticsearch.ingest.core.IngestDocument;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.ISODateTimeFormat;
@@ -33,7 +33,6 @@ import java.util.IllformedLocaleException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
 import java.util.function.Function;
 
 public final class DateProcessor extends AbstractProcessor {
@@ -57,21 +56,14 @@ public final class DateProcessor extends AbstractProcessor {
         this.matchFormats = matchFormats;
         this.dateParsers = new ArrayList<>();
         for (String matchFormat : matchFormats) {
-            Optional<DateFormat> dateFormat = DateFormat.fromString(matchFormat);
-            Function<String, DateTime> stringToDateFunction;
-            if (dateFormat.isPresent()) {
-                stringToDateFunction = dateFormat.get().getFunction(timezone);
-            } else {
-                stringToDateFunction = DateFormat.getJodaFunction(matchFormat, timezone, locale);
-            }
-            dateParsers.add(stringToDateFunction);
+            DateFormat dateFormat = DateFormat.fromString(matchFormat);
+            dateParsers.add(dateFormat.getFunction(matchFormat, timezone, locale));
         }
     }
 
     @Override
     public void execute(IngestDocument ingestDocument) {
         String value = ingestDocument.getFieldValue(matchField, String.class);
-        // TODO(talevy): handle custom timestamp fields
 
         DateTime dateTime = null;
         Exception lastException = null;

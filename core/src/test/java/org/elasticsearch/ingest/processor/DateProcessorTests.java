@@ -84,6 +84,16 @@ public class DateProcessorTests extends ESTestCase {
         }
     }
 
+    public void testInvalidJodaPattern() {
+        try {
+            new DateProcessor(randomAsciiOfLength(10), DateTimeZone.UTC, randomLocale(random()),
+                "date_as_string", Collections.singletonList("invalid pattern"), "date_as_date");
+            fail("date processor initialization should have failed");
+        } catch(IllegalArgumentException e) {
+            assertThat(e.getMessage(), equalTo("Illegal pattern component: i"));
+        }
+    }
+
     public void testJodaPatternLocale() {
         DateProcessor dateProcessor = new DateProcessor(randomAsciiOfLength(10), DateTimeZone.forID("Europe/Amsterdam"), Locale.ITALIAN,
                 "date_as_string", Collections.singletonList("yyyy dd MMM"), "date_as_date");
@@ -106,7 +116,7 @@ public class DateProcessorTests extends ESTestCase {
 
     public void testTAI64N() {
         DateProcessor dateProcessor = new DateProcessor(randomAsciiOfLength(10), DateTimeZone.forOffsetHours(2), randomLocale(random()),
-                "date_as_string", Collections.singletonList(DateFormat.Tai64n.toString()), "date_as_date");
+                "date_as_string", Collections.singletonList("TAI64N"), "date_as_date");
         Map<String, Object> document = new HashMap<>();
         String dateAsString = (randomBoolean() ? "@" : "") + "4000000050d506482dbdf024";
         document.put("date_as_string", dateAsString);
@@ -117,7 +127,7 @@ public class DateProcessorTests extends ESTestCase {
 
     public void testUnixMs() {
         DateProcessor dateProcessor = new DateProcessor(randomAsciiOfLength(10), DateTimeZone.UTC, randomLocale(random()),
-                "date_as_string", Collections.singletonList(DateFormat.UnixMs.toString()), "date_as_date");
+                "date_as_string", Collections.singletonList("UNIX_MS"), "date_as_date");
         Map<String, Object> document = new HashMap<>();
         document.put("date_as_string", "1000500");
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
@@ -127,7 +137,7 @@ public class DateProcessorTests extends ESTestCase {
 
     public void testUnix() {
         DateProcessor dateProcessor = new DateProcessor(randomAsciiOfLength(10), DateTimeZone.UTC, randomLocale(random()),
-                "date_as_string", Collections.singletonList(DateFormat.Unix.toString()), "date_as_date");
+                "date_as_string", Collections.singletonList("UNIX"), "date_as_date");
         Map<String, Object> document = new HashMap<>();
         document.put("date_as_string", "1000.5");
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);

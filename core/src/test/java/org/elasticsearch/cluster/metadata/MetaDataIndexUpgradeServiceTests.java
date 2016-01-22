@@ -55,7 +55,7 @@ public class MetaDataIndexUpgradeServiceTests extends ESTestCase {
         assertSame(indexMetaData, src);
     }
 
-    public void testUpgrad() {
+    public void testUpgrade() {
         MetaDataIndexUpgradeService service = new MetaDataIndexUpgradeService(Settings.EMPTY, new MapperRegistry(Collections.emptyMap(), Collections.emptyMap()), IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
         IndexMetaData src = newIndexMeta("foo", Settings.builder().put("index.refresh_interval", "-200").build());
         assertFalse(service.isUpgraded(src));

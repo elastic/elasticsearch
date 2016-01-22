@@ -45,6 +45,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.discovery.DiscoveryService;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.rest.RestStatus;
@@ -132,7 +133,7 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
         for (Map.Entry<String, Settings> entry : nodesSettings.entrySet()) {
             Settings.Builder sb = Settings.builder().put(entry.getValue());
             sb.put("name", settings.get("name") + "/" + entry.getKey());
-            sb.put("path.home", settings.get("path.home")); // pass through ES home dir
+            sb.put(Environment.PATH_HOME_SETTING.getKey(), Environment.PATH_HOME_SETTING.get(settings)); // pass through ES home dir
             sb.put(TRIBE_NAME, entry.getKey());
             if (sb.get("http.enabled") == null) {
                 sb.put("http.enabled", false);

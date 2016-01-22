@@ -59,7 +59,7 @@ public class SimplePolishTokenFilterTests extends ESTestCase {
         Index index = new Index("test");
         Settings settings = Settings.settingsBuilder()
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put("path.home", createTempDir())
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .put("index.analysis.filter.myStemmer.type", "polish_stem")
                 .build();
         AnalysisService analysisService = createAnalysisService(index, settings);
@@ -81,7 +81,7 @@ public class SimplePolishTokenFilterTests extends ESTestCase {
         Index index = new Index("test");
         Settings settings = Settings.settingsBuilder()
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put("path.home", createTempDir())
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .build();
         AnalysisService analysisService = createAnalysisService(index, settings);
 

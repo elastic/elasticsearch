@@ -88,7 +88,7 @@ public class PluginsServiceTests extends ESTestCase {
 
     public void testAdditionalSettings() {
         Settings settings = Settings.builder()
-            .put("path.home", createTempDir())
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
             .put("my.setting", "test")
             .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.SIMPLEFS.getSettingsKey()).build();
         PluginsService service = newPluginsService(settings, AdditionalSettingsPlugin1.class);
@@ -100,7 +100,7 @@ public class PluginsServiceTests extends ESTestCase {
 
     public void testAdditionalSettingsClash() {
         Settings settings = Settings.builder()
-            .put("path.home", createTempDir()).build();
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
         PluginsService service = newPluginsService(settings, AdditionalSettingsPlugin1.class, AdditionalSettingsPlugin2.class);
         try {
             service.updatedSettings();
@@ -115,7 +115,7 @@ public class PluginsServiceTests extends ESTestCase {
 
     public void testOnModuleExceptionsArePropagated() {
         Settings settings = Settings.builder()
-                .put("path.home", createTempDir()).build();
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
         PluginsService service = newPluginsService(settings, FailOnModule.class);
         try {
             service.processModule(new BrokenModule());

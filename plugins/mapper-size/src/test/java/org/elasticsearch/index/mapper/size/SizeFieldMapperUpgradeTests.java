@@ -23,6 +23,7 @@ import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.plugin.mapper.MapperSizePlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -63,7 +64,7 @@ public class SizeFieldMapperUpgradeTests extends ESIntegTestCase {
 
         Path dataPath = createTempDir();
         Settings settings = Settings.builder()
-                .put("path.data", dataPath)
+                .put(Environment.PATH_DATA_SETTING.getKey(), dataPath)
                 .build();
         final String node = internalCluster().startDataOnlyNode(settings); // workaround for dangling index loading issue when node is master
         Path[] nodePaths = internalCluster().getInstance(NodeEnvironment.class, node).nodeDataPaths();

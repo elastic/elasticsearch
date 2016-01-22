@@ -108,7 +108,7 @@ public class PluginManagerTests extends ESIntegTestCase {
     @Before
     public void setup() throws Exception {
         environment = buildInitialSettings();
-        System.setProperty("es.default.path.home", environment.settings().get("path.home"));
+        System.setProperty("es.default.path.home", Environment.PATH_HOME_SETTING.get(environment.settings()));
         Path binDir = environment.binFile();
         if (!Files.exists(binDir)) {
             Files.createDirectories(binDir);
@@ -696,7 +696,7 @@ public class PluginManagerTests extends ESIntegTestCase {
     private Environment buildInitialSettings() throws IOException {
         Settings settings = settingsBuilder()
                 .put("http.enabled", true)
-                .put("path.home", createTempDir()).build();
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
         return InternalSettingsPreparer.prepareEnvironment(settings, null);
     }
 

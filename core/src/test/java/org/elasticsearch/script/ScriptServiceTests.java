@@ -67,8 +67,8 @@ public class ScriptServiceTests extends ESTestCase {
     public void setup() throws IOException {
         Path genericConfigFolder = createTempDir();
         baseSettings = settingsBuilder()
-                .put("path.home", createTempDir().toString())
-                .put("path.conf", genericConfigFolder)
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+                .put(Environment.PATH_CONF_SETTING.getKey(), genericConfigFolder)
                 .build();
         resourceWatcherService = new ResourceWatcherService(baseSettings, null);
         scriptEngineService = new TestEngineService();

@@ -62,6 +62,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.discovery.DiscoveryService;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.IndexModule;
@@ -286,12 +287,12 @@ public final class InternalTestCluster extends TestCluster {
                 for (int i = 0; i < numOfDataPaths; i++) {
                     dataPath.append(baseDir.resolve("d" + i).toAbsolutePath()).append(',');
                 }
-                builder.put("path.data", dataPath.toString());
+                builder.put(Environment.PATH_DATA_SETTING.getKey(), dataPath.toString());
             }
         }
-        builder.put("path.shared_data", baseDir.resolve("custom"));
-        builder.put("path.home", baseDir);
-        builder.put("path.repo", baseDir.resolve("repos"));
+        builder.put(Environment.PATH_SHARED_DATA_SETTING.getKey(), baseDir.resolve("custom"));
+        builder.put(Environment.PATH_HOME_SETTING.getKey(), baseDir);
+        builder.put(Environment.PATH_REPO_SETTING.getKey(), baseDir.resolve("repos"));
         builder.put("transport.tcp.port", TRANSPORT_BASE_PORT + "-" + (TRANSPORT_BASE_PORT + PORTS_PER_CLUSTER));
         builder.put("http.port", HTTP_BASE_PORT + "-" + (HTTP_BASE_PORT + PORTS_PER_CLUSTER));
         builder.put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING, true);
@@ -594,7 +595,7 @@ public final class InternalTestCluster extends TestCluster {
         String name = buildNodeName(nodeId);
         assert !nodes.containsKey(name);
         Settings finalSettings = settingsBuilder()
-                .put("path.home", baseDir) // allow overriding path.home
+                .put(Environment.PATH_HOME_SETTING.getKey(), baseDir) // allow overriding path.home
                 .put(settings)
                 .put("name", name)
                 .put(DiscoveryService.SETTING_DISCOVERY_SEED, seed)
@@ -890,7 +891,7 @@ public final class InternalTestCluster extends TestCluster {
             Settings nodeSettings = node.settings();
             Builder builder = settingsBuilder()
                     .put("client.transport.nodes_sampler_interval", "1s")
-                    .put("path.home", baseDir)
+                    .put(Environment.PATH_HOME_SETTING.getKey(), baseDir)
                     .put("name", TRANSPORT_CLIENT_PREFIX + node.settings().get("name"))
                     .put(ClusterName.SETTING, clusterName).put("client.transport.sniff", sniff)
                     .put("node.mode", nodeSettings.get("node.mode", nodeMode))

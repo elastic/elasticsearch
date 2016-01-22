@@ -27,6 +27,7 @@ import org.apache.log4j.spi.LoggingEvent;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 
@@ -53,8 +54,8 @@ public class Log4jESLoggerTests extends ESTestCase {
         Path configDir = getDataPath("config");
         // Need to set custom path.conf so we can use a custom logging.yml file for the test
         Settings settings = Settings.builder()
-                .put("path.conf", configDir.toAbsolutePath())
-                .put("path.home", createTempDir().toString())
+                .put(Environment.PATH_CONF_SETTING.getKey(), configDir.toAbsolutePath())
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .build();
         LogConfigurator.configure(settings, true);
 

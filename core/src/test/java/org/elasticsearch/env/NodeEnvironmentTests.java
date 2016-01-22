@@ -50,7 +50,7 @@ public class NodeEnvironmentTests extends ESTestCase {
         NodeEnvironment env = newNodeEnvironment(Settings.builder()
                 .put("node.max_local_storage_nodes", 1).build());
         Settings settings = env.getSettings();
-        String[] dataPaths = env.getSettings().getAsArray("path.data");
+        List<String> dataPaths = Environment.PATH_DATA_SETTING.get(env.getSettings());
 
         try {
             new NodeEnvironment(settings, new Environment(settings));
@@ -62,10 +62,10 @@ public class NodeEnvironmentTests extends ESTestCase {
 
         // now can recreate and lock it
         env = new NodeEnvironment(settings, new Environment(settings));
-        assertEquals(env.nodeDataPaths().length, dataPaths.length);
+        assertEquals(env.nodeDataPaths().length, dataPaths.size());
 
-        for (int i = 0; i < dataPaths.length; i++) {
-            assertTrue(env.nodeDataPaths()[i].startsWith(PathUtils.get(dataPaths[i])));
+        for (int i = 0; i < dataPaths.size(); i++) {
+            assertTrue(env.nodeDataPaths()[i].startsWith(PathUtils.get(dataPaths.get(i))));
         }
         env.close();
         assertTrue("LockedShards: " + env.lockedShards(), env.lockedShards().isEmpty());
@@ -74,11 +74,11 @@ public class NodeEnvironmentTests extends ESTestCase {
 
     public void testNodeLockMultipleEnvironment() throws IOException {
         final NodeEnvironment first = newNodeEnvironment();
-        String[] dataPaths = first.getSettings().getAsArray("path.data");
+        List<String> dataPaths = Environment.PATH_DATA_SETTING.get(first.getSettings());
         NodeEnvironment second = new NodeEnvironment(first.getSettings(), new Environment(first.getSettings()));
-        assertEquals(first.nodeDataPaths().length, dataPaths.length);
-        assertEquals(second.nodeDataPaths().length, dataPaths.length);
-        for (int i = 0; i < dataPaths.length; i++) {
+        assertEquals(first.nodeDataPaths().length, dataPaths.size());
+        assertEquals(second.nodeDataPaths().length, dataPaths.size());
+        for (int i = 0; i < dataPaths.size(); i++) {
             assertEquals(first.nodeDataPaths()[i].getParent(), second.nodeDataPaths()[i].getParent());
         }
         IOUtils.close(first, second);
@@ -355,25 +355,25 @@ public class NodeEnvironmentTests extends ESTestCase {
     public NodeEnvironment newNodeEnvironment(Settings settings) throws IOException {
         Settings build = Settings.builder()
                 .put(settings)
-                .put("path.home", createTempDir().toAbsolutePath().toString())
-                .putArray("path.data", tmpPaths()).build();
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
+                .putArray(Environment.PATH_DATA_SETTING.getKey(), tmpPaths()).build();
         return new NodeEnvironment(build, new Environment(build));
     }
 
     public NodeEnvironment newNodeEnvironment(String[] dataPaths, Settings settings) throws IOException {
         Settings build = Settings.builder()
                 .put(settings)
-                .put("path.home", createTempDir().toAbsolutePath().toString())
-                .putArray("path.data", dataPaths).build();
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
+                .putArray(Environment.PATH_DATA_SETTING.getKey(), dataPaths).build();
         return new NodeEnvironment(build, new Environment(build));
     }
 
     public NodeEnvironment newNodeEnvironment(String[] dataPaths, String sharedDataPath, Settings settings) throws IOException {
         Settings build = Settings.builder()
                 .put(settings)
-                .put("path.home", createTempDir().toAbsolutePath().toString())
-                .put("path.shared_data", sharedDataPath)
-                .putArray("path.data", dataPaths).build();
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
+                .put(Environment.PATH_SHARED_DATA_SETTING.getKey(), sharedDataPath)
+                .putArray(Environment.PATH_DATA_SETTING.getKey(), dataPaths).build();
         return new NodeEnvironment(build, new Environment(build));
     }
 }

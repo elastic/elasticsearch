@@ -38,6 +38,7 @@ import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.gateway.PrimaryShardAllocator;
 import org.elasticsearch.index.IndexSettings;
@@ -168,5 +169,15 @@ public final class ClusterSettings extends AbstractScopedSettings {
         IndexSettings.QUERY_STRING_ANALYZE_WILDCARD,
         IndexSettings.QUERY_STRING_ALLOW_LEADING_WILDCARD,
         PrimaryShardAllocator.NODE_INITIAL_SHARDS_SETTING,
-        ScriptService.SCRIPT_CACHE_SIZE_SETTING)));
+        ScriptService.SCRIPT_CACHE_SIZE_SETTING,
+        Environment.PATH_CONF_SETTING,
+        Environment.PATH_DATA_SETTING,
+        Environment.PATH_HOME_SETTING,
+        Environment.PATH_LOGS_SETTING,
+        Environment.PATH_PLUGINS_SETTING,
+        Environment.PATH_REPO_SETTING,
+        Environment.PATH_SCRIPTS_SETTING,
+        Environment.PATH_SHARED_DATA_SETTING,
+        Environment.PIDFILE_SETTING
+    )));
 }

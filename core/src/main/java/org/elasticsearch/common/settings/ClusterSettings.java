@@ -44,6 +44,7 @@ import org.elasticsearch.index.store.IndexStoreConfig;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.ttl.IndicesTTLService;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
@@ -158,5 +159,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
         Transport.TRANSPORT_TCP_COMPRESS,
         IndexSettings.QUERY_STRING_ANALYZE_WILDCARD,
         IndexSettings.QUERY_STRING_ALLOW_LEADING_WILDCARD,
-        PrimaryShardAllocator.NODE_INITIAL_SHARDS_SETTING)));
+        PrimaryShardAllocator.NODE_INITIAL_SHARDS_SETTING,
+        ScriptService.SCRIPT_CACHE_SIZE_SETTING)));
 }

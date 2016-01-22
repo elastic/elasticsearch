@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
@@ -101,6 +102,11 @@ public class TransportClientNodesService extends AbstractComponent {
 
     private volatile boolean closed;
 
+
+    public static final Setting<TimeValue> CLIENT_TRANSPORT_NODES_SAMPLER_INTERVAL = Setting.positiveTimeSetting("client.transport.nodes_sampler_interval", timeValueSeconds(5), false, Setting.Scope.CLUSTER);
+    public static final Setting<TimeValue> CLIENT_TRANSPORT_PING_TIMEOUT = Setting.positiveTimeSetting("client.transport.ping_timeout", timeValueSeconds(5), false, Setting.Scope.CLUSTER);
+    public static final Setting<Boolean> CLIENT_TRANSPORT_IGNORE_CLUSTER_NAME = Setting.boolSetting("client.transport.ignore_cluster_name", false, false, Setting.Scope.CLUSTER);
+
     @Inject
     public TransportClientNodesService(Settings settings, ClusterName clusterName, TransportService transportService,
                                        ThreadPool threadPool, Headers headers, Version version) {
@@ -111,9 +117,9 @@ public class TransportClientNodesService extends AbstractComponent {
         this.minCompatibilityVersion = version.minimumCompatibilityVersion();
         this.headers = headers;
 
-        this.nodesSamplerInterval = this.settings.getAsTime("client.transport.nodes_sampler_interval", timeValueSeconds(5));
-        this.pingTimeout = this.settings.getAsTime("client.transport.ping_timeout", timeValueSeconds(5)).millis();
-        this.ignoreClusterName = this.settings.getAsBoolean("client.transport.ignore_cluster_name", false);
+        this.nodesSamplerInterval = CLIENT_TRANSPORT_NODES_SAMPLER_INTERVAL.get(this.settings);
+        this.pingTimeout = CLIENT_TRANSPORT_PING_TIMEOUT.get(this.settings).millis();
+        this.ignoreClusterName = CLIENT_TRANSPORT_IGNORE_CLUSTER_NAME.get(this.settings);
 
         if (logger.isDebugEnabled()) {
             logger.debug("node_sampler_interval[" + nodesSamplerInterval + "]");

@@ -86,3 +86,37 @@ JAVA_OPTS="$JAVA_OPTS -Dfile.encoding=UTF-8"
 
 # Use our provided JNA always versus the system one
 JAVA_OPTS="$JAVA_OPTS -Djna.nosys=true"
+
+# Enables the JMX remote agent and local monitoring
+# Resources: http://docs.oracle.com/javase/8/docs/technotes/guides/management/agent.html#gdevf
+if [ "x$ES_JMX" != "x" ] && [ "$ES_JMX" == "true" ]; then
+  JAVA_OPTS="$JAVA_OPTS -Dcom.sun.management.jmxremote=true"
+  if [ "x$ES_JMX_PORT" != "x" ]; then
+    JAVA_OPTS="$JAVA_OPTS -Dcom.sun.management.jmxremote.port=$ES_JMX_PORT"
+  fi
+  if [ "x$ES_JMX_SSL" != "x" ]; then
+    JAVA_OPTS="$JAVA_OPTS -Dcom.sun.management.jmxremote.ssl=$ES_JMX_SSL"
+  if [ "x$ES_JMX_SSL_PROTOCOL" != "x" ]; then
+    JAVA_OPTS="$JAVA_OPTS -Dcom.sun.management.jmxremote.ssl.enabled.protocols=$ES_JMX_SSL_PROTOCOL"
+  fi
+  if [ "x$ES_JMX_SLL_CIPHER_SUITES" != "x" ]; then
+    JAVA_OPTS="$JAVA_OPTS -Dcom.sun.management.jmxremote.ssl.enabled.cipher.suites=$ES_JMX_SLL_CIPHER_SUITES"
+  fi
+  if [ "x$ES_JMX_SSL_CLIENT_AUTH" != "x" ]; then
+    JAVA_OPTS="$JAVA_OPTS -Dcom.sun.management.jmxremote.ssl.need.client.auth=$ES_JMX_SSL_CLIENT_AUTH"
+  fi
+  if [ "x$ES_JMX_AUTHENTICATE" != "x" ]; then
+    JAVA_OPTS="$JAVA_OPTS -Dcom.sun.management.jmxremote.authenticate=$ES_JMX_AUTHENTICATE"
+  fi
+  if [ "x$ES_JMX_PASSWORD_FILE" != "x" ]; then
+    JAVA_OPTS="$JAVA_OPTS -Dcom.sun.management.jmxremote.password.file=$ES_JMX_PASSWORD_FILE"
+  fi
+  if [ "x$ES_JMX_ACCESS_FILE" != "x" ]; then
+    JAVA_OPTS="$JAVA_OPTS -Dcom.sun.management.jmxremote.access.file=$ES_JMX_ACCESS_FILE"
+  fi
+  if [ "x$ES_JMX_LOGIN_CONFIG" != "x" ]; then
+    JAVA_OPTS="$JAVA_OPTS -Dcom.sun.management.jmxremote.login.config=$ES_JMX_LOGIN_CONFIG"
+  fi
+elif [ "x$ES_JMX" != "x" ]; then
+  JAVA_OPTS="$JAVA_OPTS -Dcom.sun.management.jmxremote=false"
+fi

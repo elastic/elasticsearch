@@ -494,7 +494,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
     /* Only protected so that string can override it */
     protected Object indexTokenizeOption(boolean indexed, boolean tokenized) {
-        return Boolean.valueOf(indexed);
+        return indexed;
     }
 
     protected boolean hasCustomFieldDataSettings() {

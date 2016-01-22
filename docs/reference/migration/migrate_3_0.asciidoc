@@ -269,7 +269,7 @@ significantly.
 
 ==== `index` property
 
-On all types but `string`, the `index` property now accepts `true`/`false`
+On all types but `string`, the `index` property now only accepts `true`/`false`
 instead of `not_analyzed`/`no`. The `string` field still accepts
 `analyzed`/`not_analyzed`/`no`.
 

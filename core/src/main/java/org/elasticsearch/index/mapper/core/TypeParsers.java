@@ -330,8 +330,8 @@ public class TypeParsers {
                 throw new IllegalArgumentException("Can't parse [index] value [" + index + "], expected [true] or [false]");
             }
         } else {
-            index = Strings.toUnderscoreCase(index);
-            switch (index) {
+            final String normalizedIndex = Strings.toUnderscoreCase(index);
+            switch (normalizedIndex) {
             case "true":
             case "not_analyzed":
             case "analyzed":

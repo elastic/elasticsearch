@@ -344,6 +344,26 @@ public class SimpleNumericTests extends ESSingleNodeTestCase {
         }
     }
 
+    public void testBwCompatIndex() throws IOException {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties")
+                .startObject("int")
+                    .field("type", "integer")
+                    .field("index", "no")
+                .endObject()
+                .startObject("double")
+                    .field("type", "double")
+                    .field("index", "not_analyzed")
+                .endObject()
+                .endObject()
+                .endObject().endObject().string();
+
+        Settings oldSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_2_2_0).build();
+        DocumentMapper defaultMapper = createIndex("test", oldSettings).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
+        assertEquals("{\"type\":{\"properties\":{\"double\":{\"type\":\"double\"},\"int\":{\"type\":\"integer\",\"index\":false}}}}",
+                defaultMapper.mapping().toString());
+    }
+
     public void testDocValuesOnNested() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties")

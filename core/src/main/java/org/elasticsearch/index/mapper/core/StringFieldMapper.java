@@ -148,10 +148,10 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
             StringFieldMapper.Builder builder = stringField(name);
             // hack for the fact that string can't just accept true/false for
             // the index property and still accepts no/not_analyzed/analyzed
-            final Object indexO = node.remove("index");
-            if (indexO != null) {
-                final String index = Strings.toUnderscoreCase(indexO.toString());
-                switch (index) {
+            final Object index = node.remove("index");
+            if (index != null) {
+                final String normalizedIndex = Strings.toUnderscoreCase(index.toString());
+                switch (normalizedIndex) {
                 case "analyzed":
                     builder.tokenized(true);
                     node.put("index", true);

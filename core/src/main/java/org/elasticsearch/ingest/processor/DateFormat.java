@@ -25,36 +25,30 @@ import org.joda.time.format.DateTimeFormat;
 import org.joda.time.format.ISODateTimeFormat;
 
 import java.util.Locale;
-import java.util.Optional;
 import java.util.function.Function;
 
 enum DateFormat {
     Iso8601 {
         @Override
-        Function<String, DateTime> getFunction(DateTimeZone timezone) {
+        Function<String, DateTime> getFunction(String format, DateTimeZone timezone, Locale locale) {
             return ISODateTimeFormat.dateTimeParser().withZone(timezone)::parseDateTime;
         }
     },
     Unix {
         @Override
-        Function<String, DateTime> getFunction(DateTimeZone timezone) {
+        Function<String, DateTime> getFunction(String format, DateTimeZone timezone, Locale locale) {
             return (date) -> new DateTime((long)(Float.parseFloat(date) * 1000), timezone);
         }
     },
     UnixMs {
         @Override
-        Function<String, DateTime> getFunction(DateTimeZone timezone) {
+        Function<String, DateTime> getFunction(String format, DateTimeZone timezone, Locale locale) {
             return (date) -> new DateTime(Long.parseLong(date), timezone);
-        }
-
-        @Override
-        public String toString() {
-            return "UNIX_MS";
         }
     },
     Tai64n {
         @Override
-        Function<String, DateTime> getFunction(DateTimeZone timezone) {
+        Function<String, DateTime> getFunction(String format, DateTimeZone timezone, Locale locale) {
             return (date) -> new DateTime(parseMillis(date), timezone);
         }
 
@@ -67,33 +61,30 @@ enum DateFormat {
             long rest = Long.parseLong(date.substring(16, 24), 16);
             return ((base * 1000) - 10000) + (rest/1000000);
         }
-    };
-
-    abstract Function<String, DateTime> getFunction(DateTimeZone timezone);
-
-    static Optional<DateFormat> fromString(String format) {
-        switch (format) {
-            case "ISO8601":
-                return Optional.of(Iso8601);
-            case "UNIX":
-                return Optional.of(Unix);
-            case "UNIX_MS":
-                return Optional.of(UnixMs);
-            case "TAI64N":
-                return Optional.of(Tai64n);
-            default:
-                return Optional.empty();
-        }
-    }
-
-    static Function<String, DateTime> getJodaFunction(String matchFormat, DateTimeZone timezone, Locale locale) {
-        return DateTimeFormat.forPattern(matchFormat)
+    },
+    Joda {
+        @Override
+        Function<String, DateTime> getFunction(String format, DateTimeZone timezone, Locale locale) {
+            return DateTimeFormat.forPattern(format)
                 .withDefaultYear((new DateTime(DateTimeZone.UTC)).getYear())
                 .withZone(timezone).withLocale(locale)::parseDateTime;
-    }
+        }
+    };
 
-    @Override
-    public String toString() {
-        return name().toUpperCase(Locale.ROOT);
+    abstract Function<String, DateTime> getFunction(String format, DateTimeZone timezone, Locale locale);
+
+    static DateFormat fromString(String format) {
+        switch (format) {
+            case "ISO8601":
+                return Iso8601;
+            case "UNIX":
+                return Unix;
+            case "UNIX_MS":
+                return UnixMs;
+            case "TAI64N":
+                return Tai64n;
+            default:
+                return Joda;
+        }
     }
 }

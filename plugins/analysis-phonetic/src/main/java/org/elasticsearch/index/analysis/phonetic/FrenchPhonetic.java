@@ -57,11 +57,26 @@ public class FrenchPhonetic implements StringEncoder {
 
             //Trailing muted consonant
             if (MUTED_ENDED_CONSONANT.contains(c)) {
-                return operatePhonetic(
-                        substring(acc, true, 0, acc.length() - 1),
-                        charAt(acc, acc.length() - 1),
-                        ""
-                );
+
+                if(c != 'X'){
+                    return operatePhonetic(
+                            substring(acc, true, 0, acc.length() - 1),
+                            charAt(acc, acc.length() - 1),
+                            ""
+                    );
+                } else {
+
+                    //1X must be pronounced
+                    if(charAt(acc, acc.length()-1)!= '1'){
+                        return operatePhonetic(
+                                substring(acc, true, 0, acc.length() - 1),
+                                charAt(acc, acc.length() - 1),
+                                ""
+                        );
+                    }
+                }
+
+
             }
 
         } else {

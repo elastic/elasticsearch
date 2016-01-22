@@ -358,7 +358,7 @@ public class FrenchPhoneticTest {
     public void testEncodeWithYN() throws EncoderException {
         FrenchPhonetic frenchPhonetic = new FrenchPhonetic();
         String encode = frenchPhonetic.encode("pharynx");
-        MatcherAssert.assertThat(encode, equalTo("FAR1"));
+        MatcherAssert.assertThat(encode, equalTo("FAR1X"));
     }
 
     @Test

@@ -35,11 +35,14 @@ import org.elasticsearch.cluster.routing.allocation.decider.SnapshotInProgressAl
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.cluster.service.InternalClusterService;
 import org.elasticsearch.common.logging.ESLoggerFactory;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.gateway.PrimaryShardAllocator;
+import org.elasticsearch.http.netty.NettyHttpChannel;
+import org.elasticsearch.http.netty.NettyHttpServerTransport;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.store.IndexStoreConfig;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
@@ -56,6 +59,8 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+
+import static org.elasticsearch.http.netty.NettyHttpServerTransport.SETTING_CORS_ALLOW_CREDENTIALS;
 
 /**
  * Encapsulates all valid cluster level settings.
@@ -148,6 +153,12 @@ public final class ClusterSettings extends AbstractScopedSettings {
         GatewayService.RECOVER_AFTER_MASTER_NODES_SETTING,
         GatewayService.RECOVER_AFTER_NODES_SETTING,
         GatewayService.RECOVER_AFTER_TIME_SETTING,
+        NetworkModule.HTTP_ENABLED,
+        NettyHttpServerTransport.SETTING_CORS_ALLOW_CREDENTIALS,
+        NettyHttpServerTransport.SETTING_CORS_ENABLED,
+        NettyHttpServerTransport.SETTING_CORS_MAX_AGE,
+        NettyHttpServerTransport.SETTING_HTTP_DETAILED_ERRORS_ENABLED,
+        NettyHttpServerTransport.SETTING_PIPELINING,       
         HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING,
         HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING,
         HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_OVERHEAD_SETTING,

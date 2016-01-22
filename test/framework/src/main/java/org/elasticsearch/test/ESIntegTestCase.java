@@ -1759,7 +1759,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         NodeConfigurationSource nodeConfigurationSource = new NodeConfigurationSource() {
             @Override
             public Settings nodeSettings(int nodeOrdinal) {
-                return Settings.builder().put(Node.HTTP_ENABLED, false).
+                return Settings.builder().put(NetworkModule.HTTP_ENABLED.getKey(), false).
                         put(ESIntegTestCase.this.nodeSettings(nodeOrdinal)).build();
             }
 

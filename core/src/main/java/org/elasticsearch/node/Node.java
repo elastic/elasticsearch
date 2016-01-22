@@ -119,7 +119,6 @@ import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 public class Node implements Releasable {
 
     private static final String CLIENT_TYPE = "node";
-    public static final String HTTP_ENABLED = "http.enabled";
     private final Lifecycle lifecycle = new Lifecycle();
     private final Injector injector;
     private final Settings settings;

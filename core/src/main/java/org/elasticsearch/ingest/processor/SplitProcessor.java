@@ -21,11 +21,10 @@ package org.elasticsearch.ingest.processor;
 
 import org.elasticsearch.ingest.core.AbstractProcessor;
 import org.elasticsearch.ingest.core.AbstractProcessorFactory;
-import org.elasticsearch.ingest.core.IngestDocument;
 import org.elasticsearch.ingest.core.ConfigurationUtils;
+import org.elasticsearch.ingest.core.IngestDocument;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -62,8 +61,9 @@ public class SplitProcessor extends AbstractProcessor {
         if (oldVal == null) {
             throw new IllegalArgumentException("field [" + field + "] is null, cannot split.");
         }
-        List<String> splitList = new ArrayList<>();
-        Collections.addAll(splitList, oldVal.split(separator));
+        String[] strings = oldVal.split(separator);
+        List<String> splitList = new ArrayList<>(strings.length);
+        Collections.addAll(splitList, strings);
         document.setFieldValue(field, splitList);
     }
 

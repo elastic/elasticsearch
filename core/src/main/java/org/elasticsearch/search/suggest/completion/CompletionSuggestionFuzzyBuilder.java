@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.search.suggest.completion.old;
+package org.elasticsearch.search.suggest.completion;
 
 import org.apache.lucene.search.suggest.analyzing.XFuzzySuggester;
 import org.elasticsearch.common.unit.Fuzziness;

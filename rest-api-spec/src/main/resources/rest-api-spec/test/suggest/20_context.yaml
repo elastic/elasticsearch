@@ -1,0 +1,224 @@
+# This test creates one huge mapping in the setup
+# Every test should use its own field to make sure it works
+
+setup:
+
+  - do:
+      indices.create:
+          index: test
+          body:
+            mappings:
+              test:
+                "properties":
+                  "suggest_context":
+                     "type" : "completion"
+                     "context":
+                        "color":
+                            "type" : "category"
+                  "suggest_context_default_hardcoded":
+                     "type" : "completion"
+                     "context":
+                        "color":
+                            "type" : "category"
+                            "default" : "red"
+                  "suggest_context_default_path":
+                     "type" : "completion"
+                     "context":
+                        "color":
+                            "type" : "category"
+                            "default" : "red"
+                            "path" : "color"
+                  "suggest_geo":
+                     "type" : "completion"
+                     "context":
+                        "location":
+                            "type" : "geo"
+                            "precision" : "5km"
+
+---
+"Simple context suggestion should work":
+
+  - do:
+      index:
+        index: test
+        type:  test
+        id:    1
+        body:
+          suggest_context:
+            input: "Hoodie red"
+            context:
+              color: "red"
+
+  - do:
+      index:
+        index: test
+        type:  test
+        id:    2
+        body:
+          suggest_context:
+            input: "Hoodie blue"
+            context:
+              color: "blue"
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      suggest:
+        body:
+          result:
+            text: "hoo"
+            completion:
+              field: suggest_context
+              context:
+                color: "red"
+
+  - match: {result.0.options.0.text: "Hoodie red" }
+
+---
+"Hardcoded category value should work":
+
+  - do:
+      index:
+        index: test
+        type:  test
+        id:    1
+        body:
+          suggest_context_default_hardcoded:
+            input: "Hoodie red"
+
+  - do:
+      index:
+        index: test
+        type:  test
+        id:    2
+        body:
+          suggest_context_default_hardcoded:
+            input: "Hoodie blue"
+            context:
+              color: "blue"
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      suggest:
+        body:
+          result:
+            text: "hoo"
+            completion:
+              field: suggest_context_default_hardcoded
+              context:
+                color: "red"
+
+  - length: { result: 1  }
+  - length: { result.0.options: 1  }
+  - match:  { result.0.options.0.text: "Hoodie red" }
+
+
+---
+"Category suggest context default path should work":
+
+  - do:
+      index:
+        index: test
+        type:  test
+        id:    1
+        body:
+          suggest_context_default_path:
+            input: "Hoodie red"
+
+  - do:
+      index:
+        index: test
+        type:  test
+        id:    2
+        body:
+          suggest_context_default_path:
+            input: "Hoodie blue"
+          color: "blue"
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      suggest:
+        body:
+          result:
+            text: "hoo"
+            completion:
+              field: suggest_context_default_path
+              context:
+                color: "red"
+
+  - length: { result: 1  }
+  - length: { result.0.options: 1  }
+  - match:  { result.0.options.0.text: "Hoodie red" }
+
+  - do:
+      suggest:
+        body:
+          result:
+            text: "hoo"
+            completion:
+              field: suggest_context_default_path
+              context:
+                color: "blue"
+
+  - length: { result: 1  }
+  - length: { result.0.options: 1  }
+  - match:  { result.0.options.0.text: "Hoodie blue" }
+
+
+---
+"Geo suggest should work":
+
+  - do:
+      index:
+        index: test
+        type:  test
+        id:    1
+        body:
+          suggest_geo:
+            input: "Hotel Marriot in Amsterdam"
+            context:
+              location:
+                lat : 52.22
+                lon : 4.53
+
+  - do:
+      index:
+        index: test
+        type:  test
+        id:    2
+        body:
+          suggest_geo:
+            input: "Hotel Marriot in Berlin"
+            context:
+              location:
+                lat : 53.31
+                lon : 13.24
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      indices.get_mapping: {}
+
+  - do:
+      suggest:
+        index: test
+        body:
+          result:
+            text: "hote"
+            completion:
+              field: suggest_geo
+              context:
+                location:
+                  lat : 52.22
+                  lon : 4.53
+
+  - length: { result: 1  }
+  - length: { result.0.options: 1  }
+  - match:  { result.0.options.0.text: "Hotel Marriot in Amsterdam" }
+

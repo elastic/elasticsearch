@@ -108,7 +108,7 @@ public enum RegexpFlag {
      * @param flags A string representing a list of regualr expression flags
      * @return The combined OR'ed value for all the flags
      */
-    public static int resolveValue(String flags) {
+    static int resolveValue(String flags) {
         if (flags == null || flags.isEmpty()) {
             return RegExp.ALL;
         }

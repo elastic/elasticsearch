@@ -896,6 +896,42 @@ public class TranslogTests extends ESTestCase {
         IOUtils.close(writer);
     }
 
+    public void testFailWriterWhileClosing() throws IOException {
+        Path tempDir = createTempDir();
+        final FailSwitch fail = new FailSwitch();
+        fail.failNever();
+        TranslogConfig config = getTranslogConfig(tempDir);
+        try (Translog translog = getFailableTranslog(fail, config)) {
+            final TranslogWriter writer = translog.createWriter(0);
+            final int numOps = randomIntBetween(10, 100);
+            byte[] bytes = new byte[4];
+            ByteArrayDataOutput out = new ByteArrayDataOutput(bytes);
+            for (int i = 0; i < numOps; i++) {
+                out.reset(bytes);
+                out.writeInt(i);
+                writer.add(new BytesArray(bytes));
+            }
+            writer.sync();
+            try {
+                fail.failAlways();
+                writer.closeIntoReader();
+                fail();
+            } catch (MockDirectoryWrapper.FakeIOException ex) {
+            }
+            try (TranslogReader reader = translog.openReader(writer.path(), Checkpoint.read(translog.location().resolve(Translog.CHECKPOINT_FILE_NAME)))) {
+                for (int i = 0; i < numOps; i++) {
+                    ByteBuffer buffer = ByteBuffer.allocate(4);
+                    reader.readBytes(buffer, reader.getFirstOperationOffset() + 4 * i);
+                    buffer.flip();
+                    final int value = buffer.getInt();
+                    assertEquals(i, value);
+                }
+            }
+
+        }
+
+    }
+
     public void testBasicRecovery() throws IOException {
         List<Translog.Location> locations = new ArrayList<>();
         int translogOperations = randomIntBetween(10, 100);

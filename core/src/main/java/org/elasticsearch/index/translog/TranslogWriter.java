@@ -192,12 +192,16 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
             throw e;
         }
         if (closed.compareAndSet(false, true)) {
+            boolean success = false;
             try {
-                return new TranslogReader(generation, channel, path, firstOperationOffset, getWrittenOffset(), operationCounter);
-            } catch (Throwable t) {
-                // close the channel, as we are closed and failed to create a new reader
-                IOUtils.closeWhileHandlingException(channel);
-                throw t;
+                final TranslogReader reader = new TranslogReader(generation, channel, path, firstOperationOffset, getWrittenOffset(), operationCounter);
+                success = true;
+                return reader;
+            } finally {
+                if (success == false) {
+                    // close the channel, as we are closed and failed to create a new reader
+                    IOUtils.closeWhileHandlingException(channel);
+                }
             }
         } else {
             throw new AlreadyClosedException("translog [" + getGeneration() + "] is already closed (path [" + path + "]", tragedy);

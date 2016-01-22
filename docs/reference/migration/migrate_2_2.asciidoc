@@ -28,6 +28,18 @@ other node in the response. Do note that if you send a cat nodes request to a no
 earlier than 2.2.0, the CPU usage will not be shown for any nodes. Finally, the API for
 org.elasticsearch.monitor.os.OsStats has an additional method `OsStats#getCpuPercent`.
 
+==== Default logging using systemd
+
+In previous versions of Elasticsearch, the default logging
+configuration routed standard output to /dev/null and standard error to
+the journal. However, there are often critical error messages at
+startup that are logged to standard output rather than standard error
+and these error messages would be lost to the nether. The default has
+changed to now route standard output to the journal and standard error
+to inherit this setting (these are the defaults for systemd). These
+settings can be modified by editing the elasticsearch.service file.
+
+
 [[breaking_22_plugins]]
 === Plugins
 

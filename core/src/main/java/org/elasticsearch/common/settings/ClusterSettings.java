@@ -39,6 +39,7 @@ import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.common.network.NetworkModule;
+import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
@@ -192,6 +193,18 @@ public final class ClusterSettings extends AbstractScopedSettings {
         HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_TYPE_SETTING,
         Transport.TRANSPORT_PROFILES_SETTING,
         Transport.TRANSPORT_TCP_COMPRESS,
+        NetworkService.GLOBAL_NETWORK_HOST_SETTING,
+        NetworkService.GLOBAL_NETWORK_BINDHOST_SETTING,
+        NetworkService.GLOBAL_NETWORK_PUBLISHHOST_SETTING,
+        NetworkService.TcpSettings.TCP_NO_DELAY,
+        NetworkService.TcpSettings.TCP_KEEP_ALIVE,
+        NetworkService.TcpSettings.TCP_REUSE_ADDRESS,
+        NetworkService.TcpSettings.TCP_SEND_BUFFER_SIZE,
+        NetworkService.TcpSettings.TCP_RECEIVE_BUFFER_SIZE,
+        NetworkService.TcpSettings.TCP_BLOCKING,
+        NetworkService.TcpSettings.TCP_BLOCKING_SERVER,
+        NetworkService.TcpSettings.TCP_BLOCKING_CLIENT,
+        NetworkService.TcpSettings.TCP_CONNECT_TIMEOUT,
         IndexSettings.QUERY_STRING_ANALYZE_WILDCARD,
         IndexSettings.QUERY_STRING_ALLOW_LEADING_WILDCARD,
         PrimaryShardAllocator.NODE_INITIAL_SHARDS_SETTING,

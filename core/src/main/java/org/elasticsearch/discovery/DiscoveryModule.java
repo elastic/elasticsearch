@@ -22,6 +22,7 @@ package org.elasticsearch.discovery;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.ExtensionPoint;
 import org.elasticsearch.discovery.local.LocalDiscovery;
@@ -36,14 +37,17 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 /**
  * A module for loading classes for node discovery.
  */
 public class DiscoveryModule extends AbstractModule {
 
-    public static final String DISCOVERY_TYPE_KEY = "discovery.type";
-    public static final String ZEN_MASTER_SERVICE_TYPE_KEY = "discovery.zen.masterservice.type";
+    public static final Setting<String> DISCOVERY_TYPE_SETTING = new Setting<>("discovery.type",
+        settings -> DiscoveryNode.localNode(settings) ? "local" : "zen", Function.identity(), false, Setting.Scope.CLUSTER);
+    public static final Setting<String> ZEN_MASTER_SERVICE_TYPE_SETTING = new Setting<>("discovery.zen.masterservice.type",
+            "zen", Function.identity(), false, Setting.Scope.CLUSTER);
 
     private final Settings settings;
     private final List<Class<? extends UnicastHostsProvider>> unicastHostProviders = new ArrayList<>();
@@ -93,15 +97,14 @@ public class DiscoveryModule extends AbstractModule {
 
     @Override
     protected void configure() {
-        String defaultType = DiscoveryNode.localNode(settings) ? "local" : "zen";
-        String discoveryType = settings.get(DISCOVERY_TYPE_KEY, defaultType);
+        String discoveryType = DISCOVERY_TYPE_SETTING.get(settings);
         Class<? extends Discovery> discoveryClass = discoveryTypes.get(discoveryType);
         if (discoveryClass == null) {
             throw new IllegalArgumentException("Unknown Discovery type [" + discoveryType + "]");
         }
 
         if (discoveryType.equals("local") == false) {
-            String masterServiceTypeKey = settings.get(ZEN_MASTER_SERVICE_TYPE_KEY, "zen");
+            String masterServiceTypeKey = ZEN_MASTER_SERVICE_TYPE_SETTING.get(settings);
             final Class<? extends ElectMasterService> masterService = masterServiceType.get(masterServiceTypeKey);
             if (masterService == null) {
                 throw new IllegalArgumentException("Unknown master service type [" + masterServiceTypeKey + "]");

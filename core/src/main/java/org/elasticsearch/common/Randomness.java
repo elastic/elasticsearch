@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common;
 
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 
 import java.lang.reflect.Method;
@@ -40,7 +41,7 @@ import java.util.concurrent.ThreadLocalRandom;
  * setting a reproducible seed. When running the Elasticsearch server
  * process, non-reproducible sources of randomness are provided (unless
  * a setting is provided for a module that exposes a seed setting (e.g.,
- * DiscoveryService#SETTING_DISCOVERY_SEED)).
+ * DiscoveryService#DISCOVERY_SEED_SETTING)).
  */
 public final class Randomness {
     private static final Method currentMethod;
@@ -68,13 +69,12 @@ public final class Randomness {
      * seed in the settings with the key setting.
      *
      * @param settings the settings containing the seed
-     * @param setting  the key to access the seed
+     * @param setting  the setting to access the seed
      * @return a reproducible source of randomness
      */
-    public static Random get(Settings settings, String setting) {
-        Long maybeSeed = settings.getAsLong(setting, null);
-        if (maybeSeed != null) {
-            return new Random(maybeSeed);
+    public static Random get(Settings settings, Setting<Long> setting) {
+        if (setting.exists(settings)) {
+            return new Random(setting.get(settings));
         } else {
             return get();
         }

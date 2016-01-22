@@ -171,7 +171,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/14932")
     public void testDeleteCreateInOneBulk() throws Exception {
         internalCluster().startNodesAsync(2, Settings.builder()
-                .put(DiscoveryModule.DISCOVERY_TYPE_KEY, "zen")
+                .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "zen")
                 .build()).get();
         assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes("2").get().isTimedOut());
         prepareCreate("test").setSettings(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, true).addMapping("type").get();

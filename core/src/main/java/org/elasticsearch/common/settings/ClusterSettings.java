@@ -36,11 +36,15 @@ import org.elasticsearch.cluster.routing.allocation.decider.SnapshotInProgressAl
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.cluster.service.InternalClusterService;
 import org.elasticsearch.common.logging.ESLoggerFactory;
+import org.elasticsearch.discovery.DiscoveryModule;
+import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.discovery.zen.fd.FaultDetection;
+import org.elasticsearch.discovery.zen.ping.unicast.UnicastZenPing;
 import org.elasticsearch.gateway.PrimaryShardAllocator;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.store.IndexStoreConfig;
@@ -194,6 +198,26 @@ public final class ClusterSettings extends AbstractScopedSettings {
         Environment.PATH_REPO_SETTING,
         Environment.PATH_SCRIPTS_SETTING,
         Environment.PATH_SHARED_DATA_SETTING,
-        Environment.PIDFILE_SETTING
-    )));
+        Environment.PIDFILE_SETTING,
+        DiscoveryService.DISCOVERY_SEED_SETTING,
+        DiscoveryService.INITIAL_STATE_TIMEOUT_SETTING,
+        DiscoveryModule.DISCOVERY_TYPE_SETTING,
+        DiscoveryModule.ZEN_MASTER_SERVICE_TYPE_SETTING,
+        FaultDetection.PING_RETRIES_SETTING,
+        FaultDetection.PING_TIMEOUT_SETTING,
+        FaultDetection.REGISTER_CONNECTION_LISTENER_SETTING,
+        FaultDetection.PING_INTERVAL_SETTING,
+        FaultDetection.CONNECT_ON_NETWORK_DISCONNECT_SETTING,
+        ZenDiscovery.PING_TIMEOUT_SETTING,
+        ZenDiscovery.JOIN_TIMEOUT_SETTING,
+        ZenDiscovery.JOIN_RETRY_ATTEMPTS_SETTING,
+        ZenDiscovery.JOIN_RETRY_DELAY_SETTING,
+        ZenDiscovery.MAX_PINGS_FROM_ANOTHER_MASTER_SETTING,
+        ZenDiscovery.SEND_LEAVE_REQUEST_SETTING,
+        ZenDiscovery.MASTER_ELECTION_FILTER_CLIENT_SETTING,
+        ZenDiscovery.MASTER_ELECTION_WAIT_FOR_JOINS_TIMEOUT_SETTING,
+        ZenDiscovery.MASTER_ELECTION_FILTER_DATA_SETTING,
+        UnicastZenPing.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING,
+        UnicastZenPing.DISCOVERY_ZEN_PING_UNICAST_CONCURRENT_CONNECTS_SETTING
+        )));
 }

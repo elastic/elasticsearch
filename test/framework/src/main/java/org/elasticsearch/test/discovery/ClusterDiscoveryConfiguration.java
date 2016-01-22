@@ -24,6 +24,7 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.NodeConfigurationSource;
 
@@ -35,7 +36,7 @@ import java.util.Set;
 
 public class ClusterDiscoveryConfiguration extends NodeConfigurationSource {
 
-    static Settings DEFAULT_NODE_SETTINGS = Settings.settingsBuilder().put("discovery.type", "zen").build();
+    static Settings DEFAULT_NODE_SETTINGS = Settings.settingsBuilder().put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "zen").build();
     private static final String IP_ADDR = "127.0.0.1";
 
     final int numOfNodes;

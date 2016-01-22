@@ -135,8 +135,8 @@ public class TribeIT extends ESIntegTestCase {
             tribe2Defaults.put("tribe.t2." + entry.getKey(), entry.getValue());
         }
         // give each tribe it's unicast hosts to connect to
-        tribe1Defaults.putArray("tribe.t1." + UnicastZenPing.DISCOVERY_ZEN_PING_UNICAST_HOSTS, getUnicastHosts(internalCluster().client()));
-        tribe1Defaults.putArray("tribe.t2." + UnicastZenPing.DISCOVERY_ZEN_PING_UNICAST_HOSTS, getUnicastHosts(cluster2.client()));
+        tribe1Defaults.putArray("tribe.t1." + UnicastZenPing.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey(), getUnicastHosts(internalCluster().client()));
+        tribe1Defaults.putArray("tribe.t2." + UnicastZenPing.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey(), getUnicastHosts(cluster2.client()));
 
         Settings merged = Settings.builder()
                 .put("tribe.t1.cluster.name", internalCluster().getClusterName())

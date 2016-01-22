@@ -71,7 +71,6 @@ public final class DateProcessor extends AbstractProcessor {
     @Override
     public void execute(IngestDocument ingestDocument) {
         String value = ingestDocument.getFieldValue(matchField, String.class);
-        // TODO(talevy): handle custom timestamp fields
 
         DateTime dateTime = null;
         Exception lastException = null;

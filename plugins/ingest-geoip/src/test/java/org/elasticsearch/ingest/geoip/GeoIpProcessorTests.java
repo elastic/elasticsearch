@@ -20,12 +20,11 @@
 package org.elasticsearch.ingest.geoip;
 
 import com.maxmind.geoip2.DatabaseReader;
-import org.elasticsearch.ingest.core.IngestDocument;
 import org.elasticsearch.ingest.RandomDocumentPicks;
+import org.elasticsearch.ingest.core.IngestDocument;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.InputStream;
-import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
@@ -47,7 +46,7 @@ public class GeoIpProcessorTests extends ESTestCase {
         assertThat(ingestDocument.getSourceAndMetadata().get("source_field"), equalTo("82.170.213.79"));
         @SuppressWarnings("unchecked")
         Map<String, Object> geoData = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
-        assertThat(geoData.size(), equalTo(10));
+        assertThat(geoData.size(), equalTo(8));
         assertThat(geoData.get("ip"), equalTo("82.170.213.79"));
         assertThat(geoData.get("country_iso_code"), equalTo("NL"));
         assertThat(geoData.get("country_name"), equalTo("Netherlands"));
@@ -55,9 +54,10 @@ public class GeoIpProcessorTests extends ESTestCase {
         assertThat(geoData.get("region_name"), equalTo("North Holland"));
         assertThat(geoData.get("city_name"), equalTo("Amsterdam"));
         assertThat(geoData.get("timezone"), equalTo("Europe/Amsterdam"));
-        assertThat(geoData.get("latitude"), equalTo(52.374));
-        assertThat(geoData.get("longitude"), equalTo(4.8897));
-        assertThat(geoData.get("location"), equalTo(Arrays.asList(4.8897d, 52.374d)));
+        Map<String, Object> location = new HashMap<>();
+        location.put("lat", 52.374d);
+        location.put("lon", 4.8897d);
+        assertThat(geoData.get("location"), equalTo(location));
     }
 
     public void testCountry() throws Exception {

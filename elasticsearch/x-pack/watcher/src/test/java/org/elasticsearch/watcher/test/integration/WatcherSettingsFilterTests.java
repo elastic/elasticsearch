@@ -7,6 +7,7 @@ package org.elasticsearch.watcher.test.integration;
 
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -43,7 +44,7 @@ public class WatcherSettingsFilterTests extends AbstractWatcherIntegrationTestCa
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(Node.HTTP_ENABLED, true)
+                .put(NetworkModule.HTTP_ENABLED.getKey(), true)
                 .put("watcher.actions.email.service.account._email.smtp.host", "host.domain")
                 .put("watcher.actions.email.service.account._email.smtp.port", 587)
                 .put("watcher.actions.email.service.account._email.smtp.user", "_user")

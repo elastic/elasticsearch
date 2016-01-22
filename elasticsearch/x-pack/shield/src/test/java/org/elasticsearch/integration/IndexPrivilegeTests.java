@@ -6,6 +6,7 @@
 package org.elasticsearch.integration;
 
 import org.apache.lucene.util.LuceneTestCase.BadApple;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
@@ -118,7 +119,7 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder().put(super.nodeSettings(nodeOrdinal))
-                .put(Node.HTTP_ENABLED, true)
+                .put(NetworkModule.HTTP_ENABLED.getKey(), true)
                 .put("action.disable_shutdown", true)
                 .build();
     }

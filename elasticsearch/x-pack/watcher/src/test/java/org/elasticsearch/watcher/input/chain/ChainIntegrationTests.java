@@ -6,6 +6,7 @@
 package org.elasticsearch.watcher.input.chain;
 
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.node.Node;
@@ -35,7 +36,7 @@ public class ChainIntegrationTests extends AbstractWatcherIntegrationTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(Node.HTTP_ENABLED, true)
+                .put(NetworkModule.HTTP_ENABLED.getKey(), true)
                 .build();
     }
 

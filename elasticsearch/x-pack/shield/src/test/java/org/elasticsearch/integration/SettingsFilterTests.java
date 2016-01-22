@@ -7,6 +7,7 @@ package org.elasticsearch.integration;
 
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -48,7 +49,7 @@ public class SettingsFilterTests extends ShieldIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         int clientProfilePort = randomIntBetween(49000, 65400);
         return Settings.builder().put(super.nodeSettings(nodeOrdinal))
-                .put(Node.HTTP_ENABLED, true)
+                .put(NetworkModule.HTTP_ENABLED.getKey(), true)
 
                 .put("shield.authc.realms.esusers.type", "esusers")
 

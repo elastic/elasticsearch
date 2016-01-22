@@ -47,7 +47,6 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.discovery.zen.fd.FaultDetection;
 import org.elasticsearch.discovery.zen.ping.unicast.UnicastZenPing;
 import org.elasticsearch.gateway.PrimaryShardAllocator;
-import org.elasticsearch.http.netty.NettyHttpChannel;
 import org.elasticsearch.http.netty.NettyHttpServerTransport;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.store.IndexStoreConfig;
@@ -59,6 +58,8 @@ import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.indices.ttl.IndicesTTLService;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.repositories.fs.FsRepository;
+import org.elasticsearch.repositories.uri.URLRepository;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -129,6 +130,9 @@ public final class ClusterSettings extends AbstractScopedSettings {
         FilterAllocationDecider.CLUSTER_ROUTING_INCLUDE_GROUP_SETTING,
         FilterAllocationDecider.CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING,
         FilterAllocationDecider.CLUSTER_ROUTING_REQUIRE_GROUP_SETTING,
+        FsRepository.REPOSITORIES_CHUNK_SIZE_SETTING,
+        FsRepository.REPOSITORIES_COMPRESS_SETTING,
+        FsRepository.REPOSITORIES_LOCATION_SETTING,
         IndexStoreConfig.INDICES_STORE_THROTTLE_TYPE_SETTING,
         IndexStoreConfig.INDICES_STORE_THROTTLE_MAX_BYTES_PER_SEC_SETTING,
         IndicesTTLService.INDICES_TTL_INTERVAL_SETTING,
@@ -231,6 +235,9 @@ public final class ClusterSettings extends AbstractScopedSettings {
         UnicastZenPing.DISCOVERY_ZEN_PING_UNICAST_CONCURRENT_CONNECTS_SETTING,
         SearchService.DEFAULT_KEEPALIVE_SETTING,
         SearchService.KEEPALIVE_INTERVAL_SETTING,
-        Node.WRITE_PORTS_FIELD_SETTING
-        )));
+        Node.WRITE_PORTS_FIELD_SETTING,
+        URLRepository.ALLOWED_URLS_SETTING,
+        URLRepository.REPOSITORIES_LIST_DIRECTORIES_SETTING,
+        URLRepository.REPOSITORIES_URL_SETTING,
+        URLRepository.SUPPORTED_PROTOCOLS_SETTING)));
 }

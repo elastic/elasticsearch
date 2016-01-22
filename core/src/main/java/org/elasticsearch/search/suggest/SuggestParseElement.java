@@ -22,14 +22,11 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.HasContextAndHeaders;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
-import org.elasticsearch.search.suggest.completion.CompletionSuggestParser;
-import org.elasticsearch.search.suggest.completion.old.CompletionSuggester;
 
 import java.io.IOException;
 import java.util.Map;
@@ -49,13 +46,13 @@ public final class SuggestParseElement implements SearchParseElement {
 
     @Override
     public void parse(XContentParser parser, SearchContext context) throws Exception {
-        SuggestionSearchContext suggestionSearchContext = parseInternal(parser, context.mapperService(), context.queryParserService(), context.fieldData(),
+        SuggestionSearchContext suggestionSearchContext = parseInternal(parser, context.mapperService(), context.queryParserService(),
                 context.shardTarget().index(), context.shardTarget().shardId(), context);
         context.suggest(suggestionSearchContext);
     }
 
     public SuggestionSearchContext parseInternal(XContentParser parser, MapperService mapperService,
-            IndexQueryParserService queryParserService, IndexFieldDataService fieldDataService, String index, int shardId, HasContextAndHeaders headersContext) throws IOException {
+            IndexQueryParserService queryParserService, String index, int shardId, HasContextAndHeaders headersContext) throws IOException {
         SuggestionSearchContext suggestionSearchContext = new SuggestionSearchContext();
 
         BytesRef globalText = null;
@@ -75,8 +72,6 @@ public final class SuggestParseElement implements SearchParseElement {
             } else if (token == XContentParser.Token.START_OBJECT) {
                 String suggestionName = fieldName;
                 BytesRef suggestText = null;
-                BytesRef prefix = null;
-                BytesRef regex = null;
                 SuggestionContext suggestionContext = null;
 
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -85,10 +80,6 @@ public final class SuggestParseElement implements SearchParseElement {
                     } else if (token.isValue()) {
                         if ("text".equals(fieldName)) {
                             suggestText = parser.utf8Bytes();
-                        } else if ("prefix".equals(fieldName)) {
-                            prefix = parser.utf8Bytes();
-                        } else if ("regex".equals(fieldName)) {
-                            regex = parser.utf8Bytes();
                         } else {
                             throw new IllegalArgumentException("[suggest] does not support [" + fieldName + "]");
                         }
@@ -100,23 +91,11 @@ public final class SuggestParseElement implements SearchParseElement {
                             throw new IllegalArgumentException("Suggester[" + fieldName + "] not supported");
                         }
                         final SuggestContextParser contextParser = suggesters.get(fieldName).getContextParser();
-                        if (contextParser instanceof CompletionSuggestParser) {
-                            ((CompletionSuggestParser) contextParser).setOldCompletionSuggester(((CompletionSuggester) suggesters.get("completion_old")));
-                        }
-                        suggestionContext = contextParser.parse(parser, mapperService, queryParserService, fieldDataService, headersContext);
+                        suggestionContext = contextParser.parse(parser, mapperService, queryParserService, headersContext);
                     }
                 }
                 if (suggestionContext != null) {
-                    if (suggestText != null && prefix == null) {
-                        suggestionContext.setPrefix(suggestText);
-                        suggestionContext.setText(suggestText);
-                    } else if (suggestText == null && prefix != null) {
-                        suggestionContext.setPrefix(prefix);
-                        suggestionContext.setText(prefix);
-                    } else if (regex != null) {
-                        suggestionContext.setRegex(regex);
-                        suggestionContext.setText(regex);
-                    }
+                    suggestionContext.setText(suggestText);
                     suggestionContexts.put(suggestionName, suggestionContext);
                 }
 

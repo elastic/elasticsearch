@@ -106,9 +106,8 @@ import org.elasticsearch.indices.cache.query.IndicesQueryCache;
 import org.elasticsearch.indices.memory.IndexingMemoryController;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
 import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.search.suggest.completion.CompletionFieldStats;
+import org.elasticsearch.search.suggest.completion.Completion090PostingsFormat;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
-import org.elasticsearch.search.suggest.completion.old.Completion090PostingsFormat;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -177,7 +176,7 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     private final RecoveryStats recoveryStats = new RecoveryStats();
 
-    private ApplyRefreshSettings applyRefreshSettings = new ApplyRefreshSettings();
+    private final ApplyRefreshSettings applyRefreshSettings = new ApplyRefreshSettings();
 
     private final MeanMetric refreshMetric = new MeanMetric();
     private final MeanMetric flushMetric = new MeanMetric();
@@ -194,7 +193,7 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     private final IndexShardOperationCounter indexShardOperationCounter;
 
-    private EnumSet<IndexShardState> readAllowedStates = EnumSet.of(IndexShardState.STARTED, IndexShardState.RELOCATED, IndexShardState.POST_RECOVERY);
+    private final EnumSet<IndexShardState> readAllowedStates = EnumSet.of(IndexShardState.STARTED, IndexShardState.RELOCATED, IndexShardState.POST_RECOVERY);
 
     /**
      * True if this shard is still indexing (recently) and false if we've been idle for long enough (as periodically checked by {@link
@@ -259,7 +258,7 @@ public class IndexShard extends AbstractIndexShardComponent {
 
         this.checkIndexOnStartup = indexSettings.get("index.shard.check_on_startup", "false");
         this.translogConfig = new TranslogConfig(shardId, shardPath().resolveTranslog(), indexSettings, getFromSettings(logger, indexSettings, Translog.Durabilty.REQUEST),
-            bigArrays, threadPool);
+                bigArrays, threadPool);
         final QueryCachingPolicy cachingPolicy;
         // the query cache is a node-level thing, however we want the most popular filters
         // to be computed on a per-shard basis
@@ -410,7 +409,7 @@ public class IndexShard extends AbstractIndexShardComponent {
      * Marks the shard as recovering based on a remote or local node, fails with exception is recovering is not allowed to be set.
      */
     public IndexShardState recovering(String reason, RecoveryState.Type type, DiscoveryNode sourceNode) throws IndexShardStartedException,
-        IndexShardRelocatedException, IndexShardRecoveringException, IndexShardClosedException {
+            IndexShardRelocatedException, IndexShardRecoveringException, IndexShardClosedException {
         return recovering(reason, new RecoveryState(shardId, shardRouting.primary(), type, sourceNode, localNode));
     }
 
@@ -422,7 +421,7 @@ public class IndexShard extends AbstractIndexShardComponent {
     }
 
     private IndexShardState recovering(String reason, RecoveryState recoveryState) throws IndexShardStartedException,
-        IndexShardRelocatedException, IndexShardRecoveringException, IndexShardClosedException {
+            IndexShardRelocatedException, IndexShardRecoveringException, IndexShardClosedException {
         synchronized (mutex) {
             if (state == IndexShardState.CLOSED) {
                 throw new IndexShardClosedException(shardId);
@@ -714,10 +713,15 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     public CompletionStats completionStats(String... fields) {
         CompletionStats completionStats = new CompletionStats();
-        try (final Engine.Searcher currentSearcher = acquireSearcher("completion_stats")) {
-            Completion090PostingsFormat postingsFormat = ((Completion090PostingsFormat) PostingsFormat.forName(Completion090PostingsFormat.CODEC_NAME));
-            completionStats.add(postingsFormat.completionStats(currentSearcher.reader(), fields));
-            completionStats.add(CompletionFieldStats.completionStats(currentSearcher.reader(), fields));
+        final Engine.Searcher currentSearcher = acquireSearcher("completion_stats");
+        try {
+            PostingsFormat postingsFormat = PostingsFormat.forName(Completion090PostingsFormat.CODEC_NAME);
+            if (postingsFormat instanceof Completion090PostingsFormat) {
+                Completion090PostingsFormat completionPostingsFormat = (Completion090PostingsFormat) postingsFormat;
+                completionStats.add(completionPostingsFormat.completionStats(currentSearcher.reader(), fields));
+            }
+        } finally {
+            currentSearcher.close();
         }
         return completionStats;
     }
@@ -752,7 +756,7 @@ public class IndexShard extends AbstractIndexShardComponent {
             logger.trace("force merge with {}", forceMerge);
         }
         engine().forceMerge(forceMerge.flush(), forceMerge.maxNumSegments(),
-            forceMerge.onlyExpungeDeletes(), false, false);
+                forceMerge.onlyExpungeDeletes(), false, false);
     }
 
     /**
@@ -766,8 +770,8 @@ public class IndexShard extends AbstractIndexShardComponent {
         org.apache.lucene.util.Version previousVersion = minimumCompatibleVersion();
         // we just want to upgrade the segments, not actually optimize to a single segment
         engine().forceMerge(true,  // we need to flush at the end to make sure the upgrade is durable
-            Integer.MAX_VALUE, // we just want to upgrade the segments, not actually optimize to a single segment
-            false, true, upgrade.upgradeOnlyAncientSegments());
+                Integer.MAX_VALUE, // we just want to upgrade the segments, not actually optimize to a single segment
+                false, true, upgrade.upgradeOnlyAncientSegments());
         org.apache.lucene.util.Version version = minimumCompatibleVersion();
         if (logger.isTraceEnabled()) {
             logger.trace("upgraded segment {} from version {} to version {}", previousVersion, version);
@@ -966,7 +970,7 @@ public class IndexShard extends AbstractIndexShardComponent {
     public boolean ignoreRecoveryAttempt() {
         IndexShardState state = state(); // one time volatile read
         return state == IndexShardState.POST_RECOVERY || state == IndexShardState.RECOVERING || state == IndexShardState.STARTED ||
-            state == IndexShardState.RELOCATED || state == IndexShardState.CLOSED;
+                state == IndexShardState.RELOCATED || state == IndexShardState.CLOSED;
     }
 
     public void readAllowed() throws IllegalIndexShardStateException {
@@ -1080,7 +1084,7 @@ public class IndexShard extends AbstractIndexShardComponent {
             long iwBytesUsed = engine.indexWriterRAMBytesUsed();
 
             String message = LoggerMessageFormat.format("updating index_buffer_size from [{}] to [{}]; IndexWriter now using [{}] bytes",
-                preValue, shardIndexingBufferSize, iwBytesUsed);
+                                                        preValue, shardIndexingBufferSize, iwBytesUsed);
 
             if (iwBytesUsed > shardIndexingBufferSize.bytes()) {
                 // our allowed buffer was changed to less than we are currently using; we ask IW to refresh
@@ -1103,7 +1107,7 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     /**
      * Called by {@link IndexingMemoryController} to check whether more than {@code inactiveTimeNS} has passed since the last
-     * indexing operation, and become inactive (reducing indexing and translog buffers to tiny values) if so.  This returns true
+     *  indexing operation, and become inactive (reducing indexing and translog buffers to tiny values) if so.  This returns true
      * if the shard is inactive.
      */
     public boolean checkIdle(long inactiveTimeNS) {
@@ -1438,9 +1442,9 @@ public class IndexShard extends AbstractIndexShardComponent {
                     writeReason = "routing changed from " + currentRouting + " to " + newRouting;
                 } else {
                     logger.trace("skip writing shard state, has been written before; previous version:  [" +
-                        currentRouting.version() + "] current version [" + newRouting.version() + "]");
+                            currentRouting.version() + "] current version [" + newRouting.version() + "]");
                     assert currentRouting.version() <= newRouting.version() : "version should not go backwards for shardID: " + shardId +
-                        " previous version:  [" + currentRouting.version() + "] current version [" + newRouting.version() + "]";
+                            " previous version:  [" + currentRouting.version() + "] current version [" + newRouting.version() + "]";
                     return;
                 }
                 final ShardStateMetaData newShardStateMetadata = new ShardStateMetaData(newRouting.version(), newRouting.primary(), getIndexUUID());
@@ -1456,8 +1460,8 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     private String getIndexUUID() {
         assert indexSettings.get(IndexMetaData.SETTING_INDEX_UUID) != null
-            || indexSettings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).before(Version.V_0_90_6) :
-            "version: " + indexSettings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, null) + " uuid: " + indexSettings.get(IndexMetaData.SETTING_INDEX_UUID);
+                || indexSettings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).before(Version.V_0_90_6) :
+                "version: " + indexSettings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, null) + " uuid: " + indexSettings.get(IndexMetaData.SETTING_INDEX_UUID);
         return indexSettings.get(IndexMetaData.SETTING_INDEX_UUID, IndexMetaData.INDEX_UUID_NA_VALUE);
     }
 
@@ -1467,7 +1471,7 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     private final EngineConfig newEngineConfig(TranslogConfig translogConfig, QueryCachingPolicy cachingPolicy) {
         final TranslogRecoveryPerformer translogRecoveryPerformer = new TranslogRecoveryPerformer(shardId, mapperService, queryParserService,
-            indexAliasesService, indexCache, logger) {
+                indexAliasesService, indexCache, logger) {
             @Override
             protected void operationProcessed() {
                 assert recoveryState != null;
@@ -1475,8 +1479,8 @@ public class IndexShard extends AbstractIndexShardComponent {
             }
         };
         return new EngineConfig(shardId,
-            threadPool, indexingService, indexSettingsService.indexSettings(), warmer, store, deletionPolicy, mergePolicyConfig.getMergePolicy(), mergeSchedulerConfig,
-            mapperService.indexAnalyzer(), similarityService.similarity(), codecService, failedEngineListener, translogRecoveryPerformer, indexCache.query(), cachingPolicy, wrappingService, translogConfig);
+                threadPool, indexingService, indexSettingsService.indexSettings(), warmer, store, deletionPolicy, mergePolicyConfig.getMergePolicy(), mergeSchedulerConfig,
+                mapperService.indexAnalyzer(), similarityService.similarity(), codecService, failedEngineListener, translogRecoveryPerformer, indexCache.query(), cachingPolicy, wrappingService, translogConfig);
     }
 
     private static class IndexShardOperationCounter extends AbstractRefCounted {

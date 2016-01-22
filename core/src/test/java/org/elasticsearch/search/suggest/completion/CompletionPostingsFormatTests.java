@@ -17,13 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.search.suggest.completion.old;
+package org.elasticsearch.search.suggest.completion;
 
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.FieldsConsumer;
 import org.apache.lucene.codecs.PostingsFormat;
-import org.apache.lucene.codecs.lucene50.Lucene50Codec;
+import org.apache.lucene.codecs.lucene54.Lucene54Codec;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.Fields;
@@ -44,7 +44,6 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.RAMDirectory;
-import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LineFileDocs;
 import org.elasticsearch.Version;
@@ -53,10 +52,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType.Names;
-import org.elasticsearch.index.mapper.core.OldCompletionFieldMapper;
+import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
 import org.elasticsearch.search.suggest.SuggestUtils;
-import org.elasticsearch.search.suggest.completion.old.Completion090PostingsFormat.LookupFactory;
-import org.elasticsearch.search.suggest.completion.old.context.ContextMapping;
+import org.elasticsearch.search.suggest.completion.Completion090PostingsFormat.LookupFactory;
+import org.elasticsearch.search.suggest.context.ContextMapping;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
@@ -74,7 +73,7 @@ import static org.hamcrest.Matchers.is;
 public class CompletionPostingsFormatTests extends ESTestCase {
 
     Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
-    static final OldCompletionFieldMapper.CompletionFieldType FIELD_TYPE = OldCompletionFieldMapper.Defaults.FIELD_TYPE.clone();
+    static final CompletionFieldMapper.CompletionFieldType FIELD_TYPE = CompletionFieldMapper.Defaults.FIELD_TYPE.clone();
     static final NamedAnalyzer analyzer = new NamedAnalyzer("foo", new StandardAnalyzer());
     static {
         FIELD_TYPE.setNames(new Names("foo"));
@@ -95,7 +94,7 @@ public class CompletionPostingsFormatTests extends ESTestCase {
 
         IndexInput input = dir.openInput("foo.txt", IOContext.DEFAULT);
         LookupFactory load = currentProvider.load(input);
-        OldCompletionFieldMapper.CompletionFieldType fieldType = FIELD_TYPE.clone();
+        CompletionFieldMapper.CompletionFieldType fieldType = FIELD_TYPE.clone();
         fieldType.setProvider(currentProvider);
         Lookup lookup = load.getLookup(fieldType, new CompletionSuggestionContext(null));
         List<LookupResult> result = lookup.lookup("ge", false, 10);
@@ -114,7 +113,7 @@ public class CompletionPostingsFormatTests extends ESTestCase {
 
         IndexInput input = dir.openInput("foo.txt", IOContext.DEFAULT);
         LookupFactory load = currentProvider.load(input);
-        OldCompletionFieldMapper.CompletionFieldType fieldType = FIELD_TYPE.clone();
+        CompletionFieldMapper.CompletionFieldType fieldType = FIELD_TYPE.clone();
         fieldType.setProvider(currentProvider);
         AnalyzingCompletionLookupProvider.AnalyzingSuggestHolder analyzingSuggestHolder = load.getAnalyzingSuggestHolder(fieldType);
         assertThat(analyzingSuggestHolder.sepLabel, is(AnalyzingCompletionLookupProviderV1.SEP_LABEL));
@@ -132,7 +131,7 @@ public class CompletionPostingsFormatTests extends ESTestCase {
 
         IndexInput input = dir.openInput("foo.txt", IOContext.DEFAULT);
         LookupFactory load = currentProvider.load(input);
-        OldCompletionFieldMapper.CompletionFieldType fieldType = FIELD_TYPE.clone();
+        CompletionFieldMapper.CompletionFieldType fieldType = FIELD_TYPE.clone();
         fieldType.setProvider(currentProvider);
         AnalyzingCompletionLookupProvider.AnalyzingSuggestHolder analyzingSuggestHolder = load.getAnalyzingSuggestHolder(fieldType);
         assertThat(analyzingSuggestHolder.sepLabel, is(XAnalyzingSuggester.SEP_LABEL));
@@ -241,9 +240,9 @@ public class CompletionPostingsFormatTests extends ESTestCase {
         reference.build(iter);
 
         AnalyzingCompletionLookupProvider currentProvider = new AnalyzingCompletionLookupProvider(preserveSeparators, false, preservePositionIncrements, usePayloads);
-        OldCompletionFieldMapper.CompletionFieldType fieldType = FIELD_TYPE.clone();
+        CompletionFieldMapper.CompletionFieldType fieldType = FIELD_TYPE.clone();
         fieldType.setProvider(currentProvider);
-        final OldCompletionFieldMapper mapper = new OldCompletionFieldMapper("foo", fieldType, Integer.MAX_VALUE, indexSettings, FieldMapper.MultiFields.empty(), null);
+        final CompletionFieldMapper mapper = new CompletionFieldMapper("foo", fieldType, Integer.MAX_VALUE, indexSettings, FieldMapper.MultiFields.empty(), null);
         Lookup buildAnalyzingLookup = buildAnalyzingLookup(mapper, titles, titles, weights);
         if (buildAnalyzingLookup instanceof XAnalyzingSuggester) {
             assertEquals(reference.getMaxAnalyzedPathsForOneInput(), ((XAnalyzingSuggester) buildAnalyzingLookup).getMaxAnalyzedPathsForOneInput());
@@ -277,10 +276,11 @@ public class CompletionPostingsFormatTests extends ESTestCase {
         }
     }
 
-    public Lookup buildAnalyzingLookup(final OldCompletionFieldMapper mapper, String[] terms, String[] surfaces, long[] weights)
+    public Lookup buildAnalyzingLookup(final CompletionFieldMapper mapper, String[] terms, String[] surfaces, long[] weights)
             throws IOException {
         RAMDirectory dir = new RAMDirectory();
-        Codec codec = new Lucene50Codec() {
+        Codec codec = new Lucene54Codec() {
+            @Override
             public PostingsFormat getPostingsFormatForField(String field) {
                 final PostingsFormat in = super.getPostingsFormatForField(field);
                 return mapper.fieldType().postingsFormat(in);
@@ -340,7 +340,7 @@ public class CompletionPostingsFormatTests extends ESTestCase {
 
         IndexInput input = dir.openInput("foo.txt", IOContext.DEFAULT);
         LookupFactory load = provider.load(input);
-        OldCompletionFieldMapper.CompletionFieldType fieldType = FIELD_TYPE.clone();
+        CompletionFieldMapper.CompletionFieldType fieldType = FIELD_TYPE.clone();
         fieldType.setProvider(provider);
         assertNull(load.getLookup(fieldType, new CompletionSuggestionContext(null)));
         dir.close();

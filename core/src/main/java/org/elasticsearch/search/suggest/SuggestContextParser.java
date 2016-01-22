@@ -20,13 +20,13 @@ package org.elasticsearch.search.suggest;
 
 import org.elasticsearch.common.HasContextAndHeaders;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.IndexQueryParserService;
 
 import java.io.IOException;
 
 public interface SuggestContextParser {
-    public SuggestionSearchContext.SuggestionContext parse(XContentParser parser, MapperService mapperService, IndexQueryParserService queryParserService, IndexFieldDataService indexFieldDataService, HasContextAndHeaders headersContext) throws IOException;
+    public SuggestionSearchContext.SuggestionContext parse(XContentParser parser, MapperService mapperService,
+            IndexQueryParserService queryParserService, HasContextAndHeaders headersContext) throws IOException;
 
 }

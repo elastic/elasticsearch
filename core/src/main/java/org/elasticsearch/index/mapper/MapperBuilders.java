@@ -94,10 +94,6 @@ public final class MapperBuilders {
         return new GeoShapeFieldMapper.Builder(name);
     }
 
-    public static OldCompletionFieldMapper.Builder oldCompletionField(String name) {
-        return new OldCompletionFieldMapper.Builder(name);
-    }
-
     public static CompletionFieldMapper.Builder completionField(String name) {
         return new CompletionFieldMapper.Builder(name);
     }

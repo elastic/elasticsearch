@@ -41,7 +41,7 @@ public class FileScriptTests extends ESTestCase {
         settings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), homeDir)
                 // no file watching, so we don't need a ResourceWatcherService
-            .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING, false)
+            .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING.getKey(), false)
             .put(settings)
             .build();
         Set<ScriptEngineService> engines = new HashSet<>(Collections.singletonList(new MockScriptEngine()));

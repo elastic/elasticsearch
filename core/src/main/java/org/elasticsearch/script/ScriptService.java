@@ -89,7 +89,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
     public static final Setting<TimeValue> SCRIPT_CACHE_EXPIRE_SETTING = Setting.positiveTimeSetting("script.cache.expire", TimeValue.timeValueMillis(0), false, Setting.Scope.CLUSTER);
     public static final String SCRIPT_INDEX = ".scripts";
     public static final String DEFAULT_LANG = "groovy";
-    public static final String SCRIPT_AUTO_RELOAD_ENABLED_SETTING = "script.auto_reload_enabled";
+    public static final Setting<Boolean> SCRIPT_AUTO_RELOAD_ENABLED_SETTING = Setting.boolSetting("script.auto_reload_enabled", true, false, Setting.Scope.CLUSTER);
 
     private final String defaultLang;
 
@@ -188,7 +188,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
         FileWatcher fileWatcher = new FileWatcher(scriptsDirectory);
         fileWatcher.addListener(new ScriptChangesListener());
 
-        if (settings.getAsBoolean(SCRIPT_AUTO_RELOAD_ENABLED_SETTING, true)) {
+        if (SCRIPT_AUTO_RELOAD_ENABLED_SETTING.get(settings)) {
             // automatic reload is enabled - register scripts
             resourceWatcherService.add(fileWatcher);
         } else {

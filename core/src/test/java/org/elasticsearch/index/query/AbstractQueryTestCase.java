@@ -187,7 +187,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         Settings settings = Settings.settingsBuilder()
                 .put("name", AbstractQueryTestCase.class.toString())
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-                .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING, false)
+                .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING.getKey(), false)
                 .build();
         Settings indexSettings = Settings.settingsBuilder()
                 .put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
@@ -220,7 +220,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                         Settings settings = Settings.builder()
                                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                                 // no file watching, so we don't need a ResourceWatcherService
-                                .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING, false)
+                                .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING.getKey(), false)
                                 .build();
                         MockScriptEngine mockScriptEngine = new MockScriptEngine();
                         Multibinder<ScriptEngineService> multibinder = Multibinder.newSetBinder(binder(), ScriptEngineService.class);

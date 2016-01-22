@@ -21,7 +21,6 @@ package org.elasticsearch.node.internal;
 
 import org.elasticsearch.bootstrap.BootstrapInfo;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.cli.Terminal;
@@ -109,7 +108,6 @@ public class InternalSettingsPreparer {
 
         // we put back the path.logs so we can use it in the logging configuration file
         output.put(Environment.PATH_LOGS_SETTING.getKey(), cleanPath(environment.logsFile().toAbsolutePath().toString()));
-
         return new Environment(output.build());
     }
 

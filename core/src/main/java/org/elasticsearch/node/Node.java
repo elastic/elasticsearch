@@ -46,6 +46,7 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
@@ -120,6 +121,7 @@ public class Node implements Releasable {
 
     private static final String CLIENT_TYPE = "node";
     public static final String HTTP_ENABLED = "http.enabled";
+    public static final Setting<Boolean> WRITE_PORTS_FIELD_SETTING = Setting.boolSetting("node.portsfile", false, false, Setting.Scope.CLUSTER);
     private final Lifecycle lifecycle = new Lifecycle();
     private final Injector injector;
     private final Settings settings;
@@ -275,7 +277,7 @@ public class Node implements Releasable {
         injector.getInstance(ResourceWatcherService.class).start();
         injector.getInstance(TribeService.class).start();
 
-        if (System.getProperty("es.tests.portsfile", "false").equals("true")) {
+        if (WRITE_PORTS_FIELD_SETTING.get(settings)) {
             if (settings.getAsBoolean("http.enabled", true)) {
                 HttpServerTransport http = injector.getInstance(HttpServerTransport.class);
                 writePortsFile("http", http.boundAddress());

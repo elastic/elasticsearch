@@ -20,10 +20,12 @@
 package org.elasticsearch.plugin.discovery.azure;
 
 import org.elasticsearch.cloud.azure.AzureDiscoveryModule;
+import org.elasticsearch.cloud.azure.management.AzureComputeService;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.azure.AzureDiscovery;
 import org.elasticsearch.discovery.azure.AzureUnicastHostsProvider;
@@ -65,5 +67,10 @@ public class AzureDiscoveryPlugin extends Plugin {
             discoveryModule.addDiscoveryType("azure", AzureDiscovery.class);
             discoveryModule.addUnicastHostProvider(AzureUnicastHostsProvider.class);
         }
+    }
+
+    public void onModule(SettingsModule settingsModule) {
+        settingsModule.registerSetting(AzureComputeService.Discovery.REFRESH_SETTING);
+        settingsModule.registerSetting(AzureComputeService.Discovery.HOST_TYPE_SETTING);
     }
 }

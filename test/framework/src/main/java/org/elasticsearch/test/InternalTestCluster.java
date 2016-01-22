@@ -598,7 +598,7 @@ public final class InternalTestCluster extends TestCluster {
                 .put(Environment.PATH_HOME_SETTING.getKey(), baseDir) // allow overriding path.home
                 .put(settings)
                 .put("name", name)
-                .put(DiscoveryService.SETTING_DISCOVERY_SEED, seed)
+                .put(DiscoveryService.DISCOVERY_SEED_SETTING.getKey(), seed)
                 .build();
         MockNode node = new MockNode(finalSettings, version, plugins);
         return new NodeAndClient(name, node);
@@ -679,7 +679,7 @@ public final class InternalTestCluster extends TestCluster {
         Builder builder = settingsBuilder().put(settings).put("node.client", true);
         if (size() == 0) {
             // if we are the first node - don't wait for a state
-            builder.put("discovery.initial_state_timeout", 0);
+            builder.put(DiscoveryService.INITIAL_STATE_TIMEOUT_SETTING.getKey(), 0);
         }
         String name = startNode(builder);
         return nodes.get(name).nodeClient();
@@ -845,8 +845,8 @@ public final class InternalTestCluster extends TestCluster {
                     IOUtils.rm(nodeEnv.nodeDataPaths());
                 }
             }
-            final long newIdSeed = node.settings().getAsLong(DiscoveryService.SETTING_DISCOVERY_SEED, 0l) + 1; // use a new seed to make sure we have new node id
-            Settings finalSettings = Settings.builder().put(node.settings()).put(newSettings).put(DiscoveryService.SETTING_DISCOVERY_SEED, newIdSeed).build();
+            final long newIdSeed = DiscoveryService.DISCOVERY_SEED_SETTING.get(node.settings()) + 1; // use a new seed to make sure we have new node id
+            Settings finalSettings = Settings.builder().put(node.settings()).put(newSettings).put(DiscoveryService.DISCOVERY_SEED_SETTING.getKey(), newIdSeed).build();
             Collection<Class<? extends Plugin>> plugins = node.getPlugins();
             Version version = node.getVersion();
             node = new MockNode(finalSettings, version, plugins);

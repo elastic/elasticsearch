@@ -42,7 +42,7 @@ public class AzureTwoStartedNodesTests extends AbstractAzureComputeServiceTestCa
     public void testTwoNodesShouldRunUsingPrivateIp() {
         Settings.Builder settings = Settings.settingsBuilder()
                 .put(Management.SERVICE_NAME, "dummy")
-                .put(Discovery.HOST_TYPE, "private_ip");
+                .put(Discovery.HOST_TYPE_SETTING.getKey(), "private_ip");
 
         logger.info("--> start first node");
         internalCluster().startNode(settings);
@@ -60,7 +60,7 @@ public class AzureTwoStartedNodesTests extends AbstractAzureComputeServiceTestCa
     public void testTwoNodesShouldRunUsingPublicIp() {
         Settings.Builder settings = Settings.settingsBuilder()
                 .put(Management.SERVICE_NAME, "dummy")
-                .put(Discovery.HOST_TYPE, "public_ip");
+                .put(Discovery.HOST_TYPE_SETTING.getKey(), "public_ip");
 
         logger.info("--> start first node");
         internalCluster().startNode(settings);

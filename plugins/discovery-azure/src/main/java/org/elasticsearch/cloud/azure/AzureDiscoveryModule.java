@@ -30,6 +30,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.azure.AzureDiscovery;
 
 /**
@@ -73,7 +74,7 @@ public class AzureDiscoveryModule extends AbstractModule {
      */
     public static boolean isDiscoveryReady(Settings settings, ESLogger logger) {
         // User set discovery.type: azure
-        if (!AzureDiscovery.AZURE.equalsIgnoreCase(settings.get("discovery.type"))) {
+        if (!AzureDiscovery.AZURE.equalsIgnoreCase(DiscoveryModule.DISCOVERY_TYPE_SETTING.get(settings))) {
             logger.trace("discovery.type not set to {}", AzureDiscovery.AZURE);
             return false;
         }

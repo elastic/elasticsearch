@@ -46,7 +46,7 @@ public class DiscoveryModuleTests extends ModuleTestCase {
 
     public void testRegisterMasterElectionService() {
         Settings settings = Settings.builder().put("node.local", false).
-                put(DiscoveryModule.ZEN_MASTER_SERVICE_TYPE_KEY, "custom").build();
+                put(DiscoveryModule.ZEN_MASTER_SERVICE_TYPE_SETTING.getKey(), "custom").build();
         DiscoveryModule module = new DiscoveryModule(settings);
         module.addElectMasterService("custom", DummyMasterElectionService.class);
         assertBinding(module, ElectMasterService.class, DummyMasterElectionService.class);
@@ -55,7 +55,7 @@ public class DiscoveryModuleTests extends ModuleTestCase {
 
     public void testLoadUnregisteredMasterElectionService() {
         Settings settings = Settings.builder().put("node.local", false).
-                put(DiscoveryModule.ZEN_MASTER_SERVICE_TYPE_KEY, "foobar").build();
+                put(DiscoveryModule.ZEN_MASTER_SERVICE_TYPE_SETTING.getKey(), "foobar").build();
         DiscoveryModule module = new DiscoveryModule(settings);
         module.addElectMasterService("custom", DummyMasterElectionService.class);
         assertBindingFailure(module, "Unknown master service type [foobar]");
@@ -71,7 +71,7 @@ public class DiscoveryModuleTests extends ModuleTestCase {
     public void testRegisterDiscovery() {
         boolean local = randomBoolean();
         Settings settings = Settings.builder().put("node.local", local).
-                put(DiscoveryModule.DISCOVERY_TYPE_KEY, "custom").build();
+                put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "custom").build();
         DiscoveryModule module = new DiscoveryModule(settings);
         module.addDiscoveryType("custom", DummyDisco.class);
         assertBinding(module, Discovery.class, DummyDisco.class);

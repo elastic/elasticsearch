@@ -53,7 +53,7 @@ final class ExternalNode implements Closeable {
 
     public static final Settings REQUIRED_SETTINGS = Settings.builder()
             .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING, true)
-            .put(DiscoveryModule.DISCOVERY_TYPE_KEY, "zen")
+            .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "zen")
             .put("node.mode", "network").build(); // we need network mode for this
 
     private final Path path;
@@ -112,7 +112,7 @@ final class ExternalNode implements Closeable {
                 case "node.mode":
                 case "node.local":
                 case NetworkModule.TRANSPORT_TYPE_KEY:
-                case DiscoveryModule.DISCOVERY_TYPE_KEY:
+                case "discovery.type":
                 case NetworkModule.TRANSPORT_SERVICE_TYPE_KEY:
                 case InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING:
                     continue;

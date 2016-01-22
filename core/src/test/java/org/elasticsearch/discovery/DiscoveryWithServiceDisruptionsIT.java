@@ -164,8 +164,8 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
     }
 
     final static Settings DEFAULT_SETTINGS = Settings.builder()
-            .put(FaultDetection.SETTING_PING_TIMEOUT, "1s") // for hitting simulated network failures quickly
-            .put(FaultDetection.SETTING_PING_RETRIES, "1") // for hitting simulated network failures quickly
+            .put(FaultDetection.PING_TIMEOUT_SETTING.getKey(), "1s") // for hitting simulated network failures quickly
+            .put(FaultDetection.PING_RETRIES_SETTING.getKey(), "1") // for hitting simulated network failures quickly
             .put("discovery.zen.join_timeout", "10s")  // still long to induce failures but to long so test won't time out
             .put(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(), "1s") // <-- for hitting simulated network failures quickly
             .put("http.enabled", false) // just to make test quicker
@@ -962,7 +962,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         // don't wait for initial state, wat want to add the disruption while the cluster is forming..
         internalCluster().startNodesAsync(3,
                 Settings.builder()
-                        .put(DiscoveryService.SETTING_INITIAL_STATE_TIMEOUT, "1ms")
+                        .put(DiscoveryService.INITIAL_STATE_TIMEOUT_SETTING.getKey(), "1ms")
                         .put(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(), "3s")
                         .build()).get();
 

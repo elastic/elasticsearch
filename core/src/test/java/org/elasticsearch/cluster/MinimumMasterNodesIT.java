@@ -77,7 +77,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         Settings settings = settingsBuilder()
                 .put("discovery.type", "zen")
                 .put("discovery.zen.minimum_master_nodes", 2)
-                .put(ZenDiscovery.SETTING_PING_TIMEOUT, "200ms")
+                .put(ZenDiscovery.PING_TIMEOUT_SETTING.getKey(), "200ms")
                 .put("discovery.initial_state_timeout", "500ms")
                 .build();
 
@@ -189,7 +189,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         Settings settings = settingsBuilder()
                 .put("discovery.type", "zen")
                 .put("discovery.zen.minimum_master_nodes", 3)
-                .put(ZenDiscovery.SETTING_PING_TIMEOUT, "1s")
+                .put(ZenDiscovery.PING_TIMEOUT_SETTING.getKey(), "1s")
                 .put("discovery.initial_state_timeout", "500ms")
                 .build();
 
@@ -264,7 +264,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
     public void testDynamicUpdateMinimumMasterNodes() throws Exception {
         Settings settings = settingsBuilder()
                 .put("discovery.type", "zen")
-                .put(ZenDiscovery.SETTING_PING_TIMEOUT, "400ms")
+                .put(ZenDiscovery.PING_TIMEOUT_SETTING.getKey(), "400ms")
                 .put("discovery.initial_state_timeout", "500ms")
                 .build();
 
@@ -322,7 +322,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         int nodeCount = scaledRandomIntBetween(1, 5);
         Settings.Builder settings = settingsBuilder()
                 .put("discovery.type", "zen")
-                .put(ZenDiscovery.SETTING_PING_TIMEOUT, "200ms")
+                .put(ZenDiscovery.PING_TIMEOUT_SETTING.getKey(), "200ms")
                 .put("discovery.initial_state_timeout", "500ms");
 
         // set an initial value which is at least quorum to avoid split brains during initial startup
@@ -361,8 +361,8 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
     public void testCanNotPublishWithoutMinMastNodes() throws Exception {
         Settings settings = settingsBuilder()
                 .put("discovery.type", "zen")
-                .put(FaultDetection.SETTING_PING_TIMEOUT, "1h") // disable it
-                .put(ZenDiscovery.SETTING_PING_TIMEOUT, "200ms")
+                .put(FaultDetection.PING_TIMEOUT_SETTING.getKey(), "1h") // disable it
+                .put(ZenDiscovery.PING_TIMEOUT_SETTING.getKey(), "200ms")
                 .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), 2)
                 .put(DiscoverySettings.COMMIT_TIMEOUT_SETTING.getKey(), "100ms") // speed things up
                 .build();

@@ -131,8 +131,8 @@ public class ZenFaultDetectionTests extends ESTestCase {
         Settings.Builder settings = Settings.builder();
         boolean shouldRetry = randomBoolean();
         // make sure we don't ping again after the initial ping
-        settings.put(FaultDetection.SETTING_CONNECT_ON_NETWORK_DISCONNECT, shouldRetry)
-                .put(FaultDetection.SETTING_PING_INTERVAL, "5m");
+        settings.put(FaultDetection.CONNECT_ON_NETWORK_DISCONNECT_SETTING.getKey(), shouldRetry)
+                .put(FaultDetection.PING_INTERVAL_SETTING.getKey(), "5m");
         ClusterState clusterState = ClusterState.builder(new ClusterName("test")).nodes(buildNodesForA(true)).build();
         NodesFaultDetection nodesFDA = new NodesFaultDetection(settings.build(), threadPool, serviceA, clusterState.getClusterName());
         nodesFDA.setLocalNode(nodeA);
@@ -179,8 +179,8 @@ public class ZenFaultDetectionTests extends ESTestCase {
         Settings.Builder settings = Settings.builder();
         boolean shouldRetry = randomBoolean();
         // make sure we don't ping
-        settings.put(FaultDetection.SETTING_CONNECT_ON_NETWORK_DISCONNECT, shouldRetry)
-                .put(FaultDetection.SETTING_PING_INTERVAL, "5m");
+        settings.put(FaultDetection.CONNECT_ON_NETWORK_DISCONNECT_SETTING.getKey(), shouldRetry)
+                .put(FaultDetection.PING_INTERVAL_SETTING.getKey(), "5m");
         ClusterName clusterName = new ClusterName(randomAsciiOfLengthBetween(3, 20));
         final ClusterState state = ClusterState.builder(clusterName).nodes(buildNodesForA(false)).build();
         MasterFaultDetection masterFD = new MasterFaultDetection(settings.build(), threadPool, serviceA, clusterName,

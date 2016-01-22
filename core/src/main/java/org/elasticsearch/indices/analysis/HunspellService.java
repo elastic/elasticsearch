@@ -74,7 +74,6 @@ public class HunspellService extends AbstractComponent {
     public final static Setting<Boolean> HUNSPELL_LAZY_LOAD = Setting.boolSetting("indices.analysis.hunspell.dictionary.lazy", Boolean.FALSE, false, Setting.Scope.CLUSTER);
     public final static Setting<Boolean> HUNSPELL_IGNORE_CASE = Setting.boolSetting("indices.analysis.hunspell.dictionary.ignore_case", Boolean.FALSE, false, Setting.Scope.CLUSTER);
     public final static Setting<Settings> HUNSPELL_DICTIONARY_OPTIONS = Setting.groupSetting("indices.analysis.hunspell.dictionary.", false, Setting.Scope.CLUSTER);
-    private final static String OLD_HUNSPELL_LOCATION = "indices.analysis.hunspell.dictionary.location";
     private final ConcurrentHashMap<String, Dictionary> dictionaries = new ConcurrentHashMap<>();
     private final Map<String, Dictionary> knownDictionaries;
     private final boolean defaultIgnoreCase;
@@ -84,7 +83,7 @@ public class HunspellService extends AbstractComponent {
     public HunspellService(final Settings settings, final Environment env, final Map<String, Dictionary> knownDictionaries) throws IOException {
         super(settings);
         this.knownDictionaries = Collections.unmodifiableMap(knownDictionaries);
-        this.hunspellDir = resolveHunspellDirectory(settings, env);
+        this.hunspellDir = resolveHunspellDirectory(env);
         this.defaultIgnoreCase = HUNSPELL_IGNORE_CASE.get(settings);
         this.loadingFunction = (locale) -> {
             try {
@@ -112,11 +111,7 @@ public class HunspellService extends AbstractComponent {
         return dictionary;
     }
 
-    private Path resolveHunspellDirectory(Settings settings, Environment env) {
-        String location = settings.get(OLD_HUNSPELL_LOCATION, null);
-        if (location != null) {
-            throw new IllegalArgumentException("please, put your hunspell dictionaries under config/hunspell !");
-        }
+    private Path resolveHunspellDirectory(Environment env) {
         return env.configFile().resolve("hunspell");
     }
 

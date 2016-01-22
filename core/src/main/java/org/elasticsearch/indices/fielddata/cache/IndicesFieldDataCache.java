@@ -76,7 +76,6 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
             cacheBuilder.setMaximumWeight(sizeInBytes).weigher(new FieldDataWeigher());
         }
 
-        logger.debug("using size [{}]", new ByteSizeValue(sizeInBytes));
         cache = cacheBuilder.build();
 
         this.cleanInterval = INDICES_FIELDDATA_CLEAN_INTERVAL_SETTING.get(settings);

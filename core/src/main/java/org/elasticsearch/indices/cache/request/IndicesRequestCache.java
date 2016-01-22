@@ -81,7 +81,7 @@ public class IndicesRequestCache extends AbstractComponent implements RemovalLis
      * since we are checking on the cluster state IndexMetaData always.
      */
     public static final Setting<Boolean> INDEX_CACHE_REQUEST_ENABLED_SETTING = Setting.boolSetting("index.requests.cache.enable", true, true, Setting.Scope.INDEX);
-    public static final Setting<TimeValue> INDICES_CACHE_REQUEST_CLEAN_INTERVAL = Setting.positiveTimeSetting("indices.requests.cache.clean_interval", new TimeValue(0), false, Setting.Scope.CLUSTER);
+    public static final Setting<TimeValue> INDICES_CACHE_REQUEST_CLEAN_INTERVAL = Setting.positiveTimeSetting("indices.requests.cache.clean_interval", TimeValue.timeValueSeconds(60), false, Setting.Scope.CLUSTER);
 
     public static final Setting<ByteSizeValue> INDICES_CACHE_QUERY_SIZE = Setting.byteSizeSetting("indices.requests.cache.size", "1%", false, Setting.Scope.CLUSTER);
     public static final Setting<TimeValue> INDICES_CACHE_QUERY_EXPIRE = Setting.positiveTimeSetting("indices.requests.cache.expire", new TimeValue(0), false, Setting.Scope.CLUSTER);
@@ -109,7 +109,7 @@ public class IndicesRequestCache extends AbstractComponent implements RemovalLis
         super(settings);
         this.clusterService = clusterService;
         this.threadPool = threadPool;
-        this.cleanInterval = settings.getAsTime(INDICES_CACHE_REQUEST_CLEAN_INTERVAL.getKey(), TimeValue.timeValueSeconds(60));
+        this.cleanInterval = INDICES_CACHE_REQUEST_CLEAN_INTERVAL.get(settings);
 
         this.size = INDICES_CACHE_QUERY_SIZE.get(settings);
 

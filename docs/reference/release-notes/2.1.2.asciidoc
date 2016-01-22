@@ -1,0 +1,79 @@
+[[release-notes-2.1.2]]
+== 2.1.2 Release Notes
+
+[[enhancement-2.1.2]]
+[float]
+=== Enhancements
+
+Internal::
+* Only trace log shard not available exceptions {pull}14950[#14950] (issue: {issue}14927[#14927])
+
+Plugin Cloud Azure::
+* Add timeout settings (default to 5 minutes) {pull}15950[#15950] (issues: {issue}14277[#14277], {issue}15080[#15080])
+
+Translog::
+* Check for tragic event on all kinds of exceptions not only ACE and IOException {pull}15535[#15535]
+
+
+
+[[bug-2.1.2]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Make `missing` on terms aggs work with all execution modes. {pull}15746[#15746] (issue: {issue}14882[#14882])
+
+Aliases::
+* Check lenient_expand_open after aliases have been resolved {pull}15882[#15882] (issue: {issue}13278[#13278])
+
+Allocation::
+* Prevent peer recovery from node with older version {pull}15775[#15775]
+
+Cluster::
+* Only fail the relocation target when a replication request on it fails {pull}15791[#15791] (issue: {issue}15790[#15790])
+
+Core::
+* BitSetFilterCache duplicates its content. {pull}15836[#15836] (issue: {issue}15820[#15820])
+* Limit the max size of bulk and index thread pools to bounded number of processors {pull}15585[#15585] (issue: {issue}15582[#15582])
+* AllTermQuery's scorer should skip segments that never saw the requested term {pull}15506[#15506]
+
+Highlighting::
+* Fix spans extraction to not also include individual terms. {pull}15516[#15516] (issues: {issue}13239[#13239], {issue}15291[#15291])
+
+Internal::
+* Log uncaught exceptions from scheduled once tasks {pull}15824[#15824] (issue: {issue}15814[#15814])
+* Fix ConcurrentModificationException from nodes info and nodes stats {pull}15541[#15541] (issue: {issue}15537[#15537])
+
+Mapping::
+* Fix MapperService#searchFilter(...) {pull}15923[#15923] (issue: {issue}15757[#15757])
+* Fix initial sizing of BytesStreamOutput. {pull}15864[#15864] (issue: {issue}15789[#15789])
+
+Packaging::
+* Fix Windows service installation failure {pull}15549[#15549] (issue: {issue}15349[#15349])
+
+Query DSL::
+* Fix FunctionScore equals/hashCode to include minScore and friends {pull}15676[#15676]
+
+Recovery::
+* sync translog to disk after recovery from primary {pull}15832[#15832]
+
+Stats::
+* Fix calculation of age of pending tasks {pull}15995[#15995] (issue: {issue}15988[#15988])
+
+Translog::
+* Avoid circular reference in exception {pull}15952[#15952] (issue: {issue}15941[#15941])
+* Initialize translog before scheduling the sync to disk {pull}15881[#15881]
+* Translog base flushes can be disabled after replication relocation or slow recovery {pull}15830[#15830] (issues: {issue}10624[#10624], {issue}15814[#15814])
+* Catch tragic even inside the checkpoint method rather than on the caller side {pull}15825[#15825]
+* Never delete translog-N.tlog file when creation fails {pull}15788[#15788]
+* Close recovered translog readers if createWriter fails {pull}15762[#15762] (issue: {issue}15754[#15754])
+
+
+
+[[regression-2.1.2]]
+[float]
+=== Regressions
+
+Analysis::
+* Add PathHierarchy type back to path_hierarchy tokenizer for backward compatibility with 1.x {pull}15785[#15785] (issue: {issue}15756[#15756])
+

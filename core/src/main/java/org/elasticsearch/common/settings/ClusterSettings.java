@@ -42,8 +42,12 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.gateway.PrimaryShardAllocator;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.store.IndexStoreConfig;
+import org.elasticsearch.indices.analysis.HunspellService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
+import org.elasticsearch.indices.cache.request.IndicesRequestCache;
+import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.indices.ttl.IndicesTTLService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
@@ -168,5 +172,13 @@ public final class ClusterSettings extends AbstractScopedSettings {
         IndexSettings.QUERY_STRING_ANALYZE_WILDCARD,
         IndexSettings.QUERY_STRING_ALLOW_LEADING_WILDCARD,
         PrimaryShardAllocator.NODE_INITIAL_SHARDS_SETTING,
-        ScriptService.SCRIPT_CACHE_SIZE_SETTING)));
+        ScriptService.SCRIPT_CACHE_SIZE_SETTING,
+        IndicesFieldDataCache.INDICES_FIELDDATA_CLEAN_INTERVAL_SETTING,
+        IndicesFieldDataCache.INDICES_FIELDDATA_CACHE_SIZE_KEY,
+        IndicesRequestCache.INDICES_CACHE_QUERY_SIZE,
+        IndicesRequestCache.INDICES_CACHE_QUERY_EXPIRE,
+        HunspellService.HUNSPELL_LAZY_LOAD,
+        HunspellService.HUNSPELL_IGNORE_CASE,
+        HunspellService.HUNSPELL_DICTIONARY_OPTIONS,
+        IndicesStore.INDICES_STORE_DELETE_SHARD_TIMEOUT)));
 }

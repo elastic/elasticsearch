@@ -22,6 +22,7 @@ package org.elasticsearch.index.analysis;
 import com.ibm.icu.text.Normalizer2;
 import org.apache.lucene.analysis.CharFilter;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.StringReader;
@@ -34,7 +35,7 @@ import static org.elasticsearch.index.analysis.AnalysisTestUtils.createAnalysisS
 public class SimpleIcuNormalizerCharFilterTests extends ESTestCase {
     public void testDefaultSetting() throws Exception {
         Settings settings = Settings.settingsBuilder()
-            .put("path.home", createTempDir())
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
             .put("index.analysis.char_filter.myNormalizerChar.type", "icu_normalizer")
             .build();
         AnalysisService analysisService = createAnalysisService(settings);
@@ -57,7 +58,7 @@ public class SimpleIcuNormalizerCharFilterTests extends ESTestCase {
 
     public void testNameAndModeSetting() throws Exception {
         Settings settings = Settings.settingsBuilder()
-            .put("path.home", createTempDir())
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
             .put("index.analysis.char_filter.myNormalizerChar.type", "icu_normalizer")
             .put("index.analysis.char_filter.myNormalizerChar.name", "nfkc")
             .put("index.analysis.char_filter.myNormalizerChar.mode", "decompose")

@@ -23,6 +23,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService.ScriptType;
@@ -123,7 +124,7 @@ public class ScriptedMetricTests extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         Settings settings = Settings.settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put("path.conf", getDataPath("/org/elasticsearch/messy/tests/conf"))
+                .put(Environment.PATH_CONF_SETTING.getKey(), getDataPath("/org/elasticsearch/messy/tests/conf"))
                 .build();
         return settings;
     }

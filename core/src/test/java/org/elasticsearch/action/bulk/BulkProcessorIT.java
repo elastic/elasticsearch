@@ -31,6 +31,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Arrays;
@@ -156,7 +157,7 @@ public class BulkProcessorIT extends ESIntegTestCase {
     public void testBulkProcessorConcurrentRequestsNoNodeAvailableException() throws Exception {
         //we create a transport client with no nodes to make sure it throws NoNodeAvailableException
         Settings settings = Settings.builder()
-                .put("path.home", createTempDir().toString())
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .build();
         Client transportClient = TransportClient.builder().settings(settings).build();
 

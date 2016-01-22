@@ -2091,11 +2091,11 @@ public abstract class ESIntegTestCase extends ESTestCase {
         assertTrue(Files.exists(dest));
         Settings.Builder builder = Settings.builder()
                 .put(settings)
-                .put("path.data", dataDir.toAbsolutePath());
+                .put(Environment.PATH_DATA_SETTING.getKey(), dataDir.toAbsolutePath());
 
         Path configDir = indexDir.resolve("config");
         if (Files.exists(configDir)) {
-            builder.put("path.conf", configDir.toAbsolutePath());
+            builder.put(Environment.PATH_CONF_SETTING.getKey(), configDir.toAbsolutePath());
         }
         return builder.build();
     }

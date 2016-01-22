@@ -22,6 +22,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -118,7 +119,7 @@ public class ShardPathTests extends ESTestCase {
             final Path path = createTempDir();
             final boolean includeNodeId = randomBoolean();
             indexSetttings = indexSettingsBuilder.put(IndexMetaData.SETTING_DATA_PATH, "custom").build();
-            nodeSettings = settingsBuilder().put("path.shared_data", path.toAbsolutePath().toAbsolutePath())
+            nodeSettings = settingsBuilder().put(Environment.PATH_SHARED_DATA_SETTING.getKey(), path.toAbsolutePath().toAbsolutePath())
                     .put(NodeEnvironment.ADD_NODE_ID_TO_CUSTOM_PATH, includeNodeId).build();
             if (includeNodeId) {
                 customPath = path.resolve("custom").resolve("0");

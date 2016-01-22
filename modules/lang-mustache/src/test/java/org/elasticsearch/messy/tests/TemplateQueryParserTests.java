@@ -88,8 +88,8 @@ public class TemplateQueryParserTests extends ESTestCase {
     @Before
     public void setup() throws IOException {
         Settings settings = Settings.settingsBuilder()
-                .put("path.home", createTempDir().toString())
-                .put("path.conf", this.getDataPath("config"))
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+                .put(Environment.PATH_CONF_SETTING.getKey(), this.getDataPath("config"))
                 .put("name", getClass().getName())
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .build();

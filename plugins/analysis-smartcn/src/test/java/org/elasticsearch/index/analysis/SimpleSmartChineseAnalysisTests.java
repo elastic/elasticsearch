@@ -47,7 +47,7 @@ public class SimpleSmartChineseAnalysisTests extends ESTestCase {
     public void testDefaultsIcuAnalysis() throws IOException {
         Index index = new Index("test");
         Settings settings = settingsBuilder()
-                .put("path.home", createTempDir())
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .build();
         AnalysisModule analysisModule = new AnalysisModule(new Environment(settings));

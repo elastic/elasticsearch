@@ -309,6 +309,10 @@ public class Setting<T> extends ToXContentToBytes {
         return new Setting<>(key, (s) -> Long.toString(defaultValue), (s) -> parseLong(s, minValue, key), dynamic, scope);
     }
 
+    public static Setting<String> simpleString(String key, boolean dynamic, Scope scope) {
+        return new Setting<>(key, "", Function.identity(), dynamic, scope);
+    }
+
     public static int parseInt(String s, int minValue, String key) {
         int value = Integer.parseInt(s);
         if (value < minValue) {

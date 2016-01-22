@@ -106,7 +106,7 @@ public class CodecTests extends ESTestCase {
 
     private static CodecService createCodecService() throws IOException {
         Settings nodeSettings = settingsBuilder()
-                .put("path.home", createTempDir())
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .build();
         IndexSettings settings = IndexSettingsModule.newIndexSettings(new Index("_na"), nodeSettings);
         SimilarityService similarityService = new SimilarityService(settings, Collections.emptyMap());

@@ -24,6 +24,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -52,7 +53,7 @@ public class TransportClientIT extends ESIntegTestCase {
         TransportClientNodesService nodeService = client.nodeService();
         Node node = new Node(Settings.builder()
                 .put(internalCluster().getDefaultSettings())
-                .put("path.home", createTempDir())
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .put("node.name", "testNodeVersionIsUpdated")
                 .put("http.enabled", false)
                 .put("node.data", false)
@@ -89,7 +90,10 @@ public class TransportClientIT extends ESIntegTestCase {
     }
 
     public void testThatTransportClientSettingCannotBeChanged() {
-        Settings baseSettings = settingsBuilder().put(Client.CLIENT_TYPE_SETTING, "anything").put("path.home", createTempDir()).build();
+        Settings baseSettings = settingsBuilder()
+            .put(Client.CLIENT_TYPE_SETTING, "anything")
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+             .build();
         try (TransportClient client = TransportClient.builder().settings(baseSettings).build()) {
             Settings settings = client.injector.getInstance(Settings.class);
             assertThat(settings.get(Client.CLIENT_TYPE_SETTING), is("transport"));

@@ -72,7 +72,7 @@ public class EvilInternalSettingsPreparerTests extends ESTestCase {
     @Before
     public void createBaseEnvSettings() {
         baseEnvSettings = settingsBuilder()
-            .put("path.home", createTempDir())
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
             .build();
     }
 

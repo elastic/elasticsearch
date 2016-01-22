@@ -35,11 +35,11 @@ import org.elasticsearch.index.mapper.Mapper.BuilderContext;
 import org.elasticsearch.index.mapper.MapperBuilders;
 import org.elasticsearch.index.mapper.core.*;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -48,10 +48,9 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.containsString;
 
 public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
-
-    private static Settings DOC_VALUES_SETTINGS = Settings.builder().put(FieldDataType.FORMAT_KEY, FieldDataType.DOC_VALUES_FORMAT_VALUE).build();
 
     public void testGetForFieldDefaults() {
         final IndexService indexService = createIndex("test");
@@ -100,39 +99,6 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
                 assertTrue(fd instanceof DoubleArrayIndexFieldData);
             }
         }
-    }
-
-    @SuppressWarnings("unchecked")
-    public void testByPassDocValues() {
-        final IndexService indexService = createIndex("test");
-        final IndexFieldDataService ifdService = indexService.fieldData();
-        final BuilderContext ctx = new BuilderContext(indexService.indexSettings(), new ContentPath(1));
-        final MappedFieldType stringMapper = MapperBuilders.stringField("string").tokenized(false).fieldDataSettings(DOC_VALUES_SETTINGS).fieldDataSettings(Settings.builder().put("format", "disabled").build()).build(ctx).fieldType();
-        ifdService.clear();
-        IndexFieldData<?> fd = ifdService.getForField(stringMapper);
-        assertTrue(fd instanceof DisabledIndexFieldData);
-
-        final Settings fdSettings = Settings.builder().put("format", "array").build();
-        for (MappedFieldType mapper : Arrays.asList(
-                new ByteFieldMapper.Builder("int").fieldDataSettings(DOC_VALUES_SETTINGS).fieldDataSettings(fdSettings).build(ctx).fieldType(),
-                new ShortFieldMapper.Builder("int").fieldDataSettings(DOC_VALUES_SETTINGS).fieldDataSettings(fdSettings).build(ctx).fieldType(),
-                new IntegerFieldMapper.Builder("int").fieldDataSettings(DOC_VALUES_SETTINGS).fieldDataSettings(fdSettings).build(ctx).fieldType(),
-                new LongFieldMapper.Builder("long").fieldDataSettings(DOC_VALUES_SETTINGS).fieldDataSettings(fdSettings).build(ctx).fieldType()
-                )) {
-            ifdService.clear();
-            fd = ifdService.getForField(mapper);
-            assertTrue(fd instanceof PackedArrayIndexFieldData);
-        }
-
-        final MappedFieldType floatMapper = MapperBuilders.floatField("float").fieldDataSettings(DOC_VALUES_SETTINGS).fieldDataSettings(fdSettings).build(ctx).fieldType();
-        ifdService.clear();
-        fd = ifdService.getForField(floatMapper);
-        assertTrue(fd instanceof FloatArrayIndexFieldData);
-
-        final MappedFieldType doubleMapper = MapperBuilders.doubleField("double").fieldDataSettings(DOC_VALUES_SETTINGS).fieldDataSettings(fdSettings).build(ctx).fieldType();
-        ifdService.clear();
-        fd = ifdService.getForField(doubleMapper);
-        assertTrue(fd instanceof DoubleArrayIndexFieldData);
     }
 
     public void testChangeFieldDataFormat() throws Exception {
@@ -238,4 +204,24 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         }
     }
 
+    public void testDisabled() {
+        final IndexService indexService = createIndex("test");
+        IndexFieldDataService shardPrivateService = indexService.fieldData();
+        ThreadPool threadPool = new ThreadPool("random_threadpool_name");
+        StringFieldMapper.StringFieldType ft = new StringFieldMapper.StringFieldType();
+        try {
+            IndicesFieldDataCache cache = new IndicesFieldDataCache(Settings.EMPTY, null, threadPool);
+            IndexFieldDataService ifds = new IndexFieldDataService(shardPrivateService.index(), indexService.settingsService(), cache, null, null);
+            ft.setNames(new MappedFieldType.Names("some_str"));
+            ft.setFieldDataType(new FieldDataType("string", Settings.builder().put(FieldDataType.FORMAT_KEY, "disabled").build()));
+            try {
+                ifds.getForField(ft);
+                fail();
+            } catch (IllegalStateException e) {
+                assertThat(e.getMessage(), containsString("Field data loading is forbidden on [some_str]"));
+            }
+        } finally {
+            threadPool.shutdown();
+        }
+    }
 }

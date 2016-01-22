@@ -31,8 +31,18 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.fielddata.plain.*;
+import org.elasticsearch.index.fielddata.plain.AbstractGeoPointDVIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.BytesBinaryDVIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.DoubleArrayIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.FloatArrayIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.GeoPointArrayIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.IndexIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.PackedArrayIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedFieldType.Names;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.core.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.internal.IndexFieldMapper;
@@ -47,8 +57,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.index.mapper.MappedFieldType.Names;
-
 public class IndexFieldDataService extends AbstractIndexComponent {
 
     public static final String FIELDDATA_CACHE_KEY = "index.fielddata.cache";
@@ -58,6 +66,14 @@ public class IndexFieldDataService extends AbstractIndexComponent {
     private static final String DOC_VALUES_FORMAT = "doc_values";
     private static final String ARRAY_FORMAT = "array";
     private static final String PAGED_BYTES_FORMAT = "paged_bytes";
+
+    private static final IndexFieldData.Builder DISABLED_BUILDER = new IndexFieldData.Builder() {
+        @Override
+        public IndexFieldData<?> build(Index index, Settings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
+                CircuitBreakerService breakerService, MapperService mapperService) {
+            throw new IllegalStateException("Field data loading is forbidden on [" + fieldType.names().fullName() + "]");
+        }
+    };
 
     private final static ImmutableMap<String, IndexFieldData.Builder> buildersByType;
     private final static ImmutableMap<String, IndexFieldData.Builder> docValuesBuildersByType;
@@ -76,7 +92,7 @@ public class IndexFieldDataService extends AbstractIndexComponent {
                 .put("geo_point", new GeoPointArrayIndexFieldData.Builder())
                 .put(ParentFieldMapper.NAME, new ParentChildIndexFieldData.Builder())
                 .put(IndexFieldMapper.NAME, new IndexIndexFieldData.Builder())
-                .put("binary", new DisabledIndexFieldData.Builder())
+                .put("binary", DISABLED_BUILDER)
                 .put(BooleanFieldMapper.CONTENT_TYPE, new PackedArrayIndexFieldData.Builder().setNumericType(IndexNumericFieldData.NumericType.BOOLEAN))
                 .immutableMap();
 
@@ -96,42 +112,42 @@ public class IndexFieldDataService extends AbstractIndexComponent {
         buildersByTypeAndFormat = MapBuilder.<Tuple<String, String>, IndexFieldData.Builder>newMapBuilder()
                 .put(Tuple.tuple("string", PAGED_BYTES_FORMAT), new PagedBytesIndexFieldData.Builder())
                 .put(Tuple.tuple("string", DOC_VALUES_FORMAT), new DocValuesIndexFieldData.Builder())
-                .put(Tuple.tuple("string", DISABLED_FORMAT), new DisabledIndexFieldData.Builder())
+                .put(Tuple.tuple("string", DISABLED_FORMAT), DISABLED_BUILDER)
 
                 .put(Tuple.tuple("float", ARRAY_FORMAT), new FloatArrayIndexFieldData.Builder())
                 .put(Tuple.tuple("float", DOC_VALUES_FORMAT), new DocValuesIndexFieldData.Builder().numericType(IndexNumericFieldData.NumericType.FLOAT))
-                .put(Tuple.tuple("float", DISABLED_FORMAT), new DisabledIndexFieldData.Builder())
+                .put(Tuple.tuple("float", DISABLED_FORMAT), DISABLED_BUILDER)
 
                 .put(Tuple.tuple("double", ARRAY_FORMAT), new DoubleArrayIndexFieldData.Builder())
                 .put(Tuple.tuple("double", DOC_VALUES_FORMAT), new DocValuesIndexFieldData.Builder().numericType(IndexNumericFieldData.NumericType.DOUBLE))
-                .put(Tuple.tuple("double", DISABLED_FORMAT), new DisabledIndexFieldData.Builder())
+                .put(Tuple.tuple("double", DISABLED_FORMAT), DISABLED_BUILDER)
 
                 .put(Tuple.tuple("byte", ARRAY_FORMAT), new PackedArrayIndexFieldData.Builder().setNumericType(IndexNumericFieldData.NumericType.BYTE))
                 .put(Tuple.tuple("byte", DOC_VALUES_FORMAT), new DocValuesIndexFieldData.Builder().numericType(IndexNumericFieldData.NumericType.BYTE))
-                .put(Tuple.tuple("byte", DISABLED_FORMAT), new DisabledIndexFieldData.Builder())
+                .put(Tuple.tuple("byte", DISABLED_FORMAT), DISABLED_BUILDER)
 
                 .put(Tuple.tuple("short", ARRAY_FORMAT), new PackedArrayIndexFieldData.Builder().setNumericType(IndexNumericFieldData.NumericType.SHORT))
                 .put(Tuple.tuple("short", DOC_VALUES_FORMAT), new DocValuesIndexFieldData.Builder().numericType(IndexNumericFieldData.NumericType.SHORT))
-                .put(Tuple.tuple("short", DISABLED_FORMAT), new DisabledIndexFieldData.Builder())
+                .put(Tuple.tuple("short", DISABLED_FORMAT), DISABLED_BUILDER)
 
                 .put(Tuple.tuple("int", ARRAY_FORMAT), new PackedArrayIndexFieldData.Builder().setNumericType(IndexNumericFieldData.NumericType.INT))
                 .put(Tuple.tuple("int", DOC_VALUES_FORMAT), new DocValuesIndexFieldData.Builder().numericType(IndexNumericFieldData.NumericType.INT))
-                .put(Tuple.tuple("int", DISABLED_FORMAT), new DisabledIndexFieldData.Builder())
+                .put(Tuple.tuple("int", DISABLED_FORMAT), DISABLED_BUILDER)
 
                 .put(Tuple.tuple("long", ARRAY_FORMAT), new PackedArrayIndexFieldData.Builder().setNumericType(IndexNumericFieldData.NumericType.LONG))
                 .put(Tuple.tuple("long", DOC_VALUES_FORMAT), new DocValuesIndexFieldData.Builder().numericType(IndexNumericFieldData.NumericType.LONG))
-                .put(Tuple.tuple("long", DISABLED_FORMAT), new DisabledIndexFieldData.Builder())
+                .put(Tuple.tuple("long", DISABLED_FORMAT), DISABLED_BUILDER)
 
                 .put(Tuple.tuple("geo_point", ARRAY_FORMAT), new GeoPointArrayIndexFieldData.Builder())
                 .put(Tuple.tuple("geo_point", DOC_VALUES_FORMAT), new AbstractGeoPointDVIndexFieldData.Builder())
-                .put(Tuple.tuple("geo_point", DISABLED_FORMAT), new DisabledIndexFieldData.Builder())
+                .put(Tuple.tuple("geo_point", DISABLED_FORMAT), DISABLED_BUILDER)
 
                 .put(Tuple.tuple("binary", DOC_VALUES_FORMAT), new BytesBinaryDVIndexFieldData.Builder())
-                .put(Tuple.tuple("binary", DISABLED_FORMAT), new DisabledIndexFieldData.Builder())
+                .put(Tuple.tuple("binary", DISABLED_FORMAT), DISABLED_BUILDER)
 
                 .put(Tuple.tuple(BooleanFieldMapper.CONTENT_TYPE, ARRAY_FORMAT), new PackedArrayIndexFieldData.Builder().setNumericType(IndexNumericFieldData.NumericType.BOOLEAN))
                 .put(Tuple.tuple(BooleanFieldMapper.CONTENT_TYPE, DOC_VALUES_FORMAT), new DocValuesIndexFieldData.Builder().numericType(IndexNumericFieldData.NumericType.BOOLEAN))
-                .put(Tuple.tuple(BooleanFieldMapper.CONTENT_TYPE, DISABLED_FORMAT), new DisabledIndexFieldData.Builder())
+                .put(Tuple.tuple(BooleanFieldMapper.CONTENT_TYPE, DISABLED_FORMAT), DISABLED_BUILDER)
 
                 .immutableMap();
     }

@@ -147,11 +147,6 @@ public final class InternalTestCluster extends TestCluster {
     private final ESLogger logger = Loggers.getLogger(getClass());
 
     /**
-     * A node level setting that holds a per node random seed that is consistent across node restarts
-     */
-    public static final String SETTING_CLUSTER_NODE_SEED = "test.cluster.node.seed";
-
-    /**
      * The number of ports in the range used for this JVM
      */
     public static final int PORTS_PER_JVM = 100;
@@ -381,8 +376,7 @@ public final class InternalTestCluster extends TestCluster {
 
     private Settings getRandomNodeSettings(long seed) {
         Random random = new Random(seed);
-        Builder builder = Settings.settingsBuilder()
-                .put(SETTING_CLUSTER_NODE_SEED, seed);
+        Builder builder = Settings.settingsBuilder();
         if (isLocalTransportConfigured() == false) {
             builder.put(Transport.TRANSPORT_TCP_COMPRESS.getKey(), rarely(random));
         }
@@ -390,12 +384,12 @@ public final class InternalTestCluster extends TestCluster {
             builder.put("cache.recycler.page.type", RandomPicks.randomFrom(random, PageCacheRecycler.Type.values()));
         }
         if (random.nextInt(10) == 0) { // 10% of the nodes have a very frequent check interval
-            builder.put(SearchService.KEEPALIVE_INTERVAL_KEY, TimeValue.timeValueMillis(10 + random.nextInt(2000)));
+            builder.put(SearchService.KEEPALIVE_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(10 + random.nextInt(2000)));
         } else if (random.nextInt(10) != 0) { // 90% of the time - 10% of the time we don't set anything
-            builder.put(SearchService.KEEPALIVE_INTERVAL_KEY, TimeValue.timeValueSeconds(10 + random.nextInt(5 * 60)));
+            builder.put(SearchService.KEEPALIVE_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(10 + random.nextInt(5 * 60)));
         }
         if (random.nextBoolean()) { // sometimes set a
-            builder.put(SearchService.DEFAULT_KEEPALIVE_KEY, TimeValue.timeValueSeconds(100 + random.nextInt(5 * 60)));
+            builder.put(SearchService.DEFAULT_KEEPALIVE_SETTING.getKey(), TimeValue.timeValueSeconds(100 + random.nextInt(5 * 60)));
         }
 
         if (random.nextInt(10) == 0) {

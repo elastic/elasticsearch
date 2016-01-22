@@ -55,6 +55,7 @@ import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.indices.ttl.IndicesTTLService;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -218,6 +219,9 @@ public final class ClusterSettings extends AbstractScopedSettings {
         ZenDiscovery.MASTER_ELECTION_WAIT_FOR_JOINS_TIMEOUT_SETTING,
         ZenDiscovery.MASTER_ELECTION_FILTER_DATA_SETTING,
         UnicastZenPing.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING,
-        UnicastZenPing.DISCOVERY_ZEN_PING_UNICAST_CONCURRENT_CONNECTS_SETTING
+        UnicastZenPing.DISCOVERY_ZEN_PING_UNICAST_CONCURRENT_CONNECTS_SETTING,
+        SearchService.DEFAULT_KEEPALIVE_SETTING,
+        SearchService.KEEPALIVE_INTERVAL_SETTING,
+        Node.WRITE_PORTS_FIELD_SETTING
         )));
 }

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.shield.rest.action;
 
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.shield.authc.support.SecuredString;
@@ -34,7 +35,7 @@ public class RestAuthenticateActionTests extends ShieldIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         Settings.Builder builder = Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(Node.HTTP_ENABLED, true);
+                .put(NetworkModule.HTTP_ENABLED.getKey(), true);
 
         if (anonymousEnabled) {
             builder.put("shield.authc.anonymous.username", "anon")

@@ -7,6 +7,7 @@ package org.elasticsearch.shield;
 
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.integration.LicensingTests;
@@ -67,7 +68,7 @@ public class ShieldPluginEnabledDisabledTests extends ShieldIntegTestCase {
         return Settings.settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(ShieldPlugin.ENABLED_SETTING_NAME, enabled)
-                .put(Node.HTTP_ENABLED, true)
+                .put(NetworkModule.HTTP_ENABLED.getKey(), true)
                 .build();
     }
 

@@ -6,6 +6,7 @@
 package org.elasticsearch.license.plugin;
 
 import org.elasticsearch.client.ClusterAdminClient;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.license.core.License;
@@ -61,10 +62,10 @@ public class LicensesServiceClusterTests extends AbstractLicensesIntegrationTest
                 .put("node.data", true)
                 .put("format", "json")
                 // this setting is only used in tests
-                .put(".trial_license_duration_in_seconds", 9)
+                .put("_trial_license_duration_in_seconds", 9)
                 // this setting is only used in tests
-                .put(".grace_duration_in_seconds", 9)
-                .put(Node.HTTP_ENABLED, true);
+                .put("_grace_duration_in_seconds", 9)
+                .put(NetworkModule.HTTP_ENABLED.getKey(), true);
     }
 
     @Override

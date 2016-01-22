@@ -5,23 +5,27 @@
  */
 package org.elasticsearch.marvel.agent.renderer.node;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.marvel.agent.collector.node.NodeStatsCollector;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.marvel.test.MarvelIntegTestCase;
+import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
+import org.elasticsearch.test.InternalTestCluster;
 import org.junit.After;
 
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
-import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/960")
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, numClientNodes = 0, transportClientRatio = 0.0)
 public class MultiNodesStatsTests extends MarvelIntegTestCase {
 
@@ -41,30 +45,38 @@ public class MultiNodesStatsTests extends MarvelIntegTestCase {
     }
 
     public void testMultipleNodes() throws Exception {
-        logger.debug("--> starting a master only node");
-        internalCluster().startMasterOnlyNodeAsync();
+        int nodes = 0;
 
-        logger.debug("--> starting a data only node");
-        internalCluster().startDataOnlyNodeAsync();
+        int n = randomIntBetween(1, 2);
+        logger.debug("--> starting {} master only nodes", n);
+        InternalTestCluster.Async<List<String>> masterNodes = internalCluster().startMasterOnlyNodesAsync(n);
+        masterNodes.get();
+        nodes += n;
 
-        logger.debug("--> starting a client node");
-        internalCluster().startNodeClient(Settings.EMPTY);
+        n = randomIntBetween(2, 3);
+        logger.debug("--> starting {} data only nodes", n);
+        InternalTestCluster.Async<List<String>> dataNodes = internalCluster().startDataOnlyNodesAsync(n);
+        dataNodes.get();
+        nodes += n;
 
-        logger.debug("--> starting few other nodes");
-        int extraNodes = randomIntBetween(2, 5);
-        for (int i = 0; i < extraNodes; i++) {
-            if (randomBoolean()) {
-                internalCluster().startNodeAsync();
-            } else {
-                internalCluster().startNodeClient(Settings.EMPTY);
-            }
-        }
+        n = randomIntBetween(1, 2);
+        logger.debug("--> starting {} client only nodes", n);
+        InternalTestCluster.Async<List<String>> clientNodes = internalCluster().startNodesAsync(n, settingsBuilder().put("node.client", true).build());
+        clientNodes.get();
+        nodes += n;
 
-        final int nbNodes = 3 +  extraNodes;
+        n = randomIntBetween(1, 2);
+        logger.debug("--> starting {} extra nodes", n);
+        InternalTestCluster.Async<List<String>> extraNodes = internalCluster().startNodesAsync(n);
+        extraNodes.get();
+        nodes += n;
+
+        final int nbNodes = nodes;
         logger.debug("--> waiting for {} nodes to be available", nbNodes);
         assertBusy(new Runnable() {
             @Override
             public void run() {
+                assertThat(cluster().size(), equalTo(nbNodes));
                 assertNoTimeout(client().admin().cluster().prepareHealth().setWaitForNodes(Integer.toString(nbNodes)).get());
             }
         });
@@ -77,15 +89,22 @@ public class MultiNodesStatsTests extends MarvelIntegTestCase {
             public void run() {
                 securedFlush();
 
-                for (String nodeName : internalCluster().getNodeNames()) {
-                    SearchResponse response = client(nodeName).prepareSearch()
-                            .setTypes(NodeStatsCollector.TYPE)
-                            .setQuery(QueryBuilders.termQuery("node_stats.node_id", internalCluster().clusterService(nodeName).localNode().getId()))
-                            .get();
-                    assertThat(response.getHits().getTotalHits(), greaterThan(0L));
+                SearchResponse response = client().prepareSearch()
+                        .setTypes(NodeStatsCollector.TYPE)
+                        .setSize(0)
+                        .addAggregation(AggregationBuilders.terms("nodes_ids").field("node_stats.node_id"))
+                        .get();
+
+                for (Aggregation aggregation : response.getAggregations()) {
+                    assertThat(aggregation, instanceOf(StringTerms.class));
+                    assertThat(((StringTerms) aggregation).getBuckets().size(), equalTo(nbNodes));
+
+                    for (String nodeName : internalCluster().getNodeNames()) {
+                        StringTerms.Bucket bucket = (StringTerms.Bucket) ((StringTerms) aggregation).getBucketByKey(internalCluster().clusterService(nodeName).localNode().getId());
+                        assertThat(bucket.getDocCount(), equalTo(1L));
+                    }
                 }
             }
         });
     }
-
 }

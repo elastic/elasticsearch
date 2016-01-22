@@ -6,6 +6,7 @@
 package org.elasticsearch.shield.transport.filter;
 
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -38,7 +39,7 @@ public class IpFilteringUpdateTests extends ShieldIntegTestCase {
         String randomClientPortRange = randomClientPort + "-" + (randomClientPort+100);
         return settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(Node.HTTP_ENABLED, httpEnabled)
+                .put(NetworkModule.HTTP_ENABLED.getKey(), httpEnabled)
                 .put("shield.transport.filter.deny", "127.0.0.200")
                 .put("transport.profiles.client.port", randomClientPortRange)
                 .build();

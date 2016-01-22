@@ -7,6 +7,7 @@ package org.elasticsearch.shield.transport;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -98,7 +99,7 @@ public class ServerTransportFilterIntegrationTests extends ShieldIntegTestCase {
                 .put("shield.transport.ssl", sslTransportEnabled())
                 .put("shield.audit.enabled", false)
                 .put("path.home", createTempDir())
-                .put(Node.HTTP_ENABLED, false)
+                .put(NetworkModule.HTTP_ENABLED.getKey(), false)
                 .put(InternalCryptoService.FILE_SETTING, systemKeyFile)
                 .put("node.client", true)
                 .build();
@@ -130,7 +131,7 @@ public class ServerTransportFilterIntegrationTests extends ShieldIntegTestCase {
                 .put("discovery.zen.ping.unicast.hosts", "localhost:" + randomClientPort)
                 .put("shield.transport.ssl", sslTransportEnabled())
                 .put("shield.audit.enabled", false)
-                .put(Node.HTTP_ENABLED, false)
+                .put(NetworkModule.HTTP_ENABLED.getKey(), false)
                 .put(InternalCryptoService.FILE_SETTING, systemKeyFile)
                 .put("discovery.initial_state_timeout", "2s")
                 .put("path.home", createTempDir())

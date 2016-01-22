@@ -6,6 +6,7 @@
 package org.elasticsearch.marvel.agent.settings;
 
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequestBuilder;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -38,7 +39,7 @@ public class MarvelSettingsTests extends MarvelIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(Node.HTTP_ENABLED, false)
+                .put(NetworkModule.HTTP_ENABLED.getKey(), false)
                 .put(marvelSettings())
                 .build();
     }

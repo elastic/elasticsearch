@@ -52,12 +52,14 @@ public class CleanerServiceTests extends ESTestCase {
     }
 
     public void testRetentionUpdateAllowed() {
-        TimeValue randomRetention = TimeValue.parseTimeValue(randomTimeValue(), null, "");
-
         MarvelLicensee licensee = mock(MarvelLicensee.class);
         when(licensee.allowUpdateRetention()).thenReturn(true);
 
         CleanerService service = new CleanerService(Settings.EMPTY, clusterSettings, threadPool, licensee);
+        service.setRetention(TimeValue.parseTimeValue("-1", null, ""));
+        assertThat(service.getRetention().getMillis(), equalTo(-1L));
+
+        TimeValue randomRetention = TimeValue.parseTimeValue(randomIntBetween(1, 1000) + "ms", null, "");
         service.setRetention(randomRetention);
         assertThat(service.getRetention(), equalTo(randomRetention));
 
@@ -69,14 +71,27 @@ public class CleanerServiceTests extends ESTestCase {
     }
 
     public void testRetentionUpdateBlocked() {
-        TimeValue randomRetention = TimeValue.parseTimeValue(randomTimeValue(), null, "");
-
         MarvelLicensee licensee = mock(MarvelLicensee.class);
-        when(licensee.allowUpdateRetention()).thenReturn(false);
-
+        when(licensee.allowUpdateRetention()).thenReturn(true);
         CleanerService service = new CleanerService(Settings.EMPTY, clusterSettings, threadPool, licensee);
         try {
+            service.setRetention(TimeValue.parseTimeValue("-5000ms", null, ""));
+            fail("exception should have been thrown: negative retention are not allowed");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("invalid history duration setting value"));
+        }
+        try {
+            service.setRetention(null);
+            fail("exception should have been thrown: null retention is not allowed");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("history duration setting cannot be null"));
+        }
+
+        TimeValue randomRetention = TimeValue.parseTimeValue(randomIntBetween(1, 1000) + "ms", null, "");
+        when(licensee.allowUpdateRetention()).thenReturn(false);
+        try {
             service.setRetention(randomRetention);
+            fail("exception should have been thrown");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("license does not allow the history duration setting to be updated to value"));
             assertNull(service.getRetention());

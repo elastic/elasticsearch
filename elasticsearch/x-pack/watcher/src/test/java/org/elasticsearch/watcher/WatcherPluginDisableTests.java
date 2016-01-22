@@ -10,6 +10,7 @@ import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.node.Node;
@@ -42,7 +43,7 @@ public class WatcherPluginDisableTests extends ESIntegTestCase {
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(WatcherPlugin.ENABLED_SETTING, false)
                 .put(ShieldPlugin.ENABLED_SETTING_NAME, false) // disable shield because of query cache check and authentication/authorization
-                .put(Node.HTTP_ENABLED, true)
+                .put(NetworkModule.HTTP_ENABLED.getKey(), true)
                 .build();
     }
 

@@ -7,6 +7,7 @@ package org.elasticsearch.marvel.shield;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionRequestBuilder;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils;
@@ -24,7 +25,7 @@ public class SecuredClientTests extends MarvelIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(Node.HTTP_ENABLED, false)
+                .put(NetworkModule.HTTP_ENABLED.getKey(), false)
                 .put(MarvelSettings.INTERVAL_SETTING.getKey(), "-1")
                 .build();
     }

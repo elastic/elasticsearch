@@ -42,7 +42,7 @@ public class LicensesPluginsIntegrationTests extends AbstractLicensesIntegration
         return Settings.settingsBuilder()
                 .put(super.nodeSettings(0))
                 // this setting is only used in tests
-                .put(".trial_license_duration_in_seconds", trialLicenseDuration)
+                .put("_trial_license_duration_in_seconds", trialLicenseDuration)
                 .build();
 
     }

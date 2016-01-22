@@ -77,7 +77,7 @@ To install the RPM, create a YUM file like:
 
 containing:
 
-[elasticsearch-2.0]
+[elasticsearch-2.x]
 name=Elasticsearch repository for packages
 baseurl=http://%(bucket)s/elasticsearch/staging/%(version)s-%(hash)s/repos/%(package_repo_version)s/centos
 gpgcheck=1

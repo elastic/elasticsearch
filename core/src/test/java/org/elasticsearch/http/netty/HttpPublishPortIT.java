@@ -24,7 +24,7 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
-import org.elasticsearch.node.Node;
+import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
@@ -41,7 +41,7 @@ public class HttpPublishPortIT extends ESIntegTestCase {
         return Settings.settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(NetworkModule.HTTP_ENABLED.getKey(), true)
-                .put("http.publish_port", 9080)
+                .put(HttpTransportSettings.SETTING_HTTP_PUBLISH_PORT.getKey(), 9080)
                 .build();
     }
 

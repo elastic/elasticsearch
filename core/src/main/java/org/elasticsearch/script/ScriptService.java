@@ -86,7 +86,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
 
     public static final String DEFAULT_SCRIPTING_LANGUAGE_SETTING = "script.default_lang";
     public static final Setting<Integer> SCRIPT_CACHE_SIZE_SETTING = Setting.intSetting("script.cache.max_size", 100, 0, false, Setting.Scope.CLUSTER);
-    public static final String SCRIPT_CACHE_EXPIRE_SETTING = "script.cache.expire";
+    public static final Setting<TimeValue> SCRIPT_CACHE_EXPIRE_SETTING = Setting.positiveTimeSetting("script.cache.expire", TimeValue.timeValueMillis(0), false, Setting.Scope.CLUSTER);
     public static final String SCRIPT_INDEX = ".scripts";
     public static final String DEFAULT_LANG = "groovy";
     public static final String SCRIPT_AUTO_RELOAD_ENABLED_SETTING = "script.auto_reload_enabled";
@@ -149,8 +149,6 @@ public class ScriptService extends AbstractComponent implements Closeable {
         this.scriptEngines = scriptEngines;
         this.scriptContextRegistry = scriptContextRegistry;
         int cacheMaxSize = SCRIPT_CACHE_SIZE_SETTING.get(settings);
-        TimeValue cacheExpire = settings.getAsTime(SCRIPT_CACHE_EXPIRE_SETTING, null);
-        logger.debug("using script cache with max_size [{}], expire [{}]", cacheMaxSize, cacheExpire);
 
         this.defaultLang = settings.get(DEFAULT_SCRIPTING_LANGUAGE_SETTING, DEFAULT_LANG);
 
@@ -158,9 +156,13 @@ public class ScriptService extends AbstractComponent implements Closeable {
         if (cacheMaxSize >= 0) {
             cacheBuilder.setMaximumWeight(cacheMaxSize);
         }
-        if (cacheExpire != null) {
+
+        TimeValue cacheExpire = SCRIPT_CACHE_EXPIRE_SETTING.get(settings);
+        if (cacheExpire.getNanos() != 0) {
             cacheBuilder.setExpireAfterAccess(cacheExpire.nanos());
         }
+
+        logger.debug("using script cache with max_size [{}], expire [{}]", cacheMaxSize, cacheExpire);
         this.cache = cacheBuilder.removalListener(new ScriptCacheRemovalListener()).build();
 
         Map<String, ScriptEngineService> enginesByLangBuilder = new HashMap<>();

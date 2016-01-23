@@ -212,12 +212,12 @@ public class ShardStateAction extends AbstractComponent {
         }
     }
 
-    private static class ShardFailedClusterStateTaskExecutor implements ClusterStateTaskExecutor<ShardRoutingEntry> {
+    static class ShardFailedClusterStateTaskExecutor implements ClusterStateTaskExecutor<ShardRoutingEntry> {
         private final AllocationService allocationService;
         private final RoutingService routingService;
         private final ESLogger logger;
 
-        public ShardFailedClusterStateTaskExecutor(AllocationService allocationService, RoutingService routingService, ESLogger logger) {
+        ShardFailedClusterStateTaskExecutor(AllocationService allocationService, RoutingService routingService, ESLogger logger) {
             this.allocationService = allocationService;
             this.routingService = routingService;
             this.logger = logger;
@@ -239,7 +239,7 @@ public class ShardStateAction extends AbstractComponent {
                         .stream()
                         .map(task -> new FailedRerouteAllocation.FailedShard(task.shardRouting, task.message, task.failure))
                         .collect(Collectors.toList());
-                RoutingAllocation.Result result = allocationService.applyFailedShards(currentState, failedShards);
+                RoutingAllocation.Result result = applyFailedShards(currentState, failedShards);
                 if (result.changed()) {
                     maybeUpdatedState = ClusterState.builder(currentState).routingResult(result).build();
                 }
@@ -253,6 +253,11 @@ public class ShardStateAction extends AbstractComponent {
             batchResultBuilder.successes(partition.get(false));
 
             return batchResultBuilder.build(maybeUpdatedState);
+        }
+
+        // visible for testing
+        RoutingAllocation.Result applyFailedShards(ClusterState currentState, List<FailedRerouteAllocation.FailedShard> failedShards) {
+            return allocationService.applyFailedShards(currentState, failedShards);
         }
 
         private boolean shardExists(ClusterState currentState, ShardRoutingEntry task) {

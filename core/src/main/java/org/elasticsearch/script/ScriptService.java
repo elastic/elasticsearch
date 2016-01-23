@@ -85,11 +85,9 @@ public class ScriptService extends AbstractComponent implements Closeable {
 
     static final String DISABLE_DYNAMIC_SCRIPTING_SETTING = "script.disable_dynamic";
 
-    public static final String DEFAULT_SCRIPTING_LANGUAGE_SETTING = "script.default_lang";
     public static final Setting<Integer> SCRIPT_CACHE_SIZE_SETTING = Setting.intSetting("script.cache.max_size", 100, 0, false, Setting.Scope.CLUSTER);
     public static final Setting<TimeValue> SCRIPT_CACHE_EXPIRE_SETTING = Setting.positiveTimeSetting("script.cache.expire", TimeValue.timeValueMillis(0), false, Setting.Scope.CLUSTER);
     public static final String SCRIPT_INDEX = ".scripts";
-    public static final String DEFAULT_LANG = "groovy";
     public static final Setting<Boolean> SCRIPT_AUTO_RELOAD_ENABLED_SETTING = Setting.boolSetting("script.auto_reload_enabled", true, false, Setting.Scope.CLUSTER);
 
     private final String defaultLang;
@@ -154,7 +152,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
         this.scriptContextRegistry = scriptContextRegistry;
         int cacheMaxSize = SCRIPT_CACHE_SIZE_SETTING.get(settings);
 
-        this.defaultLang = settings.get(DEFAULT_SCRIPTING_LANGUAGE_SETTING, DEFAULT_LANG);
+        this.defaultLang = scriptSettings.getDefaultScriptLanguageSetting().get(settings);
 
         CacheBuilder<CacheKey, CompiledScript> cacheBuilder = CacheBuilder.builder();
         if (cacheMaxSize >= 0) {

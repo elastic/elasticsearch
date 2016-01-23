@@ -93,6 +93,7 @@ public class ScriptModule extends AbstractModule {
         scriptSettings.getScriptTypeSettings().forEach(settingsModule::registerSetting);
         scriptSettings.getScriptContextSettings().forEach(settingsModule::registerSetting);
         scriptSettings.getScriptLanguageSettings().forEach(settingsModule::registerSetting);
+        settingsModule.registerSetting(scriptSettings.getDefaultScriptLanguageSetting());
 
         bind(ScriptContextRegistry.class).toInstance(scriptContextRegistry);
         bind(ScriptEngineRegistry.class).toInstance(scriptEngineRegistry);

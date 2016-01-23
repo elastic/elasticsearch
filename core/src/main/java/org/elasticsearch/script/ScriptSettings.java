@@ -33,6 +33,8 @@ import java.util.stream.Collectors;
 
 public class ScriptSettings {
 
+    public final static String DEFAULT_LANG = "groovy";
+
     private final static Map<ScriptService.ScriptType, Setting<ScriptMode>> SCRIPT_TYPE_SETTING_MAP;
 
     static {
@@ -50,6 +52,7 @@ public class ScriptSettings {
 
     private final Map<ScriptContext, Setting<ScriptMode>> scriptContextSettingMap;
     private final List<Setting<ScriptMode>> scriptLanguageSettings;
+    private final Setting<String> defaultScriptLanguageSetting;
 
     public ScriptSettings(ScriptEngineRegistry scriptEngineRegistry, ScriptContextRegistry scriptContextRegistry) {
         Map<ScriptContext, Setting<ScriptMode>> scriptContextSettingMap = contextSettings(scriptContextRegistry);
@@ -57,6 +60,13 @@ public class ScriptSettings {
 
         List<Setting<ScriptMode>> scriptLanguageSettings = languageSettings(SCRIPT_TYPE_SETTING_MAP, scriptContextSettingMap, scriptEngineRegistry, scriptContextRegistry);
         this.scriptLanguageSettings = Collections.unmodifiableList(scriptLanguageSettings);
+
+        this.defaultScriptLanguageSetting = new Setting<>("script.default_lang", DEFAULT_LANG, setting -> {
+            if (!"groovy".equals(setting) && !scriptEngineRegistry.getRegisteredLanguages().containsKey(setting)) {
+                throw new IllegalArgumentException("unregistered default language [" + setting + "]");
+            }
+            return setting;
+        }, false, Setting.Scope.CLUSTER);
     }
 
     private static Map<ScriptContext, Setting<ScriptMode>> contextSettings(ScriptContextRegistry scriptContextRegistry) {
@@ -147,5 +157,9 @@ public class ScriptSettings {
 
     public Iterable<Setting<ScriptMode>> getScriptLanguageSettings() {
         return scriptLanguageSettings;
+    }
+
+    public Setting<String> getDefaultScriptLanguageSetting() {
+        return defaultScriptLanguageSetting;
     }
 }

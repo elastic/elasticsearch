@@ -64,6 +64,38 @@ public class ScriptSettingsTests extends ESTestCase {
         assertTrue(sawConflictingSettings);
     }
 
+    public void testDefaultLanguageIsGroovy() {
+        ScriptEngineRegistry scriptEngineRegistry =
+            new ScriptEngineRegistry(Collections.singletonList(new ScriptEngineRegistry.ScriptEngineRegistration(CustomScriptEngineService.class, CustomScriptEngineService.TYPES)));
+        ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Collections.emptyList());
+        ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
+        assertThat(scriptSettings.getDefaultScriptLanguageSetting().get(Settings.EMPTY), equalTo("groovy"));
+    }
+
+    public void testCustomDefaultLanguage() {
+        ScriptEngineRegistry scriptEngineRegistry =
+            new ScriptEngineRegistry(Collections.singletonList(new ScriptEngineRegistry.ScriptEngineRegistration(CustomScriptEngineService.class, CustomScriptEngineService.TYPES)));
+        ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Collections.emptyList());
+        ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
+        String defaultLanguage = randomFrom(CustomScriptEngineService.TYPES);
+        Settings settings = Settings.builder().put("script.default_lang", defaultLanguage).build();
+        assertThat(scriptSettings.getDefaultScriptLanguageSetting().get(settings), equalTo(defaultLanguage));
+    }
+
+    public void testInvalidDefaultLanguage() {
+        ScriptEngineRegistry scriptEngineRegistry =
+            new ScriptEngineRegistry(Collections.singletonList(new ScriptEngineRegistry.ScriptEngineRegistration(CustomScriptEngineService.class, CustomScriptEngineService.TYPES)));
+        ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Collections.emptyList());
+        ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
+        Settings settings = Settings.builder().put("script.default_lang", "C++").build();
+        try {
+            scriptSettings.getDefaultScriptLanguageSetting().get(settings);
+            fail("should have seen unregistered default language");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("unregistered default language [C++]"));
+        }
+    }
+
     private static class CustomScriptEngineService implements ScriptEngineService {
 
         public static final List<String> TYPES = Collections.unmodifiableList(Arrays.asList("test1", "test2", "test3"));

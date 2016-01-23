@@ -72,6 +72,11 @@ public class ScriptEngineRegistry {
         private final List<String> scriptEngineLanguages;
 
         public ScriptEngineRegistration(Class<? extends ScriptEngineService> scriptEngineService, List<String> scriptEngineLanguages) {
+            Objects.requireNonNull(scriptEngineService);
+            Objects.requireNonNull(scriptEngineLanguages);
+            if (scriptEngineLanguages.isEmpty()) {
+                throw new IllegalArgumentException("languages for script engine service [" + scriptEngineService.getCanonicalName() + "] should be non-empty");
+            }
             this.scriptEngineService = scriptEngineService;
             this.scriptEngineLanguages = scriptEngineLanguages;
         }

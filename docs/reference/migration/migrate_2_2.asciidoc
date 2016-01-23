@@ -5,6 +5,9 @@ This section discusses the changes that you need to be aware of when migrating
 your application to Elasticsearch 2.2.
 
 * <<breaking_22_index_apis>>
+* <<breaking_22_node_stats_apis>>
+* <<breaking_22_packaging>>
+* <<breaking_22_plugins>>
 
 [[breaking_22_index_apis]]
 === Index APIs
@@ -14,6 +17,9 @@ your application to Elasticsearch 2.2.
 The field stats response format has been changed for number based and date fields. The `min_value` and
 `max_value` elements now return values as number and the new `min_value_as_string` and `max_value_as_string`
 return the values as string.
+
+[[breaking_22_node_stats_api]
+=== Node Stats API
 
 ==== Adding system CPU percent to OS stats
 
@@ -28,6 +34,9 @@ other node in the response. Do note that if you send a cat nodes request to a no
 earlier than 2.2.0, the CPU usage will not be shown for any nodes. Finally, the API for
 org.elasticsearch.monitor.os.OsStats has an additional method `OsStats#getCpuPercent`.
 
+[[breaking_22_packaging]]
+=== Packaging
+
 ==== Default logging using systemd
 
 In previous versions of Elasticsearch, the default logging
@@ -38,7 +47,6 @@ and these error messages would be lost to the nether. The default has
 changed to now route standard output to the journal and standard error
 to inherit this setting (these are the defaults for systemd). These
 settings can be modified by editing the elasticsearch.service file.
-
 
 [[breaking_22_plugins]]
 === Plugins

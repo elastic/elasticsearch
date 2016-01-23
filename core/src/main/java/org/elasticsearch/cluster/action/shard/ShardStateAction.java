@@ -60,11 +60,9 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Locale;
-import java.util.Set;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.routing.ShardRouting.readShardRoutingEntry;
@@ -227,29 +225,17 @@ public class ShardStateAction extends AbstractComponent {
 
         @Override
         public BatchResult<ShardRoutingEntry> execute(ClusterState currentState, List<ShardRoutingEntry> tasks) throws Exception {
-            BatchResult.Builder<ShardRoutingEntry> batchResultBuilder = BatchResult.builder();
-            Set<ShardRoutingEntry> tasksRequiringAllocationService = Collections.newSetFromMap(new IdentityHashMap<>());
+            // partition tasks into those that correspond to shards
+            // that exist versus do not exist
+            Map<Boolean, List<ShardRoutingEntry>> partition =
+                tasks.stream().collect(Collectors.partitioningBy(task -> shardExists(currentState, task)));
 
-            for (ShardRoutingEntry task : tasks) {
-                RoutingNodes.RoutingNodeIterator routingNodeIterator =
-                    currentState.getRoutingNodes().routingNodeIter(task.getShardRouting().currentNodeId());
-                if (routingNodeIterator != null) {
-                    for (ShardRouting maybe : routingNodeIterator) {
-                        if (task.getShardRouting().isSameAllocation(maybe)) {
-                            tasksRequiringAllocationService.add(task);
-                            break;
-                        }
-                    }
-                }
-                if (!tasksRequiringAllocationService.contains(task)) {
-                    // the requested shard does not exist
-                    batchResultBuilder.success(task);
-                }
-            }
+            BatchResult.Builder<ShardRoutingEntry> batchResultBuilder = BatchResult.builder();
             ClusterState maybeUpdatedState = currentState;
+            List<ShardRoutingEntry> tasksToFail = partition.get(true);
             try {
                 List<FailedRerouteAllocation.FailedShard> failedShards =
-                    tasksRequiringAllocationService
+                    tasksToFail
                         .stream()
                         .map(task -> new FailedRerouteAllocation.FailedShard(task.shardRouting, task.message, task.failure))
                         .collect(Collectors.toList());
@@ -257,11 +243,29 @@ public class ShardStateAction extends AbstractComponent {
                 if (result.changed()) {
                     maybeUpdatedState = ClusterState.builder(currentState).routingResult(result).build();
                 }
-                batchResultBuilder.successes(tasksRequiringAllocationService);
+                batchResultBuilder.successes(tasksToFail);
             } catch (Throwable t) {
-                batchResultBuilder.failures(tasksRequiringAllocationService, t);
+                batchResultBuilder.failures(tasksToFail, t);
             }
+
+            // tasks that correspond to non-existent shards are marked
+            // as successful
+            batchResultBuilder.successes(partition.get(false));
+
             return batchResultBuilder.build(maybeUpdatedState);
+        }
+
+        private boolean shardExists(ClusterState currentState, ShardRoutingEntry task) {
+            RoutingNodes.RoutingNodeIterator routingNodeIterator =
+                currentState.getRoutingNodes().routingNodeIter(task.getShardRouting().currentNodeId());
+            if (routingNodeIterator != null) {
+                for (ShardRouting maybe : routingNodeIterator) {
+                    if (task.getShardRouting().isSameAllocation(maybe)) {
+                        return true;
+                    }
+                }
+            }
+            return false;
         }
 
         @Override

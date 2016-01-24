@@ -44,6 +44,12 @@ public class SettingTests extends ESTestCase {
         assertFalse(byteSizeValueSetting.isGroupSetting());
         ByteSizeValue byteSizeValue = byteSizeValueSetting.get(Settings.EMPTY);
         assertEquals(byteSizeValue.bytes(), 1024);
+
+        byteSizeValueSetting = Setting.byteSizeSetting("a.byte.size", s -> "2048b", true, Setting.Scope.CLUSTER);
+        byteSizeValue = byteSizeValueSetting.get(Settings.EMPTY);
+        assertEquals(byteSizeValue.bytes(), 2048);
+
+
         AtomicReference<ByteSizeValue> value = new AtomicReference<>(null);
         ClusterSettings.SettingUpdater<ByteSizeValue> settingUpdater = byteSizeValueSetting.newUpdater(value::set, logger);
         try {

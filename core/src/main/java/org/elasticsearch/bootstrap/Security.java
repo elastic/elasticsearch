@@ -288,9 +288,7 @@ final class Security {
         for (Map.Entry<String, Settings> entry : profiles.entrySet()) {
             Settings profileSettings = entry.getValue();
             String name = entry.getKey();
-            String transportRange = profileSettings.get("port",
-                                        settings.get("transport.tcp.port",
-                                                NettyTransport.DEFAULT_PORT_RANGE));
+            String transportRange = profileSettings.get("port",NettyTransport.PORT.get(settings));
 
             // a profile is only valid if its the default profile, or if it has an actual name and specifies a port
             boolean valid = NettyTransport.DEFAULT_PROFILE.equals(name) || (Strings.hasLength(name) && profileSettings.get("port") != null);

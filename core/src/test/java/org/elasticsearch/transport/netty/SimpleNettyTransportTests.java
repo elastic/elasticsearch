@@ -39,7 +39,7 @@ public class SimpleNettyTransportTests extends AbstractSimpleTransportTestCase {
 
     @Override
     protected MockTransportService build(Settings settings, Version version, NamedWriteableRegistry namedWriteableRegistry) {
-        settings = Settings.builder().put(settings).put("transport.tcp.port", "0").build();
+        settings = Settings.builder().put(settings).put(NettyTransport.PORT.getKey(), "0").build();
         MockTransportService transportService = new MockTransportService(settings, new NettyTransport(settings, threadPool, new NetworkService(settings), BigArrays.NON_RECYCLING_INSTANCE, version, namedWriteableRegistry), threadPool);
         transportService.start();
         return transportService;

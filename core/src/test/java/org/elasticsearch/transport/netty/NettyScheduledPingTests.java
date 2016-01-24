@@ -49,7 +49,7 @@ public class NettyScheduledPingTests extends ESTestCase {
     public void testScheduledPing() throws Exception {
         ThreadPool threadPool = new ThreadPool(getClass().getName());
 
-        Settings settings = Settings.builder().put(NettyTransport.PING_SCHEDULE, "5ms").put("transport.tcp.port", 0).build();
+        Settings settings = Settings.builder().put(NettyTransport.PING_SCHEDULE.getKey(), "5ms").put(NettyTransport.PORT.getKey(), 0).build();
 
         final NettyTransport nettyA = new NettyTransport(settings, threadPool, new NetworkService(settings), BigArrays.NON_RECYCLING_INSTANCE, Version.CURRENT, new NamedWriteableRegistry());
         MockTransportService serviceA = new MockTransportService(settings, nettyA, threadPool);

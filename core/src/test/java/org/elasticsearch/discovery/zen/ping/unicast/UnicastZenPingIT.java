@@ -48,7 +48,7 @@ public class UnicastZenPingIT extends ESTestCase {
         Settings settings = Settings.EMPTY;
         int startPort = 11000 + randomIntBetween(0, 1000);
         int endPort = startPort + 10;
-        settings = Settings.builder().put(settings).put("transport.tcp.port", startPort + "-" + endPort).build();
+        settings = Settings.builder().put(settings).put(NettyTransport.PORT.getKey(), startPort + "-" + endPort).build();
 
         ThreadPool threadPool = new ThreadPool(getClass().getName());
         ClusterName clusterName = new ClusterName("test");

@@ -368,7 +368,15 @@ public class Setting<T> extends ToXContentToBytes {
     }
 
     public static Setting<ByteSizeValue> byteSizeSetting(String key, ByteSizeValue value, boolean dynamic, Scope scope) {
-        return new Setting<>(key, (s) -> value.toString(), (s) -> ByteSizeValue.parseBytesSizeValue(s, key), dynamic, scope);
+        return byteSizeSetting(key, (s) -> value.toString(), dynamic, scope);
+    }
+
+    public static Setting<ByteSizeValue> byteSizeSetting(String key, Setting<ByteSizeValue> fallbackSettings, boolean dynamic, Scope scope) {
+        return byteSizeSetting(key, fallbackSettings::getRaw, dynamic, scope);
+    }
+
+    public static Setting<ByteSizeValue> byteSizeSetting(String key, Function<Settings, String> defaultValue, boolean dynamic, Scope scope) {
+        return new Setting<>(key, defaultValue, (s) -> ByteSizeValue.parseBytesSizeValue(s, key), dynamic, scope);
     }
 
     public static Setting<TimeValue> positiveTimeSetting(String key, TimeValue defaultValue, boolean dynamic, Scope scope) {
@@ -521,7 +529,11 @@ public class Setting<T> extends ToXContentToBytes {
     }
 
     public static Setting<TimeValue> timeSetting(String key, TimeValue defaultValue, boolean dynamic, Scope scope) {
-        return new Setting<>(key, (s) -> defaultValue.toString(), (s) -> TimeValue.parseTimeValue(s, defaultValue, key), dynamic, scope);
+        return new Setting<>(key, (s) -> defaultValue.toString(), (s) -> TimeValue.parseTimeValue(s, key), dynamic, scope);
+    }
+
+    public static Setting<TimeValue> timeSetting(String key, Setting<TimeValue> fallbackSetting, boolean dynamic, Scope scope) {
+        return new Setting<>(key, fallbackSetting::getRaw, (s) -> TimeValue.parseTimeValue(s, key), dynamic, scope);
     }
 
     public static Setting<Double> doubleSetting(String key, double defaultValue, double minValue, boolean dynamic, Scope scope) {

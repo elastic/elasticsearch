@@ -43,6 +43,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ActionNotFoundTransportException;
 import org.elasticsearch.transport.RequestHandlerRegistry;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportSettings;
 import org.jboss.netty.channel.Channel;
 import org.jboss.netty.channel.ChannelPipeline;
 import org.jboss.netty.channel.ChannelPipelineFactory;
@@ -85,7 +86,7 @@ public class NettyTransportIT extends ESIntegTestCase {
             fail("Expected exception, but didnt happen");
         } catch (ElasticsearchException e) {
             assertThat(e.getMessage(), containsString("MY MESSAGE"));
-            assertThat(channelProfileName, is(NettyTransport.DEFAULT_PROFILE));
+            assertThat(channelProfileName, is(TransportSettings.DEFAULT_PROFILE));
         }
     }
 
@@ -127,7 +128,7 @@ public class NettyTransportIT extends ESIntegTestCase {
             @Override
             public ChannelPipeline getPipeline() throws Exception {
                 ChannelPipeline pipeline = super.getPipeline();
-                pipeline.replace("dispatcher", "dispatcher", new MessageChannelHandler(nettyTransport, logger, NettyTransport.DEFAULT_PROFILE) {
+                pipeline.replace("dispatcher", "dispatcher", new MessageChannelHandler(nettyTransport, logger, TransportSettings.DEFAULT_PROFILE) {
 
                     @Override
                     protected String handleRequest(Channel channel, StreamInput buffer, long requestId, Version version) throws IOException {

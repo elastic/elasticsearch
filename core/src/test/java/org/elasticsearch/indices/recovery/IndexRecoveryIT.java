@@ -258,7 +258,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
 
         logger.info("--> move shard from: {} to: {}", nodeA, nodeB);
         client().admin().cluster().prepareReroute()
-                .add(new MoveAllocationCommand(new ShardId(INDEX_NAME, 0), nodeA, nodeB))
+                .add(new MoveAllocationCommand(INDEX_NAME, 0, nodeA, nodeB))
                 .execute().actionGet().getState();
 
         logger.info("--> waiting for recovery to start both on source and target");
@@ -384,7 +384,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
 
         logger.info("--> move replica shard from: {} to: {}", nodeA, nodeC);
         client().admin().cluster().prepareReroute()
-                .add(new MoveAllocationCommand(new ShardId(INDEX_NAME, 0), nodeA, nodeC))
+                .add(new MoveAllocationCommand(INDEX_NAME, 0, nodeA, nodeC))
                 .execute().actionGet().getState();
 
         response = client().admin().indices().prepareRecoveries(INDEX_NAME).execute().actionGet();

@@ -118,7 +118,7 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
                 FailedNodeException exception = (FailedNodeException) responses.get(i);
                 totalShards += nodes.get(exception.nodeId()).size();
                 for (ShardRouting shard : nodes.get(exception.nodeId())) {
-                    exceptions.add(new DefaultShardOperationFailedException(shard.getIndex(), shard.getId(), exception));
+                    exceptions.add(new DefaultShardOperationFailedException(shard.getIndexName(), shard.getId(), exception));
                 }
             } else {
                 NodeResponse response = (NodeResponse) responses.get(i);
@@ -127,7 +127,7 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
                 successfulShards += response.getSuccessfulShards();
                 for (BroadcastShardOperationFailedException throwable : response.getExceptions()) {
                     if (!TransportActions.isShardNotAvailableException(throwable)) {
-                        exceptions.add(new DefaultShardOperationFailedException(throwable.getIndex(), throwable.getShardId().getId(), throwable));
+                        exceptions.add(new DefaultShardOperationFailedException(throwable.getShardId().getIndexName(), throwable.getShardId().getId(), throwable));
                     }
                 }
             }
@@ -406,7 +406,7 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
                 }
             } catch (Throwable t) {
                 BroadcastShardOperationFailedException e = new BroadcastShardOperationFailedException(shardRouting.shardId(), "operation " + actionName + " failed", t);
-                e.setIndex(shardRouting.getIndex());
+                e.setIndex(shardRouting.getIndexName());
                 e.setShard(shardRouting.shardId());
                 shardResults[shardIndex] = e;
                 if (TransportActions.isShardNotAvailableException(t)) {

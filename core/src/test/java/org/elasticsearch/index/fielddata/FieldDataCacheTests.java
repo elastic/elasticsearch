@@ -67,7 +67,7 @@ public class FieldDataCacheTests extends ESTestCase {
             }
         }
         iw.close();
-        DirectoryReader ir = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(dir), new ShardId("_index", 0));
+        DirectoryReader ir = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(dir), new ShardId("_index", "_na_", 0));
 
         DummyAccountingFieldDataCache fieldDataCache = new DummyAccountingFieldDataCache();
         // Testing SortedSetDVOrdinalsIndexFieldData:

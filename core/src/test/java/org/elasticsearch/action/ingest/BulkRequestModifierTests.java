@@ -71,7 +71,7 @@ public class BulkRequestModifierTests extends ESTestCase {
         BulkResponse bulkResponse = actionListener.getResponse();
         for (int j = 0; j < bulkResponse.getItems().length; j++) {
             if (failedSlots.contains(j)) {
-                BulkItemResponse item =  bulkResponse.getItems()[j];
+                BulkItemResponse item = bulkResponse.getItems()[j];
                 assertThat(item.isFailed(), is(true));
                 assertThat(item.getFailure().getIndex(), equalTo("_index"));
                 assertThat(item.getFailure().getType(), equalTo("_type"));
@@ -116,7 +116,7 @@ public class BulkRequestModifierTests extends ESTestCase {
         List<BulkItemResponse> originalResponses = new ArrayList<>();
         for (ActionRequest actionRequest : bulkRequest.requests()) {
             IndexRequest indexRequest = (IndexRequest) actionRequest;
-            IndexResponse indexResponse = new IndexResponse(new ShardId("index", 0), indexRequest.type(), indexRequest.id(), 1, true);
+            IndexResponse indexResponse = new IndexResponse(new ShardId("index", "_na_", 0), indexRequest.type(), indexRequest.id(), 1, true);
             originalResponses.add(new BulkItemResponse(Integer.parseInt(indexRequest.id()), indexRequest.opType().lowercase(), indexResponse));
         }
         bulkResponseListener.onResponse(new BulkResponse(originalResponses.toArray(new BulkItemResponse[originalResponses.size()]), 0));
@@ -151,7 +151,7 @@ public class BulkRequestModifierTests extends ESTestCase {
 
         @Override
         public void onResponse(BulkResponse bulkItemResponses) {
-            this.response = bulkItemResponses ;
+            this.response = bulkItemResponses;
         }
 
         @Override

@@ -87,21 +87,21 @@ public class NodeEnvironmentTests extends ESTestCase {
     public void testShardLock() throws IOException {
         final NodeEnvironment env = newNodeEnvironment();
 
-        ShardLock fooLock = env.shardLock(new ShardId("foo", 0));
-        assertEquals(new ShardId("foo", 0), fooLock.getShardId());
+        ShardLock fooLock = env.shardLock(new ShardId("foo", "_na_", 0));
+        assertEquals(new ShardId("foo", "_na_", 0), fooLock.getShardId());
 
         try {
-            env.shardLock(new ShardId("foo", 0));
+            env.shardLock(new ShardId("foo", "_na_", 0));
             fail("shard is locked");
         } catch (LockObtainFailedException ex) {
             // expected
         }
-        for (Path path : env.indexPaths(new Index("foo"))) {
+        for (Path path : env.indexPaths("foo")) {
             Files.createDirectories(path.resolve("0"));
             Files.createDirectories(path.resolve("1"));
         }
         try {
-            env.lockAllForIndex(new Index("foo"), idxSettings, randomIntBetween(0, 10));
+            env.lockAllForIndex(new Index("foo", "_na_"), idxSettings, randomIntBetween(0, 10));
             fail("shard 0 is locked");
         } catch (LockObtainFailedException ex) {
             // expected
@@ -109,11 +109,11 @@ public class NodeEnvironmentTests extends ESTestCase {
 
         fooLock.close();
         // can lock again?
-        env.shardLock(new ShardId("foo", 0)).close();
+        env.shardLock(new ShardId("foo", "_na_", 0)).close();
 
-        List<ShardLock> locks = env.lockAllForIndex(new Index("foo"), idxSettings, randomIntBetween(0, 10));
+        List<ShardLock> locks = env.lockAllForIndex(new Index("foo", "_na_"), idxSettings, randomIntBetween(0, 10));
         try {
-            env.shardLock(new ShardId("foo", 0));
+            env.shardLock(new ShardId("foo", "_na_", 0));
             fail("shard is locked");
         } catch (LockObtainFailedException ex) {
             // expected
@@ -127,7 +127,7 @@ public class NodeEnvironmentTests extends ESTestCase {
         final NodeEnvironment env = newNodeEnvironment();
         final int numIndices = randomIntBetween(1, 10);
         for (int i = 0; i < numIndices; i++) {
-            for (Path path : env.indexPaths(new Index("foo" + i))) {
+            for (Path path : env.indexPaths("foo" + i)) {
                 Files.createDirectories(path);
             }
         }
@@ -142,44 +142,44 @@ public class NodeEnvironmentTests extends ESTestCase {
 
     public void testDeleteSafe() throws IOException, InterruptedException {
         final NodeEnvironment env = newNodeEnvironment();
-        ShardLock fooLock = env.shardLock(new ShardId("foo", 0));
-        assertEquals(new ShardId("foo", 0), fooLock.getShardId());
+        ShardLock fooLock = env.shardLock(new ShardId("foo", "_na_", 0));
+        assertEquals(new ShardId("foo", "_na_", 0), fooLock.getShardId());
 
 
-        for (Path path : env.indexPaths(new Index("foo"))) {
+        for (Path path : env.indexPaths("foo")) {
             Files.createDirectories(path.resolve("0"));
             Files.createDirectories(path.resolve("1"));
         }
 
         try {
-            env.deleteShardDirectorySafe(new ShardId("foo", 0), idxSettings);
+            env.deleteShardDirectorySafe(new ShardId("foo", "_na_", 0), idxSettings);
             fail("shard is locked");
         } catch (LockObtainFailedException ex) {
             // expected
         }
 
-        for (Path path : env.indexPaths(new Index("foo"))) {
+        for (Path path : env.indexPaths("foo")) {
             assertTrue(Files.exists(path.resolve("0")));
             assertTrue(Files.exists(path.resolve("1")));
 
         }
 
-        env.deleteShardDirectorySafe(new ShardId("foo", 1), idxSettings);
+        env.deleteShardDirectorySafe(new ShardId("foo", "_na_", 1), idxSettings);
 
-        for (Path path : env.indexPaths(new Index("foo"))) {
+        for (Path path : env.indexPaths("foo")) {
             assertTrue(Files.exists(path.resolve("0")));
             assertFalse(Files.exists(path.resolve("1")));
         }
 
         try {
-            env.deleteIndexDirectorySafe(new Index("foo"), randomIntBetween(0, 10), idxSettings);
+            env.deleteIndexDirectorySafe(new Index("foo", "_na_"), randomIntBetween(0, 10), idxSettings);
             fail("shard is locked");
         } catch (LockObtainFailedException ex) {
             // expected
         }
         fooLock.close();
 
-        for (Path path : env.indexPaths(new Index("foo"))) {
+        for (Path path : env.indexPaths("foo")) {
             assertTrue(Files.exists(path));
         }
 
@@ -200,7 +200,7 @@ public class NodeEnvironmentTests extends ESTestCase {
                 @Override
                 protected void doRun() throws Exception {
                     start.await();
-                    try (ShardLock autoCloses = env.shardLock(new ShardId("foo", 0))) {
+                    try (ShardLock autoCloses = env.shardLock(new ShardId("foo", "_na_", 0))) {
                         blockLatch.countDown();
                         Thread.sleep(randomIntBetween(1, 10));
                     }
@@ -215,11 +215,11 @@ public class NodeEnvironmentTests extends ESTestCase {
         start.countDown();
         blockLatch.await();
 
-        env.deleteIndexDirectorySafe(new Index("foo"), 5000, idxSettings);
+        env.deleteIndexDirectorySafe(new Index("foo", "_na_"), 5000, idxSettings);
 
         assertNull(threadException.get());
 
-        for (Path path : env.indexPaths(new Index("foo"))) {
+        for (Path path : env.indexPaths("foo")) {
             assertFalse(Files.exists(path));
         }
         latch.await();
@@ -258,7 +258,7 @@ public class NodeEnvironmentTests extends ESTestCase {
                     for (int i = 0; i < iters; i++) {
                         int shard = randomIntBetween(0, counts.length - 1);
                         try {
-                            try (ShardLock autoCloses = env.shardLock(new ShardId("foo", shard), scaledRandomIntBetween(0, 10))) {
+                            try (ShardLock autoCloses = env.shardLock(new ShardId("foo", "_na_", shard), scaledRandomIntBetween(0, 10))) {
                                 counts[shard].value++;
                                 countsAtomic[shard].incrementAndGet();
                                 assertEquals(flipFlop[shard].incrementAndGet(), 1);
@@ -294,8 +294,8 @@ public class NodeEnvironmentTests extends ESTestCase {
 
         IndexSettings s1 = IndexSettingsModule.newIndexSettings("myindex", Settings.EMPTY);
         IndexSettings s2 = IndexSettingsModule.newIndexSettings("myindex", Settings.builder().put(IndexMetaData.SETTING_DATA_PATH, "/tmp/foo").build());
-        ShardId sid = new ShardId("myindex", 0);
-        Index i = new Index("myindex");
+        Index index = new Index("myindex", "_na_");
+        ShardId sid = new ShardId(index, 0);
 
         assertFalse("no settings should mean no custom data path", s1.hasCustomDataPath());
         assertTrue("settings with path_data should have a custom data path", s2.hasCustomDataPath());
@@ -308,7 +308,7 @@ public class NodeEnvironmentTests extends ESTestCase {
                 equalTo(stringsToPaths(dataPaths, "elasticsearch/nodes/0/indices/myindex/0")));
 
         assertThat("index paths uses the regular template",
-                env.indexPaths(i), equalTo(stringsToPaths(dataPaths, "elasticsearch/nodes/0/indices/myindex")));
+                env.indexPaths(index.getName()), equalTo(stringsToPaths(dataPaths, "elasticsearch/nodes/0/indices/myindex")));
 
         env.close();
         NodeEnvironment env2 = newNodeEnvironment(dataPaths, "/tmp",
@@ -322,7 +322,7 @@ public class NodeEnvironmentTests extends ESTestCase {
                 equalTo(stringsToPaths(dataPaths, "elasticsearch/nodes/0/indices/myindex/0")));
 
         assertThat("index paths uses the regular template",
-                env2.indexPaths(i), equalTo(stringsToPaths(dataPaths, "elasticsearch/nodes/0/indices/myindex")));
+                env2.indexPaths(index.getName()), equalTo(stringsToPaths(dataPaths, "elasticsearch/nodes/0/indices/myindex")));
 
         env2.close();
     }

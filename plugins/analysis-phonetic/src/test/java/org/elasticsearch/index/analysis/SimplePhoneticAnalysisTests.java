@@ -56,7 +56,7 @@ public class SimplePhoneticAnalysisTests extends ESTestCase {
     }
 
     private AnalysisService testSimpleConfiguration(Settings settings) throws IOException {
-        Index index = new Index("test");
+        Index index = new Index("test", "_na_");
         AnalysisModule analysisModule = new AnalysisModule(new Environment(settings));
         new AnalysisPhoneticPlugin().onModule(analysisModule);
         SettingsModule settingsModule = new SettingsModule(settings, new SettingsFilter(settings));

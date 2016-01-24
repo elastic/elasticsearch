@@ -29,6 +29,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.math.MathUtils;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
@@ -95,13 +96,14 @@ public class OperationRouting extends AbstractComponent {
         // we use set here and not list since we might get duplicates
         for (String index : concreteIndices) {
             final IndexRoutingTable indexRouting = indexRoutingTable(clusterState, index);
+            final IndexMetaData indexMetaData = indexMetaData(clusterState, index);
             final Set<String> effectiveRouting = routing.get(index);
             if (effectiveRouting != null) {
                 for (String r : effectiveRouting) {
-                    int shardId = generateShardId(clusterState, index, null, r);
+                    int shardId = generateShardId(indexMetaData, null, r);
                     IndexShardRoutingTable indexShard = indexRouting.shard(shardId);
                     if (indexShard == null) {
-                        throw new ShardNotFoundException(new ShardId(index, shardId));
+                        throw new ShardNotFoundException(new ShardId(indexRouting.getIndex(), shardId));
                     }
                     // we might get duplicates, but that's ok, they will override one another
                     set.add(indexShard);
@@ -204,20 +206,25 @@ public class OperationRouting extends AbstractComponent {
         return indexRouting;
     }
 
-    protected IndexShardRoutingTable shards(ClusterState clusterState, String index, String id, String routing) {
-        int shardId = generateShardId(clusterState, index, id, routing);
-        return clusterState.getRoutingTable().shardRoutingTable(index, shardId);
-    }
-
-    public ShardId shardId(ClusterState clusterState, String index, String id, @Nullable String routing) {
-        return new ShardId(index, generateShardId(clusterState, index, id, routing));
-    }
-
-    private int generateShardId(ClusterState clusterState, String index, String id, @Nullable String routing) {
+    protected IndexMetaData indexMetaData(ClusterState clusterState, String index) {
         IndexMetaData indexMetaData = clusterState.metaData().index(index);
         if (indexMetaData == null) {
             throw new IndexNotFoundException(index);
         }
+        return indexMetaData;
+    }
+
+    protected IndexShardRoutingTable shards(ClusterState clusterState, String index, String id, String routing) {
+        int shardId = generateShardId(indexMetaData(clusterState, index), id, routing);
+        return clusterState.getRoutingTable().shardRoutingTable(index, shardId);
+    }
+
+    public ShardId shardId(ClusterState clusterState, String index, String id, @Nullable String routing) {
+        IndexMetaData indexMetaData = indexMetaData(clusterState, index);
+        return new ShardId(indexMetaData.getIndex(), generateShardId(indexMetaData, id, routing));
+    }
+
+    private int generateShardId(IndexMetaData indexMetaData, String id, @Nullable String routing) {
         final int hash;
         if (routing == null) {
             hash = Murmur3HashFunction.hash(id);

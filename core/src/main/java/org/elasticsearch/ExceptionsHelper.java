@@ -26,6 +26,7 @@ import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -243,7 +244,12 @@ public final class ExceptionsHelper {
 
         public GroupBy(Throwable t) {
             if (t instanceof ElasticsearchException) {
-                index = ((ElasticsearchException) t).getIndex();
+                final Index index = ((ElasticsearchException) t).getIndex();
+                if (index != null) {
+                    this.index = index.getName();
+                } else {
+                    this.index = null;
+                }
             } else {
                 index = null;
             }

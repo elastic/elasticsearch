@@ -38,7 +38,7 @@ public class ShardUtilsTests extends ESTestCase {
         BaseDirectoryWrapper dir = newDirectory();
         IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
         writer.commit();
-        ShardId id = new ShardId("foo", random().nextInt());
+        ShardId id = new ShardId("foo", "_na_", random().nextInt());
         try (DirectoryReader reader = DirectoryReader.open(writer, random().nextBoolean())) {
             ElasticsearchDirectoryReader wrap = ElasticsearchDirectoryReader.wrap(reader, id);
             assertEquals(id, ShardUtils.extractShardId(wrap));

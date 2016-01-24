@@ -67,7 +67,7 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, S
     }
 
     public ClusterIndexHealth(IndexMetaData indexMetaData, IndexRoutingTable indexRoutingTable) {
-        this.index = indexMetaData.getIndex();
+        this.index = indexMetaData.getIndex().getName();
         this.numberOfShards = indexMetaData.getNumberOfShards();
         this.numberOfReplicas = indexMetaData.getNumberOfReplicas();
         this.validationFailures = indexRoutingTable.validate(indexMetaData);

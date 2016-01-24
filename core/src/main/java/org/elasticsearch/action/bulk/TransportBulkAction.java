@@ -377,7 +377,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         if (unavailableException == null) {
             IndexMetaData indexMetaData = metaData.index(concreteIndex);
             if (indexMetaData.getState() == IndexMetaData.State.CLOSE) {
-                unavailableException = new IndexClosedException(new Index(metaData.index(request.index()).getIndex()));
+                unavailableException = new IndexClosedException(metaData.index(request.index()).getIndex());
             }
         }
         if (unavailableException != null) {

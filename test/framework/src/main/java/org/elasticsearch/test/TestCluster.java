@@ -147,7 +147,7 @@ public abstract class TestCluster implements Iterable<Client>, Closeable {
                     ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().execute().actionGet();
                     ObjectArrayList<String> concreteIndices = new ObjectArrayList<>();
                     for (IndexMetaData indexMetaData : clusterStateResponse.getState().metaData()) {
-                        concreteIndices.add(indexMetaData.getIndex());
+                        concreteIndices.add(indexMetaData.getIndex().getName());
                     }
                     if (!concreteIndices.isEmpty()) {
                         assertAcked(client().admin().indices().prepareDelete(concreteIndices.toArray(String.class)));

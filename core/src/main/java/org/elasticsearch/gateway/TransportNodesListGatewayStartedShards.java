@@ -49,7 +49,6 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
@@ -126,7 +125,7 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
             logger.trace("{} loading local shard state info", shardId);
             ShardStateMetaData shardStateMetaData = ShardStateMetaData.FORMAT.loadLatestState(logger, nodeEnv.availableShardPaths(request.shardId));
             if (shardStateMetaData != null) {
-                final IndexMetaData metaData = clusterService.state().metaData().index(shardId.index().name()); // it's a mystery why this is sometimes null
+                final IndexMetaData metaData = clusterService.state().metaData().index(shardId.getIndexName()); // it's a mystery why this is sometimes null
                 if (metaData != null) {
                     ShardPath shardPath = null;
                     try {
@@ -135,7 +134,7 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
                         if (shardPath == null) {
                             throw new IllegalStateException(shardId + " no shard path found");
                         }
-                        Store.tryOpenIndex(shardPath.resolveIndex());
+                        Store.tryOpenIndex(shardPath.resolveIndex(), shardId);
                     } catch (Exception exception) {
                         logger.trace("{} can't open index for shard [{}] in path [{}]", exception, shardId, shardStateMetaData, (shardPath != null) ? shardPath.resolveIndex() : "");
                         String allocationId = shardStateMetaData.allocationId != null ? shardStateMetaData.allocationId.getId() : null;

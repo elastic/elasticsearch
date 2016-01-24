@@ -59,7 +59,7 @@ public class SimpleMgetIT extends ESIntegTestCase {
         assertThat(mgetResponse.getResponses()[1].getIndex(), is("nonExistingIndex"));
         assertThat(mgetResponse.getResponses()[1].isFailed(), is(true));
         assertThat(mgetResponse.getResponses()[1].getFailure().getMessage(), is("no such index"));
-        assertThat(((ElasticsearchException)mgetResponse.getResponses()[1].getFailure().getFailure()).getIndex(), is("nonExistingIndex"));
+        assertThat(((ElasticsearchException) mgetResponse.getResponses()[1].getFailure().getFailure()).getIndex().getName(), is("nonExistingIndex"));
 
 
         mgetResponse = client().prepareMultiGet()
@@ -69,7 +69,7 @@ public class SimpleMgetIT extends ESIntegTestCase {
         assertThat(mgetResponse.getResponses()[0].getIndex(), is("nonExistingIndex"));
         assertThat(mgetResponse.getResponses()[0].isFailed(), is(true));
         assertThat(mgetResponse.getResponses()[0].getFailure().getMessage(), is("no such index"));
-        assertThat(((ElasticsearchException)mgetResponse.getResponses()[0].getFailure().getFailure()).getIndex(), is("nonExistingIndex"));
+        assertThat(((ElasticsearchException) mgetResponse.getResponses()[0].getFailure().getFailure()).getIndex().getName(), is("nonExistingIndex"));
 
 
     }

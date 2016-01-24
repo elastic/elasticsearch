@@ -47,6 +47,7 @@ import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.DummyTransportAddress;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
@@ -198,7 +199,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
     void setClusterState(TestClusterService clusterService, String index) {
         int numberOfNodes = randomIntBetween(3, 5);
         DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
-        IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index);
+        IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(new Index(index,"_na_"));
 
         int shardIndex = -1;
         for (int i = 0; i < numberOfNodes; i++) {
@@ -206,7 +207,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
             discoBuilder = discoBuilder.put(node);
             int numberOfShards = randomIntBetween(1, 10);
             for (int j = 0; j < numberOfShards; j++) {
-                final ShardId shardId = new ShardId(index, ++shardIndex);
+                final ShardId shardId = new ShardId(index, "_na_", ++shardIndex);
                 ShardRouting shard = TestShardRouting.newShardRouting(index, shardId.getId(), node.id(), true, ShardRoutingState.STARTED, 1);
                 IndexShardRoutingTable.Builder indexShard = new IndexShardRoutingTable.Builder(shardId);
                 indexShard.addShard(shard);

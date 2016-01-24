@@ -64,7 +64,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  */
 public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
-    private final ShardId shardId = new ShardId("test", 0);
+    private final ShardId shardId = new ShardId("test", "_na_", 0);
     private final DiscoveryNode node1 = newNode("node1");
     private final DiscoveryNode node2 = newNode("node2");
     private final DiscoveryNode node3 = newNode("node3");
@@ -286,7 +286,7 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
     private RoutingAllocation onePrimaryOnNode1And1Replica(AllocationDeciders deciders, Settings settings, UnassignedInfo.Reason reason) {
         ShardRouting primaryShard = TestShardRouting.newShardRouting(shardId.getIndex(), shardId.getId(), node1.id(), true, ShardRoutingState.STARTED, 10);
         MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder(shardId.getIndex()).settings(settings(Version.CURRENT).put(settings))
+                .put(IndexMetaData.builder(shardId.getIndexName()).settings(settings(Version.CURRENT).put(settings))
                     .numberOfShards(1).numberOfReplicas(1)
                     .putActiveAllocationIds(0, Sets.newHashSet(primaryShard.allocationId().getId())))
             .build();
@@ -308,7 +308,7 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
     private RoutingAllocation onePrimaryOnNode1And1ReplicaRecovering(AllocationDeciders deciders) {
         ShardRouting primaryShard = TestShardRouting.newShardRouting(shardId.getIndex(), shardId.getId(), node1.id(), true, ShardRoutingState.STARTED, 10);
         MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder(shardId.getIndex()).settings(settings(Version.CURRENT))
+                .put(IndexMetaData.builder(shardId.getIndexName()).settings(settings(Version.CURRENT))
                     .numberOfShards(1).numberOfReplicas(1)
                     .putActiveAllocationIds(0, Sets.newHashSet(primaryShard.allocationId().getId())))
                 .build();

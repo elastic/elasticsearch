@@ -130,7 +130,7 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
                 throw new RuntimeException("FAIL");
             }
         });
-        client().admin().cluster().prepareReroute().add(new MoveAllocationCommand(new ShardId("index1", 0), node1, node2)).get();
+        client().admin().cluster().prepareReroute().add(new MoveAllocationCommand("index1", 0, node1, node2)).get();
         ensureGreen("index1");
         ClusterState state = client().admin().cluster().prepareState().get().getState();
         List<ShardRouting> shard = state.getRoutingNodes().shardsWithState(ShardRoutingState.STARTED);

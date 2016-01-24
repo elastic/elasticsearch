@@ -78,7 +78,7 @@ public class VersionsTests extends ESTestCase {
     public void testVersions() throws Exception {
         Directory dir = newDirectory();
         IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
-        DirectoryReader directoryReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer, true), new ShardId("foo", 1));
+        DirectoryReader directoryReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer, true), new ShardId("foo", "_na_", 1));
         MatcherAssert.assertThat(Versions.loadVersion(directoryReader, new Term(UidFieldMapper.NAME, "1")), equalTo(Versions.NOT_FOUND));
 
         Document doc = new Document();
@@ -145,7 +145,7 @@ public class VersionsTests extends ESTestCase {
         docs.add(doc);
 
         writer.updateDocuments(new Term(UidFieldMapper.NAME, "1"), docs);
-        DirectoryReader directoryReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer, true), new ShardId("foo", 1));
+        DirectoryReader directoryReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer, true), new ShardId("foo", "_na_", 1));
         assertThat(Versions.loadVersion(directoryReader, new Term(UidFieldMapper.NAME, "1")), equalTo(5l));
         assertThat(Versions.loadDocIdAndVersion(directoryReader, new Term(UidFieldMapper.NAME, "1")).version, equalTo(5l));
 
@@ -170,7 +170,7 @@ public class VersionsTests extends ESTestCase {
         Directory dir = newDirectory();
         IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
 
-        DirectoryReader directoryReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer, true), new ShardId("foo", 1));
+        DirectoryReader directoryReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer, true), new ShardId("foo", "_na_", 1));
         MatcherAssert.assertThat(Versions.loadVersion(directoryReader, new Term(UidFieldMapper.NAME, "1")), equalTo(Versions.NOT_FOUND));
 
         Document doc = new Document();
@@ -281,7 +281,7 @@ public class VersionsTests extends ESTestCase {
 
         // Force merge and check versions
         iw.forceMerge(1, true);
-        final LeafReader ir = SlowCompositeReaderWrapper.wrap(ElasticsearchDirectoryReader.wrap(DirectoryReader.open(iw.getDirectory()), new ShardId("foo", 1)));
+        final LeafReader ir = SlowCompositeReaderWrapper.wrap(ElasticsearchDirectoryReader.wrap(DirectoryReader.open(iw.getDirectory()), new ShardId("foo", "_na_", 1)));
         final NumericDocValues versions = ir.getNumericDocValues(VersionFieldMapper.NAME);
         assertThat(versions, notNullValue());
         for (int i = 0; i < ir.maxDoc(); ++i) {
@@ -334,7 +334,7 @@ public class VersionsTests extends ESTestCase {
         assertEquals(87, Versions.loadVersion(reader, new Term(UidFieldMapper.NAME, "6")));
         assertEquals(size+1, Versions.lookupStates.size());
         // now wrap the reader
-        DirectoryReader wrapped = ElasticsearchDirectoryReader.wrap(reader, new ShardId("bogus", 5));
+        DirectoryReader wrapped = ElasticsearchDirectoryReader.wrap(reader, new ShardId("bogus", "_na_", 5));
         assertEquals(87, Versions.loadVersion(wrapped, new Term(UidFieldMapper.NAME, "6")));
         // same size map: core cache key is shared
         assertEquals(size+1, Versions.lookupStates.size());

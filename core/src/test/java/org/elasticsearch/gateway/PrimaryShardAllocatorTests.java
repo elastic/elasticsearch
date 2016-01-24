@@ -53,7 +53,7 @@ import static org.hamcrest.Matchers.equalTo;
  */
 public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
 
-    private final ShardId shardId = new ShardId("test", 0);
+    private final ShardId shardId = new ShardId("test", "_na_", 0);
     private final DiscoveryNode node1 = newNode("node1");
     private final DiscoveryNode node2 = newNode("node2");
     private final DiscoveryNode node3 = newNode("node3");
@@ -298,12 +298,12 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
     private RoutingAllocation getRestoreRoutingAllocation(AllocationDeciders allocationDeciders) {
         Version version = randomFrom(Version.CURRENT, Version.V_2_0_0);
         MetaData metaData = MetaData.builder()
-            .put(IndexMetaData.builder(shardId.getIndex()).settings(settings(version)).numberOfShards(1).numberOfReplicas(0)
+            .put(IndexMetaData.builder(shardId.getIndexName()).settings(settings(version)).numberOfShards(1).numberOfReplicas(0)
                 .putActiveAllocationIds(0, version == Version.CURRENT ? Sets.newHashSet("allocId") : Collections.emptySet()))
             .build();
 
         RoutingTable routingTable = RoutingTable.builder()
-            .addAsRestore(metaData.index(shardId.getIndex()), new RestoreSource(new SnapshotId("test", "test"), version, shardId.getIndex()))
+            .addAsRestore(metaData.index(shardId.getIndex()), new RestoreSource(new SnapshotId("test", "test"), version, shardId.getIndexName()))
             .build();
         ClusterState state = ClusterState.builder(org.elasticsearch.cluster.ClusterName.DEFAULT)
             .metaData(metaData)
@@ -366,14 +366,14 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
     private RoutingAllocation getRecoverOnAnyNodeRoutingAllocation(AllocationDeciders allocationDeciders) {
         Version version = randomFrom(Version.CURRENT, Version.V_2_0_0);
         MetaData metaData = MetaData.builder()
-            .put(IndexMetaData.builder(shardId.getIndex()).settings(settings(version)
+            .put(IndexMetaData.builder(shardId.getIndexName()).settings(settings(version)
                 .put(IndexMetaData.SETTING_SHARED_FILESYSTEM, true)
                 .put(IndexMetaData.SETTING_SHARED_FS_ALLOW_RECOVERY_ON_ANY_NODE, true))
                 .numberOfShards(1).numberOfReplicas(0).putActiveAllocationIds(0, version == Version.CURRENT ? Sets.newHashSet("allocId") : Collections.emptySet()))
             .build();
 
         RoutingTable routingTable = RoutingTable.builder()
-            .addAsRestore(metaData.index(shardId.getIndex()), new RestoreSource(new SnapshotId("test", "test"), Version.CURRENT, shardId.getIndex()))
+            .addAsRestore(metaData.index(shardId.getIndex()), new RestoreSource(new SnapshotId("test", "test"), Version.CURRENT, shardId.getIndexName()))
             .build();
         ClusterState state = ClusterState.builder(org.elasticsearch.cluster.ClusterName.DEFAULT)
             .metaData(metaData)
@@ -388,7 +388,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
      */
     public void testEnoughCopiesFoundForAllocationOnLegacyIndex() {
         MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder(shardId.getIndex()).settings(settings(Version.V_2_0_0)).numberOfShards(1).numberOfReplicas(2))
+                .put(IndexMetaData.builder(shardId.getIndexName()).settings(settings(Version.V_2_0_0)).numberOfShards(1).numberOfReplicas(2))
                 .build();
         RoutingTable routingTable = RoutingTable.builder()
                 .addAsRecovery(metaData.index(shardId.getIndex()))
@@ -429,7 +429,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
      */
     public void testEnoughCopiesFoundForAllocationOnLegacyIndexWithDifferentVersion() {
         MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder(shardId.getIndex()).settings(settings(Version.V_2_0_0)).numberOfShards(1).numberOfReplicas(2))
+                .put(IndexMetaData.builder(shardId.getIndexName()).settings(settings(Version.V_2_0_0)).numberOfShards(1).numberOfReplicas(2))
                 .build();
         RoutingTable routingTable = RoutingTable.builder()
                 .addAsRecovery(metaData.index(shardId.getIndex()))
@@ -466,7 +466,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
 
     private RoutingAllocation routingAllocationWithOnePrimaryNoReplicas(AllocationDeciders deciders, boolean asNew, Version version, String... activeAllocationIds) {
         MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder(shardId.getIndex()).settings(settings(version))
+                .put(IndexMetaData.builder(shardId.getIndexName()).settings(settings(version))
                     .numberOfShards(1).numberOfReplicas(0).putActiveAllocationIds(0, Sets.newHashSet(activeAllocationIds)))
             .build();
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();

@@ -63,7 +63,7 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
      * Creates a new request with resolved shard id
      */
     public ReplicationRequest(ShardId shardId) {
-        this.index = shardId.getIndex();
+        this.index = shardId.getIndexName();
         this.shardId = shardId;
     }
 

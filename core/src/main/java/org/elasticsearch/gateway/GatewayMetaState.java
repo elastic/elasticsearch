@@ -130,10 +130,10 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
                         for (IndexMetaData indexMetaData : newMetaData) {
                             IndexMetaData indexMetaDataOnDisk = null;
                             if (indexMetaData.getState().equals(IndexMetaData.State.CLOSE)) {
-                                indexMetaDataOnDisk = metaStateService.loadIndexState(indexMetaData.getIndex());
+                                indexMetaDataOnDisk = metaStateService.loadIndexState(indexMetaData.getIndex().getName());
                             }
                             if (indexMetaDataOnDisk != null) {
-                                newPreviouslyWrittenIndices.add(indexMetaDataOnDisk.getIndex());
+                                newPreviouslyWrittenIndices.add(indexMetaDataOnDisk.getIndex().getName());
                             }
                         }
                         newPreviouslyWrittenIndices.addAll(previouslyWrittenIndices);
@@ -289,19 +289,19 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
         }
         Set<String> indices = new HashSet<>();
         for (ShardRouting routing : newRoutingNode) {
-            indices.add(routing.index());
+            indices.add(routing.index().getName());
         }
         // we have to check the meta data also: closed indices will not appear in the routing table, but we must still write the state if we have it written on disk previously
         for (IndexMetaData indexMetaData : state.metaData()) {
             boolean isOrWasClosed = indexMetaData.getState().equals(IndexMetaData.State.CLOSE);
             // if the index is open we might still have to write the state if it just transitioned from closed to open
             // so we have to check for that as well.
-            IndexMetaData previousMetaData = previousState.metaData().getIndices().get(indexMetaData.getIndex());
+            IndexMetaData previousMetaData = previousState.metaData().index(indexMetaData.getIndex());
             if (previousMetaData != null) {
                 isOrWasClosed = isOrWasClosed || previousMetaData.getState().equals(IndexMetaData.State.CLOSE);
             }
-            if (previouslyWrittenIndices.contains(indexMetaData.getIndex()) && isOrWasClosed) {
-                indices.add(indexMetaData.getIndex());
+            if (previouslyWrittenIndices.contains(indexMetaData.getIndex().getName()) && isOrWasClosed) {
+                indices.add(indexMetaData.getIndex().getName());
             }
         }
         return indices;
@@ -312,7 +312,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
         relevantIndices = new HashSet<>();
         // we have to iterate over the metadata to make sure we also capture closed indices
         for (IndexMetaData indexMetaData : state.metaData()) {
-            relevantIndices.add(indexMetaData.getIndex());
+            relevantIndices.add(indexMetaData.getIndex().getName());
         }
         return relevantIndices;
     }

@@ -147,7 +147,7 @@ public class BroadcastReplicationTests extends ESTestCase {
                 if (shardsSucceeded == 1 && randomBoolean()) {
                     //sometimes add failure (no failure means shard unavailable)
                     failures = new ReplicationResponse.ShardInfo.Failure[1];
-                    failures[0] = new ReplicationResponse.ShardInfo.Failure(index, shardRequests.v1().id(), null, new Exception("pretend shard failed"), RestStatus.GATEWAY_TIMEOUT, false);
+                    failures[0] = new ReplicationResponse.ShardInfo.Failure(shardRequests.v1(), null, new Exception("pretend shard failed"), RestStatus.GATEWAY_TIMEOUT, false);
                     failed++;
                 }
                 replicationResponse.setShardInfo(new ReplicationResponse.ShardInfo(2, shardsSucceeded, failures));
@@ -171,11 +171,11 @@ public class BroadcastReplicationTests extends ESTestCase {
 
     public void testShardsList() throws InterruptedException, ExecutionException {
         final String index = "test";
-        final ShardId shardId = new ShardId(index, 0);
+        final ShardId shardId = new ShardId(index, "_na_", 0);
         ClusterState clusterState = state(index, randomBoolean(),
                 randomBoolean() ? ShardRoutingState.INITIALIZING : ShardRoutingState.UNASSIGNED, ShardRoutingState.UNASSIGNED);
         logger.debug("--> using initial state:\n{}", clusterService.state().prettyPrint());
-        List<ShardId> shards = broadcastReplicationAction.shards(new DummyBroadcastRequest().indices(shardId.index().name()), clusterState);
+        List<ShardId> shards = broadcastReplicationAction.shards(new DummyBroadcastRequest().indices(shardId.getIndexName()), clusterState);
         assertThat(shards.size(), equalTo(1));
         assertThat(shards.get(0), equalTo(shardId));
     }

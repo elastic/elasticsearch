@@ -556,7 +556,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
         IndexService indexService = indicesService.indexServiceSafe(request.index());
         IndexShard indexShard = indexService.getShard(request.shardId());
 
-        SearchShardTarget shardTarget = new SearchShardTarget(clusterService.localNode().id(), request.index(), request.shardId());
+        SearchShardTarget shardTarget = new SearchShardTarget(clusterService.localNode().id(), indexShard.shardId().getIndex(), request.shardId());
 
         Engine.Searcher engineSearcher = searcher == null ? indexShard.acquireSearcher("search") : searcher;
 
@@ -610,7 +610,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
     private void freeAllContextForIndex(Index index) {
         assert index != null;
         for (SearchContext ctx : activeContexts.values()) {
-            if (index.equals(ctx.indexShard().shardId().index())) {
+            if (index.equals(ctx.indexShard().shardId().getIndex())) {
                 freeContext(ctx.id());
             }
         }

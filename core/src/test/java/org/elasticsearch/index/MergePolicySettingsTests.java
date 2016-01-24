@@ -37,7 +37,7 @@ import static org.elasticsearch.index.IndexSettingsTests.newIndexMeta;
 import static org.hamcrest.Matchers.equalTo;
 
 public class MergePolicySettingsTests extends ESTestCase {
-    protected final ShardId shardId = new ShardId(new Index("index"), 1);
+    protected final ShardId shardId = new ShardId("index", "_na_", 1);
 
     public void testCompoundFileSettings() throws IOException {
         assertThat(new MergePolicyConfig(logger, indexSettings(Settings.EMPTY)).getMergePolicy().getNoCFSRatio(), equalTo(0.1));

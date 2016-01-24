@@ -62,7 +62,7 @@ public class PercolateDocumentParser {
         BytesReference source = request.source();
         if (source == null || source.length() == 0) {
             if (request.docSource() != null && request.docSource().length() != 0) {
-                return parseFetchedDoc(context, request.docSource(), mapperService, request.shardId().getIndex(), request.documentType());
+                return parseFetchedDoc(context, request.docSource(), mapperService, request.shardId().getIndexName(), request.documentType());
             } else {
                 return null;
             }
@@ -182,7 +182,7 @@ public class PercolateDocumentParser {
                 throw new IllegalArgumentException("Can't specify the document to percolate in the source of the request and as document id");
             }
 
-            doc = parseFetchedDoc(context, request.docSource(), mapperService, request.shardId().getIndex(), request.documentType());
+            doc = parseFetchedDoc(context, request.docSource(), mapperService, request.shardId().getIndexName(), request.documentType());
         }
 
         if (doc == null) {

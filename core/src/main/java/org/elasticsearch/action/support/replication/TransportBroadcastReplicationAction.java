@@ -90,13 +90,13 @@ public abstract class TransportBroadcastReplicationAction<Request extends Broadc
                 @Override
                 public void onFailure(Throwable e) {
                     logger.trace("{}: got failure from {}", actionName, shardId);
-                    int totalNumCopies = clusterState.getMetaData().index(shardId.index().getName()).getNumberOfReplicas() + 1;
+                    int totalNumCopies = clusterState.getMetaData().index(shardId.getIndexName()).getNumberOfReplicas() + 1;
                     ShardResponse shardResponse = newShardResponse();
                     ReplicationResponse.ShardInfo.Failure[] failures;
                     if (TransportActions.isShardNotAvailableException(e)) {
                         failures = new ReplicationResponse.ShardInfo.Failure[0];
                     } else {
-                        ReplicationResponse.ShardInfo.Failure failure = new ReplicationResponse.ShardInfo.Failure(shardId.index().name(), shardId.id(), null, e, ExceptionsHelper.status(e), true);
+                        ReplicationResponse.ShardInfo.Failure failure = new ReplicationResponse.ShardInfo.Failure(shardId, null, e, ExceptionsHelper.status(e), true);
                         failures = new ReplicationResponse.ShardInfo.Failure[totalNumCopies];
                         Arrays.fill(failures, failure);
                     }
@@ -154,7 +154,7 @@ public abstract class TransportBroadcastReplicationAction<Request extends Broadc
                     shardFailures = new ArrayList<>();
                 }
                 for (ReplicationResponse.ShardInfo.Failure failure : shardResponse.getShardInfo().getFailures()) {
-                    shardFailures.add(new DefaultShardOperationFailedException(new BroadcastShardOperationFailedException(new ShardId(failure.index(), failure.shardId()), failure.getCause())));
+                    shardFailures.add(new DefaultShardOperationFailedException(new BroadcastShardOperationFailedException(failure.fullShardId(), failure.getCause())));
                 }
             }
         }

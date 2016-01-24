@@ -75,7 +75,7 @@ public class TransportUpgradeAction extends TransportBroadcastByNodeAction<Upgra
         Map<String, Tuple<Version, org.apache.lucene.util.Version>> versions = new HashMap<>();
         for (ShardUpgradeResult result : shardUpgradeResults) {
             successfulShards++;
-            String index = result.getShardId().getIndex();
+            String index = result.getShardId().getIndex().getName();
             if (result.primary()) {
                 Integer count = successfulPrimaryShards.get(index);
                 successfulPrimaryShards.put(index, count == null ? 1 : count + 1);

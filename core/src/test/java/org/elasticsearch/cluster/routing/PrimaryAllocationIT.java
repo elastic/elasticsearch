@@ -141,7 +141,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         assertThat(client().admin().cluster().prepareState().get().getState().getRoutingTable().index("test").getShards().get(0).primaryShard().unassignedInfo().getReason(), equalTo(UnassignedInfo.Reason.NODE_LEFT));
 
         logger.info("--> force allocation of stale copy to node that does not have shard copy");
-        client().admin().cluster().prepareReroute().add(new AllocateStalePrimaryAllocationCommand(new ShardId("test", 0), dataNodeWithNoShardCopy, true)).get();
+        client().admin().cluster().prepareReroute().add(new AllocateStalePrimaryAllocationCommand("test", 0, dataNodeWithNoShardCopy, true)).get();
 
         logger.info("--> wait until shard is failed and becomes unassigned again");
         assertBusy(() -> assertTrue(client().admin().cluster().prepareState().get().getState().getRoutingTable().index("test").allPrimaryShardsUnassigned()));
@@ -161,9 +161,9 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
             logger.info("--> adding allocation command for shard " + shardId);
             // force allocation based on node id
             if (useStaleReplica) {
-                rerouteBuilder.add(new AllocateStalePrimaryAllocationCommand(new ShardId("test", shardId), storeStatus.getNode().getId(), true));
+                rerouteBuilder.add(new AllocateStalePrimaryAllocationCommand("test", shardId, storeStatus.getNode().getId(), true));
             } else {
-                rerouteBuilder.add(new AllocateEmptyPrimaryAllocationCommand(new ShardId("test", shardId), storeStatus.getNode().getId(), true));
+                rerouteBuilder.add(new AllocateEmptyPrimaryAllocationCommand("test", shardId, storeStatus.getNode().getId(), true));
             }
         }
         rerouteBuilder.get();
@@ -182,7 +182,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
 
         assertThat(client().admin().cluster().prepareState().get().getState().getRoutingTable().shardRoutingTable("test", 0).assignedShards(), empty());
 
-        client().admin().cluster().prepareReroute().add(new AllocateEmptyPrimaryAllocationCommand(new ShardId("test", 0), node, true)).get();
+        client().admin().cluster().prepareReroute().add(new AllocateEmptyPrimaryAllocationCommand("test", 0, node, true)).get();
         ensureGreen("test");
     }
 

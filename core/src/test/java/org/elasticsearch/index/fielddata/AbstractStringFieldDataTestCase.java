@@ -49,7 +49,6 @@ import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
@@ -389,7 +388,7 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
             }
         }
         DirectoryReader directoryReader = DirectoryReader.open(writer, true);
-        directoryReader = ElasticsearchDirectoryReader.wrap(directoryReader, new ShardId(new Index("test"), 0));
+        directoryReader = ElasticsearchDirectoryReader.wrap(directoryReader, new ShardId(indexService.index(), 0));
         IndexSearcher searcher = new IndexSearcher(directoryReader);
         IndexFieldData<?> fieldData = getForField("text");
         final Object missingValue;

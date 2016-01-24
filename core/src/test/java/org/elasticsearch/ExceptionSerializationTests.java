@@ -245,8 +245,8 @@ public class ExceptionSerializationTests extends ESTestCase {
     }
 
     public void testQueryShardException() throws IOException {
-        QueryShardException ex = serialize(new QueryShardException(new Index("foo"), "fobar", null));
-        assertEquals(ex.getIndex(), "foo");
+        QueryShardException ex = serialize(new QueryShardException(new Index("foo", "_na_"), "fobar", null));
+        assertEquals(ex.getIndex().getName(), "foo");
         assertEquals(ex.getMessage(), "fobar");
 
         ex = serialize(new QueryShardException((Index) null, null, null));
@@ -255,7 +255,7 @@ public class ExceptionSerializationTests extends ESTestCase {
     }
 
     public void testSearchException() throws IOException {
-        SearchShardTarget target = new SearchShardTarget("foo", "bar", 1);
+        SearchShardTarget target = new SearchShardTarget("foo", new Index("bar", "_na_"), 1);
         SearchException ex = serialize(new SearchException(target, "hello world"));
         assertEquals(target, ex.shard());
         assertEquals(ex.getMessage(), "hello world");
@@ -268,7 +268,7 @@ public class ExceptionSerializationTests extends ESTestCase {
 
     public void testAlreadyExpiredException() throws IOException {
         AlreadyExpiredException alreadyExpiredException = serialize(new AlreadyExpiredException("index", "type", "id", 1, 2, 3));
-        assertEquals("index", alreadyExpiredException.getIndex());
+        assertEquals("index", alreadyExpiredException.getIndex().getName());
         assertEquals("type", alreadyExpiredException.type());
         assertEquals("id", alreadyExpiredException.id());
         assertEquals(2, alreadyExpiredException.ttl());
@@ -303,7 +303,7 @@ public class ExceptionSerializationTests extends ESTestCase {
     }
 
     public void testRecoverFilesRecoveryException() throws IOException {
-        ShardId id = new ShardId("foo", 1);
+        ShardId id = new ShardId("foo", "_na_", 1);
         ByteSizeValue bytes = new ByteSizeValue(randomIntBetween(0, 10000));
         RecoverFilesRecoveryException ex = serialize(new RecoverFilesRecoveryException(id, 10, bytes, null));
         assertEquals(ex.getShardId(), id);
@@ -331,7 +331,7 @@ public class ExceptionSerializationTests extends ESTestCase {
     }
 
     public void testBatchOperationException() throws IOException {
-        ShardId id = new ShardId("foo", 1);
+        ShardId id = new ShardId("foo", "_na_", 1);
         TranslogRecoveryPerformer.BatchOperationException ex = serialize(new TranslogRecoveryPerformer.BatchOperationException(id, "batched the fucker", 666, null));
         assertEquals(ex.getShardId(), id);
         assertEquals(666, ex.completedOperations());
@@ -368,7 +368,7 @@ public class ExceptionSerializationTests extends ESTestCase {
     }
 
     public void testPercolateException() throws IOException {
-        ShardId id = new ShardId("foo", 1);
+        ShardId id = new ShardId("foo", "_na_", 1);
         PercolateException ex = serialize(new PercolateException(id, "percolate my ass", null));
         assertEquals(id, ex.getShardId());
         assertEquals("percolate my ass", ex.getMessage());
@@ -402,9 +402,9 @@ public class ExceptionSerializationTests extends ESTestCase {
     }
 
     public void testIndexFailedEngineException() throws IOException {
-        ShardId id = new ShardId("foo", 1);
+        ShardId id = new ShardId("foo", "_na_", 1);
         IndexFailedEngineException ex = serialize(new IndexFailedEngineException(id, "type", "id", null));
-        assertEquals(ex.getShardId(), new ShardId("foo", 1));
+        assertEquals(ex.getShardId(), new ShardId("foo", "_na_", 1));
         assertEquals("type", ex.type());
         assertEquals("id", ex.id());
         assertNull(ex.getCause());
@@ -433,7 +433,7 @@ public class ExceptionSerializationTests extends ESTestCase {
     }
 
     public void testIllegalIndexShardStateException() throws IOException {
-        ShardId id = new ShardId("foo", 1);
+        ShardId id = new ShardId("foo", "_na_", 1);
         IndexShardState state = randomFrom(IndexShardState.values());
         IllegalIndexShardStateException ex = serialize(new IllegalIndexShardStateException(id, state, "come back later buddy"));
         assertEquals(id, ex.getShardId());
@@ -477,7 +477,7 @@ public class ExceptionSerializationTests extends ESTestCase {
 
     public void testRoutingMissingException() throws IOException {
         RoutingMissingException ex = serialize(new RoutingMissingException("idx", "type", "id"));
-        assertEquals("idx", ex.getIndex());
+        assertEquals("idx", ex.getIndex().getName());
         assertEquals("type", ex.getType());
         assertEquals("id", ex.getId());
         assertEquals("routing is required for [idx]/[type]/[id]", ex.getMessage());
@@ -505,7 +505,7 @@ public class ExceptionSerializationTests extends ESTestCase {
 
 
     public void testRecoveryEngineException() throws IOException {
-        ShardId id = new ShardId("foo", 1);
+        ShardId id = new ShardId("foo", "_na_", 1);
         RecoveryEngineException ex = serialize(new RecoveryEngineException(id, 10, "total failure", new NullPointerException()));
         assertEquals(id, ex.getShardId());
         assertEquals("Phase[10] total failure", ex.getMessage());

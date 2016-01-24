@@ -114,7 +114,7 @@ public class IndexSettingsTests extends ESTestCase {
         if (settings.length > 0) {
             settingSet.addAll(Arrays.asList(settings));
         }
-        return new IndexSettings(metaData, nodeSettings, (idx) -> Regex.simpleMatch(idx, metaData.getIndex()), new IndexScopedSettings(Settings.EMPTY, settingSet));
+        return new IndexSettings(metaData, nodeSettings, (idx) -> Regex.simpleMatch(idx, metaData.getIndex().getName()), new IndexScopedSettings(Settings.EMPTY, settingSet));
     }
 
 

@@ -24,6 +24,7 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RestoreSource;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -254,8 +255,8 @@ final class StoreRecovery {
             translogState.totalOperationsOnStart(0);
             indexShard.prepareForIndexRecovery();
             ShardId snapshotShardId = shardId;
-            if (!shardId.getIndex().equals(restoreSource.index())) {
-                snapshotShardId = new ShardId(restoreSource.index(), shardId.id());
+            if (!shardId.getIndexName().equals(restoreSource.index())) {
+                snapshotShardId = new ShardId(restoreSource.index(), IndexMetaData.INDEX_UUID_NA_VALUE, shardId.id());
             }
             indexShardRepository.restore(restoreSource.snapshotId(), restoreSource.version(), shardId, snapshotShardId, indexShard.recoveryState());
             indexShard.skipTranslogRecovery();

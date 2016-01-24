@@ -343,7 +343,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
             }
         }
         private void failReplicaIfNeeded(Throwable t) {
-            String index = request.shardId().getIndex();
+            String index = request.shardId().getIndex().getName();
             int shardId = request.shardId().id();
             logger.trace("failure on replica [{}][{}], action [{}], request [{}]", t, index, shardId, actionName, request);
             if (ignoreReplicaException(t) == false) {
@@ -436,7 +436,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
             resolveRequest(state.metaData(), concreteIndex, request);
             assert request.shardId() != null : "request shardId must be set in resolveRequest";
 
-            IndexShardRoutingTable indexShard = state.getRoutingTable().shardRoutingTable(request.shardId().getIndex(), request.shardId().id());
+            IndexShardRoutingTable indexShard = state.getRoutingTable().shardRoutingTable(request.shardId());
             final ShardRouting primary = indexShard.primaryShard();
             if (primary == null || primary.active() == false) {
                 logger.trace("primary shard [{}] is not yet active, scheduling a retry: action [{}], request [{}], cluster state version [{}]", request.shardId(), actionName, request, state.version());
@@ -645,7 +645,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
             }
             final int sizeActive;
             final int requiredNumber;
-            IndexRoutingTable indexRoutingTable = state.getRoutingTable().index(shardId.getIndex());
+            IndexRoutingTable indexRoutingTable = state.getRoutingTable().index(shardId.getIndexName());
             if (indexRoutingTable != null) {
                 IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(shardId.getId());
                 if (shardRoutingTable != null) {
@@ -710,7 +710,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
     }
 
     protected Releasable getIndexShardOperationsCounter(ShardId shardId) {
-        IndexService indexService = indicesService.indexServiceSafe(shardId.index().getName());
+        IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         IndexShard indexShard = indexService.getShard(shardId.id());
         return new IndexShardReference(indexShard);
     }
@@ -949,9 +949,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                     failuresArray = new ReplicationResponse.ShardInfo.Failure[shardReplicaFailures.size()];
                     for (Map.Entry<String, Throwable> entry : shardReplicaFailures.entrySet()) {
                         RestStatus restStatus = ExceptionsHelper.status(entry.getValue());
-                        failuresArray[slot++] = new ReplicationResponse.ShardInfo.Failure(
-                                shardId.getIndex(), shardId.getId(), entry.getKey(), entry.getValue(), restStatus, false
-                        );
+                        failuresArray[slot++] = new ReplicationResponse.ShardInfo.Failure(shardId, entry.getKey(), entry.getValue(), restStatus, false);
                     }
                 } else {
                     failuresArray = ReplicationResponse.EMPTY;

@@ -888,7 +888,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
     private static void setDefaultIndexTypeFields(QueryShardContext context, Item item, List<String> moreLikeFields,
                                                   boolean useDefaultField) {
         if (item.index() == null) {
-            item.index(context.index().name());
+            item.index(context.index().getName());
         }
         if (item.type() == null) {
             if (context.queryTypes().size() > 1) {

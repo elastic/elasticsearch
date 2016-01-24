@@ -29,6 +29,7 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -169,15 +170,13 @@ public class ReplicationResponse extends ActionResponse {
 
         public static class Failure implements ShardOperationFailedException, ToXContent {
 
-            private String index;
-            private int shardId;
+            private ShardId shardId;
             private String nodeId;
             private Throwable cause;
             private RestStatus status;
             private boolean primary;
 
-            public Failure(String index, int shardId, @Nullable String nodeId, Throwable cause, RestStatus status, boolean primary) {
-                this.index = index;
+            public Failure(ShardId  shardId, @Nullable String nodeId, Throwable cause, RestStatus status, boolean primary) {
                 this.shardId = shardId;
                 this.nodeId = nodeId;
                 this.cause = cause;
@@ -193,7 +192,7 @@ public class ReplicationResponse extends ActionResponse {
              */
             @Override
             public String index() {
-                return index;
+                return shardId.getIndexName();
             }
 
             /**
@@ -201,6 +200,10 @@ public class ReplicationResponse extends ActionResponse {
              */
             @Override
             public int shardId() {
+                return shardId.id();
+            }
+
+            public ShardId fullShardId() {
                 return shardId;
             }
 
@@ -243,8 +246,7 @@ public class ReplicationResponse extends ActionResponse {
 
             @Override
             public void readFrom(StreamInput in) throws IOException {
-                index = in.readString();
-                shardId = in.readVInt();
+                shardId = ShardId.readShardId(in);
                 nodeId = in.readOptionalString();
                 cause = in.readThrowable();
                 status = RestStatus.readFrom(in);
@@ -253,8 +255,7 @@ public class ReplicationResponse extends ActionResponse {
 
             @Override
             public void writeTo(StreamOutput out) throws IOException {
-                out.writeString(index);
-                out.writeVInt(shardId);
+                shardId.writeTo(out);
                 out.writeOptionalString(nodeId);
                 out.writeThrowable(cause);
                 RestStatus.writeTo(out, status);
@@ -264,8 +265,8 @@ public class ReplicationResponse extends ActionResponse {
             @Override
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
                 builder.startObject();
-                builder.field(Fields._INDEX, index);
-                builder.field(Fields._SHARD, shardId);
+                builder.field(Fields._INDEX, shardId.getIndexName());
+                builder.field(Fields._SHARD, shardId.id());
                 builder.field(Fields._NODE, nodeId);
                 builder.field(Fields.REASON);
                 builder.startObject();

@@ -56,7 +56,7 @@ public class SimplePolishTokenFilterTests extends ESTestCase {
     }
 
     private void testToken(String source, String expected) throws IOException {
-        Index index = new Index("test");
+        Index index = new Index("test", "_na_");
         Settings settings = Settings.settingsBuilder()
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
@@ -78,7 +78,7 @@ public class SimplePolishTokenFilterTests extends ESTestCase {
     }
 
     private void testAnalyzer(String source, String... expected_terms) throws IOException {
-        Index index = new Index("test");
+        Index index = new Index("test", "_na_");
         Settings settings = Settings.settingsBuilder()
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())

@@ -169,7 +169,7 @@ public class MetaDataMappingService extends AbstractComponent {
 
     private boolean refreshIndexMapping(IndexService indexService, IndexMetaData.Builder builder) {
         boolean dirty = false;
-        String index = indexService.index().name();
+        String index = indexService.index().getName();
         try {
             List<String> updatedTypes = new ArrayList<>();
             for (DocumentMapper mapper : indexService.mapperService().docMappers(true)) {

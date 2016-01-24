@@ -64,7 +64,7 @@ public final class ShardCoreKeyMap {
             throw new IllegalArgumentException("Could not extract shard id from " + reader);
         }
         final Object coreKey = reader.getCoreCacheKey();
-        final String index = shardId.getIndex();
+        final String index = shardId.getIndexName();
         synchronized (this) {
             if (coreKeyToShard.put(coreKey, shardId) == null) {
                 Set<Object> objects = indexToCoreKey.get(index);

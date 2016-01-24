@@ -182,7 +182,7 @@ public class RecoveryTarget extends AbstractComponent implements IndexEventListe
 
         final AtomicReference<RecoveryResponse> responseHolder = new AtomicReference<>();
         try {
-            logger.trace("[{}][{}] starting recovery from {}", request.shardId().index().name(), request.shardId().id(), request.sourceNode());
+            logger.trace("[{}][{}] starting recovery from {}", request.shardId().getIndex().getName(), request.shardId().id(), request.sourceNode());
             recoveryStatus.indexShard().prepareForIndexRecovery();
             recoveryStatus.CancellableThreads().execute(new CancellableThreads.Interruptable() {
                 @Override
@@ -202,7 +202,7 @@ public class RecoveryTarget extends AbstractComponent implements IndexEventListe
             onGoingRecoveries.markRecoveryAsDone(recoveryStatus.recoveryId());
             if (logger.isTraceEnabled()) {
                 StringBuilder sb = new StringBuilder();
-                sb.append('[').append(request.shardId().index().name()).append(']').append('[').append(request.shardId().id()).append("] ");
+                sb.append('[').append(request.shardId().getIndex().getName()).append(']').append('[').append(request.shardId().id()).append("] ");
                 sb.append("recovery completed from ").append(request.sourceNode()).append(", took[").append(recoveryTime).append("]\n");
                 sb.append("   phase1: recovered_files [").append(recoveryResponse.phase1FileNames.size()).append("]").append(" with total_size of [").append(new ByteSizeValue(recoveryResponse.phase1TotalSize)).append("]")
                         .append(", took [").append(timeValueMillis(recoveryResponse.phase1Time)).append("], throttling_wait [").append(timeValueMillis(recoveryResponse.phase1ThrottlingWaitTime)).append(']')
@@ -220,7 +220,7 @@ public class RecoveryTarget extends AbstractComponent implements IndexEventListe
             logger.trace("recovery cancelled", e);
         } catch (Throwable e) {
             if (logger.isTraceEnabled()) {
-                logger.trace("[{}][{}] Got exception on recovery", e, request.shardId().index().name(), request.shardId().id());
+                logger.trace("[{}][{}] Got exception on recovery", e, request.shardId().getIndex().getName(), request.shardId().id());
             }
             Throwable cause = ExceptionsHelper.unwrapCause(e);
             if (cause instanceof CancellableThreads.ExecutionCancelledException) {

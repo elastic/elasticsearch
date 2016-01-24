@@ -200,7 +200,7 @@ public class TransportMultiPercolateAction extends HandledTransportAction<MultiP
                         ShardId shardId = shard.shardId();
                         TransportShardMultiPercolateAction.Request requests = requestsByShard.get(shardId);
                         if (requests == null) {
-                            requestsByShard.put(shardId, requests = new TransportShardMultiPercolateAction.Request(shardId.getIndex(), shardId.getId(), percolateRequest.preference()));
+                            requestsByShard.put(shardId, requests = new TransportShardMultiPercolateAction.Request(shardId.getIndexName(), shardId.getId(), percolateRequest.preference()));
                         }
                         logger.trace("Adding shard[{}] percolate request for item[{}]", shardId, slot);
                         requests.add(new TransportShardMultiPercolateAction.Request.Item(slot, new PercolateShardRequest(shardId, percolateRequest)));

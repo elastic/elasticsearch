@@ -76,16 +76,15 @@ public class UpdateHelper extends AbstractComponent {
         final GetResult getResult = indexShard.getService().get(request.type(), request.id(),
                 new String[]{RoutingFieldMapper.NAME, ParentFieldMapper.NAME, TTLFieldMapper.NAME, TimestampFieldMapper.NAME},
                 true, request.version(), request.versionType(), FetchSourceContext.FETCH_SOURCE, false);
-        return prepare(request, getResult);
+        return prepare(indexShard.shardId(), request, getResult);
     }
 
     /**
      * Prepares an update request by converting it into an index or delete request or an update response (no action).
      */
     @SuppressWarnings("unchecked")
-    protected Result prepare(UpdateRequest request, final GetResult getResult) {
+    protected Result prepare(ShardId shardId, UpdateRequest request, final GetResult getResult) {
         long getDateNS = System.nanoTime();
-        final ShardId shardId = new ShardId(getResult.getIndex(), request.shardId());
         if (!getResult.isExists()) {
             if (request.upsertRequest() == null && !request.docAsUpsert()) {
                 throw new DocumentMissingException(shardId, request.type(), request.id());

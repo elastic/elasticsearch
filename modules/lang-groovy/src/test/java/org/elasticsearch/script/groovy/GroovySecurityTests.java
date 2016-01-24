@@ -87,6 +87,8 @@ public class GroovySecurityTests extends ESTestCase {
         assertSuccess("def t = Instant.now().getMillis()");
         // GroovyCollections
         assertSuccess("def n = [1,2,3]; GroovyCollections.max(n)");
+        // Groovy closures
+        assertSuccess("[1, 2, 3, 4].findAll { it % 2 == 0 }");
 
         // Fail cases:
         assertFailure("pr = Runtime.getRuntime().exec(\"touch /tmp/gotcha\"); pr.waitFor()", MissingPropertyException.class);

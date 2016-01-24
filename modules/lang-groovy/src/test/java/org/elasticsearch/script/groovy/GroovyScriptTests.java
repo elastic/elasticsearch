@@ -51,7 +51,6 @@ import static org.hamcrest.Matchers.equalTo;
  */
 // TODO: refactor into unit test or proper rest tests
 public class GroovyScriptTests extends ESIntegTestCase {
-
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singleton(GroovyPlugin.class);
@@ -72,20 +71,6 @@ public class GroovyScriptTests extends ESIntegTestCase {
                 .setSource(new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()).sort(SortBuilders.scriptSort(script, "number")))
                 .get();
         assertNoFailures(resp);
-    }
-
-    public void testUseClosure() {
-        client().prepareIndex("test", "type", "1").setSource("message", "This is a message!").setSource("numbers", new int[] { 1, 2, 3, 4 }).setRefresh(true).get();
-        client().prepareIndex("test", "type", "1").setSource("message", "This is a message! too").setSource("numbers", new int[] { 4, 2, 3, 5 }).setRefresh(true).get();
-
-        SearchSourceBuilder searchSourceBuilder =
-            SearchSourceBuilder
-                .searchSource()
-                .scriptField("use_closure", new Script("doc['numbers'].values.findAll { it % 2 == 0 }", ScriptType.INLINE, "groovy", null));
-        SearchResponse response = client().prepareSearch()
-            .setSource(searchSourceBuilder)
-            .get();
-        assertNoFailures(response);
     }
 
     public void testGroovyExceptionSerialization() throws Exception {

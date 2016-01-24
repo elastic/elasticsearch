@@ -101,7 +101,7 @@ public abstract class AbstractAllocateAllocationCommand implements AllocationCom
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-        builder.field(INDEX_KEY, shardId().index().name());
+        builder.field(INDEX_KEY, shardId().index().getName());
         builder.field(SHARD_KEY, shardId().id());
         builder.field(NODE_KEY, node());
         return builder;

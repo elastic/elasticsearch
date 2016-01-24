@@ -237,7 +237,7 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
     }
 
     final IndexShardRoutingTable getShardRoutingTable(ShardId shardId, ClusterState state) {
-        final IndexRoutingTable indexRoutingTable = state.routingTable().index(shardId.index().name());
+        final IndexRoutingTable indexRoutingTable = state.routingTable().index(shardId.index().getName());
         if (indexRoutingTable == null) {
             IndexMetaData index = state.getMetaData().index(shardId.index().getName());
             if (index != null && index.getState() == IndexMetaData.State.CLOSE) {

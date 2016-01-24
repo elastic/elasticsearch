@@ -175,7 +175,7 @@ public class BroadcastReplicationTests extends ESTestCase {
         ClusterState clusterState = state(index, randomBoolean(),
                 randomBoolean() ? ShardRoutingState.INITIALIZING : ShardRoutingState.UNASSIGNED, ShardRoutingState.UNASSIGNED);
         logger.debug("--> using initial state:\n{}", clusterService.state().prettyPrint());
-        List<ShardId> shards = broadcastReplicationAction.shards(new DummyBroadcastRequest().indices(shardId.index().name()), clusterState);
+        List<ShardId> shards = broadcastReplicationAction.shards(new DummyBroadcastRequest().indices(shardId.index().getName()), clusterState);
         assertThat(shards.size(), equalTo(1));
         assertThat(shards.get(0), equalTo(shardId));
     }

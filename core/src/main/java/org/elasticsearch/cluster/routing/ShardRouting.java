@@ -720,7 +720,7 @@ public final class ShardRouting implements Streamable, ToXContent {
             .field("node", currentNodeId())
             .field("relocating_node", relocatingNodeId())
             .field("shard", shardId().id())
-            .field("index", shardId().index().name())
+            .field("index", shardId().index().getName())
             .field("version", version);
         if (expectedShardSize != UNAVAILABLE_EXPECTED_SHARD_SIZE) {
             builder.field("expected_shard_size_in_bytes", expectedShardSize);

@@ -232,7 +232,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         if (this.termsLookup != null) {
             termsLookup = new TermsLookup(this.termsLookup);
             if (termsLookup.index() == null) {
-                termsLookup.index(context.index().name());
+                termsLookup.index(context.index().getName());
             }
             Client client = context.getClient();
             terms = fetch(termsLookup, client);

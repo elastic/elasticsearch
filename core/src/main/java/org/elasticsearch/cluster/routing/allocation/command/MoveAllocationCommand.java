@@ -109,7 +109,7 @@ public class MoveAllocationCommand implements AllocationCommand {
             } else {
                 builder.startObject(objectName);
             }
-            builder.field("index", command.shardId().index().name());
+            builder.field("index", command.shardId().index().getName());
             builder.field("shard", command.shardId().id());
             builder.field("from_node", command.fromNode());
             builder.field("to_node", command.toNode());

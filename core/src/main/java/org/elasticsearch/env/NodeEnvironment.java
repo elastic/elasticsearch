@@ -107,7 +107,7 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
          * Resolves the given indexes directory against this NodePath
          */
         public Path resolve(Index index) {
-            return indicesPath.resolve(index.name());
+            return indicesPath.resolve(index.getName());
         }
 
         @Override
@@ -426,7 +426,7 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
         logger.trace("deleting index {} directory, paths({}): [{}]", index, indexPaths.length, indexPaths);
         IOUtils.rm(indexPaths);
         if (indexSettings.hasCustomDataPath()) {
-            Path customLocation = resolveCustomLocation(indexSettings, index.name());
+            Path customLocation = resolveCustomLocation(indexSettings, index.getName());
             logger.trace("deleting custom index {} directory [{}]", index, customLocation);
             IOUtils.rm(customLocation);
         }
@@ -632,7 +632,7 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
         assert assertEnvIsLocked();
         Path[] indexPaths = new Path[nodePaths.length];
         for (int i = 0; i < nodePaths.length; i++) {
-            indexPaths[i] = nodePaths[i].indicesPath.resolve(index.name());
+            indexPaths[i] = nodePaths[i].indicesPath.resolve(index.getName());
         }
         return indexPaths;
     }
@@ -691,7 +691,7 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
         }
         assert assertEnvIsLocked();
         final Set<ShardId> shardIds = new HashSet<>();
-        String indexName = index.name();
+        String indexName = index.getName();
         for (final NodePath nodePath : nodePaths) {
             Path location = nodePath.indicesPath;
             if (Files.isDirectory(location)) {
@@ -827,7 +827,7 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
      * @param shardId shard to resolve the path to
      */
     public Path resolveCustomLocation(IndexSettings indexSettings, final ShardId shardId) {
-        return resolveCustomLocation(indexSettings, shardId.index().name()).resolve(Integer.toString(shardId.id()));
+        return resolveCustomLocation(indexSettings, shardId.index().getName()).resolve(Integer.toString(shardId.id()));
     }
 
     /**

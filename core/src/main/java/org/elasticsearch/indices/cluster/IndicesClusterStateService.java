@@ -235,7 +235,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         assert localNodeId != null;
 
         for (IndexService indexService : indicesService) {
-            IndexMetaData indexMetaData = event.state().metaData().index(indexService.index().name());
+            IndexMetaData indexMetaData = event.state().metaData().index(indexService.index().getName());
             if (indexMetaData != null) {
                 if (!indexMetaData.isSameUUID(indexService.indexUUID())) {
                     logger.debug("[{}] mismatch on index UUIDs between cluster state and local state, cleaning the index so it will be recreated", indexMetaData.getIndex());
@@ -276,7 +276,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         }
         IntHashSet newShardIds = new IntHashSet();
         for (IndexService indexService : indicesService) {
-            String index = indexService.index().name();
+            String index = indexService.index().getName();
             IndexMetaData indexMetaData = event.state().metaData().index(index);
             if (indexMetaData == null) {
                 continue;
@@ -796,7 +796,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
     private class FailedShardHandler implements Callback<IndexShard.ShardFailure> {
         @Override
         public void handle(final IndexShard.ShardFailure shardFailure) {
-            final IndexService indexService = indicesService.indexService(shardFailure.routing.shardId().index().name());
+            final IndexService indexService = indicesService.indexService(shardFailure.routing.shardId().index().getName());
             final ShardRouting shardRouting = shardFailure.routing;
             threadPool.generic().execute(() -> {
                 synchronized (mutex) {

@@ -635,7 +635,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         }
 
         public static void writeTo(IndexShardRoutingTable indexShard, StreamOutput out) throws IOException {
-            out.writeString(indexShard.shardId().index().name());
+            out.writeString(indexShard.shardId().index().getName());
             writeToThin(indexShard, out);
         }
 

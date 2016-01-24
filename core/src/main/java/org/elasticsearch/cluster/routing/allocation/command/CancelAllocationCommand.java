@@ -110,7 +110,7 @@ public class CancelAllocationCommand implements AllocationCommand {
             } else {
                 builder.startObject(objectName);
             }
-            builder.field("index", command.shardId().index().name());
+            builder.field("index", command.shardId().index().getName());
             builder.field("shard", command.shardId().id());
             builder.field("node", command.node());
             builder.field("allow_primary", command.allowPrimary());

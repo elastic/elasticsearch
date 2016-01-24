@@ -34,7 +34,6 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.join.BitSetProducer;
-import org.apache.lucene.store.BaseDirectoryWrapper;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.Accountable;
@@ -157,7 +156,7 @@ public class BitSetFilterCacheTests extends ESTestCase {
                 stats.addAndGet(accountable.ramBytesUsed());
                 if (writerReader != reader) {
                     assertNotNull(shardId);
-                    assertEquals("test", shardId.index().name());
+                    assertEquals("test", shardId.index().getName());
                     assertEquals(0, shardId.id());
                 } else {
                     assertNull(shardId);
@@ -170,7 +169,7 @@ public class BitSetFilterCacheTests extends ESTestCase {
                 stats.addAndGet(-accountable.ramBytesUsed());
                 if (writerReader != reader) {
                     assertNotNull(shardId);
-                    assertEquals("test", shardId.index().name());
+                    assertEquals("test", shardId.index().getName());
                     assertEquals(0, shardId.id());
                 } else {
                     assertNull(shardId);

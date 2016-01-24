@@ -55,7 +55,7 @@ public class ShardId implements Streamable, Comparable<ShardId> {
     }
 
     public String getIndex() {
-        return index().name();
+        return index().getName();
     }
 
     public int id() {
@@ -68,7 +68,7 @@ public class ShardId implements Streamable, Comparable<ShardId> {
 
     @Override
     public String toString() {
-        return "[" + index.name() + "][" + shardId + "]";
+        return "[" + index.getName() + "][" + shardId + "]";
     }
 
     @Override
@@ -76,7 +76,7 @@ public class ShardId implements Streamable, Comparable<ShardId> {
         if (this == o) return true;
         if (o == null) return false;
         ShardId shardId1 = (ShardId) o;
-        return shardId == shardId1.shardId && index.name().equals(shardId1.index.name());
+        return shardId == shardId1.shardId && index.getName().equals(shardId1.index.getName());
     }
 
     @Override
@@ -112,7 +112,7 @@ public class ShardId implements Streamable, Comparable<ShardId> {
     @Override
     public int compareTo(ShardId o) {
         if (o.getId() == shardId) {
-            return index.name().compareTo(o.getIndex());
+            return index.getName().compareTo(o.getIndex());
         }
         return Integer.compare(shardId, o.getId());
     }

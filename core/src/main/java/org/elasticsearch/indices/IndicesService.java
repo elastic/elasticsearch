@@ -284,7 +284,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         final Predicate<String> indexNameMatcher = (indexExpression) -> indexNameExpressionResolver.matchesIndex(indexName, indexExpression, clusterService.state());
         final IndexSettings idxSettings = new IndexSettings(indexMetaData, this.settings, indexNameMatcher, indexScopeSetting);
         Index index = new Index(indexMetaData.getIndex());
-        if (indices.containsKey(index.name())) {
+        if (indices.containsKey(index.getName())) {
             throw new IndexAlreadyExistsException(index);
         }
         logger.debug("creating Index [{}], shards [{}]/[{}{}]",
@@ -306,7 +306,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         try {
             assert indexService.getIndexEventListener() == listener;
             listener.afterIndexCreated(indexService);
-            indices = newMapBuilder(indices).put(index.name(), indexService).immutableMap();
+            indices = newMapBuilder(indices).put(index.getName(), indexService).immutableMap();
             success = true;
             return indexService;
         } finally {
@@ -524,7 +524,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
      * @return true if the index can be deleted on this node
      */
     public boolean canDeleteIndexContents(Index index, IndexSettings indexSettings, boolean closed) {
-        final IndexService indexService = this.indices.get(index.name());
+        final IndexService indexService = this.indices.get(index.getName());
         // Closed indices may be deleted, even if they are on a shared
         // filesystem. Since it is closed we aren't deleting it for relocation
         if (indexSettings.isOnSharedFilesystem() == false || closed) {
@@ -550,7 +550,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
      * @param indexSettings the shards's relevant {@link IndexSettings}. This is required to access the indexes settings etc.
      */
     public boolean canDeleteShardContent(ShardId shardId, IndexSettings indexSettings) {
-        assert shardId.getIndex().equals(indexSettings.getIndex().name());
+        assert shardId.getIndex().equals(indexSettings.getIndex().getName());
         final IndexService indexService = this.indices.get(shardId.getIndex());
         if (indexSettings.isOnSharedFilesystem() == false) {
             if (indexService != null && nodeEnv.hasNodeFile()) {

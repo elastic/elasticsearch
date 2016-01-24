@@ -40,7 +40,7 @@ public class UnavailableShardsException extends ElasticsearchException {
         if (shardId == null) {
             return message;
         }
-        return "[" + shardId.index().name() + "][" + shardId.id() + "] " + message;
+        return "[" + shardId.index().getName() + "][" + shardId.id() + "] " + message;
     }
 
     public UnavailableShardsException(StreamInput in) throws IOException {

@@ -180,7 +180,7 @@ public class PercolatorService extends AbstractComponent {
         // just like is done in other apis.
         String[] filteringAliases = indexNameExpressionResolver.filteringAliases(
                 clusterService.state(),
-                indexShard.shardId().index().name(),
+                indexShard.shardId().index().getName(),
                 request.indices()
         );
         Query aliasFilter = percolateIndexService.aliasFilter(indexShard.getQueryShardContext(), filteringAliases);

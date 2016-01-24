@@ -542,8 +542,8 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
         CollectionUtil.timSort(ordered, new Comparator<IndexShardRoutingTable>() {
             @Override
             public int compare(IndexShardRoutingTable o1, IndexShardRoutingTable o2) {
-                int v = o1.shardId().index().name().compareTo(
-                        o2.shardId().index().name());
+                int v = o1.shardId().index().getName().compareTo(
+                        o2.shardId().index().getName());
                 if (v == 0) {
                     v = Integer.compare(o1.shardId().id(),
                                         o2.shardId().id());
@@ -553,7 +553,7 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
         });
 
         for (IndexShardRoutingTable indexShard : ordered) {
-            sb.append("----shard_id [").append(indexShard.shardId().index().name()).append("][").append(indexShard.shardId().id()).append("]\n");
+            sb.append("----shard_id [").append(indexShard.shardId().index().getName()).append("][").append(indexShard.shardId().id()).append("]\n");
             for (ShardRouting shard : indexShard) {
                 sb.append("--------").append(shard.shortSummary()).append("\n");
             }

@@ -96,7 +96,7 @@ public abstract class TransportBroadcastReplicationAction<Request extends Broadc
                     if (TransportActions.isShardNotAvailableException(e)) {
                         failures = new ReplicationResponse.ShardInfo.Failure[0];
                     } else {
-                        ReplicationResponse.ShardInfo.Failure failure = new ReplicationResponse.ShardInfo.Failure(shardId.index().name(), shardId.id(), null, e, ExceptionsHelper.status(e), true);
+                        ReplicationResponse.ShardInfo.Failure failure = new ReplicationResponse.ShardInfo.Failure(shardId.index().getName(), shardId.id(), null, e, ExceptionsHelper.status(e), true);
                         failures = new ReplicationResponse.ShardInfo.Failure[totalNumCopies];
                         Arrays.fill(failures, failure);
                     }

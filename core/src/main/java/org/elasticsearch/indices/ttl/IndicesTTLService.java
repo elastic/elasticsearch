@@ -159,7 +159,7 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
             MetaData metaData = clusterService.state().metaData();
             for (IndexService indexService : indicesService) {
                 // check the value of disable_purge for this index
-                IndexMetaData indexMetaData = metaData.index(indexService.index().name());
+                IndexMetaData indexMetaData = metaData.index(indexService.index().getName());
                 if (indexMetaData == null) {
                     continue;
                 }

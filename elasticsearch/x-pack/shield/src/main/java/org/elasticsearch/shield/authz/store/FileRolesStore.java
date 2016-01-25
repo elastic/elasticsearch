@@ -22,9 +22,11 @@ import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.shield.ShieldPlugin;
 import org.elasticsearch.shield.authc.support.RefreshListener;
-import org.elasticsearch.shield.authz.Permission;
-import org.elasticsearch.shield.authz.Privilege;
-import org.elasticsearch.shield.authz.RoleDescriptor;
+import org.elasticsearch.shield.authz.permission.Role;
+import org.elasticsearch.shield.authz.privilege.ClusterPrivilege;
+import org.elasticsearch.shield.authz.privilege.GeneralPrivilege;
+import org.elasticsearch.shield.authz.privilege.IndexPrivilege;
+import org.elasticsearch.shield.authz.privilege.Privilege;
 import org.elasticsearch.shield.authz.SystemRole;
 import org.elasticsearch.shield.support.NoOpLogger;
 import org.elasticsearch.shield.support.Validation;
@@ -62,17 +64,17 @@ public class FileRolesStore extends AbstractLifecycleComponent<RolesStore> imple
 
     private final Path file;
     private final RefreshListener listener;
-    private final Set<Permission.Global.Role> reservedRoles;
+    private final Set<Role> reservedRoles;
     private final ResourceWatcherService watcherService;
 
-    private volatile Map<String, Permission.Global.Role> permissions;
+    private volatile Map<String, Role> permissions;
 
     @Inject
-    public FileRolesStore(Settings settings, Environment env, ResourceWatcherService watcherService, Set<Permission.Global.Role> reservedRoles) {
+    public FileRolesStore(Settings settings, Environment env, ResourceWatcherService watcherService, Set<Role> reservedRoles) {
         this(settings, env, watcherService, reservedRoles, RefreshListener.NOOP);
     }
 
-    public FileRolesStore(Settings settings, Environment env, ResourceWatcherService watcherService, Set<Permission.Global.Role> reservedRoles, RefreshListener listener) {
+    public FileRolesStore(Settings settings, Environment env, ResourceWatcherService watcherService, Set<Role> reservedRoles, RefreshListener listener) {
         super(settings);
         this.file = resolveFile(settings, env);
         this.listener = listener;
@@ -102,7 +104,7 @@ public class FileRolesStore extends AbstractLifecycleComponent<RolesStore> imple
     }
 
     @Override
-    public Permission.Global.Role role(String role) {
+    public Role role(String role) {
         return permissions.get(role);
     }
 
@@ -116,29 +118,29 @@ public class FileRolesStore extends AbstractLifecycleComponent<RolesStore> imple
     }
 
     public static Set<String> parseFileForRoleNames(Path path, ESLogger logger) {
-        Map<String, Permission.Global.Role> roleMap = parseFile(path, Collections.<Permission.Global.Role>emptySet(), logger, false, Settings.EMPTY);
+        Map<String, Role> roleMap = parseFile(path, Collections.<Role>emptySet(), logger, false, Settings.EMPTY);
         if (roleMap == null) {
             return emptySet();
         }
         return roleMap.keySet();
     }
 
-    public static Map<String, Permission.Global.Role> parseFile(Path path, Set<Permission.Global.Role> reservedRoles, ESLogger logger, Settings settings) {
+    public static Map<String, Role> parseFile(Path path, Set<Role> reservedRoles, ESLogger logger, Settings settings) {
         return parseFile(path, reservedRoles, logger, true, settings);
     }
 
-    public static Map<String, Permission.Global.Role> parseFile(Path path, Set<Permission.Global.Role> reservedRoles, ESLogger logger, boolean resolvePermission, Settings settings) {
+    public static Map<String, Role> parseFile(Path path, Set<Role> reservedRoles, ESLogger logger, boolean resolvePermission, Settings settings) {
         if (logger == null) {
             logger = NoOpLogger.INSTANCE;
         }
 
-        Map<String, Permission.Global.Role> roles = new HashMap<>();
+        Map<String, Role> roles = new HashMap<>();
         logger.trace("attempted to read roles file located at [{}]", path.toAbsolutePath());
         if (Files.exists(path)) {
             try {
                 List<String> roleSegments = roleSegments(path);
                 for (String segment : roleSegments) {
-                    Permission.Global.Role role = parseRole(segment, path, logger, resolvePermission, settings);
+                    Role role = parseRole(segment, path, logger, resolvePermission, settings);
                     if (role != null) {
                         if (SystemRole.NAME.equals(role.name())) {
                             logger.warn("role [{}] is reserved to the system. the relevant role definition in the mapping file will be ignored", SystemRole.NAME);
@@ -154,7 +156,7 @@ public class FileRolesStore extends AbstractLifecycleComponent<RolesStore> imple
         }
 
         // we now add all the fixed roles (overriding any attempts to override the fixed roles in the file)
-        for (Permission.Global.Role reservedRole : reservedRoles) {
+        for (Role reservedRole : reservedRoles) {
             if (roles.containsKey(reservedRole.name())) {
                 logger.warn("role [{}] is reserved to the system. the relevant role definition in the mapping file will be ignored", reservedRole.name());
             }
@@ -164,7 +166,7 @@ public class FileRolesStore extends AbstractLifecycleComponent<RolesStore> imple
         return unmodifiableMap(roles);
     }
 
-    private static Permission.Global.Role parseRole(String segment, Path path, ESLogger logger, boolean resolvePermissions, Settings settings) {
+    private static Role parseRole(String segment, Path path, ESLogger logger, boolean resolvePermissions, Settings settings) {
         String roleName = null;
         try {
             XContentParser parser = YamlXContent.yamlXContent.createParser(segment);
@@ -179,9 +181,9 @@ public class FileRolesStore extends AbstractLifecycleComponent<RolesStore> imple
                         return null;
                     }
 
-                    Permission.Global.Role.Builder permission = Permission.Global.Role.builder(roleName);
+                    Role.Builder role = Role.builder(roleName);
                     if (resolvePermissions == false) {
-                        return permission.build();
+                        return role.build();
                     }
 
                     token = parser.nextToken();
@@ -216,7 +218,7 @@ public class FileRolesStore extends AbstractLifecycleComponent<RolesStore> imple
                                 }
                                 if (name != null) {
                                     try {
-                                        permission.cluster(Privilege.Cluster.get(name));
+                                        role.cluster(ClusterPrivilege.get(name));
                                     } catch (IllegalArgumentException e) {
                                         logger.error("invalid role definition [{}] in roles file [{}]. could not resolve cluster privileges [{}]. skipping role...", roleName, path.toAbsolutePath(), name);
                                         return null;
@@ -307,7 +309,7 @@ public class FileRolesStore extends AbstractLifecycleComponent<RolesStore> imple
                                                     }
 
                                                     try {
-                                                        permission.add(fields, query, Privilege.Index.get(name), indices);
+                                                        role.add(fields, query, IndexPrivilege.get(name), indices);
                                                     } catch (IllegalArgumentException e) {
                                                         logger.error("invalid role definition [{}] in roles file [{}]. could not resolve indices privileges [{}]. skipping role...", roleName, path.toAbsolutePath(), name);
                                                         return null;
@@ -321,7 +323,7 @@ public class FileRolesStore extends AbstractLifecycleComponent<RolesStore> imple
                                             }
                                             if (name != null) {
                                                 try {
-                                                    permission.add(Privilege.Index.get(name), indices);
+                                                    role.add(IndexPrivilege.get(name), indices);
                                                 } catch (IllegalArgumentException e) {
                                                     logger.error("invalid role definition [{}] in roles file [{}]. could not resolve indices privileges [{}]. skipping role...", roleName, path.toAbsolutePath(), name);
                                                     return null;
@@ -358,7 +360,7 @@ public class FileRolesStore extends AbstractLifecycleComponent<RolesStore> imple
                                 if (!names.isEmpty()) {
                                     Privilege.Name name = new Privilege.Name(names);
                                     try {
-                                        permission.runAs(new Privilege.General(new Privilege.Name(names), names.toArray(new String[names.size()])));
+                                        role.runAs(new GeneralPrivilege(new Privilege.Name(names), names.toArray(new String[names.size()])));
                                     } catch (IllegalArgumentException e) {
                                         logger.error("invalid role definition [{}] in roles file [{}]. could not resolve run_as privileges [{}]. skipping role...", roleName, path.toAbsolutePath(), name);
                                         return null;
@@ -368,7 +370,7 @@ public class FileRolesStore extends AbstractLifecycleComponent<RolesStore> imple
                                 logger.warn("unknown field [{}] found in role definition [{}] in roles file [{}]", currentFieldName, roleName, path.toAbsolutePath());
                             }
                         }
-                        return permission.build();
+                        return role.build();
                     }
                     logger.error("invalid role definition [{}] in roles file [{}]. skipping role...", roleName, path.toAbsolutePath());
                 }

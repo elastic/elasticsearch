@@ -19,9 +19,9 @@ import org.elasticsearch.shield.action.admin.user.DeleteUserResponse;
 import org.elasticsearch.shield.action.admin.user.GetUsersResponse;
 import org.elasticsearch.shield.authc.esnative.ESNativeUsersStore;
 import org.elasticsearch.shield.authc.support.SecuredString;
-import org.elasticsearch.shield.authz.Permission;
 import org.elasticsearch.shield.authz.RoleDescriptor;
 import org.elasticsearch.shield.authz.esnative.ESNativeRolesStore;
+import org.elasticsearch.shield.authz.permission.Role;
 import org.elasticsearch.shield.client.ShieldClient;
 import org.elasticsearch.test.ShieldIntegTestCase;
 import org.elasticsearch.test.ShieldSettingsSource;
@@ -322,7 +322,7 @@ public class ESNativeTests extends ShieldIntegTestCase {
             GetRolesResponse getRolesResponse = c.prepareGetRoles().roles("test_role").get();
             assertTrue("test_role does not exist!", getRolesResponse.isExists());
             assertTrue("any cluster permission should be authorized",
-                    Permission.Global.Role.builder(getRolesResponse.roles().get(0)).build().cluster().check("cluster:admin/foo"));
+                    Role.builder(getRolesResponse.roles().get(0)).build().cluster().check("cluster:admin/foo"));
             c.prepareAddRole()
                     .name("test_role")
                     .cluster("none")
@@ -333,7 +333,7 @@ public class ESNativeTests extends ShieldIntegTestCase {
             assertTrue("test_role does not exist!", getRolesResponse.isExists());
 
             assertFalse("no cluster permission should be authorized",
-                    Permission.Global.Role.builder(getRolesResponse.roles().get(0)).build().cluster().check("cluster:admin/bar"));
+                    Role.builder(getRolesResponse.roles().get(0)).build().cluster().check("cluster:admin/bar"));
         }
     }
 

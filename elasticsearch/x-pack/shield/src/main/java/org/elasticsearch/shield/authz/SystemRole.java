@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.shield.authz;
 
+import org.elasticsearch.shield.authz.privilege.SystemPrivilege;
+
 import java.util.function.Predicate;
 
 /**
@@ -16,7 +18,7 @@ public class SystemRole {
 
     public static final String NAME = "__es_system_role";
 
-    private static final Predicate<String> PREDICATE = Privilege.SYSTEM.predicate();
+    private static final Predicate<String> PREDICATE = SystemPrivilege.INSTANCE.predicate();
 
     private SystemRole() {
     }

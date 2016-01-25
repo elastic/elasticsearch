@@ -6,8 +6,9 @@
 package org.elasticsearch.watcher.shield;
 
 import org.elasticsearch.shield.User;
-import org.elasticsearch.shield.authz.Permission;
-import org.elasticsearch.shield.authz.Privilege;
+import org.elasticsearch.shield.authz.permission.Role;
+import org.elasticsearch.shield.authz.privilege.ClusterPrivilege;
+import org.elasticsearch.shield.authz.privilege.IndexPrivilege;
 
 /**
  *
@@ -19,8 +20,8 @@ public class InternalWatcherUser extends User {
 
     public static final InternalWatcherUser INSTANCE = new InternalWatcherUser(NAME, ROLE_NAMES);
 
-    public static final Permission.Global.Role ROLE = Permission.Global.Role.builder(ROLE_NAMES[0])
-            .cluster(Privilege.Cluster.action("indices:admin/template/put"))
+    public static final Role ROLE = Role.builder(ROLE_NAMES[0])
+            .cluster(ClusterPrivilege.action("indices:admin/template/put"))
 
             // for now, the watches will be executed under the watcher user, meaning, all actions
             // taken as part of the execution will be executed on behalf of this user. this includes
@@ -29,7 +30,7 @@ public class InternalWatcherUser extends User {
             //
             // at later phases we'll want to execute the watch on behalf of the user who registers
             // it. this will require some work to attache/persist that user to/with the watch.
-            .add(Privilege.Index.ALL, "*")
+            .add(IndexPrivilege.ALL, "*")
             .build();
 
     InternalWatcherUser(String username, String[] roles) {

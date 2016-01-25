@@ -9,8 +9,10 @@ import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesActi
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateAction;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.shield.User;
-import org.elasticsearch.shield.authz.Permission;
-import org.elasticsearch.shield.authz.Privilege;
+import org.elasticsearch.shield.authz.permission.Role;
+import org.elasticsearch.shield.authz.privilege.ClusterPrivilege;
+import org.elasticsearch.shield.authz.privilege.IndexPrivilege;
+import org.elasticsearch.shield.authz.privilege.Privilege;
 
 /**
  *
@@ -22,17 +24,17 @@ public class InternalMarvelUser extends User {
 
     public static final InternalMarvelUser INSTANCE = new InternalMarvelUser(NAME, ROLE_NAMES);
 
-    public static final Permission.Global.Role ROLE = Permission.Global.Role.builder(ROLE_NAMES[0])
-            .cluster(Privilege.Cluster.get(new Privilege.Name(
+    public static final Role ROLE = Role.builder(ROLE_NAMES[0])
+            .cluster(ClusterPrivilege.get(new Privilege.Name(
                     PutIndexTemplateAction.NAME + "*",
                     GetIndexTemplatesAction.NAME + "*",
-                    Privilege.Cluster.MONITOR.name().toString())))
+                    ClusterPrivilege.MONITOR.name().toString())))
 
             // we need all monitoring access
-            .add(Privilege.Index.MONITOR, "*")
+            .add(IndexPrivilege.MONITOR, "*")
 
             // and full access to .marvel-es-* and .marvel-es-data indices
-            .add(Privilege.Index.ALL, MarvelSettings.MARVEL_INDICES_PREFIX + "*")
+            .add(IndexPrivilege.ALL, MarvelSettings.MARVEL_INDICES_PREFIX + "*")
 
             // note, we don't need _license permission as we're taking the licenses
             // directly form the license service.

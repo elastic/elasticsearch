@@ -12,7 +12,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.shield.action.admin.role.AddRoleResponse;
 import org.elasticsearch.shield.action.admin.role.GetRolesResponse;
@@ -42,6 +41,7 @@ import static org.hamcrest.Matchers.notNullValue;
  * Test for the Shield clear roles API that changes the polling aspect of shield to only run once an hour in order to
  * test the cache clearing APIs.
  */
+@TestLogging("shield.authc.esnative:TRACE,shield.authz.esnative:TRACE,integration:DEBUG")
 public class ClearRolesCacheTests extends ShieldIntegTestCase {
 
     private static String[] roles;
@@ -85,6 +85,7 @@ public class ClearRolesCacheTests extends ShieldIntegTestCase {
                     .cluster("none")
                     .addIndices(new String[] { "*" }, new String[] { "ALL" }, null, null)
                     .get();
+            logger.debug("--> created role [{}]", role);
         }
 
         ensureYellow(ShieldTemplateService.SHIELD_ADMIN_INDEX_NAME);
@@ -106,13 +107,13 @@ public class ClearRolesCacheTests extends ShieldIntegTestCase {
                 .build();
     }
 
-    @TestLogging("_root:DEBUG")
     public void testModifyingViaApiClearsCache() throws Exception {
         Client client = internalCluster().transportClient();
         ShieldClient shieldClient = new ShieldClient(client);
 
         int modifiedRolesCount = randomIntBetween(1, roles.length);
         List<String> toModify = randomSubsetOf(modifiedRolesCount, roles);
+        logger.debug("--> modifying roles {} to have run_as", toModify);
         for (String role : toModify) {
             AddRoleResponse response = shieldClient.prepareAddRole().name(role)
                     .cluster("none")
@@ -120,6 +121,7 @@ public class ClearRolesCacheTests extends ShieldIntegTestCase {
                     .runAs(role)
                     .get();
             assertThat(response.isCreated(), is(false));
+            logger.debug("--> updated role [{}] with run_as", role);
         }
 
         assertRolesAreCorrect(shieldClient, toModify);
@@ -130,12 +132,14 @@ public class ClearRolesCacheTests extends ShieldIntegTestCase {
 
         int modifiedRolesCount = randomIntBetween(1, roles.length);
         List<String> toModify = randomSubsetOf(modifiedRolesCount, roles);
+        logger.debug("--> modifying roles {} to have run_as", toModify);
         for (String role : toModify) {
             UpdateResponse response = client.prepareUpdate().setId(role).setIndex(ShieldTemplateService.SHIELD_ADMIN_INDEX_NAME)
                     .setType(ESNativeRolesStore.INDEX_ROLE_TYPE)
                     .setDoc("run_as", new String[] { role })
                     .get();
             assertThat(response.isCreated(), is(false));
+            logger.debug("--> updated role [{}] with run_as", role);
         }
 
         ShieldClient shieldClient = new ShieldClient(client);
@@ -143,11 +147,12 @@ public class ClearRolesCacheTests extends ShieldIntegTestCase {
             GetRolesResponse roleResponse = shieldClient.prepareGetRoles().roles(role).get();
             assertThat(roleResponse.isExists(), is(true));
             final String[] runAs = roleResponse.roles().get(0).getRunAs();
-            assertThat("role should be cached and no rules have run as set", runAs == null || runAs.length == 0, is(true));
+            assertThat("role [" + role + "] should be cached and no rules have run as set", runAs == null || runAs.length == 0, is(true));
         }
 
-        boolean useHttp = randomBoolean();
-        boolean clearAll = randomBoolean();
+        final boolean useHttp = randomBoolean();
+        final boolean clearAll = randomBoolean();
+        logger.debug("--> starting to clear roles. using http [{}] clearing all [{}]", useHttp, clearAll);
         String[] rolesToClear = clearAll ? (randomBoolean() ? roles : null) : toModify.toArray(Strings.EMPTY_ARRAY);
         if (useHttp) {
             String path;
@@ -176,6 +181,7 @@ public class ClearRolesCacheTests extends ShieldIntegTestCase {
         final String role = randomFrom(roles);
         List<RoleDescriptor> foundRoles = shieldClient.prepareGetRoles().roles(role).get().roles();
         assertThat(foundRoles.size(), is(1));
+        logger.debug("--> deleting role [{}]", role);
         DeleteResponse response = client.prepareDelete(ShieldTemplateService.SHIELD_ADMIN_INDEX_NAME, ESNativeRolesStore.INDEX_ROLE_TYPE, role).get();
         assertThat(response.isFound(), is(true));
 
@@ -189,14 +195,15 @@ public class ClearRolesCacheTests extends ShieldIntegTestCase {
 
     private void assertRolesAreCorrect(ShieldClient shieldClient, List<String> toModify) {
         for (String role : roles) {
+            logger.debug("--> getting role [{}]", role);
             GetRolesResponse roleResponse = shieldClient.prepareGetRoles().roles(role).get();
             assertThat(roleResponse.isExists(), is(true));
             final String[] runAs = roleResponse.roles().get(0).getRunAs();
             if (toModify.contains(role)) {
-                assertThat("role should be modified and have run as", runAs == null || runAs.length == 0, is(false));
+                assertThat("role [" + role + "] should be modified and have run as", runAs == null || runAs.length == 0, is(false));
                 assertThat(Arrays.asList(runAs).contains(role), is(true));
             } else {
-                assertThat("role should be cached and no rules have run as set", runAs == null || runAs.length == 0, is(true));
+                assertThat("role [" + role + "] should be cached and not have run as set but does!", runAs == null || runAs.length == 0, is(true));
             }
         }
     }

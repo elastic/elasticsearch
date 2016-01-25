@@ -34,7 +34,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.transport.DummyTransportAddress;
-import org.elasticsearch.node.NodeModule;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -246,7 +245,7 @@ public class IngestProxyActionFilterTests extends ESTestCase {
 
         @Override
         protected boolean matchesSafely(DiscoveryNode node) {
-            return NodeModule.isNodeIngestEnabled(node.getAttributes());
+            return node.isIngestNode();
         }
     }
 }

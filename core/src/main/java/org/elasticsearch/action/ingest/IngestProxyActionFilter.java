@@ -35,17 +35,10 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.node.NodeModule;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponse;
-import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public final class IngestProxyActionFilter implements ActionFilter {
@@ -110,7 +103,7 @@ public final class IngestProxyActionFilter implements ActionFilter {
     }
 
     private DiscoveryNode randomIngestNode() {
-        assert NodeModule.isNodeIngestEnabled(clusterService.localNode().attributes()) == false;
+        assert clusterService.localNode().isIngestNode() == false;
         DiscoveryNodes nodes = clusterService.state().getNodes();
         DiscoveryNode[] ingestNodes = nodes.getIngestNodes().values().toArray(DiscoveryNode.class);
         if (ingestNodes.length == 0) {

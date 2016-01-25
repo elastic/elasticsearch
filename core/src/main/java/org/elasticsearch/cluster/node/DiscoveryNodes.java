@@ -31,7 +31,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.node.NodeModule;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -678,7 +677,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
                     masterNodesBuilder.put(nodeEntry.key, nodeEntry.value);
                     minNonClientNodeVersion = Version.smallest(minNonClientNodeVersion, nodeEntry.value.version());
                 }
-                if (NodeModule.isNodeIngestEnabled(nodeEntry.value.getAttributes())) {
+                if (nodeEntry.value.isIngestNode()) {
                     ingestNodesBuilder.put(nodeEntry.key, nodeEntry.value);
                 }
                 minNodeVersion = Version.smallest(minNodeVersion, nodeEntry.value.version());

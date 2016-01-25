@@ -20,10 +20,7 @@
 package org.elasticsearch.node;
 
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
-import org.elasticsearch.common.Booleans;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.ingest.ProcessorsRegistry;
 import org.elasticsearch.ingest.core.Processor;
@@ -112,15 +109,5 @@ public class NodeModule extends AbstractModule {
      */
     public void registerProcessor(String type, Function<TemplateService, Processor.Factory<?>> processorFactoryProvider) {
         processorsRegistry.registerProcessor(type, processorFactoryProvider);
-    }
-
-    public static boolean isNodeIngestEnabled(Settings settings) {
-        return settings.getAsBoolean("node.ingest", true);
-    }
-
-    public static boolean isNodeIngestEnabled(ImmutableOpenMap<String, String> nodeAttributes) {
-        String ingestEnabled = nodeAttributes.get("ingest");
-        //reproduces same logic used in settings.getAsBoolean used above
-        return Booleans.parseBoolean(ingestEnabled, true);
     }
 }

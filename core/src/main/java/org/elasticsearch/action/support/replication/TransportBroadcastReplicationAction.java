@@ -20,6 +20,7 @@
 package org.elasticsearch.action.support.replication;
 
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
+
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ReplicationResponse;
@@ -52,7 +53,8 @@ import java.util.function.Supplier;
  * Base class for requests that should be executed on all shards of an index or several indices.
  * This action sends shard requests to all primary shards of the indices and they are then replicated like write requests
  */
-public abstract class TransportBroadcastReplicationAction<Request extends BroadcastRequest, Response extends BroadcastResponse, ShardRequest extends ReplicationRequest, ShardResponse extends ReplicationResponse> extends HandledTransportAction<Request, Response> {
+public abstract class TransportBroadcastReplicationAction<Request extends BroadcastRequest<Request>, Response extends BroadcastResponse, ShardRequest extends ReplicationRequest<ShardRequest>, ShardResponse extends ReplicationResponse>
+        extends HandledTransportAction<Request, Response> {
 
     private final TransportReplicationAction replicatedBroadcastShardAction;
     private final ClusterService clusterService;

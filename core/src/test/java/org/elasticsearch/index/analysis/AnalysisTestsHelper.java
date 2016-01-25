@@ -37,7 +37,7 @@ public class AnalysisTestsHelper {
     public static AnalysisService createAnalysisServiceFromClassPath(Path baseDir, String resource) throws IOException {
         Settings settings = Settings.settingsBuilder()
                 .loadFromStream(resource, AnalysisTestsHelper.class.getResourceAsStream(resource))
-                .put("path.home", baseDir.toString())
+                .put(Environment.PATH_HOME_SETTING.getKey(), baseDir.toString())
                 .build();
 
         return createAnalysisServiceFromSettings(settings);

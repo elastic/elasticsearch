@@ -166,7 +166,7 @@ public class InternalEngineTests extends ESTestCase {
         }
         defaultSettings = IndexSettingsModule.newIndexSettings("test", Settings.builder()
                 .put(IndexSettings.INDEX_GC_DELETES_SETTING, "1h") // make sure this doesn't kick in on us
-                .put(EngineConfig.INDEX_CODEC_SETTING, codecName)
+                .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), codecName)
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .build()); // TODO randomize more settings
         threadPool = new ThreadPool(getClass().getName());
@@ -1600,8 +1600,7 @@ public class InternalEngineTests extends ESTestCase {
         }
         // now it should be OK.
         IndexSettings indexSettings = new IndexSettings(defaultSettings.getIndexMetaData(),
-                Settings.builder().put(defaultSettings.getSettings()).put(EngineConfig.INDEX_FORCE_NEW_TRANSLOG, true).build(),
-                Collections.emptyList());
+                Settings.builder().put(defaultSettings.getSettings()).put(EngineConfig.INDEX_FORCE_NEW_TRANSLOG, true).build());
         engine = createEngine(indexSettings, store, primaryTranslogDir, newMergePolicy());
     }
 

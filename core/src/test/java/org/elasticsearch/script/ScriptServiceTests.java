@@ -67,8 +67,8 @@ public class ScriptServiceTests extends ESTestCase {
     public void setup() throws IOException {
         Path genericConfigFolder = createTempDir();
         baseSettings = settingsBuilder()
-                .put("path.home", createTempDir().toString())
-                .put("path.conf", genericConfigFolder)
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+                .put(Environment.PATH_CONF_SETTING.getKey(), genericConfigFolder)
                 .build();
         resourceWatcherService = new ResourceWatcherService(baseSettings, null);
         scriptEngineService = new TestEngineService();
@@ -378,7 +378,7 @@ public class ScriptServiceTests extends ESTestCase {
     public void testCompilationStatsOnCacheHit() throws IOException {
         ContextAndHeaderHolder contextAndHeaders = new ContextAndHeaderHolder();
         Settings.Builder builder = Settings.builder();
-        builder.put(ScriptService.SCRIPT_CACHE_SIZE_SETTING, 1);
+        builder.put(ScriptService.SCRIPT_CACHE_SIZE_SETTING.getKey(), 1);
         buildScriptService(builder.build());
         scriptService.executable(new Script("1+1", ScriptType.INLINE, "test", null), randomFrom(scriptContexts), contextAndHeaders, Collections.emptyMap());
         scriptService.executable(new Script("1+1", ScriptType.INLINE, "test", null), randomFrom(scriptContexts), contextAndHeaders, Collections.emptyMap());
@@ -403,7 +403,7 @@ public class ScriptServiceTests extends ESTestCase {
     public void testCacheEvictionCountedInCacheEvictionsStats() throws IOException {
         ContextAndHeaderHolder contextAndHeaders = new ContextAndHeaderHolder();
         Settings.Builder builder = Settings.builder();
-        builder.put(ScriptService.SCRIPT_CACHE_SIZE_SETTING, 1);
+        builder.put(ScriptService.SCRIPT_CACHE_SIZE_SETTING.getKey(), 1);
         buildScriptService(builder.build());
         scriptService.executable(new Script("1+1", ScriptType.INLINE, "test", null), randomFrom(scriptContexts), contextAndHeaders, Collections.emptyMap());
         scriptService.executable(new Script("2+2", ScriptType.INLINE, "test", null), randomFrom(scriptContexts), contextAndHeaders, Collections.emptyMap());

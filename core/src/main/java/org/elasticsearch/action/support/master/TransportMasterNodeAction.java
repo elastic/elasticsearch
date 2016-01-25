@@ -50,7 +50,7 @@ import java.util.function.Supplier;
 /**
  * A base class for operations that needs to be performed on the master node.
  */
-public abstract class TransportMasterNodeAction<Request extends MasterNodeRequest, Response extends ActionResponse> extends HandledTransportAction<Request, Response> {
+public abstract class TransportMasterNodeAction<Request extends MasterNodeRequest<Request>, Response extends ActionResponse> extends HandledTransportAction<Request, Response> {
     protected final TransportService transportService;
     protected final ClusterService clusterService;
 

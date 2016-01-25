@@ -35,10 +35,15 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.InternalSettingsPlugin;
+import org.elasticsearch.test.MockIndexEventListener;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.store.MockFSIndexStore;
+import org.elasticsearch.test.transport.MockTransportService;
 
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -57,6 +62,12 @@ import static org.hamcrest.Matchers.nullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class IndicesShardStoreRequestIT extends ESIntegTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return pluginList( MockFSIndexStore.TestPlugin.class);
+    }
+
     public void testEmpty() {
         ensureGreen();
         IndicesShardStoresResponse rsp = client().admin().indices().prepareShardStores().get();
@@ -148,7 +159,7 @@ public class IndicesShardStoreRequestIT extends ESIntegTestCase {
         internalCluster().ensureAtLeastNumDataNodes(2);
         assertAcked(prepareCreate(index).setSettings(Settings.builder()
                         .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "5")
-                        .put(MockFSIndexStore.CHECK_INDEX_ON_CLOSE, false)
+                        .put(MockFSIndexStore.INDEX_CHECK_INDEX_ON_CLOSE_SETTING.getKey(), false)
         ));
         indexRandomData(index);
         ensureGreen(index);

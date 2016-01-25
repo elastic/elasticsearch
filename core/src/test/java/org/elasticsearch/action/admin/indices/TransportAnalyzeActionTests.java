@@ -47,7 +47,7 @@ public class TransportAnalyzeActionTests extends ESTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        Settings settings = Settings.builder().put("path.home", createTempDir().toString()).build();
+        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
 
         Settings indexSettings = settingsBuilder()
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)

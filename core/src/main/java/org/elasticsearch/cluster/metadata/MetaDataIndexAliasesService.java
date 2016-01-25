@@ -104,12 +104,9 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
                                         // temporarily create the index and add mappings so we can parse the filter
                                         try {
                                             indexService = indicesService.createIndex(nodeServicesProvider, indexMetaData, Collections.emptyList());
-                                            if (indexMetaData.getMappings().containsKey(MapperService.DEFAULT_MAPPING)) {
-                                                indexService.mapperService().merge(MapperService.DEFAULT_MAPPING, indexMetaData.getMappings().get(MapperService.DEFAULT_MAPPING).source(), false, false);
-                                            }
                                             for (ObjectCursor<MappingMetaData> cursor : indexMetaData.getMappings().values()) {
                                                 MappingMetaData mappingMetaData = cursor.value;
-                                                indexService.mapperService().merge(mappingMetaData.type(), mappingMetaData.source(), false, false);
+                                                indexService.mapperService().merge(mappingMetaData.type(), mappingMetaData.source(), MapperService.MergeReason.MAPPING_RECOVERY, false);
                                             }
                                         } catch (Exception e) {
                                             logger.warn("[{}] failed to temporary create in order to apply alias action", e, indexMetaData.getIndex());

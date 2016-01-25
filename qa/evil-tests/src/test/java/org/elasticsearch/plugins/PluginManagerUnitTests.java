@@ -56,8 +56,8 @@ public class PluginManagerUnitTests extends ESTestCase {
         Path genericConfigFolder = createTempDir();
 
         Settings settings = settingsBuilder()
-                .put("path.conf", genericConfigFolder)
-                .put("path.home", homeFolder)
+                .put(Environment.PATH_CONF_SETTING.getKey(), genericConfigFolder)
+                .put(Environment.PATH_HOME_SETTING.getKey(), homeFolder)
                 .build();
         Environment environment = new Environment(settings);
 

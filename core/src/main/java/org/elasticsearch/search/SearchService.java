@@ -122,9 +122,10 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
  */
 public class SearchService extends AbstractLifecycleComponent<SearchService> implements IndexEventListener {
 
-    public static final String NORMS_LOADING_KEY = "index.norms.loading";
-    public static final String DEFAULT_KEEPALIVE_KEY = "search.default_keep_alive";
-    public static final String KEEPALIVE_INTERVAL_KEY = "search.keep_alive_interval";
+    public static final Setting<Loading> INDEX_NORMS_LOADING_SETTING = new Setting<>("index.norms.loading", Loading.LAZY.toString(), (s) -> Loading.parse(s, Loading.LAZY), false, Setting.Scope.INDEX);
+    // we can have 5 minutes here, since we make sure to clean with search requests and when shard/index closes
+    public static final Setting<TimeValue> DEFAULT_KEEPALIVE_SETTING = Setting.positiveTimeSetting("search.default_keep_alive", timeValueMinutes(5), false, Setting.Scope.CLUSTER);
+    public static final Setting<TimeValue> KEEPALIVE_INTERVAL_SETTING = Setting.positiveTimeSetting("search.keep_alive_interval", timeValueMinutes(1), false, Setting.Scope.CLUSTER);
 
     public static final TimeValue NO_TIMEOUT = timeValueMillis(-1);
     public static final Setting<TimeValue> DEFAULT_SEARCH_TIMEOUT_SETTING = Setting.timeSetting("search.default_search_timeout", NO_TIMEOUT, true, Setting.Scope.CLUSTER);
@@ -184,9 +185,8 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
         this.fetchPhase = fetchPhase;
         this.indicesQueryCache = indicesQueryCache;
 
-        TimeValue keepAliveInterval = settings.getAsTime(KEEPALIVE_INTERVAL_KEY, timeValueMinutes(1));
-        // we can have 5 minutes here, since we make sure to clean with search requests and when shard/index closes
-        this.defaultKeepAlive = settings.getAsTime(DEFAULT_KEEPALIVE_KEY, timeValueMinutes(5)).millis();
+        TimeValue keepAliveInterval = KEEPALIVE_INTERVAL_SETTING.get(settings);
+        this.defaultKeepAlive = DEFAULT_KEEPALIVE_SETTING.get(settings).millis();
 
         Map<String, SearchParseElement> elementParsers = new HashMap<>();
         elementParsers.putAll(dfsPhase.parseElements());
@@ -966,7 +966,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
         }
         @Override
         public TerminationHandle warmNewReaders(final IndexShard indexShard, final Engine.Searcher searcher) {
-            final Loading defaultLoading = Loading.parse(indexShard.getIndexSettings().getSettings().get(NORMS_LOADING_KEY), Loading.LAZY);
+            final Loading defaultLoading = indexShard.indexSettings().getValue(INDEX_NORMS_LOADING_SETTING);
             final MapperService mapperService = indexShard.mapperService();
             final ObjectSet<String> warmUp = new ObjectHashSet<>();
             for (DocumentMapper docMapper : mapperService.docMappers(false)) {
@@ -1037,22 +1037,8 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
             final Map<String, MappedFieldType> warmUp = new HashMap<>();
             for (DocumentMapper docMapper : mapperService.docMappers(false)) {
                 for (FieldMapper fieldMapper : docMapper.mappers()) {
-                    final FieldDataType fieldDataType;
-                    final String indexName;
-                    if (fieldMapper instanceof ParentFieldMapper) {
-                        MappedFieldType joinFieldType = ((ParentFieldMapper) fieldMapper).getChildJoinFieldType();
-                        if (joinFieldType == null) {
-                            continue;
-                        }
-                        fieldDataType = joinFieldType.fieldDataType();
-                        // TODO: this can be removed in 3.0 when the old parent/child impl is removed:
-                        // related to: https://github.com/elastic/elasticsearch/pull/12418
-                        indexName = fieldMapper.fieldType().name();
-                    } else {
-                        fieldDataType = fieldMapper.fieldType().fieldDataType();
-                        indexName = fieldMapper.fieldType().name();
-                    }
-
+                    final FieldDataType fieldDataType = fieldMapper.fieldType().fieldDataType();
+                    final String indexName = fieldMapper.fieldType().name();
                     if (fieldDataType == null) {
                         continue;
                     }
@@ -1105,21 +1091,8 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
             final Map<String, MappedFieldType> warmUpGlobalOrdinals = new HashMap<>();
             for (DocumentMapper docMapper : mapperService.docMappers(false)) {
                 for (FieldMapper fieldMapper : docMapper.mappers()) {
-                    final FieldDataType fieldDataType;
-                    final String indexName;
-                    if (fieldMapper instanceof ParentFieldMapper) {
-                        MappedFieldType joinFieldType = ((ParentFieldMapper) fieldMapper).getChildJoinFieldType();
-                        if (joinFieldType == null) {
-                            continue;
-                        }
-                        fieldDataType = joinFieldType.fieldDataType();
-                        // TODO: this can be removed in 3.0 when the old parent/child impl is removed:
-                        // related to: https://github.com/elastic/elasticsearch/pull/12418
-                        indexName = fieldMapper.fieldType().name();
-                    } else {
-                        fieldDataType = fieldMapper.fieldType().fieldDataType();
-                        indexName = fieldMapper.fieldType().name();
-                    }
+                    final FieldDataType fieldDataType = fieldMapper.fieldType().fieldDataType();
+                    final String indexName = fieldMapper.fieldType().name();
                     if (fieldDataType == null) {
                         continue;
                     }

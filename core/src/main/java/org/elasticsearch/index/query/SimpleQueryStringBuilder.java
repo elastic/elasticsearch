@@ -285,7 +285,10 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         sqp.setDefaultOperator(defaultOperator.toBooleanClauseOccur());
 
         Query query = sqp.parse(queryText);
-        if (minimumShouldMatch != null && query instanceof BooleanQuery) {
+        // If the coordination factor is disabled on a boolean query we don't apply the minimum should match.
+        // This is done to make sure that the minimum_should_match doesn't get applied when there is only one word
+        // and multiple variations of the same word in the query (synonyms for instance).
+        if (minimumShouldMatch != null && query instanceof BooleanQuery && !((BooleanQuery) query).isCoordDisabled()) {
             query = Queries.applyMinimumShouldMatch((BooleanQuery) query, minimumShouldMatch);
         }
         return query;

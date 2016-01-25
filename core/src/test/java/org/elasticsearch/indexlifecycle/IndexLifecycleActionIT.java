@@ -63,7 +63,7 @@ public class IndexLifecycleActionIT extends ESIntegTestCase {
         Settings settings = settingsBuilder()
                 .put(SETTING_NUMBER_OF_SHARDS, 11)
                 .put(SETTING_NUMBER_OF_REPLICAS, 1)
-                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING, "0s")
+                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "0s")
                 .build();
 
         // start one server

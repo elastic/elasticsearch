@@ -38,7 +38,9 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.MemorySizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -78,11 +80,11 @@ public class IndicesRequestCache extends AbstractComponent implements RemovalLis
      * A setting to enable or disable request caching on an index level. Its dynamic by default
      * since we are checking on the cluster state IndexMetaData always.
      */
-    public static final String INDEX_CACHE_REQUEST_ENABLED = "index.requests.cache.enable";
-    public static final String INDICES_CACHE_REQUEST_CLEAN_INTERVAL = "indices.requests.cache.clean_interval";
+    public static final Setting<Boolean> INDEX_CACHE_REQUEST_ENABLED_SETTING = Setting.boolSetting("index.requests.cache.enable", true, true, Setting.Scope.INDEX);
+    public static final Setting<TimeValue> INDICES_CACHE_REQUEST_CLEAN_INTERVAL = Setting.positiveTimeSetting("indices.requests.cache.clean_interval", TimeValue.timeValueSeconds(60), false, Setting.Scope.CLUSTER);
 
-    public static final String INDICES_CACHE_QUERY_SIZE = "indices.requests.cache.size";
-    public static final String INDICES_CACHE_QUERY_EXPIRE = "indices.requests.cache.expire";
+    public static final Setting<ByteSizeValue> INDICES_CACHE_QUERY_SIZE = Setting.byteSizeSetting("indices.requests.cache.size", "1%", false, Setting.Scope.CLUSTER);
+    public static final Setting<TimeValue> INDICES_CACHE_QUERY_EXPIRE = Setting.positiveTimeSetting("indices.requests.cache.expire", new TimeValue(0), false, Setting.Scope.CLUSTER);
 
     private static final Set<SearchType> CACHEABLE_SEARCH_TYPES = EnumSet.of(SearchType.QUERY_THEN_FETCH, SearchType.QUERY_AND_FETCH);
 
@@ -97,7 +99,7 @@ public class IndicesRequestCache extends AbstractComponent implements RemovalLis
 
 
     //TODO make these changes configurable on the cluster level
-    private final String size;
+    private final ByteSizeValue size;
     private final TimeValue expire;
 
     private volatile Cache<Key, Value> cache;
@@ -107,23 +109,20 @@ public class IndicesRequestCache extends AbstractComponent implements RemovalLis
         super(settings);
         this.clusterService = clusterService;
         this.threadPool = threadPool;
-        this.cleanInterval = settings.getAsTime(INDICES_CACHE_REQUEST_CLEAN_INTERVAL, TimeValue.timeValueSeconds(60));
+        this.cleanInterval = INDICES_CACHE_REQUEST_CLEAN_INTERVAL.get(settings);
 
-        this.size = settings.get(INDICES_CACHE_QUERY_SIZE, "1%");
+        this.size = INDICES_CACHE_QUERY_SIZE.get(settings);
 
-        this.expire = settings.getAsTime(INDICES_CACHE_QUERY_EXPIRE, null);
+        this.expire = INDICES_CACHE_QUERY_EXPIRE.exists(settings) ? INDICES_CACHE_QUERY_EXPIRE.get(settings) : null;
         buildCache();
 
         this.reaper = new Reaper();
         threadPool.schedule(cleanInterval, ThreadPool.Names.SAME, reaper);
     }
 
-    private boolean isCacheEnabled(Settings settings, boolean defaultEnable) {
-        return settings.getAsBoolean(INDEX_CACHE_REQUEST_ENABLED, defaultEnable);
-    }
 
     private void buildCache() {
-        long sizeInBytes = MemorySizeValue.parseBytesSizeValueOrHeapRatio(size, INDICES_CACHE_QUERY_SIZE).bytes();
+        long sizeInBytes = size.bytes();
 
         CacheBuilder<Key, Value> cacheBuilder = CacheBuilder.<Key, Value>builder()
                 .setMaximumWeight(sizeInBytes).weigher((k, v) -> k.ramBytesUsed() + v.ramBytesUsed()).removalListener(this);
@@ -182,7 +181,7 @@ public class IndicesRequestCache extends AbstractComponent implements RemovalLis
         }
         // if not explicitly set in the request, use the index setting, if not, use the request
         if (request.requestCache() == null) {
-            if (!isCacheEnabled(index.getSettings(), Boolean.FALSE)) {
+            if (INDEX_CACHE_REQUEST_ENABLED_SETTING.get(index.getSettings()) == false) {
                 return false;
             }
         } else if (!request.requestCache()) {

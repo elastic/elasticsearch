@@ -531,8 +531,8 @@ public abstract class ESTestCase extends LuceneTestCase {
     public NodeEnvironment newNodeEnvironment(Settings settings) throws IOException {
         Settings build = Settings.builder()
                 .put(settings)
-                .put("path.home", createTempDir().toAbsolutePath())
-                .putArray("path.data", tmpPaths()).build();
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
+                .putArray(Environment.PATH_DATA_SETTING.getKey(), tmpPaths()).build();
         return new NodeEnvironment(build, new Environment(build));
     }
 

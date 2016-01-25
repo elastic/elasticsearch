@@ -321,21 +321,23 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         GetIndexTemplatesResponse response = client().admin().indices().prepareGetTemplates().get();
         assertThat(response.getIndexTemplates(), empty());
 
-        client().admin().indices().preparePutTemplate("template_1")
+        try {
+            client().admin().indices().preparePutTemplate("template_1")
                 .setTemplate("te*")
                 .setSettings(Settings.builder().put("does_not_exist", "test"))
                 .get();
+            fail();
+        } catch (IllegalArgumentException ex) {
+            assertEquals("unknown setting [index.does_not_exist]", ex.getMessage());
+        }
 
         response = client().admin().indices().prepareGetTemplates().get();
-        assertThat(response.getIndexTemplates(), hasSize(1));
-        assertThat(response.getIndexTemplates().get(0).getSettings().getAsMap().size(), equalTo(1));
-        assertThat(response.getIndexTemplates().get(0).getSettings().get("index.does_not_exist"), equalTo("test"));
+        assertEquals(0, response.getIndexTemplates().size());
 
         createIndex("test");
 
-        //the wrong setting has no effect but does get stored among the index settings
         GetSettingsResponse getSettingsResponse = client().admin().indices().prepareGetSettings("test").get();
-        assertThat(getSettingsResponse.getIndexToSettings().get("test").getAsMap().get("index.does_not_exist"), equalTo("test"));
+        assertNull(getSettingsResponse.getIndexToSettings().get("test").getAsMap().get("index.does_not_exist"));
     }
 
     public void testIndexTemplateWithAliases() throws Exception {

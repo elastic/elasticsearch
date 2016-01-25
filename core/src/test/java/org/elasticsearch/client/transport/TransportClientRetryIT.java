@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -57,7 +58,7 @@ public class TransportClientRetryIT extends ESIntegTestCase {
                 .put("node.mode", internalCluster().getNodeMode())
                 .put(ClusterName.SETTING, internalCluster().getClusterName())
                 .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING, true)
-                .put("path.home", createTempDir());
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir());
 
         try (TransportClient transportClient = TransportClient.builder().settings(builder.build()).build()) {
             transportClient.addTransportAddresses(addresses);

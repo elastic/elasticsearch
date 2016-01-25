@@ -45,7 +45,7 @@ public class SettingTests extends ESTestCase {
         ByteSizeValue byteSizeValue = byteSizeValueSetting.get(Settings.EMPTY);
         assertEquals(byteSizeValue.bytes(), 1024);
         AtomicReference<ByteSizeValue> value = new AtomicReference<>(null);
-        ClusterSettings.SettingUpdater settingUpdater = byteSizeValueSetting.newUpdater(value::set, logger);
+        ClusterSettings.SettingUpdater<ByteSizeValue> settingUpdater = byteSizeValueSetting.newUpdater(value::set, logger);
         try {
             settingUpdater.apply(Settings.builder().put("a.byte.size", 12).build(), Settings.EMPTY);
             fail("no unit");
@@ -60,7 +60,7 @@ public class SettingTests extends ESTestCase {
     public void testSimpleUpdate() {
         Setting<Boolean> booleanSetting = Setting.boolSetting("foo.bar", false, true, Setting.Scope.CLUSTER);
         AtomicReference<Boolean> atomicBoolean = new AtomicReference<>(null);
-        ClusterSettings.SettingUpdater settingUpdater = booleanSetting.newUpdater(atomicBoolean::set, logger);
+        ClusterSettings.SettingUpdater<Boolean> settingUpdater = booleanSetting.newUpdater(atomicBoolean::set, logger);
         Settings build = Settings.builder().put("foo.bar", false).build();
         settingUpdater.apply(build, Settings.EMPTY);
         assertNull(atomicBoolean.get());
@@ -94,8 +94,7 @@ public class SettingTests extends ESTestCase {
         Setting<Boolean> booleanSetting = Setting.boolSetting("foo.bar", false, true, Setting.Scope.CLUSTER);
         AtomicReference<Boolean> ab1 = new AtomicReference<>(null);
         AtomicReference<Boolean> ab2 = new AtomicReference<>(null);
-        ClusterSettings.SettingUpdater settingUpdater = booleanSetting.newUpdater(ab1::set, logger);
-        ClusterSettings.SettingUpdater settingUpdater2 = booleanSetting.newUpdater(ab2::set, logger);
+        ClusterSettings.SettingUpdater<Boolean> settingUpdater = booleanSetting.newUpdater(ab1::set, logger);
         settingUpdater.apply(Settings.builder().put("foo.bar", true).build(), Settings.EMPTY);
         assertTrue(ab1.get());
         assertNull(ab2.get());
@@ -105,13 +104,17 @@ public class SettingTests extends ESTestCase {
         TimeValue defautlValue = TimeValue.timeValueMillis(randomIntBetween(0, 1000000));
         Setting<TimeValue> setting = Setting.positiveTimeSetting("my.time.value", defautlValue, randomBoolean(), Setting.Scope.CLUSTER);
         assertFalse(setting.isGroupSetting());
-        String aDefault = setting.getDefault(Settings.EMPTY);
+        String aDefault = setting.getDefaultRaw(Settings.EMPTY);
         assertEquals(defautlValue.millis() + "ms", aDefault);
         assertEquals(defautlValue.millis(), setting.get(Settings.EMPTY).millis());
+        assertEquals(defautlValue, setting.getDefault(Settings.EMPTY));
 
         Setting<String> secondaryDefault = new Setting<>("foo.bar", (s) -> s.get("old.foo.bar", "some_default"), (s) -> s, randomBoolean(), Setting.Scope.CLUSTER);
         assertEquals("some_default", secondaryDefault.get(Settings.EMPTY));
         assertEquals("42", secondaryDefault.get(Settings.builder().put("old.foo.bar", 42).build()));
+        Setting<String> secondaryDefaultViaSettings = new Setting<>("foo.bar", secondaryDefault, (s) -> s, randomBoolean(), Setting.Scope.CLUSTER);
+        assertEquals("some_default", secondaryDefaultViaSettings.get(Settings.EMPTY));
+        assertEquals("42", secondaryDefaultViaSettings.get(Settings.builder().put("old.foo.bar", 42).build()));
     }
 
     public void testComplexType() {
@@ -120,7 +123,7 @@ public class SettingTests extends ESTestCase {
         assertFalse(setting.isGroupSetting());
         ref.set(setting.get(Settings.EMPTY));
         ComplexType type = ref.get();
-        ClusterSettings.SettingUpdater settingUpdater = setting.newUpdater(ref::set, logger);
+        ClusterSettings.SettingUpdater<ComplexType> settingUpdater = setting.newUpdater(ref::set, logger);
         assertFalse(settingUpdater.apply(Settings.EMPTY, Settings.EMPTY));
         assertSame("no update - type has not changed", type, ref.get());
 
@@ -147,7 +150,7 @@ public class SettingTests extends ESTestCase {
         AtomicReference<Settings> ref = new AtomicReference<>(null);
         Setting<Settings> setting = Setting.groupSetting("foo.bar.", true, Setting.Scope.CLUSTER);
         assertTrue(setting.isGroupSetting());
-        ClusterSettings.SettingUpdater settingUpdater = setting.newUpdater(ref::set, logger);
+        ClusterSettings.SettingUpdater<Settings> settingUpdater = setting.newUpdater(ref::set, logger);
 
         Settings currentInput = Settings.builder().put("foo.bar.1.value", "1").put("foo.bar.2.value", "2").put("foo.bar.3.value", "3").build();
         Settings previousInput = Settings.EMPTY;
@@ -191,7 +194,7 @@ public class SettingTests extends ESTestCase {
         assertTrue(setting.match("foo.bar.baz"));
         assertFalse(setting.match("foo.baz.bar"));
 
-        ClusterSettings.SettingUpdater predicateSettingUpdater = setting.newUpdater(ref::set, logger,(s) -> assertFalse(true));
+        ClusterSettings.SettingUpdater<Settings> predicateSettingUpdater = setting.newUpdater(ref::set, logger,(s) -> assertFalse(true));
         try {
             predicateSettingUpdater.apply(Settings.builder().put("foo.bar.1.value", "1").put("foo.bar.2.value", "2").build(), Settings.EMPTY);
             fail("not accepted");
@@ -273,7 +276,7 @@ public class SettingTests extends ESTestCase {
         assertArrayEquals(value.toArray(new String[0]), input.toArray(new String[0]));
 
         AtomicReference<List<String>> ref = new AtomicReference<>();
-        AbstractScopedSettings.SettingUpdater settingUpdater = listSetting.newUpdater(ref::set, logger);
+        AbstractScopedSettings.SettingUpdater<List<String>> settingUpdater = listSetting.newUpdater(ref::set, logger);
         assertTrue(settingUpdater.hasChanged(builder.build(), Settings.EMPTY));
         settingUpdater.apply(builder.build(), Settings.EMPTY);
         assertEquals(input.size(), ref.get().size());
@@ -299,6 +302,26 @@ public class SettingTests extends ESTestCase {
         for (int i = 0; i < intValues.size(); i++) {
             assertEquals(i, intValues.get(i).intValue());
         }
+
+        Setting<List<String>> settingWithFallback = Setting.listSetting("foo.baz", listSetting, s -> s, true, Setting.Scope.CLUSTER);
+        value = settingWithFallback.get(Settings.EMPTY);
+        assertEquals(1, value.size());
+        assertEquals("foo,bar", value.get(0));
+
+        value = settingWithFallback.get(Settings.builder().putArray("foo.bar", "1", "2").build());
+        assertEquals(2, value.size());
+        assertEquals("1", value.get(0));
+        assertEquals("2", value.get(1));
+
+        value = settingWithFallback.get(Settings.builder().putArray("foo.baz", "3", "4").build());
+        assertEquals(2, value.size());
+        assertEquals("3", value.get(0));
+        assertEquals("4", value.get(1));
+
+        value = settingWithFallback.get(Settings.builder().putArray("foo.baz", "3", "4").putArray("foo.bar", "1", "2").build());
+        assertEquals(2, value.size());
+        assertEquals("3", value.get(0));
+        assertEquals("4", value.get(1));
     }
 
     public void testListSettingAcceptsNumberSyntax() {

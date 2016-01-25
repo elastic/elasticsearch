@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.query.plugin;
 
+import java.io.IOException;
+
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
@@ -31,10 +33,8 @@ import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryParser;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.plugins.Plugin;
-
-import java.io.IOException;
+import org.elasticsearch.search.SearchModule;
 
 public class DummyQueryParserPlugin extends Plugin {
 
@@ -48,8 +48,8 @@ public class DummyQueryParserPlugin extends Plugin {
         return "dummy query";
     }
 
-    public void onModule(IndicesModule module) {
-        module.registerQueryParser(DummyQueryParser.class);
+    public void onModule(SearchModule module) {
+        module.registerQueryParser(DummyQueryParser::new);
     }
 
     public static class DummyQueryBuilder extends AbstractQueryBuilder<DummyQueryBuilder> {

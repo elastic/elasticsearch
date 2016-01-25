@@ -65,7 +65,7 @@ public class ReusePeerRecoverySharedTest {
          * for replicas.
          */
         assertAcked(client().admin().indices().prepareCreate("test").setSettings(Settings.builder().put(indexSettings)
-                .put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE, EnableAllocationDecider.Rebalance.NONE)));
+                .put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)));
         client().admin().cluster().prepareHealth().setWaitForGreenStatus().setTimeout("30s").get();
         logger.info("--> indexing docs");
         for (int i = 0; i < 1000; i++) {

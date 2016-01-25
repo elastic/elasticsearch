@@ -137,7 +137,7 @@ public class GeoShapeFieldMapper extends FieldMapper {
                 return new Explicit<>(coerce, true);
             }
             if (context.indexSettings() != null) {
-                return new Explicit<>(context.indexSettings().getAsBoolean("index.mapping.coerce", Defaults.COERCE.value()), false);
+                return new Explicit<>(COERCE_SETTING.get(context.indexSettings()), false);
             }
             return Defaults.COERCE;
         }

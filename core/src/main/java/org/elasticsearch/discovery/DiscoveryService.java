@@ -27,6 +27,7 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 
@@ -39,8 +40,8 @@ import java.util.concurrent.TimeUnit;
  */
 public class DiscoveryService extends AbstractLifecycleComponent<DiscoveryService> {
 
-    public static final String SETTING_INITIAL_STATE_TIMEOUT = "discovery.initial_state_timeout";
-    public static final String SETTING_DISCOVERY_SEED = "discovery.id.seed";
+    public static final Setting<TimeValue> INITIAL_STATE_TIMEOUT_SETTING = Setting.positiveTimeSetting("discovery.initial_state_timeout", TimeValue.timeValueSeconds(30), false, Setting.Scope.CLUSTER);
+    public static final Setting<Long> DISCOVERY_SEED_SETTING = Setting.longSetting("discovery.id.seed", 0l, Long.MIN_VALUE, false, Setting.Scope.CLUSTER);
 
     private static class InitialStateListener implements InitialStateDiscoveryListener {
 
@@ -71,7 +72,7 @@ public class DiscoveryService extends AbstractLifecycleComponent<DiscoveryServic
         super(settings);
         this.discoverySettings = discoverySettings;
         this.discovery = discovery;
-        this.initialStateTimeout = settings.getAsTime(SETTING_INITIAL_STATE_TIMEOUT, TimeValue.timeValueSeconds(30));
+        this.initialStateTimeout = INITIAL_STATE_TIMEOUT_SETTING.get(settings);
     }
 
     public ClusterBlock getNoMasterBlock() {
@@ -132,7 +133,7 @@ public class DiscoveryService extends AbstractLifecycleComponent<DiscoveryServic
     }
 
     public static String generateNodeId(Settings settings) {
-        Random random = Randomness.get(settings, DiscoveryService.SETTING_DISCOVERY_SEED);
+        Random random = Randomness.get(settings, DiscoveryService.DISCOVERY_SEED_SETTING);
         return Strings.randomBase64UUID(random);
     }
 }

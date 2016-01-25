@@ -48,7 +48,7 @@ public abstract class ScriptTestCase extends ESTestCase {
 
     /** Compiles and returns the result of {@code script} with access to {@code vars} */
     public Object exec(String script, Map<String, Object> vars) {
-        return exec(script, vars, Collections.singletonMap(PlanAScriptEngineService.NUMERIC_OVERFLOW, Boolean.toString(random().nextBoolean())));
+        return exec(script, vars, Collections.singletonMap(CompilerSettings.NUMERIC_OVERFLOW, Boolean.toString(random().nextBoolean())));
     }
 
     /** Compiles and returns the result of {@code script} with access to {@code vars} and compile-time parameters */

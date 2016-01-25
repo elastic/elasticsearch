@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.internal;
 
+import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
@@ -26,6 +27,7 @@ import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
@@ -38,12 +40,14 @@ import org.elasticsearch.common.lucene.search.function.WeightFactorFunction;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.ParsedQuery;
@@ -79,20 +83,6 @@ import java.util.Map;
  *
  */
 public class DefaultSearchContext extends SearchContext {
-    /**
-     * Index setting describing the maximum value of from + size on a query.
-     */
-    public static final String MAX_RESULT_WINDOW = "index.max_result_window";
-    public static class Defaults {
-        /**
-         * Default maximum value of from + size on a query. 10,000 was chosen as
-         * a conservative default as it is sure to not cause trouble. Users can
-         * certainly profile their cluster and decide to set it to 100,000
-         * safely. 1,000,000 is probably way to high for any cluster to set
-         * safely.
-         */
-        public static final int MAX_RESULT_WINDOW = 10000;
-    }
 
     private final long id;
     private final ShardSearchRequest request;
@@ -203,13 +193,13 @@ public class DefaultSearchContext extends SearchContext {
             long resultWindow = from + size;
             // We need settingsService's view of the settings because its dynamic.
             // indexService's isn't.
-            int maxResultWindow = indexService.getIndexSettings().getSettings().getAsInt(MAX_RESULT_WINDOW, Defaults.MAX_RESULT_WINDOW);
+            int maxResultWindow = indexService.getIndexSettings().getMaxResultWindow();
 
             if (resultWindow > maxResultWindow) {
                 throw new QueryPhaseExecutionException(this,
                         "Result window is too large, from + size must be less than or equal to: [" + maxResultWindow + "] but was ["
                                 + resultWindow + "]. See the scroll api for a more efficient way to request large data sets. "
-                                + "This limit can be set by changing the [" + DefaultSearchContext.MAX_RESULT_WINDOW
+                                + "This limit can be set by changing the [" + IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey()
                                 + "] index level parameter.");
             }
         }
@@ -252,19 +242,37 @@ public class DefaultSearchContext extends SearchContext {
     }
 
     @Override
+    @Nullable
     public Query searchFilter(String[] types) {
-        Query filter = mapperService().searchFilter(types);
-        if (filter == null && aliasFilter == null) {
+        return createSearchFilter(types, aliasFilter, mapperService().hasNested());
+    }
+
+    // extracted to static helper method to make writing unit tests easier:
+    static Query createSearchFilter(String[] types, Query aliasFilter, boolean hasNestedFields) {
+        Query typesFilter = null;
+        if (types != null && types.length >= 1) {
+            BytesRef[] typesBytes = new BytesRef[types.length];
+            for (int i = 0; i < typesBytes.length; i++) {
+                typesBytes[i] = new BytesRef(types[i]);
+            }
+            typesFilter = new TermsQuery(TypeFieldMapper.NAME, typesBytes);
+        }
+
+        if (typesFilter == null && aliasFilter == null && hasNestedFields == false) {
             return null;
         }
+
         BooleanQuery.Builder bq = new BooleanQuery.Builder();
-        if (filter != null) {
-            bq.add(filter, Occur.MUST);
+        if (typesFilter != null) {
+            bq.add(typesFilter, Occur.FILTER);
+        } else if (hasNestedFields) {
+            bq.add(Queries.newNonNestedFilter(), Occur.FILTER);
         }
         if (aliasFilter != null) {
-            bq.add(aliasFilter, Occur.MUST);
+            bq.add(aliasFilter, Occur.FILTER);
         }
-        return new ConstantScoreQuery(bq.build());
+
+        return bq.build();
     }
 
     @Override

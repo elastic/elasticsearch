@@ -19,9 +19,7 @@
 
 package org.elasticsearch.search.aggregations;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.inject.AbstractModule;
@@ -51,7 +49,6 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.TestSearchContext;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
 import org.junit.After;
@@ -99,10 +96,9 @@ public abstract class BaseAggregationTestCase<AF extends AggregatorFactory> exte
         Settings settings = Settings.settingsBuilder()
                 .put("name", BaseAggregationTestCase.class.toString())
                 .put("path.home", createTempDir())
-                .put(IndexMetaData.SETTING_VERSION_CREATED, VersionUtils.randomVersionBetween(random(),
-                        Version.V_1_0_0, Version.CURRENT))
                 .build();
 
+        namedWriteableRegistry =  new NamedWriteableRegistry();
         index = new Index("test");
         injector = new ModulesBuilder().add(
                 new EnvironmentModule(new Environment(settings)),
@@ -113,15 +109,16 @@ public abstract class BaseAggregationTestCase<AF extends AggregatorFactory> exte
 
                     @Override
                     protected void configure() {
-                        bindQueryParsersExtension();
+                        bindMapperExtension();
                     }
-                }, new SearchModule() {
+                }, new SearchModule(settings, namedWriteableRegistry) {
                     @Override
-                    protected void configure() {
-                        configureAggs();
-                        configureHighlighters();
-                        configureFetchSubPhase();
-                        configureFunctionScore();
+                    protected void configureSearch() {
+                        // Skip me
+                    }
+                    @Override
+                    protected void configureSuggesters() {
+                        // Skip me
                     }
                 },
                 new IndexSettingsModule(index, settings),
@@ -131,7 +128,7 @@ public abstract class BaseAggregationTestCase<AF extends AggregatorFactory> exte
                     protected void configure() {
                         bind(ClusterService.class).toProvider(Providers.of((ClusterService) null));
                         bind(CircuitBreakerService.class).to(NoneCircuitBreakerService.class);
-                        bind(NamedWriteableRegistry.class).asEagerSingleton();
+                        bind(NamedWriteableRegistry.class).toInstance(namedWriteableRegistry);
                     }
                 }
         ).createInjector();
@@ -142,7 +139,6 @@ public abstract class BaseAggregationTestCase<AF extends AggregatorFactory> exte
             String type = randomAsciiOfLengthBetween(1, 10);
             currentTypes[i] = type;
         }
-        namedWriteableRegistry = injector.getInstance(NamedWriteableRegistry.class);
         queriesRegistry = injector.getInstance(IndicesQueriesRegistry.class);
         parseFieldMatcher = ParseFieldMatcher.STRICT;
     }

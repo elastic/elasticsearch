@@ -20,6 +20,7 @@
 package org.elasticsearch.search.aggregations.bucket.filters;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
@@ -87,7 +88,7 @@ public class FiltersAggregator extends BucketsAggregator {
             String key = in.readString();
             QueryBuilder<?> filter = in.readQuery();
             return new KeyedFilter(key, filter);
-        }
+    }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
@@ -115,32 +116,26 @@ public class FiltersAggregator extends BucketsAggregator {
     }
 
     private final String[] keys;
-    private final Weight[] filters;
+    private Weight[] filters;
     private final boolean keyed;
     private final boolean showOtherBucket;
     private final String otherBucketKey;
     private final int totalNumKeys;
 
-    public FiltersAggregator(String name, AggregatorFactories factories, List<KeyedFilter> filters, boolean keyed, String otherBucketKey,
+    public FiltersAggregator(String name, AggregatorFactories factories, String[] keys, Weight[] filters, boolean keyed, String otherBucketKey,
             AggregationContext aggregationContext,
             Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
             throws IOException {
         super(name, factories, aggregationContext, parent, pipelineAggregators, metaData);
         this.keyed = keyed;
-        this.keys = new String[filters.size()];
-        this.filters = new Weight[filters.size()];
+        this.keys = keys;
+        this.filters = filters;
         this.showOtherBucket = otherBucketKey != null;
         this.otherBucketKey = otherBucketKey;
         if (showOtherBucket) {
-            this.totalNumKeys = filters.size() + 1;
+            this.totalNumKeys = keys.length + 1;
         } else {
-            this.totalNumKeys = filters.size();
-        }
-        for (int i = 0; i < filters.size(); ++i) {
-            KeyedFilter keyedFilter = filters.get(i);
-            this.keys[i] = keyedFilter.key;
-            Query filter = keyedFilter.filter.toFilter(context.searchContext().indexShard().getQueryShardContext());
-            this.filters[i] = aggregationContext.searchContext().searcher().createNormalizedWeight(filter, false);
+            this.totalNumKeys = keys.length;
         }
     }
 
@@ -269,10 +264,30 @@ public class FiltersAggregator extends BucketsAggregator {
             return otherBucketKey;
         }
 
+        // TODO: refactor in order to initialize the factory once with its parent,
+        // the context, etc. and then have a no-arg lightweight create method
+        // (since create may be called thousands of times)
+
+        private IndexSearcher searcher;
+        private String[] keys;
+        private Weight[] weights;
+
         @Override
         public Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket,
                 List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-            return new FiltersAggregator(name, factories, filters, keyed, otherBucket ? otherBucketKey : null, context, parent,
+            IndexSearcher contextSearcher = context.searchContext().searcher();
+            if (searcher != contextSearcher) {
+                searcher = contextSearcher;
+                weights = new Weight[filters.size()];
+                keys = new String[filters.size()];
+                for (int i = 0; i < filters.size(); ++i) {
+                    KeyedFilter keyedFilter = filters.get(i);
+                    this.keys[i] = keyedFilter.key;
+                    Query filter = keyedFilter.filter.toFilter(context.searchContext().indexShard().getQueryShardContext());
+                    this.weights[i] = contextSearcher.createNormalizedWeight(filter, false);
+                }
+            }
+            return new FiltersAggregator(name, factories, keys, weights, keyed, otherBucket ? otherBucketKey : null, context, parent,
                     pipelineAggregators, metaData);
         }
 

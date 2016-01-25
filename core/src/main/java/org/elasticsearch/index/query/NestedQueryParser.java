@@ -19,14 +19,13 @@
 
 package org.elasticsearch.index.query;
 
+import java.io.IOException;
+
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.support.QueryInnerHits;
-
-import java.io.IOException;
 
 public class NestedQueryParser implements QueryParser<NestedQueryBuilder> {
 
@@ -38,7 +37,7 @@ public class NestedQueryParser implements QueryParser<NestedQueryBuilder> {
 
     @Override
     public String[] names() {
-        return new String[]{NestedQueryBuilder.NAME, Strings.toCamelCase(NestedQueryBuilder.NAME)};
+        return new String[]{NestedQueryBuilder.NAME};
     }
 
     @Override

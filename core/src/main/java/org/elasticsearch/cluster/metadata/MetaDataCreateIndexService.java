@@ -47,6 +47,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -103,13 +104,14 @@ public class MetaDataCreateIndexService extends AbstractComponent {
     private final IndexTemplateFilter indexTemplateFilter;
     private final Environment env;
     private final NodeServicesProvider nodeServicesProvider;
+    private final IndexScopedSettings indexScopedSettings;
 
 
     @Inject
     public MetaDataCreateIndexService(Settings settings, ClusterService clusterService,
                                       IndicesService indicesService, AllocationService allocationService,
                                       Version version, AliasValidator aliasValidator,
-                                      Set<IndexTemplateFilter> indexTemplateFilters, Environment env, NodeServicesProvider nodeServicesProvider) {
+                                      Set<IndexTemplateFilter> indexTemplateFilters, Environment env, NodeServicesProvider nodeServicesProvider, IndexScopedSettings indexScopedSettings) {
         super(settings);
         this.clusterService = clusterService;
         this.indicesService = indicesService;
@@ -118,6 +120,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         this.aliasValidator = aliasValidator;
         this.env = env;
         this.nodeServicesProvider = nodeServicesProvider;
+        this.indexScopedSettings = indexScopedSettings;
 
         if (indexTemplateFilters.isEmpty()) {
             this.indexTemplateFilter = DEFAULT_INDEX_TEMPLATE_FILTER;
@@ -174,6 +177,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
     public void createIndex(final CreateIndexClusterStateUpdateRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
         Settings.Builder updatedSettingsBuilder = Settings.settingsBuilder();
         updatedSettingsBuilder.put(request.settings()).normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX);
+        indexScopedSettings.validate(updatedSettingsBuilder);
         request.settings(updatedSettingsBuilder.build());
 
         clusterService.submitStateUpdateTask("create-index [" + request.index() + "], cause [" + request.cause() + "]",
@@ -313,7 +317,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     // first, add the default mapping
                     if (mappings.containsKey(MapperService.DEFAULT_MAPPING)) {
                         try {
-                            mapperService.merge(MapperService.DEFAULT_MAPPING, new CompressedXContent(XContentFactory.jsonBuilder().map(mappings.get(MapperService.DEFAULT_MAPPING)).string()), false, request.updateAllTypes());
+                            mapperService.merge(MapperService.DEFAULT_MAPPING, new CompressedXContent(XContentFactory.jsonBuilder().map(mappings.get(MapperService.DEFAULT_MAPPING)).string()), MapperService.MergeReason.MAPPING_UPDATE, request.updateAllTypes());
                         } catch (Exception e) {
                             removalReason = "failed on parsing default mapping on index creation";
                             throw new MapperParsingException("Failed to parse mapping [{}]: {}", e, MapperService.DEFAULT_MAPPING, e.getMessage());
@@ -325,7 +329,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                         }
                         try {
                             // apply the default here, its the first time we parse it
-                            mapperService.merge(entry.getKey(), new CompressedXContent(XContentFactory.jsonBuilder().map(entry.getValue()).string()), true, request.updateAllTypes());
+                            mapperService.merge(entry.getKey(), new CompressedXContent(XContentFactory.jsonBuilder().map(entry.getValue()).string()), MapperService.MergeReason.MAPPING_UPDATE, request.updateAllTypes());
                         } catch (Exception e) {
                             removalReason = "failed on parsing mappings on index creation";
                             throw new MapperParsingException("Failed to parse mapping [{}]: {}", e, entry.getKey(), e.getMessage());
@@ -460,16 +464,17 @@ public class MetaDataCreateIndexService extends AbstractComponent {
     }
 
     List<String> getIndexSettingsValidationErrors(Settings settings) {
-        String customPath = settings.get(IndexMetaData.SETTING_DATA_PATH, null);
+        String customPath = IndexMetaData.INDEX_DATA_PATH_SETTING.get(settings);
         List<String> validationErrors = new ArrayList<>();
-        if (customPath != null && env.sharedDataFile() == null) {
+        if (Strings.isEmpty(customPath) == false && env.sharedDataFile() == null) {
             validationErrors.add("path.shared_data must be set in order to use custom data paths");
-        } else if (customPath != null) {
+        } else if (Strings.isEmpty(customPath) == false) {
             Path resolvedPath = PathUtils.get(new Path[]{env.sharedDataFile()}, customPath);
             if (resolvedPath == null) {
                 validationErrors.add("custom path [" + customPath + "] is not a sub-path of path.shared_data [" + env.sharedDataFile() + "]");
             }
         }
+        //norelease - this can be removed?
         Integer number_of_primaries = settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_SHARDS, null);
         Integer number_of_replicas = settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, null);
         if (number_of_primaries != null && number_of_primaries <= 0) {

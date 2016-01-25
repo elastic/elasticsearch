@@ -241,26 +241,26 @@ final class Security {
      */
     static void addFilePermissions(Permissions policy, Environment environment) {
         // read-only dirs
-        addPath(policy, "path.home", environment.binFile(), "read,readlink");
-        addPath(policy, "path.home", environment.libFile(), "read,readlink");
-        addPath(policy, "path.home", environment.modulesFile(), "read,readlink");
-        addPath(policy, "path.plugins", environment.pluginsFile(), "read,readlink");
-        addPath(policy, "path.conf", environment.configFile(), "read,readlink");
-        addPath(policy, "path.scripts", environment.scriptsFile(), "read,readlink");
+        addPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.binFile(), "read,readlink");
+        addPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.libFile(), "read,readlink");
+        addPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.modulesFile(), "read,readlink");
+        addPath(policy, Environment.PATH_PLUGINS_SETTING.getKey(), environment.pluginsFile(), "read,readlink");
+        addPath(policy, Environment.PATH_CONF_SETTING.getKey(), environment.configFile(), "read,readlink");
+        addPath(policy, Environment.PATH_SCRIPTS_SETTING.getKey(), environment.scriptsFile(), "read,readlink");
         // read-write dirs
         addPath(policy, "java.io.tmpdir", environment.tmpFile(), "read,readlink,write,delete");
-        addPath(policy, "path.logs", environment.logsFile(), "read,readlink,write,delete");
+        addPath(policy, Environment.PATH_LOGS_SETTING.getKey(), environment.logsFile(), "read,readlink,write,delete");
         if (environment.sharedDataFile() != null) {
-            addPath(policy, "path.shared_data", environment.sharedDataFile(), "read,readlink,write,delete");
+            addPath(policy, Environment.PATH_SHARED_DATA_SETTING.getKey(), environment.sharedDataFile(), "read,readlink,write,delete");
         }
         for (Path path : environment.dataFiles()) {
-            addPath(policy, "path.data", path, "read,readlink,write,delete");
+            addPath(policy, Environment.PATH_DATA_SETTING.getKey(), path, "read,readlink,write,delete");
         }
         for (Path path : environment.dataWithClusterFiles()) {
-            addPath(policy, "path.data", path, "read,readlink,write,delete");
+            addPath(policy, Environment.PATH_DATA_SETTING.getKey(), path, "read,readlink,write,delete");
         }
         for (Path path : environment.repoFiles()) {
-            addPath(policy, "path.repo", path, "read,readlink,write,delete");
+            addPath(policy, Environment.PATH_REPO_SETTING.getKey(), path, "read,readlink,write,delete");
         }
         if (environment.pidFile() != null) {
             // we just need permission to remove the file if its elsewhere.

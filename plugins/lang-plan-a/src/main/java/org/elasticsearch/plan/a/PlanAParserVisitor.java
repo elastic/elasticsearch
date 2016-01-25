@@ -114,6 +114,12 @@ interface PlanAParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitEmpty(PlanAParser.EmptyContext ctx);
   /**
+   * Visit a parse tree produced by {@link PlanAParser#emptyscope}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitEmptyscope(PlanAParser.EmptyscopeContext ctx);
+  /**
    * Visit a parse tree produced by {@link PlanAParser#initializer}.
    * @param ctx the parse tree
    * @return the visitor result
@@ -143,6 +149,12 @@ interface PlanAParserVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitDeclvar(PlanAParser.DeclvarContext ctx);
+  /**
+   * Visit a parse tree produced by {@link PlanAParser#trap}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitTrap(PlanAParser.TrapContext ctx);
   /**
    * Visit a parse tree produced by the {@code comp}
    * labeled alternative in {@link PlanAParser#expression}.

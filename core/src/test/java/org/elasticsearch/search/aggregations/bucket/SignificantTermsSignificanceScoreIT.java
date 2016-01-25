@@ -177,7 +177,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
         }
 
         public void onModule(SearchModule significanceModule) {
-            significanceModule.registerHeuristicParser(SimpleHeuristic.SimpleHeuristicParser.class);
+            significanceModule.registerHeuristicParser(new SimpleHeuristic.SimpleHeuristicParser());
         }
         public void onModule(ScriptModule module) {
             module.registerScript(NativeSignificanceScoreScriptNoParams.NATIVE_SIGNIFICANCE_SCORE_SCRIPT_NO_PARAMS, NativeSignificanceScoreScriptNoParams.Factory.class);

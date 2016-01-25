@@ -38,6 +38,7 @@ import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.plugin.analysis.stempel.AnalysisStempelPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.test.InternalSettingsPlugin;
 
 import java.io.IOException;
 import java.io.StringReader;
@@ -58,7 +59,7 @@ public class SimplePolishTokenFilterTests extends ESTestCase {
         Index index = new Index("test");
         Settings settings = Settings.settingsBuilder()
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put("path.home", createTempDir())
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .put("index.analysis.filter.myStemmer.type", "polish_stem")
                 .build();
         AnalysisService analysisService = createAnalysisService(index, settings);
@@ -80,7 +81,7 @@ public class SimplePolishTokenFilterTests extends ESTestCase {
         Index index = new Index("test");
         Settings settings = Settings.settingsBuilder()
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put("path.home", createTempDir())
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .build();
         AnalysisService analysisService = createAnalysisService(index, settings);
 
@@ -100,7 +101,9 @@ public class SimplePolishTokenFilterTests extends ESTestCase {
     private AnalysisService createAnalysisService(Index index, Settings settings) throws IOException {
         AnalysisModule analysisModule = new AnalysisModule(new Environment(settings));
         new AnalysisStempelPlugin().onModule(analysisModule);
-        Injector parentInjector = new ModulesBuilder().add(new SettingsModule(settings, new SettingsFilter(settings)),
+        SettingsModule settingsModule = new SettingsModule(settings, new SettingsFilter(settings));
+        settingsModule.registerSetting(InternalSettingsPlugin.VERSION_CREATED);
+        Injector parentInjector = new ModulesBuilder().add(settingsModule,
                 new EnvironmentModule(new Environment(settings)), analysisModule)
                 .createInjector();
         return parentInjector.getInstance(AnalysisRegistry.class).build(IndexSettingsModule.newIndexSettings(index, settings));

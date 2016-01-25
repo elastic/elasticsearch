@@ -24,14 +24,14 @@ import java.util.Map;
 
 /** Tests floating point overflow with numeric overflow disabled */
 public class FloatOverflowDisabledTests extends ScriptTestCase {
-    
+
     /** wire overflow to false for all tests */
     @Override
     public Object exec(String script, Map<String, Object> vars) {
-        return exec(script, vars, Collections.singletonMap(PlanAScriptEngineService.NUMERIC_OVERFLOW, "false"));
+        return exec(script, vars, Collections.singletonMap(CompilerSettings.NUMERIC_OVERFLOW, "false"));
     }
 
-    public void testAssignmentAdditionOverflow() {        
+    public void testAssignmentAdditionOverflow() {
         // float
         try {
             exec("float x = 3.4028234663852886E38f; x += 3.4028234663852886E38f; return x;");
@@ -41,7 +41,7 @@ public class FloatOverflowDisabledTests extends ScriptTestCase {
             exec("float x = -3.4028234663852886E38f; x += -3.4028234663852886E38f; return x;");
             fail("didn't hit expected exception");
         } catch (ArithmeticException expected) {}
-        
+
         // double
         try {
             exec("double x = 1.7976931348623157E308; x += 1.7976931348623157E308; return x;");
@@ -52,8 +52,8 @@ public class FloatOverflowDisabledTests extends ScriptTestCase {
             fail("didn't hit expected exception");
         } catch (ArithmeticException expected) {}
     }
-    
-    public void testAssignmentSubtractionOverflow() {    
+
+    public void testAssignmentSubtractionOverflow() {
         // float
         try {
             exec("float x = 3.4028234663852886E38f; x -= -3.4028234663852886E38f; return x;");
@@ -63,7 +63,7 @@ public class FloatOverflowDisabledTests extends ScriptTestCase {
             exec("float x = -3.4028234663852886E38f; x -= 3.4028234663852886E38f; return x;");
             fail("didn't hit expected exception");
         } catch (ArithmeticException expected) {}
-        
+
         // double
         try {
             exec("double x = 1.7976931348623157E308; x -= -1.7976931348623157E308; return x;");
@@ -74,7 +74,7 @@ public class FloatOverflowDisabledTests extends ScriptTestCase {
             fail("didn't hit expected exception");
         } catch (ArithmeticException expected) {}
     }
-    
+
     public void testAssignmentMultiplicationOverflow() {
         // float
         try {
@@ -85,7 +85,7 @@ public class FloatOverflowDisabledTests extends ScriptTestCase {
             exec("float x = 3.4028234663852886E38f; x *= -3.4028234663852886E38f; return x;");
             fail("didn't hit expected exception");
         } catch (ArithmeticException expected) {}
-        
+
         // double
         try {
             exec("double x = 1.7976931348623157E308; x *= 1.7976931348623157E308; return x;");
@@ -96,7 +96,7 @@ public class FloatOverflowDisabledTests extends ScriptTestCase {
             fail("didn't hit expected exception");
         } catch (ArithmeticException expected) {}
     }
-    
+
     public void testAssignmentDivisionOverflow() {
         // float
         try {
@@ -111,7 +111,7 @@ public class FloatOverflowDisabledTests extends ScriptTestCase {
             exec("float x = 1.0f; x /= 0.0f; return x;");
             fail("didn't hit expected exception");
         } catch (ArithmeticException expected) {}
-        
+
         // double
         try {
             exec("double x = 1.7976931348623157E308; x /= 4.9E-324; return x;");
@@ -137,7 +137,7 @@ public class FloatOverflowDisabledTests extends ScriptTestCase {
             fail("didn't hit expected exception");
         } catch (ArithmeticException expected) {}
     }
-    
+
     public void testAdditionConst() throws Exception {
         try {
             exec("return 3.4028234663852886E38f + 3.4028234663852886E38f;");
@@ -148,7 +148,7 @@ public class FloatOverflowDisabledTests extends ScriptTestCase {
             fail("didn't hit expected exception");
         } catch (ArithmeticException expected) {}
     }
-    
+
     public void testSubtraction() throws Exception {
         try {
             exec("float x = -3.4028234663852886E38f; float y = 3.4028234663852886E38f; return x - y;");
@@ -159,7 +159,7 @@ public class FloatOverflowDisabledTests extends ScriptTestCase {
             fail("didn't hit expected exception");
         } catch (ArithmeticException expected) {}
     }
-    
+
     public void testSubtractionConst() throws Exception {
         try {
             exec("return -3.4028234663852886E38f - 3.4028234663852886E38f;");
@@ -170,7 +170,7 @@ public class FloatOverflowDisabledTests extends ScriptTestCase {
             fail("didn't hit expected exception");
         } catch (ArithmeticException expected) {}
     }
-    
+
     public void testMultiplication() throws Exception {
         try {
             exec("float x = 3.4028234663852886E38f; float y = 3.4028234663852886E38f; return x * y;");
@@ -181,7 +181,7 @@ public class FloatOverflowDisabledTests extends ScriptTestCase {
             fail("didn't hit expected exception");
         } catch (ArithmeticException expected) {}
     }
-    
+
     public void testMultiplicationConst() throws Exception {
         try {
             exec("return 3.4028234663852886E38f * 3.4028234663852886E38f;");
@@ -211,7 +211,7 @@ public class FloatOverflowDisabledTests extends ScriptTestCase {
             fail("didn't hit expected exception");
         } catch (ArithmeticException expected) {}
     }
-    
+
     public void testDivisionConst() throws Exception {
         try {
             exec("return 3.4028234663852886E38f / 1.401298464324817E-45f;");
@@ -230,7 +230,7 @@ public class FloatOverflowDisabledTests extends ScriptTestCase {
             fail("didn't hit expected exception");
         } catch (ArithmeticException expected) {}
     }
-    
+
     public void testDivisionNaN() throws Exception {
         // float division, constant division, and assignment
         try {
@@ -245,7 +245,7 @@ public class FloatOverflowDisabledTests extends ScriptTestCase {
             exec("float x = 0f; x /= 0f; return x;");
             fail("didn't hit expected exception");
         } catch (ArithmeticException expected) {}
-        
+
         // double division, constant division, and assignment
         try {
             exec("double x = 0.0; double y = 0.0; return x / y;");
@@ -260,7 +260,7 @@ public class FloatOverflowDisabledTests extends ScriptTestCase {
             fail("didn't hit expected exception");
         } catch (ArithmeticException expected) {}
     }
-    
+
     public void testRemainderNaN() throws Exception {
         // float division, constant division, and assignment
         try {
@@ -275,7 +275,7 @@ public class FloatOverflowDisabledTests extends ScriptTestCase {
             exec("float x = 1f; x %= 0f; return x;");
             fail("didn't hit expected exception");
         } catch (ArithmeticException expected) {}
-        
+
         // double division, constant division, and assignment
         try {
             exec("double x = 1.0; double y = 0.0; return x % y;");

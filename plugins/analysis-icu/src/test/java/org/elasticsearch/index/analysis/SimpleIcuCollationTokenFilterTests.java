@@ -27,6 +27,7 @@ import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.KeywordTokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -45,7 +46,7 @@ public class SimpleIcuCollationTokenFilterTests extends ESTestCase {
     */
     public void testBasicUsage() throws Exception {
         Settings settings = Settings.settingsBuilder()
-                .put("path.home", createTempDir())
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .put("index.analysis.filter.myCollator.type", "icu_collation")
                 .put("index.analysis.filter.myCollator.language", "tr")
                 .put("index.analysis.filter.myCollator.strength", "primary")
@@ -61,7 +62,7 @@ public class SimpleIcuCollationTokenFilterTests extends ESTestCase {
     */
     public void testNormalization() throws IOException {
         Settings settings = Settings.settingsBuilder()
-                .put("path.home", createTempDir())
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .put("index.analysis.filter.myCollator.type", "icu_collation")
                 .put("index.analysis.filter.myCollator.language", "tr")
                 .put("index.analysis.filter.myCollator.strength", "primary")
@@ -78,7 +79,7 @@ public class SimpleIcuCollationTokenFilterTests extends ESTestCase {
     */
     public void testSecondaryStrength() throws IOException {
         Settings settings = Settings.settingsBuilder()
-                .put("path.home", createTempDir())
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .put("index.analysis.filter.myCollator.type", "icu_collation")
                 .put("index.analysis.filter.myCollator.language", "en")
                 .put("index.analysis.filter.myCollator.strength", "secondary")
@@ -96,7 +97,7 @@ public class SimpleIcuCollationTokenFilterTests extends ESTestCase {
     */
     public void testIgnorePunctuation() throws IOException {
         Settings settings = Settings.settingsBuilder()
-                .put("path.home", createTempDir())
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .put("index.analysis.filter.myCollator.type", "icu_collation")
                 .put("index.analysis.filter.myCollator.language", "en")
                 .put("index.analysis.filter.myCollator.strength", "primary")
@@ -114,7 +115,7 @@ public class SimpleIcuCollationTokenFilterTests extends ESTestCase {
     */
     public void testIgnoreWhitespace() throws IOException {
         Settings settings = Settings.settingsBuilder()
-                .put("path.home", createTempDir())
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .put("index.analysis.filter.myCollator.type", "icu_collation")
                 .put("index.analysis.filter.myCollator.language", "en")
                 .put("index.analysis.filter.myCollator.strength", "primary")
@@ -135,7 +136,7 @@ public class SimpleIcuCollationTokenFilterTests extends ESTestCase {
     */
     public void testNumerics() throws IOException {
         Settings settings = Settings.settingsBuilder()
-                .put("path.home", createTempDir())
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .put("index.analysis.filter.myCollator.type", "icu_collation")
                 .put("index.analysis.filter.myCollator.language", "en")
                 .put("index.analysis.filter.myCollator.numeric", "true")
@@ -152,7 +153,7 @@ public class SimpleIcuCollationTokenFilterTests extends ESTestCase {
     */
     public void testIgnoreAccentsButNotCase() throws IOException {
         Settings settings = Settings.settingsBuilder()
-                .put("path.home", createTempDir())
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .put("index.analysis.filter.myCollator.type", "icu_collation")
                 .put("index.analysis.filter.myCollator.language", "en")
                 .put("index.analysis.filter.myCollator.strength", "primary")
@@ -173,7 +174,7 @@ public class SimpleIcuCollationTokenFilterTests extends ESTestCase {
     */
     public void testUpperCaseFirst() throws IOException {
         Settings settings = Settings.settingsBuilder()
-                .put("path.home", createTempDir())
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .put("index.analysis.filter.myCollator.type", "icu_collation")
                 .put("index.analysis.filter.myCollator.language", "en")
                 .put("index.analysis.filter.myCollator.strength", "tertiary")
@@ -203,7 +204,7 @@ public class SimpleIcuCollationTokenFilterTests extends ESTestCase {
         String tailoredRules = tailoredCollator.getRules();
 
         Settings settings = Settings.settingsBuilder()
-                .put("path.home", createTempDir())
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .put("index.analysis.filter.myCollator.type", "icu_collation")
                 .put("index.analysis.filter.myCollator.rules", tailoredRules)
                 .put("index.analysis.filter.myCollator.strength", "primary")

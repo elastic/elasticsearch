@@ -156,10 +156,8 @@ public class ScriptHeuristic extends SignificanceHeuristic {
     }
 
     public static class ScriptHeuristicParser implements SignificanceHeuristicParser {
-        private final ScriptService scriptService;
 
-        public ScriptHeuristicParser(ScriptService scriptService) {
-            this.scriptService = scriptService;
+        public ScriptHeuristicParser() {
         }
 
         @Override

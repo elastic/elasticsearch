@@ -19,6 +19,7 @@
 
 package org.elasticsearch.discovery;
 
+import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.get.GetResponse;
@@ -30,17 +31,21 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.Murmur3HashFunction;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.math.MathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
@@ -96,6 +101,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -158,8 +164,8 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
     }
 
     final static Settings DEFAULT_SETTINGS = Settings.builder()
-            .put(FaultDetection.SETTING_PING_TIMEOUT, "1s") // for hitting simulated network failures quickly
-            .put(FaultDetection.SETTING_PING_RETRIES, "1") // for hitting simulated network failures quickly
+            .put(FaultDetection.PING_TIMEOUT_SETTING.getKey(), "1s") // for hitting simulated network failures quickly
+            .put(FaultDetection.PING_RETRIES_SETTING.getKey(), "1") // for hitting simulated network failures quickly
             .put("discovery.zen.join_timeout", "10s")  // still long to induce failures but to long so test won't time out
             .put(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(), "1s") // <-- for hitting simulated network failures quickly
             .put("http.enabled", false) // just to make test quicker
@@ -460,7 +466,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
                                 logger.info("[{}] Acquired semaphore and it has {} permits left", name, semaphore.availablePermits());
                                 try {
                                     id = Integer.toString(idGenerator.incrementAndGet());
-                                    int shard = Murmur3HashFunction.hash(id) % numPrimaries;
+                                    int shard = MathUtils.mod(Murmur3HashFunction.hash(id), numPrimaries);
                                     logger.trace("[{}] indexing id [{}] through node [{}] targeting shard [{}]", name, id, node, shard);
                                     IndexResponse response = client.prepareIndex("test", "type", id).setSource("{}").setTimeout("1s").get();
                                     assertThat(response.getVersion(), equalTo(1l));
@@ -883,6 +889,71 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         internalCluster().stopRandomNonMasterNode();
     }
 
+    // simulate handling of sending shard failure during an isolation
+    public void testSendingShardFailure() throws Exception {
+        List<String> nodes = startCluster(3, 2);
+        String masterNode = internalCluster().getMasterName();
+        List<String> nonMasterNodes = nodes.stream().filter(node -> !node.equals(masterNode)).collect(Collectors.toList());
+        String nonMasterNode = randomFrom(nonMasterNodes);
+        assertAcked(prepareCreate("test")
+            .setSettings(Settings.builder()
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 3)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 2)
+            ));
+        ensureGreen();
+        String nonMasterNodeId = internalCluster().clusterService(nonMasterNode).localNode().getId();
+
+        // fail a random shard
+        ShardRouting failedShard =
+            randomFrom(clusterService().state().getRoutingNodes().node(nonMasterNodeId).shardsWithState(ShardRoutingState.STARTED));
+        ShardStateAction service = internalCluster().getInstance(ShardStateAction.class, nonMasterNode);
+        String indexUUID = clusterService().state().metaData().index("test").getIndexUUID();
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicBoolean success = new AtomicBoolean();
+
+        String isolatedNode = randomBoolean() ? masterNode : nonMasterNode;
+        NetworkPartition networkPartition = addRandomIsolation(isolatedNode);
+        networkPartition.startDisrupting();
+
+        service.shardFailed(failedShard, indexUUID, "simulated", new CorruptIndexException("simulated", (String) null), new ShardStateAction.Listener() {
+            @Override
+            public void onSuccess() {
+                success.set(true);
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(Throwable t) {
+                success.set(false);
+                latch.countDown();
+                assert false;
+            }
+        });
+
+        if (isolatedNode.equals(nonMasterNode)) {
+            assertNoMaster(nonMasterNode);
+        } else {
+            ensureStableCluster(2, nonMasterNode);
+        }
+
+        // heal the partition
+        networkPartition.removeAndEnsureHealthy(internalCluster());
+
+        // the cluster should stabilize
+        ensureStableCluster(3);
+
+        latch.await();
+
+        // the listener should be notified
+        assertTrue(success.get());
+
+        // the failed shard should be gone
+        List<ShardRouting> shards = clusterService().state().getRoutingTable().allShards("test");
+        for (ShardRouting shard : shards) {
+            assertThat(shard.allocationId(), not(equalTo(failedShard.allocationId())));
+        }
+    }
+
     public void testClusterFormingWithASlowNode() throws Exception {
         configureUnicastCluster(3, null, 2);
 
@@ -891,7 +962,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         // don't wait for initial state, wat want to add the disruption while the cluster is forming..
         internalCluster().startNodesAsync(3,
                 Settings.builder()
-                        .put(DiscoveryService.SETTING_INITIAL_STATE_TIMEOUT, "1ms")
+                        .put(DiscoveryService.INITIAL_STATE_TIMEOUT_SETTING.getKey(), "1ms")
                         .put(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(), "3s")
                         .build()).get();
 

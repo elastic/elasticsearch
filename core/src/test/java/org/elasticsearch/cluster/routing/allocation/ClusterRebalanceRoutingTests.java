@@ -753,7 +753,7 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
 
         MetaData metaData = MetaData.builder()
                 .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(2).numberOfReplicas(0))
-                .put(IndexMetaData.builder("test1").settings(settings(Version.CURRENT).put(FilterAllocationDecider.INDEX_ROUTING_EXCLUDE_GROUP + "_id", "node1,node2")).numberOfShards(2).numberOfReplicas(0))
+                .put(IndexMetaData.builder("test1").settings(settings(Version.CURRENT).put(IndexMetaData.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + "_id", "node1,node2")).numberOfShards(2).numberOfReplicas(0))
                 .build();
 
         // we use a second index here (test1) that never gets assigned otherwise allocateUnassinged is never called if we don't have unassigned shards.

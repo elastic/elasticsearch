@@ -33,6 +33,7 @@ import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.plugin.analysis.smartcn.AnalysisSmartChinesePlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.test.InternalSettingsPlugin;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
@@ -46,12 +47,14 @@ public class SimpleSmartChineseAnalysisTests extends ESTestCase {
     public void testDefaultsIcuAnalysis() throws IOException {
         Index index = new Index("test");
         Settings settings = settingsBuilder()
-                .put("path.home", createTempDir())
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .build();
         AnalysisModule analysisModule = new AnalysisModule(new Environment(settings));
         new AnalysisSmartChinesePlugin().onModule(analysisModule);
-        Injector parentInjector = new ModulesBuilder().add(new SettingsModule(settings, new SettingsFilter(settings)),
+        SettingsModule settingsModule = new SettingsModule(settings, new SettingsFilter(settings));
+        settingsModule.registerSetting(InternalSettingsPlugin.VERSION_CREATED);
+        Injector parentInjector = new ModulesBuilder().add(settingsModule,
                 new EnvironmentModule(new Environment(settings)), analysisModule)
                 .createInjector();
         final AnalysisService analysisService = parentInjector.getInstance(AnalysisRegistry.class).build(IndexSettingsModule.newIndexSettings(index, settings));

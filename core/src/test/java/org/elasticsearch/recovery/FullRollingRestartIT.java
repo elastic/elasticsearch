@@ -57,7 +57,7 @@ public class FullRollingRestartIT extends ESIntegTestCase {
     }
 
     public void testFullRollingRestart() throws Exception {
-        Settings settings = Settings.builder().put(ZenDiscovery.SETTING_JOIN_TIMEOUT, "30s").build();
+        Settings settings = Settings.builder().put(ZenDiscovery.JOIN_TIMEOUT_SETTING.getKey(), "30s").build();
         internalCluster().startNode(settings);
         createIndex("test");
 
@@ -141,7 +141,7 @@ public class FullRollingRestartIT extends ESIntegTestCase {
          * to relocating to the restarting node since all had 2 shards and now one node has nothing allocated.
          * We have a fix for this to wait until we have allocated unallocated shards now so this shouldn't happen.
          */
-        prepareCreate("test").setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "6").put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0").put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING, TimeValue.timeValueMinutes(1))).get();
+        prepareCreate("test").setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "6").put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0").put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueMinutes(1))).get();
 
         for (int i = 0; i < 100; i++) {
             client().prepareIndex("test", "type1", Long.toString(i))

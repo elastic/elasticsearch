@@ -91,7 +91,7 @@ import org.elasticsearch.index.percolator.PercolatorQueriesRegistry;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
-import org.elasticsearch.index.search.stats.SearchSlowLog;
+import org.elasticsearch.index.SearchSlowLog;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.search.stats.ShardSearchStats;
 import org.elasticsearch.index.similarity.SimilarityService;
@@ -237,13 +237,13 @@ public class IndexShard extends AbstractIndexShardComponent {
         /* create engine config */
         logger.debug("state: [CREATED]");
 
-        this.checkIndexOnStartup = settings.get("index.shard.check_on_startup", "false");
+        this.checkIndexOnStartup = indexSettings.getValue(IndexSettings.INDEX_CHECK_ON_STARTUP);
         this.translogConfig = new TranslogConfig(shardId, shardPath().resolveTranslog(), indexSettings,
             provider.getBigArrays());
         final QueryCachingPolicy cachingPolicy;
         // the query cache is a node-level thing, however we want the most popular filters
         // to be computed on a per-shard basis
-        if (settings.getAsBoolean(IndexModule.QUERY_CACHE_EVERYTHING, false)) {
+        if (IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.get(settings)) {
             cachingPolicy = QueryCachingPolicy.ALWAYS_CACHE;
         } else {
             cachingPolicy = new UsageTrackingQueryCachingPolicy();
@@ -541,25 +541,23 @@ public class IndexShard extends AbstractIndexShardComponent {
     /** Writes all indexing changes to disk and opens a new searcher reflecting all changes.  This can throw {@link EngineClosedException}. */
     public void refresh(String source) {
         verifyNotClosed();
-        if (getEngine().refreshNeeded()) {
-            if (canIndex()) {
-                long bytes = getEngine().getIndexBufferRAMBytesUsed();
-                writingBytes.addAndGet(bytes);
-                try {
-                    logger.debug("refresh with source [{}] indexBufferRAMBytesUsed [{}]", source, new ByteSizeValue(bytes));
-                    long time = System.nanoTime();
-                    getEngine().refresh(source);
-                    refreshMetric.inc(System.nanoTime() - time);
-                } finally {
-                    logger.debug("remove [{}] writing bytes for shard [{}]", new ByteSizeValue(bytes), shardId());
-                    writingBytes.addAndGet(-bytes);
-                }
-            } else {
-                logger.debug("refresh with source [{}]", source);
+        if (canIndex()) {
+            long bytes = getEngine().getIndexBufferRAMBytesUsed();
+            writingBytes.addAndGet(bytes);
+            try {
+                logger.debug("refresh with source [{}] indexBufferRAMBytesUsed [{}]", source, new ByteSizeValue(bytes));
                 long time = System.nanoTime();
                 getEngine().refresh(source);
                 refreshMetric.inc(System.nanoTime() - time);
+            } finally {
+                logger.debug("remove [{}] writing bytes for shard [{}]", new ByteSizeValue(bytes), shardId());
+                writingBytes.addAndGet(-bytes);
             }
+        } else {
+            logger.debug("refresh with source [{}]", source);
+            long time = System.nanoTime();
+            getEngine().refresh(source);
+            refreshMetric.inc(System.nanoTime() - time);
         }
     }
 
@@ -1208,7 +1206,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         BytesStreamOutput os = new BytesStreamOutput();
         PrintStream out = new PrintStream(os, false, StandardCharsets.UTF_8.name());
 
-        if ("checksum".equalsIgnoreCase(checkIndexOnStartup)) {
+        if ("checksum".equals(checkIndexOnStartup)) {
             // physical verification only: verify all checksums for the latest commit
             IOException corrupt = null;
             MetadataSnapshot metadata = store.getMetadata();
@@ -1240,7 +1238,7 @@ public class IndexShard extends AbstractIndexShardComponent {
                         return;
                     }
                     logger.warn("check index [failure]\n{}", new String(os.bytes().toBytes(), StandardCharsets.UTF_8));
-                    if ("fix".equalsIgnoreCase(checkIndexOnStartup)) {
+                    if ("fix".equals(checkIndexOnStartup)) {
                         if (logger.isDebugEnabled()) {
                             logger.debug("fixing index, writing new segments file ...");
                         }
@@ -1512,6 +1510,17 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     EngineFactory getEngineFactory() {
         return engineFactory;
+    }
+
+    /**
+     * Returns <code>true</code> iff one or more changes to the engine are not visible to via the current searcher.
+     * Otherwise <code>false</code>.
+     *
+     * @throws EngineClosedException if the engine is already closed
+     * @throws AlreadyClosedException if the internal indexwriter in the engine is already closed
+     */
+    public boolean isRefreshNeeded() {
+        return getEngine().refreshNeeded();
     }
 
 }

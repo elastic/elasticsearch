@@ -20,6 +20,7 @@ package org.elasticsearch.common.settings;
 
 import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.elasticsearch.action.support.DestructiveOperations;
+import org.elasticsearch.client.transport.TransportClientNodesService;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -35,13 +36,32 @@ import org.elasticsearch.cluster.routing.allocation.decider.SnapshotInProgressAl
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.cluster.service.InternalClusterService;
 import org.elasticsearch.common.logging.ESLoggerFactory;
+import org.elasticsearch.discovery.DiscoveryModule;
+import org.elasticsearch.discovery.DiscoveryService;
+import org.elasticsearch.common.network.NetworkModule;
+import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.discovery.zen.fd.FaultDetection;
+import org.elasticsearch.discovery.zen.ping.unicast.UnicastZenPing;
+import org.elasticsearch.gateway.PrimaryShardAllocator;
+import org.elasticsearch.http.netty.NettyHttpServerTransport;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.store.IndexStoreConfig;
+import org.elasticsearch.indices.analysis.HunspellService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
+import org.elasticsearch.indices.cache.request.IndicesRequestCache;
+import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.indices.ttl.IndicesTTLService;
+import org.elasticsearch.node.Node;
+import org.elasticsearch.repositories.fs.FsRepository;
+import org.elasticsearch.repositories.uri.URLRepository;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
@@ -61,7 +81,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
     public ClusterSettings(Settings settings, Set<Setting<?>> settingsSet) {
         super(settings, settingsSet, Setting.Scope.CLUSTER);
     }
-
 
     @Override
     public synchronized Settings applySettings(Settings newSettings) {
@@ -83,6 +102,11 @@ public final class ClusterSettings extends AbstractScopedSettings {
         return settings;
     }
 
+    @Override
+    public boolean hasDynamicSetting(String key) {
+        return isLoggerSetting(key) || super.hasDynamicSetting(key);
+    }
+
     /**
      * Returns <code>true</code> if the settings is a logger setting.
      */
@@ -92,6 +116,9 @@ public final class ClusterSettings extends AbstractScopedSettings {
 
 
     public static Set<Setting<?>> BUILT_IN_CLUSTER_SETTINGS = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING,
+        TransportClientNodesService.CLIENT_TRANSPORT_NODES_SAMPLER_INTERVAL, // TODO these transport client settings are kind of odd here and should only be valid if we are a transport client
+        TransportClientNodesService.CLIENT_TRANSPORT_PING_TIMEOUT,
+        TransportClientNodesService.CLIENT_TRANSPORT_IGNORE_CLUSTER_NAME,
         AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING,
         BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING,
         BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING,
@@ -104,6 +131,9 @@ public final class ClusterSettings extends AbstractScopedSettings {
         FilterAllocationDecider.CLUSTER_ROUTING_INCLUDE_GROUP_SETTING,
         FilterAllocationDecider.CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING,
         FilterAllocationDecider.CLUSTER_ROUTING_REQUIRE_GROUP_SETTING,
+        FsRepository.REPOSITORIES_CHUNK_SIZE_SETTING,
+        FsRepository.REPOSITORIES_COMPRESS_SETTING,
+        FsRepository.REPOSITORIES_LOCATION_SETTING,
         IndexStoreConfig.INDICES_STORE_THROTTLE_TYPE_SETTING,
         IndexStoreConfig.INDICES_STORE_THROTTLE_MAX_BYTES_PER_SEC_SETTING,
         IndicesTTLService.INDICES_TTL_INTERVAL_SETTING,
@@ -133,6 +163,19 @@ public final class ClusterSettings extends AbstractScopedSettings {
         DiscoverySettings.PUBLISH_DIFF_ENABLE_SETTING,
         DiscoverySettings.COMMIT_TIMEOUT_SETTING,
         DiscoverySettings.NO_MASTER_BLOCK_SETTING,
+        GatewayService.EXPECTED_DATA_NODES_SETTING,
+        GatewayService.EXPECTED_MASTER_NODES_SETTING,
+        GatewayService.EXPECTED_NODES_SETTING,
+        GatewayService.RECOVER_AFTER_DATA_NODES_SETTING,
+        GatewayService.RECOVER_AFTER_MASTER_NODES_SETTING,
+        GatewayService.RECOVER_AFTER_NODES_SETTING,
+        GatewayService.RECOVER_AFTER_TIME_SETTING,
+        NetworkModule.HTTP_ENABLED,
+        NettyHttpServerTransport.SETTING_CORS_ALLOW_CREDENTIALS,
+        NettyHttpServerTransport.SETTING_CORS_ENABLED,
+        NettyHttpServerTransport.SETTING_CORS_MAX_AGE,
+        NettyHttpServerTransport.SETTING_HTTP_DETAILED_ERRORS_ENABLED,
+        NettyHttpServerTransport.SETTING_PIPELINING,       
         HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING,
         HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING,
         HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_OVERHEAD_SETTING,
@@ -149,5 +192,65 @@ public final class ClusterSettings extends AbstractScopedSettings {
         HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_TYPE_SETTING,
         HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_TYPE_SETTING,
         Transport.TRANSPORT_PROFILES_SETTING,
-        Transport.TRANSPORT_TCP_COMPRESS)));
+        Transport.TRANSPORT_TCP_COMPRESS,
+        NetworkService.GLOBAL_NETWORK_HOST_SETTING,
+        NetworkService.GLOBAL_NETWORK_BINDHOST_SETTING,
+        NetworkService.GLOBAL_NETWORK_PUBLISHHOST_SETTING,
+        NetworkService.TcpSettings.TCP_NO_DELAY,
+        NetworkService.TcpSettings.TCP_KEEP_ALIVE,
+        NetworkService.TcpSettings.TCP_REUSE_ADDRESS,
+        NetworkService.TcpSettings.TCP_SEND_BUFFER_SIZE,
+        NetworkService.TcpSettings.TCP_RECEIVE_BUFFER_SIZE,
+        NetworkService.TcpSettings.TCP_BLOCKING,
+        NetworkService.TcpSettings.TCP_BLOCKING_SERVER,
+        NetworkService.TcpSettings.TCP_BLOCKING_CLIENT,
+        NetworkService.TcpSettings.TCP_CONNECT_TIMEOUT,
+        IndexSettings.QUERY_STRING_ANALYZE_WILDCARD,
+        IndexSettings.QUERY_STRING_ALLOW_LEADING_WILDCARD,
+        PrimaryShardAllocator.NODE_INITIAL_SHARDS_SETTING,
+        ScriptService.SCRIPT_CACHE_SIZE_SETTING,
+        IndicesFieldDataCache.INDICES_FIELDDATA_CLEAN_INTERVAL_SETTING,
+        IndicesFieldDataCache.INDICES_FIELDDATA_CACHE_SIZE_KEY,
+        IndicesRequestCache.INDICES_CACHE_QUERY_SIZE,
+        IndicesRequestCache.INDICES_CACHE_QUERY_EXPIRE,
+        HunspellService.HUNSPELL_LAZY_LOAD,
+        HunspellService.HUNSPELL_IGNORE_CASE,
+        HunspellService.HUNSPELL_DICTIONARY_OPTIONS,
+        IndicesStore.INDICES_STORE_DELETE_SHARD_TIMEOUT,
+        Environment.PATH_CONF_SETTING,
+        Environment.PATH_DATA_SETTING,
+        Environment.PATH_HOME_SETTING,
+        Environment.PATH_LOGS_SETTING,
+        Environment.PATH_PLUGINS_SETTING,
+        Environment.PATH_REPO_SETTING,
+        Environment.PATH_SCRIPTS_SETTING,
+        Environment.PATH_SHARED_DATA_SETTING,
+        Environment.PIDFILE_SETTING,
+        DiscoveryService.DISCOVERY_SEED_SETTING,
+        DiscoveryService.INITIAL_STATE_TIMEOUT_SETTING,
+        DiscoveryModule.DISCOVERY_TYPE_SETTING,
+        DiscoveryModule.ZEN_MASTER_SERVICE_TYPE_SETTING,
+        FaultDetection.PING_RETRIES_SETTING,
+        FaultDetection.PING_TIMEOUT_SETTING,
+        FaultDetection.REGISTER_CONNECTION_LISTENER_SETTING,
+        FaultDetection.PING_INTERVAL_SETTING,
+        FaultDetection.CONNECT_ON_NETWORK_DISCONNECT_SETTING,
+        ZenDiscovery.PING_TIMEOUT_SETTING,
+        ZenDiscovery.JOIN_TIMEOUT_SETTING,
+        ZenDiscovery.JOIN_RETRY_ATTEMPTS_SETTING,
+        ZenDiscovery.JOIN_RETRY_DELAY_SETTING,
+        ZenDiscovery.MAX_PINGS_FROM_ANOTHER_MASTER_SETTING,
+        ZenDiscovery.SEND_LEAVE_REQUEST_SETTING,
+        ZenDiscovery.MASTER_ELECTION_FILTER_CLIENT_SETTING,
+        ZenDiscovery.MASTER_ELECTION_WAIT_FOR_JOINS_TIMEOUT_SETTING,
+        ZenDiscovery.MASTER_ELECTION_FILTER_DATA_SETTING,
+        UnicastZenPing.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING,
+        UnicastZenPing.DISCOVERY_ZEN_PING_UNICAST_CONCURRENT_CONNECTS_SETTING,
+        SearchService.DEFAULT_KEEPALIVE_SETTING,
+        SearchService.KEEPALIVE_INTERVAL_SETTING,
+        Node.WRITE_PORTS_FIELD_SETTING,
+        URLRepository.ALLOWED_URLS_SETTING,
+        URLRepository.REPOSITORIES_LIST_DIRECTORIES_SETTING,
+        URLRepository.REPOSITORIES_URL_SETTING,
+        URLRepository.SUPPORTED_PROTOCOLS_SETTING)));
 }

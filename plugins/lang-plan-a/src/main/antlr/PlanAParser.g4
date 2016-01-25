@@ -34,18 +34,23 @@ statement
     | CONTINUE SEMICOLON?                                                                    # continue
     | BREAK SEMICOLON?                                                                       # break
     | RETURN expression SEMICOLON?                                                           # return
-    | TRY block ( CATCH LP ( TYPE ID ) RP block )+                                           # try
+    | TRY block trap+                                                                        # try
     | THROW expression SEMICOLON?                                                            # throw
     | expression SEMICOLON?                                                                  # expr
     ;
 
 block
-    : LBRACK statement* RBRACK                 # multiple
+    : LBRACK statement+ RBRACK                 # multiple
     | statement                                # single
     ;
 
 empty
-    : SEMICOLON
+    : emptyscope
+    | SEMICOLON
+    ;
+
+emptyscope
+    : LBRACK RBRACK
     ;
 
 initializer
@@ -67,6 +72,10 @@ decltype
 
 declvar
     : ID ( ASSIGN expression )?
+    ;
+
+trap
+    : CATCH LP ( TYPE ID ) RP ( block | emptyscope )
     ;
 
 expression

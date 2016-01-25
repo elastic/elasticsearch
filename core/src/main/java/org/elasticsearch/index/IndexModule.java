@@ -20,6 +20,8 @@
 package org.elasticsearch.index;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
@@ -35,7 +37,6 @@ import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.IndexStoreConfig;
-import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.indices.cache.query.IndicesQueryCache;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 
@@ -47,6 +48,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 /**
  * IndexModule represents the central extension point for index level custom implementations like:
@@ -57,25 +59,24 @@ import java.util.function.Consumer;
  *         <tt>"index.similarity.my_similarity.type : "BM25"</tt> can be used.</li>
  *      <li>{@link IndexStore} - Custom {@link IndexStore} instances can be registered via {@link #addIndexStore(String, BiFunction)}</li>
  *      <li>{@link IndexEventListener} - Custom {@link IndexEventListener} instances can be registered via {@link #addIndexEventListener(IndexEventListener)}</li>
- *      <li>Settings update listener - Custom settings update listener can be registered via {@link #addIndexSettingsListener(Consumer)}</li>
+ *      <li>Settings update listener - Custom settings update listener can be registered via {@link #addSettingsUpdateConsumer(Setting, Consumer)}</li>
  * </ul>
  */
 public final class IndexModule {
 
-    public static final String STORE_TYPE = "index.store.type";
+    public static final Setting<String> INDEX_STORE_TYPE_SETTING = new Setting<>("index.store.type", "", Function.identity(), false, Setting.Scope.INDEX);
     public static final String SIMILARITY_SETTINGS_PREFIX = "index.similarity";
     public static final String INDEX_QUERY_CACHE = "index";
     public static final String NONE_QUERY_CACHE = "none";
-    public static final String QUERY_CACHE_TYPE = "index.queries.cache.type";
+    public static final Setting<String> INDEX_QUERY_CACHE_TYPE_SETTING = new Setting<>("index.queries.cache.type", INDEX_QUERY_CACHE, Function.identity(), false, Setting.Scope.INDEX);
     // for test purposes only
-    public static final String QUERY_CACHE_EVERYTHING = "index.queries.cache.everything";
+    public static final Setting<Boolean> INDEX_QUERY_CACHE_EVERYTHING_SETTING = Setting.boolSetting("index.queries.cache.everything", false, false, Setting.Scope.INDEX);
     private final IndexSettings indexSettings;
     private final IndexStoreConfig indexStoreConfig;
     private final AnalysisRegistry analysisRegistry;
     // pkg private so tests can mock
     final SetOnce<EngineFactory> engineFactory = new SetOnce<>();
     private SetOnce<IndexSearcherWrapperFactory> indexSearcherWrapper = new SetOnce<>();
-    private final Set<Consumer<Settings>> settingsConsumers = new HashSet<>();
     private final Set<IndexEventListener> indexEventListeners = new HashSet<>();
     private IndexEventListener listener;
     private final Map<String, BiFunction<String, Settings, SimilarityProvider>> similarities = new HashMap<>();
@@ -92,17 +93,13 @@ public final class IndexModule {
     }
 
     /**
-     * Adds a settings consumer for this index
+     * Adds a Setting and it's consumer for this index.
      */
-    public void addIndexSettingsListener(Consumer<Settings> listener) {
-        if (listener == null) {
-            throw new IllegalArgumentException("listener must not be null");
+    public <T> void addSettingsUpdateConsumer(Setting<T> setting, Consumer<T> consumer) {
+        if (setting == null) {
+            throw new IllegalArgumentException("setting must not be null");
         }
-
-        if (settingsConsumers.contains(listener)) {
-            throw new IllegalStateException("listener already registered");
-        }
-        settingsConsumers.add(listener);
+        indexSettings.getScopedSettings().addSettingsUpdateConsumer(setting, consumer);
     }
 
     /**
@@ -245,27 +242,29 @@ public final class IndexModule {
 
     public IndexService newIndexService(NodeEnvironment environment, IndexService.ShardStoreDeleter shardStoreDeleter, NodeServicesProvider servicesProvider, MapperRegistry mapperRegistry,
                                         IndexingOperationListener... listeners) throws IOException {
-        final IndexSettings settings = indexSettings.newWithListener(settingsConsumers);
         IndexSearcherWrapperFactory searcherWrapperFactory = indexSearcherWrapper.get() == null ? (shard) -> null : indexSearcherWrapper.get();
         IndexEventListener eventListener = freeze();
-        final String storeType = settings.getSettings().get(STORE_TYPE);
+        final String storeType = indexSettings.getValue(INDEX_STORE_TYPE_SETTING);
         final IndexStore store;
-        if (storeType == null || isBuiltinType(storeType)) {
-            store = new IndexStore(settings, indexStoreConfig);
+        if (Strings.isEmpty(storeType) || isBuiltinType(storeType)) {
+            store = new IndexStore(indexSettings, indexStoreConfig);
         } else {
             BiFunction<IndexSettings, IndexStoreConfig, IndexStore> factory = storeTypes.get(storeType);
             if (factory == null) {
                 throw new IllegalArgumentException("Unknown store type [" + storeType + "]");
             }
-            store = factory.apply(settings, indexStoreConfig);
+            store = factory.apply(indexSettings, indexStoreConfig);
             if (store == null) {
                 throw new IllegalStateException("store must not be null");
             }
         }
-        final String queryCacheType = settings.getSettings().get(IndexModule.QUERY_CACHE_TYPE, IndexModule.INDEX_QUERY_CACHE);
+        indexSettings.getScopedSettings().addSettingsUpdateConsumer(IndexStore.INDEX_STORE_THROTTLE_TYPE_SETTING, store::setType);
+        indexSettings.getScopedSettings().addSettingsUpdateConsumer(IndexStore.INDEX_STORE_THROTTLE_MAX_BYTES_PER_SEC_SETTING, store::setMaxRate);
+        final String queryCacheType = indexSettings.getValue(INDEX_QUERY_CACHE_TYPE_SETTING);
         final BiFunction<IndexSettings, IndicesQueryCache, QueryCache> queryCacheProvider = queryCaches.get(queryCacheType);
-        final QueryCache queryCache = queryCacheProvider.apply(settings, servicesProvider.getIndicesQueryCache());
-        return new IndexService(settings, environment, new SimilarityService(settings, similarities), shardStoreDeleter, analysisRegistry, engineFactory.get(),
+        final QueryCache queryCache = queryCacheProvider.apply(indexSettings, servicesProvider.getIndicesQueryCache());
+        return new IndexService(indexSettings, environment, new SimilarityService(indexSettings, similarities), shardStoreDeleter, analysisRegistry, engineFactory.get(),
                 servicesProvider, queryCache, store, eventListener, searcherWrapperFactory, mapperRegistry, listeners);
     }
+
 }

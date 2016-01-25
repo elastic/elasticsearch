@@ -52,6 +52,7 @@ import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.store.MockFSDirectoryService;
+import org.elasticsearch.test.store.MockFSIndexStore;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.Transport;
@@ -97,7 +98,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(MockTransportService.TestPlugin.class);
+        return pluginList(MockTransportService.TestPlugin.class, MockFSIndexStore.TestPlugin.class);
     }
 
     private void assertRecoveryStateWithoutStage(RecoveryState state, int shardId, Type type,
@@ -497,7 +498,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
 
         logger.info("--> creating test index: {}", name);
         assertAcked(prepareCreate(name, nodeCount, settingsBuilder().put("number_of_shards", shardCount)
-                .put("number_of_replicas", replicaCount).put(Store.INDEX_STORE_STATS_REFRESH_INTERVAL, 0)));
+                .put("number_of_replicas", replicaCount).put(Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), 0)));
         ensureGreen();
 
         logger.info("--> indexing sample data");
@@ -530,7 +531,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         final Settings nodeSettings = Settings.builder()
                 .put(RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_NETWORK_SETTING.getKey(), "100ms")
                 .put(RecoverySettings.INDICES_RECOVERY_INTERNAL_ACTION_TIMEOUT_SETTING.getKey(), "1s")
-                .put(MockFSDirectoryService.RANDOM_PREVENT_DOUBLE_WRITE, false) // restarted recoveries will delete temp files and write them again
+                .put(MockFSDirectoryService.RANDOM_PREVENT_DOUBLE_WRITE_SETTING.getKey(), false) // restarted recoveries will delete temp files and write them again
                 .build();
         // start a master node
         internalCluster().startNode(nodeSettings);
@@ -547,7 +548,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         client().admin().indices().prepareCreate(indexName)
                 .setSettings(
                         Settings.builder()
-                                .put(FilterAllocationDecider.INDEX_ROUTING_INCLUDE_GROUP + "color", "blue")
+                                .put(IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "color", "blue")
                                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
                 ).get();
@@ -593,7 +594,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         logger.info("--> starting recovery from blue to red");
         client().admin().indices().prepareUpdateSettings(indexName).setSettings(
                 Settings.builder()
-                        .put(FilterAllocationDecider.INDEX_ROUTING_INCLUDE_GROUP + "color", "red,blue")
+                        .put(IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "color", "red,blue")
                         .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
         ).get();
 

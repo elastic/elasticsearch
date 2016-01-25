@@ -20,20 +20,12 @@
 package org.elasticsearch.test.rest;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
-import com.carrotsearch.randomizedtesting.annotations.TestGroup;
-import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import org.apache.lucene.util.IOUtils;
-import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
-import org.apache.lucene.util.LuceneTestCase.SuppressFsync;
-import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.node.Node;
-import org.elasticsearch.repositories.uri.URLRepository;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.client.RestException;
 import org.elasticsearch.test.rest.parser.RestTestParseException;
 import org.elasticsearch.test.rest.parser.RestTestSuiteParser;
@@ -45,17 +37,14 @@ import org.elasticsearch.test.rest.section.TestSection;
 import org.elasticsearch.test.rest.spec.RestApi;
 import org.elasticsearch.test.rest.spec.RestSpec;
 import org.elasticsearch.test.rest.support.FileUtils;
+import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.lang.annotation.ElementType;
-import java.lang.annotation.Inherited;
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
-import java.lang.annotation.Target;
+import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
@@ -67,6 +56,7 @@ import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -74,27 +64,7 @@ import java.util.Set;
 /**
  * Runs the clients test suite against an elasticsearch cluster.
  */
-@ESRestTestCase.Rest
-@SuppressFsync // we aren't trying to test this here, and it can make the test slow
-@SuppressCodecs("*") // requires custom completion postings format
-@ClusterScope(randomDynamicTemplates = false)
-@TimeoutSuite(millis = 40 * TimeUnits.MINUTE) // timeout the suite after 40min and fail the test.
-public abstract class ESRestTestCase extends ESIntegTestCase {
-
-    /**
-     * Property that allows to control whether the REST tests are run (default) or not
-     */
-    public static final String TESTS_REST = "tests.rest";
-
-    /**
-     * Annotation for REST tests
-     */
-    @Inherited
-    @Retention(RetentionPolicy.RUNTIME)
-    @Target(ElementType.TYPE)
-    @TestGroup(enabled = true, sysProperty = ESRestTestCase.TESTS_REST)
-    public @interface Rest {
-    }
+public abstract class ESRestTestCase extends ESTestCase {
 
     /**
      * Property that allows to control which REST tests get run. Supports comma separated list of tests
@@ -132,7 +102,9 @@ public abstract class ESRestTestCase extends ESIntegTestCase {
     private static final String PATHS_SEPARATOR = "(?<!\\\\),";
 
     private final List<BlacklistedPathPatternMatcher> blacklistPathMatchers = new ArrayList<>();
+    private final URL[] clusterUrls;
     private static RestTestExecutionContext restTestExecutionContext;
+    private static RestTestExecutionContext adminExecutionContext;
 
     private final RestTestCandidate testCandidate;
 
@@ -142,6 +114,20 @@ public abstract class ESRestTestCase extends ESIntegTestCase {
         for (String entry : blacklist) {
             this.blacklistPathMatchers.add(new BlacklistedPathPatternMatcher(entry));
         }
+        String cluster = System.getProperty("tests.rest.cluster");
+        if (cluster == null) {
+            throw new RuntimeException("Must specify tests.rest.cluster for rest tests");
+        }
+        String[] stringUrls = cluster.split(",");
+        clusterUrls = new URL[stringUrls.length];
+        int i = 0;
+        try {
+            for (String stringUrl : stringUrls) {
+                clusterUrls[i++] = new URL("http://" + stringUrl);
+            }
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to parse cluster addresses for rest test", e);
+        }
     }
 
     @Override
@@ -150,28 +136,7 @@ public abstract class ESRestTestCase extends ESIntegTestCase {
         super.afterIfFailed(errors);
     }
 
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder()
-            .putArray(URLRepository.ALLOWED_URLS_SETTING, "http://snapshot.test*")
-            .put(Node.HTTP_ENABLED, true)
-            .put("node.testattr", "test")
-            .put(super.nodeSettings(nodeOrdinal)).build();
-    }
-
     public static Iterable<Object[]> createParameters(int id, int count) throws IOException, RestTestParseException {
-        TestGroup testGroup = Rest.class.getAnnotation(TestGroup.class);
-        String sysProperty = TestGroup.Utilities.getSysProperty(Rest.class);
-        boolean enabled;
-        try {
-            enabled = RandomizedTest.systemPropertyAsBoolean(sysProperty, testGroup.enabled());
-        } catch (IllegalArgumentException e) {
-            // Ignore malformed system property, disable the group if malformed though.
-            enabled = false;
-        }
-        if (!enabled) {
-            return new ArrayList<>();
-        }
         //parse tests only if rest test group is enabled, otherwise rest tests might not even be available on file system
         List<RestTestCandidate> restTestCandidates = collectTestCandidates(id, count);
         List<Object[]> objects = new ArrayList<>();
@@ -274,6 +239,7 @@ public abstract class ESRestTestCase extends ESIntegTestCase {
         }
         validateSpec(restSpec);
         restTestExecutionContext = new RestTestExecutionContext(restSpec);
+        adminExecutionContext = new RestTestExecutionContext(restSpec);
     }
 
     private static void validateSpec(RestSpec restSpec) {
@@ -293,25 +259,40 @@ public abstract class ESRestTestCase extends ESIntegTestCase {
         }
     }
 
+    @After
+    public void wipeCluster() throws Exception {
+
+        // wipe indices
+        Map<String, String> deleteIndicesArgs = new HashMap<>();
+        deleteIndicesArgs.put("index", "*");
+        try {
+            adminExecutionContext.callApi("indices.delete", deleteIndicesArgs, Collections.emptyList(), Collections.emptyMap());
+        } catch (RestException e) {
+            // 404 here just means we had no indexes
+            if (e.statusCode() != 404) {
+                throw e;
+            }
+        }
+
+        // wipe index templates
+        Map<String, String> deleteTemplatesArgs = new HashMap<>();
+        deleteTemplatesArgs.put("name", "*");
+        adminExecutionContext.callApi("indices.delete_template", deleteTemplatesArgs, Collections.emptyList(), Collections.emptyMap());
+
+        // wipe snapshots
+        Map<String, String> deleteSnapshotsArgs = new HashMap<>();
+        deleteSnapshotsArgs.put("repository", "*");
+        adminExecutionContext.callApi("snapshot.delete_repository", deleteSnapshotsArgs, Collections.emptyList(), Collections.emptyMap());
+    }
+
     @AfterClass
     public static void close() {
         if (restTestExecutionContext != null) {
             restTestExecutionContext.close();
+            adminExecutionContext.close();
             restTestExecutionContext = null;
+            adminExecutionContext = null;
         }
-    }
-
-    @Override
-    protected int maximumNumberOfShards() {
-        return 3; // never go crazy in the REST tests
-    }
-
-    @Override
-    protected int maximumNumberOfReplicas() {
-        // hardcoded 1 since this is what clients also do and our tests must expect that we have only node
-        // with replicas set to 1 ie. the cluster won't be green
-        return 1;
-
     }
 
     /**
@@ -321,15 +302,29 @@ public abstract class ESRestTestCase extends ESIntegTestCase {
         return Settings.EMPTY;
     }
 
+    /** Returns the REST client settings used for admin actions like cleaning up after the test has completed. */
+    protected Settings restAdminSettings() {
+        return restClientSettings(); // default to the same client settings
+    }
+
+    /** Returns the addresses the client uses to connect to the test cluster. */
+    protected URL[] getClusterUrls() {
+        return clusterUrls;
+    }
+
     @Before
     public void reset() throws IOException, RestException {
+        // admin context must be available for @After always, regardless of whether the test was blacklisted
+        adminExecutionContext.initClient(clusterUrls, restAdminSettings());
+        adminExecutionContext.clear();
+
         //skip test if it matches one of the blacklist globs
         for (BlacklistedPathPatternMatcher blacklistedPathMatcher : blacklistPathMatchers) {
             String testPath = testCandidate.getSuitePath() + "/" + testCandidate.getTestSection().getName();
             assumeFalse("[" + testCandidate.getTestPath() + "] skipped, reason: blacklisted", blacklistedPathMatcher.isSuffixMatch(testPath));
         }
         //The client needs non static info to get initialized, therefore it can't be initialized in the before class
-        restTestExecutionContext.initClient(cluster().httpAddresses(), restClientSettings());
+        restTestExecutionContext.initClient(clusterUrls, restClientSettings());
         restTestExecutionContext.clear();
 
         //skip test if the whole suite (yaml file) is disabled

@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.DiscoveryService;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -56,21 +57,21 @@ public class TribeUnitTests extends ESTestCase {
         Settings baseSettings = Settings.builder()
             .put("http.enabled", false)
             .put("node.mode", NODE_MODE)
-            .put("path.home", createTempDir()).build();
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
 
         tribe1 = new TribeClientNode(
             Settings.builder()
                 .put(baseSettings)
                 .put("cluster.name", "tribe1")
                 .put("name", "tribe1_node")
-                .put(DiscoveryService.SETTING_DISCOVERY_SEED, random().nextLong())
+                .put(DiscoveryService.DISCOVERY_SEED_SETTING.getKey(), random().nextLong())
                 .build()).start();
         tribe2 = new TribeClientNode(
             Settings.builder()
                 .put(baseSettings)
                 .put("cluster.name", "tribe2")
                 .put("name", "tribe2_node")
-                .put(DiscoveryService.SETTING_DISCOVERY_SEED, random().nextLong())
+                .put(DiscoveryService.DISCOVERY_SEED_SETTING.getKey(), random().nextLong())
                 .build()).start();
     }
 
@@ -102,7 +103,11 @@ public class TribeUnitTests extends ESTestCase {
 
     public void testThatTribeClientsIgnoreGlobalConfig() throws Exception {
         Path pathConf = getDataPath("elasticsearch.yml").getParent();
-        Settings settings = Settings.builder().put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING, true).put("path.conf", pathConf).build();
+        Settings settings = Settings
+            .builder()
+            .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING, true)
+            .put(Environment.PATH_CONF_SETTING.getKey(), pathConf)
+            .build();
         assertTribeNodeSuccesfullyCreated(settings);
     }
 
@@ -111,7 +116,7 @@ public class TribeUnitTests extends ESTestCase {
         //they can find their corresponding tribes using the proper transport
         Settings settings = Settings.builder().put("http.enabled", false).put("node.name", "tribe_node")
                 .put("tribe.t1.node.mode", NODE_MODE).put("tribe.t2.node.mode", NODE_MODE)
-                .put("path.home", createTempDir()).put(extraSettings).build();
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).put(extraSettings).build();
 
         try (Node node = new Node(settings).start()) {
             try (Client client = node.client()) {

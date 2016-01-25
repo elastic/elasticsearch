@@ -40,7 +40,7 @@ import static org.elasticsearch.action.support.PlainActionFuture.newFuture;
 /**
  *
  */
-public abstract class TransportAction<Request extends ActionRequest, Response extends ActionResponse> extends AbstractComponent {
+public abstract class TransportAction<Request extends ActionRequest<Request>, Response extends ActionResponse> extends AbstractComponent {
 
     protected final ThreadPool threadPool;
     protected final String actionName;
@@ -66,7 +66,7 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
         return future;
     }
 
-    public final void execute(Request request, ActionListener<Response> listener) {
+    public final Task execute(Request request, ActionListener<Response> listener) {
         Task task = taskManager.register("transport", actionName, request);
         if (task == null) {
             execute(null, request, listener);
@@ -85,6 +85,7 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
                 }
             });
         }
+        return task;
     }
 
     private final void execute(Task task, Request request, ActionListener<Response> listener) {
@@ -103,7 +104,7 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
                 listener.onFailure(t);
             }
         } else {
-            RequestFilterChain requestFilterChain = new RequestFilterChain<>(this, logger);
+            RequestFilterChain<Request, Response> requestFilterChain = new RequestFilterChain<>(this, logger);
             requestFilterChain.proceed(task, actionName, request, listener);
         }
     }
@@ -114,7 +115,8 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
 
     protected abstract void doExecute(Request request, ActionListener<Response> listener);
 
-    private static class RequestFilterChain<Request extends ActionRequest, Response extends ActionResponse> implements ActionFilterChain {
+    private static class RequestFilterChain<Request extends ActionRequest<Request>, Response extends ActionResponse>
+            implements ActionFilterChain<Request, Response> {
 
         private final TransportAction<Request, Response> action;
         private final AtomicInteger index = new AtomicInteger();
@@ -125,14 +127,15 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
             this.logger = logger;
         }
 
-        @Override @SuppressWarnings("unchecked")
-        public void proceed(Task task, String actionName, ActionRequest request, ActionListener listener) {
+        @Override
+        public void proceed(Task task, String actionName, Request request, ActionListener<Response> listener) {
             int i = index.getAndIncrement();
             try {
                 if (i < this.action.filters.length) {
                     this.action.filters[i].apply(task, actionName, request, listener, this);
                 } else if (i == this.action.filters.length) {
-                    this.action.doExecute(task, (Request) request, new FilteredActionListener<Response>(actionName, listener, new ResponseFilterChain(this.action.filters, logger)));
+                    this.action.doExecute(task, request, new FilteredActionListener<Response>(actionName, listener,
+                            new ResponseFilterChain<>(this.action.filters, logger)));
                 } else {
                     listener.onFailure(new IllegalStateException("proceed was called too many times"));
                 }
@@ -143,12 +146,13 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
         }
 
         @Override
-        public void proceed(String action, ActionResponse response, ActionListener listener) {
+        public void proceed(String action, Response response, ActionListener<Response> listener) {
             assert false : "request filter chain should never be called on the response side";
         }
     }
 
-    private static class ResponseFilterChain implements ActionFilterChain {
+    private static class ResponseFilterChain<Request extends ActionRequest<Request>, Response extends ActionResponse>
+            implements ActionFilterChain<Request, Response> {
 
         private final ActionFilter[] filters;
         private final AtomicInteger index;
@@ -161,12 +165,12 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
         }
 
         @Override
-        public void proceed(Task task, String action, ActionRequest request, ActionListener listener) {
+        public void proceed(Task task, String action, Request request, ActionListener<Response> listener) {
             assert false : "response filter chain should never be called on the request side";
         }
 
-        @Override @SuppressWarnings("unchecked")
-        public void proceed(String action, ActionResponse response, ActionListener listener) {
+        @Override
+        public void proceed(String action, Response response, ActionListener<Response> listener) {
             int i = index.decrementAndGet();
             try {
                 if (i >= 0) {
@@ -186,10 +190,10 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
     private static class FilteredActionListener<Response extends ActionResponse> implements ActionListener<Response> {
 
         private final String actionName;
-        private final ActionListener listener;
-        private final ResponseFilterChain chain;
+        private final ActionListener<Response> listener;
+        private final ResponseFilterChain<?, Response> chain;
 
-        private FilteredActionListener(String actionName, ActionListener listener, ResponseFilterChain chain) {
+        private FilteredActionListener(String actionName, ActionListener<Response> listener, ResponseFilterChain<?, Response> chain) {
             this.actionName = actionName;
             this.listener = listener;
             this.chain = chain;

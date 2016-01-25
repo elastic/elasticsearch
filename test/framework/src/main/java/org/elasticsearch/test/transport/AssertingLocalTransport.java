@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkModule;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -60,8 +61,10 @@ public class AssertingLocalTransport extends LocalTransport {
         }
     }
 
-    public static final String ASSERTING_TRANSPORT_MIN_VERSION_KEY = "transport.asserting.version.min";
-    public static final String ASSERTING_TRANSPORT_MAX_VERSION_KEY = "transport.asserting.version.max";
+    public static final Setting<Version> ASSERTING_TRANSPORT_MIN_VERSION_KEY = new Setting<>("transport.asserting.version.min",
+            Version.CURRENT.minimumCompatibilityVersion().toString(), Version::fromString, false, Setting.Scope.CLUSTER);
+    public static final Setting<Version> ASSERTING_TRANSPORT_MAX_VERSION_KEY = new Setting<>("transport.asserting.version.max",
+            Version.CURRENT.toString(), Version::fromString, false, Setting.Scope.CLUSTER);
     private final Random random;
     private final Version minVersion;
     private final Version maxVersion;
@@ -69,10 +72,10 @@ public class AssertingLocalTransport extends LocalTransport {
     @Inject
     public AssertingLocalTransport(Settings settings, ThreadPool threadPool, Version version, NamedWriteableRegistry namedWriteableRegistry) {
         super(settings, threadPool, version, namedWriteableRegistry);
-        final long seed = settings.getAsLong(ESIntegTestCase.SETTING_INDEX_SEED, 0l);
+        final long seed = ESIntegTestCase.INDEX_TEST_SEED_SETTING.get(settings);
         random = new Random(seed);
-        minVersion = settings.getAsVersion(ASSERTING_TRANSPORT_MIN_VERSION_KEY, Version.V_0_18_0);
-        maxVersion = settings.getAsVersion(ASSERTING_TRANSPORT_MAX_VERSION_KEY, Version.CURRENT);
+        minVersion = ASSERTING_TRANSPORT_MIN_VERSION_KEY.get(settings);
+        maxVersion = ASSERTING_TRANSPORT_MAX_VERSION_KEY.get(settings);
     }
 
     @Override

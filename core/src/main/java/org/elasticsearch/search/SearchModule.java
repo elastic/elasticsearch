@@ -19,11 +19,92 @@
 
 package org.elasticsearch.search;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Supplier;
+
+import org.apache.lucene.search.BooleanQuery;
+import org.elasticsearch.common.geo.ShapesAvailability;
+import org.elasticsearch.common.geo.builders.CircleBuilder;
+import org.elasticsearch.common.geo.builders.EnvelopeBuilder;
+import org.elasticsearch.common.geo.builders.GeometryCollectionBuilder;
+import org.elasticsearch.common.geo.builders.LineStringBuilder;
+import org.elasticsearch.common.geo.builders.MultiLineStringBuilder;
+import org.elasticsearch.common.geo.builders.MultiPointBuilder;
+import org.elasticsearch.common.geo.builders.MultiPolygonBuilder;
+import org.elasticsearch.common.geo.builders.PointBuilder;
+import org.elasticsearch.common.geo.builders.PolygonBuilder;
+import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.query.BoolQueryParser;
+import org.elasticsearch.index.query.BoostingQueryParser;
+import org.elasticsearch.index.query.CommonTermsQueryParser;
+import org.elasticsearch.index.query.ConstantScoreQueryParser;
+import org.elasticsearch.index.query.DisMaxQueryParser;
+import org.elasticsearch.index.query.EmptyQueryBuilder;
+import org.elasticsearch.index.query.ExistsQueryParser;
+import org.elasticsearch.index.query.FieldMaskingSpanQueryParser;
+import org.elasticsearch.index.query.FuzzyQueryParser;
+import org.elasticsearch.index.query.GeoBoundingBoxQueryParser;
+import org.elasticsearch.index.query.GeoDistanceQueryParser;
+import org.elasticsearch.index.query.GeoDistanceRangeQueryParser;
+import org.elasticsearch.index.query.GeoPolygonQueryParser;
+import org.elasticsearch.index.query.GeoShapeQueryParser;
+import org.elasticsearch.index.query.GeohashCellQuery;
+import org.elasticsearch.index.query.HasChildQueryParser;
+import org.elasticsearch.index.query.HasParentQueryParser;
+import org.elasticsearch.index.query.IdsQueryParser;
+import org.elasticsearch.index.query.IndicesQueryParser;
+import org.elasticsearch.index.query.MatchAllQueryParser;
+import org.elasticsearch.index.query.MatchNoneQueryParser;
+import org.elasticsearch.index.query.MatchQueryParser;
+import org.elasticsearch.index.query.MoreLikeThisQueryParser;
+import org.elasticsearch.index.query.MultiMatchQueryParser;
+import org.elasticsearch.index.query.NestedQueryParser;
+import org.elasticsearch.index.query.ParentIdQueryParser;
+import org.elasticsearch.index.query.PrefixQueryParser;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryParser;
+import org.elasticsearch.index.query.QueryStringQueryParser;
+import org.elasticsearch.index.query.RangeQueryParser;
+import org.elasticsearch.index.query.RegexpQueryParser;
+import org.elasticsearch.index.query.ScriptQueryParser;
+import org.elasticsearch.index.query.SimpleQueryStringParser;
+import org.elasticsearch.index.query.SpanContainingQueryParser;
+import org.elasticsearch.index.query.SpanFirstQueryParser;
+import org.elasticsearch.index.query.SpanMultiTermQueryParser;
+import org.elasticsearch.index.query.SpanNearQueryParser;
+import org.elasticsearch.index.query.SpanNotQueryParser;
+import org.elasticsearch.index.query.SpanOrQueryParser;
+import org.elasticsearch.index.query.SpanTermQueryParser;
+import org.elasticsearch.index.query.SpanWithinQueryParser;
+import org.elasticsearch.index.query.TemplateQueryParser;
+import org.elasticsearch.index.query.TermQueryParser;
+import org.elasticsearch.index.query.TermsQueryParser;
+import org.elasticsearch.index.query.TypeQueryParser;
+import org.elasticsearch.index.query.WildcardQueryParser;
+import org.elasticsearch.index.query.WrapperQueryParser;
+import org.elasticsearch.index.query.functionscore.FunctionScoreQueryParser;
+import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionParser;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionParserMapper;
+import org.elasticsearch.index.query.functionscore.exp.ExponentialDecayFunctionParser;
+import org.elasticsearch.index.query.functionscore.fieldvaluefactor.FieldValueFactorFunctionParser;
+import org.elasticsearch.index.query.functionscore.gauss.GaussDecayFunctionParser;
+import org.elasticsearch.index.query.functionscore.lin.LinearDecayFunctionParser;
+import org.elasticsearch.index.query.functionscore.random.RandomScoreFunctionParser;
+import org.elasticsearch.index.query.functionscore.script.ScriptScoreFunctionParser;
+import org.elasticsearch.index.query.functionscore.weight.WeightBuilder;
+import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.action.SearchServiceTransportAction;
+import org.elasticsearch.search.aggregations.AggregationBinaryParseElement;
 import org.elasticsearch.search.aggregations.AggregationParseElement;
 import org.elasticsearch.search.aggregations.AggregationPhase;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -136,39 +217,64 @@ import org.elasticsearch.search.controller.SearchPhaseController;
 import org.elasticsearch.search.dfs.DfsPhase;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSubPhase;
+import org.elasticsearch.search.fetch.FieldsParseElement;
 import org.elasticsearch.search.fetch.explain.ExplainFetchSubPhase;
 import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsFetchSubPhase;
+import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsParseElement;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsFetchSubPhase;
 import org.elasticsearch.search.fetch.matchedqueries.MatchedQueriesFetchSubPhase;
+import org.elasticsearch.search.fetch.parent.ParentFieldSubFetchPhase;
 import org.elasticsearch.search.fetch.script.ScriptFieldsFetchSubPhase;
+import org.elasticsearch.search.fetch.script.ScriptFieldsParseElement;
+import org.elasticsearch.search.fetch.source.FetchSourceParseElement;
 import org.elasticsearch.search.fetch.source.FetchSourceSubPhase;
 import org.elasticsearch.search.fetch.version.VersionFetchSubPhase;
 import org.elasticsearch.search.highlight.HighlightPhase;
 import org.elasticsearch.search.highlight.Highlighter;
+import org.elasticsearch.search.highlight.HighlighterParseElement;
 import org.elasticsearch.search.highlight.Highlighters;
 import org.elasticsearch.search.query.QueryPhase;
+import org.elasticsearch.search.sort.SortParseElement;
 import org.elasticsearch.search.suggest.Suggester;
 import org.elasticsearch.search.suggest.Suggesters;
-
-import java.util.HashSet;
-import java.util.Set;
 
 /**
  *
  */
 public class SearchModule extends AbstractModule {
 
-    private final Set<Class<? extends Aggregator.Parser>> aggParsers = new HashSet<>();
-    private final Set<Class<? extends PipelineAggregator.Parser>> pipelineAggParsers = new HashSet<>();
+    private final Set<Aggregator.Parser> aggParsers = new HashSet<>();
+    private final Set<PipelineAggregator.Parser> pipelineAggParsers = new HashSet<>();
     private final Highlighters highlighters = new Highlighters();
     private final Suggesters suggesters = new Suggesters();
-    private final Set<Class<? extends ScoreFunctionParser>> functionScoreParsers = new HashSet<>();
+    /**
+     * Function score parsers constructed on registration. This is ok because
+     * they don't have any dependencies.
+     */
+    private final Map<String, ScoreFunctionParser<?>> functionScoreParsers = new HashMap<>();
+    /**
+     * Query parsers constructed at configure time. These have to be constructed
+     * at configure time because they depend on things that are registered by
+     * plugins (function score parsers).
+     */
+    private final List<Supplier<QueryParser<?>>> queryParsers = new ArrayList<>();
     private final Set<Class<? extends FetchSubPhase>> fetchSubPhases = new HashSet<>();
-    private final Set<Class<? extends SignificanceHeuristicParser>> heuristicParsers = new HashSet<>();
-    private final Set<Class<? extends MovAvgModel.AbstractModelParser>> modelParsers = new HashSet<>();
+    private final Set<SignificanceHeuristicParser> heuristicParsers = new HashSet<>();
+    private final Set<MovAvgModel.AbstractModelParser> modelParsers = new HashSet<>();
+
+    private final Settings settings;
+    private final NamedWriteableRegistry namedWriteableRegistry;
 
     // pkg private so tests can mock
     Class<? extends SearchService> searchServiceImpl = SearchService.class;
+
+    public SearchModule(Settings settings, NamedWriteableRegistry namedWriteableRegistry) {
+        this.settings = settings;
+        this.namedWriteableRegistry = namedWriteableRegistry;
+
+        registerBuiltinFunctionScoreParsers();
+        registerBuiltinQueryParsers();
+    }
 
     public void registerHighlighter(String key, Class<? extends Highlighter> clazz) {
         highlighters.registerExtension(key, clazz);
@@ -178,19 +284,32 @@ public class SearchModule extends AbstractModule {
         suggesters.registerExtension(key, suggester);
     }
 
-    public void registerFunctionScoreParser(Class<? extends ScoreFunctionParser> parser) {
-        functionScoreParsers.add(parser);
+    /**
+     * Register a new ScoreFunctionParser.
+     */
+    public void registerFunctionScoreParser(ScoreFunctionParser<?> parser) {
+        for (String name: parser.getNames()) {
+            Object oldValue = functionScoreParsers.putIfAbsent(name, parser);
+            if (oldValue != null) {
+                throw new IllegalArgumentException("Function score parser [" + oldValue + "] already registered for name [" + name + "]");
+            }
+        }
+        namedWriteableRegistry.registerPrototype(ScoreFunctionBuilder.class, parser.getBuilderPrototype());
+    }
+
+    public void registerQueryParser(Supplier<QueryParser<?>> parser) {
+        queryParsers.add(parser);
     }
 
     public void registerFetchSubPhase(Class<? extends FetchSubPhase> subPhase) {
         fetchSubPhases.add(subPhase);
     }
 
-    public void registerHeuristicParser(Class<? extends SignificanceHeuristicParser> parser) {
+    public void registerHeuristicParser(SignificanceHeuristicParser parser) {
         heuristicParsers.add(parser);
     }
 
-    public void registerModelParser(Class<? extends MovAvgModel.AbstractModelParser> parser) {
+    public void registerModelParser(MovAvgModel.AbstractModelParser parser) {
         modelParsers.add(parser);
     }
 
@@ -199,22 +318,24 @@ public class SearchModule extends AbstractModule {
      *
      * @param parser The parser for the custom aggregator.
      */
-    public void registerAggregatorParser(Class<? extends Aggregator.Parser> parser) {
+    public void registerAggregatorParser(Aggregator.Parser parser) {
         aggParsers.add(parser);
     }
 
-    public void registerPipelineParser(Class<? extends PipelineAggregator.Parser> parser) {
+    public void registerPipelineParser(PipelineAggregator.Parser parser) {
         pipelineAggParsers.add(parser);
     }
 
     @Override
     protected void configure() {
+        IndicesQueriesRegistry indicesQueriesRegistry = buildQueryParserRegistry();
+        bind(IndicesQueriesRegistry.class).toInstance(indicesQueriesRegistry);
         configureSearch();
-        configureAggs();
+        configureAggs(indicesQueriesRegistry);
         configureHighlighters();
         configureSuggesters();
-        configureFunctionScore();
         configureFetchSubPhase();
+        configureShapes();
     }
 
     protected void configureFetchSubPhase() {
@@ -226,98 +347,98 @@ public class SearchModule extends AbstractModule {
         fetchSubPhaseMultibinder.addBinding().to(VersionFetchSubPhase.class);
         fetchSubPhaseMultibinder.addBinding().to(MatchedQueriesFetchSubPhase.class);
         fetchSubPhaseMultibinder.addBinding().to(HighlightPhase.class);
+        fetchSubPhaseMultibinder.addBinding().to(ParentFieldSubFetchPhase.class);
         for (Class<? extends FetchSubPhase> clazz : fetchSubPhases) {
             fetchSubPhaseMultibinder.addBinding().to(clazz);
         }
         bind(InnerHitsFetchSubPhase.class).asEagerSingleton();
     }
 
-    protected void configureSuggesters() {
-        suggesters.bind(binder());
+    public IndicesQueriesRegistry buildQueryParserRegistry() {
+        Map<String, QueryParser<?>> queryParsersMap = new HashMap<>();
+        for (Supplier<QueryParser<?>> parserSupplier : queryParsers) {
+            QueryParser<?> parser = parserSupplier.get();
+            for (String name: parser.names()) {
+                Object oldValue = queryParsersMap.putIfAbsent(name, parser);
+                if (oldValue != null) {
+                    throw new IllegalArgumentException("Query parser [" + oldValue + "] already registered for name [" + name + "] while trying to register [" + parser + "]");
+                }
+            }
+            namedWriteableRegistry.registerPrototype(QueryBuilder.class, parser.getBuilderPrototype());
+        }
+        return new IndicesQueriesRegistry(settings, queryParsersMap);
     }
 
-    protected void configureFunctionScore() {
-        Multibinder<ScoreFunctionParser> parserMapBinder = Multibinder.newSetBinder(binder(), ScoreFunctionParser.class);
-        for (Class<? extends ScoreFunctionParser> clazz : functionScoreParsers) {
-            parserMapBinder.addBinding().to(clazz);
-        }
-        bind(ScoreFunctionParserMapper.class).asEagerSingleton();
+    protected void configureSuggesters() {
+        suggesters.bind(binder());
     }
 
     protected void configureHighlighters() {
        highlighters.bind(binder());
     }
 
-    protected void configureAggs() {
-        Multibinder<Aggregator.Parser> multibinderAggParser = Multibinder.newSetBinder(binder(), Aggregator.Parser.class);
-        multibinderAggParser.addBinding().to(AvgParser.class);
-        multibinderAggParser.addBinding().to(SumParser.class);
-        multibinderAggParser.addBinding().to(MinParser.class);
-        multibinderAggParser.addBinding().to(MaxParser.class);
-        multibinderAggParser.addBinding().to(StatsParser.class);
-        multibinderAggParser.addBinding().to(ExtendedStatsParser.class);
-        multibinderAggParser.addBinding().to(ValueCountParser.class);
-        multibinderAggParser.addBinding().to(PercentilesParser.class);
-        multibinderAggParser.addBinding().to(PercentileRanksParser.class);
-        multibinderAggParser.addBinding().to(CardinalityParser.class);
-        multibinderAggParser.addBinding().to(GlobalParser.class);
-        multibinderAggParser.addBinding().to(MissingParser.class);
-        multibinderAggParser.addBinding().to(FilterParser.class);
-        multibinderAggParser.addBinding().to(FiltersParser.class);
-        multibinderAggParser.addBinding().to(SamplerParser.class);
-        multibinderAggParser.addBinding().to(DiversifiedSamplerParser.class);
-        multibinderAggParser.addBinding().to(TermsParser.class);
-        multibinderAggParser.addBinding().to(SignificantTermsParser.class);
-        multibinderAggParser.addBinding().to(RangeParser.class);
-        multibinderAggParser.addBinding().to(DateRangeParser.class);
-        multibinderAggParser.addBinding().to(IpRangeParser.class);
-        multibinderAggParser.addBinding().to(HistogramParser.class);
-        multibinderAggParser.addBinding().to(DateHistogramParser.class);
-        multibinderAggParser.addBinding().to(GeoDistanceParser.class);
-        multibinderAggParser.addBinding().to(GeoHashGridParser.class);
-        multibinderAggParser.addBinding().to(NestedParser.class);
-        multibinderAggParser.addBinding().to(ReverseNestedParser.class);
-        multibinderAggParser.addBinding().to(TopHitsParser.class);
-        multibinderAggParser.addBinding().to(GeoBoundsParser.class);
-        multibinderAggParser.addBinding().to(GeoCentroidParser.class);
-        multibinderAggParser.addBinding().to(ScriptedMetricParser.class);
-        multibinderAggParser.addBinding().to(ChildrenParser.class);
-        for (Class<? extends Aggregator.Parser> parser : aggParsers) {
-            multibinderAggParser.addBinding().to(parser);
-        }
+    protected void configureAggs(IndicesQueriesRegistry indicesQueriesRegistry) {
 
-        Multibinder<PipelineAggregator.Parser> multibinderPipelineAggParser = Multibinder.newSetBinder(binder(), PipelineAggregator.Parser.class);
-        multibinderPipelineAggParser.addBinding().to(DerivativeParser.class);
-        multibinderPipelineAggParser.addBinding().to(MaxBucketParser.class);
-        multibinderPipelineAggParser.addBinding().to(MinBucketParser.class);
-        multibinderPipelineAggParser.addBinding().to(AvgBucketParser.class);
-        multibinderPipelineAggParser.addBinding().to(SumBucketParser.class);
-        multibinderPipelineAggParser.addBinding().to(StatsBucketParser.class);
-        multibinderPipelineAggParser.addBinding().to(ExtendedStatsBucketParser.class);
-        multibinderPipelineAggParser.addBinding().to(PercentilesBucketParser.class);
-        multibinderPipelineAggParser.addBinding().to(MovAvgParser.class);
-        multibinderPipelineAggParser.addBinding().to(CumulativeSumParser.class);
-        multibinderPipelineAggParser.addBinding().to(BucketScriptParser.class);
-        multibinderPipelineAggParser.addBinding().to(BucketSelectorParser.class);
-        multibinderPipelineAggParser.addBinding().to(SerialDiffParser.class);
-        for (Class<? extends PipelineAggregator.Parser> parser : pipelineAggParsers) {
-            multibinderPipelineAggParser.addBinding().to(parser);
-        }
-        bind(AggregatorParsers.class).asEagerSingleton();
-        bind(AggregationParseElement.class).asEagerSingleton();
-        bind(AggregationPhase.class).asEagerSingleton();
+        MovAvgModelParserMapper movAvgModelParserMapper = new MovAvgModelParserMapper(modelParsers);
 
-        Multibinder<SignificanceHeuristicParser> heuristicParserMultibinder = Multibinder.newSetBinder(binder(), SignificanceHeuristicParser.class);
-        for (Class<? extends SignificanceHeuristicParser> clazz : heuristicParsers) {
-            heuristicParserMultibinder.addBinding().to(clazz);
-        }
-        bind(SignificanceHeuristicParserMapper.class);
+        SignificanceHeuristicParserMapper significanceHeuristicParserMapper = new SignificanceHeuristicParserMapper(heuristicParsers);
 
-        Multibinder<MovAvgModel.AbstractModelParser> modelParserMultibinder = Multibinder.newSetBinder(binder(), MovAvgModel.AbstractModelParser.class);
-        for (Class<? extends MovAvgModel.AbstractModelParser> clazz : modelParsers) {
-            modelParserMultibinder.addBinding().to(clazz);
-        }
-        bind(MovAvgModelParserMapper.class);
+        registerAggregatorParser(new AvgParser());
+        registerAggregatorParser(new SumParser());
+        registerAggregatorParser(new MinParser());
+        registerAggregatorParser(new MaxParser());
+        registerAggregatorParser(new StatsParser());
+        registerAggregatorParser(new ExtendedStatsParser());
+        registerAggregatorParser(new ValueCountParser());
+        registerAggregatorParser(new PercentilesParser());
+        registerAggregatorParser(new PercentileRanksParser());
+        registerAggregatorParser(new CardinalityParser());
+        registerAggregatorParser(new GlobalParser());
+        registerAggregatorParser(new MissingParser());
+        registerAggregatorParser(new FilterParser());
+        registerAggregatorParser(new FiltersParser(indicesQueriesRegistry));
+        registerAggregatorParser(new SamplerParser());
+        registerAggregatorParser(new DiversifiedSamplerParser());
+        registerAggregatorParser(new TermsParser());
+        registerAggregatorParser(new SignificantTermsParser(significanceHeuristicParserMapper, indicesQueriesRegistry));
+        registerAggregatorParser(new RangeParser());
+        registerAggregatorParser(new DateRangeParser());
+        registerAggregatorParser(new IpRangeParser());
+        registerAggregatorParser(new HistogramParser());
+        registerAggregatorParser(new DateHistogramParser());
+        registerAggregatorParser(new GeoDistanceParser());
+        registerAggregatorParser(new GeoHashGridParser());
+        registerAggregatorParser(new NestedParser());
+        registerAggregatorParser(new ReverseNestedParser());
+        registerAggregatorParser(new TopHitsParser(new SortParseElement(), new FetchSourceParseElement(), new HighlighterParseElement(),
+                new FieldDataFieldsParseElement(), new ScriptFieldsParseElement(), new FieldsParseElement()));
+        registerAggregatorParser(new GeoBoundsParser());
+        registerAggregatorParser(new GeoCentroidParser());
+        registerAggregatorParser(new ScriptedMetricParser());
+        registerAggregatorParser(new ChildrenParser());
+
+        registerPipelineParser(new DerivativeParser());
+        registerPipelineParser(new MaxBucketParser());
+        registerPipelineParser(new MinBucketParser());
+        registerPipelineParser(new AvgBucketParser());
+        registerPipelineParser(new SumBucketParser());
+        registerPipelineParser(new StatsBucketParser());
+        registerPipelineParser(new ExtendedStatsBucketParser());
+        registerPipelineParser(new PercentilesBucketParser());
+        registerPipelineParser(new MovAvgParser(movAvgModelParserMapper));
+        registerPipelineParser(new CumulativeSumParser());
+        registerPipelineParser(new BucketScriptParser());
+        registerPipelineParser(new BucketSelectorParser());
+        registerPipelineParser(new SerialDiffParser());
+
+        AggregatorParsers aggregatorParsers = new AggregatorParsers(aggParsers, pipelineAggParsers, namedWriteableRegistry);
+        AggregationParseElement aggParseElement = new AggregationParseElement(aggregatorParsers, indicesQueriesRegistry);
+        AggregationBinaryParseElement aggBinaryParseElement = new AggregationBinaryParseElement(aggregatorParsers, indicesQueriesRegistry);
+        AggregationPhase aggPhase = new AggregationPhase(aggParseElement, aggBinaryParseElement);
+        bind(AggregatorParsers.class).toInstance(aggregatorParsers);
+        ;
+        bind(AggregationParseElement.class).toInstance(aggParseElement);
+        bind(AggregationPhase.class).toInstance(aggPhase);
     }
 
     protected void configureSearch() {
@@ -332,6 +453,88 @@ public class SearchModule extends AbstractModule {
         } else {
             bind(SearchService.class).to(searchServiceImpl).asEagerSingleton();
         }
+    }
+
+    private void configureShapes() {
+        if (ShapesAvailability.JTS_AVAILABLE && ShapesAvailability.SPATIAL4J_AVAILABLE) {
+            namedWriteableRegistry.registerPrototype(ShapeBuilder.class, PointBuilder.PROTOTYPE);
+            namedWriteableRegistry.registerPrototype(ShapeBuilder.class, CircleBuilder.PROTOTYPE);
+            namedWriteableRegistry.registerPrototype(ShapeBuilder.class, EnvelopeBuilder.PROTOTYPE);
+            namedWriteableRegistry.registerPrototype(ShapeBuilder.class, MultiPointBuilder.PROTOTYPE);
+            namedWriteableRegistry.registerPrototype(ShapeBuilder.class, LineStringBuilder.PROTOTYPE);
+            namedWriteableRegistry.registerPrototype(ShapeBuilder.class, MultiLineStringBuilder.PROTOTYPE);
+            namedWriteableRegistry.registerPrototype(ShapeBuilder.class, PolygonBuilder.PROTOTYPE);
+            namedWriteableRegistry.registerPrototype(ShapeBuilder.class, MultiPolygonBuilder.PROTOTYPE);
+            namedWriteableRegistry.registerPrototype(ShapeBuilder.class, GeometryCollectionBuilder.PROTOTYPE);
+        }
+    }
+
+    private void registerBuiltinFunctionScoreParsers() {
+        registerFunctionScoreParser(new ScriptScoreFunctionParser());
+        registerFunctionScoreParser(new GaussDecayFunctionParser());
+        registerFunctionScoreParser(new LinearDecayFunctionParser());
+        registerFunctionScoreParser(new ExponentialDecayFunctionParser());
+        registerFunctionScoreParser(new RandomScoreFunctionParser());
+        registerFunctionScoreParser(new FieldValueFactorFunctionParser());
+        //weight doesn't have its own parser, so every function supports it out of the box.
+        //Can be a single function too when not associated to any other function, which is why it needs to be registered manually here.
+        namedWriteableRegistry.registerPrototype(ScoreFunctionBuilder.class, new WeightBuilder());
+    }
+
+    private void registerBuiltinQueryParsers() {
+        registerQueryParser(MatchQueryParser::new);
+        registerQueryParser(MultiMatchQueryParser::new);
+        registerQueryParser(NestedQueryParser::new);
+        registerQueryParser(HasChildQueryParser::new);
+        registerQueryParser(HasParentQueryParser::new);
+        registerQueryParser(DisMaxQueryParser::new);
+        registerQueryParser(IdsQueryParser::new);
+        registerQueryParser(MatchAllQueryParser::new);
+        registerQueryParser(QueryStringQueryParser::new);
+        registerQueryParser(BoostingQueryParser::new);
+        BooleanQuery.setMaxClauseCount(settings.getAsInt("index.query.bool.max_clause_count", settings.getAsInt("indices.query.bool.max_clause_count", BooleanQuery.getMaxClauseCount())));
+        registerQueryParser(BoolQueryParser::new);
+        registerQueryParser(TermQueryParser::new);
+        registerQueryParser(TermsQueryParser::new);
+        registerQueryParser(FuzzyQueryParser::new);
+        registerQueryParser(RegexpQueryParser::new);
+        registerQueryParser(RangeQueryParser::new);
+        registerQueryParser(PrefixQueryParser::new);
+        registerQueryParser(WildcardQueryParser::new);
+        registerQueryParser(ConstantScoreQueryParser::new);
+        registerQueryParser(SpanTermQueryParser::new);
+        registerQueryParser(SpanNotQueryParser::new);
+        registerQueryParser(SpanWithinQueryParser::new);
+        registerQueryParser(SpanContainingQueryParser::new);
+        registerQueryParser(FieldMaskingSpanQueryParser::new);
+        registerQueryParser(SpanFirstQueryParser::new);
+        registerQueryParser(SpanNearQueryParser::new);
+        registerQueryParser(SpanOrQueryParser::new);
+        registerQueryParser(MoreLikeThisQueryParser::new);
+        registerQueryParser(WrapperQueryParser::new);
+        registerQueryParser(IndicesQueryParser::new);
+        registerQueryParser(CommonTermsQueryParser::new);
+        registerQueryParser(SpanMultiTermQueryParser::new);
+        // This is delayed until configure time to give plugins a chance to register parsers
+        registerQueryParser(() -> new FunctionScoreQueryParser(new ScoreFunctionParserMapper(functionScoreParsers)));
+        registerQueryParser(SimpleQueryStringParser::new);
+        registerQueryParser(TemplateQueryParser::new);
+        registerQueryParser(TypeQueryParser::new);
+        registerQueryParser(ScriptQueryParser::new);
+        registerQueryParser(GeoDistanceQueryParser::new);
+        registerQueryParser(GeoDistanceRangeQueryParser::new);
+        registerQueryParser(GeoBoundingBoxQueryParser::new);
+        registerQueryParser(GeohashCellQuery.Parser::new);
+        registerQueryParser(GeoPolygonQueryParser::new);
+        registerQueryParser(ExistsQueryParser::new);
+        registerQueryParser(MatchNoneQueryParser::new);
+        registerQueryParser(ParentIdQueryParser::new);
+        if (ShapesAvailability.JTS_AVAILABLE && ShapesAvailability.SPATIAL4J_AVAILABLE) {
+            registerQueryParser(GeoShapeQueryParser::new);
+        }
+        // EmptyQueryBuilder is not registered as query parser but used internally.
+        // We need to register it with the NamedWriteableRegistry in order to serialize it
+        namedWriteableRegistry.registerPrototype(QueryBuilder.class, EmptyQueryBuilder.PROTOTYPE);
     }
 
     static {
@@ -395,5 +598,4 @@ public class SearchModule extends AbstractModule {
         BucketSelectorPipelineAggregator.registerStreams();
         SerialDiffPipelineAggregator.registerStreams();
     }
-
 }

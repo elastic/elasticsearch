@@ -23,7 +23,6 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -31,6 +30,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.QueryParser;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -195,7 +195,7 @@ public class SignificanceHeuristicTests extends ESTestCase {
     public void testBuilderAndParser() throws Exception {
 
         Set<SignificanceHeuristicParser> parsers = new HashSet<>();
-        SignificanceHeuristicParserMapper heuristicParserMapper = new SignificanceHeuristicParserMapper(parsers, null);
+        SignificanceHeuristicParserMapper heuristicParserMapper = new SignificanceHeuristicParserMapper(parsers);
         SearchContext searchContext = new SignificantTermsTestSearchContext();
 
         // test jlh with string
@@ -235,7 +235,7 @@ public class SignificanceHeuristicTests extends ESTestCase {
     protected void checkParseException(SignificanceHeuristicParserMapper heuristicParserMapper, SearchContext searchContext,
             String faultyHeuristicDefinition, String expectedError) throws IOException {
 
-        IndicesQueriesRegistry registry = new IndicesQueriesRegistry(Settings.EMPTY, new HashSet<>(), new NamedWriteableRegistry());
+        IndicesQueriesRegistry registry = new IndicesQueriesRegistry(Settings.EMPTY, new HashMap<String, QueryParser<?>>());
         try {
             XContentParser stParser = JsonXContent.jsonXContent.createParser("{\"field\":\"text\", " + faultyHeuristicDefinition + ",\"min_doc_count\":200}");
             QueryParseContext parseContext = new QueryParseContext(registry);
@@ -260,7 +260,7 @@ public class SignificanceHeuristicTests extends ESTestCase {
 
     private SignificanceHeuristic parseSignificanceHeuristic(SignificanceHeuristicParserMapper heuristicParserMapper,
             SearchContext searchContext, XContentParser stParser) throws IOException {
-        IndicesQueriesRegistry registry = new IndicesQueriesRegistry(Settings.EMPTY, new HashSet<>(), new NamedWriteableRegistry());
+        IndicesQueriesRegistry registry = new IndicesQueriesRegistry(Settings.EMPTY, new HashMap<String, QueryParser<?>>());
         QueryParseContext parseContext = new QueryParseContext(registry);
         parseContext.reset(stParser);
         parseContext.parseFieldMatcher(ParseFieldMatcher.STRICT);

@@ -18,17 +18,17 @@
  */
 package org.elasticsearch.test.rest.parser;
 
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.yaml.YamlXContent;
-import org.elasticsearch.test.rest.section.RestTestSuite;
-import org.elasticsearch.test.rest.section.TestSection;
-
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.yaml.YamlXContent;
+import org.elasticsearch.test.rest.section.RestTestSuite;
+import org.elasticsearch.test.rest.section.TestSection;
 
 /**
  * Parser for a complete test suite (yaml file)

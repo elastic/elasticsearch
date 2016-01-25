@@ -52,7 +52,7 @@ public class TokenCountFieldMapperTests extends ESSingleNodeTestCase {
                     .endObject()
                 .endObject().endObject().string();
         MapperService mapperService = createIndex("test").mapperService();
-        DocumentMapper stage1 = mapperService.merge("person", new CompressedXContent(stage1Mapping), true, false);
+        DocumentMapper stage1 = mapperService.merge("person", new CompressedXContent(stage1Mapping), MapperService.MergeReason.MAPPING_UPDATE, false);
 
         String stage2Mapping = XContentFactory.jsonBuilder().startObject()
                 .startObject("person")
@@ -63,7 +63,7 @@ public class TokenCountFieldMapperTests extends ESSingleNodeTestCase {
                         .endObject()
                     .endObject()
                 .endObject().endObject().string();
-        DocumentMapper stage2 = mapperService.merge("person", new CompressedXContent(stage2Mapping), false, false);
+        DocumentMapper stage2 = mapperService.merge("person", new CompressedXContent(stage2Mapping), MapperService.MergeReason.MAPPING_UPDATE, false);
 
         // previous mapper has not been modified
         assertThat(((TokenCountFieldMapper) stage1.mappers().smartNameFieldMapper("tc")).analyzer(), equalTo("keyword"));

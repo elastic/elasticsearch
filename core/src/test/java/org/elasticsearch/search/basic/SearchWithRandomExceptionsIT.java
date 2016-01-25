@@ -28,8 +28,10 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
+import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.MockEngineFactoryPlugin;
@@ -52,7 +54,7 @@ public class SearchWithRandomExceptionsIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(RandomExceptionDirectoryReaderWrapper.TestPlugin.class);
+        return pluginList(RandomExceptionDirectoryReaderWrapper.TestPlugin.class, MockEngineFactoryPlugin.class);
     }
 
     public void testRandomExceptions() throws IOException, InterruptedException, ExecutionException {
@@ -151,9 +153,15 @@ public class SearchWithRandomExceptionsIT extends ESIntegTestCase {
     public static class RandomExceptionDirectoryReaderWrapper extends MockEngineSupport.DirectoryReaderWrapper {
 
         public static class TestPlugin extends Plugin {
+            public static final Setting<Double> EXCEPTION_TOP_LEVEL_RATIO_SETTING = Setting.doubleSetting(EXCEPTION_TOP_LEVEL_RATIO_KEY, 0.1d, 0.0d, false, Setting.Scope.INDEX);
+            public static final Setting<Double> EXCEPTION_LOW_LEVEL_RATIO_SETTING = Setting.doubleSetting(EXCEPTION_LOW_LEVEL_RATIO_KEY, 0.1d, 0.0d, false, Setting.Scope.INDEX);
             @Override
             public String name() {
                 return "random-exception-reader-wrapper";
+            }
+            public void onModule(SettingsModule module) {
+                module.registerSetting(EXCEPTION_TOP_LEVEL_RATIO_SETTING);
+                module.registerSetting(EXCEPTION_LOW_LEVEL_RATIO_SETTING);
             }
             @Override
             public String description() {
@@ -172,7 +180,7 @@ public class SearchWithRandomExceptionsIT extends ESIntegTestCase {
             private final double lowLevelRatio;
 
             ThrowingSubReaderWrapper(Settings settings) {
-                final long seed = settings.getAsLong(SETTING_INDEX_SEED, 0l);
+                final long seed = ESIntegTestCase.INDEX_TEST_SEED_SETTING.get(settings);
                 this.topLevelRatio = settings.getAsDouble(EXCEPTION_TOP_LEVEL_RATIO_KEY, 0.1d);
                 this.lowLevelRatio = settings.getAsDouble(EXCEPTION_LOW_LEVEL_RATIO_KEY, 0.1d);
                 this.random = new Random(seed);

@@ -28,6 +28,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -488,7 +489,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         TransportReplicationAction<Request, Request, Response>.ReplicationPhase replicationPhase =
                 action.new ReplicationPhase(request,
                         new Response(),
-                        request.shardId(), createTransportChannel(listener), reference, null);
+                        request.shardId(), createTransportChannel(listener), reference);
 
         assertThat(replicationPhase.totalShards(), equalTo(totalShards));
         assertThat(replicationPhase.pending(), equalTo(assignedReplicas));
@@ -545,7 +546,7 @@ public class TransportReplicationActionTests extends ESTestCase {
                     t = new IndexShardNotStartedException(shardId, IndexShardState.RECOVERING);
                 }
                 logger.debug("--> simulating failure on {} with [{}]", capturedRequest.node, t.getClass().getSimpleName());
-                transport.handleResponse(capturedRequest.requestId, t);
+                transport.handleRemoteError(capturedRequest.requestId, t);
                 if (criticalFailure) {
                     CapturingTransport.CapturedRequest[] shardFailedRequests = transport.getCapturedRequestsAndClear();
                     assertEquals(1, shardFailedRequests.length);
@@ -557,7 +558,23 @@ public class TransportReplicationActionTests extends ESTestCase {
                     // the shard the request was sent to and the shard to be failed should be the same
                     assertEquals(shardRoutingEntry.getShardRouting(), routing);
                     failures.add(shardFailedRequest);
-                    transport.handleResponse(shardFailedRequest.requestId, TransportResponse.Empty.INSTANCE);
+                    if (randomBoolean()) {
+                        // simulate master left and test that the shard failure is retried
+                        int numberOfRetries = randomIntBetween(1, 4);
+                        CapturingTransport.CapturedRequest currentRequest = shardFailedRequest;
+                        for (int retryNumber = 0; retryNumber < numberOfRetries; retryNumber++) {
+                            // force a new cluster state to simulate a new master having been elected
+                            clusterService.setState(ClusterState.builder(clusterService.state()));
+                            transport.handleRemoteError(currentRequest.requestId, new NotMasterException("shard-failed-test"));
+                            CapturingTransport.CapturedRequest[] retryRequests = transport.getCapturedRequestsAndClear();
+                            assertEquals(1, retryRequests.length);
+                            currentRequest = retryRequests[0];
+                        }
+                        // now simulate that the last retry succeeded
+                        transport.handleResponse(currentRequest.requestId, TransportResponse.Empty.INSTANCE);
+                    } else {
+                        transport.handleResponse(shardFailedRequest.requestId, TransportResponse.Empty.INSTANCE);
+                    }
                 }
             } else {
                 successful++;
@@ -583,7 +600,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         assertIndexShardCounter(1);
     }
 
-    public void testCounterOnPrimary() throws InterruptedException, ExecutionException, IOException {
+    public void testCounterOnPrimary() throws Exception {
         final String index = "test";
         final ShardId shardId = new ShardId(index, 0);
         // no replica, we only want to test on primary
@@ -611,9 +628,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         t.start();
         // shard operation should be ongoing, so the counter is at 2
         // we have to wait here because increment happens in thread
-        awaitBusy(() -> count.get() == 2);
-
-        assertIndexShardCounter(2);
+        assertBusy(() -> assertIndexShardCounter(2));
         assertThat(transport.capturedRequests().length, equalTo(0));
         ((ActionWithDelay) action).countDownLatch.countDown();
         t.join();
@@ -647,7 +662,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         CapturingTransport.CapturedRequest[] replicationRequests = transport.getCapturedRequestsAndClear();
         assertThat(replicationRequests.length, equalTo(1));
         // try with failure response
-        transport.handleResponse(replicationRequests[0].requestId, new CorruptIndexException("simulated", (String) null));
+        transport.handleRemoteError(replicationRequests[0].requestId, new CorruptIndexException("simulated", (String) null));
         CapturingTransport.CapturedRequest[] shardFailedRequests = transport.getCapturedRequestsAndClear();
         assertEquals(1, shardFailedRequests.length);
         transport.handleResponse(shardFailedRequests[0].requestId, TransportResponse.Empty.INSTANCE);
@@ -664,7 +679,7 @@ public class TransportReplicationActionTests extends ESTestCase {
             @Override
             public void run() {
                 try {
-                    replicaOperationTransportHandler.messageReceived(new Request(), createTransportChannel(new PlainActionFuture<>()));
+                    replicaOperationTransportHandler.messageReceived(new Request().setShardId(shardId), createTransportChannel(new PlainActionFuture<>()));
                 } catch (Exception e) {
                 }
             }
@@ -672,7 +687,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         t.start();
         // shard operation should be ongoing, so the counter is at 2
         // we have to wait here because increment happens in thread
-        awaitBusy(() -> count.get() == 2);
+        assertBusy(() -> assertIndexShardCounter(2));
         ((ActionWithDelay) action).countDownLatch.countDown();
         t.join();
         // operation should have finished and counter decreased because no outstanding replica requests

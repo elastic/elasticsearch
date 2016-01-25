@@ -42,7 +42,7 @@ public class PluginsServiceTests extends ESTestCase {
         }
         @Override
         public Settings additionalSettings() {
-            return Settings.builder().put("foo.bar", "1").put(IndexModule.STORE_TYPE, IndexModule.Type.MMAPFS.getSettingsKey()).build();
+            return Settings.builder().put("foo.bar", "1").put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.MMAPFS.getSettingsKey()).build();
         }
     }
     public static class AdditionalSettingsPlugin2 extends Plugin {
@@ -88,19 +88,19 @@ public class PluginsServiceTests extends ESTestCase {
 
     public void testAdditionalSettings() {
         Settings settings = Settings.builder()
-            .put("path.home", createTempDir())
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
             .put("my.setting", "test")
-            .put(IndexModule.STORE_TYPE, IndexModule.Type.SIMPLEFS.getSettingsKey()).build();
+            .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.SIMPLEFS.getSettingsKey()).build();
         PluginsService service = newPluginsService(settings, AdditionalSettingsPlugin1.class);
         Settings newSettings = service.updatedSettings();
         assertEquals("test", newSettings.get("my.setting")); // previous settings still exist
         assertEquals("1", newSettings.get("foo.bar")); // added setting exists
-        assertEquals(IndexModule.Type.SIMPLEFS.getSettingsKey(), newSettings.get(IndexModule.STORE_TYPE)); // does not override pre existing settings
+        assertEquals(IndexModule.Type.SIMPLEFS.getSettingsKey(), newSettings.get(IndexModule.INDEX_STORE_TYPE_SETTING.getKey())); // does not override pre existing settings
     }
 
     public void testAdditionalSettingsClash() {
         Settings settings = Settings.builder()
-            .put("path.home", createTempDir()).build();
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
         PluginsService service = newPluginsService(settings, AdditionalSettingsPlugin1.class, AdditionalSettingsPlugin2.class);
         try {
             service.updatedSettings();
@@ -115,7 +115,7 @@ public class PluginsServiceTests extends ESTestCase {
 
     public void testOnModuleExceptionsArePropagated() {
         Settings settings = Settings.builder()
-                .put("path.home", createTempDir()).build();
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
         PluginsService service = newPluginsService(settings, FailOnModule.class);
         try {
             service.processModule(new BrokenModule());

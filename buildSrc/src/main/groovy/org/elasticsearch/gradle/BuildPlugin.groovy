@@ -372,6 +372,7 @@ class BuildPlugin implements Plugin<Project> {
             systemProperty 'tests.artifact', project.name
             systemProperty 'tests.task', path
             systemProperty 'tests.security.manager', 'true'
+            systemProperty 'jna.nosys', 'true'
             // default test sysprop values
             systemProperty 'tests.ifNoTests', 'fail'
             systemProperty 'es.logger.level', 'WARN'

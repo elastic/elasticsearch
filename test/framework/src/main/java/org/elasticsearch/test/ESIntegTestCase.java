@@ -75,8 +75,11 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -159,6 +162,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BooleanSupplier;
+import java.util.function.Function;
 
 import static org.elasticsearch.client.Requests.syncedFlushRequest;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
@@ -266,7 +270,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * The value of this seed can be used to initialize a random context for a specific index.
      * It's set once per test via a generic index template.
      */
-    public static final String SETTING_INDEX_SEED = "index.tests.seed";
+    public static final Setting<Long> INDEX_TEST_SEED_SETTING = Setting.longSetting("index.tests.seed", 0, Long.MIN_VALUE, false, Setting.Scope.INDEX);
 
     /**
      * A boolean value to enable or disable mock modules. This is useful to test the
@@ -365,8 +369,11 @@ public abstract class ESIntegTestCase extends ESTestCase {
         // TODO move settings for random directory etc here into the index based randomized settings.
         if (cluster().size() > 0) {
             Settings.Builder randomSettingsBuilder =
-                    setRandomIndexSettings(getRandom(), Settings.builder())
-                            .put(SETTING_INDEX_SEED, getRandom().nextLong());
+                    setRandomIndexSettings(getRandom(), Settings.builder());
+            if (isInternalCluster()) {
+                // this is only used by mock plugins and if the cluster is not internal we just can't set it
+                randomSettingsBuilder.put(INDEX_TEST_SEED_SETTING.getKey(), getRandom().nextLong());
+            }
 
             randomSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, numberOfShards())
                     .put(SETTING_NUMBER_OF_REPLICAS, numberOfReplicas());
@@ -465,20 +472,20 @@ public abstract class ESIntegTestCase extends ESTestCase {
         setRandomIndexNormsLoading(random, builder);
 
         if (random.nextBoolean()) {
-            builder.put(MergeSchedulerConfig.AUTO_THROTTLE, false);
+            builder.put(MergeSchedulerConfig.AUTO_THROTTLE_SETTING.getKey(), false);
         }
 
         if (random.nextBoolean()) {
-            builder.put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED, random.nextBoolean());
+            builder.put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), random.nextBoolean());
         }
 
         if (random.nextBoolean()) {
-            builder.put("index.shard.check_on_startup", randomFrom(random, "false", "checksum", "true"));
+            builder.put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), randomFrom("false", "checksum", "true"));
         }
 
         if (randomBoolean()) {
             // keep this low so we don't stall tests
-            builder.put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING, RandomInts.randomIntBetween(random, 1, 15) + "ms");
+            builder.put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), RandomInts.randomIntBetween(random, 1, 15) + "ms");
         }
 
         return builder;
@@ -486,15 +493,15 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
     private static Settings.Builder setRandomIndexMergeSettings(Random random, Settings.Builder builder) {
         if (random.nextBoolean()) {
-            builder.put(MergePolicyConfig.INDEX_COMPOUND_FORMAT,
+            builder.put(MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING.getKey(),
                     random.nextBoolean() ? random.nextDouble() : random.nextBoolean());
         }
         switch (random.nextInt(4)) {
             case 3:
                 final int maxThreadCount = RandomInts.randomIntBetween(random, 1, 4);
                 final int maxMergeCount = RandomInts.randomIntBetween(random, maxThreadCount, maxThreadCount + 4);
-                builder.put(MergeSchedulerConfig.MAX_MERGE_COUNT, maxMergeCount);
-                builder.put(MergeSchedulerConfig.MAX_THREAD_COUNT, maxThreadCount);
+                builder.put(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.getKey(), maxMergeCount);
+                builder.put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), maxThreadCount);
                 break;
         }
 
@@ -503,27 +510,27 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
     private static Settings.Builder setRandomIndexNormsLoading(Random random, Settings.Builder builder) {
         if (random.nextBoolean()) {
-            builder.put(SearchService.NORMS_LOADING_KEY, RandomPicks.randomFrom(random, Arrays.asList(MappedFieldType.Loading.EAGER, MappedFieldType.Loading.LAZY)));
+            builder.put(SearchService.INDEX_NORMS_LOADING_SETTING.getKey(), RandomPicks.randomFrom(random, Arrays.asList(MappedFieldType.Loading.EAGER, MappedFieldType.Loading.LAZY)));
         }
         return builder;
     }
 
     private static Settings.Builder setRandomIndexTranslogSettings(Random random, Settings.Builder builder) {
         if (random.nextBoolean()) {
-            builder.put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE, new ByteSizeValue(RandomInts.randomIntBetween(random, 1, 300), ByteSizeUnit.MB));
+            builder.put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTTING.getKey(), new ByteSizeValue(RandomInts.randomIntBetween(random, 1, 300), ByteSizeUnit.MB));
         }
         if (random.nextBoolean()) {
-            builder.put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE, new ByteSizeValue(1, ByteSizeUnit.PB)); // just don't flush
+            builder.put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTTING.getKey(), new ByteSizeValue(1, ByteSizeUnit.PB)); // just don't flush
         }
         if (random.nextBoolean()) {
-            builder.put(IndexSettings.INDEX_TRANSLOG_DURABILITY, RandomPicks.randomFrom(random, Translog.Durability.values()));
+            builder.put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), RandomPicks.randomFrom(random, Translog.Durability.values()));
         }
 
         if (random.nextBoolean()) {
             if (rarely(random)) {
-                builder.put(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL, 0); // 0 has special meaning to sync each op
+                builder.put(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey(), 0); // 0 has special meaning to sync each op
             } else {
-                builder.put(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL, RandomInts.randomIntBetween(random, 100, 5000), TimeUnit.MILLISECONDS);
+                builder.put(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey(), RandomInts.randomIntBetween(random, 100, 5000), TimeUnit.MILLISECONDS);
             }
         }
 
@@ -1283,7 +1290,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      */
     protected final void enableAllocation(String... indices) {
         client().admin().indices().prepareUpdateSettings(indices).setSettings(Settings.builder().put(
-                EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE, "all"
+                EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "all"
         )).get();
     }
 
@@ -1292,7 +1299,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      */
     protected final void disableAllocation(String... indices) {
         client().admin().indices().prepareUpdateSettings(indices).setSettings(Settings.builder().put(
-                EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE, "none"
+                EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none"
         )).get();
     }
 
@@ -1678,7 +1685,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 .put("script.indexed", "on")
                 .put("script.inline", "on")
                         // wait short time for other active shards before actually deleting, default 30s not needed in tests
-                .put(IndicesStore.INDICES_STORE_DELETE_SHARD_TIMEOUT, new TimeValue(1, TimeUnit.SECONDS));
+                .put(IndicesStore.INDICES_STORE_DELETE_SHARD_TIMEOUT.getKey(), new TimeValue(1, TimeUnit.SECONDS));
         return builder.build();
     }
 
@@ -1752,7 +1759,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         NodeConfigurationSource nodeConfigurationSource = new NodeConfigurationSource() {
             @Override
             public Settings nodeSettings(int nodeOrdinal) {
-                return Settings.builder().put(Node.HTTP_ENABLED, false).
+                return Settings.builder().put(NetworkModule.HTTP_ENABLED.getKey(), false).
                         put(ESIntegTestCase.this.nodeSettings(nodeOrdinal)).build();
             }
 
@@ -1796,7 +1803,16 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
         return new InternalTestCluster(nodeMode, seed, createTempDir(), minNumDataNodes, maxNumDataNodes,
                 InternalTestCluster.clusterName(scope.name(), seed) + "-cluster", nodeConfigurationSource, getNumClientNodes(),
-                InternalTestCluster.DEFAULT_ENABLE_HTTP_PIPELINING, nodePrefix, mockPlugins);
+                InternalTestCluster.DEFAULT_ENABLE_HTTP_PIPELINING, nodePrefix, mockPlugins, getClientWrapper());
+    }
+
+    /**
+     * Returns a function that allows to wrap / filter all clients that are exposed by the test cluster. This is useful
+     * for debugging or request / response pre and post processing. It also allows to intercept all calls done by the test
+     * framework. By default this method returns an identity function {@link Function#identity()}.
+     */
+    protected Function<Client,Client> getClientWrapper() {
+        return Function.identity();
     }
 
     /** Return the mock plugins the cluster should use */
@@ -1822,7 +1838,23 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 mocks.add(AssertingLocalTransport.TestPlugin.class);
             }
         }
+        mocks.add(TestSeedPlugin.class);
         return Collections.unmodifiableList(mocks);
+    }
+
+    public static final class TestSeedPlugin extends Plugin {
+        @Override
+        public String name() {
+            return "test-seed-plugin";
+        }
+        @Override
+        public String description() {
+            return "a test plugin that registeres index.tests.seed as an index setting";
+        }
+        public void onModule(SettingsModule module) {
+            module.registerSetting(INDEX_TEST_SEED_SETTING);
+        }
+
     }
 
     /**
@@ -2059,11 +2091,11 @@ public abstract class ESIntegTestCase extends ESTestCase {
         assertTrue(Files.exists(dest));
         Settings.Builder builder = Settings.builder()
                 .put(settings)
-                .put("path.data", dataDir.toAbsolutePath());
+                .put(Environment.PATH_DATA_SETTING.getKey(), dataDir.toAbsolutePath());
 
         Path configDir = indexDir.resolve("config");
         if (Files.exists(configDir)) {
-            builder.put("path.conf", configDir.toAbsolutePath());
+            builder.put(Environment.PATH_CONF_SETTING.getKey(), configDir.toAbsolutePath());
         }
         return builder.build();
     }

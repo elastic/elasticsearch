@@ -45,7 +45,7 @@ public class MapperTestUtils {
 
     public static MapperService newMapperService(Path tempDir, Settings settings, IndicesModule indicesModule) throws IOException {
         Settings.Builder settingsBuilder = Settings.builder()
-            .put("path.home", tempDir)
+            .put(Environment.PATH_HOME_SETTING.getKey(), tempDir)
             .put(settings);
         if (settings.get(IndexMetaData.SETTING_VERSION_CREATED) == null) {
             settingsBuilder.put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT);

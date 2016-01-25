@@ -202,7 +202,7 @@ public class PercolatorAggregationsIT extends ESIntegTestCase {
     }
 
     public void testSingleShardAggregations() throws Exception {
-        assertAcked(prepareCreate("test").setSettings(Settings.builder().put(indexSettings()).put("SETTING_NUMBER_OF_SHARDS", 1))
+        assertAcked(prepareCreate("test").setSettings(Settings.builder().put(indexSettings()).put("index.number_of_shards", 1))
                 .addMapping("type", "field1", "type=string", "field2", "type=string"));
         ensureGreen();
 

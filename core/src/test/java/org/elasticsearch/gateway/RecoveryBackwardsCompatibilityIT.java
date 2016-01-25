@@ -60,7 +60,7 @@ public class RecoveryBackwardsCompatibilityIT extends ESBackcompatTestCase {
     public void testReusePeerRecovery() throws Exception {
         assertAcked(prepareCreate("test").setSettings(Settings.builder().put(indexSettings())
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE, EnableAllocationDecider.Rebalance.NONE)));
+                .put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)));
         logger.info("--> indexing docs");
         int numDocs = scaledRandomIntBetween(100, 1000);
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];

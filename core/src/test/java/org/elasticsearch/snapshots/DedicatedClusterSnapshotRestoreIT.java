@@ -100,7 +100,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         logger.info("--> start 2 nodes");
         Settings nodeSettings = settingsBuilder()
                 .put("discovery.type", "zen")
-                .put(ZenDiscovery.SETTING_PING_TIMEOUT, "200ms")
+                .put(ZenDiscovery.PING_TIMEOUT_SETTING.getKey(), "200ms")
                 .put("discovery.initial_state_timeout", "500ms")
                 .build();
         internalCluster().startNode(nodeSettings);
@@ -766,7 +766,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
         logger.info("--> update index settings to back to normal");
         assertAcked(client().admin().indices().prepareUpdateSettings("test-*").setSettings(Settings.builder()
-                        .put(IndexStore.INDEX_STORE_THROTTLE_TYPE, "node")
+                        .put(IndexStore.INDEX_STORE_THROTTLE_TYPE_SETTING.getKey(), "node")
         ));
 
         // Make sure that snapshot finished - doesn't matter if it failed or succeeded
@@ -888,11 +888,10 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         }
 
         assertAcked(client().admin().indices().prepareUpdateSettings(name).setSettings(Settings.builder()
-                        .put(IndexStore.INDEX_STORE_THROTTLE_TYPE, "all")
-                        .put(IndexStore.INDEX_STORE_THROTTLE_MAX_BYTES_PER_SEC, between(100, 50000))
+                        .put(IndexStore.INDEX_STORE_THROTTLE_TYPE_SETTING.getKey(), "all")
+                        .put(IndexStore.INDEX_STORE_THROTTLE_MAX_BYTES_PER_SEC_SETTING.getKey(), between(100, 50000))
         ));
     }
-
 
     static {
         MetaData.registerPrototype(SnapshottableMetadata.TYPE, SnapshottableMetadata.PROTO);

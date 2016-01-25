@@ -41,6 +41,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -82,11 +83,11 @@ import static org.hamcrest.Matchers.equalTo;
 public class IndicesStoreIntegrationIT extends ESIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) { // simplify this and only use a single data path
-        return Settings.settingsBuilder().put(super.nodeSettings(nodeOrdinal)).put("path.data", "")
+        return Settings.settingsBuilder().put(super.nodeSettings(nodeOrdinal)).put(Environment.PATH_DATA_SETTING.getKey(), "")
                 // by default this value is 1 sec in tests (30 sec in practice) but we adding disruption here
                 // which is between 1 and 2 sec can cause each of the shard deletion requests to timeout.
                 // to prevent this we are setting the timeout here to something highish ie. the default in practice
-                .put(IndicesStore.INDICES_STORE_DELETE_SHARD_TIMEOUT, new TimeValue(30, TimeUnit.SECONDS))
+                .put(IndicesStore.INDICES_STORE_DELETE_SHARD_TIMEOUT.getKey(), new TimeValue(30, TimeUnit.SECONDS))
                 .build();
     }
 
@@ -306,7 +307,7 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").setSettings(Settings.builder()
                         .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 3)
                         .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
-                        .put(FilterAllocationDecider.INDEX_ROUTING_EXCLUDE_GROUP + "_name", node4)
+                        .put(IndexMetaData.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + "_name", node4)
         ));
         assertFalse(client().admin().cluster().prepareHealth().setWaitForRelocatingShards(0).setWaitForGreenStatus().setWaitForNodes("5").get().isTimedOut());
 
@@ -328,7 +329,7 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         logger.debug("--> allowing index to be assigned to node [{}]", node4);
         assertAcked(client().admin().indices().prepareUpdateSettings("test").setSettings(
                 Settings.builder()
-                        .put(FilterAllocationDecider.INDEX_ROUTING_EXCLUDE_GROUP + "_name", "NONE")));
+                        .put(IndexMetaData.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + "_name", "NONE")));
 
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
                 .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "all")));

@@ -21,21 +21,14 @@ package org.elasticsearch.plan.a;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.RestTestCandidate;
 import org.elasticsearch.test.rest.parser.RestTestParseException;
 
 import java.io.IOException;
-import java.util.Collection;
 
 /** Runs yaml rest tests */
 public class PlanARestIT extends ESRestTestCase {
-
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(PlanAPlugin.class);
-    }
 
     public PlanARestIT(@Name("yaml") RestTestCandidate testCandidate) {
         super(testCandidate);

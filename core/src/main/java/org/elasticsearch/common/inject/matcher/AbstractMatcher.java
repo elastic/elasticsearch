@@ -49,8 +49,8 @@ public abstract class AbstractMatcher<T> implements Matcher<T> {
         @Override
         public boolean equals(Object other) {
             return other instanceof AndMatcher
-                    && ((AndMatcher) other).a.equals(a)
-                    && ((AndMatcher) other).b.equals(b);
+                    && ((AndMatcher<?>) other).a.equals(a)
+                    && ((AndMatcher<?>) other).b.equals(b);
         }
 
         @Override
@@ -80,8 +80,8 @@ public abstract class AbstractMatcher<T> implements Matcher<T> {
         @Override
         public boolean equals(Object other) {
             return other instanceof OrMatcher
-                    && ((OrMatcher) other).a.equals(a)
-                    && ((OrMatcher) other).b.equals(b);
+                    && ((OrMatcher<?>) other).a.equals(a)
+                    && ((OrMatcher<?>) other).b.equals(b);
         }
 
         @Override

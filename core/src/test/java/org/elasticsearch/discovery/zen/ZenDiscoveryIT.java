@@ -95,8 +95,8 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
 
     public void testNoShardRelocationsOccurWhenElectedMasterNodeFails() throws Exception {
         Settings defaultSettings = Settings.builder()
-                .put(FaultDetection.SETTING_PING_TIMEOUT, "1s")
-                .put(FaultDetection.SETTING_PING_RETRIES, "1")
+                .put(FaultDetection.PING_TIMEOUT_SETTING.getKey(), "1s")
+                .put(FaultDetection.PING_RETRIES_SETTING.getKey(), "1")
                 .put("discovery.type", "zen")
                 .build();
 
@@ -142,8 +142,8 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
     @TestLogging(value = "action.admin.cluster.health:TRACE")
     public void testNodeFailuresAreProcessedOnce() throws ExecutionException, InterruptedException, IOException {
         Settings defaultSettings = Settings.builder()
-                .put(FaultDetection.SETTING_PING_TIMEOUT, "1s")
-                .put(FaultDetection.SETTING_PING_RETRIES, "1")
+                .put(FaultDetection.PING_TIMEOUT_SETTING.getKey(), "1s")
+                .put(FaultDetection.PING_RETRIES_SETTING.getKey(), "1")
                 .put("discovery.type", "zen")
                 .build();
 

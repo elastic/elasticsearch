@@ -37,6 +37,7 @@ import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.ModulesBuilder;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.logging.ESLogger;
@@ -45,6 +46,7 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
@@ -118,7 +120,7 @@ import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 public class Node implements Releasable {
 
     private static final String CLIENT_TYPE = "node";
-    public static final String HTTP_ENABLED = "http.enabled";
+    public static final Setting<Boolean> WRITE_PORTS_FIELD_SETTING = Setting.boolSetting("node.portsfile", false, false, Setting.Scope.CLUSTER);
     private final Lifecycle lifecycle = new Lifecycle();
     private final Injector injector;
     private final Settings settings;
@@ -164,6 +166,7 @@ public class Node implements Releasable {
         final NetworkService networkService = new NetworkService(settings);
         final SettingsFilter settingsFilter = new SettingsFilter(settings);
         final ThreadPool threadPool = new ThreadPool(settings);
+        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
         boolean success = false;
         try {
             final MonitorService monitorService = new MonitorService(settings, nodeEnvironment, threadPool);
@@ -178,7 +181,7 @@ public class Node implements Releasable {
             modules.add(new SettingsModule(this.settings, settingsFilter));
             modules.add(new EnvironmentModule(environment));
             modules.add(new NodeModule(this, monitorService));
-            modules.add(new NetworkModule(networkService, settings, false));
+            modules.add(new NetworkModule(networkService, settings, false, namedWriteableRegistry));
             modules.add(new ScriptModule(this.settings));
             modules.add(new NodeEnvironmentModule(nodeEnvironment));
             modules.add(new ClusterNameModule(this.settings));
@@ -186,7 +189,7 @@ public class Node implements Releasable {
             modules.add(new DiscoveryModule(this.settings));
             modules.add(new ClusterModule(this.settings));
             modules.add(new IndicesModule());
-            modules.add(new SearchModule());
+            modules.add(new SearchModule(settings, namedWriteableRegistry));
             modules.add(new ActionModule(false));
             modules.add(new GatewayModule(settings));
             modules.add(new NodeClientModule());
@@ -273,7 +276,7 @@ public class Node implements Releasable {
         injector.getInstance(ResourceWatcherService.class).start();
         injector.getInstance(TribeService.class).start();
 
-        if (System.getProperty("es.tests.portsfile", "false").equals("true")) {
+        if (WRITE_PORTS_FIELD_SETTING.get(settings)) {
             if (settings.getAsBoolean("http.enabled", true)) {
                 HttpServerTransport http = injector.getInstance(HttpServerTransport.class);
                 writePortsFile("http", http.boundAddress());

@@ -40,7 +40,7 @@ public class CharFilterTests extends ESTokenStreamTestCase {
                 .putArray("index.analysis.char_filter.my_mapping.mappings", "ph=>f", "qu=>q")
                 .put("index.analysis.analyzer.custom_with_char_filter.tokenizer", "standard")
                 .putArray("index.analysis.analyzer.custom_with_char_filter.char_filter", "my_mapping")
-                .put("path.home", createTempDir().toString())
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index, settings);
         AnalysisService analysisService = new AnalysisRegistry(null, new Environment(settings)).build(idxSettings);
@@ -58,7 +58,7 @@ public class CharFilterTests extends ESTokenStreamTestCase {
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put("index.analysis.analyzer.custom_with_char_filter.tokenizer", "standard")
                 .putArray("index.analysis.analyzer.custom_with_char_filter.char_filter", "html_strip")
-                .put("path.home", createTempDir().toString())
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index, settings);
         AnalysisService analysisService = new AnalysisRegistry(null, new Environment(settings)).build(idxSettings);

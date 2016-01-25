@@ -36,6 +36,7 @@ import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShadowIndexShard;
 import org.elasticsearch.index.translog.TranslogStats;
@@ -86,7 +87,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
     private Settings nodeSettings(String dataPath) {
         return Settings.builder()
                 .put("node.add_id_to_custom_path", false)
-                .put("path.shared_data", dataPath)
+                .put(Environment.PATH_SHARED_DATA_SETTING.getKey(), dataPath)
                 .put("index.store.fs.fs_lock", randomFrom("native", "simple"))
                 .build();
     }
@@ -443,7 +444,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         Path dataPath = createTempDir();
         Settings nodeSettings = Settings.builder()
                 .put("node.add_id_to_custom_path", false)
-                .put("path.shared_data", dataPath)
+                .put(Environment.PATH_SHARED_DATA_SETTING.getKey(), dataPath)
                 .build();
 
         String node1 = internalCluster().startNode(nodeSettings);

@@ -16,26 +16,25 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.script.mustache;
 
-package org.elasticsearch.plugins;
+import com.github.mustachejava.DefaultMustacheFactory;
+import com.github.mustachejava.MustacheException;
 
-/** A site-only plugin, just serves resources */
-final class SitePlugin extends Plugin {
-    final String name;
-    final String description;
-    
-    SitePlugin(String name, String description) {
-        this.name = name;
-        this.description = description;
-    }
+import java.io.IOException;
+import java.io.Writer;
 
-    @Override
-    public String name() {
-        return name;
-    }
+/**
+ * A MustacheFactory that does no string escaping.
+ */
+final class NoneEscapingMustacheFactory extends DefaultMustacheFactory {
 
     @Override
-    public String description() {
-        return description;
+    public void encode(String value, Writer writer) {
+        try {
+            writer.write(value);
+        } catch (IOException e) {
+            throw new MustacheException("Failed to encode value: " + value);
+        }
     }
 }

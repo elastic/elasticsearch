@@ -113,6 +113,7 @@ The available values are:
 * `ap-southeast-1`
 * `ap-southeast-2`
 * `ap-northeast` (`ap-northeast-1`)
+* `ap-northeast-2` (`ap-northeast-2`)
 * `eu-west` (`eu-west-1`)
 * `eu-central` (`eu-central-1`)
 * `sa-east` (`sa-east-1`)

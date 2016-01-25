@@ -16,6 +16,7 @@ your application to Elasticsearch 3.0.
 * <<breaking_30_thread_pool>>
 * <<breaking_30_allocation>>
 * <<breaking_30_percolator>>
+* <<breaking_30_packaging>>
 
 [[breaking_30_search_changes]]
 === Warmers
@@ -644,3 +645,17 @@ When percolating an existing document then specifying a document in the source o
 any more.
 
 Percolator documents are no longer excluded from the search response.
+
+[[breaking_30_packaging]]
+=== Packaging
+
+==== Default logging using systemd (since Elasticsearch 2.2.0)
+
+In previous versions of Elasticsearch, the default logging
+configuration routed standard output to /dev/null and standard error to
+the journal. However, there are often critical error messages at
+startup that are logged to standard output rather than standard error
+and these error messages would be lost to the nether. The default has
+changed to now route standard output to the journal and standard error
+to inherit this setting (these are the defaults for systemd). These
+settings can be modified by editing the elasticsearch.service file.

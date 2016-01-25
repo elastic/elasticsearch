@@ -259,9 +259,7 @@ public class PluginManager {
         }
 
         // check for jar hell before any copying
-        if (info.isJvm()) {
-            jarHellCheck(root, info.isIsolated());
-        }
+        jarHellCheck(root, info.isIsolated());
 
         // read optional security policy (extra permissions)
         // if it exists, confirm or warn the user

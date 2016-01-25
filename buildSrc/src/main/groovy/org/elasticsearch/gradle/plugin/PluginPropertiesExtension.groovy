@@ -37,13 +37,7 @@ class PluginPropertiesExtension {
     String description
 
     @Input
-    boolean jvm = true
-
-    @Input
     String classname
-
-    @Input
-    boolean site = false
 
     @Input
     boolean isolated = true

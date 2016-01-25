@@ -167,8 +167,8 @@ public class NewPathForShardTests extends ESTestCase {
                                        path.resolve("b").toString()};
 
         Settings settings = Settings.builder()
-            .put("path.home", path)
-            .putArray("path.data", paths).build();
+            .put(Environment.PATH_HOME_SETTING.getKey(), path)
+            .putArray(Environment.PATH_DATA_SETTING.getKey(), paths).build();
         NodeEnvironment nodeEnv = new NodeEnvironment(settings, new Environment(settings));
 
         // Make sure all our mocking above actually worked:

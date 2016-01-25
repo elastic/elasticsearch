@@ -48,7 +48,7 @@ public class InternalSettingsPreparerTests extends ESTestCase {
     @Before
     public void createBaseEnvSettings() {
         baseEnvSettings = settingsBuilder()
-            .put("path.home", createTempDir())
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
             .build();
     }
 
@@ -68,7 +68,7 @@ public class InternalSettingsPreparerTests extends ESTestCase {
         assertNotNull(settings.get("name")); // a name was set
         assertNotNull(settings.get(ClusterName.SETTING)); // a cluster name was set
         assertEquals(settings.toString(), size + 1 /* path.home is in the base settings */, settings.names().size());
-        String home = baseEnvSettings.get("path.home");
+        String home = Environment.PATH_HOME_SETTING.get(baseEnvSettings);
         String configDir = env.configFile().toString();
         assertTrue(configDir, configDir.startsWith(home));
     }

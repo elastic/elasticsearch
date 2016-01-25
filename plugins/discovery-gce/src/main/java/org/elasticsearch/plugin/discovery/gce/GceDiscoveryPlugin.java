@@ -115,7 +115,7 @@ public class GceDiscoveryPlugin extends Plugin {
      */
     public static boolean isDiscoveryAlive(Settings settings, ESLogger logger) {
         // User set discovery.type: gce
-        if (GceDiscovery.GCE.equalsIgnoreCase(settings.get("discovery.type")) == false) {
+        if (GceDiscovery.GCE.equalsIgnoreCase(DiscoveryModule.DISCOVERY_TYPE_SETTING.get(settings)) == false) {
             logger.debug("discovery.type not set to {}", GceDiscovery.GCE);
             return false;
         }

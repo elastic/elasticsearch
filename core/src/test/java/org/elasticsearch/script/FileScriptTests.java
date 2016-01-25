@@ -39,7 +39,7 @@ public class FileScriptTests extends ESTestCase {
         Path mockscript = scriptsDir.resolve("script1.mockscript");
         Files.write(mockscript, "1".getBytes("UTF-8"));
         settings = Settings.builder()
-            .put("path.home", homeDir)
+            .put(Environment.PATH_HOME_SETTING.getKey(), homeDir)
                 // no file watching, so we don't need a ResourceWatcherService
             .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING, false)
             .put(settings)

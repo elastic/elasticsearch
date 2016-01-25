@@ -28,7 +28,9 @@ import org.elasticsearch.client.transport.support.TransportProxyClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.Setting.Scope;
 import org.elasticsearch.common.util.ExtensionPoint;
 import org.elasticsearch.http.HttpServer;
 import org.elasticsearch.http.HttpServerTransport;
@@ -154,7 +156,7 @@ public class NetworkModule extends AbstractModule {
     public static final String NETTY_TRANSPORT = "netty";
 
     public static final String HTTP_TYPE_KEY = "http.type";
-    public static final String HTTP_ENABLED = "http.enabled";
+    public static final Setting<Boolean> HTTP_ENABLED = Setting.boolSetting("http.enabled", true, false, Scope.CLUSTER);
 
     private static final List<Class<? extends RestHandler>> builtinRestHandlers = Arrays.asList(
         RestMainAction.class,
@@ -378,7 +380,7 @@ public class NetworkModule extends AbstractModule {
             bind(TransportProxyClient.class).asEagerSingleton();
             bind(TransportClientNodesService.class).asEagerSingleton();
         } else {
-            if (settings.getAsBoolean(HTTP_ENABLED, true)) {
+            if (HTTP_ENABLED.get(settings)) {
                 bind(HttpServer.class).asEagerSingleton();
                 httpTransportTypes.bindType(binder(), settings, HTTP_TYPE_KEY, NETTY_TRANSPORT);
             }

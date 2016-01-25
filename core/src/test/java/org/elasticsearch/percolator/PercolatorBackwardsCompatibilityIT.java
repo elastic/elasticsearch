@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -113,7 +114,7 @@ public class PercolatorBackwardsCompatibilityIT extends ESIntegTestCase {
         }
 
         Settings.Builder nodeSettings = Settings.builder()
-            .put("path.data", dataDir);
+            .put(Environment.PATH_DATA_SETTING.getKey(), dataDir);
         internalCluster().startNode(nodeSettings.build());
         ensureGreen(INDEX_NAME);
     }

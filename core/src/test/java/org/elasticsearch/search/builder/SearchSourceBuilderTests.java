@@ -44,6 +44,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.query.AbstractQueryTestCase;
 import org.elasticsearch.index.query.EmptyQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -81,7 +82,7 @@ public class SearchSourceBuilderTests extends ESTestCase {
     public static void init() throws IOException {
         Settings settings = Settings.settingsBuilder()
                 .put("name", SearchSourceBuilderTests.class.toString())
-                .put("path.home", createTempDir())
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .build();
         namedWriteableRegistry = new NamedWriteableRegistry();
         injector = new ModulesBuilder().add(

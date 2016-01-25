@@ -104,13 +104,17 @@ public class SettingTests extends ESTestCase {
         TimeValue defautlValue = TimeValue.timeValueMillis(randomIntBetween(0, 1000000));
         Setting<TimeValue> setting = Setting.positiveTimeSetting("my.time.value", defautlValue, randomBoolean(), Setting.Scope.CLUSTER);
         assertFalse(setting.isGroupSetting());
-        String aDefault = setting.getDefault(Settings.EMPTY);
+        String aDefault = setting.getDefaultRaw(Settings.EMPTY);
         assertEquals(defautlValue.millis() + "ms", aDefault);
         assertEquals(defautlValue.millis(), setting.get(Settings.EMPTY).millis());
+        assertEquals(defautlValue, setting.getDefault(Settings.EMPTY));
 
         Setting<String> secondaryDefault = new Setting<>("foo.bar", (s) -> s.get("old.foo.bar", "some_default"), (s) -> s, randomBoolean(), Setting.Scope.CLUSTER);
         assertEquals("some_default", secondaryDefault.get(Settings.EMPTY));
         assertEquals("42", secondaryDefault.get(Settings.builder().put("old.foo.bar", 42).build()));
+        Setting<String> secondaryDefaultViaSettings = new Setting<>("foo.bar", secondaryDefault, (s) -> s, randomBoolean(), Setting.Scope.CLUSTER);
+        assertEquals("some_default", secondaryDefaultViaSettings.get(Settings.EMPTY));
+        assertEquals("42", secondaryDefaultViaSettings.get(Settings.builder().put("old.foo.bar", 42).build()));
     }
 
     public void testComplexType() {
@@ -298,6 +302,26 @@ public class SettingTests extends ESTestCase {
         for (int i = 0; i < intValues.size(); i++) {
             assertEquals(i, intValues.get(i).intValue());
         }
+
+        Setting<List<String>> settingWithFallback = Setting.listSetting("foo.baz", listSetting, s -> s, true, Setting.Scope.CLUSTER);
+        value = settingWithFallback.get(Settings.EMPTY);
+        assertEquals(1, value.size());
+        assertEquals("foo,bar", value.get(0));
+
+        value = settingWithFallback.get(Settings.builder().putArray("foo.bar", "1", "2").build());
+        assertEquals(2, value.size());
+        assertEquals("1", value.get(0));
+        assertEquals("2", value.get(1));
+
+        value = settingWithFallback.get(Settings.builder().putArray("foo.baz", "3", "4").build());
+        assertEquals(2, value.size());
+        assertEquals("3", value.get(0));
+        assertEquals("4", value.get(1));
+
+        value = settingWithFallback.get(Settings.builder().putArray("foo.baz", "3", "4").putArray("foo.bar", "1", "2").build());
+        assertEquals(2, value.size());
+        assertEquals("3", value.get(0));
+        assertEquals("4", value.get(1));
     }
 
     public void testListSettingAcceptsNumberSyntax() {

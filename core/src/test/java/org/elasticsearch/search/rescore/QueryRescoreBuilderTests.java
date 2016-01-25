@@ -86,8 +86,8 @@ public class QueryRescoreBuilderTests extends ESTestCase {
      */
     public void testSerialization() throws IOException {
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
-            RescoreBaseBuilder original = randomRescoreBuilder();
-            RescoreBaseBuilder deserialized = serializedCopy(original);
+            RescoreBuilder<?> original = randomRescoreBuilder();
+            RescoreBuilder<?> deserialized = serializedCopy(original);
             assertEquals(deserialized, original);
             assertEquals(deserialized.hashCode(), original.hashCode());
             assertNotSame(deserialized, original);
@@ -99,7 +99,7 @@ public class QueryRescoreBuilderTests extends ESTestCase {
      */
     public void testEqualsAndHashcode() throws IOException {
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
-            RescoreBaseBuilder firstBuilder = randomRescoreBuilder();
+            RescoreBuilder<?> firstBuilder = randomRescoreBuilder();
             assertFalse("rescore builder is equal to null", firstBuilder.equals(null));
             assertFalse("rescore builder is equal to incompatible type", firstBuilder.equals(""));
             assertTrue("rescore builder is not equal to self", firstBuilder.equals(firstBuilder));
@@ -107,13 +107,13 @@ public class QueryRescoreBuilderTests extends ESTestCase {
                     equalTo(firstBuilder.hashCode()));
             assertThat("different rescore builder should not be equal", mutate(firstBuilder), not(equalTo(firstBuilder)));
 
-            RescoreBaseBuilder secondBuilder = serializedCopy(firstBuilder);
+            RescoreBuilder<?> secondBuilder = serializedCopy(firstBuilder);
             assertTrue("rescore builder is not equal to self", secondBuilder.equals(secondBuilder));
             assertTrue("rescore builder is not equal to its copy", firstBuilder.equals(secondBuilder));
             assertTrue("equals is not symmetric", secondBuilder.equals(firstBuilder));
             assertThat("rescore builder copy's hashcode is different from original hashcode", secondBuilder.hashCode(), equalTo(firstBuilder.hashCode()));
 
-            RescoreBaseBuilder thirdBuilder = serializedCopy(secondBuilder);
+            RescoreBuilder<?> thirdBuilder = serializedCopy(secondBuilder);
             assertTrue("rescore builder is not equal to self", thirdBuilder.equals(thirdBuilder));
             assertTrue("rescore builder is not equal to its copy", secondBuilder.equals(thirdBuilder));
             assertThat("rescore builder copy's hashcode is different from original hashcode", secondBuilder.hashCode(), equalTo(thirdBuilder.hashCode()));
@@ -131,19 +131,19 @@ public class QueryRescoreBuilderTests extends ESTestCase {
         QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
         context.parseFieldMatcher(new ParseFieldMatcher(Settings.EMPTY));
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
-            RescoreBaseBuilder rescoreBuilder = randomRescoreBuilder();
+            RescoreBuilder<?> rescoreBuilder = randomRescoreBuilder();
 
             XContentParser parser = createParser(rescoreBuilder);
             context.reset(parser);
             parser.nextToken();
-            RescoreBaseBuilder secondRescoreBuilder = RescoreBaseBuilder.PROTOTYPE.fromXContent(context);
+            RescoreBuilder<?> secondRescoreBuilder = AbstractRescoreBuilder.parseFromXContent(context);
             assertNotSame(rescoreBuilder, secondRescoreBuilder);
             assertEquals(rescoreBuilder, secondRescoreBuilder);
             assertEquals(rescoreBuilder.hashCode(), secondRescoreBuilder.hashCode());
         }
     }
 
-    private static XContentParser createParser(RescoreBaseBuilder rescoreBuilder) throws IOException {
+    private static XContentParser createParser(RescoreBuilder<?> rescoreBuilder) throws IOException {
         XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
         if (randomBoolean()) {
             builder.prettyPrint();
@@ -171,7 +171,7 @@ public class QueryRescoreBuilderTests extends ESTestCase {
         };
 
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
-            RescoreBaseBuilder rescoreBuilder = randomRescoreBuilder();
+            RescoreBuilder<?> rescoreBuilder = randomRescoreBuilder();
             QueryRescoreContext rescoreContext = (QueryRescoreContext) rescoreBuilder.build(mockShardContext);
             XContentParser parser = createParser(rescoreBuilder);
 
@@ -198,7 +198,7 @@ public class QueryRescoreBuilderTests extends ESTestCase {
                 "}\n";
         prepareContext(context, rescoreElement);
         try {
-            RescoreBaseBuilder.PROTOTYPE.fromXContent(context);
+            AbstractRescoreBuilder.parseFromXContent(context);
             fail("expected a parsing exception");
         } catch (ParsingException e) {
             assertEquals("rescore doesn't support rescorer with name [bad_rescorer_name]", e.getMessage());
@@ -209,7 +209,7 @@ public class QueryRescoreBuilderTests extends ESTestCase {
                 "}\n";
         prepareContext(context, rescoreElement);
         try {
-            RescoreBaseBuilder.PROTOTYPE.fromXContent(context);
+            AbstractRescoreBuilder.parseFromXContent(context);
             fail("expected a parsing exception");
         } catch (ParsingException e) {
             assertEquals("rescore doesn't support [bad_fieldName]", e.getMessage());
@@ -221,7 +221,7 @@ public class QueryRescoreBuilderTests extends ESTestCase {
                 "}\n";
         prepareContext(context, rescoreElement);
         try {
-            RescoreBaseBuilder.PROTOTYPE.fromXContent(context);
+            AbstractRescoreBuilder.parseFromXContent(context);
             fail("expected a parsing exception");
         } catch (ParsingException e) {
             assertEquals("unexpected token [START_ARRAY] after [query]", e.getMessage());
@@ -230,7 +230,7 @@ public class QueryRescoreBuilderTests extends ESTestCase {
         rescoreElement = "{ }";
         prepareContext(context, rescoreElement);
         try {
-            RescoreBaseBuilder.PROTOTYPE.fromXContent(context);
+            AbstractRescoreBuilder.parseFromXContent(context);
             fail("expected a parsing exception");
         } catch (ParsingException e) {
             assertEquals("missing rescore type", e.getMessage());
@@ -242,7 +242,7 @@ public class QueryRescoreBuilderTests extends ESTestCase {
                 "}\n";
         prepareContext(context, rescoreElement);
         try {
-            RescoreBaseBuilder.PROTOTYPE.fromXContent(context);
+            AbstractRescoreBuilder.parseFromXContent(context);
             fail("expected a parsing exception");
         } catch (IllegalArgumentException e) {
             assertEquals("[query] unknown field [bad_fieldname], parser not found", e.getMessage());
@@ -254,7 +254,7 @@ public class QueryRescoreBuilderTests extends ESTestCase {
                 "}\n";
         prepareContext(context, rescoreElement);
         try {
-            RescoreBaseBuilder.PROTOTYPE.fromXContent(context);
+            AbstractRescoreBuilder.parseFromXContent(context);
             fail("expected a parsing exception");
         } catch (ParsingException e) {
             assertEquals("[query] failed to parse field [rescore_query]", e.getMessage());
@@ -265,7 +265,7 @@ public class QueryRescoreBuilderTests extends ESTestCase {
                 "    \"query\" : { \"rescore_query\" : { \"match_all\" : { } } } \n"
                 + "}\n";
         prepareContext(context, rescoreElement);
-        RescoreBaseBuilder.PROTOTYPE.fromXContent(context);
+        AbstractRescoreBuilder.parseFromXContent(context);
     }
 
     /**
@@ -278,8 +278,8 @@ public class QueryRescoreBuilderTests extends ESTestCase {
         assertTrue(parser.nextToken() == XContentParser.Token.START_OBJECT);
     }
 
-    private static RescoreBaseBuilder mutate(RescoreBaseBuilder original) throws IOException {
-        RescoreBaseBuilder mutation = serializedCopy(original);
+    private static RescoreBuilder<?> mutate(RescoreBuilder<?> original) throws IOException {
+        RescoreBuilder<?> mutation = serializedCopy(original);
         if (randomBoolean()) {
             Integer windowSize = original.windowSize();
             if (windowSize != null) {
@@ -288,7 +288,7 @@ public class QueryRescoreBuilderTests extends ESTestCase {
                 mutation.windowSize(randomIntBetween(0, 100));
             }
         } else {
-            QueryRescorerBuilder queryRescorer = (QueryRescorerBuilder) mutation.rescorer();
+            QueryRescorerBuilder queryRescorer = (QueryRescorerBuilder) mutation;
             switch (randomIntBetween(0, 3)) {
             case 0:
                 queryRescorer.setQueryWeight(queryRescorer.getQueryWeight() + 0.1f);
@@ -317,7 +317,7 @@ public class QueryRescoreBuilderTests extends ESTestCase {
     /**
      * create random shape that is put under test
      */
-    public static RescoreBaseBuilder randomRescoreBuilder() {
+    public static org.elasticsearch.search.rescore.QueryRescorerBuilder randomRescoreBuilder() {
         QueryBuilder<MatchAllQueryBuilder> queryBuilder = new MatchAllQueryBuilder().boost(randomFloat()).queryName(randomAsciiOfLength(20));
         org.elasticsearch.search.rescore.QueryRescorerBuilder rescorer = new
                 org.elasticsearch.search.rescore.QueryRescorerBuilder(queryBuilder);
@@ -330,18 +330,17 @@ public class QueryRescoreBuilderTests extends ESTestCase {
         if (randomBoolean()) {
             rescorer.setScoreMode(randomFrom(QueryRescoreMode.values()));
         }
-        RescoreBaseBuilder builder = new RescoreBaseBuilder(rescorer);
         if (randomBoolean()) {
-            builder.windowSize(randomIntBetween(0, 100));
+            rescorer.windowSize(randomIntBetween(0, 100));
         }
-        return builder;
+        return rescorer;
     }
 
-    private static RescoreBaseBuilder serializedCopy(RescoreBaseBuilder original) throws IOException {
+    private static RescoreBuilder<?> serializedCopy(RescoreBuilder<?> original) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            original.writeTo(output);
+            output.writeRescorer(original);
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
-                return RescoreBaseBuilder.PROTOTYPE.readFrom(in);
+                return in.readRescorer();
             }
         }
     }

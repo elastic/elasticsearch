@@ -35,7 +35,7 @@ import java.io.IOException;
 import java.util.Locale;
 import java.util.Objects;
 
-public class QueryRescorerBuilder implements RescoreBuilder<QueryRescorerBuilder> {
+public class QueryRescorerBuilder extends AbstractRescoreBuilder<QueryRescorerBuilder> {
 
     public static final String NAME = "query";
 
@@ -131,14 +131,13 @@ public class QueryRescorerBuilder implements RescoreBuilder<QueryRescorerBuilder
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
         builder.field(RESCORE_QUERY_FIELD.getPreferredName(), queryBuilder);
         builder.field(QUERY_WEIGHT_FIELD.getPreferredName(), queryWeight);
         builder.field(RESCORE_QUERY_WEIGHT_FIELD.getPreferredName(), rescoreQueryWeight);
         builder.field(SCORE_MODE_FIELD.getPreferredName(), scoreMode.name().toLowerCase(Locale.ROOT));
         builder.endObject();
-        return builder;
     }
 
     @Override
@@ -155,12 +154,16 @@ public class QueryRescorerBuilder implements RescoreBuilder<QueryRescorerBuilder
         queryRescoreContext.setQueryWeight(this.queryWeight);
         queryRescoreContext.setRescoreQueryWeight(this.rescoreQueryWeight);
         queryRescoreContext.setScoreMode(this.scoreMode);
+        if (this.windowSize != null) {
+            queryRescoreContext.setWindowSize(this.windowSize);
+        }
         return queryRescoreContext;
     }
 
     @Override
     public final int hashCode() {
-        return Objects.hash(getClass(), scoreMode, queryWeight, rescoreQueryWeight, queryBuilder);
+        int result = super.hashCode();
+        return 31 * result + Objects.hash(scoreMode, queryWeight, rescoreQueryWeight, queryBuilder);
     }
 
     @Override
@@ -172,14 +175,15 @@ public class QueryRescorerBuilder implements RescoreBuilder<QueryRescorerBuilder
             return false;
         }
         QueryRescorerBuilder other = (QueryRescorerBuilder) obj;
-        return Objects.equals(scoreMode, other.scoreMode) &&
+        return super.equals(obj) &&
+               Objects.equals(scoreMode, other.scoreMode) &&
                Objects.equals(queryWeight, other.queryWeight) &&
                Objects.equals(rescoreQueryWeight, other.rescoreQueryWeight) &&
                Objects.equals(queryBuilder, other.queryBuilder);
     }
 
     @Override
-    public QueryRescorerBuilder readFrom(StreamInput in) throws IOException {
+    public QueryRescorerBuilder doReadFrom(StreamInput in) throws IOException {
         QueryRescorerBuilder rescorer = new QueryRescorerBuilder(in.readQuery());
         rescorer.setScoreMode(QueryRescoreMode.PROTOTYPE.readFrom(in));
         rescorer.setRescoreQueryWeight(in.readFloat());
@@ -188,7 +192,7 @@ public class QueryRescorerBuilder implements RescoreBuilder<QueryRescorerBuilder
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
+    public void doWriteTo(StreamOutput out) throws IOException {
         out.writeQuery(queryBuilder);
         scoreMode.writeTo(out);
         out.writeFloat(rescoreQueryWeight);

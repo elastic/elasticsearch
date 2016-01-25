@@ -681,7 +681,7 @@ public abstract class StreamOutput extends OutputStream {
      /**
      * Writes a {@link RescoreBuilder} to the current stream
      */
-    public void writeRescorer(RescoreBuilder rescorer) throws IOException {
+    public void writeRescorer(RescoreBuilder<?> rescorer) throws IOException {
         writeNamedWriteable(rescorer);
     }
 }

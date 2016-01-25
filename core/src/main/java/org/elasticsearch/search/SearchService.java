@@ -61,7 +61,6 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.Loading;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.search.stats.ShardSearchStats;
@@ -101,7 +100,7 @@ import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.QuerySearchResultProvider;
 import org.elasticsearch.search.query.ScrollQuerySearchResult;
-import org.elasticsearch.search.rescore.RescoreBaseBuilder;
+import org.elasticsearch.search.rescore.RescoreBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -775,7 +774,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
         }
         if (source.rescores() != null) {
             try {
-                for (RescoreBaseBuilder rescore : source.rescores()) {
+                for (RescoreBuilder<?> rescore : source.rescores()) {
                     context.addRescore(rescore.build(context.indexShard().getQueryShardContext()));
                 }
             } catch (IOException e) {

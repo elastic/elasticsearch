@@ -679,7 +679,7 @@ public abstract class StreamInput extends InputStream {
     /**
      * Reads a {@link RescoreBuilder} from the current stream
      */
-    public RescoreBuilder readRescorer() throws IOException {
+    public RescoreBuilder<?> readRescorer() throws IOException {
         return readNamedWriteable(RescoreBuilder.class);
     }
 

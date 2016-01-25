@@ -26,9 +26,13 @@ import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
 
-public interface RescoreBuilder<RB extends RescoreBuilder> extends ToXContent, NamedWriteable<RB> {
+public interface RescoreBuilder<RB extends RescoreBuilder<?>> extends ToXContent, NamedWriteable<RB> {
 
     RescoreSearchContext build(QueryShardContext context) throws IOException;
 
     RB fromXContent(QueryParseContext parseContext) throws IOException;
+
+    RB windowSize(int windowSize);
+
+    Integer windowSize();
 }

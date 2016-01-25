@@ -32,7 +32,6 @@ import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsBuilder;
 import org.elasticsearch.search.highlight.HighlightBuilder;
-import org.elasticsearch.search.rescore.RescoreBaseBuilder;
 import org.elasticsearch.search.rescore.RescoreBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
@@ -397,7 +396,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * @param rescorer rescorer configuration
      * @return this for chaining
      */
-    public SearchRequestBuilder setRescorer(RescoreBuilder rescorer) {
+    public SearchRequestBuilder setRescorer(RescoreBuilder<?> rescorer) {
         sourceBuilder().clearRescorers();
         return addRescorer(rescorer);
     }
@@ -412,7 +411,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      */
     public SearchRequestBuilder setRescorer(RescoreBuilder rescorer, int window) {
         sourceBuilder().clearRescorers();
-        return addRescorer(rescorer, window);
+        return addRescorer(rescorer.windowSize(window));
     }
 
     /**
@@ -421,8 +420,8 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * @param rescorer rescorer configuration
      * @return this for chaining
      */
-    public SearchRequestBuilder addRescorer(RescoreBuilder rescorer) {
-        sourceBuilder().addRescorer(new RescoreBaseBuilder(rescorer));
+    public SearchRequestBuilder addRescorer(RescoreBuilder<?> rescorer) {
+        sourceBuilder().addRescorer(rescorer);
         return this;
     }
 
@@ -433,8 +432,8 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * @param window   rescore window
      * @return this for chaining
      */
-    public SearchRequestBuilder addRescorer(RescoreBuilder rescorer, int window) {
-        sourceBuilder().addRescorer(new RescoreBaseBuilder(rescorer).windowSize(window));
+    public SearchRequestBuilder addRescorer(RescoreBuilder<?> rescorer, int window) {
+        sourceBuilder().addRescorer(rescorer.windowSize(window));
         return this;
     }
 

@@ -46,7 +46,8 @@ import org.elasticsearch.search.fetch.innerhits.InnerHitsBuilder;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.rescore.RescoreBaseBuilder;
+import org.elasticsearch.search.rescore.AbstractRescoreBuilder;
+import org.elasticsearch.search.rescore.RescoreBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
@@ -152,7 +153,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
 
     private BytesReference innerHitsBuilder;
 
-    private List<RescoreBaseBuilder> rescoreBuilders;
+    private List<RescoreBuilder<?>> rescoreBuilders;
 
     private ObjectFloatHashMap<String> indexBoost = null;
 
@@ -459,7 +460,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         return suggestBuilder;
     }
 
-    public SearchSourceBuilder addRescorer(RescoreBaseBuilder rescoreBuilder) {
+    public SearchSourceBuilder addRescorer(RescoreBuilder<?> rescoreBuilder) {
             if (rescoreBuilders == null) {
                 rescoreBuilders = new ArrayList<>();
             }
@@ -491,7 +492,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
     /**
      * Gets the bytes representing the rescore builders for this request.
      */
-    public List<RescoreBaseBuilder> rescores() {
+    public List<RescoreBuilder<?>> rescores() {
         return rescoreBuilders;
     }
 
@@ -871,9 +872,9 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                     }
                     builder.sorts = sorts;
                 } else if (context.parseFieldMatcher().match(currentFieldName, RESCORE_FIELD)) {
-                    List<RescoreBaseBuilder> rescoreBuilders = new ArrayList<>();
+                    List<RescoreBuilder<?>> rescoreBuilders = new ArrayList<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        rescoreBuilders.add(RescoreBaseBuilder.PROTOTYPE.fromXContent(context));
+                        rescoreBuilders.add(AbstractRescoreBuilder.parseFromXContent(context));
                     }
                     builder.rescoreBuilders = rescoreBuilders;
                 } else if (context.parseFieldMatcher().match(currentFieldName, STATS_FIELD)) {
@@ -1040,7 +1041,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
 
         if (rescoreBuilders != null) {
             builder.startArray(RESCORE_FIELD.getPreferredName());
-            for (RescoreBaseBuilder rescoreBuilder : rescoreBuilders) {
+            for (RescoreBuilder<?> rescoreBuilder : rescoreBuilders) {
                 rescoreBuilder.toXContent(builder, params);
             }
             builder.endArray();
@@ -1187,9 +1188,9 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         }
         if (in.readBoolean()) {
             int size = in.readVInt();
-            List<RescoreBaseBuilder> rescoreBuilders = new ArrayList<>();
+            List<RescoreBuilder<?>> rescoreBuilders = new ArrayList<>();
             for (int i = 0; i < size; i++) {
-                rescoreBuilders.add(RescoreBaseBuilder.PROTOTYPE.readFrom(in));
+                rescoreBuilders.add(in.readRescorer());
             }
             builder.rescoreBuilders = rescoreBuilders;
         }
@@ -1303,8 +1304,8 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         out.writeBoolean(hasRescoreBuilders);
         if (hasRescoreBuilders) {
             out.writeVInt(rescoreBuilders.size());
-            for (RescoreBaseBuilder rescoreBuilder : rescoreBuilders) {
-                rescoreBuilder.writeTo(out);
+            for (RescoreBuilder<?> rescoreBuilder : rescoreBuilders) {
+                out.writeRescorer(rescoreBuilder);
             }
         }
         boolean hasScriptFields = scriptFields != null;

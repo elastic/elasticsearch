@@ -18,7 +18,7 @@ The field stats response format has been changed for number based and date field
 `max_value` elements now return values as number and the new `min_value_as_string` and `max_value_as_string`
 return the values as string.
 
-[[breaking_22_node_stats_apis]
+[[breaking_22_node_stats_apis]]
 === Node Stats API
 
 ==== Adding system CPU percent to OS stats

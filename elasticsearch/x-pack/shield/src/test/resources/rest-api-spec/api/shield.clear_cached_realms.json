@@ -1,0 +1,25 @@
+{
+  "shield.clear_cached_realms": {
+    "documentation": "Clears the internal user caches for specified realms",
+    "methods": [ "POST" ],
+    "url": {
+      "path": "/_shield/realm/{realms}/_clear_cache",
+      "paths": [ "/_shield/realm/{realms}/_clear_cache" ],
+      "parts": {
+        "realms": {
+          "type" : "string",
+          "description" : "Comma-separated list of realms to clear",
+          "required" : true
+        }
+      },
+      "params": {
+        "usernames": {
+          "type" : "string",
+          "description" : "Comma-separated list of usernames to clear from the cache",
+          "required" : false
+        }
+      }
+    },
+    "body": null
+  }
+}

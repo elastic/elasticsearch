@@ -22,6 +22,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.search.action.SearchServiceTransportAction;
+import org.elasticsearch.shield.InternalSystemUser;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.audit.AuditTrail;
 import org.elasticsearch.shield.authc.AnonymousService;
@@ -109,8 +110,8 @@ public class InternalAuthorizationService extends AbstractComponent implements A
     @Override
     public void authorize(User user, String action, TransportRequest request) throws ElasticsearchSecurityException {
         // first we need to check if the user is the system. If it is, we'll just authorize the system access
-        if (user.isSystem()) {
-            if (SystemRole.INSTANCE.check(action)) {
+        if (InternalSystemUser.is(user)) {
+            if (InternalSystemUser.isAuthorized(action)) {
                 setIndicesAccessControl(IndicesAccessControl.ALLOW_ALL);
                 grant(user, action, request);
                 return;
@@ -240,7 +241,7 @@ public class InternalAuthorizationService extends AbstractComponent implements A
 
         GlobalPermission.Compound.Builder roles = GlobalPermission.Compound.builder();
         for (String roleName : roleNames) {
-            GlobalPermission role = rolesStore.role(roleName);
+            Role role = rolesStore.role(roleName);
             if (role != null) {
                 roles.add(role);
             }

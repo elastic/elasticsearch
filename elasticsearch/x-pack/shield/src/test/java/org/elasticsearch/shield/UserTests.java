@@ -20,6 +20,7 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class UserTests extends ESTestCase {
+
     public void testWriteToAndReadFrom() throws Exception {
         User user = new User(randomAsciiOfLengthBetween(4, 30),
                 generateRandomStringArray(20, 30, false));
@@ -57,16 +58,23 @@ public class UserTests extends ESTestCase {
     public void testSystemReadAndWrite() throws Exception {
         BytesStreamOutput output = new BytesStreamOutput();
 
-        User.writeTo(User.SYSTEM, output);
+        User.writeTo(InternalSystemUser.INSTANCE, output);
         User readFrom = User.readFrom(ByteBufferStreamInput.wrap(output.bytes()));
 
-        assertThat(readFrom, is(sameInstance(User.SYSTEM)));
-        assertThat(readFrom.principal(), is(User.SYSTEM.principal()));
-        assertThat(Arrays.equals(readFrom.roles(), User.SYSTEM.roles()), is(true));
+        assertThat(readFrom, is(sameInstance(InternalSystemUser.INSTANCE)));
         assertThat(readFrom.runAs(), is(nullValue()));
     }
 
-    public void testFakeSystemUserSerialization() throws Exception {
+    public void testInternalShieldUserReadAndWrite() throws Exception {
+        BytesStreamOutput output = new BytesStreamOutput();
+
+        User.writeTo(InternalShieldUser.INSTANCE, output);
+        User readFrom = User.readFrom(ByteBufferStreamInput.wrap(output.bytes()));
+
+        assertThat(readFrom, is(sameInstance(InternalShieldUser.INSTANCE)));
+    }
+
+    public void testFakeInternalUserSerialization() throws Exception {
         BytesStreamOutput output = new BytesStreamOutput();
         output.writeBoolean(true);
         output.writeString(randomAsciiOfLengthBetween(4, 30));
@@ -81,7 +89,7 @@ public class UserTests extends ESTestCase {
     public void testCreateUserRunningAsSystemUser() throws Exception {
         try {
             new User(randomAsciiOfLengthBetween(3, 10),
-                    generateRandomStringArray(16, 30, false), User.SYSTEM);
+                    generateRandomStringArray(16, 30, false), InternalSystemUser.INSTANCE);
             fail("should not be able to create a runAs user with the system user");
         } catch (ElasticsearchSecurityException e) {
             assertThat(e.getMessage(), containsString("system"));

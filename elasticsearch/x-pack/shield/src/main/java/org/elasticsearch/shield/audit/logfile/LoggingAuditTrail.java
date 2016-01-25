@@ -17,11 +17,11 @@ import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.shield.InternalSystemUser;
 import org.elasticsearch.shield.User;
-import org.elasticsearch.shield.admin.ShieldInternalUserHolder;
+import org.elasticsearch.shield.InternalShieldUser;
 import org.elasticsearch.shield.audit.AuditTrail;
 import org.elasticsearch.shield.authc.AuthenticationToken;
-import org.elasticsearch.shield.authz.privilege.Privilege;
 import org.elasticsearch.shield.authz.privilege.SystemPrivilege;
 import org.elasticsearch.shield.rest.RemoteHostHeader;
 import org.elasticsearch.shield.transport.filter.ShieldIpFilterRule;
@@ -200,7 +200,7 @@ public class LoggingAuditTrail extends AbstractLifecycleComponent<LoggingAuditTr
         String indices = indicesString(message);
 
         // special treatment for internal system actions - only log on trace
-        if ((user.isSystem() && SystemPrivilege.INSTANCE.predicate().test(action)) || ShieldInternalUserHolder.isShieldInternalUser(user)) {
+        if ((InternalSystemUser.is(user) && SystemPrivilege.INSTANCE.predicate().test(action)) || InternalShieldUser.is(user)) {
             if (logger.isTraceEnabled()) {
                 if (indices != null) {
                     logger.trace("{}[transport] [access_granted]\t{}, {}, action=[{}], indices=[{}], request=[{}]", prefix, originAttributes(message, transport, threadContext), principal(user), action, indices, message.getClass().getSimpleName());

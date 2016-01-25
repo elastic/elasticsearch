@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.search.action.SearchServiceTransportAction;
+import org.elasticsearch.shield.InternalSystemUser;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.audit.AuditTrail;
 import org.elasticsearch.shield.authc.AnonymousService;
@@ -79,22 +80,22 @@ public class InternalAuthorizationServiceTests extends ESTestCase {
         TransportRequest request = mock(TransportRequest.class);
 
         // A failure would throw an exception
-        internalAuthorizationService.authorize(User.SYSTEM, "indices:monitor/whatever", request);
-        verify(auditTrail).accessGranted(User.SYSTEM, "indices:monitor/whatever", request);
+        internalAuthorizationService.authorize(InternalSystemUser.INSTANCE, "indices:monitor/whatever", request);
+        verify(auditTrail).accessGranted(InternalSystemUser.INSTANCE, "indices:monitor/whatever", request);
 
-        internalAuthorizationService.authorize(User.SYSTEM, "internal:whatever", request);
-        verify(auditTrail).accessGranted(User.SYSTEM, "internal:whatever", request);
+        internalAuthorizationService.authorize(InternalSystemUser.INSTANCE, "internal:whatever", request);
+        verify(auditTrail).accessGranted(InternalSystemUser.INSTANCE, "internal:whatever", request);
         verifyNoMoreInteractions(auditTrail);
     }
 
     public void testIndicesActionsAreNotAuthorized() {
         TransportRequest request = mock(TransportRequest.class);
         try {
-            internalAuthorizationService.authorize(User.SYSTEM, "indices:", request);
+            internalAuthorizationService.authorize(InternalSystemUser.INSTANCE, "indices:", request);
             fail("action beginning with indices should have failed");
         } catch (ElasticsearchSecurityException e) {
-            assertAuthorizationException(e, containsString("action [indices:] is unauthorized for user [" + User.SYSTEM.principal() + "]"));
-            verify(auditTrail).accessDenied(User.SYSTEM, "indices:", request);
+            assertAuthorizationException(e, containsString("action [indices:] is unauthorized for user [" + InternalSystemUser.INSTANCE.principal() + "]"));
+            verify(auditTrail).accessDenied(InternalSystemUser.INSTANCE, "indices:", request);
             verifyNoMoreInteractions(auditTrail);
         }
     }
@@ -102,11 +103,11 @@ public class InternalAuthorizationServiceTests extends ESTestCase {
     public void testClusterAdminActionsAreNotAuthorized() {
         TransportRequest request = mock(TransportRequest.class);
         try {
-            internalAuthorizationService.authorize(User.SYSTEM, "cluster:admin/whatever", request);
+            internalAuthorizationService.authorize(InternalSystemUser.INSTANCE, "cluster:admin/whatever", request);
             fail("action beginning with cluster:admin/whatever should have failed");
         } catch (ElasticsearchSecurityException e) {
-            assertAuthorizationException(e, containsString("action [cluster:admin/whatever] is unauthorized for user [" + User.SYSTEM.principal() + "]"));
-            verify(auditTrail).accessDenied(User.SYSTEM, "cluster:admin/whatever", request);
+            assertAuthorizationException(e, containsString("action [cluster:admin/whatever] is unauthorized for user [" + InternalSystemUser.INSTANCE.principal() + "]"));
+            verify(auditTrail).accessDenied(InternalSystemUser.INSTANCE, "cluster:admin/whatever", request);
             verifyNoMoreInteractions(auditTrail);
         }
     }
@@ -114,11 +115,11 @@ public class InternalAuthorizationServiceTests extends ESTestCase {
     public void testClusterAdminSnapshotStatusActionIsNotAuthorized() {
         TransportRequest request = mock(TransportRequest.class);
         try {
-            internalAuthorizationService.authorize(User.SYSTEM, "cluster:admin/snapshot/status", request);
+            internalAuthorizationService.authorize(InternalSystemUser.INSTANCE, "cluster:admin/snapshot/status", request);
             fail("action beginning with cluster:admin/snapshot/status should have failed");
         } catch (ElasticsearchSecurityException e) {
-            assertAuthorizationException(e, containsString("action [cluster:admin/snapshot/status] is unauthorized for user [" + User.SYSTEM.principal() + "]"));
-            verify(auditTrail).accessDenied(User.SYSTEM, "cluster:admin/snapshot/status", request);
+            assertAuthorizationException(e, containsString("action [cluster:admin/snapshot/status] is unauthorized for user [" + InternalSystemUser.INSTANCE.principal() + "]"));
+            verify(auditTrail).accessDenied(InternalSystemUser.INSTANCE, "cluster:admin/snapshot/status", request);
             verifyNoMoreInteractions(auditTrail);
         }
     }

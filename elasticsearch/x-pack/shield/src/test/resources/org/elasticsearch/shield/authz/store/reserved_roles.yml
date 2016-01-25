@@ -12,3 +12,8 @@ __es_system_role:
   cluster: all
   indices:
     '*' : all
+
+__es_internal_role:
+  cluster: all
+  indices:
+    '*' : all

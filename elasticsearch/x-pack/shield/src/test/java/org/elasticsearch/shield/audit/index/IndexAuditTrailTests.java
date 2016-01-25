@@ -25,7 +25,9 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.shield.InternalShieldUser;
 import org.elasticsearch.shield.ShieldPlugin;
+import org.elasticsearch.shield.InternalSystemUser;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.authc.AuthenticationService;
 import org.elasticsearch.shield.authc.AuthenticationToken;
@@ -66,7 +68,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -80,8 +81,6 @@ import static org.mockito.Mockito.when;
 @ESIntegTestCase.ClusterScope(scope = SUITE, numDataNodes = 1)
 public class IndexAuditTrailTests extends ShieldIntegTestCase {
     public static final String SECOND_CLUSTER_NODE_PREFIX = "remote_" + SUITE_CLUSTER_NODE_PREFIX;
-
-    private static final IndexAuditUserHolder user = new IndexAuditUserHolder();
 
     private IndexNameResolver.Rollover rollover;
     private IndexAuditTrail auditor;
@@ -194,18 +193,18 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
             }
             settings = builder.build();
 
-            doThrow(new IllegalStateException("indexing user should not be attached when sending remotely")).when(authService).attachUserHeaderIfMissing(eq(user.user()));
+            doThrow(new IllegalStateException("indexing user should not be attached when sending remotely")).when(authService).attachUserHeaderIfMissing(eq(InternalShieldUser.INSTANCE));
         }
 
         settings = Settings.builder().put(settings).put("path.home", createTempDir()).build();
         logger.info("--> settings: [{}]", settings.getAsMap().toString());
         when(authService.authenticate(mock(RestRequest.class))).thenThrow(new UnsupportedOperationException(""));
-        when(authService.authenticate("_action", new LocalHostMockMessage(), user.user())).thenThrow(new UnsupportedOperationException(""));
+        when(authService.authenticate("_action", new LocalHostMockMessage(), InternalShieldUser.INSTANCE)).thenThrow(new UnsupportedOperationException(""));
         Transport transport = mock(Transport.class);
         when(transport.boundAddress()).thenReturn(new BoundTransportAddress(new TransportAddress[] { DummyTransportAddress.INSTANCE }, DummyTransportAddress.INSTANCE));
 
         threadPool = new ThreadPool("index audit trail tests");
-        auditor = new IndexAuditTrail(settings, user, authService, transport, Providers.of(client()), threadPool, mock(ClusterService.class));
+        auditor = new IndexAuditTrail(settings, authService, transport, Providers.of(client()), threadPool, mock(ClusterService.class));
         auditor.start(true);
     }
 
@@ -535,14 +534,14 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
     public void testSystemAccessGranted() throws Exception {
         initialize(new String[] { "system_access_granted" }, null);
         TransportMessage message = randomBoolean() ? new RemoteHostMockMessage() : new LocalHostMockMessage();
-        auditor.accessGranted(User.SYSTEM, "internal:_action", message);
+        auditor.accessGranted(InternalSystemUser.INSTANCE, "internal:_action", message);
         awaitAuditDocumentCreation(resolveIndexName());
 
         SearchHit hit = getIndexedAuditMessage();
         assertAuditMessage(hit, "transport", "access_granted");
         Map<String, Object> sourceMap = hit.sourceAsMap();
         assertEquals("transport", sourceMap.get("origin_type"));
-        assertEquals(User.SYSTEM.principal(), sourceMap.get("principal"));
+        assertEquals(InternalSystemUser.INSTANCE.principal(), sourceMap.get("principal"));
         assertEquals("internal:_action", sourceMap.get("action"));
         assertEquals(sourceMap.get("request"), message.getClass().getSimpleName());
     }
@@ -550,7 +549,7 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
     public void testSystemAccessGrantedMuted() throws Exception {
         initialize();
         TransportMessage message = randomBoolean() ? new RemoteHostMockMessage() : new LocalHostMockMessage();
-        auditor.accessGranted(User.SYSTEM, "internal:_action", message);
+        auditor.accessGranted(InternalSystemUser.INSTANCE, "internal:_action", message);
         try {
             getClient().prepareSearch(resolveIndexName()).setSize(0).setTerminateAfter(1).execute().actionGet();
             fail("Expected IndexNotFoundException");

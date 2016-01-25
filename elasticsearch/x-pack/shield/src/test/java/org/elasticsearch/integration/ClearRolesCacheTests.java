@@ -13,9 +13,9 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.shield.action.admin.role.AddRoleResponse;
-import org.elasticsearch.shield.action.admin.role.GetRolesResponse;
-import org.elasticsearch.shield.admin.ShieldTemplateService;
+import org.elasticsearch.shield.action.role.AddRoleResponse;
+import org.elasticsearch.shield.action.role.GetRolesResponse;
+import org.elasticsearch.shield.ShieldTemplateService;
 import org.elasticsearch.shield.authc.esnative.ESNativeUsersStore;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
@@ -152,9 +152,9 @@ public class ClearRolesCacheTests extends ShieldIntegTestCase {
         if (useHttp) {
             String path;
             if (rolesToClear == null) {
-                path = "/_shield/roles/" + (randomBoolean() ? "*" : "_all") + "/_cache/clear";
+                path = "/_shield/role/" + (randomBoolean() ? "*" : "_all") + "/_clear_cache";
             } else {
-                path = "/_shield/roles/" + Strings.arrayToCommaDelimitedString(rolesToClear) + "/_cache/clear";
+                path = "/_shield/role/" + Strings.arrayToCommaDelimitedString(rolesToClear) + "/_clear_cache";
             }
             HttpResponse response = httpClient().path(path).method("POST")
                     .addHeader("Authorization",

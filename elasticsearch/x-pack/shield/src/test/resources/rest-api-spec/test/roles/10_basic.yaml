@@ -9,7 +9,7 @@
 
   - do:
       shield.put_role:
-        rolename: "admin_role"
+        id: "admin_role"
         body:  >
             {
               "name": "admin_role",
@@ -43,7 +43,7 @@
 
   - do:
       shield.get_role:
-        rolename: "admin_role"
+        id: "admin_role"
   - match: { found: true }
   - match: { roles.0.name: "admin_role" }
   - match: { roles.0.cluster.0:  "all" }

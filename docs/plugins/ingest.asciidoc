@@ -578,6 +578,103 @@ to depends on the field in the source with name `geoip.country_iso_code`.
 }
 --------------------------------------------------
 
+==== Handling Failure in Pipelines
+
+In its simplest case, pipelines describe a list of processors which 
+are executed sequentially and processing halts at the first exception. This 
+may not be desirable when failures are expected. For example, not all your logs 
+may match a certain grok expression and you may wish to index such documents into 
+a separate index.
+
+To enable this behavior, you can utilize the `on_failure` parameter. `on_failure` 
+defines a list of processors to be executed immediately following the failed processor.
+This parameter can be supplied at the pipeline level, as well as at the processor 
+level. If a processor has an `on_failure` configuration option provided, whether 
+it is empty or not, any exceptions that are thrown by it will be caught and the 
+pipeline will continue executing the proceeding processors defined. Since further processors
+are defined within the scope of an `on_failure` statement, failure handling can be nested.
+
+Example: In the following example we define a pipeline that hopes to rename documents with 
+a field named `foo` to `bar`. If the document does not contain the `foo` field, we 
+go ahead and attach an error message within the document for later analysis within 
+Elasticsearch.
+
+[source,js]
+--------------------------------------------------
+{
+  "description" : "my first pipeline with handled exceptions",
+  "processors" : [
+    {
+      "rename" : {
+        "field" : "foo",
+        "to" : "bar",
+        "on_failure" : [
+          {
+            "set" : {
+              "field" : "error",
+              "value" : "field \"foo\" does not exist, cannot rename to \"bar\""
+            }
+          }
+        ]
+      }
+    }
+  ]
+}
+--------------------------------------------------
+
+Example: Here we define an `on_failure` block on a whole pipeline to change 
+the index for which failed documents get sent.
+
+[source,js]
+--------------------------------------------------
+{
+  "description" : "my first pipeline with handled exceptions",
+  "processors" : [ ... ],
+  "on_failure" : [
+    {
+      "set" : {
+        "field" : "_index",
+        "value" : "failed-{{ _index }}"
+      }
+    }
+  ]
+}
+--------------------------------------------------
+
+
+===== Accessing Error Metadata From Processors Handling Exceptions
+
+Sometimes you may want to retrieve the actual error message that was thrown 
+by a failed processor. To do so you can access metadata fields called 
+`on_failure_message` and `on_failure_processor`. These fields are only accessible 
+from within the context of an `on_failure` block. Here is an updated version of 
+our first example which leverages these fields to provide the error message instead 
+of manually setting it.
+
+[source,js]
+--------------------------------------------------
+{
+  "description" : "my first pipeline with handled exceptions",
+  "processors" : [
+    {
+      "rename" : {
+        "field" : "foo",
+        "to" : "bar",
+        "on_failure" : [
+          {
+            "set" : {
+              "field" : "error",
+              "value" : "{{ _ingest.on_failure_message }}"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}
+--------------------------------------------------
+
+
 === Ingest APIs
 
 ==== Put pipeline API

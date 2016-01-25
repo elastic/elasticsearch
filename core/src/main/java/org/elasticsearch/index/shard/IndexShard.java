@@ -440,12 +440,12 @@ public class IndexShard extends AbstractIndexShardComponent {
             }
             this.recoveryState = recoveryState;
 
-            IndexShardState state = changeState(IndexShardState.RECOVERING, reason);
+            IndexShardState previousState = changeState(IndexShardState.RECOVERING, reason);
 
             // Make sure we get our fair share of the indexing buffer during recovery:
             activate();
 
-            return state;
+            return previousState;
         }
     }
 

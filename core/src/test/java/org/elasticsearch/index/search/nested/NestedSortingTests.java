@@ -95,7 +95,7 @@ public class NestedSortingTests extends AbstractFieldDataTestCase {
 
         MultiValueMode sortMode = randomFrom(Arrays.asList(MultiValueMode.MIN, MultiValueMode.MAX));
         DirectoryReader reader = DirectoryReader.open(writer, false);
-        reader = ElasticsearchDirectoryReader.wrap(reader, new ShardId(new Index("test"), 0));
+        reader = ElasticsearchDirectoryReader.wrap(reader, new ShardId("test", "_na_", 0));
         IndexSearcher searcher = new IndexSearcher(reader);
         PagedBytesIndexFieldData indexFieldData1 = getForField("f");
         IndexFieldData<?> indexFieldData2 = NoOrdinalsStringFieldDataTests.hideOrdinals(indexFieldData1);
@@ -280,7 +280,7 @@ public class NestedSortingTests extends AbstractFieldDataTestCase {
 
         MultiValueMode sortMode = MultiValueMode.MIN;
         DirectoryReader reader = DirectoryReader.open(writer, false);
-        reader = ElasticsearchDirectoryReader.wrap(reader, new ShardId(new Index("test"), 0));
+        reader = ElasticsearchDirectoryReader.wrap(reader, new ShardId("test", "_na_", 0));
         IndexSearcher searcher = new IndexSearcher(reader);
         PagedBytesIndexFieldData indexFieldData = getForField("field2");
         Query parentFilter = new TermQuery(new Term("__type", "parent"));

@@ -81,7 +81,7 @@ public class TransportClearIndicesCacheAction extends TransportBroadcastByNodeAc
 
     @Override
     protected EmptyResult shardOperation(ClearIndicesCacheRequest request, ShardRouting shardRouting) {
-        IndexService service = indicesService.indexService(shardRouting.getIndex());
+        IndexService service = indicesService.indexService(shardRouting.getIndexName());
         if (service != null) {
             IndexShard shard = service.getShardOrNull(shardRouting.id());
             boolean clearedAtLeastOne = false;

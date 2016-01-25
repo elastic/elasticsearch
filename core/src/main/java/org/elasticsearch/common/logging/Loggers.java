@@ -59,12 +59,12 @@ public class Loggers {
     }
 
     public static ESLogger getLogger(Class clazz, Settings settings, ShardId shardId, String... prefixes) {
-        return getLogger(clazz, settings, shardId.index(), asArrayList(Integer.toString(shardId.id()), prefixes).toArray(new String[0]));
+        return getLogger(clazz, settings, shardId.getIndex(), asArrayList(Integer.toString(shardId.id()), prefixes).toArray(new String[0]));
     }
 
     /** Just like {@link #getLogger(Class, org.elasticsearch.common.settings.Settings,ShardId,String...)} but String loggerName instead of Class. */
     public static ESLogger getLogger(String loggerName, Settings settings, ShardId shardId, String... prefixes) {
-        return getLogger(loggerName, settings, asArrayList(shardId.index().getName(), Integer.toString(shardId.id()), prefixes).toArray(new String[0]));
+        return getLogger(loggerName, settings, asArrayList(shardId.getIndexName(), Integer.toString(shardId.id()), prefixes).toArray(new String[0]));
     }
 
     public static ESLogger getLogger(Class clazz, Settings settings, Index index, String... prefixes) {

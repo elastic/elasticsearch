@@ -99,7 +99,7 @@ public class ShardSearchLocalRequest extends ContextAndHeaderHolder implements S
 
     public ShardSearchLocalRequest(ShardId shardId, int numberOfShards, SearchType searchType, SearchSourceBuilder source, String[] types,
             Boolean requestCache) {
-        this.index = shardId.getIndex();
+        this.index = shardId.getIndexName();
         this.shardId = shardId.id();
         this.numberOfShards = numberOfShards;
         this.searchType = searchType;

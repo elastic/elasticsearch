@@ -93,7 +93,7 @@ public class PercolatorServiceTests extends ESTestCase {
 
     public void testCount() throws Exception {
         PercolateContext context = mock(PercolateContext.class);
-        when(context.shardTarget()).thenReturn(new SearchShardTarget("_id", "_index", 0));
+        when(context.shardTarget()).thenReturn(new SearchShardTarget("_id", new Index("_index", "_na_"), 0));
         when(context.percolatorTypeFilter()).thenReturn(new MatchAllDocsQuery());
         when(context.isOnlyCount()).thenReturn(true);
 
@@ -118,7 +118,7 @@ public class PercolatorServiceTests extends ESTestCase {
 
     public void testTopMatching() throws Exception {
         PercolateContext context = mock(PercolateContext.class);
-        when(context.shardTarget()).thenReturn(new SearchShardTarget("_id", "_index", 0));
+        when(context.shardTarget()).thenReturn(new SearchShardTarget("_id", new Index("_index", "_na_"), 0));
         when(context.percolatorTypeFilter()).thenReturn(new MatchAllDocsQuery());
         when(context.size()).thenReturn(10);
 
@@ -158,7 +158,7 @@ public class PercolatorServiceTests extends ESTestCase {
     }
 
     PercolatorQueriesRegistry createRegistry() {
-        Index index = new Index("_index");
+        Index index = new Index("_index", "_na_");
         IndexSettings indexSettings = new IndexSettings(new IndexMetaData.Builder("_index").settings(
                 Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                         .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)

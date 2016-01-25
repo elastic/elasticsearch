@@ -115,7 +115,7 @@ public class NestedAggregatorTests extends ESSingleNodeTestCase {
         indexWriter.close();
 
         DirectoryReader directoryReader = DirectoryReader.open(directory);
-        directoryReader = ElasticsearchDirectoryReader.wrap(directoryReader, new ShardId(new Index("test"), 0));
+        directoryReader = ElasticsearchDirectoryReader.wrap(directoryReader, new ShardId("test", "_na_", 0));
         IndexSearcher searcher = new IndexSearcher(directoryReader);
 
         IndexService indexService = createIndex("test");

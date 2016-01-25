@@ -98,7 +98,7 @@ public class FlushIT extends ESIntegTestCase {
         ShardsSyncedFlushResult result;
         if (randomBoolean()) {
             logger.info("--> sync flushing shard 0");
-            result = SyncedFlushUtil.attemptSyncedFlush(internalCluster(), new ShardId("test", 0));
+            result = SyncedFlushUtil.attemptSyncedFlush(internalCluster(), new ShardId("test", "_na_", 0));
         } else {
             logger.info("--> sync flushing index [test]");
             SyncedFlushResponse indicesResult = client().admin().indices().prepareSyncedFlush("test").get();
@@ -121,7 +121,7 @@ public class FlushIT extends ESIntegTestCase {
         ShardRouting shardRouting = clusterState.getRoutingTable().index("test").shard(0).iterator().next();
         String currentNodeName = clusterState.nodes().resolveNode(shardRouting.currentNodeId()).name();
         assertFalse(currentNodeName.equals(newNodeName));
-        internalCluster().client().admin().cluster().prepareReroute().add(new MoveAllocationCommand(new ShardId("test", 0), currentNodeName, newNodeName)).get();
+        internalCluster().client().admin().cluster().prepareReroute().add(new MoveAllocationCommand("test", 0, currentNodeName, newNodeName)).get();
 
         client().admin().cluster().prepareHealth()
                 .setWaitForRelocatingShards(0)

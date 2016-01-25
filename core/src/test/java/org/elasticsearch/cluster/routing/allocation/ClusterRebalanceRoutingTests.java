@@ -129,7 +129,7 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
         routingNodes = clusterState.getRoutingNodes();
 
         assertThat(routingNodes.node("node3").size(), equalTo(1));
-        assertThat(routingNodes.node("node3").get(0).shardId().index().getName(), equalTo("test1"));
+        assertThat(routingNodes.node("node3").get(0).shardId().getIndex().getName(), equalTo("test1"));
     }
 
 
@@ -234,7 +234,7 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
         routingNodes = clusterState.getRoutingNodes();
 
         assertThat(routingNodes.node("node3").size(), equalTo(1));
-        assertThat(routingNodes.node("node3").get(0).shardId().index().getName(), equalTo("test1"));
+        assertThat(routingNodes.node("node3").get(0).shardId().getIndex().getName(), equalTo("test1"));
     }
 
     public void testClusterPrimariesActive2() {
@@ -441,7 +441,7 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
         routingNodes = clusterState.getRoutingNodes();
 
         assertThat(routingNodes.node("node3").size(), equalTo(1));
-        assertThat(routingNodes.node("node3").get(0).shardId().index().getName(), anyOf(equalTo("test1"), equalTo("test2")));
+        assertThat(routingNodes.node("node3").get(0).shardId().getIndex().getName(), anyOf(equalTo("test1"), equalTo("test2")));
     }
 
     public void testClusterAllActive2() {

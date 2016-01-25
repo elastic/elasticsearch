@@ -389,7 +389,7 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
             }
         }
         DirectoryReader directoryReader = DirectoryReader.open(writer, true);
-        directoryReader = ElasticsearchDirectoryReader.wrap(directoryReader, new ShardId(new Index("test"), 0));
+        directoryReader = ElasticsearchDirectoryReader.wrap(directoryReader, new ShardId("test", "_na_", 0));
         IndexSearcher searcher = new IndexSearcher(directoryReader);
         IndexFieldData<?> fieldData = getForField("text");
         final Object missingValue;

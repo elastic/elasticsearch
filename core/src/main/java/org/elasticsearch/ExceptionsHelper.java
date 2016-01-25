@@ -243,7 +243,7 @@ public final class ExceptionsHelper {
 
         public GroupBy(Throwable t) {
             if (t instanceof ElasticsearchException) {
-                index = ((ElasticsearchException) t).getIndex();
+                index = ((ElasticsearchException) t).getIndex().getName();
             } else {
                 index = null;
             }

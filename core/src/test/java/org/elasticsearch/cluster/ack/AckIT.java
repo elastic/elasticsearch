@@ -199,7 +199,7 @@ public class AckIT extends ESIntegTestCase {
         assertNotNull(shardToBeMoved);
 
         logger.info("==> going to move shard [{}] from [{}] to [{}]", shardToBeMoved, fromNodeId, toNodeId);
-        return new MoveAllocationCommand(shardToBeMoved.shardId(), fromNodeId, toNodeId);
+        return new MoveAllocationCommand(shardToBeMoved.getIndexName(), shardToBeMoved.id(), fromNodeId, toNodeId);
     }
 
     public void testIndicesAliasesAcknowledgement() {

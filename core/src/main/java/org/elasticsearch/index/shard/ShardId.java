@@ -40,22 +40,22 @@ public class ShardId implements Streamable, Comparable<ShardId> {
     private ShardId() {
     }
 
-    public ShardId(String index, int shardId) {
-        this(new Index(index), shardId);
-    }
-
     public ShardId(Index index, int shardId) {
         this.index = index;
         this.shardId = shardId;
         this.hashCode = computeHashCode();
     }
 
-    public Index index() {
-        return this.index;
+    public ShardId(String index, String indexUUID, int shardId) {
+        this(new Index(index, indexUUID), shardId);
     }
 
-    public String getIndex() {
-        return index().getName();
+    public Index getIndex() {
+        return index;
+    }
+
+    public String getIndexName() {
+        return index.getName();
     }
 
     public int id() {
@@ -98,7 +98,7 @@ public class ShardId implements Streamable, Comparable<ShardId> {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        index = Index.readIndexName(in);
+        index = Index.readIndex(in);
         shardId = in.readVInt();
         hashCode = computeHashCode();
     }
@@ -112,7 +112,7 @@ public class ShardId implements Streamable, Comparable<ShardId> {
     @Override
     public int compareTo(ShardId o) {
         if (o.getId() == shardId) {
-            return index.getName().compareTo(o.getIndex());
+            return index.getName().compareTo(o.getIndex().getName());
         }
         return Integer.compare(shardId, o.getId());
     }

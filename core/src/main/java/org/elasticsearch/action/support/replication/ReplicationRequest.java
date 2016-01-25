@@ -70,7 +70,7 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
      */
     public ReplicationRequest(ActionRequest<?> request, ShardId shardId) {
         super(request);
-        this.index = shardId.getIndex();
+        this.index = shardId.getIndexName();
         this.shardId = shardId;
     }
 

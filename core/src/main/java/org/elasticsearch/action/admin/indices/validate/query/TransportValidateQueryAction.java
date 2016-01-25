@@ -96,7 +96,7 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<Valid
 
     @Override
     protected ShardValidateQueryRequest newShardRequest(int numShards, ShardRouting shard, ValidateQueryRequest request) {
-        String[] filteringAliases = indexNameExpressionResolver.filteringAliases(clusterService.state(), shard.index(), request.indices());
+        String[] filteringAliases = indexNameExpressionResolver.filteringAliases(clusterService.state(), shard.getIndexName(), request.indices());
         return new ShardValidateQueryRequest(shard.shardId(), filteringAliases, request);
     }
 

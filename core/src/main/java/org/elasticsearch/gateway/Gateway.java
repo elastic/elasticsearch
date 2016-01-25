@@ -99,7 +99,7 @@ public class Gateway extends AbstractComponent implements ClusterStateListener {
                 electedGlobalState = nodeState.metaData();
             }
             for (ObjectCursor<IndexMetaData> cursor : nodeState.metaData().indices().values()) {
-                indices.addTo(cursor.value.getIndex(), 1);
+                indices.addTo(cursor.value.getIndex().getName(), 1);
             }
         }
         if (found < requiredAllocation) {

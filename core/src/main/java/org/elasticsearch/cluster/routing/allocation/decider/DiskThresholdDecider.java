@@ -330,7 +330,7 @@ public class DiskThresholdDecider extends AllocationDecider {
         }
 
         // a flag for whether the primary shard has been previously allocated
-        IndexMetaData indexMetaData = allocation.metaData().index(shardRouting.getIndex());
+        IndexMetaData indexMetaData = allocation.metaData().index(shardRouting.getIndexName());
         boolean primaryHasBeenAllocated = shardRouting.primary() && shardRouting.allocatedPostIndexCreate(indexMetaData);
 
         // checks for exact byte comparisons

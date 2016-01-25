@@ -62,6 +62,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardRepository;
@@ -236,7 +237,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                             String index = indexEntry.getValue();
                             boolean partial = checkPartial(index);
                             RestoreSource restoreSource = new RestoreSource(snapshotId, snapshot.version(), index);
-                            String renamedIndex = indexEntry.getKey();
+                            String renamedIndexName = indexEntry.getKey();
                             IndexMetaData snapshotIndexMetaData = metaData.index(index);
                             snapshotIndexMetaData = updateIndexSettings(snapshotIndexMetaData, request.indexSettings, request.ignoreIndexSettings);
                             try {
@@ -245,14 +246,15 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                                 throw new SnapshotRestoreException(snapshotId, "cannot restore index [" + index + "] because it cannot be upgraded", ex);
                             }
                             // Check that the index is closed or doesn't exist
-                            IndexMetaData currentIndexMetaData = currentState.metaData().index(renamedIndex);
+                            IndexMetaData currentIndexMetaData = currentState.metaData().index(renamedIndexName);
                             IntSet ignoreShards = new IntHashSet();
+                            final Index renamedIndex;
                             if (currentIndexMetaData == null) {
                                 // Index doesn't exist - create it and start recovery
                                 // Make sure that the index we are about to create has a validate name
-                                createIndexService.validateIndexName(renamedIndex, currentState);
-                                createIndexService.validateIndexSettings(renamedIndex, snapshotIndexMetaData.getSettings());
-                                IndexMetaData.Builder indexMdBuilder = IndexMetaData.builder(snapshotIndexMetaData).state(IndexMetaData.State.OPEN).index(renamedIndex);
+                                createIndexService.validateIndexName(renamedIndexName, currentState);
+                                createIndexService.validateIndexSettings(renamedIndexName, snapshotIndexMetaData.getSettings());
+                                IndexMetaData.Builder indexMdBuilder = IndexMetaData.builder(snapshotIndexMetaData).state(IndexMetaData.State.OPEN).index(renamedIndexName);
                                 indexMdBuilder.settings(Settings.settingsBuilder().put(snapshotIndexMetaData.getSettings()).put(IndexMetaData.SETTING_INDEX_UUID, Strings.randomBase64UUID()));
                                 if (!request.includeAliases() && !snapshotIndexMetaData.getAliases().isEmpty()) {
                                     // Remove all aliases - they shouldn't be restored
@@ -269,8 +271,9 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                                 rtBuilder.addAsNewRestore(updatedIndexMetaData, restoreSource, ignoreShards);
                                 blocks.addBlocks(updatedIndexMetaData);
                                 mdBuilder.put(updatedIndexMetaData, true);
+                                renamedIndex = updatedIndexMetaData.getIndex();
                             } else {
-                                validateExistingIndex(currentIndexMetaData, snapshotIndexMetaData, renamedIndex, partial);
+                                validateExistingIndex(currentIndexMetaData, snapshotIndexMetaData, renamedIndexName, partial);
                                 // Index exists and it's closed - open it in metadata and start recovery
                                 IndexMetaData.Builder indexMdBuilder = IndexMetaData.builder(snapshotIndexMetaData).state(IndexMetaData.State.OPEN);
                                 indexMdBuilder.version(Math.max(snapshotIndexMetaData.getVersion(), currentIndexMetaData.getVersion() + 1));
@@ -289,10 +292,11 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                                     }
                                 }
                                 indexMdBuilder.settings(Settings.settingsBuilder().put(snapshotIndexMetaData.getSettings()).put(IndexMetaData.SETTING_INDEX_UUID, currentIndexMetaData.getIndexUUID()));
-                                IndexMetaData updatedIndexMetaData = indexMdBuilder.index(renamedIndex).build();
+                                IndexMetaData updatedIndexMetaData = indexMdBuilder.index(renamedIndexName).build();
                                 rtBuilder.addAsRestore(updatedIndexMetaData, restoreSource);
                                 blocks.updateBlocks(updatedIndexMetaData);
                                 mdBuilder.put(updatedIndexMetaData, true);
+                                renamedIndex = updatedIndexMetaData.getIndex();
                             }
 
                             for (int shard = 0; shard < snapshotIndexMetaData.getNumberOfShards(); shard++) {
@@ -732,7 +736,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                 List<ShardId> shardsToFail = null;
                 for (ObjectObjectCursor<ShardId, ShardRestoreStatus> shard : entry.shards()) {
                     if (!shard.value.state().completed()) {
-                        if (!event.state().metaData().hasIndex(shard.key.getIndex())) {
+                        if (!event.state().metaData().hasIndex(shard.key.getIndex().getName())) {
                             if (shardsToFail == null) {
                                 shardsToFail = new ArrayList<>();
                             }

@@ -70,6 +70,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.RefCounted;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.env.ShardLock;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
@@ -408,9 +409,9 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      *
      * @throws IOException if the index we try to read is corrupted
      */
-    public static MetadataSnapshot readMetadataSnapshot(Path indexLocation, ESLogger logger) throws IOException {
+    public static MetadataSnapshot readMetadataSnapshot(Path indexLocation, ShardId shardId, ESLogger logger) throws IOException {
         try (Directory dir = new SimpleFSDirectory(indexLocation)) {
-            failIfCorrupted(dir, new ShardId("", 1));
+            failIfCorrupted(dir, shardId);
             return new MetadataSnapshot(null, dir, logger);
         } catch (IndexNotFoundException ex) {
             // that's fine - happens all the time no need to log
@@ -425,9 +426,9 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * can be successfully opened. This includes reading the segment infos and possible
      * corruption markers.
      */
-    public static boolean canOpenIndex(ESLogger logger, Path indexLocation) throws IOException {
+    public static boolean canOpenIndex(ESLogger logger, Path indexLocation, ShardId shardId) throws IOException {
         try {
-            tryOpenIndex(indexLocation);
+            tryOpenIndex(indexLocation, shardId);
         } catch (Exception ex) {
             logger.trace("Can't open index for path [{}]", ex, indexLocation);
             return false;
@@ -440,9 +441,9 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * segment infos and possible corruption markers. If the index can not
      * be opened, an exception is thrown
      */
-    public static void tryOpenIndex(Path indexLocation) throws IOException {
+    public static void tryOpenIndex(Path indexLocation, ShardId shardId) throws IOException {
         try (Directory dir = new SimpleFSDirectory(indexLocation)) {
-            failIfCorrupted(dir, new ShardId("", 1));
+            failIfCorrupted(dir, shardId);
             Lucene.readSegmentInfos(dir);
         }
     }

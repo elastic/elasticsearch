@@ -76,7 +76,7 @@ public class TransportDfsOnlyAction extends TransportBroadcastAction<DfsOnlyRequ
 
     @Override
     protected ShardDfsOnlyRequest newShardRequest(int numShards, ShardRouting shard, DfsOnlyRequest request) {
-        String[] filteringAliases = indexNameExpressionResolver.filteringAliases(clusterService.state(), shard.index(), request.indices());
+        String[] filteringAliases = indexNameExpressionResolver.filteringAliases(clusterService.state(), shard.index().getName(), request.indices());
         return new ShardDfsOnlyRequest(shard, numShards, filteringAliases, request.nowInMillis, request);
     }
 

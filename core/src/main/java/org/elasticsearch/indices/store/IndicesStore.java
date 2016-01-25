@@ -117,7 +117,7 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
                 if (shardCanBeDeleted(event.state(), indexShardRoutingTable)) {
                     ShardId shardId = indexShardRoutingTable.shardId();
                     IndexService indexService = indicesService.indexService(indexRoutingTable.getIndex());
-                    IndexSettings indexSettings = indexService != null ? indexService.getIndexSettings() : new IndexSettings(event.state().getMetaData().index(indexRoutingTable.index()), settings);
+                    IndexSettings indexSettings = indexService != null ? indexService.getIndexSettings() : new IndexSettings(event.state().getMetaData().index(indexRoutingTable.getIndex()), settings);
                     if (indicesService.canDeleteShardContent(shardId, indexSettings)) {
                         deleteShardIfExistElseWhere(event.state(), indexShardRoutingTable);
                     }
@@ -352,7 +352,7 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
             }
 
             ShardId shardId = request.shardId;
-            IndexService indexService = indicesService.indexService(shardId.index().getName());
+            IndexService indexService = indicesService.indexService(shardId.getIndexName());
             if (indexService != null && indexService.indexUUID().equals(request.indexUUID)) {
                 return indexService.getShardOrNull(shardId.id());
             }

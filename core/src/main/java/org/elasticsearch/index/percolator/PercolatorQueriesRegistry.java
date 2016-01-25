@@ -127,7 +127,7 @@ public final class PercolatorQueriesRegistry extends AbstractIndexShardComponent
                 }
             }
         } catch (Exception e) {
-            throw new PercolatorException(shardId().index(), "failed to parse query [" + id + "]", e);
+            throw new PercolatorException(shardId().getIndex(), "failed to parse query [" + id + "]", e);
         }
         return null;
     }
@@ -174,7 +174,7 @@ public final class PercolatorQueriesRegistry extends AbstractIndexShardComponent
             }
             loadedQueries = queries.size();
         } catch (Exception e) {
-            throw new PercolatorException(shardId.index(), "failed to load queries from percolator index", e);
+            throw new PercolatorException(shardId.getIndex(), "failed to load queries from percolator index", e);
         }
         logger.debug("done loading [{}] percolator queries", loadedQueries);
     }

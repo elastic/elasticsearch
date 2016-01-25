@@ -112,9 +112,9 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
                                             logger.warn("[{}] failed to temporary create in order to apply alias action", e, indexMetaData.getIndex());
                                             continue;
                                         }
-                                        indicesToClose.add(indexMetaData.getIndex());
+                                        indicesToClose.add(indexMetaData.getIndex().getName());
                                     }
-                                    indices.put(indexMetaData.getIndex(), indexService);
+                                    indices.put(indexMetaData.getIndex().getName(), indexService);
                                 }
 
                                 aliasValidator.validateAliasFilter(aliasAction.alias(), filter, indexService.getQueryShardContext());

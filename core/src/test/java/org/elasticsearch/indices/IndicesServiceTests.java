@@ -64,8 +64,8 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 4))
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 3))
                 .build());
-        assertFalse("shard on shared filesystem", indicesService.canDeleteIndexContents(new Index("test"), idxSettings, false));
-        assertTrue("shard on shared filesystem and closed", indicesService.canDeleteIndexContents(new Index("test"), idxSettings, true));
+        assertFalse("shard on shared filesystem", indicesService.canDeleteIndexContents(idxSettings.getIndex(), idxSettings, false));
+        assertTrue("shard on shared filesystem and closed", indicesService.canDeleteIndexContents(idxSettings.getIndex(), idxSettings, true));
     }
 
     public void testCanDeleteShardContent() {
@@ -73,12 +73,12 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         IndexMetaData meta = IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(
                 1).build();
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", meta.getSettings());
-        assertFalse("no shard location", indicesService.canDeleteShardContent(new ShardId("test", 0), indexSettings));
+        assertFalse("no shard location", indicesService.canDeleteShardContent(new ShardId("test", "_na_", 0), indexSettings));
         IndexService test = createIndex("test");
         assertTrue(test.hasShard(0));
-        assertFalse("shard is allocated", indicesService.canDeleteShardContent(new ShardId("test", 0), indexSettings));
+        assertFalse("shard is allocated", indicesService.canDeleteShardContent(new ShardId("test", "_na_", 0), indexSettings));
         test.removeShard(0, "boom");
-        assertTrue("shard is removed", indicesService.canDeleteShardContent(new ShardId("test", 0), indexSettings));
+        assertTrue("shard is removed", indicesService.canDeleteShardContent(new ShardId("test", "_na_", 0), indexSettings));
     }
 
     public void testDeleteIndexStore() throws Exception {
@@ -175,7 +175,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         if (randomBoolean()) {
             indicesService.addPendingDelete(new ShardId(test.index(), 0), test.getIndexSettings());
             indicesService.addPendingDelete(new ShardId(test.index(), 1), test.getIndexSettings());
-            indicesService.addPendingDelete(new ShardId("bogus", 1), test.getIndexSettings());
+            indicesService.addPendingDelete(new ShardId("bogus", "_na_", 1), test.getIndexSettings());
             assertEquals(indicesService.numPendingDeletes(test.index()), 2);
             // shard lock released... we can now delete
             indicesService.processPendingDeletes(test.index(), test.getIndexSettings(), new TimeValue(0, TimeUnit.MILLISECONDS));

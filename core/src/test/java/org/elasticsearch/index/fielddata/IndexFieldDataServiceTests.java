@@ -145,14 +145,14 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         writer.addDocument(doc);
         DirectoryReader open = DirectoryReader.open(writer, true);
         final boolean wrap = randomBoolean();
-        final IndexReader reader = wrap ? ElasticsearchDirectoryReader.wrap(open, new ShardId("test", 1)) : open;
+        final IndexReader reader = wrap ? ElasticsearchDirectoryReader.wrap(open, new ShardId("test", "_na_", 1)) : open;
         final AtomicInteger onCacheCalled = new AtomicInteger();
         final AtomicInteger onRemovalCalled = new AtomicInteger();
         ifdService.setListener(new IndexFieldDataCache.Listener() {
             @Override
             public void onCache(ShardId shardId, String fieldName, FieldDataType fieldDataType, Accountable ramUsage) {
                 if (wrap) {
-                    assertEquals(new ShardId("test", 1), shardId);
+                    assertEquals(new ShardId("test", "_na_", 1), shardId);
                 } else {
                     assertNull(shardId);
                 }
@@ -162,7 +162,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
             @Override
             public void onRemoval(ShardId shardId, String fieldName, FieldDataType fieldDataType, boolean wasEvicted, long sizeInBytes) {
                 if (wrap) {
-                    assertEquals(new ShardId("test", 1), shardId);
+                    assertEquals(new ShardId("test", "_na_", 1), shardId);
                 } else {
                     assertNull(shardId);
                 }
@@ -207,7 +207,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         ThreadPool threadPool = new ThreadPool("random_threadpool_name");
         try {
             IndicesFieldDataCache cache = new IndicesFieldDataCache(Settings.EMPTY, null, threadPool);
-            IndexFieldDataService ifds = new IndexFieldDataService(IndexSettingsModule.newIndexSettings(new Index("test"), Settings.EMPTY), cache, null, null);
+            IndexFieldDataService ifds = new IndexFieldDataService(IndexSettingsModule.newIndexSettings("test", Settings.EMPTY), cache, null, null);
             ft.setName("some_long");
             ft.setHasDocValues(true);
             ifds.getForField(ft); // no exception

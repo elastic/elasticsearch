@@ -126,8 +126,8 @@ public class PriorityComparatorTests extends ESTestCase {
         ShardRouting previous = null;
         for (ShardRouting routing : shards) {
             if (previous != null) {
-                IndexMeta prevMeta = map.get(previous.getIndex());
-                IndexMeta currentMeta = map.get(routing.getIndex());
+                IndexMeta prevMeta = map.get(previous.getIndexName());
+                IndexMeta currentMeta = map.get(routing.getIndexName());
                 if (prevMeta.priority == currentMeta.priority) {
                     if (prevMeta.creationDate == currentMeta.creationDate) {
                         if (prevMeta.name.equals(currentMeta.name) == false) {

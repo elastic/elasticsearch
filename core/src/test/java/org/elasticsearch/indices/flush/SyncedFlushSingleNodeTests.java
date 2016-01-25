@@ -133,7 +133,7 @@ public class SyncedFlushSingleNodeTests extends ESSingleNodeTestCase {
 
         SyncedFlushService flushService = getInstanceFromNode(SyncedFlushService.class);
         SyncedFlushUtil.LatchedListener listener = new SyncedFlushUtil.LatchedListener();
-        flushService.attemptSyncedFlush(new ShardId("test", 1), listener);
+        flushService.attemptSyncedFlush(new ShardId("test", "_na_", 1), listener);
         listener.latch.await();
         assertNotNull(listener.error);
         assertNull(listener.result);
@@ -151,7 +151,7 @@ public class SyncedFlushSingleNodeTests extends ESSingleNodeTestCase {
         assertEquals("closed", listener.error.getMessage());
 
         listener = new SyncedFlushUtil.LatchedListener();
-        flushService.attemptSyncedFlush(new ShardId("index not found", 0), listener);
+        flushService.attemptSyncedFlush(new ShardId("index not found", "_na_", 0), listener);
         listener.latch.await();
         assertNotNull(listener.error);
         assertNull(listener.result);

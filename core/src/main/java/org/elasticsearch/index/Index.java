@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index;
 
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -74,7 +75,7 @@ public class Index implements Streamable {
         return result;
     }
 
-    public static Index readIndexName(StreamInput in) throws IOException {
+    public static Index readIndex(StreamInput in) throws IOException {
         Index index = new Index();
         index.readFrom(in);
         return index;

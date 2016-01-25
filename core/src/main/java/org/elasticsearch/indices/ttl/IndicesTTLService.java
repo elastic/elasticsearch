@@ -205,7 +205,7 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
                 BulkRequest bulkRequest = new BulkRequest();
                 for (DocToPurge docToPurge : docsToPurge) {
 
-                    bulkRequest.add(new DeleteRequest().index(shardToPurge.routingEntry().index()).type(docToPurge.type).id(docToPurge.id).version(docToPurge.version).routing(docToPurge.routing));
+                    bulkRequest.add(new DeleteRequest().index(shardToPurge.routingEntry().getIndexName()).type(docToPurge.type).id(docToPurge.id).version(docToPurge.version).routing(docToPurge.routing));
                     bulkRequest = processBulkIfNeeded(bulkRequest, false);
                 }
                 processBulkIfNeeded(bulkRequest, true);

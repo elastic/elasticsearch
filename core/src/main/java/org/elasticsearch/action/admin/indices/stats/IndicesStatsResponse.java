@@ -89,7 +89,7 @@ public class IndicesStatsResponse extends BroadcastResponse implements ToXConten
 
         Set<String> indices = new HashSet<>();
         for (ShardStats shard : shards) {
-            indices.add(shard.getShardRouting().getIndex());
+            indices.add(shard.getShardRouting().getIndexName());
         }
 
         for (String index : indices) {

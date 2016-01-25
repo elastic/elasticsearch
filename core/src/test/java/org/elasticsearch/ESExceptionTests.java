@@ -85,9 +85,9 @@ public class ESExceptionTests extends ESTestCase {
             assertEquals(ElasticsearchException.getExceptionName(rootCauses[0]), "index_not_found_exception");
             assertEquals(rootCauses[0].getMessage(), "no such index");
             ShardSearchFailure failure = new ShardSearchFailure(new ParsingException(1, 2, "foobar", null),
-                    new SearchShardTarget("node_1", "foo", 1));
+                    new SearchShardTarget("node_1", new Index("foo", "_na_"), 1));
             ShardSearchFailure failure1 = new ShardSearchFailure(new ParsingException(1, 2, "foobar", null),
-                    new SearchShardTarget("node_1", "foo", 2));
+                    new SearchShardTarget("node_1", new Index("foo", "_na_"), 2));
             SearchPhaseExecutionException ex = new SearchPhaseExecutionException("search", "all shards failed", new ShardSearchFailure[]{failure, failure1});
             if (randomBoolean()) {
                 rootCauses = (randomBoolean() ? new RemoteTransportException("remoteboom", ex) : ex).guessRootCauses();
@@ -105,11 +105,11 @@ public class ESExceptionTests extends ESTestCase {
         {
             ShardSearchFailure failure = new ShardSearchFailure(
                     new ParsingException(1, 2, "foobar", null),
-                    new SearchShardTarget("node_1", "foo", 1));
-            ShardSearchFailure failure1 = new ShardSearchFailure(new QueryShardException(new Index("foo1"), "foobar", null),
-                    new SearchShardTarget("node_1", "foo1", 1));
-            ShardSearchFailure failure2 = new ShardSearchFailure(new QueryShardException(new Index("foo1"), "foobar", null),
-                    new SearchShardTarget("node_1", "foo1", 2));
+                    new SearchShardTarget("node_1", new Index("foo", "_na_"), 1));
+            ShardSearchFailure failure1 = new ShardSearchFailure(new QueryShardException(new Index("foo1", "_na_"), "foobar", null),
+                    new SearchShardTarget("node_1", new Index("foo1", "_na_"), 1));
+            ShardSearchFailure failure2 = new ShardSearchFailure(new QueryShardException(new Index("foo1", "_na_"), "foobar", null),
+                    new SearchShardTarget("node_1", new Index("foo1", "_na_"), 2));
             SearchPhaseExecutionException ex = new SearchPhaseExecutionException("search", "all shards failed", new ShardSearchFailure[]{failure, failure1, failure2});
             final ElasticsearchException[] rootCauses = ex.guessRootCauses();
             assertEquals(rootCauses.length, 2);
@@ -136,9 +136,9 @@ public class ESExceptionTests extends ESTestCase {
     public void testDeduplicate() throws IOException {
         {
             ShardSearchFailure failure = new ShardSearchFailure(new ParsingException(1, 2, "foobar", null),
-                    new SearchShardTarget("node_1", "foo", 1));
+                    new SearchShardTarget("node_1", new Index("foo", "_na_"), 1));
             ShardSearchFailure failure1 = new ShardSearchFailure(new ParsingException(1, 2, "foobar", null),
-                    new SearchShardTarget("node_1", "foo", 2));
+                    new SearchShardTarget("node_1", new Index("foo", "_na_"), 2));
             SearchPhaseExecutionException ex = new SearchPhaseExecutionException("search", "all shards failed", randomBoolean() ? failure1.getCause() : failure.getCause(), new ShardSearchFailure[]{failure, failure1});
             XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.startObject();
@@ -149,11 +149,11 @@ public class ESExceptionTests extends ESTestCase {
         }
         {
             ShardSearchFailure failure = new ShardSearchFailure(new ParsingException(1, 2, "foobar", null),
-                    new SearchShardTarget("node_1", "foo", 1));
-            ShardSearchFailure failure1 = new ShardSearchFailure(new QueryShardException(new Index("foo1"), "foobar", null),
-                    new SearchShardTarget("node_1", "foo1", 1));
-            ShardSearchFailure failure2 = new ShardSearchFailure(new QueryShardException(new Index("foo1"), "foobar", null),
-                    new SearchShardTarget("node_1", "foo1", 2));
+                    new SearchShardTarget("node_1", new Index("foo", "_na_"), 1));
+            ShardSearchFailure failure1 = new ShardSearchFailure(new QueryShardException(new Index("foo1", "_na_"), "foobar", null),
+                    new SearchShardTarget("node_1", new Index("foo1", "_na_"), 1));
+            ShardSearchFailure failure2 = new ShardSearchFailure(new QueryShardException(new Index("foo1", "_na_"), "foobar", null),
+                    new SearchShardTarget("node_1", new Index("foo1", "_na_"), 2));
             SearchPhaseExecutionException ex = new SearchPhaseExecutionException("search", "all shards failed", new ShardSearchFailure[]{failure, failure1, failure2});
             XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.startObject();
@@ -164,9 +164,9 @@ public class ESExceptionTests extends ESTestCase {
         }
         {
             ShardSearchFailure failure = new ShardSearchFailure(new ParsingException(1, 2, "foobar", null),
-                    new SearchShardTarget("node_1", "foo", 1));
+                    new SearchShardTarget("node_1", new Index("foo", "_na_"), 1));
             ShardSearchFailure failure1 = new ShardSearchFailure(new ParsingException(1, 2, "foobar", null),
-                    new SearchShardTarget("node_1", "foo", 2));
+                    new SearchShardTarget("node_1", new Index("foo", "_na_"), 2));
             NullPointerException nullPointerException = new NullPointerException();
             SearchPhaseExecutionException ex = new SearchPhaseExecutionException("search", "all shards failed", nullPointerException, new ShardSearchFailure[]{failure, failure1});
             assertEquals(nullPointerException, ex.getCause());
@@ -320,7 +320,7 @@ public class ESExceptionTests extends ESTestCase {
                 new OutOfMemoryError("no memory left"),
                 new AlreadyClosedException("closed!!", new NullPointerException()),
                 new LockObtainFailedException("can't lock directory", new NullPointerException()),
-                new Throwable("this exception is unknown", new QueryShardException(new Index("foo"), "foobar", null) ), // somethin unknown
+                new Throwable("this exception is unknown", new QueryShardException(new Index("foo", "_na_"), "foobar", null) ), // somethin unknown
         };
         for (Throwable t : causes) {
             BytesStreamOutput out = new BytesStreamOutput();

@@ -170,7 +170,7 @@ public class MetaDataWriteDataNodesIT extends ESIntegTestCase {
 
     private boolean indexDirectoryExists(String nodeName, String indexName) {
         NodeEnvironment nodeEnv = ((InternalTestCluster) cluster()).getInstance(NodeEnvironment.class, nodeName);
-        for (Path path : nodeEnv.indexPaths(new Index(indexName))) {
+        for (Path path : nodeEnv.indexPaths(indexName)) {
             if (Files.exists(path)) {
                 return true;
             }

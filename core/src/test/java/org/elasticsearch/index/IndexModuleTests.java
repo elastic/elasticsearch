@@ -116,9 +116,9 @@ public class IndexModuleTests extends ESTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        index = new Index("foo");
         settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
-        indexSettings = IndexSettingsModule.newIndexSettings(index, settings);
+        indexSettings = IndexSettingsModule.newIndexSettings("foo", settings);
+        index = indexSettings.getIndex();
         environment = new Environment(settings);
         nodeServicesProvider = newNodeServiceProvider(settings, environment, null);
         nodeEnvironment = new NodeEnvironment(settings, environment);
@@ -147,7 +147,6 @@ public class IndexModuleTests extends ESTestCase {
 
 
     public void testRegisterIndexStore() throws IOException {
-        final Index index = new Index("foo");
         final Settings settings = Settings
             .builder()
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
@@ -155,6 +154,7 @@ public class IndexModuleTests extends ESTestCase {
             .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), "foo_store")
             .build();
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(index, settings);
+        final Index index = indexSettings.getIndex();
         IndexModule module = new IndexModule(indexSettings, null, new AnalysisRegistry(null, environment));
         module.addIndexStore("foo_store", FooStore::new);
         IndexService indexService = module.newIndexService(nodeEnvironment, deleter, nodeServicesProvider, mapperRegistry);
@@ -217,7 +217,7 @@ public class IndexModuleTests extends ESTestCase {
                 .put("index.similarity.my_similarity.key", "there is a key")
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .build();
-        IndexModule module = new IndexModule(IndexSettingsModule.newIndexSettings(new Index("foo"), indexSettings), null, new AnalysisRegistry(null, environment));
+        IndexModule module = new IndexModule(IndexSettingsModule.newIndexSettings("foo", indexSettings), null, new AnalysisRegistry(null, environment));
         module.addSimilarity("test_similarity", (string, settings) -> new SimilarityProvider() {
             @Override
             public String name() {
@@ -245,7 +245,7 @@ public class IndexModuleTests extends ESTestCase {
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .build();
-        IndexModule module = new IndexModule(IndexSettingsModule.newIndexSettings(new Index("foo"), indexSettings), null, new AnalysisRegistry(null, environment));
+        IndexModule module = new IndexModule(IndexSettingsModule.newIndexSettings("foo", indexSettings), null, new AnalysisRegistry(null, environment));
         try {
             module.newIndexService(nodeEnvironment, deleter, nodeServicesProvider, mapperRegistry);
         } catch (IllegalArgumentException ex) {
@@ -259,7 +259,7 @@ public class IndexModuleTests extends ESTestCase {
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .build();
-        IndexModule module = new IndexModule(IndexSettingsModule.newIndexSettings(new Index("foo"), indexSettings), null, new AnalysisRegistry(null, environment));
+        IndexModule module = new IndexModule(IndexSettingsModule.newIndexSettings("foo", indexSettings), null, new AnalysisRegistry(null, environment));
         try {
             module.newIndexService(nodeEnvironment, deleter, nodeServicesProvider, mapperRegistry);
         } catch (IllegalArgumentException ex) {
@@ -271,7 +271,7 @@ public class IndexModuleTests extends ESTestCase {
         Settings indexSettings = Settings.settingsBuilder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
-        IndexModule module = new IndexModule(IndexSettingsModule.newIndexSettings(new Index("foo"), indexSettings), null, new AnalysisRegistry(null, environment));
+        IndexModule module = new IndexModule(IndexSettingsModule.newIndexSettings("foo", indexSettings), null, new AnalysisRegistry(null, environment));
         try {
             module.registerQueryCache("index", IndexQueryCache::new);
             fail("only once");
@@ -299,7 +299,7 @@ public class IndexModuleTests extends ESTestCase {
                 .put(IndexModule.INDEX_QUERY_CACHE_TYPE_SETTING.getKey(), "custom")
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
-        IndexModule module = new IndexModule(IndexSettingsModule.newIndexSettings(new Index("foo"), indexSettings), null, new AnalysisRegistry(null, environment));
+        IndexModule module = new IndexModule(IndexSettingsModule.newIndexSettings("foo", indexSettings), null, new AnalysisRegistry(null, environment));
         module.registerQueryCache("custom", (a, b) -> new CustomQueryCache());
         try {
             module.registerQueryCache("custom", (a, b) -> new CustomQueryCache());
@@ -317,7 +317,7 @@ public class IndexModuleTests extends ESTestCase {
         Settings indexSettings = Settings.settingsBuilder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
-        IndexModule module = new IndexModule(IndexSettingsModule.newIndexSettings(new Index("foo"), indexSettings), null, new AnalysisRegistry(null, environment));
+        IndexModule module = new IndexModule(IndexSettingsModule.newIndexSettings("foo", indexSettings), null, new AnalysisRegistry(null, environment));
         IndexService indexService = module.newIndexService(nodeEnvironment, deleter, nodeServicesProvider, mapperRegistry);
         assertTrue(indexService.cache().query() instanceof IndexQueryCache);
         indexService.close("simon says", false);
@@ -335,7 +335,7 @@ public class IndexModuleTests extends ESTestCase {
 
         @Override
         public Index index() {
-            return new Index("test");
+            return new Index("test", "_na_");
         }
 
         @Override

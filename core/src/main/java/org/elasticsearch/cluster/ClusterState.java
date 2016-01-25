@@ -449,7 +449,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
 
             builder.startObject("indices");
             for (IndexMetaData indexMetaData : metaData()) {
-                builder.startObject(indexMetaData.getIndex(), XContentBuilder.FieldCaseConversion.NONE);
+                builder.startObject(indexMetaData.getIndex().getName(), XContentBuilder.FieldCaseConversion.NONE);
 
                 builder.field("state", indexMetaData.getState().toString().toLowerCase(Locale.ENGLISH));
 
@@ -506,7 +506,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
             builder.startObject("routing_table");
             builder.startObject("indices");
             for (IndexRoutingTable indexRoutingTable : routingTable()) {
-                builder.startObject(indexRoutingTable.index(), XContentBuilder.FieldCaseConversion.NONE);
+                builder.startObject(indexRoutingTable.getIndex().getName(), XContentBuilder.FieldCaseConversion.NONE);
                 builder.startObject("shards");
                 for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
                     builder.startArray(Integer.toString(indexShardRoutingTable.shardId().id()));

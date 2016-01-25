@@ -100,7 +100,7 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
          * Resolves the given shards directory against this NodePath
          */
         public Path resolve(ShardId shardId) {
-            return resolve(shardId.index()).resolve(Integer.toString(shardId.id()));
+            return resolve(shardId.getIndex()).resolve(Integer.toString(shardId.id()));
         }
 
         /**
@@ -422,7 +422,7 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
      * @param indexSettings settings for the index being deleted
      */
     public void deleteIndexDirectoryUnderLock(Index index, IndexSettings indexSettings) throws IOException {
-        final Path[] indexPaths = indexPaths(index);
+        final Path[] indexPaths = indexPaths(index.getName());
         logger.trace("deleting index {} directory, paths({}): [{}]", index, indexPaths.length, indexPaths);
         IOUtils.rm(indexPaths);
         if (indexSettings.hasCustomDataPath()) {
@@ -628,11 +628,11 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
     /**
      * Returns all index paths.
      */
-    public Path[] indexPaths(Index index) {
+    public Path[] indexPaths(String indexName) {
         assert assertEnvIsLocked();
         Path[] indexPaths = new Path[nodePaths.length];
         for (int i = 0; i < nodePaths.length; i++) {
-            indexPaths[i] = nodePaths[i].indicesPath.resolve(index.getName());
+            indexPaths[i] = nodePaths[i].indicesPath.resolve(indexName);
         }
         return indexPaths;
     }
@@ -698,7 +698,7 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
                 try (DirectoryStream<Path> indexStream = Files.newDirectoryStream(location)) {
                     for (Path indexPath : indexStream) {
                         if (indexName.equals(indexPath.getFileName().toString())) {
-                            shardIds.addAll(findAllShardsForIndex(indexPath));
+                            shardIds.addAll(findAllShardsForIndex(indexPath, index));
                         }
                     }
                 }
@@ -707,16 +707,16 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
         return shardIds;
     }
 
-    private static Set<ShardId> findAllShardsForIndex(Path indexPath) throws IOException {
+    private static Set<ShardId> findAllShardsForIndex(Path indexPath, Index index) throws IOException {
+        assert indexPath.getFileName().toString().equals(index.getName());
         Set<ShardId> shardIds = new HashSet<>();
         if (Files.isDirectory(indexPath)) {
             try (DirectoryStream<Path> stream = Files.newDirectoryStream(indexPath)) {
-                String currentIndex = indexPath.getFileName().toString();
                 for (Path shardPath : stream) {
                     String fileName = shardPath.getFileName().toString();
                     if (Files.isDirectory(shardPath) && fileName.chars().allMatch(Character::isDigit)) {
                         int shardId = Integer.parseInt(fileName);
-                        ShardId id = new ShardId(currentIndex, shardId);
+                        ShardId id = new ShardId(index, shardId);
                         shardIds.add(id);
                     }
                 }
@@ -827,7 +827,7 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
      * @param shardId shard to resolve the path to
      */
     public Path resolveCustomLocation(IndexSettings indexSettings, final ShardId shardId) {
-        return resolveCustomLocation(indexSettings, shardId.index().getName()).resolve(Integer.toString(shardId.id()));
+        return resolveCustomLocation(indexSettings, shardId.getIndexName()).resolve(Integer.toString(shardId.id()));
     }
 
     /**

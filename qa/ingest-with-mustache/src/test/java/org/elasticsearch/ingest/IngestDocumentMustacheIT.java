@@ -69,12 +69,8 @@ public class IngestDocumentMustacheIT extends AbstractMustacheTests {
         list.add(null);
         document.put("list2", list);
         IngestDocument ingestDocument = new IngestDocument("index", "type", "id", null, null, null, null, document);
-        // TODO: fix index based lookups in lists:
-        ingestDocument.setFieldValue(templateService.compile("field1"), ValueSource.wrap("1 {{list1}} {{list2}}", templateService));
-        assertThat(ingestDocument.getFieldValue("field1", String.class), equalTo("1 [foo, bar, null] [{field=value}, null]"));
-
-        ingestDocument.setFieldValue(templateService.compile("field1"), ValueSource.wrap("2 {{_source.list1}} {{_source.list2}}", templateService));
-        assertThat(ingestDocument.getFieldValue("field1", String.class), equalTo("2 [foo, bar, null] [{field=value}, null]"));
+        ingestDocument.setFieldValue(templateService.compile("field1"), ValueSource.wrap("1 {{list1.0}} {{list2.0}}", templateService));
+        assertThat(ingestDocument.getFieldValue("field1", String.class), equalTo("1 foo {field=value}"));
     }
 
     public void testAccessIngestMetadataViaTemplate() {
@@ -86,5 +82,4 @@ public class IngestDocumentMustacheIT extends AbstractMustacheTests {
         ingestDocument.setFieldValue(templateService.compile("ingest_timestamp"), ValueSource.wrap("{{_ingest.timestamp}} and {{_source._ingest.timestamp}}", templateService));
         assertThat(ingestDocument.getFieldValue("ingest_timestamp", String.class), equalTo(ingestDocument.getIngestMetadata().get("timestamp") + " and bogus_timestamp"));
     }
-
 }

@@ -137,7 +137,7 @@ public class RoutingNode implements Iterable<ShardRouting> {
         List<ShardRouting> shards = new ArrayList<>();
 
         for (ShardRouting shardEntry : this) {
-            if (!shardEntry.index().equals(index)) {
+            if (!shardEntry.getIndexName().equals(index)) {
                 continue;
             }
             for (ShardRoutingState state : states) {

@@ -9,4 +9,3 @@
         nodes.info: {}
 
     - match:  { nodes.$master.modules.0.name: ingest-grok  }
-    - match:  { nodes.$master.modules.0.jvm: true  }

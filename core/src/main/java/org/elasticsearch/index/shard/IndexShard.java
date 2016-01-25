@@ -422,6 +422,8 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     private IndexShardState recovering(String reason, RecoveryState recoveryState) throws IndexShardStartedException,
             IndexShardRelocatedException, IndexShardRecoveringException, IndexShardClosedException {
+
+        IndexShardState previousState;
         synchronized (mutex) {
             if (state == IndexShardState.CLOSED) {
                 throw new IndexShardClosedException(shardId);
@@ -440,13 +442,13 @@ public class IndexShard extends AbstractIndexShardComponent {
             }
             this.recoveryState = recoveryState;
 
-            IndexShardState previousState = changeState(IndexShardState.RECOVERING, reason);
-
-            // Make sure we get our fair share of the indexing buffer during recovery:
-            activate();
-
-            return previousState;
+            previousState = changeState(IndexShardState.RECOVERING, reason);
         }
+
+        // Make sure we get our fair share of the indexing buffer during recovery:
+        activate();
+
+        return previousState;
     }
 
     public IndexShard relocated(String reason) throws IndexShardNotStartedException {

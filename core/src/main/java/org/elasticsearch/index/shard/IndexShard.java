@@ -423,7 +423,6 @@ public class IndexShard extends AbstractIndexShardComponent {
     private IndexShardState recovering(String reason, RecoveryState recoveryState) throws IndexShardStartedException,
             IndexShardRelocatedException, IndexShardRecoveringException, IndexShardClosedException {
 
-        IndexShardState previousState;
         synchronized (mutex) {
             if (state == IndexShardState.CLOSED) {
                 throw new IndexShardClosedException(shardId);
@@ -441,7 +440,6 @@ public class IndexShard extends AbstractIndexShardComponent {
                 throw new IndexShardRecoveringException(shardId);
             }
             this.recoveryState = recoveryState;
-
             return changeState(IndexShardState.RECOVERING, reason);
         }
     }
@@ -922,6 +920,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         engineConfig.setEnableGcDeletes(false);
         engineConfig.setCreate(indexExists == false);
         if (skipTranslogRecovery == false) {
+            // This will activate our shard so we get our fair share of the indexing buffer during recovery:
             activate();
             assert engineConfig.getIndexingBufferSize() != IndexingMemoryController.INACTIVE_SHARD_INDEXING_BUFFER;
         }

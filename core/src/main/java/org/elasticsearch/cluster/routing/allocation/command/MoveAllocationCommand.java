@@ -156,7 +156,10 @@ public class MoveAllocationCommand implements AllocationCommand {
 
         boolean found = false;
         for (ShardRouting shardRouting : allocation.routingNodes().node(fromDiscoNode.id())) {
-            if (!shardRouting.shardId().equals(shardId)) {
+            if (!shardRouting.shardId().getIndexName().equals(index)) {
+                continue;
+            }
+            if (shardRouting.shardId().id() != shardId) {
                 continue;
             }
             found = true;

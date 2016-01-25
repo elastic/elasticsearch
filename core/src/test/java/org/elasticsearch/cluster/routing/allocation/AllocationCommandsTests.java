@@ -104,9 +104,9 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
 
     private AbstractAllocateAllocationCommand randomAllocateCommand(String index, int shardId, String node) {
         return randomFrom(
-            new AllocateReplicaAllocationCommand(index, shardId, node),
-            new AllocateEmptyPrimaryAllocationCommand(index, shardId, node, true),
-            new AllocateStalePrimaryAllocationCommand(index, shardId, node, true)
+                new AllocateReplicaAllocationCommand(index, shardId, node),
+                new AllocateEmptyPrimaryAllocationCommand(index, shardId, node, true),
+                new AllocateStalePrimaryAllocationCommand(index, shardId, node, true)
         );
     }
 
@@ -127,7 +127,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
                 .addAsRecovery(metaData.index(index))
                 .build();
         ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.DEFAULT).metaData(metaData).routingTable(routingTable).build();
-        final int shardId = 0;
+        final ShardId shardId = new ShardId(metaData.index(index).getIndex(), 0);
 
         logger.info("--> adding 3 nodes on same rack and do rerouting");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
@@ -142,7 +142,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
 
         logger.info("--> allocating to non-existent node, should fail");
         try {
-            allocation.reroute(clusterState, new AllocationCommands(randomAllocateCommand(index, shardId, "node42")));
+            allocation.reroute(clusterState, new AllocationCommands(randomAllocateCommand(index, shardId.id(), "node42")));
             fail("expected IllegalArgumentException when allocating to non-existing node");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("failed to resolve [node42], no matching nodes"));
@@ -150,7 +150,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
 
         logger.info("--> allocating to non-data node, should fail");
         try {
-            allocation.reroute(clusterState, new AllocationCommands(randomAllocateCommand(index, shardId, "node4")));
+            allocation.reroute(clusterState, new AllocationCommands(randomAllocateCommand(index, shardId.id(), "node4")));
             fail("expected IllegalArgumentException when allocating to non-data node");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("allocation can only be done on data nodes"));
@@ -182,7 +182,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
 
         logger.info("--> allocating stale primary with acceptDataLoss flag set to false");
         try {
-            allocation.reroute(clusterState, new AllocationCommands(new AllocateStalePrimaryAllocationCommand(index, shardId, "node1", false)));
+            allocation.reroute(clusterState, new AllocationCommands(new AllocateStalePrimaryAllocationCommand(index, shardId.id(), "node1", false)));
             fail("expected IllegalArgumentException when allocating stale primary with acceptDataLoss flag set to false");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("allocating an empty primary for " + shardId + " can result in data loss. Please confirm by setting the accept_data_loss parameter to true"));
@@ -398,22 +398,27 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
         AllocationCommands sCommands = AllocationCommands.readFrom(StreamInput.wrap(bytes.bytes()));
 
         assertThat(sCommands.commands().size(), equalTo(5));
-        assertThat(((AllocateEmptyPrimaryAllocationCommand) (sCommands.commands().get(0))).shardId(), equalTo(new ShardId("test", "_na_", 1)));
+        assertThat(((AllocateEmptyPrimaryAllocationCommand) (sCommands.commands().get(0))).shardId(), equalTo(1));
+        assertThat(((AllocateEmptyPrimaryAllocationCommand) (sCommands.commands().get(0))).index(), equalTo("test"));
         assertThat(((AllocateEmptyPrimaryAllocationCommand) (sCommands.commands().get(0))).node(), equalTo("node1"));
         assertThat(((AllocateEmptyPrimaryAllocationCommand) (sCommands.commands().get(0))).acceptDataLoss(), equalTo(true));
 
-        assertThat(((AllocateStalePrimaryAllocationCommand) (sCommands.commands().get(1))).shardId(), equalTo(new ShardId("test", "_na_", 2)));
+        assertThat(((AllocateStalePrimaryAllocationCommand) (sCommands.commands().get(1))).shardId(), equalTo(2));
+        assertThat(((AllocateStalePrimaryAllocationCommand) (sCommands.commands().get(1))).index(), equalTo("test"));
         assertThat(((AllocateStalePrimaryAllocationCommand) (sCommands.commands().get(1))).node(), equalTo("node1"));
         assertThat(((AllocateStalePrimaryAllocationCommand) (sCommands.commands().get(1))).acceptDataLoss(), equalTo(true));
 
-        assertThat(((AllocateReplicaAllocationCommand) (sCommands.commands().get(2))).shardId(), equalTo(new ShardId("test", "_na_", 2)));
+        assertThat(((AllocateReplicaAllocationCommand) (sCommands.commands().get(2))).shardId(), equalTo(2));
+        assertThat(((AllocateReplicaAllocationCommand) (sCommands.commands().get(2))).index(), equalTo("test"));
         assertThat(((AllocateReplicaAllocationCommand) (sCommands.commands().get(2))).node(), equalTo("node1"));
 
-        assertThat(((MoveAllocationCommand) (sCommands.commands().get(3))).shardId(), equalTo(new ShardId("test", "_na_", 3)));
+        assertThat(((MoveAllocationCommand) (sCommands.commands().get(3))).shardId(), equalTo(3));
+        assertThat(((MoveAllocationCommand) (sCommands.commands().get(3))).index(), equalTo("test"));
         assertThat(((MoveAllocationCommand) (sCommands.commands().get(3))).fromNode(), equalTo("node2"));
         assertThat(((MoveAllocationCommand) (sCommands.commands().get(3))).toNode(), equalTo("node3"));
 
-        assertThat(((CancelAllocationCommand) (sCommands.commands().get(4))).shardId(), equalTo(new ShardId("test", "_na_", 4)));
+        assertThat(((CancelAllocationCommand) (sCommands.commands().get(4))).shardId(), equalTo(4));
+        assertThat(((CancelAllocationCommand) (sCommands.commands().get(4))).index(), equalTo("test"));
         assertThat(((CancelAllocationCommand) (sCommands.commands().get(4))).node(), equalTo("node5"));
         assertThat(((CancelAllocationCommand) (sCommands.commands().get(4))).allowPrimary(), equalTo(true));
     }
@@ -435,22 +440,27 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
         AllocationCommands sCommands = AllocationCommands.fromXContent(parser);
 
         assertThat(sCommands.commands().size(), equalTo(5));
-        assertThat(((AllocateEmptyPrimaryAllocationCommand) (sCommands.commands().get(0))).shardId(), equalTo(new ShardId("test", "_na_", 1)));
+        assertThat(((AllocateEmptyPrimaryAllocationCommand) (sCommands.commands().get(0))).shardId(), equalTo(1));
+        assertThat(((AllocateEmptyPrimaryAllocationCommand) (sCommands.commands().get(0))).index(), equalTo("test"));
         assertThat(((AllocateEmptyPrimaryAllocationCommand) (sCommands.commands().get(0))).node(), equalTo("node1"));
         assertThat(((AllocateEmptyPrimaryAllocationCommand) (sCommands.commands().get(0))).acceptDataLoss(), equalTo(true));
 
-        assertThat(((AllocateStalePrimaryAllocationCommand) (sCommands.commands().get(1))).shardId(), equalTo(new ShardId("test", "_na_", 2)));
+        assertThat(((AllocateStalePrimaryAllocationCommand) (sCommands.commands().get(1))).shardId(), equalTo(2));
+        assertThat(((AllocateStalePrimaryAllocationCommand) (sCommands.commands().get(1))).index(), equalTo("test"));
         assertThat(((AllocateStalePrimaryAllocationCommand) (sCommands.commands().get(1))).node(), equalTo("node1"));
         assertThat(((AllocateStalePrimaryAllocationCommand) (sCommands.commands().get(1))).acceptDataLoss(), equalTo(true));
 
-        assertThat(((AllocateReplicaAllocationCommand) (sCommands.commands().get(2))).shardId(), equalTo(new ShardId("test", "_na_", 2)));
+        assertThat(((AllocateReplicaAllocationCommand) (sCommands.commands().get(2))).shardId(), equalTo(2));
+        assertThat(((AllocateReplicaAllocationCommand) (sCommands.commands().get(2))).index(), equalTo("test"));
         assertThat(((AllocateReplicaAllocationCommand) (sCommands.commands().get(2))).node(), equalTo("node1"));
 
-        assertThat(((MoveAllocationCommand) (sCommands.commands().get(3))).shardId(), equalTo(new ShardId("test", "_na_", 3)));
+        assertThat(((MoveAllocationCommand) (sCommands.commands().get(3))).shardId(), equalTo(3));
+        assertThat(((MoveAllocationCommand) (sCommands.commands().get(3))).index(), equalTo("test"));
         assertThat(((MoveAllocationCommand) (sCommands.commands().get(3))).fromNode(), equalTo("node2"));
         assertThat(((MoveAllocationCommand) (sCommands.commands().get(3))).toNode(), equalTo("node3"));
 
-        assertThat(((CancelAllocationCommand) (sCommands.commands().get(4))).shardId(), equalTo(new ShardId("test", "_na_", 4)));
+        assertThat(((CancelAllocationCommand) (sCommands.commands().get(4))).shardId(), equalTo(4));
+        assertThat(((CancelAllocationCommand) (sCommands.commands().get(4))).index(), equalTo("test"));
         assertThat(((CancelAllocationCommand) (sCommands.commands().get(4))).node(), equalTo("node5"));
         assertThat(((CancelAllocationCommand) (sCommands.commands().get(4))).allowPrimary(), equalTo(true));
     }

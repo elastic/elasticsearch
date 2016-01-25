@@ -33,7 +33,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 
@@ -178,7 +177,10 @@ public class CancelAllocationCommand implements AllocationCommand {
         boolean found = false;
         for (RoutingNodes.RoutingNodeIterator it = allocation.routingNodes().routingNodeIter(discoNode.id()); it.hasNext(); ) {
             ShardRouting shardRouting = it.next();
-            if (!shardRouting.shardId().equals(shardId)) {
+            if (!shardRouting.shardId().getIndex().getName().equals(index)) {
+                continue;
+            }
+            if (shardRouting.shardId().id() != shardId) {
                 continue;
             }
             found = true;

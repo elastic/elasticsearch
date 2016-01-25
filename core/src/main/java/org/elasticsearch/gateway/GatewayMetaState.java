@@ -300,7 +300,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
             if (previousMetaData != null) {
                 isOrWasClosed = isOrWasClosed || previousMetaData.getState().equals(IndexMetaData.State.CLOSE);
             }
-            if (previouslyWrittenIndices.contains(indexMetaData.getIndex()) && isOrWasClosed) {
+            if (previouslyWrittenIndices.contains(indexMetaData.getIndex().getName()) && isOrWasClosed) {
                 indices.add(indexMetaData.getIndex().getName());
             }
         }

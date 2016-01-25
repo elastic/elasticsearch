@@ -53,7 +53,6 @@ import org.elasticsearch.index.NodeServicesProvider;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.get.GetStats;
-import org.elasticsearch.index.shard.IndexingStats;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
@@ -61,6 +60,7 @@ import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexingStats;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.IndexStoreConfig;
 import org.elasticsearch.indices.mapper.MapperRegistry;
@@ -568,8 +568,8 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
      * @param indexSettings the shards's relevant {@link IndexSettings}. This is required to access the indexes settings etc.
      */
     public boolean canDeleteShardContent(ShardId shardId, IndexSettings indexSettings) {
-        assert shardId.getIndex().equals(indexSettings.getIndex().getName());
-        final IndexService indexService = this.indices.get(shardId.getIndex());
+        assert shardId.getIndex().equals(indexSettings.getIndex());
+        final IndexService indexService = this.indices.get(shardId.getIndexName());
         if (indexSettings.isOnSharedFilesystem() == false) {
             if (indexService != null && nodeEnv.hasNodeFile()) {
                 return indexService.hasShard(shardId.id()) == false;

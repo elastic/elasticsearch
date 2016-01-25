@@ -417,7 +417,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     public String toString() {
         StringBuilder builder = new StringBuilder();
         if (headers.containsKey(INDEX_HEADER_KEY)) {
-            builder.append('[').append(getIndex()).append(']');
+            builder.append(getIndex());
             if (headers.containsKey(SHARD_HEADER_KEY)) {
                 builder.append('[').append(getShardId()).append(']');
             }

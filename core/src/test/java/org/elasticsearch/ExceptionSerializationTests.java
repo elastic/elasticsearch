@@ -246,7 +246,7 @@ public class ExceptionSerializationTests extends ESTestCase {
 
     public void testQueryShardException() throws IOException {
         QueryShardException ex = serialize(new QueryShardException(new Index("foo", "_na_"), "fobar", null));
-        assertEquals(ex.getIndex(), "foo");
+        assertEquals(ex.getIndex().getName(), "foo");
         assertEquals(ex.getMessage(), "fobar");
 
         ex = serialize(new QueryShardException((Index) null, null, null));
@@ -268,7 +268,7 @@ public class ExceptionSerializationTests extends ESTestCase {
 
     public void testAlreadyExpiredException() throws IOException {
         AlreadyExpiredException alreadyExpiredException = serialize(new AlreadyExpiredException("index", "type", "id", 1, 2, 3));
-        assertEquals("index", alreadyExpiredException.getIndex());
+        assertEquals("index", alreadyExpiredException.getIndex().getName());
         assertEquals("type", alreadyExpiredException.type());
         assertEquals("id", alreadyExpiredException.id());
         assertEquals(2, alreadyExpiredException.ttl());
@@ -477,7 +477,7 @@ public class ExceptionSerializationTests extends ESTestCase {
 
     public void testRoutingMissingException() throws IOException {
         RoutingMissingException ex = serialize(new RoutingMissingException("idx", "type", "id"));
-        assertEquals("idx", ex.getIndex());
+        assertEquals("idx", ex.getIndex().getName());
         assertEquals("type", ex.getType());
         assertEquals("id", ex.getId());
         assertEquals("routing is required for [idx]/[type]/[id]", ex.getMessage());

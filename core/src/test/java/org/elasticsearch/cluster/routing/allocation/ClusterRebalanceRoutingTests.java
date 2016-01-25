@@ -642,7 +642,7 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
                     RoutingNodes.UnassignedShards.UnassignedIterator iterator = unassigned.iterator();
                     while (iterator.hasNext()) {
                         ShardRouting next = iterator.next();
-                        if ("test1".equals(next.index())) {
+                        if ("test1".equals(next.index().getName())) {
                             iterator.removeAndIgnore();
                         }
 

@@ -127,7 +127,7 @@ public class RoutingTableTests extends ESAllocationTestCase {
     }
 
     public void testIndex() {
-        assertThat(this.testRoutingTable.index(TEST_INDEX_1).getIndex(), is(TEST_INDEX_1));
+        assertThat(this.testRoutingTable.index(TEST_INDEX_1).getIndex().getName(), is(TEST_INDEX_1));
         assertThat(this.testRoutingTable.index("foobar"), is(nullValue()));
     }
 

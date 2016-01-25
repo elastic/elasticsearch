@@ -276,15 +276,15 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         }
         IntHashSet newShardIds = new IntHashSet();
         for (IndexService indexService : indicesService) {
-            String index = indexService.index().getName();
-            IndexMetaData indexMetaData = event.state().metaData().index(index);
+            String indexName = indexService.index().getName();
+            IndexMetaData indexMetaData = event.state().metaData().index(indexName);
             if (indexMetaData == null) {
                 continue;
             }
             // now, go over and delete shards that needs to get deleted
             newShardIds.clear();
             for (ShardRouting shard : routingNode) {
-                if (shard.index().equals(index)) {
+                if (shard.index().getName().equals(indexName)) {
                     newShardIds.add(shard.id());
                 }
             }
@@ -292,14 +292,14 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 if (!newShardIds.contains(existingShardId)) {
                     if (indexMetaData.getState() == IndexMetaData.State.CLOSE) {
                         if (logger.isDebugEnabled()) {
-                            logger.debug("[{}][{}] removing shard (index is closed)", index, existingShardId);
+                            logger.debug("[{}][{}] removing shard (index is closed)", indexName, existingShardId);
                         }
                         indexService.removeShard(existingShardId, "removing shard (index is closed)");
                     } else {
                         // we can just remove the shard, without cleaning it locally, since we will clean it
                         // when all shards are allocated in the IndicesStore
                         if (logger.isDebugEnabled()) {
-                            logger.debug("[{}][{}] removing shard (not allocated)", index, existingShardId);
+                            logger.debug("[{}][{}] removing shard (not allocated)", indexName, existingShardId);
                         }
                         indexService.removeShard(existingShardId, "removing shard (not allocated)");
                     }

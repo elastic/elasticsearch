@@ -49,7 +49,7 @@ public class ShardPathTests extends ESTestCase {
             ShardPath shardPath = ShardPath.loadShardPath(logger, env, shardId, IndexSettingsModule.newIndexSettings(shardId.getIndex(), settings));
             assertEquals(path, shardPath.getDataPath());
             assertEquals("0xDEADBEEF", shardPath.getIndexUUID());
-            assertEquals("foo", shardPath.getShardId().getIndex());
+            assertEquals("foo", shardPath.getShardId().getIndexName());
             assertEquals(path.resolve("translog"), shardPath.resolveTranslog());
             assertEquals(path.resolve("index"), shardPath.resolveIndex());
         }

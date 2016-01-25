@@ -183,7 +183,7 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
 
         if (expectMetaData) {
             assertThat(indices.hasNext(), equalTo(true));
-            assertThat(indices.next().getNewMetaData().getIndex(), equalTo("test"));
+            assertThat(indices.next().getNewMetaData().getIndex().getName(), equalTo("test"));
             assertThat(indices.hasNext(), equalTo(false));
         } else {
             assertThat(indices.hasNext(), equalTo(false));

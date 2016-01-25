@@ -60,9 +60,9 @@ public class PriorityComparatorTests extends ESTestCase {
         });
         RoutingNodes.UnassignedShards.UnassignedIterator iterator = shards.iterator();
         ShardRouting next = iterator.next();
-        assertEquals("newest", next.index());
+        assertEquals("newest", next.getIndexName());
         next = iterator.next();
-        assertEquals("oldest", next.index());
+        assertEquals("oldest", next.getIndexName());
         assertFalse(iterator.hasNext());
     }
 
@@ -90,9 +90,9 @@ public class PriorityComparatorTests extends ESTestCase {
         });
         RoutingNodes.UnassignedShards.UnassignedIterator iterator = shards.iterator();
         ShardRouting next = iterator.next();
-        assertEquals("oldest", next.index());
+        assertEquals("oldest", next.getIndexName());
         next = iterator.next();
-        assertEquals("newest", next.index());
+        assertEquals("newest", next.getIndexName());
         assertFalse(iterator.hasNext());
     }
 

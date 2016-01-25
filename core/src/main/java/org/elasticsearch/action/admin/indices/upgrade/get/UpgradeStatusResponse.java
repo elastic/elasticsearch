@@ -59,14 +59,14 @@ public class UpgradeStatusResponse extends BroadcastResponse implements ToXConte
             indices.add(shard.getIndex());
         }
 
-        for (String index : indices) {
+        for (String indexName : indices) {
             List<ShardUpgradeStatus> shards = new ArrayList<>();
             for (ShardUpgradeStatus shard : this.shards) {
-                if (shard.getShardRouting().index().equals(index)) {
+                if (shard.getShardRouting().getIndexName().equals(indexName)) {
                     shards.add(shard);
                 }
             }
-            indicesUpgradeStats.put(index, new IndexUpgradeStatus(index, shards.toArray(new ShardUpgradeStatus[shards.size()])));
+            indicesUpgradeStats.put(indexName, new IndexUpgradeStatus(indexName, shards.toArray(new ShardUpgradeStatus[shards.size()])));
         }
         this.indicesUpgradeStatus = indicesUpgradeStats;
         return indicesUpgradeStats;

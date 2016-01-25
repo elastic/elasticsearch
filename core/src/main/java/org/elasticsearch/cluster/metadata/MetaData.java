@@ -1003,7 +1003,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
                         alias.addIndex(indexMetaData);
                     } else if (aliasOrIndex instanceof AliasOrIndex.Index) {
                         AliasOrIndex.Index index = (AliasOrIndex.Index) aliasOrIndex;
-                        throw new IllegalStateException("index and alias names need to be unique, but alias [" + aliasMetaData.getAlias() + "] and index [" + index.getIndex().getIndex() + "] have the same name");
+                        throw new IllegalStateException("index and alias names need to be unique, but alias [" + aliasMetaData.getAlias() + "] and index " + index.getIndex().getIndex() + " have the same name");
                     } else {
                         throw new IllegalStateException("unexpected alias [" + aliasMetaData.getAlias() + "][" + aliasOrIndex + "]");
                     }

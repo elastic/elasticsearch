@@ -118,7 +118,7 @@ public class ESExceptionTests extends ESTestCase {
             assertEquals(((ParsingException) rootCauses[0]).getLineNumber(), 1);
             assertEquals(((ParsingException) rootCauses[0]).getColumnNumber(), 2);
             assertEquals(ElasticsearchException.getExceptionName(rootCauses[1]), "query_shard_exception");
-            assertEquals((rootCauses[1]).getIndex(), "foo1");
+            assertEquals((rootCauses[1]).getIndex().getName(), "foo1");
             assertEquals(rootCauses[1].getMessage(), "foobar");
         }
 
@@ -159,7 +159,7 @@ public class ESExceptionTests extends ESTestCase {
             builder.startObject();
             ex.toXContent(builder, PARAMS);
             builder.endObject();
-            String expected = "{\"type\":\"search_phase_execution_exception\",\"reason\":\"all shards failed\",\"phase\":\"search\",\"grouped\":true,\"failed_shards\":[{\"shard\":1,\"index\":\"foo\",\"node\":\"node_1\",\"reason\":{\"type\":\"parsing_exception\",\"reason\":\"foobar\",\"line\":1,\"col\":2}},{\"shard\":1,\"index\":\"foo1\",\"node\":\"node_1\",\"reason\":{\"type\":\"query_shard_exception\",\"reason\":\"foobar\",\"index\":\"foo1\"}}]}";
+            String expected = "{\"type\":\"search_phase_execution_exception\",\"reason\":\"all shards failed\",\"phase\":\"search\",\"grouped\":true,\"failed_shards\":[{\"shard\":1,\"index\":\"foo\",\"node\":\"node_1\",\"reason\":{\"type\":\"parsing_exception\",\"reason\":\"foobar\",\"line\":1,\"col\":2}},{\"shard\":1,\"index\":\"foo1\",\"node\":\"node_1\",\"reason\":{\"type\":\"query_shard_exception\",\"reason\":\"foobar\",\"index_uuid\":\"_na_\",\"index\":\"foo1\"}}]}";
             assertEquals(expected, builder.string());
         }
         {

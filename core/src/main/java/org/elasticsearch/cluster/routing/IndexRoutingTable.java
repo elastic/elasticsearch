@@ -416,8 +416,7 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
          * Initializes an index, to be restored from snapshot
          */
         private Builder initializeAsRestore(IndexMetaData indexMetaData, RestoreSource restoreSource, IntSet ignoreShards, boolean asNew, UnassignedInfo unassignedInfo) {
-            assert indexMetaData.getIndex().equals(index.getName());
-            assert indexMetaData.getIndexUUID().equals(index.getUUID());
+            assert indexMetaData.getIndex().equals(index);
             if (!shards.isEmpty()) {
                 throw new IllegalStateException("trying to initialize an index with fresh shards, but already has shards created");
             }

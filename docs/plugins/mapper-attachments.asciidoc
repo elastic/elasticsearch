@@ -340,7 +340,7 @@ PUT /test/person/_mapping
       "file": {
         "type": "attachment",
         "fields": {
-          "content": {
+          "file": {
             "type": "string",
             "term_vector":"with_positions_offsets",
             "store": true

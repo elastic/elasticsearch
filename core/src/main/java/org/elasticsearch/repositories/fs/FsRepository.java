@@ -52,7 +52,7 @@ public class FsRepository extends BlobStoreRepository {
     public final static String TYPE = "fs";
 
     public static final Setting<String> LOCATION_SETTING = new Setting<>("location", "", Function.identity(), false, Setting.Scope.CLUSTER);
-    public static final Setting<String> REPOSITORIES_LOCATION_SETTING = new Setting<>("repositories.fs.location", "", Function.identity(), false, Setting.Scope.CLUSTER);
+    public static final Setting<String> REPOSITORIES_LOCATION_SETTING = new Setting<>("repositories.fs.location", LOCATION_SETTING, Function.identity(), false, Setting.Scope.CLUSTER);
     public static final Setting<ByteSizeValue> CHUNK_SIZE_SETTING = Setting.byteSizeSetting("chunk_size", "-1", false, Setting.Scope.CLUSTER);
     public static final Setting<ByteSizeValue> REPOSITORIES_CHUNK_SIZE_SETTING = Setting.byteSizeSetting("repositories.fs.chunk_size", "-1", false, Setting.Scope.CLUSTER);
     public static final Setting<Boolean> COMPRESS_SETTING = Setting.boolSetting("compress", false, false, Setting.Scope.CLUSTER);
@@ -77,8 +77,8 @@ public class FsRepository extends BlobStoreRepository {
     public FsRepository(RepositoryName name, RepositorySettings repositorySettings, IndexShardRepository indexShardRepository, Environment environment) throws IOException {
         super(name.getName(), repositorySettings, indexShardRepository);
         Path locationFile;
-        String location = LOCATION_SETTING.exists(repositorySettings.settings()) ? LOCATION_SETTING.get(repositorySettings.settings()) : REPOSITORIES_LOCATION_SETTING.get(settings);
-        if (location == null) {
+        String location = REPOSITORIES_LOCATION_SETTING.get(repositorySettings.settings());
+        if (location.isEmpty()) {
             logger.warn("the repository location is missing, it should point to a shared file system location that is available on all master and data nodes");
             throw new RepositoryException(name.name(), "missing location");
         }

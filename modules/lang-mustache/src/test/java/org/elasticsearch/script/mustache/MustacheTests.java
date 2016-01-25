@@ -27,24 +27,25 @@ import org.elasticsearch.script.ScriptEngineService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 
-
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.HashSet;
 
 import static java.util.Collections.singleton;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.script.mustache.MustacheScriptEngineService.CONTENT_TYPE_PARAM;
 import static org.elasticsearch.script.mustache.MustacheScriptEngineService.JSON_CONTENT_TYPE;
 import static org.elasticsearch.script.mustache.MustacheScriptEngineService.PLAIN_TEXT_CONTENT_TYPE;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class MustacheTests extends ESTestCase {
 
@@ -156,4 +157,24 @@ public class MustacheTests extends ESTestCase {
         assertThat(result, equalTo("{ \"field1\": \"a \"value\"\"}"));
     }
 
+    public void testSizeAccessForCollectionsAndArrays() throws Exception {
+        String[] randomArrayValues = generateRandomStringArray(10, 20, false);
+        List<String> randomList = Arrays.asList(generateRandomStringArray(10, 20, false));
+
+        String template = "{{data.array.size}} {{data.list.size}}";
+        CompiledScript mustache = new CompiledScript(ScriptService.ScriptType.INLINE, "inline", "mustache", engine.compile(template, Collections.emptyMap()));
+        Map<String, Object> data = new HashMap<>();
+        data.put("array", randomArrayValues);
+        data.put("list", randomList);
+        Map<String, Object> vars = new HashMap<>();
+        vars.put("data", data);
+
+        Object output = engine.executable(mustache, vars).run();
+        assertThat(output, notNullValue());
+        assertThat(output, instanceOf(BytesReference.class));
+
+        BytesReference bytes = (BytesReference) output;
+        String expectedString = String.format(Locale.ROOT, "%s %s", randomArrayValues.length, randomList.size());
+        assertThat(bytes.toUtf8(), equalTo(expectedString));
+    }
 }

@@ -68,6 +68,7 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.index.translog.TranslogService;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.memory.IndexingMemoryController;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -753,5 +754,64 @@ public class IndexShardTests extends ESSingleNodeTestCase {
                 throw new RuntimeException("unknown RecoveryState.Type");
         }
         assertTrue(checker.maybeFlushAndReschedule());
+    }
+
+    public void testIndexingBufferDuringInternalRecovery() throws IOException {
+        createIndex("index");
+        client().admin().indices().preparePutMapping("index").setType("testtype").setSource(jsonBuilder().startObject()
+                .startObject("testtype")
+                .startObject("properties")
+                .startObject("foo")
+                .field("type", "string")
+                .endObject()
+                .endObject().endObject().endObject()).get();
+        ensureGreen();
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexService test = indicesService.indexService("index");
+        IndexShard shard = test.shard(0);
+        ShardRouting routing = new ShardRouting(shard.routingEntry());
+        test.removeShard(0, "b/c britta says so");
+        IndexShard newShard = test.createShard(routing);
+        DiscoveryNode localNode = new DiscoveryNode("foo", DummyTransportAddress.INSTANCE, Version.CURRENT);
+        newShard.recovering("for testing", RecoveryState.Type.REPLICA, localNode);
+        // Shard is still inactive since we haven't started recovering yet
+        assertEquals(IndexingMemoryController.INACTIVE_SHARD_INDEXING_BUFFER, newShard.getIndexingBufferSize());
+        newShard.prepareForIndexRecovery();
+        // Shard is still inactive since we haven't started recovering yet
+        assertEquals(IndexingMemoryController.INACTIVE_SHARD_INDEXING_BUFFER, newShard.getIndexingBufferSize());
+        newShard.performTranslogRecovery(true);
+        // Shard should now be active since we did recover:
+        assertNotEquals(IndexingMemoryController.INACTIVE_SHARD_INDEXING_BUFFER, newShard.getIndexingBufferSize());
+    }
+
+    public void testIndexingBufferDuringPeerRecovery() throws IOException {
+        createIndex("index");
+        client().admin().indices().preparePutMapping("index").setType("testtype").setSource(jsonBuilder().startObject()
+                .startObject("testtype")
+                .startObject("properties")
+                .startObject("foo")
+                .field("type", "string")
+                .endObject()
+                .endObject().endObject().endObject()).get();
+        ensureGreen();
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexService test = indicesService.indexService("index");
+        IndexShard shard = test.shard(0);
+        ShardRouting routing = new ShardRouting(shard.routingEntry());
+        test.removeShard(0, "b/c britta says so");
+        IndexShard newShard = test.createShard(routing);
+        DiscoveryNode localNode = new DiscoveryNode("foo", DummyTransportAddress.INSTANCE, Version.CURRENT);
+        newShard.recovering("for testing", RecoveryState.Type.REPLICA, localNode);
+        // Shard is still inactive since we haven't started recovering yet
+        assertEquals(IndexingMemoryController.INACTIVE_SHARD_INDEXING_BUFFER, newShard.getIndexingBufferSize());
+        List<Translog.Operation> operations = new ArrayList<>();
+        operations.add(new Translog.Index("testtype", "1", jsonBuilder().startObject().field("foo", "bar").endObject().bytes().toBytes()));
+        newShard.prepareForIndexRecovery();
+        newShard.skipTranslogRecovery();
+        // Shard is still inactive since we haven't started recovering yet
+        assertEquals(IndexingMemoryController.INACTIVE_SHARD_INDEXING_BUFFER, newShard.getIndexingBufferSize());
+        newShard.performBatchRecovery(operations);
+        // Shard should now be active since we did recover:
+        assertNotEquals(IndexingMemoryController.INACTIVE_SHARD_INDEXING_BUFFER, newShard.getIndexingBufferSize());
     }
 }

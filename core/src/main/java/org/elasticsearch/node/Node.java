@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterNameModule;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.component.Lifecycle;
@@ -46,6 +47,7 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
@@ -119,6 +121,7 @@ import static org.elasticsearch.common.settings.Settings.settingsBuilder;
  */
 public class Node implements Releasable {
 
+    public static final Setting<Boolean> NODE_INGEST_SETTING = Setting.boolSetting("node.ingest", true, false, Setting.Scope.CLUSTER);
     private static final String CLIENT_TYPE = "node";
     public static final String HTTP_ENABLED = "http.enabled";
     private final Lifecycle lifecycle = new Lifecycle();
@@ -190,8 +193,7 @@ public class Node implements Releasable {
             modules.add(new ClusterModule(this.settings));
             modules.add(new IndicesModule());
             modules.add(new SearchModule(settings, namedWriteableRegistry));
-            boolean ingestEnabled = NodeModule.isNodeIngestEnabled(settings);
-            modules.add(new ActionModule(ingestEnabled, false));
+            modules.add(new ActionModule(DiscoveryNode.ingestNode(settings), false));
             modules.add(new GatewayModule(settings));
             modules.add(new NodeClientModule());
             modules.add(new PercolatorModule());

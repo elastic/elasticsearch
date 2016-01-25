@@ -19,10 +19,6 @@
 
 package org.elasticsearch.client.transport;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.TimeUnit;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
@@ -49,7 +45,6 @@ import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.indices.breaker.CircuitBreakerModule;
 import org.elasticsearch.monitor.MonitorService;
-import org.elasticsearch.node.NodeModule;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsModule;
@@ -59,6 +54,10 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.netty.NettyTransport;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 
@@ -117,7 +116,7 @@ public class TransportClient extends AbstractClient {
                 .put("node.client", true)
                 .put(CLIENT_TYPE_SETTING, CLIENT_TYPE);
             return new PluginsService(settingsBuilder.build(), null, null, pluginClasses);
-        };
+        }
 
         /**
          * Builds a new instance of the transport client.
@@ -151,8 +150,7 @@ public class TransportClient extends AbstractClient {
                         // noop
                     }
                 });
-                boolean ingestEnabled = NodeModule.isNodeIngestEnabled(settings);
-                modules.add(new ActionModule(ingestEnabled, true));
+                modules.add(new ActionModule(false, true));
                 modules.add(new CircuitBreakerModule(settings));
 
                 pluginsService.processModules(modules);

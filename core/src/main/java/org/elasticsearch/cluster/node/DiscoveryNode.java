@@ -32,6 +32,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.transport.TransportAddressSerializers;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.node.Node;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -85,6 +86,10 @@ public class DiscoveryNode implements Streamable, ToXContent {
             return !clientNode(settings);
         }
         return Booleans.isExplicitTrue(data);
+    }
+
+    public static boolean ingestNode(Settings settings) {
+        return Node.NODE_INGEST_SETTING.get(settings);
     }
 
     public static final List<DiscoveryNode> EMPTY_LIST = Collections.emptyList();
@@ -314,6 +319,14 @@ public class DiscoveryNode implements Streamable, ToXContent {
      */
     public boolean isMasterNode() {
         return masterNode();
+    }
+
+    /**
+     * Returns a boolean that tells whether this an ingest node or not
+     */
+    public boolean isIngestNode() {
+        String ingest = attributes.get("ingest");
+        return ingest == null ? true : Booleans.parseBooleanExact(ingest);
     }
 
     public Version version() {

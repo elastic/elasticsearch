@@ -37,7 +37,7 @@ public class Index implements Streamable {
     }
 
     public Index(String name) {
-        this.name = name.intern();
+        this.name = name;
     }
 
     public String name() {
@@ -74,7 +74,7 @@ public class Index implements Streamable {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        name = in.readString().intern();
+        name = in.readString();
     }
 
     @Override

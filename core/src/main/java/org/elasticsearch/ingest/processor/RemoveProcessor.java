@@ -24,7 +24,6 @@ import org.elasticsearch.ingest.core.AbstractProcessorFactory;
 import org.elasticsearch.ingest.core.IngestDocument;
 import org.elasticsearch.ingest.core.TemplateService;
 import org.elasticsearch.ingest.core.ConfigurationUtils;
-import org.elasticsearch.ingest.core.Processor;
 
 import java.util.Map;
 

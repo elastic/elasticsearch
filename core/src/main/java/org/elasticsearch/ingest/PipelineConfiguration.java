@@ -19,8 +19,6 @@
 
 package org.elasticsearch.ingest;
 
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Build;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -34,7 +32,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.Objects;
 import java.util.function.BiFunction;
 
 /**

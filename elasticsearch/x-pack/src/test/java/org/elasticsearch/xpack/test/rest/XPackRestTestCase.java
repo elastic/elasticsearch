@@ -58,7 +58,7 @@ public abstract class XPackRestTestCase extends ESRestTestCase {
                                                   "test_user:changeme",
                                                   url.getHost(),
                                                   url.getPort(),
-                                                  "/_watcher/stop", null, null));
+                                                  "/_watcher/_stop", null, null));
             client.execute(request);
         }
     }

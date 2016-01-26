@@ -117,13 +117,13 @@ public class ScriptSettings {
                                 return languageSettings.keySet().iterator().next();
                             }
 
-                            // the next fallback is global operation-based settings (e.g., "script.aggs: off")
+                            // the next fallback is global operation-based settings (e.g., "script.aggs: false")
                             Setting<ScriptMode> setting = scriptContextSettingMap.get(scriptContext);
                             if (setting.exists(settings)) {
                                 return setting.get(settings).getMode();
                             }
 
-                            // the next fallback is global source-based settings (e.g., "script.inline: off")
+                            // the next fallback is global source-based settings (e.g., "script.inline: false")
                             Setting<ScriptMode> scriptTypeSetting = scriptTypeSettingMap.get(scriptType);
                             if (scriptTypeSetting.exists(settings)) {
                                 return scriptTypeSetting.get(settings).getMode();

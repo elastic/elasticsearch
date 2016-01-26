@@ -28,8 +28,8 @@ import java.util.Map;
  * only be executed by a sandboxed scripting language.
  */
 enum ScriptMode {
-    ON("on"),
-    OFF("off"),
+    ON("true"),
+    OFF("false"),
     SANDBOX("sandbox");
 
     private final String mode;

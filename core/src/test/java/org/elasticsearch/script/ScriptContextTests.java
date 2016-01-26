@@ -41,8 +41,8 @@ public class ScriptContextTests extends ESTestCase {
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
             // no file watching, so we don't need a ResourceWatcherService
             .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING.getKey(), "off")
-            .put("script." + PLUGIN_NAME + "_custom_globally_disabled_op", "off")
-            .put("script.engine." + MockScriptEngine.NAME + ".inline." + PLUGIN_NAME + "_custom_exp_disabled_op", "off")
+            .put("script." + PLUGIN_NAME + "_custom_globally_disabled_op", "false")
+            .put("script.engine." + MockScriptEngine.NAME + ".inline." + PLUGIN_NAME + "_custom_exp_disabled_op", "false")
             .build();
         Set<ScriptEngineService> engines = new HashSet<>(Collections.singletonList(new MockScriptEngine()));
         ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections.singletonList(new ScriptEngineRegistry.ScriptEngineRegistration(MockScriptEngine.class, MockScriptEngine.TYPES)));

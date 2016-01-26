@@ -193,10 +193,10 @@ public class ScriptServiceTests extends ESTestCase {
             builder.put("script.file", randomFrom(ScriptModesTests.ENABLE_VALUES));
         }
         if (rarely()) {
-            builder.put("script.indexed", ScriptMode.SANDBOX);
+            builder.put("script.indexed", "sandbox");
         }
         if (rarely()) {
-            builder.put("script.inline", ScriptMode.SANDBOX);
+            builder.put("script.inline", "sandbox");
         }
         buildScriptService(builder.build());
         createFileScripts("groovy", "mustache", "test");
@@ -246,10 +246,10 @@ public class ScriptServiceTests extends ESTestCase {
         for (Map.Entry<ScriptType, ScriptMode> entry : scriptSourceSettings.entrySet()) {
             switch (entry.getValue()) {
                 case ON:
-                    builder.put("script" + "." + entry.getKey().getScriptType(), "on");
+                    builder.put("script" + "." + entry.getKey().getScriptType(), "true");
                     break;
                 case OFF:
-                    builder.put("script" + "." + entry.getKey().getScriptType(), "off");
+                    builder.put("script" + "." + entry.getKey().getScriptType(), "false");
                     break;
                 case SANDBOX:
                     builder.put("script" + "." + entry.getKey().getScriptType(), "sandbox");
@@ -259,11 +259,11 @@ public class ScriptServiceTests extends ESTestCase {
         for (Map.Entry<ScriptContext, ScriptMode> entry : scriptContextSettings.entrySet()) {
             switch (entry.getValue()) {
                 case ON:
-                    builder.put("script" + "." + entry.getKey().getKey(), "on");
+                    builder.put("script" + "." + entry.getKey().getKey(), "true");
                     break;
 
                 case OFF:
-                    builder.put("script" + "." + entry.getKey().getKey(), "off");
+                    builder.put("script" + "." + entry.getKey().getKey(), "false");
                     break;
                 case SANDBOX:
                     builder.put("script" + "." + entry.getKey().getKey(), "sandbox");
@@ -278,10 +278,10 @@ public class ScriptServiceTests extends ESTestCase {
             String lang = randomFrom(scriptEnginesByLangMap.get(part1).getTypes());
             switch (entry.getValue()) {
                 case ON:
-                    builder.put("script.engine" + "." + lang + "." + part2, "on");
+                    builder.put("script.engine" + "." + lang + "." + part2, "true");
                     break;
                 case OFF:
-                    builder.put("script.engine" + "." + lang + "." + part2, "off");
+                    builder.put("script.engine" + "." + lang + "." + part2, "false");
                     break;
                 case SANDBOX:
                     builder.put("script.engine" + "." + lang + "." + part2, "sandbox");

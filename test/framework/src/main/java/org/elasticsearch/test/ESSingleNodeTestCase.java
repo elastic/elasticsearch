@@ -166,8 +166,8 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             .put("node.name", nodeName())
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put("script.inline", "on")
-            .put("script.indexed", "on")
+            .put("script.inline", "true")
+            .put("script.indexed", "true")
             .put(EsExecutors.PROCESSORS_SETTING.getKey(), 1) // limit the number of threads created
             .put("http.enabled", false)
             .put(Node.NODE_LOCAL_SETTING.getKey(), true)

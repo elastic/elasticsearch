@@ -54,7 +54,7 @@ public class FileScriptTests extends ESTestCase {
     public void testFileScriptFound() throws Exception {
         ContextAndHeaderHolder contextAndHeaders = new ContextAndHeaderHolder();
         Settings settings = Settings.builder()
-            .put("script.engine." + MockScriptEngine.NAME + ".file.aggs", "off").build();
+            .put("script.engine." + MockScriptEngine.NAME + ".file.aggs", "false").build();
         ScriptService scriptService = makeScriptService(settings);
         Script script = new Script("script1", ScriptService.ScriptType.FILE, MockScriptEngine.NAME, null);
         assertNotNull(scriptService.compile(script, ScriptContext.Standard.SEARCH, contextAndHeaders, Collections.emptyMap()));
@@ -67,7 +67,7 @@ public class FileScriptTests extends ESTestCase {
             .put("script.engine." + MockScriptEngine.NAME + ".file.search", "false")
             .put("script.engine." + MockScriptEngine.NAME + ".file.mapping", "false")
             .put("script.engine." + MockScriptEngine.NAME + ".file.update", "false")
-            .put("script.engine." + MockScriptEngine.NAME + ".file.ingest", false).build();
+            .put("script.engine." + MockScriptEngine.NAME + ".file.ingest", "false").build();
         ScriptService scriptService = makeScriptService(settings);
         Script script = new Script("script1", ScriptService.ScriptType.FILE, MockScriptEngine.NAME, null);
         for (ScriptContext context : ScriptContext.Standard.values()) {

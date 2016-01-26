@@ -47,8 +47,8 @@ public class ScriptModesTests extends ESTestCase {
     private static final Set<String> ALL_LANGS = unmodifiableSet(
             newHashSet("custom", "test"));
 
-    static final String[] ENABLE_VALUES = new String[]{"on"};
-    static final String[] DISABLE_VALUES = new String[]{"off"};
+    static final String[] ENABLE_VALUES = new String[]{"true"};
+    static final String[] DISABLE_VALUES = new String[]{"false"};
 
     ScriptSettings scriptSettings;
     ScriptContextRegistry scriptContextRegistry;
@@ -185,7 +185,7 @@ public class ScriptModesTests extends ESTestCase {
     public void testConflictingScriptTypeAndOpGenericSettings() {
         ScriptContext scriptContext = randomFrom(scriptContexts);
         Settings.Builder builder = Settings.builder().put("script" + "." + scriptContext.getKey(), randomFrom(DISABLE_VALUES))
-                .put("script.indexed", randomFrom(ENABLE_VALUES)).put("script.inline", ScriptMode.SANDBOX);
+                .put("script.indexed", randomFrom(ENABLE_VALUES)).put("script.inline", "sandbox");
         //operations generic settings have precedence over script type generic settings
         this.scriptModes = new ScriptModes(scriptSettings, builder.build());
         assertScriptModesAllTypes(ScriptMode.OFF, ALL_LANGS, scriptContext);

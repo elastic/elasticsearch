@@ -51,17 +51,17 @@ public class NativeScriptEngineService extends AbstractComponent implements Scri
     }
 
     @Override
-    public List<String> types() {
+    public List<String> getTypes() {
         return TYPES;
     }
 
     @Override
-    public List<String> extensions() {
+    public List<String> getExtensions() {
         return Collections.emptyList();
     }
 
     @Override
-    public boolean sandboxed() {
+    public boolean isSandboxed() {
         return false;
     }
 

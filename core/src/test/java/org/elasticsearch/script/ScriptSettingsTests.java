@@ -101,17 +101,17 @@ public class ScriptSettingsTests extends ESTestCase {
         public static final List<String> TYPES = Collections.unmodifiableList(Arrays.asList("test1", "test2", "test3"));
 
         @Override
-        public List<String> types() {
+        public List<String> getTypes() {
             return TYPES;
         }
 
         @Override
-        public List<String> extensions() {
+        public List<String> getExtensions() {
             return Collections.singletonList(TYPES.get(0));
         }
 
         @Override
-        public boolean sandboxed() {
+        public boolean isSandboxed() {
             return false;
         }
 

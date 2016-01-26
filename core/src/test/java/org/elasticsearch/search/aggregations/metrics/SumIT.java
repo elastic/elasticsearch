@@ -348,17 +348,17 @@ public class SumIT extends AbstractNumericTestCase {
         }
 
         @Override
-        public List<String> types() {
+        public List<String> getTypes() {
             return TYPES;
         }
 
         @Override
-        public List<String> extensions() {
+        public List<String> getExtensions() {
             return TYPES;
         }
 
         @Override
-        public boolean sandboxed() {
+        public boolean isSandboxed() {
             return true;
         }
 
@@ -482,17 +482,17 @@ public class SumIT extends AbstractNumericTestCase {
         }
 
         @Override
-        public List<String> types() {
+        public List<String> getTypes() {
             return TYPES;
         }
 
         @Override
-        public List<String> extensions() {
+        public List<String> getExtensions() {
             return TYPES;
         }
 
         @Override
-        public boolean sandboxed() {
+        public boolean isSandboxed() {
             return true;
         }
 

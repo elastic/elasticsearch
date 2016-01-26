@@ -101,7 +101,7 @@ public class PlanAScriptEngineService extends AbstractComponent implements Scrip
      * @return Always contains only the single name of the language.
      */
     @Override
-    public List<String> types() {
+    public List<String> getTypes() {
         return TYPES;
     }
 
@@ -110,7 +110,7 @@ public class PlanAScriptEngineService extends AbstractComponent implements Scrip
      * @return Always contains only the single extension of the language.
      */
     @Override
-    public List<String> extensions() {
+    public List<String> getExtensions() {
         return TYPES;
     }
 
@@ -119,7 +119,7 @@ public class PlanAScriptEngineService extends AbstractComponent implements Scrip
      * @return Always true as the engine should be secure at runtime.
      */
     @Override
-    public boolean sandboxed() {
+    public boolean isSandboxed() {
         return true;
     }
 

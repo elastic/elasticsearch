@@ -230,7 +230,7 @@ public class ScriptModesTests extends ESTestCase {
     static Map<String, ScriptEngineService> buildScriptEnginesByLangMap(Set<ScriptEngineService> scriptEngines) {
         Map<String, ScriptEngineService> builder = new HashMap<>();
         for (ScriptEngineService scriptEngine : scriptEngines) {
-            for (String type : scriptEngine.types()) {
+            for (String type : scriptEngine.getTypes()) {
                 builder.put(type, scriptEngine);
             }
         }
@@ -242,17 +242,17 @@ public class ScriptModesTests extends ESTestCase {
         public static final List<String> TYPES = Collections.unmodifiableList(Arrays.asList("custom", "test"));
 
         @Override
-        public List<String> types() {
+        public List<String> getTypes() {
             return TYPES;
         }
 
         @Override
-        public List<String> extensions() {
+        public List<String> getExtensions() {
             return Collections.singletonList(TYPES.get(0));
         }
 
         @Override
-        public boolean sandboxed() {
+        public boolean isSandboxed() {
             return false;
         }
 

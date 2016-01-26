@@ -39,7 +39,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.common.settings.Settings.builder;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -238,7 +237,7 @@ public class ScriptServiceTests extends ESTestCase {
             do {
                 ScriptType scriptType = randomFrom(ScriptType.values());
                 ScriptContext scriptContext = randomFrom(this.scriptContexts);
-                settingKey = scriptEngineService.types().get(0) + "." + scriptType + "." + scriptContext.getKey();
+                settingKey = scriptEngineService.getTypes().get(0) + "." + scriptType + "." + scriptContext.getKey();
             } while (engineSettings.containsKey(settingKey));
             engineSettings.put(settingKey, randomFrom(ScriptMode.values()));
         }
@@ -276,7 +275,7 @@ public class ScriptServiceTests extends ESTestCase {
             String part1 = entry.getKey().substring(0, delimiter);
             String part2 = entry.getKey().substring(delimiter + 1);
 
-            String lang = randomFrom(scriptEnginesByLangMap.get(part1).types());
+            String lang = randomFrom(scriptEnginesByLangMap.get(part1).getTypes());
             switch (entry.getValue()) {
                 case ON:
                     builder.put("script.engine" + "." + lang + "." + part2, "on");
@@ -299,7 +298,7 @@ public class ScriptServiceTests extends ESTestCase {
             String script = scriptType == ScriptType.FILE ? "file_script" : "script";
             for (ScriptContext scriptContext : this.scriptContexts) {
                 //fallback mechanism: 1) engine specific settings 2) op based settings 3) source based settings
-                ScriptMode scriptMode = engineSettings.get(scriptEngineService.types().get(0) + "." + scriptType + "." + scriptContext.getKey());
+                ScriptMode scriptMode = engineSettings.get(scriptEngineService.getTypes().get(0) + "." + scriptType + "." + scriptContext.getKey());
                 if (scriptMode == null) {
                     scriptMode = scriptContextSettings.get(scriptContext);
                 }
@@ -310,7 +309,7 @@ public class ScriptServiceTests extends ESTestCase {
                     scriptMode = DEFAULT_SCRIPT_MODES.get(scriptType);
                 }
 
-                for (String lang : scriptEngineService.types()) {
+                for (String lang : scriptEngineService.getTypes()) {
                     switch (scriptMode) {
                         case ON:
                             assertCompileAccepted(lang, script, scriptType, scriptContext, contextAndHeaders);
@@ -319,7 +318,7 @@ public class ScriptServiceTests extends ESTestCase {
                             assertCompileRejected(lang, script, scriptType, scriptContext, contextAndHeaders);
                             break;
                         case SANDBOX:
-                            if (scriptEngineService.sandboxed()) {
+                            if (scriptEngineService.isSandboxed()) {
                                 assertCompileAccepted(lang, script, scriptType, scriptContext, contextAndHeaders);
                             } else {
                                 assertCompileRejected(lang, script, scriptType, scriptContext, contextAndHeaders);
@@ -341,7 +340,7 @@ public class ScriptServiceTests extends ESTestCase {
             unknownContext = randomAsciiOfLength(randomIntBetween(1, 30));
         } while(scriptContextRegistry.isSupportedContext(new ScriptContext.Plugin(pluginName, unknownContext)));
 
-        for (String type : scriptEngineService.types()) {
+        for (String type : scriptEngineService.getTypes()) {
             try {
                 scriptService.compile(new Script("test", randomFrom(ScriptType.values()), type, null), new ScriptContext.Plugin(
                         pluginName, unknownContext), contextAndHeaders, Collections.emptyMap());
@@ -458,17 +457,17 @@ public class ScriptServiceTests extends ESTestCase {
         public static final List<String> EXTENSIONS = Collections.unmodifiableList(Arrays.asList("test", "tst"));
 
         @Override
-        public List<String> types() {
+        public List<String> getTypes() {
             return TYPES;
         }
 
         @Override
-        public List<String> extensions() {
+        public List<String> getExtensions() {
             return EXTENSIONS;
         }
 
         @Override
-        public boolean sandboxed() {
+        public boolean isSandboxed() {
             return true;
         }
 

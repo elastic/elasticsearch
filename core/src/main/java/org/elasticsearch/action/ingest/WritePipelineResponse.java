@@ -22,27 +22,49 @@ package org.elasticsearch.action.ingest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.ingest.core.PipelineFactoryError;
 
 import java.io.IOException;
 
 public class WritePipelineResponse extends AcknowledgedResponse {
+    private PipelineFactoryError error;
 
     WritePipelineResponse() {
+
     }
 
-    public WritePipelineResponse(boolean acknowledge) {
-        super(acknowledge);
+    public WritePipelineResponse(boolean acknowledged) {
+        super(acknowledged);
+        if (!isAcknowledged()) {
+            error = new PipelineFactoryError("pipeline write is not acknowledged");
+        }
+    }
+
+    public WritePipelineResponse(PipelineFactoryError error) {
+        super(false);
+        this.error = error;
+    }
+
+    public PipelineFactoryError getError() {
+        return error;
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         readAcknowledged(in);
+        if (!isAcknowledged()) {
+            error = new PipelineFactoryError();
+            error.readFrom(in);
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         writeAcknowledged(out);
+        if (!isAcknowledged()) {
+            error.writeTo(out);
+        }
     }
 }

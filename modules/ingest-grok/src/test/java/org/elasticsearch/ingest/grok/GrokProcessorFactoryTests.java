@@ -20,6 +20,8 @@
 package org.elasticsearch.ingest.grok;
 
 import org.elasticsearch.ingest.core.AbstractProcessorFactory;
+import org.elasticsearch.ingest.core.Processor;
+import org.elasticsearch.ingest.processor.ConfigurationPropertyException;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
@@ -43,6 +45,32 @@ public class GrokProcessorFactoryTests extends ESTestCase {
         assertThat(processor.getTag(), equalTo(processorTag));
         assertThat(processor.getMatchField(), equalTo("_field"));
         assertThat(processor.getGrok(), notNullValue());
+    }
+
+    public void testBuildMissingField() throws Exception {
+        GrokProcessor.Factory factory = new GrokProcessor.Factory(Collections.emptyMap());
+        Map<String, Object> config = new HashMap<>();
+        config.put("pattern", "(?<foo>\\w+)");
+        try {
+            factory.create(config);
+            fail("should fail");
+        } catch (ConfigurationPropertyException e) {
+            assertThat(e.getMessage(), equalTo("[field] required property is missing"));
+
+        }
+    }
+
+    public void testBuildMissingPattern() throws Exception {
+        GrokProcessor.Factory factory = new GrokProcessor.Factory(Collections.emptyMap());
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "foo");
+        try {
+            factory.create(config);
+            fail("should fail");
+        } catch (ConfigurationPropertyException e) {
+            assertThat(e.getMessage(), equalTo("[pattern] required property is missing"));
+        }
+
     }
 
     public void testCreateWithCustomPatterns() throws Exception {

@@ -74,9 +74,9 @@ public final class GrokProcessor extends AbstractProcessor {
 
         @Override
         public GrokProcessor doCreate(String processorTag, Map<String, Object> config) throws Exception {
-            String matchField = ConfigurationUtils.readStringProperty(config, "field");
-            String matchPattern = ConfigurationUtils.readStringProperty(config, "pattern");
-            Map<String, String> customPatternBank = ConfigurationUtils.readOptionalMap(config, "pattern_definitions");
+            String matchField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
+            String matchPattern = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "pattern");
+            Map<String, String> customPatternBank = ConfigurationUtils.readOptionalMap(TYPE, processorTag, config, "pattern_definitions");
             Map<String, String> patternBank = new HashMap<>(builtinPatterns);
             if (customPatternBank != null) {
                 patternBank.putAll(customPatternBank);

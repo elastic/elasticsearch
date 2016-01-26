@@ -75,8 +75,8 @@ public class SplitProcessor extends AbstractProcessor {
     public static class Factory extends AbstractProcessorFactory<SplitProcessor> {
         @Override
         public SplitProcessor doCreate(String processorTag, Map<String, Object> config) throws Exception {
-            String field = ConfigurationUtils.readStringProperty(config, "field");
-            return new SplitProcessor(processorTag, field, ConfigurationUtils.readStringProperty(config, "separator"));
+            String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
+            return new SplitProcessor(processorTag, field, ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "separator"));
         }
     }
 }

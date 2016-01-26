@@ -19,11 +19,13 @@
 
 package org.elasticsearch.ingest.core;
 
+import org.elasticsearch.ingest.processor.ConfigurationPropertyException;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -49,21 +51,21 @@ public class ConfigurationUtilsTests extends ESTestCase {
     }
 
     public void testReadStringProperty() {
-        String val = ConfigurationUtils.readStringProperty(config, "foo");
+        String val = ConfigurationUtils.readStringProperty(null, null, config, "foo");
         assertThat(val, equalTo("bar"));
     }
 
     public void testReadStringPropertyInvalidType() {
         try {
-            ConfigurationUtils.readStringProperty(config, "arr");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("property [arr] isn't a string, but of type [java.util.Arrays$ArrayList]"));
+            ConfigurationUtils.readStringProperty(null, null, config, "arr");
+        } catch (ConfigurationPropertyException e) {
+            assertThat(e.getMessage(), equalTo("[arr] property isn't a string, but of type [java.util.Arrays$ArrayList]"));
         }
     }
 
     // TODO(talevy): Issue with generics. This test should fail, "int" is of type List<Integer>
     public void testOptional_InvalidType() {
-        List<String> val = ConfigurationUtils.readList(config, "int");
-        assertThat(val, equalTo(Arrays.asList(2)));
+        List<String> val = ConfigurationUtils.readList(null, null, config, "int");
+        assertThat(val, equalTo(Collections.singletonList(2)));
     }
 }

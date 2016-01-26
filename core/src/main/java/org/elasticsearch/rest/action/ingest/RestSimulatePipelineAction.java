@@ -28,6 +28,7 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.RestActions;
+import org.elasticsearch.rest.action.support.RestStatusToXContentListener;
 import org.elasticsearch.rest.action.support.RestToXContentListener;
 
 public class RestSimulatePipelineAction extends BaseRestHandler {
@@ -46,6 +47,6 @@ public class RestSimulatePipelineAction extends BaseRestHandler {
         SimulatePipelineRequest request = new SimulatePipelineRequest(RestActions.getRestContent(restRequest));
         request.setId(restRequest.param("id"));
         request.setVerbose(restRequest.paramAsBoolean("verbose", false));
-        client.admin().cluster().simulatePipeline(request, new RestToXContentListener<>(channel));
+        client.admin().cluster().simulatePipeline(request, new RestStatusToXContentListener<>(channel));
     }
 }

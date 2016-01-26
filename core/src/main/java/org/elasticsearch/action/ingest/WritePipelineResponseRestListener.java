@@ -17,23 +17,25 @@
  * under the License.
  */
 
+package org.elasticsearch.action.ingest;
 
-package org.elasticsearch.ingest.core;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
 
-import java.util.Map;
+import java.io.IOException;
 
-/**
- * A processor implementation may modify the data belonging to a document.
- * Whether changes are made and what exactly is modified is up to the implementation.
- */
-public abstract class AbstractProcessorFactory<P extends Processor> implements Processor.Factory<P> {
-    public static final String TAG_KEY = "tag";
+public class WritePipelineResponseRestListener extends AcknowledgedRestListener<WritePipelineResponse> {
 
-    @Override
-    public P create(Map<String, Object> config) throws Exception {
-        String tag = ConfigurationUtils.readOptionalStringProperty(null, null, config, TAG_KEY);
-        return doCreate(tag, config);
+    public WritePipelineResponseRestListener(RestChannel channel) {
+        super(channel);
     }
 
-    protected abstract P doCreate(String tag, Map<String, Object> config) throws Exception;
+    @Override
+    protected void addCustomFields(XContentBuilder builder, WritePipelineResponse response) throws IOException {
+        if (!response.isAcknowledged()) {
+            response.getError().toXContent(builder, null);
+        }
+    }
 }
+

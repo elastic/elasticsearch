@@ -19,40 +19,35 @@
 
 package org.elasticsearch.ingest.processor;
 
-import java.util.Locale;
-
 /**
- * Processor that converts the content of string fields to lowercase.
- * Throws exception is the field is not of type string.
+ * Exception class thrown by processor factories.
  */
+public class ConfigurationPropertyException extends RuntimeException {
+    private String processorType;
+    private String processorTag;
+    private String propertyName;
 
-public class LowercaseProcessor extends AbstractStringProcessor {
-
-    public static final String TYPE = "lowercase";
-
-    LowercaseProcessor(String processorTag, String field) {
-        super(processorTag, field);
+    public ConfigurationPropertyException(String processorType, String processorTag, String propertyName, String message) {
+        super("[" + propertyName + "] " + message);
+        this.processorTag = processorTag;
+        this.processorType = processorType;
+        this.propertyName = propertyName;
     }
 
-    @Override
-    protected String process(String value) {
-        return value.toLowerCase(Locale.ROOT);
+    public ConfigurationPropertyException(String errorMessage) {
+        super(errorMessage);
     }
 
-    @Override
-    public String getType() {
-        return TYPE;
+    public String getPropertyName() {
+        return propertyName;
     }
 
-    public static class Factory extends AbstractStringProcessor.Factory<LowercaseProcessor> {
+    public String getProcessorType() {
+        return processorType;
+    }
 
-        public Factory() {
-            super(TYPE);
-        }
-
-        @Override
-        protected LowercaseProcessor newProcessor(String tag, String field) {
-            return new LowercaseProcessor(tag, field);
-        }
+    public String getProcessorTag() {
+        return processorTag;
     }
 }
+

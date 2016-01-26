@@ -19,6 +19,8 @@
 
 package org.elasticsearch.ingest.core;
 
+import org.elasticsearch.ingest.processor.ConfigurationPropertyException;
+
 import java.util.List;
 import java.util.Map;
 
@@ -30,133 +32,133 @@ public final class ConfigurationUtils {
     /**
      * Returns and removes the specified optional property from the specified configuration map.
      *
-     * If the property value isn't of type string a {@link IllegalArgumentException} is thrown.
+     * If the property value isn't of type string a {@link ConfigurationPropertyException} is thrown.
      */
-    public static String readOptionalStringProperty(Map<String, Object> configuration, String propertyName) {
+    public static String readOptionalStringProperty(String processorType, String processorTag, Map<String, Object> configuration, String propertyName) {
         Object value = configuration.remove(propertyName);
-        return readString(propertyName, value);
+        return readString(processorType, processorTag, propertyName, value);
     }
 
     /**
      * Returns and removes the specified property from the specified configuration map.
      *
-     * If the property value isn't of type string an {@link IllegalArgumentException} is thrown.
-     * If the property is missing an {@link IllegalArgumentException} is thrown
+     * If the property value isn't of type string an {@link ConfigurationPropertyException} is thrown.
+     * If the property is missing an {@link ConfigurationPropertyException} is thrown
      */
-    public static String readStringProperty(Map<String, Object> configuration, String propertyName) {
-        return readStringProperty(configuration, propertyName, null);
+    public static String readStringProperty(String processorType, String processorTag, Map<String, Object> configuration, String propertyName) {
+        return readStringProperty(processorType, processorTag, configuration, propertyName, null);
     }
 
     /**
      * Returns and removes the specified property from the specified configuration map.
      *
-     * If the property value isn't of type string a {@link IllegalArgumentException} is thrown.
-     * If the property is missing and no default value has been specified a {@link IllegalArgumentException} is thrown
+     * If the property value isn't of type string a {@link ConfigurationPropertyException} is thrown.
+     * If the property is missing and no default value has been specified a {@link ConfigurationPropertyException} is thrown
      */
-    public static String readStringProperty(Map<String, Object> configuration, String propertyName, String defaultValue) {
+    public static String readStringProperty(String processorType, String processorTag, Map<String, Object> configuration, String propertyName, String defaultValue) {
         Object value = configuration.remove(propertyName);
         if (value == null && defaultValue != null) {
             return defaultValue;
         } else if (value == null) {
-            throw new IllegalArgumentException("required property [" + propertyName + "] is missing");
+            throw new ConfigurationPropertyException(processorType, processorTag, propertyName, "required property is missing");
         }
-        return readString(propertyName, value);
+        return readString(processorType, processorTag, propertyName, value);
     }
 
-    private static String readString(String propertyName, Object value) {
+    private static String readString(String processorType, String processorTag, String propertyName, Object value) {
         if (value == null) {
             return null;
         }
         if (value instanceof String) {
             return (String) value;
         }
-        throw new IllegalArgumentException("property [" + propertyName + "] isn't a string, but of type [" + value.getClass().getName() + "]");
+        throw new ConfigurationPropertyException(processorType, processorTag, propertyName, "property isn't a string, but of type [" + value.getClass().getName() + "]");
     }
 
     /**
      * Returns and removes the specified property of type list from the specified configuration map.
      *
-     * If the property value isn't of type list an {@link IllegalArgumentException} is thrown.
+     * If the property value isn't of type list an {@link ConfigurationPropertyException} is thrown.
      */
-    public static <T> List<T> readOptionalList(Map<String, Object> configuration, String propertyName) {
+    public static <T> List<T> readOptionalList(String processorType, String processorTag, Map<String, Object> configuration, String propertyName) {
         Object value = configuration.remove(propertyName);
         if (value == null) {
             return null;
         }
-        return readList(propertyName, value);
+        return readList(processorType, processorTag, propertyName, value);
     }
 
     /**
      * Returns and removes the specified property of type list from the specified configuration map.
      *
-     * If the property value isn't of type list an {@link IllegalArgumentException} is thrown.
-     * If the property is missing an {@link IllegalArgumentException} is thrown
+     * If the property value isn't of type list an {@link ConfigurationPropertyException} is thrown.
+     * If the property is missing an {@link ConfigurationPropertyException} is thrown
      */
-    public static <T> List<T> readList(Map<String, Object> configuration, String propertyName) {
+    public static <T> List<T> readList(String processorType, String processorTag, Map<String, Object> configuration, String propertyName) {
         Object value = configuration.remove(propertyName);
         if (value == null) {
-            throw new IllegalArgumentException("required property [" + propertyName + "] is missing");
+            throw new ConfigurationPropertyException(processorType, processorTag, propertyName, "required property is missing");
         }
 
-        return readList(propertyName, value);
+        return readList(processorType, processorTag, propertyName, value);
     }
 
-    private static <T> List<T> readList(String propertyName, Object value) {
+    private static <T> List<T> readList(String processorType, String processorTag, String propertyName, Object value) {
         if (value instanceof List) {
             @SuppressWarnings("unchecked")
             List<T> stringList = (List<T>) value;
             return stringList;
         } else {
-            throw new IllegalArgumentException("property [" + propertyName + "] isn't a list, but of type [" + value.getClass().getName() + "]");
+            throw new ConfigurationPropertyException(processorType, processorTag, propertyName, "property isn't a list, but of type [" + value.getClass().getName() + "]");
         }
     }
 
     /**
      * Returns and removes the specified property of type map from the specified configuration map.
      *
-     * If the property value isn't of type map an {@link IllegalArgumentException} is thrown.
-     * If the property is missing an {@link IllegalArgumentException} is thrown
+     * If the property value isn't of type map an {@link ConfigurationPropertyException} is thrown.
+     * If the property is missing an {@link ConfigurationPropertyException} is thrown
      */
-    public static <T> Map<String, T> readMap(Map<String, Object> configuration, String propertyName) {
+    public static <T> Map<String, T> readMap(String processorType, String processorTag, Map<String, Object> configuration, String propertyName) {
         Object value = configuration.remove(propertyName);
         if (value == null) {
-            throw new IllegalArgumentException("required property [" + propertyName + "] is missing");
+            throw new ConfigurationPropertyException(processorType, processorTag, propertyName, "required property is missing");
         }
 
-        return readMap(propertyName, value);
+        return readMap(processorType, processorTag, propertyName, value);
     }
 
     /**
      * Returns and removes the specified property of type map from the specified configuration map.
      *
-     * If the property value isn't of type map an {@link IllegalArgumentException} is thrown.
+     * If the property value isn't of type map an {@link ConfigurationPropertyException} is thrown.
      */
-    public static <T> Map<String, T> readOptionalMap(Map<String, Object> configuration, String propertyName) {
+    public static <T> Map<String, T> readOptionalMap(String processorType, String processorTag, Map<String, Object> configuration, String propertyName) {
         Object value = configuration.remove(propertyName);
         if (value == null) {
             return null;
         }
 
-        return readMap(propertyName, value);
+        return readMap(processorType, processorTag, propertyName, value);
     }
 
-    private static <T> Map<String, T> readMap(String propertyName, Object value) {
+    private static <T> Map<String, T> readMap(String processorType, String processorTag, String propertyName, Object value) {
         if (value instanceof Map) {
             @SuppressWarnings("unchecked")
             Map<String, T> map = (Map<String, T>) value;
             return map;
         } else {
-            throw new IllegalArgumentException("property [" + propertyName + "] isn't a map, but of type [" + value.getClass().getName() + "]");
+            throw new ConfigurationPropertyException(processorType, processorTag, propertyName, "property isn't a map, but of type [" + value.getClass().getName() + "]");
         }
     }
 
     /**
      * Returns and removes the specified property as an {@link Object} from the specified configuration map.
      */
-    public static Object readObject(Map<String, Object> configuration, String propertyName) {
+    public static Object readObject(String processorType, String processorTag, Map<String, Object> configuration, String propertyName) {
         Object value = configuration.remove(propertyName);
         if (value == null) {
-            throw new IllegalArgumentException("required property [" + propertyName + "] is missing");
+            throw new ConfigurationPropertyException(processorType, processorTag, propertyName, "required property is missing");
         }
         return value;
     }

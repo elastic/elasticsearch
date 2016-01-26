@@ -79,9 +79,9 @@ public class GsubProcessor extends AbstractProcessor {
     public static class Factory extends AbstractProcessorFactory<GsubProcessor> {
         @Override
         public GsubProcessor doCreate(String processorTag, Map<String, Object> config) throws Exception {
-            String field = ConfigurationUtils.readStringProperty(config, "field");
-            String pattern = ConfigurationUtils.readStringProperty(config, "pattern");
-            String replacement = ConfigurationUtils.readStringProperty(config, "replacement");
+            String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
+            String pattern = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "pattern");
+            String replacement = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "replacement");
             Pattern searchPattern = Pattern.compile(pattern);
             return new GsubProcessor(processorTag, field, searchPattern, replacement);
         }

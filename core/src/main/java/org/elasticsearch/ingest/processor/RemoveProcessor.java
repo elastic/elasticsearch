@@ -65,7 +65,7 @@ public class RemoveProcessor extends AbstractProcessor {
 
         @Override
         public RemoveProcessor doCreate(String processorTag, Map<String, Object> config) throws Exception {
-            String field = ConfigurationUtils.readStringProperty(config, "field");
+            String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
             return new RemoveProcessor(processorTag, templateService.compile(field));
         }
     }

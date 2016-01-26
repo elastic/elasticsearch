@@ -81,6 +81,7 @@
               "processors": [
                 {
                   "set" : {
+                    "tag" : "fails",
                     "value" : "_value"
                   }
                 }
@@ -97,10 +98,11 @@
               }
             ]
           }
-  - length: { error: 3 }
-  - match: { status: 400 }
-  - match: { error.type: "illegal_argument_exception" }
-  - match: { error.reason: "required property [field] is missing" }
+  - length: { error: 4 }
+  - match: { error.tag: "fails" }
+  - match: { error.type: "set" }
+  - match: { error.reason: "[field] required property is missing" }
+  - match: { error.property_name: "field" }
 
 ---
 "Test simulate without index type and id":
@@ -189,10 +191,45 @@
               }
             ]
           }
-  - length: { error: 3 }
-  - match: { status: 400 }
-  - match: { error.type: "illegal_argument_exception" }
-  - match: { error.reason: "required property [pipeline] is missing" }
+  - length: { error: 4 }
+  - is_false: error.processor_type
+  - is_false: error.processor_tag
+  - match: { error.property_name: "pipeline" }
+  - match: { error.reason: "[pipeline] required property is missing" }
+
+---
+"Test simulate with invalid processor config":
+  - do:
+      catch: request
+      ingest.simulate:
+        body: >
+          {
+            "pipeline": {
+              "description": "_description",
+              "processors": [
+                {
+                  "set" : {
+                    "field" : "field2"
+                  }
+                }
+              ]
+            },
+            "docs": [
+              {
+                "_index": "index",
+                "_type": "type",
+                "_id": "id",
+                "_source": {
+                  "foo": "bar"
+                }
+              }
+            ]
+          }
+  - length: { error: 4 }
+  - match: { error.type: "set" }
+  - is_false: error.tag
+  - match: { error.reason: "[value] required property is missing" }
+  - match: { error.property_name: "value" }
 
 ---
 "Test simulate with verbose flag":

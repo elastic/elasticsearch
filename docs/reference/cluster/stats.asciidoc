@@ -57,14 +57,10 @@ Will return, for example:
          "memory_size_in_bytes": 0,
          "evictions": 0
       },
-      "filter_cache": {
+      "query_cache": {
          "memory_size": "0b",
          "memory_size_in_bytes": 0,
          "evictions": 0
-      },
-      "id_cache": {
-         "memory_size": "0b",
-         "memory_size_in_bytes": 0
       },
       "completion": {
          "size": "0b",

@@ -59,11 +59,11 @@ public abstract class ESLoggerFactory {
 
 
     public static ESLogger getLogger(String prefix, String name) {
-        return defaultFactory.newInstance(prefix == null ? null : prefix.intern(), name.intern());
+        return defaultFactory.newInstance(prefix == null ? null : prefix, name);
     }
 
     public static ESLogger getLogger(String name) {
-        return defaultFactory.newInstance(name.intern());
+        return defaultFactory.newInstance(name);
     }
 
     public static DeprecationLogger getDeprecationLogger(String name) {

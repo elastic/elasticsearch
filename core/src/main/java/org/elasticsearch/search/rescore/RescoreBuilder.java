@@ -19,20 +19,141 @@
 
 package org.elasticsearch.search.rescore;
 
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.rescore.QueryRescorer.QueryRescoreContext;
 
 import java.io.IOException;
+import java.util.Objects;
 
-public interface RescoreBuilder<RB extends RescoreBuilder<?>> extends ToXContent, NamedWriteable<RB> {
+/**
+ * The abstract base builder for instances of {@link RescoreBuilder}.
+ */
+public abstract class RescoreBuilder<RB extends RescoreBuilder<RB>> implements ToXContent, NamedWriteable<RB> {
 
-    RescoreSearchContext build(QueryShardContext context) throws IOException;
+    protected Integer windowSize;
 
-    RB fromXContent(QueryParseContext parseContext) throws IOException;
+    private static ParseField WINDOW_SIZE_FIELD = new ParseField("window_size");
 
-    RB windowSize(int windowSize);
+    @SuppressWarnings("unchecked")
+    public RB windowSize(int windowSize) {
+        this.windowSize = windowSize;
+        return (RB) this;
+    }
 
-    Integer windowSize();
+    public Integer windowSize() {
+        return windowSize;
+    }
+
+    public static RescoreBuilder<?> parseFromXContent(QueryParseContext parseContext) throws IOException {
+        XContentParser parser = parseContext.parser();
+        String fieldName = null;
+        RescoreBuilder<?> rescorer = null;
+        Integer windowSize = null;
+        XContentParser.Token token;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                fieldName = parser.currentName();
+            } else if (token.isValue()) {
+                if (parseContext.parseFieldMatcher().match(fieldName, WINDOW_SIZE_FIELD)) {
+                    windowSize = parser.intValue();
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(), "rescore doesn't support [" + fieldName + "]");
+                }
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                // we only have QueryRescorer at this point
+                if (QueryRescorerBuilder.NAME.equals(fieldName)) {
+                    rescorer = QueryRescorerBuilder.PROTOTYPE.fromXContent(parseContext);
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(), "rescore doesn't support rescorer with name [" + fieldName + "]");
+                }
+            } else {
+                throw new ParsingException(parser.getTokenLocation(), "unexpected token [" + token + "] after [" + fieldName + "]");
+            }
+        }
+        if (rescorer == null) {
+            throw new ParsingException(parser.getTokenLocation(), "missing rescore type");
+        }
+        if (windowSize != null) {
+            rescorer.windowSize(windowSize.intValue());
+        }
+        return rescorer;
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        if (windowSize != null) {
+            builder.field("window_size", windowSize);
+        }
+        doXContent(builder, params);
+        builder.endObject();
+        return builder;
+    }
+
+    protected abstract void doXContent(XContentBuilder builder, Params params) throws IOException;
+
+    public abstract QueryRescoreContext build(QueryShardContext context) throws IOException;
+
+    public static QueryRescorerBuilder queryRescorer(QueryBuilder<?> queryBuilder) {
+        return new QueryRescorerBuilder(queryBuilder);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(windowSize);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        @SuppressWarnings("rawtypes")
+        RescoreBuilder other = (RescoreBuilder) obj;
+        return Objects.equals(windowSize, other.windowSize);
+    }
+
+    @Override
+    public RB readFrom(StreamInput in) throws IOException {
+        RB builder = doReadFrom(in);
+        builder.windowSize = in.readOptionalVInt();
+        return builder;
+    }
+
+    protected abstract RB doReadFrom(StreamInput in) throws IOException;
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        doWriteTo(out);
+        out.writeOptionalVInt(this.windowSize);
+    }
+
+    protected abstract void doWriteTo(StreamOutput out) throws IOException;
+
+    @Override
+    public final String toString() {
+        try {
+            XContentBuilder builder = XContentFactory.jsonBuilder();
+            builder.prettyPrint();
+            toXContent(builder, EMPTY_PARAMS);
+            return builder.string();
+        } catch (Exception e) {
+            return "{ \"error\" : \"" + ExceptionsHelper.detailedMessage(e) + "\"}";
+        }
+    }
 }

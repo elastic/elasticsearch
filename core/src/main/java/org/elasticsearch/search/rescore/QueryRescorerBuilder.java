@@ -35,7 +35,7 @@ import java.io.IOException;
 import java.util.Locale;
 import java.util.Objects;
 
-public class QueryRescorerBuilder extends AbstractRescoreBuilder<QueryRescorerBuilder> {
+public class QueryRescorerBuilder extends RescoreBuilder<QueryRescorerBuilder> {
 
     public static final String NAME = "query";
 
@@ -140,7 +140,6 @@ public class QueryRescorerBuilder extends AbstractRescoreBuilder<QueryRescorerBu
         builder.endObject();
     }
 
-    @Override
     public QueryRescorerBuilder fromXContent(QueryParseContext parseContext) throws IOException {
             InnerBuilder innerBuilder = QUERY_RESCORE_PARSER.parse(parseContext.parser(), new InnerBuilder(), parseContext);
             return innerBuilder.build();

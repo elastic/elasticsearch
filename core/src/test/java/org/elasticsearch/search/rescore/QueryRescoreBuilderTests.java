@@ -136,7 +136,7 @@ public class QueryRescoreBuilderTests extends ESTestCase {
             XContentParser parser = createParser(rescoreBuilder);
             context.reset(parser);
             parser.nextToken();
-            RescoreBuilder<?> secondRescoreBuilder = AbstractRescoreBuilder.parseFromXContent(context);
+            RescoreBuilder<?> secondRescoreBuilder = RescoreBuilder.parseFromXContent(context);
             assertNotSame(rescoreBuilder, secondRescoreBuilder);
             assertEquals(rescoreBuilder, secondRescoreBuilder);
             assertEquals(rescoreBuilder.hashCode(), secondRescoreBuilder.hashCode());
@@ -198,7 +198,7 @@ public class QueryRescoreBuilderTests extends ESTestCase {
                 "}\n";
         prepareContext(context, rescoreElement);
         try {
-            AbstractRescoreBuilder.parseFromXContent(context);
+            RescoreBuilder.parseFromXContent(context);
             fail("expected a parsing exception");
         } catch (ParsingException e) {
             assertEquals("rescore doesn't support rescorer with name [bad_rescorer_name]", e.getMessage());
@@ -209,7 +209,7 @@ public class QueryRescoreBuilderTests extends ESTestCase {
                 "}\n";
         prepareContext(context, rescoreElement);
         try {
-            AbstractRescoreBuilder.parseFromXContent(context);
+            RescoreBuilder.parseFromXContent(context);
             fail("expected a parsing exception");
         } catch (ParsingException e) {
             assertEquals("rescore doesn't support [bad_fieldName]", e.getMessage());
@@ -221,7 +221,7 @@ public class QueryRescoreBuilderTests extends ESTestCase {
                 "}\n";
         prepareContext(context, rescoreElement);
         try {
-            AbstractRescoreBuilder.parseFromXContent(context);
+            RescoreBuilder.parseFromXContent(context);
             fail("expected a parsing exception");
         } catch (ParsingException e) {
             assertEquals("unexpected token [START_ARRAY] after [query]", e.getMessage());
@@ -230,7 +230,7 @@ public class QueryRescoreBuilderTests extends ESTestCase {
         rescoreElement = "{ }";
         prepareContext(context, rescoreElement);
         try {
-            AbstractRescoreBuilder.parseFromXContent(context);
+            RescoreBuilder.parseFromXContent(context);
             fail("expected a parsing exception");
         } catch (ParsingException e) {
             assertEquals("missing rescore type", e.getMessage());
@@ -242,7 +242,7 @@ public class QueryRescoreBuilderTests extends ESTestCase {
                 "}\n";
         prepareContext(context, rescoreElement);
         try {
-            AbstractRescoreBuilder.parseFromXContent(context);
+            RescoreBuilder.parseFromXContent(context);
             fail("expected a parsing exception");
         } catch (IllegalArgumentException e) {
             assertEquals("[query] unknown field [bad_fieldname], parser not found", e.getMessage());
@@ -254,7 +254,7 @@ public class QueryRescoreBuilderTests extends ESTestCase {
                 "}\n";
         prepareContext(context, rescoreElement);
         try {
-            AbstractRescoreBuilder.parseFromXContent(context);
+            RescoreBuilder.parseFromXContent(context);
             fail("expected a parsing exception");
         } catch (ParsingException e) {
             assertEquals("[query] failed to parse field [rescore_query]", e.getMessage());
@@ -265,7 +265,7 @@ public class QueryRescoreBuilderTests extends ESTestCase {
                 "    \"query\" : { \"rescore_query\" : { \"match_all\" : { } } } \n"
                 + "}\n";
         prepareContext(context, rescoreElement);
-        AbstractRescoreBuilder.parseFromXContent(context);
+        RescoreBuilder.parseFromXContent(context);
     }
 
     /**

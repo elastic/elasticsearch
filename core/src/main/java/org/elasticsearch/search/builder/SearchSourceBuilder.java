@@ -46,7 +46,7 @@ import org.elasticsearch.search.fetch.innerhits.InnerHitsBuilder;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.rescore.AbstractRescoreBuilder;
+import org.elasticsearch.search.rescore.RescoreBuilder;
 import org.elasticsearch.search.rescore.RescoreBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
@@ -874,7 +874,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                 } else if (context.parseFieldMatcher().match(currentFieldName, RESCORE_FIELD)) {
                     List<RescoreBuilder<?>> rescoreBuilders = new ArrayList<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        rescoreBuilders.add(AbstractRescoreBuilder.parseFromXContent(context));
+                        rescoreBuilders.add(RescoreBuilder.parseFromXContent(context));
                     }
                     builder.rescoreBuilders = rescoreBuilders;
                 } else if (context.parseFieldMatcher().match(currentFieldName, STATS_FIELD)) {

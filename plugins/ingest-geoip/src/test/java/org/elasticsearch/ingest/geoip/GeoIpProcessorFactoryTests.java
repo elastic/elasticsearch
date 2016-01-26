@@ -23,6 +23,7 @@ import com.maxmind.geoip2.DatabaseReader;
 import org.elasticsearch.ingest.core.AbstractProcessorFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.StreamsUtils;
+import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.ByteArrayInputStream;
@@ -53,6 +54,14 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         Files.copy(new ByteArrayInputStream(StreamsUtils.copyToBytesFromClasspath("/GeoLite2-City.mmdb")), geoIpConfigDir.resolve("GeoLite2-City.mmdb"));
         Files.copy(new ByteArrayInputStream(StreamsUtils.copyToBytesFromClasspath("/GeoLite2-Country.mmdb")), geoIpConfigDir.resolve("GeoLite2-Country.mmdb"));
         databaseReaders = IngestGeoIpPlugin.loadDatabaseReaders(geoIpConfigDir);
+    }
+
+    @AfterClass
+    public static void closeDatabaseReaders() throws IOException {
+        for (DatabaseReader reader : databaseReaders.values()) {
+            reader.close();
+        }
+        databaseReaders = null;
     }
 
     public void testBuildDefaults() throws Exception {

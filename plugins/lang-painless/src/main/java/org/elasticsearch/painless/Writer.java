@@ -131,7 +131,7 @@ class Writer extends PainlessParserBaseVisitor<Void> {
     private final static org.objectweb.asm.Type PAINLESS_ERROR_TYPE = org.objectweb.asm.Type.getType(PainlessError.class);
 
     private final static org.objectweb.asm.commons.Method CONSTRUCTOR = org.objectweb.asm.commons.Method.getMethod(
-        "void <init>(Definition, java.lang.String, java.lang.String)");
+        "void <init>(org.elasticsearch.painless.Definition, java.lang.String, java.lang.String)");
     private final static org.objectweb.asm.commons.Method EXECUTE = org.objectweb.asm.commons.Method.getMethod(
         "java.lang.Object execute(java.util.Map)");
     private final static String SIGNATURE = "(Ljava/util/Map<Ljava/lang/String;Ljava/lang/Object;>;)Ljava/lang/Object;";
@@ -148,18 +148,18 @@ class Writer extends PainlessParserBaseVisitor<Void> {
 
     private final static org.objectweb.asm.commons.Method DEF_METHOD_CALL = org.objectweb.asm.commons.Method.getMethod(
         "java.lang.Object methodCall(java.lang.Object, java.lang.String, " +
-            "Definition, java.lang.Object[], boolean[])");
+            "org.elasticsearch.painless.Definition, java.lang.Object[], boolean[])");
     private final static org.objectweb.asm.commons.Method DEF_ARRAY_STORE = org.objectweb.asm.commons.Method.getMethod(
         "void arrayStore(java.lang.Object, java.lang.Object, java.lang.Object, " +
-            "Definition, boolean, boolean)");
+            "org.elasticsearch.painless.Definition, boolean, boolean)");
     private final static org.objectweb.asm.commons.Method DEF_ARRAY_LOAD = org.objectweb.asm.commons.Method.getMethod(
         "java.lang.Object arrayLoad(java.lang.Object, java.lang.Object, " +
-            "Definition, boolean)");
+            "org.elasticsearch.painless.Definition, boolean)");
     private final static org.objectweb.asm.commons.Method DEF_FIELD_STORE = org.objectweb.asm.commons.Method.getMethod(
         "void fieldStore(java.lang.Object, java.lang.Object, java.lang.String, " +
-            "Definition, boolean)");
+            "org.elasticsearch.painless.Definition, boolean)");
     private final static org.objectweb.asm.commons.Method DEF_FIELD_LOAD = org.objectweb.asm.commons.Method.getMethod(
-        "java.lang.Object fieldLoad(java.lang.Object, java.lang.String, Definition)");
+        "java.lang.Object fieldLoad(java.lang.Object, java.lang.String, org.elasticsearch.painless.Definition)");
 
     private final static org.objectweb.asm.commons.Method DEF_NOT_CALL = org.objectweb.asm.commons.Method.getMethod(
         "java.lang.Object not(java.lang.Object)");

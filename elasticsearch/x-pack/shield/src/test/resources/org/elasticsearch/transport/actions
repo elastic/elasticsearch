@@ -82,3 +82,7 @@ cluster:admin/shield/role/add
 cluster:admin/shield/role/delete
 cluster:admin/shield/role/get
 internal:indices/admin/upgrade
+cluster:admin/ingest/pipeline/delete
+cluster:admin/ingest/pipeline/get
+cluster:admin/ingest/pipeline/put
+cluster:admin/ingest/pipeline/simulate

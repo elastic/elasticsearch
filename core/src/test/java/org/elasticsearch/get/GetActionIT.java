@@ -20,7 +20,6 @@
 package org.elasticsearch.get;
 
 import com.google.common.collect.ImmutableSet;
-
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ShardOperationFailedException;
@@ -43,7 +42,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -54,7 +52,14 @@ import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 public class GetActionIT extends ESIntegTestCase {
 
@@ -763,8 +768,7 @@ public class GetActionIT extends ESIntegTestCase {
     }
 
     @Test
-    @TestLogging("index.shard.service:TRACE,cluster.service:TRACE,action.admin.indices.flush:TRACE")
-    public void testGetFields_complexField() throws Exception {
+    public void testGetFieldsComplexField() throws Exception {
         assertAcked(prepareCreate("my-index")
                 .setSettings(Settings.settingsBuilder().put("index.refresh_interval", -1))
                 .addMapping("my-type2", jsonBuilder().startObject().startObject("my-type2").startObject("properties")

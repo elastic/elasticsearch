@@ -21,7 +21,6 @@ package org.elasticsearch.snapshots;
 
 import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableMap;
-
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
@@ -66,7 +65,6 @@ import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.snapshots.SnapshotSharedTest.AfterSnapshotAction;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import java.nio.channels.SeekableByteChannel;
@@ -128,7 +126,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertAcked(client.admin().cluster().preparePutRepository(repoName)
                 .setType("fs").setSettings(Settings.settingsBuilder()
                         .put("location", absolutePath)
-                        ));
+                ));
 
         logger.info("--> snapshot");
         CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot(repoName, snapshotName)
@@ -835,7 +833,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         logger.info("--> truncate snapshot file to make it unreadable");
         Path snapshotPath = repo.resolve("snap-test-snap-1.dat");
-        try(SeekableByteChannel outChan = Files.newByteChannel(snapshotPath, StandardOpenOption.WRITE)) {
+        try (SeekableByteChannel outChan = Files.newByteChannel(snapshotPath, StandardOpenOption.WRITE)) {
             outChan.truncate(randomInt(10));
         }
         logger.info("--> delete snapshot");
@@ -912,9 +910,9 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         ensureGreen();
 
         assertAcked(client.admin().indices().prepareAliases()
-                        .addAlias("test-idx-1", "alias-1")
-                        .addAlias("test-idx-2", "alias-2")
-                        .addAlias("test-idx-3", "alias-3")
+                .addAlias("test-idx-1", "alias-1")
+                .addAlias("test-idx-2", "alias-2")
+                .addAlias("test-idx-3", "alias-3")
         );
 
         logger.info("--> indexing some data");
@@ -1461,8 +1459,8 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         // Update settings to make sure that relocation is slow so we can start snapshot before relocation is finished
         assertAcked(client.admin().indices().prepareUpdateSettings("test-idx").setSettings(Settings.builder()
-                        .put(IndexStore.INDEX_STORE_THROTTLE_TYPE, "all")
-                        .put(IndexStore.INDEX_STORE_THROTTLE_MAX_BYTES_PER_SEC, 100, ByteSizeUnit.BYTES)
+                .put(IndexStore.INDEX_STORE_THROTTLE_TYPE, "all")
+                .put(IndexStore.INDEX_STORE_THROTTLE_MAX_BYTES_PER_SEC, 100, ByteSizeUnit.BYTES)
         ));
 
         logger.info("--> start relocations");
@@ -1477,7 +1475,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         // Update settings to back to normal
         assertAcked(client.admin().indices().prepareUpdateSettings("test-idx").setSettings(Settings.builder()
-                        .put(IndexStore.INDEX_STORE_THROTTLE_TYPE, "node")
+                .put(IndexStore.INDEX_STORE_THROTTLE_TYPE, "node")
         ));
 
         logger.info("--> wait for snapshot to complete");
@@ -1556,14 +1554,14 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         logger.info("--> try restoring while changing the number of replicas to a negative number - should fail");
         Settings newIncorrectReplicasIndexSettings = Settings.builder()
-            .put(newIndexSettings)
-            .put(SETTING_NUMBER_OF_REPLICAS.substring(IndexMetaData.INDEX_SETTING_PREFIX.length()), randomIntBetween(-10, -1))
-            .build();
+                .put(newIndexSettings)
+                .put(SETTING_NUMBER_OF_REPLICAS.substring(IndexMetaData.INDEX_SETTING_PREFIX.length()), randomIntBetween(-10, -1))
+                .build();
         assertThrows(client.admin().cluster()
-            .prepareRestoreSnapshot("test-repo", "test-snap")
-            .setIgnoreIndexSettings("index.analysis.*")
-            .setIndexSettings(newIncorrectReplicasIndexSettings)
-            .setWaitForCompletion(true), IllegalArgumentException.class);
+                .prepareRestoreSnapshot("test-repo", "test-snap")
+                .setIgnoreIndexSettings("index.analysis.*")
+                .setIndexSettings(newIncorrectReplicasIndexSettings)
+                .setWaitForCompletion(true), IllegalArgumentException.class);
 
         logger.info("--> restore index with correct settings from the snapshot");
         RestoreSnapshotResponse restoreSnapshotResponse = client.admin().cluster()
@@ -1757,9 +1755,9 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         logger.info("-->  creating repository");
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
                 .setType("mock").setSettings(Settings.settingsBuilder()
-                                .put("location", randomRepoPath())
-                                .put("compress", randomBoolean())
-                                .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
+                        .put("location", randomRepoPath())
+                        .put("compress", randomBoolean())
+                        .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
                 ));
 
         createIndex("test-idx");
@@ -1827,9 +1825,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
     }
 
     @Test
-    @TestLogging("cluster:DEBUG")
-    public void batchingShardUpdateTaskTest() throws Exception {
-
+    public void testBatchingShardUpdateTask() throws Exception {
         final Client client = client();
 
         logger.info("-->  creating repository");
@@ -1977,7 +1973,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         logger.info("--> truncate snapshot file to make it unreadable");
         Path snapshotPath = repo.resolve("snap-test-snap-2.dat");
-        try(SeekableByteChannel outChan = Files.newByteChannel(snapshotPath, StandardOpenOption.WRITE)) {
+        try (SeekableByteChannel outChan = Files.newByteChannel(snapshotPath, StandardOpenOption.WRITE)) {
             outChan.truncate(randomInt(10));
         }
 

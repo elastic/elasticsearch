@@ -74,7 +74,7 @@ GET /_snapshot/_all
 
 The shared file system repository (`"type": "fs"`) uses the shared file system to store snapshots. In order to register
 the shared file system repository it is necessary to mount the same shared filesystem to the same location on all
-master and data nodes. This location (or one of its parent directories) has to be registered in the `path.repo`
+master and data nodes. This location (or one of its parent directories) must be registered in the `path.repo`
 setting on all master and data nodes.
 
 Assuming that the shared filesystem is mounted to `/mount/backups/my_backup`, the following setting should be added to

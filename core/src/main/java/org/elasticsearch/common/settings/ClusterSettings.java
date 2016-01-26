@@ -21,6 +21,7 @@ package org.elasticsearch.common.settings;
 import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.client.transport.TransportClientNodesService;
+import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -253,5 +254,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
         URLRepository.REPOSITORIES_LIST_DIRECTORIES_SETTING,
         URLRepository.REPOSITORIES_URL_SETTING,
         URLRepository.SUPPORTED_PROTOCOLS_SETTING,
-        Node.NODE_INGEST_SETTING)));
+        Node.NODE_INGEST_SETTING,
+        ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING)));
 }

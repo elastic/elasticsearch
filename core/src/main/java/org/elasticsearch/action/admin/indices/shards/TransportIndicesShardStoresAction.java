@@ -196,7 +196,7 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
             private IndicesShardStoresResponse.StoreStatus.AllocationStatus getAllocationStatus(String index, int shardID, DiscoveryNode node) {
                 for (ShardRouting shardRouting : routingNodes.node(node.id())) {
                     ShardId shardId = shardRouting.shardId();
-                    if (shardId.id() == shardID && shardId.getIndex().equals(index)) {
+                    if (shardId.id() == shardID && shardId.getIndexName().equals(index)) {
                         if (shardRouting.primary()) {
                             return IndicesShardStoresResponse.StoreStatus.AllocationStatus.PRIMARY;
                         } else if (shardRouting.assignedToNode()) {

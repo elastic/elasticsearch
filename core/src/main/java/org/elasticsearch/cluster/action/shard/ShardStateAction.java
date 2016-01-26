@@ -225,12 +225,17 @@ public class ShardStateAction extends AbstractComponent {
 
         @Override
         public BatchResult<ShardRoutingEntry> execute(ClusterState currentState, List<ShardRoutingEntry> tasks) throws Exception {
+            BatchResult.Builder<ShardRoutingEntry> batchResultBuilder = BatchResult.builder();
+
             // partition tasks into those that correspond to shards
             // that exist versus do not exist
             Map<Boolean, List<ShardRoutingEntry>> partition =
                 tasks.stream().collect(Collectors.partitioningBy(task -> shardExists(currentState, task)));
 
-            BatchResult.Builder<ShardRoutingEntry> batchResultBuilder = BatchResult.builder();
+            // tasks that correspond to non-existent shards are marked
+            // as successful
+            batchResultBuilder.successes(partition.get(false));
+
             ClusterState maybeUpdatedState = currentState;
             List<ShardRoutingEntry> tasksToFail = partition.get(true);
             try {
@@ -245,12 +250,10 @@ public class ShardStateAction extends AbstractComponent {
                 }
                 batchResultBuilder.successes(tasksToFail);
             } catch (Throwable t) {
+                // failures are communicated back to the requester
+                // cluster state will not be updated in this case
                 batchResultBuilder.failures(tasksToFail, t);
             }
-
-            // tasks that correspond to non-existent shards are marked
-            // as successful
-            batchResultBuilder.successes(partition.get(false));
 
             return batchResultBuilder.build(maybeUpdatedState);
         }

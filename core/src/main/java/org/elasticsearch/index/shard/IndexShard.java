@@ -1428,6 +1428,17 @@ public class IndexShard extends AbstractIndexShardComponent {
             assert this.currentEngineReference.get() == null;
             this.currentEngineReference.set(newEngine(skipTranslogRecovery, config));
         }
+
+        // time elapses after the engine is created above (pulling the config settings) until we set the engine reference, during which
+        // IMC may have updated our indexing buffer, e.g. if N other shards are being created and applying their translogs, and we would
+        // otherwise not realize the index buffer had changed while we were concurrently "starting up" so here we forcefully push any config
+        // chagnes to the new engine:
+        Engine engine = engineUnsafe();
+
+        // engine could perhaps be null if we were e.g. concurrently closed:
+        if (engine != null) {
+            engine.onSettingsChanged();
+        }
     }
 
     protected Engine newEngine(boolean skipTranslogRecovery, EngineConfig config) {

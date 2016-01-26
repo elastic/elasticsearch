@@ -50,6 +50,8 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
+import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.not;
 
 public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCase {
 
@@ -198,11 +200,30 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
         ClusterState clusterState,
         boolean clusterStateChanged
     ) {
+        // there should be as many task results as tasks
         assertEquals(taskResultMap.size(), result.executionResults.size());
+
         for (Map.Entry<ShardStateAction.ShardRoutingEntry, Boolean> entry : taskResultMap.entrySet()) {
+            // every task should have a corresponding task result
             assertTrue(result.executionResults.containsKey(entry.getKey()));
+
+            // the task results are as expected
             assertEquals(entry.getValue(), result.executionResults.get(entry.getKey()).isSuccess());
         }
+
+        // every shard that we requested to be successfully failed is
+        // gone
+        List<ShardRouting> shards = clusterState.getRoutingTable().allShards();
+        for (Map.Entry<ShardStateAction.ShardRoutingEntry, Boolean> entry : taskResultMap.entrySet()) {
+            if (entry.getValue()) {
+                for (ShardRouting shard : shards) {
+                    if (entry.getKey().getShardRouting().allocationId() != null) {
+                        assertThat(shard.allocationId(), not(equalTo(entry.getKey().getShardRouting().allocationId())));
+                    }
+                }
+            }
+        }
+
         if (clusterStateChanged) {
             assertNotSame(clusterState, result.resultingState);
         } else {

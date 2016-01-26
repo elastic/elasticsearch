@@ -164,7 +164,7 @@ public class ClusterStatsIT extends ESIntegTestCase {
         internalCluster().ensureAtMostNumDataNodes(0);
 
         // start one node with 7 processors.
-        internalCluster().startNodesAsync(Settings.builder().put(EsExecutors.PROCESSORS, 7).build()).get();
+        internalCluster().startNodesAsync(Settings.builder().put(EsExecutors.PROCESSORS_SETTING.getKey(), 7).build()).get();
         waitForNodes(1);
 
         ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();

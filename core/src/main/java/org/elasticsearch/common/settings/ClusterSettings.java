@@ -37,6 +37,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.SnapshotInProgressAl
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.cluster.service.InternalClusterService;
 import org.elasticsearch.common.logging.ESLoggerFactory;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.common.network.NetworkModule;
@@ -255,5 +256,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
         URLRepository.REPOSITORIES_URL_SETTING,
         URLRepository.SUPPORTED_PROTOCOLS_SETTING,
         Node.NODE_INGEST_SETTING,
-        ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING)));
+        ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING,
+        EsExecutors.PROCESSORS_SETTING)));
 }

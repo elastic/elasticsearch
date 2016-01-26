@@ -335,7 +335,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
                         .put("node.name", "ClusterSettingsIT")
                         .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                         .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-                        .put(EsExecutors.PROCESSORS, 1) // limit the number of threads created
+                        .put(EsExecutors.PROCESSORS_SETTING.getKey(), 1) // limit the number of threads created
                         .put("http.enabled", false)
                         .put("config.ignore_system_properties", true) // make sure we get what we set :)
                         .put(settings)

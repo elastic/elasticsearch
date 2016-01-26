@@ -40,14 +40,12 @@ import org.elasticsearch.bootstrap.BootstrapForTesting;
 import org.elasticsearch.cache.recycler.MockPageCacheRecycler;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.PathUtilsForTesting;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -160,22 +158,6 @@ public abstract class ESTestCase extends LuceneTestCase {
     public static void restoreContentType() {
         Requests.CONTENT_TYPE = XContentType.SMILE;
         Requests.INDEX_CONTENT_TYPE = XContentType.JSON;
-    }
-
-    // randomize and override the number of cpus so tests reproduce regardless of real number of cpus
-
-    @BeforeClass
-    @SuppressForbidden(reason = "sets the number of cpus during tests")
-    public static void setProcessors() {
-        int numCpu = TestUtil.nextInt(random(), 1, 4);
-        System.setProperty(EsExecutors.DEFAULT_SYSPROP, Integer.toString(numCpu));
-        assertEquals(numCpu, EsExecutors.boundedNumberOfProcessors(Settings.EMPTY));
-    }
-
-    @AfterClass
-    @SuppressForbidden(reason = "clears the number of cpus during tests")
-    public static void restoreProcessors() {
-        System.clearProperty(EsExecutors.DEFAULT_SYSPROP);
     }
 
     @After

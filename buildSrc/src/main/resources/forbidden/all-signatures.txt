@@ -129,3 +129,6 @@ java.util.Collections#shuffle(java.util.List) @ Use java.util.Collections#shuffl
 @defaultMessage Use org.elasticsearch.common.Randomness#get for reproducible sources of randomness
 java.util.Random#<init>()
 java.util.concurrent.ThreadLocalRandom
+
+@defaultMessage don't intern strings - it's more trouble than help.
+java.lang.String#intern()

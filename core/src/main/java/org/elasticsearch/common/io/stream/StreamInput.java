@@ -37,7 +37,7 @@ import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
-import org.elasticsearch.search.rescore.RescoreBuilder.Rescorer;
+import org.elasticsearch.search.rescore.RescoreBuilder;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
@@ -61,7 +61,6 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.ElasticsearchException.readException;
@@ -678,10 +677,10 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
-     * Reads a {@link QueryBuilder} from the current stream
+     * Reads a {@link RescoreBuilder} from the current stream
      */
-    public Rescorer readRescorer() throws IOException {
-        return readNamedWriteable(Rescorer.class);
+    public RescoreBuilder<?> readRescorer() throws IOException {
+        return readNamedWriteable(RescoreBuilder.class);
     }
 
     /**

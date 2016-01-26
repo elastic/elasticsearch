@@ -545,6 +545,10 @@ to index a document only if it doesn't already exist.
 
 `InternalLineStringBuilder` is removed in favour of `LineStringBuilder`, `InternalPolygonBuilder` in favour of PolygonBuilder` and `Ring` has been replaced with `LineStringBuilder`. Also the abstract base classes `BaseLineStringBuilder` and `BasePolygonBuilder` haven been merged with their corresponding implementations.
 
+==== RescoreBuilder
+
+`RecoreBuilder.Rescorer` was merged with `RescoreBuilder`, which now is an abstract superclass. QueryRescoreBuilder currently is its only implementation.
+
 [[breaking_30_cache_concurrency]]
 === Cache concurrency level settings removed
 

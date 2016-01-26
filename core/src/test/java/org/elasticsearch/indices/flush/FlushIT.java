@@ -34,7 +34,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -86,7 +85,6 @@ public class FlushIT extends ESIntegTestCase {
         }
     }
 
-    @TestLogging("indices:TRACE")
     public void testSyncedFlush() throws ExecutionException, InterruptedException, IOException {
         internalCluster().ensureAtLeastNumDataNodes(2);
         prepareCreate("test").setSettings(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).get();

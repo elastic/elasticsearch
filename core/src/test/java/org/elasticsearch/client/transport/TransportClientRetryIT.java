@@ -33,7 +33,6 @@ import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -44,7 +43,6 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 @ClusterScope(scope = Scope.TEST, numClientNodes = 0)
-@TestLogging("discovery.zen:TRACE")
 public class TransportClientRetryIT extends ESIntegTestCase {
     public void testRetry() throws IOException, ExecutionException, InterruptedException {
         Iterable<TransportService> instances = internalCluster().getInstances(TransportService.class);

@@ -54,7 +54,6 @@ import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.disruption.BlockClusterStateProcessing;
 import org.elasticsearch.test.disruption.SingleNodeDisruption;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportException;
@@ -290,7 +289,6 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         assertThat(waitForShardDeletion(node_4, "test", 0), equalTo(false));
     }
 
-    @TestLogging("cluster.service:TRACE")
     public void testShardActiveElsewhereDoesNotDeleteAnother() throws Exception {
         InternalTestCluster.Async<String> masterFuture = internalCluster().startNodeAsync(
                 Settings.builder().put(Node.NODE_MASTER_SETTING.getKey(), true, Node.NODE_DATA_SETTING.getKey(), false).build());

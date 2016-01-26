@@ -43,7 +43,6 @@ import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -745,7 +744,6 @@ public class GetActionIT extends ESIntegTestCase {
         }
     }
 
-    @TestLogging("index.shard.service:TRACE,cluster.service:TRACE,action.admin.indices.flush:TRACE")
     public void testGetFieldsComplexField() throws Exception {
         assertAcked(prepareCreate("my-index")
                 .setSettings(Settings.settingsBuilder().put("index.refresh_interval", -1))

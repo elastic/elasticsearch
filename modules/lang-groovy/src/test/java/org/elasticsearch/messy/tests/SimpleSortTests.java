@@ -55,7 +55,6 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.VersionUtils;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -109,7 +108,6 @@ public class SimpleSortTests extends ESIntegTestCase {
         return pluginList(GroovyPlugin.class, InternalSettingsPlugin.class);
     }
 
-    @TestLogging("action.search.type:TRACE")
     @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch/issues/9421")
     public void testIssue8226() {
         int numIndices = between(5, 10);

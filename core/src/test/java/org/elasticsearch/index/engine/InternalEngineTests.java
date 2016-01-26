@@ -800,9 +800,11 @@ public class InternalEngineTests extends ESTestCase {
                 ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
                 Engine.Index doc1 = new Engine.Index(newUid("1"), doc);
                 engine.index(doc1);
+                assertEquals(engine.getLastWriteNanos(), doc1.startTime());
                 engine.flush();
                 Engine.Index doc2 = new Engine.Index(newUid("2"), doc);
                 engine.index(doc2);
+                assertEquals(engine.getLastWriteNanos(), doc2.startTime());
                 engine.flush();
                 final boolean forceMergeFlushes = randomBoolean();
                 if (forceMergeFlushes) {
@@ -832,9 +834,11 @@ public class InternalEngineTests extends ESTestCase {
                 if (randomBoolean()) {
                     Engine.Index doc4 = new Engine.Index(newUid("4"), doc);
                     engine.index(doc4);
+                    assertEquals(engine.getLastWriteNanos(), doc4.startTime());
                 } else {
                     Engine.Delete delete = new Engine.Delete(doc1.type(), doc1.id(), doc1.uid());
                     engine.delete(delete);
+                    assertEquals(engine.getLastWriteNanos(), delete.startTime());
                 }
                 assertFalse(engine.tryRenewSyncCommit());
                 engine.flush();

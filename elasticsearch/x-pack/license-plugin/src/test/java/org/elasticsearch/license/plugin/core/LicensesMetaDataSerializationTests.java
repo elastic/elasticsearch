@@ -154,7 +154,8 @@ public class LicensesMetaDataSerializationTests extends ESTestCase {
         assertThat(licensesMetaDataFromXContent.getLicense(), equalTo(signedLicense));
 
         // license with later issue date is selected
-        License signedLicenseIssuedLater = TestUtils.generateSignedLicense(TimeValue.timeValueHours(2));
+        long laterIssueDate = trialLicense.issueDate() + TimeValue.timeValueHours(2).getMillis();
+        License signedLicenseIssuedLater = TestUtils.generateSignedLicense(laterIssueDate, TimeValue.timeValueHours(2));
         builder = XContentFactory.jsonBuilder();
         builder.startObject();
         builder.startObject("licenses");

@@ -1,23 +1,22 @@
 [[ingest]]
-== Ingest Plugin
+== Ingest Node
 
-The ingest plugin can be used to pre-process documents before the actual indexing takes place.
-This pre-processing happens by the ingest plugin that intercepts bulk and index requests, applies the
+Ingest node can be used to pre-process documents before the actual indexing takes place.
+This pre-processing happens by an ingest node that intercepts bulk and index requests, applies the
 transformations and then passes the documents back to the index or bulk APIs.
 
-The ingest plugin is disabled by default. In order to enable the ingest plugin the following
+Ingest node is enabled by default. In order to disable ingest the following
 setting should be configured in the elasticsearch.yml file:
 
 [source,yaml]
 --------------------------------------------------
-node.ingest: true
+node.ingest: false
 --------------------------------------------------
 
-The ingest plugin can be installed and enabled on any node. It is possible to run ingest
-on an master and or data node or have dedicated client nodes that run with ingest.
+It is possible to enable ingest on any node or have dedicated ingest nodes.
 
 In order to pre-process document before indexing the `pipeline` parameter should be used
-on an index or bulk request to tell the ingest plugin what pipeline is going to be used.
+on an index or bulk request to tell Ingest what pipeline is going to be used.
 
 [source,js]
 --------------------------------------------------
@@ -606,9 +605,9 @@ The following example sets the id of a document to `1`:
 The following metadata fields are accessible by a processor: `_index`, `_type`, `_id`, `_routing`, `_parent`,
 `_timestamp` and `_ttl`.
 
-Beyond metadata fields and source fields, the ingest plugin also adds ingest metadata to documents being processed.
-These metadata properties are accessible under the `_ingest` key. Currently the ingest plugin adds the ingest timestamp
-under `_ingest.timestamp` key to the ingest metadata, which is the time the ingest plugin received the index or bulk
+Beyond metadata fields and source fields, ingest also adds ingest metadata to documents being processed.
+These metadata properties are accessible under the `_ingest` key. Currently ingest adds the ingest timestamp
+under `_ingest.timestamp` key to the ingest metadata, which is the time ES received the index or bulk
 request to pre-process. But any processor is free to add more ingest related metadata to it. Ingest metadata is transient
 and is lost after a document has been processed by the pipeline and thus ingest metadata won't be indexed.
 
@@ -626,7 +625,7 @@ The following example adds a field with the name `received` and the value is the
 
 As opposed to Elasticsearch metadata fields, the ingest metadata field name _ingest can be used as a valid field name
 in the source of a document. Use _source._ingest to refer to it, otherwise _ingest will be interpreted as ingest
-metadata fields by the ingest plugin.
+metadata fields.
 
 A number of processor settings also support templating. Settings that support templating can have zero or more
 template snippets. A template snippet begins with `{{` and ends with `}}`.

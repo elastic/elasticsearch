@@ -61,7 +61,6 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.Loading;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.search.stats.ShardSearchStats;
@@ -101,6 +100,7 @@ import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.QuerySearchResultProvider;
 import org.elasticsearch.search.query.ScrollQuerySearchResult;
+import org.elasticsearch.search.rescore.RescoreBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -776,33 +776,12 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
             }
         }
         if (source.rescores() != null) {
-            XContentParser completeRescoreParser = null;
             try {
-                XContentBuilder completeRescoreBuilder = XContentFactory.jsonBuilder();
-                completeRescoreBuilder.startObject();
-                completeRescoreBuilder.startArray("rescore");
-                for (BytesReference rescore : source.rescores()) {
-                    XContentParser parser = XContentFactory.xContent(rescore).createParser(rescore);
-                    parser.nextToken();
-                    completeRescoreBuilder.copyCurrentStructure(parser);
+                for (RescoreBuilder<?> rescore : source.rescores()) {
+                    context.addRescore(rescore.build(context.indexShard().getQueryShardContext()));
                 }
-                completeRescoreBuilder.endArray();
-                completeRescoreBuilder.endObject();
-                BytesReference completeRescoreBytes = completeRescoreBuilder.bytes();
-                completeRescoreParser = XContentFactory.xContent(completeRescoreBytes).createParser(completeRescoreBytes);
-                completeRescoreParser.nextToken();
-                completeRescoreParser.nextToken();
-                completeRescoreParser.nextToken();
-                this.elementParsers.get("rescore").parse(completeRescoreParser, context);
-            } catch (Exception e) {
-                String sSource = "_na_";
-                try {
-                    sSource = source.toString();
-                } catch (Throwable e1) {
-                    // ignore
-                }
-                XContentLocation location = completeRescoreParser != null ? completeRescoreParser.getTokenLocation() : null;
-                throw new SearchParseException(context, "failed to parse rescore source [" + sSource + "]", location, e);
+            } catch (IOException e) {
+                throw new SearchContextException(context, "failed to create RescoreSearchContext", e);
             }
         }
         if (source.fields() != null) {

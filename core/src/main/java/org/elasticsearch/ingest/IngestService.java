@@ -19,7 +19,6 @@
 
 package org.elasticsearch.ingest;
 
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -28,8 +27,7 @@ import java.io.Closeable;
 import java.io.IOException;
 
 /**
- * Instantiates and wires all the services that the ingest plugin will be needing.
- * Also the bootstrapper is in charge of starting and stopping the ingest plugin based on the cluster state.
+ * Holder class for several ingest related services.
  */
 public class IngestService implements Closeable {
 

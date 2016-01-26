@@ -19,14 +19,6 @@
 
 package org.elasticsearch.search;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.function.Supplier;
-
 import org.apache.lucene.search.BooleanQuery;
 import org.elasticsearch.common.geo.ShapesAvailability;
 import org.elasticsearch.common.geo.builders.CircleBuilder;
@@ -234,9 +226,19 @@ import org.elasticsearch.search.highlight.Highlighter;
 import org.elasticsearch.search.highlight.HighlighterParseElement;
 import org.elasticsearch.search.highlight.Highlighters;
 import org.elasticsearch.search.query.QueryPhase;
+import org.elasticsearch.search.rescore.QueryRescorerBuilder;
+import org.elasticsearch.search.rescore.RescoreBuilder;
 import org.elasticsearch.search.sort.SortParseElement;
 import org.elasticsearch.search.suggest.Suggester;
 import org.elasticsearch.search.suggest.Suggesters;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Supplier;
 
 /**
  *
@@ -336,6 +338,7 @@ public class SearchModule extends AbstractModule {
         configureSuggesters();
         configureFetchSubPhase();
         configureShapes();
+        configureRescorers();
     }
 
     protected void configureFetchSubPhase() {
@@ -466,6 +469,10 @@ public class SearchModule extends AbstractModule {
             namedWriteableRegistry.registerPrototype(ShapeBuilder.class, MultiPolygonBuilder.PROTOTYPE);
             namedWriteableRegistry.registerPrototype(ShapeBuilder.class, GeometryCollectionBuilder.PROTOTYPE);
         }
+    }
+
+    private void configureRescorers() {
+        namedWriteableRegistry.registerPrototype(RescoreBuilder.class, QueryRescorerBuilder.PROTOTYPE);
     }
 
     private void registerBuiltinFunctionScoreParsers() {

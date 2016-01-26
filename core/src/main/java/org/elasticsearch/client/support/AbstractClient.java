@@ -272,6 +272,21 @@ import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptAction;
 import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptRequest;
 import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptRequestBuilder;
 import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptResponse;
+import org.elasticsearch.action.ingest.DeletePipelineAction;
+import org.elasticsearch.action.ingest.DeletePipelineRequest;
+import org.elasticsearch.action.ingest.DeletePipelineRequestBuilder;
+import org.elasticsearch.action.ingest.GetPipelineAction;
+import org.elasticsearch.action.ingest.GetPipelineRequest;
+import org.elasticsearch.action.ingest.GetPipelineRequestBuilder;
+import org.elasticsearch.action.ingest.GetPipelineResponse;
+import org.elasticsearch.action.ingest.PutPipelineAction;
+import org.elasticsearch.action.ingest.PutPipelineRequest;
+import org.elasticsearch.action.ingest.PutPipelineRequestBuilder;
+import org.elasticsearch.action.ingest.SimulatePipelineAction;
+import org.elasticsearch.action.ingest.SimulatePipelineRequest;
+import org.elasticsearch.action.ingest.SimulatePipelineRequestBuilder;
+import org.elasticsearch.action.ingest.SimulatePipelineResponse;
+import org.elasticsearch.action.ingest.WritePipelineResponse;
 import org.elasticsearch.action.percolate.MultiPercolateAction;
 import org.elasticsearch.action.percolate.MultiPercolateRequest;
 import org.elasticsearch.action.percolate.MultiPercolateRequestBuilder;
@@ -319,6 +334,7 @@ import org.elasticsearch.client.ClusterAdminClient;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -792,6 +808,66 @@ public abstract class AbstractClient extends AbstractComponent implements Client
     @Override
     public FieldStatsRequestBuilder prepareFieldStats() {
         return new FieldStatsRequestBuilder(this, FieldStatsAction.INSTANCE);
+    }
+
+    @Override
+    public void putPipeline(PutPipelineRequest request, ActionListener<WritePipelineResponse> listener) {
+        execute(PutPipelineAction.INSTANCE, request, listener);
+    }
+
+    @Override
+    public ActionFuture<WritePipelineResponse> putPipeline(PutPipelineRequest request) {
+        return execute(PutPipelineAction.INSTANCE, request);
+    }
+
+    @Override
+    public PutPipelineRequestBuilder preparePutPipeline(String id, BytesReference source) {
+        return new PutPipelineRequestBuilder(this, PutPipelineAction.INSTANCE, id, source);
+    }
+
+    @Override
+    public void deletePipeline(DeletePipelineRequest request, ActionListener<WritePipelineResponse> listener) {
+        execute(DeletePipelineAction.INSTANCE, request, listener);
+    }
+
+    @Override
+    public ActionFuture<WritePipelineResponse> deletePipeline(DeletePipelineRequest request) {
+        return execute(DeletePipelineAction.INSTANCE, request);
+    }
+
+    @Override
+    public DeletePipelineRequestBuilder prepareDeletePipeline() {
+        return new DeletePipelineRequestBuilder(this, DeletePipelineAction.INSTANCE);
+    }
+
+    @Override
+    public void getPipeline(GetPipelineRequest request, ActionListener<GetPipelineResponse> listener) {
+        execute(GetPipelineAction.INSTANCE, request, listener);
+    }
+
+    @Override
+    public ActionFuture<GetPipelineResponse> getPipeline(GetPipelineRequest request) {
+        return execute(GetPipelineAction.INSTANCE, request);
+    }
+
+    @Override
+    public GetPipelineRequestBuilder prepareGetPipeline(String... ids) {
+        return new GetPipelineRequestBuilder(this, GetPipelineAction.INSTANCE, ids);
+    }
+
+    @Override
+    public void simulatePipeline(SimulatePipelineRequest request, ActionListener<SimulatePipelineResponse> listener) {
+        execute(SimulatePipelineAction.INSTANCE, request, listener);
+    }
+
+    @Override
+    public ActionFuture<SimulatePipelineResponse> simulatePipeline(SimulatePipelineRequest request) {
+        return execute(SimulatePipelineAction.INSTANCE, request);
+    }
+
+    @Override
+    public SimulatePipelineRequestBuilder prepareSimulatePipeline(BytesReference source) {
+        return new SimulatePipelineRequestBuilder(this, SimulatePipelineAction.INSTANCE, source);
     }
 
     static class Admin implements AdminClient {

@@ -175,7 +175,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         NettyHttpServerTransport.SETTING_CORS_ENABLED,
         NettyHttpServerTransport.SETTING_CORS_MAX_AGE,
         NettyHttpServerTransport.SETTING_HTTP_DETAILED_ERRORS_ENABLED,
-        NettyHttpServerTransport.SETTING_PIPELINING,       
+        NettyHttpServerTransport.SETTING_PIPELINING,
         HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING,
         HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING,
         HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_OVERHEAD_SETTING,
@@ -252,5 +252,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
         URLRepository.ALLOWED_URLS_SETTING,
         URLRepository.REPOSITORIES_LIST_DIRECTORIES_SETTING,
         URLRepository.REPOSITORIES_URL_SETTING,
-        URLRepository.SUPPORTED_PROTOCOLS_SETTING)));
+        URLRepository.SUPPORTED_PROTOCOLS_SETTING,
+        Node.NODE_INGEST_SETTING)));
 }

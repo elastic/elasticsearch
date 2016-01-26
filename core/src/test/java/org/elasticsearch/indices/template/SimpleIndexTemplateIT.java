@@ -63,6 +63,7 @@ import static org.hamcrest.Matchers.nullValue;
  *
  */
 public class SimpleIndexTemplateIT extends ESIntegTestCase {
+
     public void testSimpleIndexTemplateTests() throws Exception {
         // clean all templates setup by the framework.
         client().admin().indices().prepareDeleteTemplate("*").get();

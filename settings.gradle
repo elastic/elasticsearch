@@ -11,6 +11,7 @@ List projects = [
   'test:framework',
   'test:fixtures:example-fixture',
   'test:fixtures:hdfs-fixture',
+  'modules:ingest-grok',
   'modules:lang-expression',
   'modules:lang-groovy',
   'modules:lang-mustache',
@@ -24,6 +25,7 @@ List projects = [
   'plugins:discovery-ec2',
   'plugins:discovery-gce',
   'plugins:discovery-multicast',
+  'plugins:ingest-geoip',
   'plugins:lang-javascript',
   'plugins:lang-plan-a',
   'plugins:lang-python',
@@ -39,6 +41,8 @@ List projects = [
   'qa:smoke-test-client',
   'qa:smoke-test-multinode',
   'qa:smoke-test-plugins',
+  'qa:ingest-with-mustache',
+  'qa:ingest-disabled',
   'qa:vagrant',
 ]
 

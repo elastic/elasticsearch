@@ -43,6 +43,6 @@ public class RestPutPipelineAction extends BaseRestHandler {
         PutPipelineRequest request = new PutPipelineRequest(restRequest.param("id"), RestActions.getRestContent(restRequest));
         request.masterNodeTimeout(restRequest.paramAsTime("master_timeout", request.masterNodeTimeout()));
         request.timeout(restRequest.paramAsTime("timeout", request.timeout()));
-        client.putPipeline(request, new AcknowledgedRestListener<>(channel));
+        client.admin().cluster().putPipeline(request, new AcknowledgedRestListener<>(channel));
     }
 }

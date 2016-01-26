@@ -42,6 +42,6 @@ public class RestDeletePipelineAction extends BaseRestHandler {
         DeletePipelineRequest request = new DeletePipelineRequest(restRequest.param("id"));
         request.masterNodeTimeout(restRequest.paramAsTime("master_timeout", request.masterNodeTimeout()));
         request.timeout(restRequest.paramAsTime("timeout", request.timeout()));
-        client.deletePipeline(request, new AcknowledgedRestListener<>(channel));
+        client.admin().cluster().deletePipeline(request, new AcknowledgedRestListener<>(channel));
     }
 }

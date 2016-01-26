@@ -84,6 +84,15 @@ import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
 import org.elasticsearch.action.admin.cluster.validate.template.RenderSearchTemplateRequest;
 import org.elasticsearch.action.admin.cluster.validate.template.RenderSearchTemplateRequestBuilder;
 import org.elasticsearch.action.admin.cluster.validate.template.RenderSearchTemplateResponse;
+import org.elasticsearch.action.ingest.DeletePipelineRequest;
+import org.elasticsearch.action.ingest.DeletePipelineRequestBuilder;
+import org.elasticsearch.action.ingest.GetPipelineRequest;
+import org.elasticsearch.action.ingest.GetPipelineRequestBuilder;
+import org.elasticsearch.action.ingest.GetPipelineResponse;
+import org.elasticsearch.action.ingest.PutPipelineRequest;
+import org.elasticsearch.action.ingest.PutPipelineRequestBuilder;
+import org.elasticsearch.action.ingest.WritePipelineResponse;
+import org.elasticsearch.common.bytes.BytesReference;
 
 /**
  * Administrative actions/operations against indices.
@@ -474,4 +483,49 @@ public interface ClusterAdminClient extends ElasticsearchClient {
      * Return the rendered search request for a given search template.
      */
     RenderSearchTemplateRequestBuilder prepareRenderSearchTemplate();
+
+    /**
+     * Stores an ingest pipeline
+     */
+    void putPipeline(PutPipelineRequest request, ActionListener<WritePipelineResponse> listener);
+
+    /**
+     * Stores an ingest pipeline
+     */
+    ActionFuture<WritePipelineResponse> putPipeline(PutPipelineRequest request);
+
+    /**
+     * Stores an ingest pipeline
+     */
+    PutPipelineRequestBuilder preparePutPipeline(String id, BytesReference source);
+
+    /**
+     * Deletes a stored ingest pipeline
+     */
+    void deletePipeline(DeletePipelineRequest request, ActionListener<WritePipelineResponse> listener);
+
+    /**
+     * Deletes a stored ingest pipeline
+     */
+    ActionFuture<WritePipelineResponse> deletePipeline(DeletePipelineRequest request);
+
+    /**
+     * Deletes a stored ingest pipeline
+     */
+    DeletePipelineRequestBuilder prepareDeletePipeline();
+
+    /**
+     * Returns a stored ingest pipeline
+     */
+    void getPipeline(GetPipelineRequest request, ActionListener<GetPipelineResponse> listener);
+
+    /**
+     * Returns a stored ingest pipeline
+     */
+    ActionFuture<GetPipelineResponse> getPipeline(GetPipelineRequest request);
+
+    /**
+     * Returns a stored ingest pipeline
+     */
+    GetPipelineRequestBuilder prepareGetPipeline(String... ids);
 }

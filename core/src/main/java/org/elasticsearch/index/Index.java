@@ -19,24 +19,21 @@
 
 package org.elasticsearch.index;
 
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
 
 /**
  *
  */
-public class Index implements Streamable {
+public class Index implements Writeable<Index> {
 
-    private String name;
-    private String uuid;
+    private final static Index PROTO = new Index("", "");
 
-    private Index() {
-
-    }
+    private final String name;
+    private final String uuid;
 
     public Index(String name, String uuid) {
         this.name = name.intern();
@@ -76,15 +73,12 @@ public class Index implements Streamable {
     }
 
     public static Index readIndex(StreamInput in) throws IOException {
-        Index index = new Index();
-        index.readFrom(in);
-        return index;
+        return PROTO.readFrom(in);
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        name = in.readString().intern();
-        uuid = in.readString().intern();
+    public Index readFrom(StreamInput in) throws IOException {
+        return new Index(in.readString(), in.readString());
     }
 
     @Override

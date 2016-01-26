@@ -243,7 +243,7 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
         int size = in.readVInt();
         ImmutableOpenMap.Builder<String, Set<ClusterBlock>> indicesBuilder = ImmutableOpenMap.builder(size);
         for (int j = 0; j < size; j++) {
-            indicesBuilder.put(in.readString().intern(), readBlockSet(in));
+            indicesBuilder.put(in.readString(), readBlockSet(in));
         }
         return new ClusterBlocks(global, indicesBuilder.build());
     }

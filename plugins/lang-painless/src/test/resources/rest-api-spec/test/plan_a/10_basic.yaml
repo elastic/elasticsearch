@@ -1,4 +1,4 @@
-# Integration tests for Plan A Plugin
+# Integration tests for Painless Plugin
 #
 "Painless plugin loaded":
     - do:

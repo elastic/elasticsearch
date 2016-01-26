@@ -63,7 +63,7 @@ public class InnerHitsFetchSubPhase implements FetchSubPhase {
 
     @Override
     public boolean hitExecutionNeeded(SearchContext context) {
-        return context.innerHits() != null;
+        return context.innerHits() != null && context.innerHits().getInnerHits().size() > 0;
     }
 
     @Override

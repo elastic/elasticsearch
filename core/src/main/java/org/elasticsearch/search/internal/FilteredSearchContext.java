@@ -178,11 +178,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public void innerHits(InnerHitsContext innerHitsContext) {
-        in.innerHits(innerHitsContext);
-    }
-
-    @Override
     public InnerHitsContext innerHits() {
         return in.innerHits();
     }

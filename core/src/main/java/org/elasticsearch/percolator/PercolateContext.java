@@ -675,11 +675,6 @@ public class PercolateContext extends SearchContext {
     }
 
     @Override
-    public void innerHits(InnerHitsContext innerHitsContext) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
     public InnerHitsContext innerHits() {
         throw new UnsupportedOperationException();
     }

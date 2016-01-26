@@ -32,6 +32,7 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.discovery.DiscoveryModule;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 
 import java.io.Closeable;
@@ -54,7 +55,7 @@ final class ExternalNode implements Closeable {
     public static final Settings REQUIRED_SETTINGS = Settings.builder()
             .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING, true)
             .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "zen")
-            .put("node.mode", "network").build(); // we need network mode for this
+            .put(Node.NODE_MODE_SETTING.getKey(), "network").build(); // we need network mode for this
 
     private final Path path;
     private final Random random;

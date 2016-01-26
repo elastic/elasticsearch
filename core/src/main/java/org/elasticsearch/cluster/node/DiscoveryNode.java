@@ -47,11 +47,11 @@ import static org.elasticsearch.common.transport.TransportAddressSerializers.add
 public class DiscoveryNode implements Streamable, ToXContent {
 
     public static boolean localNode(Settings settings) {
-        if (settings.get("node.local") != null) {
-            return settings.getAsBoolean("node.local", false);
+        if (Node.NODE_LOCAL_SETTING.exists(settings)) {
+            return Node.NODE_LOCAL_SETTING.get(settings);
         }
-        if (settings.get("node.mode") != null) {
-            String nodeMode = settings.get("node.mode");
+        if (Node.NODE_MODE_SETTING.exists(settings)) {
+            String nodeMode = Node.NODE_MODE_SETTING.get(settings);
             if ("local".equals(nodeMode)) {
                 return true;
             } else if ("network".equals(nodeMode)) {
@@ -64,28 +64,25 @@ public class DiscoveryNode implements Streamable, ToXContent {
     }
 
     public static boolean nodeRequiresLocalStorage(Settings settings) {
-        return !(settings.getAsBoolean("node.client", false) || (!settings.getAsBoolean("node.data", true) && !settings.getAsBoolean("node.master", true)));
+        return (Node.NODE_CLIENT_SETTING.get(settings) || (Node.NODE_DATA_SETTING.get(settings) == false && Node.NODE_MASTER_SETTING.get(settings) == false)) == false;
     }
 
     public static boolean clientNode(Settings settings) {
-        String client = settings.get("node.client");
-        return Booleans.isExplicitTrue(client);
+        return Node.NODE_CLIENT_SETTING.get(settings);
     }
 
     public static boolean masterNode(Settings settings) {
-        String master = settings.get("node.master");
-        if (master == null) {
-            return !clientNode(settings);
+        if (Node.NODE_MASTER_SETTING.exists(settings)) {
+            return Node.NODE_MASTER_SETTING.get(settings);
         }
-        return Booleans.isExplicitTrue(master);
+        return clientNode(settings) == false;
     }
 
     public static boolean dataNode(Settings settings) {
-        String data = settings.get("node.data");
-        if (data == null) {
-            return !clientNode(settings);
+        if (Node.NODE_DATA_SETTING.exists(settings)) {
+            return Node.NODE_DATA_SETTING.get(settings);
         }
-        return Booleans.isExplicitTrue(data);
+        return clientNode(settings) == false;
     }
 
     public static boolean ingestNode(Settings settings) {

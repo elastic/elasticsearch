@@ -41,7 +41,7 @@ import static org.hamcrest.Matchers.startsWith;
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, transportClientRatio = 1.0)
 public class TransportClientIT extends ESIntegTestCase {
     public void testPickingUpChangesInDiscoveryNode() {
-        String nodeName = internalCluster().startNode(Settings.builder().put("node.data", false));
+        String nodeName = internalCluster().startNode(Settings.builder().put(Node.NODE_DATA_SETTING.getKey(), false));
 
         TransportClient client = (TransportClient) internalCluster().client(nodeName);
         assertThat(client.connectedNodes().get(0).dataNode(), equalTo(false));
@@ -56,7 +56,7 @@ public class TransportClientIT extends ESIntegTestCase {
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .put("node.name", "testNodeVersionIsUpdated")
                 .put("http.enabled", false)
-                .put("node.data", false)
+                .put(Node.NODE_DATA_SETTING.getKey(), false)
                 .put("cluster.name", "foobar")
                 .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING, true) // make sure we get what we set :)
                 .build());

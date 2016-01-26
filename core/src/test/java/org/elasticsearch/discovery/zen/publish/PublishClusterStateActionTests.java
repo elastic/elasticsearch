@@ -43,6 +43,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.zen.DiscoveryNodesProvider;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -486,7 +487,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
             discoveryNodesBuilder.put(createMockNode("node" + i).discoveryNode);
         }
         final int dataNodes = randomIntBetween(0, 5);
-        final Settings dataSettings = Settings.builder().put("node.master", false).build();
+        final Settings dataSettings = Settings.builder().put(Node.NODE_MASTER_SETTING.getKey(), false).build();
         for (int i = 0; i < dataNodes; i++) {
             discoveryNodesBuilder.put(createMockNode("data_" + i, dataSettings).discoveryNode);
         }
@@ -544,7 +545,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
         }
         final int dataNodes = randomIntBetween(0, 3); // data nodes don't matter
         for (int i = 0; i < dataNodes; i++) {
-            final MockNode mockNode = createMockNode("data_" + i, Settings.builder().put("node.master", false).build());
+            final MockNode mockNode = createMockNode("data_" + i, Settings.builder().put(Node.NODE_MASTER_SETTING.getKey(), false).build());
             discoveryNodesBuilder.put(mockNode.discoveryNode);
             if (randomBoolean()) {
                 // we really don't care - just chaos monkey

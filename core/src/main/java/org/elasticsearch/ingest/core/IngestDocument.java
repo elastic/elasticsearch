@@ -81,7 +81,7 @@ public final class IngestDocument {
      * Copy constructor that creates a new {@link IngestDocument} which has exactly the same properties as the one provided as argument
      */
     public IngestDocument(IngestDocument other) {
-        this(new HashMap<>(other.sourceAndMetadata), new HashMap<>(other.ingestMetadata));
+        this(deepCopyMap(other.sourceAndMetadata), deepCopyMap(other.ingestMetadata));
     }
 
     /**
@@ -468,6 +468,35 @@ public final class IngestDocument {
      */
     public Map<String, Object> getSourceAndMetadata() {
         return this.sourceAndMetadata;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <K, V> Map<K, V> deepCopyMap(Map<K, V> source) {
+        return (Map<K, V>) deepCopy(source);
+    }
+
+    private static Object deepCopy(Object value) {
+        if (value instanceof Map) {
+            Map<?, ?> mapValue = (Map<?, ?>) value;
+            Map<Object, Object> copy = new HashMap<>(mapValue.size());
+            for (Map.Entry<?, ?> entry : mapValue.entrySet()) {
+                copy.put(entry.getKey(), deepCopy(entry.getValue()));
+            }
+            return copy;
+        } else if (value instanceof List) {
+            List<?> listValue = (List<?>) value;
+            List<Object> copy = new ArrayList<>(listValue.size());
+            for (Object itemValue : listValue) {
+                copy.add(deepCopy(itemValue));
+            }
+            return copy;
+        } else if (value == null || value instanceof String || value instanceof Integer ||
+            value instanceof Long || value instanceof Float ||
+            value instanceof Double || value instanceof Boolean) {
+            return value;
+        } else {
+            throw new IllegalArgumentException("unexpected value type [" + value.getClass() + "]");
+        }
     }
 
     @Override

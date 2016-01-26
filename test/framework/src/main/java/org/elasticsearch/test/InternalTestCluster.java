@@ -291,7 +291,7 @@ public final class InternalTestCluster extends TestCluster {
         builder.put("transport.tcp.port", TRANSPORT_BASE_PORT + "-" + (TRANSPORT_BASE_PORT + PORTS_PER_CLUSTER));
         builder.put("http.port", HTTP_BASE_PORT + "-" + (HTTP_BASE_PORT + PORTS_PER_CLUSTER));
         builder.put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING, true);
-        builder.put("node.mode", nodeMode);
+        builder.put(Node.NODE_MODE_SETTING.getKey(), nodeMode);
         builder.put("http.pipelining", enableHttpPipelining);
         if (Strings.hasLength(System.getProperty("es.logger.level"))) {
             builder.put("logger.level", System.getProperty("es.logger.level"));
@@ -322,10 +322,10 @@ public final class InternalTestCluster extends TestCluster {
             return "local"; // default if nothing is specified
         }
         if (Strings.hasLength(System.getProperty("es.node.mode"))) {
-            builder.put("node.mode", System.getProperty("es.node.mode"));
+            builder.put(Node.NODE_MODE_SETTING.getKey(), System.getProperty("es.node.mode"));
         }
         if (Strings.hasLength(System.getProperty("es.node.local"))) {
-            builder.put("node.local", System.getProperty("es.node.local"));
+            builder.put(Node.NODE_LOCAL_SETTING.getKey(), System.getProperty("es.node.local"));
         }
         if (DiscoveryNode.localNode(builder.build())) {
             return "local";
@@ -888,12 +888,17 @@ public final class InternalTestCluster extends TestCluster {
                     .put(Environment.PATH_HOME_SETTING.getKey(), baseDir)
                     .put("name", TRANSPORT_CLIENT_PREFIX + node.settings().get("name"))
                     .put(ClusterName.SETTING, clusterName).put("client.transport.sniff", sniff)
-                    .put("node.mode", nodeSettings.get("node.mode", nodeMode))
-                    .put("node.local", nodeSettings.get("node.local", ""))
                     .put("logger.prefix", nodeSettings.get("logger.prefix", ""))
                     .put("logger.level", nodeSettings.get("logger.level", "INFO"))
                     .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING, true)
                     .put(settings);
+
+            if (Node.NODE_MODE_SETTING.exists(nodeSettings)) {
+                builder.put(Node.NODE_MODE_SETTING.getKey(), Node.NODE_MODE_SETTING.get(nodeSettings));
+            }
+            if (Node.NODE_LOCAL_SETTING.exists(nodeSettings)) {
+                builder.put(Node.NODE_LOCAL_SETTING.getKey(), Node.NODE_LOCAL_SETTING.get(nodeSettings));
+            }
 
             TransportClient.Builder clientBuilder = TransportClient.builder().settings(builder.build());
             for (Class<? extends Plugin> plugin : plugins) {

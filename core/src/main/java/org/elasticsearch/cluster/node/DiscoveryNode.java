@@ -47,11 +47,11 @@ import static org.elasticsearch.common.transport.TransportAddressSerializers.add
 public class DiscoveryNode implements Streamable, ToXContent {
 
     public static boolean localNode(Settings settings) {
-        if (settings.get("node.local") != null) {
-            return settings.getAsBoolean("node.local", false);
+        if (Node.NODE_LOCAL_SETTING.exists(settings)) {
+            return Node.NODE_LOCAL_SETTING.get(settings);
         }
-        if (settings.get("node.mode") != null) {
-            String nodeMode = settings.get("node.mode");
+        if (Node.NODE_MODE_SETTING.exists(settings)) {
+            String nodeMode = Node.NODE_MODE_SETTING.get(settings);
             if ("local".equals(nodeMode)) {
                 return true;
             } else if ("network".equals(nodeMode)) {

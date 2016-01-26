@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -55,7 +56,7 @@ public class TransportClientRetryIT extends ESIntegTestCase {
 
         Settings.Builder builder = settingsBuilder().put("client.transport.nodes_sampler_interval", "1s")
                 .put("name", "transport_client_retry_test")
-                .put("node.mode", internalCluster().getNodeMode())
+                .put(Node.NODE_MODE_SETTING.getKey(), internalCluster().getNodeMode())
                 .put(ClusterName.SETTING, internalCluster().getClusterName())
                 .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING, true)
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir());

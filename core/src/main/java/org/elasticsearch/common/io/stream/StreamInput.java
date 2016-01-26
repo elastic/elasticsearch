@@ -38,6 +38,7 @@ import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.elasticsearch.search.rescore.RescoreBuilder.Rescorer;
+import org.elasticsearch.search.suggest.SuggestBuilder.SuggestionBuilder;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
@@ -61,7 +62,6 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.ElasticsearchException.readException;
@@ -278,6 +278,14 @@ public abstract class StreamInput extends InputStream {
     public String readOptionalString() throws IOException {
         if (readBoolean()) {
             return readString();
+        }
+        return null;
+    }
+
+    @Nullable
+    public Float readOptionalFloat() throws IOException {
+        if (readBoolean()) {
+            return readFloat();
         }
         return null;
     }
@@ -682,6 +690,13 @@ public abstract class StreamInput extends InputStream {
      */
     public Rescorer readRescorer() throws IOException {
         return readNamedWriteable(Rescorer.class);
+    }
+
+    /**
+     * Reads a {@link SuggestionBuilder} from the current stream
+     */
+    public SuggestionBuilder<?> readSuggestion() throws IOException {
+        return readNamedWriteable(SuggestionBuilder.class);
     }
 
     /**

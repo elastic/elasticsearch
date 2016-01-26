@@ -17,6 +17,8 @@
  * under the License.
  */
 package org.elasticsearch.search.suggest.term;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.suggest.SuggestBuilder.SuggestionBuilder;
 
@@ -29,6 +31,8 @@ import java.io.IOException;
  */
 public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuilder> {
 
+    static final String SUGGESTION_NAME = "term";
+
     private String suggestMode;
     private Float accuracy;
     private String sort;
@@ -39,13 +43,13 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
     private Integer prefixLength;
     private Integer minWordLength;
     private Float minDocFreq;
-    
+
     /**
      * @param name
      *            The name of this suggestion. This is a required parameter.
      */
     public TermSuggestionBuilder(String name) {
-        super(name, "term");
+        super(name);
     }
 
     /**
@@ -220,5 +224,31 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
             builder.field("min_doc_freq", minDocFreq);
         }
         return builder;
+    }
+
+    @Override
+    public String getWriteableName() {
+        return SUGGESTION_NAME;
+    }
+
+    @Override
+    public void doWriteTo(StreamOutput out) throws IOException {
+        // TODO
+    }
+
+    @Override
+    public TermSuggestionBuilder doReadFrom(StreamInput in, String name) throws IOException {
+        // TODO
+        return null;
+    }
+
+    @Override
+    protected boolean doEquals(TermSuggestionBuilder other) {
+        return false;
+    }
+
+    @Override
+    protected int doHashCode() {
+        return 0;
     }
 }

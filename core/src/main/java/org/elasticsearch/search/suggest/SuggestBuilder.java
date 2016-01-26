@@ -19,11 +19,16 @@
 package org.elasticsearch.search.suggest;
 
 import org.elasticsearch.action.support.ToXContentToBytes;
+import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Defines how to perform suggesting. This builders allows a number of global options to be specified and
@@ -42,11 +47,11 @@ public class SuggestBuilder extends ToXContentToBytes {
     public SuggestBuilder() {
         this.name = null;
     }
-    
+
     public SuggestBuilder(String name) {
         this.name = name;
     }
-    
+
     /**
      * Sets the text to provide suggestions for. The suggest text is a required option that needs
      * to be set either via this setter or via the {@link org.elasticsearch.search.suggest.SuggestBuilder.SuggestionBuilder#setText(String)} method.
@@ -67,7 +72,7 @@ public class SuggestBuilder extends ToXContentToBytes {
         suggestions.add(suggestion);
         return this;
     }
-    
+
     /**
      * Returns all suggestions with the defined names.
      */
@@ -82,7 +87,7 @@ public class SuggestBuilder extends ToXContentToBytes {
         } else {
             builder.startObject(name);
         }
-        
+
         if (globalText != null) {
             builder.field("text", globalText);
         }
@@ -93,21 +98,26 @@ public class SuggestBuilder extends ToXContentToBytes {
         return builder;
     }
 
-    public static abstract class SuggestionBuilder<T> extends ToXContentToBytes {
+    public static abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> extends ToXContentToBytes implements NamedWriteable<T> {
 
-        private String name;
-        private String suggester;
-        private String text;
-        private String prefix;
-        private String regex;
-        private String field;
-        private String analyzer;
-        private Integer size;
-        private Integer shardSize;
+        protected final String name;
+        protected String text;
+        protected String prefix;
+        protected String regex;
+        protected String field;
+        protected String analyzer;
+        protected Integer size;
+        protected Integer shardSize;
 
-        public SuggestionBuilder(String name, String suggester) {
+        public SuggestionBuilder(String name) {
             this.name = name;
-            this.suggester = suggester;
+        }
+
+        /**
+         * get the name for this suggestion
+         */
+        public String name() {
+            return this.name;
         }
 
         /**
@@ -119,12 +129,33 @@ public class SuggestBuilder extends ToXContentToBytes {
             return (T) this;
         }
 
+        /**
+         * get the text for this suggestion
+         */
+        public String text() {
+            return this.text;
+        }
+
         protected void setPrefix(String prefix) {
             this.prefix = prefix;
         }
 
+        /**
+         * get the prefix for this suggestion
+         */
+        public String prefix() {
+            return this.prefix;
+        }
+
         protected void setRegex(String regex) {
             this.regex = regex;
+        }
+
+        /**
+         * get the regex for this suggestion
+         */
+        public String regEx() {
+            return this.prefix;
         }
 
         @Override
@@ -139,7 +170,7 @@ public class SuggestBuilder extends ToXContentToBytes {
             if (regex != null) {
                 builder.field("regex", regex);
             }
-            builder.startObject(suggester);
+            builder.startObject(getWriteableName());
             if (analyzer != null) {
                 builder.field("analyzer", analyzer);
             }
@@ -174,6 +205,13 @@ public class SuggestBuilder extends ToXContentToBytes {
         }
 
         /**
+         * get the {@link #field()} parameter
+         */
+        public String field() {
+            return this.field;
+        }
+
+        /**
          * Sets the analyzer to analyse to suggest text with. Defaults to the search
          * analyzer of the suggest field.
          */
@@ -181,6 +219,13 @@ public class SuggestBuilder extends ToXContentToBytes {
         public T analyzer(String analyzer) {
             this.analyzer = analyzer;
             return (T)this;
+        }
+
+        /**
+         * get the {@link #analyzer()} parameter
+         */
+        public String analyzer() {
+            return this.analyzer;
         }
 
         /**
@@ -193,6 +238,13 @@ public class SuggestBuilder extends ToXContentToBytes {
             }
             this.size = size;
             return (T)this;
+        }
+
+        /**
+         * get the {@link #size()} parameter
+         */
+        public Integer size() {
+            return this.size;
         }
 
         /**
@@ -212,5 +264,82 @@ public class SuggestBuilder extends ToXContentToBytes {
             this.shardSize = shardSize;
             return (T)this;
         }
+
+        /**
+         * get the {@link #shardSize()} parameter
+         */
+        public Integer shardSize() {
+            return this.shardSize;
+        }
+
+
+        @Override
+        public final T readFrom(StreamInput in) throws IOException {
+            String name = in.readString();
+            T suggestionBuilder = doReadFrom(in, name);
+            suggestionBuilder.text = in.readOptionalString();
+            suggestionBuilder.prefix = in.readOptionalString();
+            suggestionBuilder.regex = in.readOptionalString();
+            suggestionBuilder.field = in.readOptionalString();
+            suggestionBuilder.analyzer = in.readOptionalString();
+            suggestionBuilder.size = in.readOptionalVInt();
+            suggestionBuilder.shardSize = in.readOptionalVInt();
+            return suggestionBuilder;
+        }
+
+        /**
+         * Subclass should return a new instance, reading itself from the input string
+         * @param in the input string to read from
+         * @param name the name of the suggestion (read from stream by {@link SuggestionBuilder}
+         */
+        protected abstract T doReadFrom(StreamInput in, String name) throws IOException;
+
+        @Override
+        public final void writeTo(StreamOutput out) throws IOException {
+            out.writeString(name);
+            doWriteTo(out);
+            out.writeOptionalString(text);
+            out.writeOptionalString(prefix);
+            out.writeOptionalString(regex);
+            out.writeOptionalString(field);
+            out.writeOptionalString(analyzer);
+            out.writeOptionalVInt(size);
+            out.writeOptionalVInt(shardSize);
+        }
+
+        protected abstract void doWriteTo(StreamOutput out) throws IOException;
+
+        @Override
+        public final boolean equals(Object obj) {
+            if (this == obj) {
+                return true;
+            }
+            if (obj == null || getClass() != obj.getClass()) {
+                return false;
+            }
+            @SuppressWarnings("unchecked")
+            T other = (T) obj;
+            return Objects.equals(name, other.name()) &&
+                   Objects.equals(text, other.text()) &&
+                   Objects.equals(prefix, other.prefix()) &&
+                   Objects.equals(regex, other.regEx()) &&
+                   Objects.equals(field, other.field()) &&
+                   Objects.equals(analyzer, other.analyzer()) &&
+                   Objects.equals(size, other.size()) &&
+                   Objects.equals(shardSize, other.shardSize()) &&
+                   doEquals(other);
+        }
+
+        /**
+         * Indicates whether some other {@link QueryBuilder} object of the same type is "equal to" this one.
+         */
+        protected abstract boolean doEquals(T other);
+
+        @Override
+        public final int hashCode() {
+            return Objects.hash(name, text, prefix, regex, field, analyzer, size, shardSize, doHashCode());
+        }
+
+        protected abstract int doHashCode();
     }
 }

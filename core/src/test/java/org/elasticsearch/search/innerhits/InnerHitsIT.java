@@ -1189,4 +1189,24 @@ public class InnerHitsIT extends ESIntegTestCase {
         assertHitCount(response, 1);
     }
 
+    public void testTopLevelInnerHitsWithQueryInnerHits() throws Exception {
+        // top level inner hits shouldn't overwrite query inner hits definitions
+
+        assertAcked(prepareCreate("index1").addMapping("child", "_parent", "type=parent"));
+        List<IndexRequestBuilder> requests = new ArrayList<>();
+        requests.add(client().prepareIndex("index1", "parent", "1").setSource("{}"));
+        requests.add(client().prepareIndex("index1", "child", "2").setParent("1").setSource("{}"));
+        indexRandom(true, requests);
+
+        InnerHitsBuilder innerHitsBuilder = new InnerHitsBuilder();
+        SearchResponse response = client().prepareSearch("index1")
+            .setQuery(hasChildQuery("child", matchAllQuery()).innerHit(new QueryInnerHitBuilder()))
+            .addInnerHit("my-inner-hit", new InnerHitsBuilder.InnerHit().setType("child"))
+            .get();
+        assertHitCount(response, 1);
+        assertThat(response.getHits().getAt(0).getInnerHits().size(), equalTo(2));
+        assertThat(response.getHits().getAt(0).getInnerHits().get("child").getAt(0).getId(), equalTo("2"));
+        assertThat(response.getHits().getAt(0).getInnerHits().get("my-inner-hit").getAt(0).getId(), equalTo("2"));
+    }
+
 }

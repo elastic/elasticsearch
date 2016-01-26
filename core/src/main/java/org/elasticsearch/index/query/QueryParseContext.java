@@ -140,7 +140,7 @@ public class QueryParseContext {
     public XContentParser parser() {
         return parser;
     }
-    
+
     public IndexQueryParserService indexQueryParserService() {
         return indexQueryParser;
     }
@@ -214,13 +214,7 @@ public class QueryParseContext {
             throw new QueryParsingException(this, "inner_hits unsupported");
         }
 
-        InnerHitsContext innerHitsContext;
-        if (sc.innerHits() == null) {
-            innerHitsContext = new InnerHitsContext(new HashMap<String, InnerHitsContext.BaseInnerHits>());
-            sc.innerHits(innerHitsContext);
-        } else {
-            innerHitsContext = sc.innerHits();
-        }
+        InnerHitsContext innerHitsContext = sc.innerHits();
         innerHitsContext.addInnerHitDefinition(name, context);
     }
 

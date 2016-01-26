@@ -144,7 +144,6 @@ public class DefaultSearchContext extends SearchContext {
     private volatile long keepAlive;
     private final long originNanoTime = System.nanoTime();
     private volatile long lastAccessTime = -1;
-    private InnerHitsContext innerHitsContext;
     private Profilers profilers;
 
     private final Map<String, FetchSubPhaseContext> subPhaseContexts = new HashMap<>();
@@ -731,16 +730,6 @@ public class DefaultSearchContext extends SearchContext {
     @Override
     public Counter timeEstimateCounter() {
         return timeEstimateCounter;
-    }
-
-    @Override
-    public void innerHits(InnerHitsContext innerHitsContext) {
-        this.innerHitsContext = innerHitsContext;
-    }
-
-    @Override
-    public InnerHitsContext innerHits() {
-        return innerHitsContext;
     }
 
     @Override

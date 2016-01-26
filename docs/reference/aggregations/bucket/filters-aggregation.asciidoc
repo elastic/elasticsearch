@@ -146,7 +146,7 @@ The following snippet shows a response where the `other` bucket is requested to 
   "aggs" : {
     "messages" : {
       "filters" : {
-        "other_bucket": "other_messages",
+        "other_bucket_key": "other_messages",
         "filters" : {
           "errors" :   { "term" : { "body" : "error"   }},
           "warnings" : { "term" : { "body" : "warning" }}

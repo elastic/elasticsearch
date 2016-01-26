@@ -21,6 +21,13 @@ package org.elasticsearch.painless;
 
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.tree.ParseTree;
+import org.elasticsearch.painless.Definition.Cast;
+import org.elasticsearch.painless.Definition.Constructor;
+import org.elasticsearch.painless.Definition.Field;
+import org.elasticsearch.painless.Definition.Method;
+import org.elasticsearch.painless.Definition.Sort;
+import org.elasticsearch.painless.Definition.Transform;
+import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.script.ScoreAccessor;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Label;
@@ -714,7 +721,7 @@ class Writer extends PainlessParserBaseVisitor<Void> {
     public Void visitDeclvar(final DeclvarContext ctx) {
         final Metadata.ExpressionMetadata declvaremd = metadata.getExpressionMetadata(ctx);
         final org.objectweb.asm.Type type = declvaremd.to.type;
-        final Definition.Sort sort = declvaremd.to.sort;
+        final Sort sort = declvaremd.to.sort;
         final int slot = (int)declvaremd.postConst;
 
         final ExpressionContext exprctx = ctx.expression();
@@ -947,17 +954,17 @@ class Writer extends PainlessParserBaseVisitor<Void> {
                 }
             } else {
                 final org.objectweb.asm.Type type = unaryemd.from.type;
-                final Definition.Sort sort = unaryemd.from.sort;
+                final Sort sort = unaryemd.from.sort;
 
                 visit(exprctx);
 
                 if (ctx.BWNOT() != null) {
-                    if (sort == Definition.Sort.DEF) {
+                    if (sort == Sort.DEF) {
                         execute.invokeStatic(definition.defobjType.type, DEF_NOT_CALL);
                     } else {
-                        if (sort == Definition.Sort.INT) {
+                        if (sort == Sort.INT) {
                             writeConstant(ctx, -1);
-                        } else if (sort == Definition.Sort.LONG) {
+                        } else if (sort == Sort.LONG) {
                             writeConstant(ctx, -1L);
                         } else {
                             throw new IllegalStateException(Metadata.error(ctx) + "Unexpected writer state.");
@@ -966,15 +973,15 @@ class Writer extends PainlessParserBaseVisitor<Void> {
                         execute.math(GeneratorAdapter.XOR, type);
                     }
                 } else if (ctx.SUB() != null) {
-                    if (sort == Definition.Sort.DEF) {
+                    if (sort == Sort.DEF) {
                         execute.invokeStatic(definition.defobjType.type, DEF_NEG_CALL);
                     } else {
                         if (settings.getNumericOverflow()) {
                             execute.math(GeneratorAdapter.NEG, type);
                         } else {
-                            if (sort == Definition.Sort.INT) {
+                            if (sort == Sort.INT) {
                                 execute.invokeStatic(definition.mathType.type, NEGATEEXACT_INT);
-                            } else if (sort == Definition.Sort.LONG) {
+                            } else if (sort == Sort.LONG) {
                                 execute.invokeStatic(definition.mathType.type, NEGATEEXACT_LONG);
                             } else {
                                 throw new IllegalStateException(Metadata.error(ctx) + "Unexpected writer state.");
@@ -1026,7 +1033,7 @@ class Writer extends PainlessParserBaseVisitor<Void> {
             } else {
                 throw new IllegalStateException(Metadata.error(ctx) + "Unexpected writer state.");
             }
-        } else if (binaryemd.from.sort == Definition.Sort.STRING) {
+        } else if (binaryemd.from.sort == Sort.STRING) {
             final boolean marked = strings.contains(ctx);
 
             if (!marked) {
@@ -1067,7 +1074,7 @@ class Writer extends PainlessParserBaseVisitor<Void> {
             visit(exprctx0);
             visit(exprctx1);
 
-            final Definition.Type type = binaryemd.from;
+            final Type type = binaryemd.from;
 
             if      (ctx.MUL()   != null) writeBinaryInstruction(ctx, type, MUL);
             else if (ctx.DIV()   != null) writeBinaryInstruction(ctx, type, DIV);
@@ -1123,7 +1130,7 @@ class Writer extends PainlessParserBaseVisitor<Void> {
             final ExpressionContext exprctx1 = ctx.expression(1);
             final Metadata.ExpressionMetadata expremd1 = metadata.getExpressionMetadata(exprctx1);
             final org.objectweb.asm.Type type = expremd1.to.type;
-            final Definition.Sort sort1 = expremd1.to.sort;
+            final Sort sort1 = expremd1.to.sort;
 
             visit(exprctx0);
 
@@ -1405,7 +1412,7 @@ class Writer extends PainlessParserBaseVisitor<Void> {
         if (startemd.token == ADD) {
             final Metadata.ExpressionMetadata storeemd = metadata.getExpressionMetadata(startemd.storeExpr);
 
-            if (startemd.current.sort == Definition.Sort.STRING || storeemd.from.sort == Definition.Sort.STRING) {
+            if (startemd.current.sort == Sort.STRING || storeemd.from.sort == Sort.STRING) {
                 writeNewStrings();
                 strings.add(startemd.storeExpr);
             }
@@ -1712,7 +1719,7 @@ class Writer extends PainlessParserBaseVisitor<Void> {
         execute.invokeConstructor(STRINGBUILDER_TYPE, STRINGBUILDER_CONSTRUCTOR);
     }
 
-    private void writeAppendStrings(final Definition.Sort sort) {
+    private void writeAppendStrings(final Sort sort) {
         switch (sort) {
             case BOOL:   execute.invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_BOOLEAN); break;
             case CHAR:   execute.invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_CHAR);    break;
@@ -1731,18 +1738,18 @@ class Writer extends PainlessParserBaseVisitor<Void> {
         execute.invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_TOSTRING);
     }
 
-    private void writeBinaryInstruction(final ParserRuleContext source, final Definition.Type type, final int token) {
-        final Definition.Sort sort = type.sort;
+    private void writeBinaryInstruction(final ParserRuleContext source, final Type type, final int token) {
+        final Sort sort = type.sort;
         final boolean exact = !settings.getNumericOverflow() &&
-            ((sort == Definition.Sort.INT || sort == Definition.Sort.LONG) &&
+            ((sort == Sort.INT || sort == Sort.LONG) &&
                 (token == MUL || token == DIV || token == ADD || token == SUB) ||
-                (sort == Definition.Sort.FLOAT || sort == Definition.Sort.DOUBLE) &&
+                (sort == Sort.FLOAT || sort == Sort.DOUBLE) &&
                     (token == MUL || token == DIV || token == REM || token == ADD || token == SUB));
 
         // if its a 64-bit shift, fixup the lastSource argument to truncate to 32-bits
         // note unlike java, this means we still do binary promotion of shifts,
         // but it keeps things simple -- this check works because we promote shifts.
-        if (sort == Definition.Sort.LONG && (token == LSH || token == USH || token == RSH)) {
+        if (sort == Sort.LONG && (token == LSH || token == USH || token == RSH)) {
             execute.cast(org.objectweb.asm.Type.LONG_TYPE, org.objectweb.asm.Type.INT_TYPE);
         }
 
@@ -1798,12 +1805,12 @@ class Writer extends PainlessParserBaseVisitor<Void> {
                     throw new IllegalStateException(Metadata.error(source) + "Unexpected writer state.");
             }
         } else {
-            if ((sort == Definition.Sort.FLOAT || sort == Definition.Sort.DOUBLE) &&
+            if ((sort == Sort.FLOAT || sort == Sort.DOUBLE) &&
                 (token == LSH || token == USH || token == RSH || token == BWAND || token == BWXOR || token == BWOR)) {
                 throw new IllegalStateException(Metadata.error(source) + "Unexpected writer state.");
             }
 
-            if (sort == Definition.Sort.DEF) {
+            if (sort == Sort.DEF) {
                 switch (token) {
                     case MUL:   execute.invokeStatic(definition.defobjType.type, DEF_MUL_CALL); break;
                     case DIV:   execute.invokeStatic(definition.defobjType.type, DEF_DIV_CALL); break;
@@ -1846,108 +1853,108 @@ class Writer extends PainlessParserBaseVisitor<Void> {
      *
      * @return true if an instruction is written, false otherwise
      */
-    private boolean writeExactInstruction(final Definition.Sort osort, final Definition.Sort psort) {
-        if (psort == Definition.Sort.DOUBLE) {
-            if (osort == Definition.Sort.FLOAT) {
+    private boolean writeExactInstruction(final Sort osort, final Sort psort) {
+        if (psort == Sort.DOUBLE) {
+            if (osort == Sort.FLOAT) {
                 execute.invokeStatic(definition.utilityType.type, TOFLOATWOOVERFLOW_DOUBLE);
-            } else if (osort == Definition.Sort.FLOAT_OBJ) {
+            } else if (osort == Sort.FLOAT_OBJ) {
                 execute.invokeStatic(definition.utilityType.type, TOFLOATWOOVERFLOW_DOUBLE);
                 execute.checkCast(definition.floatobjType.type);
-            } else if (osort == Definition.Sort.LONG) {
+            } else if (osort == Sort.LONG) {
                 execute.invokeStatic(definition.utilityType.type, TOLONGWOOVERFLOW_DOUBLE);
-            } else if (osort == Definition.Sort.LONG_OBJ) {
+            } else if (osort == Sort.LONG_OBJ) {
                 execute.invokeStatic(definition.utilityType.type, TOLONGWOOVERFLOW_DOUBLE);
                 execute.checkCast(definition.longobjType.type);
-            } else if (osort == Definition.Sort.INT) {
+            } else if (osort == Sort.INT) {
                 execute.invokeStatic(definition.utilityType.type, TOINTWOOVERFLOW_DOUBLE);
-            } else if (osort == Definition.Sort.INT_OBJ) {
+            } else if (osort == Sort.INT_OBJ) {
                 execute.invokeStatic(definition.utilityType.type, TOINTWOOVERFLOW_DOUBLE);
                 execute.checkCast(definition.intobjType.type);
-            } else if (osort == Definition.Sort.CHAR) {
+            } else if (osort == Sort.CHAR) {
                 execute.invokeStatic(definition.utilityType.type, TOCHARWOOVERFLOW_DOUBLE);
-            } else if (osort == Definition.Sort.CHAR_OBJ) {
+            } else if (osort == Sort.CHAR_OBJ) {
                 execute.invokeStatic(definition.utilityType.type, TOCHARWOOVERFLOW_DOUBLE);
                 execute.checkCast(definition.charobjType.type);
-            } else if (osort == Definition.Sort.SHORT) {
+            } else if (osort == Sort.SHORT) {
                 execute.invokeStatic(definition.utilityType.type, TOSHORTWOOVERFLOW_DOUBLE);
-            } else if (osort == Definition.Sort.SHORT_OBJ) {
+            } else if (osort == Sort.SHORT_OBJ) {
                 execute.invokeStatic(definition.utilityType.type, TOSHORTWOOVERFLOW_DOUBLE);
                 execute.checkCast(definition.shortobjType.type);
-            } else if (osort == Definition.Sort.BYTE) {
+            } else if (osort == Sort.BYTE) {
                 execute.invokeStatic(definition.utilityType.type, TOBYTEWOOVERFLOW_DOUBLE);
-            } else if (osort == Definition.Sort.BYTE_OBJ) {
+            } else if (osort == Sort.BYTE_OBJ) {
                 execute.invokeStatic(definition.utilityType.type, TOBYTEWOOVERFLOW_DOUBLE);
                 execute.checkCast(definition.byteobjType.type);
             } else {
                 return false;
             }
-        } else if (psort == Definition.Sort.FLOAT) {
-            if (osort == Definition.Sort.LONG) {
+        } else if (psort == Sort.FLOAT) {
+            if (osort == Sort.LONG) {
                 execute.invokeStatic(definition.utilityType.type, TOLONGWOOVERFLOW_FLOAT);
-            } else if (osort == Definition.Sort.LONG_OBJ) {
+            } else if (osort == Sort.LONG_OBJ) {
                 execute.invokeStatic(definition.utilityType.type, TOLONGWOOVERFLOW_FLOAT);
                 execute.checkCast(definition.longobjType.type);
-            } else if (osort == Definition.Sort.INT) {
+            } else if (osort == Sort.INT) {
                 execute.invokeStatic(definition.utilityType.type, TOINTWOOVERFLOW_FLOAT);
-            } else if (osort == Definition.Sort.INT_OBJ) {
+            } else if (osort == Sort.INT_OBJ) {
                 execute.invokeStatic(definition.utilityType.type, TOINTWOOVERFLOW_FLOAT);
                 execute.checkCast(definition.intobjType.type);
-            } else if (osort == Definition.Sort.CHAR) {
+            } else if (osort == Sort.CHAR) {
                 execute.invokeStatic(definition.utilityType.type, TOCHARWOOVERFLOW_FLOAT);
-            } else if (osort == Definition.Sort.CHAR_OBJ) {
+            } else if (osort == Sort.CHAR_OBJ) {
                 execute.invokeStatic(definition.utilityType.type, TOCHARWOOVERFLOW_FLOAT);
                 execute.checkCast(definition.charobjType.type);
-            } else if (osort == Definition.Sort.SHORT) {
+            } else if (osort == Sort.SHORT) {
                 execute.invokeStatic(definition.utilityType.type, TOSHORTWOOVERFLOW_FLOAT);
-            } else if (osort == Definition.Sort.SHORT_OBJ) {
+            } else if (osort == Sort.SHORT_OBJ) {
                 execute.invokeStatic(definition.utilityType.type, TOSHORTWOOVERFLOW_FLOAT);
                 execute.checkCast(definition.shortobjType.type);
-            } else if (osort == Definition.Sort.BYTE) {
+            } else if (osort == Sort.BYTE) {
                 execute.invokeStatic(definition.utilityType.type, TOBYTEWOOVERFLOW_FLOAT);
-            } else if (osort == Definition.Sort.BYTE_OBJ) {
+            } else if (osort == Sort.BYTE_OBJ) {
                 execute.invokeStatic(definition.utilityType.type, TOBYTEWOOVERFLOW_FLOAT);
                 execute.checkCast(definition.byteobjType.type);
             } else {
                 return false;
             }
-        } else if (psort == Definition.Sort.LONG) {
-            if (osort == Definition.Sort.INT) {
+        } else if (psort == Sort.LONG) {
+            if (osort == Sort.INT) {
                 execute.invokeStatic(definition.mathType.type, TOINTEXACT_LONG);
-            } else if (osort == Definition.Sort.INT_OBJ) {
+            } else if (osort == Sort.INT_OBJ) {
                 execute.invokeStatic(definition.mathType.type, TOINTEXACT_LONG);
                 execute.checkCast(definition.intobjType.type);
-            } else if (osort == Definition.Sort.CHAR) {
+            } else if (osort == Sort.CHAR) {
                 execute.invokeStatic(definition.utilityType.type, TOCHAREXACT_LONG);
-            } else if (osort == Definition.Sort.CHAR_OBJ) {
+            } else if (osort == Sort.CHAR_OBJ) {
                 execute.invokeStatic(definition.utilityType.type, TOCHAREXACT_LONG);
                 execute.checkCast(definition.charobjType.type);
-            } else if (osort == Definition.Sort.SHORT) {
+            } else if (osort == Sort.SHORT) {
                 execute.invokeStatic(definition.utilityType.type, TOSHORTEXACT_LONG);
-            } else if (osort == Definition.Sort.SHORT_OBJ) {
+            } else if (osort == Sort.SHORT_OBJ) {
                 execute.invokeStatic(definition.utilityType.type, TOSHORTEXACT_LONG);
                 execute.checkCast(definition.shortobjType.type);
-            } else if (osort == Definition.Sort.BYTE) {
+            } else if (osort == Sort.BYTE) {
                 execute.invokeStatic(definition.utilityType.type, TOBYTEEXACT_LONG);
-            } else if (osort == Definition.Sort.BYTE_OBJ) {
+            } else if (osort == Sort.BYTE_OBJ) {
                 execute.invokeStatic(definition.utilityType.type, TOBYTEEXACT_LONG);
                 execute.checkCast(definition.byteobjType.type);
             } else {
                 return false;
             }
-        } else if (psort == Definition.Sort.INT) {
-            if (osort == Definition.Sort.CHAR) {
+        } else if (psort == Sort.INT) {
+            if (osort == Sort.CHAR) {
                 execute.invokeStatic(definition.utilityType.type, TOCHAREXACT_INT);
-            } else if (osort == Definition.Sort.CHAR_OBJ) {
+            } else if (osort == Sort.CHAR_OBJ) {
                 execute.invokeStatic(definition.utilityType.type, TOCHAREXACT_INT);
                 execute.checkCast(definition.charobjType.type);
-            } else if (osort == Definition.Sort.SHORT) {
+            } else if (osort == Sort.SHORT) {
                 execute.invokeStatic(definition.utilityType.type, TOSHORTEXACT_INT);
-            } else if (osort == Definition.Sort.SHORT_OBJ) {
+            } else if (osort == Sort.SHORT_OBJ) {
                 execute.invokeStatic(definition.utilityType.type, TOSHORTEXACT_INT);
                 execute.checkCast(definition.shortobjType.type);
-            } else if (osort == Definition.Sort.BYTE) {
+            } else if (osort == Sort.BYTE) {
                 execute.invokeStatic(definition.utilityType.type, TOBYTEEXACT_INT);
-            } else if (osort == Definition.Sort.BYTE_OBJ) {
+            } else if (osort == Sort.BYTE_OBJ) {
                 execute.invokeStatic(definition.utilityType.type, TOBYTEEXACT_INT);
                 execute.checkCast(definition.byteobjType.type);
             } else {
@@ -1968,7 +1975,7 @@ class Writer extends PainlessParserBaseVisitor<Void> {
         final boolean array = "#brace".equals(sourceenmd.target);
         final boolean name = sourceenmd.target instanceof String && !length && !array;
         final boolean variable = sourceenmd.target instanceof Integer;
-        final boolean field = sourceenmd.target instanceof Definition.Field;
+        final boolean field = sourceenmd.target instanceof Field;
         final boolean shortcut = sourceenmd.target instanceof Object[];
 
         if (!length && !variable && !field && !array && !name && !shortcut) {
@@ -2049,7 +2056,7 @@ class Writer extends PainlessParserBaseVisitor<Void> {
 
                 boolean exact = false;
 
-                if (!settings.getNumericOverflow() && expremd.typesafe && sourceenmd.type.sort != Definition.Sort.DEF &&
+                if (!settings.getNumericOverflow() && expremd.typesafe && sourceenmd.type.sort != Sort.DEF &&
                     (token == MUL || token == DIV || token == REM || token == ADD || token == SUB)) {
                     exact = writeExactInstruction(sourceenmd.type.sort, sourceenmd.promote.sort);
                 }
@@ -2094,22 +2101,22 @@ class Writer extends PainlessParserBaseVisitor<Void> {
         if (variable) {
             writeLoadStoreVariable(source, store, sourceemd.type, (int)sourceemd.target);
         } else if (field) {
-            writeLoadStoreField(store, (Definition.Field)sourceemd.target);
+            writeLoadStoreField(store, (Field)sourceemd.target);
         } else if (name) {
             writeLoadStoreField(source, store, (String)sourceemd.target);
         } else if (array) {
             writeLoadStoreArray(source, store, sourceemd.type);
         } else if (shortcut) {
             Object[] targets = (Object[])sourceemd.target;
-            writeLoadStoreShortcut(store, (Definition.Method)targets[0], (Definition.Method)targets[1]);
+            writeLoadStoreShortcut(store, (Method)targets[0], (Method)targets[1]);
         } else {
             throw new IllegalStateException(Metadata.error(source) + "Load/Store requires a variable, field, or array.");
         }
     }
 
     private void writeLoadStoreVariable(final ParserRuleContext source, final boolean store,
-                                        final Definition.Type type, final int slot) {
-        if (type.sort == Definition.Sort.VOID) {
+                                        final Type type, final int slot) {
+        if (type.sort == Sort.VOID) {
             throw new IllegalStateException(Metadata.error(source) + "Cannot load/store void type.");
         }
 
@@ -2120,7 +2127,7 @@ class Writer extends PainlessParserBaseVisitor<Void> {
         }
     }
 
-    private void writeLoadStoreField(final boolean store, final Definition.Field field) {
+    private void writeLoadStoreField(final boolean store, final Field field) {
         if (java.lang.reflect.Modifier.isStatic(field.reflect.getModifiers())) {
             if (store) {
                 execute.putStatic(field.owner.type, field.reflect.getName(), field.type.type);
@@ -2163,12 +2170,12 @@ class Writer extends PainlessParserBaseVisitor<Void> {
         }
     }
 
-    private void writeLoadStoreArray(final ParserRuleContext source, final boolean store, final Definition.Type type) {
-        if (type.sort == Definition.Sort.VOID) {
+    private void writeLoadStoreArray(final ParserRuleContext source, final boolean store, final Type type) {
+        if (type.sort == Sort.VOID) {
             throw new IllegalStateException(Metadata.error(source) + "Cannot load/store void type.");
         }
 
-        if (type.sort == Definition.Sort.DEF) {
+        if (type.sort == Sort.DEF) {
             final ExtbraceContext bracectx = (ExtbraceContext)source;
             final Metadata.ExpressionMetadata expremd0 = metadata.getExpressionMetadata(bracectx.expression());
 
@@ -2197,8 +2204,8 @@ class Writer extends PainlessParserBaseVisitor<Void> {
         }
     }
 
-    private void writeLoadStoreShortcut(final boolean store, final Definition.Method getter, final Definition.Method setter) {
-        final Definition.Method method = store ? setter : getter;
+    private void writeLoadStoreShortcut(final boolean store, final Method getter, final Method setter) {
+        final Method method = store ? setter : getter;
 
         if (java.lang.reflect.Modifier.isInterface(getter.owner.clazz.getModifiers())) {
             execute.invokeInterface(method.owner.type, method.method);
@@ -2238,7 +2245,7 @@ class Writer extends PainlessParserBaseVisitor<Void> {
         final Metadata.ExternalMetadata parentemd = metadata.getExternalMetadata(sourceenmd.parent);
 
         final boolean makearray = "#makearray".equals(sourceenmd.target);
-        final boolean constructor = sourceenmd.target instanceof Definition.Constructor;
+        final boolean constructor = sourceenmd.target instanceof Constructor;
 
         if (!makearray && !constructor) {
             throw new IllegalStateException(Metadata.error(source) + "Target not found for new call.");
@@ -2249,7 +2256,7 @@ class Writer extends PainlessParserBaseVisitor<Void> {
                 visit(exprctx);
             }
 
-            if (sourceenmd.type.sort == Definition.Sort.ARRAY) {
+            if (sourceenmd.type.sort == Sort.ARRAY) {
                 execute.visitMultiANewArrayInsn(sourceenmd.type.type.getDescriptor(), sourceenmd.type.type.getDimensions());
             } else {
                 execute.newArray(sourceenmd.type.type);
@@ -2265,7 +2272,7 @@ class Writer extends PainlessParserBaseVisitor<Void> {
                 visit(exprctx);
             }
 
-            final Definition.Constructor target = (Definition.Constructor)sourceenmd.target;
+            final Constructor target = (Constructor)sourceenmd.target;
             execute.invokeConstructor(target.owner.type, target.method);
         }
     }
@@ -2273,7 +2280,7 @@ class Writer extends PainlessParserBaseVisitor<Void> {
     private void writeCallExternal(final ExtcallContext source) {
         final Metadata.ExtNodeMetadata sourceenmd = metadata.getExtNodeMetadata(source);
 
-        final boolean method = sourceenmd.target instanceof Definition.Method;
+        final boolean method = sourceenmd.target instanceof Method;
         final boolean def = sourceenmd.target instanceof String;
 
         if (!method && !def) {
@@ -2287,7 +2294,7 @@ class Writer extends PainlessParserBaseVisitor<Void> {
                 visit(exprctx);
             }
 
-            final Definition.Method target = (Definition.Method)sourceenmd.target;
+            final Method target = (Method)sourceenmd.target;
 
             if (java.lang.reflect.Modifier.isStatic(target.reflect.getModifiers())) {
                 execute.invokeStatic(target.owner.type, target.method);
@@ -2341,9 +2348,9 @@ class Writer extends PainlessParserBaseVisitor<Void> {
         checkWriteCast(sort.source, sort.cast);
     }
 
-    private void checkWriteCast(final ParserRuleContext source, final Definition.Cast cast) {
-        if (cast instanceof Definition.Transform) {
-            writeTransform((Definition.Transform)cast);
+    private void checkWriteCast(final ParserRuleContext source, final Cast cast) {
+        if (cast instanceof Transform) {
+            writeTransform((Transform)cast);
         } else if (cast != null) {
             writeCast(cast);
         } else {
@@ -2351,9 +2358,9 @@ class Writer extends PainlessParserBaseVisitor<Void> {
         }
     }
 
-    private void writeCast(final Definition.Cast cast) {
-        final Definition.Type from = cast.from;
-        final Definition.Type to = cast.to;
+    private void writeCast(final Cast cast) {
+        final Type from = cast.from;
+        final Type to = cast.to;
 
         if (from.equals(to)) {
             return;
@@ -2370,7 +2377,7 @@ class Writer extends PainlessParserBaseVisitor<Void> {
         }
     }
 
-    private void writeTransform(final Definition.Transform transform) {
+    private void writeTransform(final Transform transform) {
         if (transform.upcast != null) {
             execute.checkCast(transform.upcast.type);
         }

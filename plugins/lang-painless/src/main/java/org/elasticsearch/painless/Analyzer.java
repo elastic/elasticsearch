@@ -20,6 +20,15 @@
 package org.elasticsearch.painless;
 
 import org.antlr.v4.runtime.ParserRuleContext;
+import org.elasticsearch.painless.Definition.Cast;
+import org.elasticsearch.painless.Definition.Constructor;
+import org.elasticsearch.painless.Definition.Field;
+import org.elasticsearch.painless.Definition.Method;
+import org.elasticsearch.painless.Definition.Pair;
+import org.elasticsearch.painless.Definition.Sort;
+import org.elasticsearch.painless.Definition.Struct;
+import org.elasticsearch.painless.Definition.Transform;
+import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.PainlessParser.AfterthoughtContext;
 import org.elasticsearch.painless.PainlessParser.ArgumentsContext;
 import org.elasticsearch.painless.PainlessParser.AssignmentContext;
@@ -96,10 +105,10 @@ import static org.elasticsearch.painless.PainlessParser.USH;
 class Analyzer extends PainlessParserBaseVisitor<Void> {
     private static class Variable {
         final String name;
-        final Definition.Type type;
+        final Type type;
         final int slot;
 
-        private Variable(final String name, final Definition.Type type, final int slot) {
+        private Variable(final String name, final Type type, final int slot) {
             this.name = name;
             this.type = type;
             this.slot = slot;
@@ -161,7 +170,7 @@ class Analyzer extends PainlessParserBaseVisitor<Void> {
         return null;
     }
 
-    Variable addVariable(final ParserRuleContext source, final String name, final Definition.Type type) {
+    Variable addVariable(final ParserRuleContext source, final String name, final Type type) {
         if (getVariable(name) != null) {
             if (source == null) {
                 throw new IllegalArgumentException("Argument name [" + name + "] already defined within the scope.");
@@ -568,7 +577,7 @@ class Analyzer extends PainlessParserBaseVisitor<Void> {
             throw new IllegalArgumentException(Metadata.error(ctx) + "Not a statement.");
         }
 
-        final boolean rtn = exprsmd.lastSource && expremd.from.sort != Definition.Sort.VOID;
+        final boolean rtn = exprsmd.lastSource && expremd.from.sort != Sort.VOID;
         exprsmd.methodEscape = rtn;
         exprsmd.loopEscape = rtn;
         exprsmd.allLast = rtn;
@@ -834,17 +843,17 @@ class Analyzer extends PainlessParserBaseVisitor<Void> {
                 }
             } else {
                 try {
-                    final Definition.Type type = numericemd.to;
-                    final Definition.Sort sort = type == null ? Definition.Sort.INT : type.sort;
+                    final Type type = numericemd.to;
+                    final Sort sort = type == null ? Sort.INT : type.sort;
                     final int value = Integer.parseInt(svalue, radix);
 
-                    if (sort == Definition.Sort.BYTE && value >= Byte.MIN_VALUE && value <= Byte.MAX_VALUE) {
+                    if (sort == Sort.BYTE && value >= Byte.MIN_VALUE && value <= Byte.MAX_VALUE) {
                         numericemd.from = definition.byteType;
                         numericemd.preConst = (byte)value;
-                    } else if (sort == Definition.Sort.CHAR && value >= Character.MIN_VALUE && value <= Character.MAX_VALUE) {
+                    } else if (sort == Sort.CHAR && value >= Character.MIN_VALUE && value <= Character.MAX_VALUE) {
                         numericemd.from = definition.charType;
                         numericemd.preConst = (char)value;
-                    } else if (sort == Definition.Sort.SHORT && value >= Short.MIN_VALUE && value <= Short.MAX_VALUE) {
+                    } else if (sort == Sort.SHORT && value >= Short.MIN_VALUE && value <= Short.MAX_VALUE) {
                         numericemd.from = definition.shortType;
                         numericemd.preConst = (short)value;
                     } else {
@@ -937,7 +946,7 @@ class Analyzer extends PainlessParserBaseVisitor<Void> {
         extemd.statement = extstartemd.statement;
         extemd.preConst = extstartemd.constant;
         extemd.from = extstartemd.current;
-        extemd.typesafe = extstartemd.current.sort != Definition.Sort.DEF;
+        extemd.typesafe = extstartemd.current.sort != Sort.DEF;
 
         return null;
     }
@@ -956,7 +965,7 @@ class Analyzer extends PainlessParserBaseVisitor<Void> {
 
         postincemd.statement = true;
         postincemd.from = extstartemd.read ? extstartemd.current : definition.voidType;
-        postincemd.typesafe = extstartemd.current.sort != Definition.Sort.DEF;
+        postincemd.typesafe = extstartemd.current.sort != Sort.DEF;
 
         return null;
     }
@@ -975,7 +984,7 @@ class Analyzer extends PainlessParserBaseVisitor<Void> {
 
         preincemd.statement = true;
         preincemd.from = extstartemd.read ? extstartemd.current : definition.voidType;
-        preincemd.typesafe = extstartemd.current.sort != Definition.Sort.DEF;
+        preincemd.typesafe = extstartemd.current.sort != Sort.DEF;
 
         return null;
     }
@@ -1000,7 +1009,7 @@ class Analyzer extends PainlessParserBaseVisitor<Void> {
         } else if (ctx.BWNOT() != null || ctx.ADD() != null || ctx.SUB() != null) {
             visit(exprctx);
 
-            final Definition.Type promote = promoteNumeric(expremd.from, ctx.BWNOT() == null, true);
+            final Type promote = promoteNumeric(expremd.from, ctx.BWNOT() == null, true);
 
             if (promote == null) {
                 throw new ClassCastException("Cannot apply [" + ctx.getChild(0).getText() + "] " +
@@ -1011,12 +1020,12 @@ class Analyzer extends PainlessParserBaseVisitor<Void> {
             markCast(expremd);
 
             if (expremd.postConst != null) {
-                final Definition.Sort sort = promote.sort;
+                final Sort sort = promote.sort;
 
                 if (ctx.BWNOT() != null) {
-                    if (sort == Definition.Sort.INT) {
+                    if (sort == Sort.INT) {
                         unaryemd.preConst = ~(int)expremd.postConst;
-                    } else if (sort == Definition.Sort.LONG) {
+                    } else if (sort == Sort.LONG) {
                         unaryemd.preConst = ~(long)expremd.postConst;
                     } else {
                         throw new IllegalStateException(Metadata.error(ctx) + "Unexpected parser state.");
@@ -1025,34 +1034,34 @@ class Analyzer extends PainlessParserBaseVisitor<Void> {
                     if (exprctx instanceof NumericContext) {
                         unaryemd.preConst = expremd.postConst;
                     } else {
-                        if (sort == Definition.Sort.INT) {
+                        if (sort == Sort.INT) {
                             if (settings.getNumericOverflow()) {
                                 unaryemd.preConst = -(int)expremd.postConst;
                             } else {
                                 unaryemd.preConst = Math.negateExact((int)expremd.postConst);
                             }
-                        } else if (sort == Definition.Sort.LONG) {
+                        } else if (sort == Sort.LONG) {
                             if (settings.getNumericOverflow()) {
                                 unaryemd.preConst = -(long)expremd.postConst;
                             } else {
                                 unaryemd.preConst = Math.negateExact((long)expremd.postConst);
                             }
-                        } else if (sort == Definition.Sort.FLOAT) {
+                        } else if (sort == Sort.FLOAT) {
                             unaryemd.preConst = -(float)expremd.postConst;
-                        } else if (sort == Definition.Sort.DOUBLE) {
+                        } else if (sort == Sort.DOUBLE) {
                             unaryemd.preConst = -(double)expremd.postConst;
                         } else {
                             throw new IllegalStateException(Metadata.error(ctx) + "Unexpected parser state.");
                         }
                     }
                 } else if (ctx.ADD() != null) {
-                    if (sort == Definition.Sort.INT) {
+                    if (sort == Sort.INT) {
                         unaryemd.preConst = +(int)expremd.postConst;
-                    } else if (sort == Definition.Sort.LONG) {
+                    } else if (sort == Sort.LONG) {
                         unaryemd.preConst = +(long)expremd.postConst;
-                    } else if (sort == Definition.Sort.FLOAT) {
+                    } else if (sort == Sort.FLOAT) {
                         unaryemd.preConst = +(float)expremd.postConst;
-                    } else if (sort == Definition.Sort.DOUBLE) {
+                    } else if (sort == Sort.DOUBLE) {
                         unaryemd.preConst = +(double)expremd.postConst;
                     } else {
                         throw new IllegalStateException(Metadata.error(ctx) + "Unexpected parser state.");
@@ -1079,7 +1088,7 @@ class Analyzer extends PainlessParserBaseVisitor<Void> {
         final Metadata.ExpressionMetadata decltypemd = metadata.createExpressionMetadata(decltypectx);
         visit(decltypectx);
 
-        final Definition.Type type = decltypemd.from;
+        final Type type = decltypemd.from;
         castemd.from = type;
 
         final ExpressionContext exprctx = metadata.updateExpressionTree(ctx.expression());
@@ -1093,7 +1102,7 @@ class Analyzer extends PainlessParserBaseVisitor<Void> {
             castemd.preConst = expremd.postConst;
         }
 
-        castemd.typesafe = expremd.typesafe && castemd.from.sort != Definition.Sort.DEF;
+        castemd.typesafe = expremd.typesafe && castemd.from.sort != Sort.DEF;
 
         return null;
     }
@@ -1113,7 +1122,7 @@ class Analyzer extends PainlessParserBaseVisitor<Void> {
         final boolean decimal = ctx.MUL() != null || ctx.DIV() != null || ctx.REM() != null || ctx.SUB() != null;
         final boolean add = ctx.ADD() != null;
         final boolean xor = ctx.BWXOR() != null;
-        final Definition.Type promote = add ? promoteAdd(expremd0.from, expremd1.from) :
+        final Type promote = add ? promoteAdd(expremd0.from, expremd1.from) :
             xor ? promoteXor(expremd0.from, expremd1.from) :
                 promoteNumeric(expremd0.from, expremd1.from, decimal, true);
 
@@ -1122,33 +1131,33 @@ class Analyzer extends PainlessParserBaseVisitor<Void> {
                 "operation to types [" + expremd0.from.name + "] and [" + expremd1.from.name + "].");
         }
 
-        final Definition.Sort sort = promote.sort;
-        expremd0.to = add && sort == Definition.Sort.STRING ? expremd0.from : promote;
-        expremd1.to = add && sort == Definition.Sort.STRING ? expremd1.from : promote;
+        final Sort sort = promote.sort;
+        expremd0.to = add && sort == Sort.STRING ? expremd0.from : promote;
+        expremd1.to = add && sort == Sort.STRING ? expremd1.from : promote;
         markCast(expremd0);
         markCast(expremd1);
 
         if (expremd0.postConst != null && expremd1.postConst != null) {
             if (ctx.MUL() != null) {
-                if (sort == Definition.Sort.INT) {
+                if (sort == Sort.INT) {
                     if (settings.getNumericOverflow()) {
                         binaryemd.preConst = (int)expremd0.postConst * (int)expremd1.postConst;
                     } else {
                         binaryemd.preConst = Math.multiplyExact((int)expremd0.postConst, (int)expremd1.postConst);
                     }
-                } else if (sort == Definition.Sort.LONG) {
+                } else if (sort == Sort.LONG) {
                     if (settings.getNumericOverflow()) {
                         binaryemd.preConst = (long)expremd0.postConst * (long)expremd1.postConst;
                     } else {
                         binaryemd.preConst = Math.multiplyExact((long)expremd0.postConst, (long)expremd1.postConst);
                     }
-                } else if (sort == Definition.Sort.FLOAT) {
+                } else if (sort == Sort.FLOAT) {
                     if (settings.getNumericOverflow()) {
                         binaryemd.preConst = (float)expremd0.postConst * (float)expremd1.postConst;
                     } else {
                         binaryemd.preConst = Utility.multiplyWithoutOverflow((float)expremd0.postConst, (float)expremd1.postConst);
                     }
-                } else if (sort == Definition.Sort.DOUBLE) {
+                } else if (sort == Sort.DOUBLE) {
                     if (settings.getNumericOverflow()) {
                         binaryemd.preConst = (double)expremd0.postConst * (double)expremd1.postConst;
                     } else {
@@ -1158,25 +1167,25 @@ class Analyzer extends PainlessParserBaseVisitor<Void> {
                     throw new IllegalStateException(Metadata.error(ctx) + "Unexpected parser state.");
                 }
             } else if (ctx.DIV() != null) {
-                if (sort == Definition.Sort.INT) {
+                if (sort == Sort.INT) {
                     if (settings.getNumericOverflow()) {
                         binaryemd.preConst = (int)expremd0.postConst / (int)expremd1.postConst;
                     } else {
                         binaryemd.preConst = Utility.divideWithoutOverflow((int)expremd0.postConst, (int)expremd1.postConst);
                     }
-                } else if (sort == Definition.Sort.LONG) {
+                } else if (sort == Sort.LONG) {
                     if (settings.getNumericOverflow()) {
                         binaryemd.preConst = (long)expremd0.postConst / (long)expremd1.postConst;
                     } else {
                         binaryemd.preConst = Utility.divideWithoutOverflow((long)expremd0.postConst, (long)expremd1.postConst);
                     }
-                } else if (sort == Definition.Sort.FLOAT) {
+                } else if (sort == Sort.FLOAT) {
                     if (settings.getNumericOverflow()) {
                         binaryemd.preConst = (float)expremd0.postConst / (float)expremd1.postConst;
                     } else {
                         binaryemd.preConst = Utility.divideWithoutOverflow((float)expremd0.postConst, (float)expremd1.postConst);
                     }
-                } else if (sort == Definition.Sort.DOUBLE) {
+                } else if (sort == Sort.DOUBLE) {
                     if (settings.getNumericOverflow()) {
                         binaryemd.preConst = (double)expremd0.postConst / (double)expremd1.postConst;
                     } else {
@@ -1186,17 +1195,17 @@ class Analyzer extends PainlessParserBaseVisitor<Void> {
                     throw new IllegalStateException(Metadata.error(ctx) + "Unexpected parser state.");
                 }
             } else if (ctx.REM() != null) {
-                if (sort == Definition.Sort.INT) {
+                if (sort == Sort.INT) {
                     binaryemd.preConst = (int)expremd0.postConst % (int)expremd1.postConst;
-                } else if (sort == Definition.Sort.LONG) {
+                } else if (sort == Sort.LONG) {
                     binaryemd.preConst = (long)expremd0.postConst % (long)expremd1.postConst;
-                } else if (sort == Definition.Sort.FLOAT) {
+                } else if (sort == Sort.FLOAT) {
                     if (settings.getNumericOverflow()) {
                         binaryemd.preConst = (float)expremd0.postConst % (float)expremd1.postConst;
                     } else {
                         binaryemd.preConst = Utility.remainderWithoutOverflow((float)expremd0.postConst, (float)expremd1.postConst);
                     }
-                } else if (sort == Definition.Sort.DOUBLE) {
+                } else if (sort == Sort.DOUBLE) {
                     if (settings.getNumericOverflow()) {
                         binaryemd.preConst = (double)expremd0.postConst % (double)expremd1.postConst;
                     } else {
@@ -1206,55 +1215,55 @@ class Analyzer extends PainlessParserBaseVisitor<Void> {
                     throw new IllegalStateException(Metadata.error(ctx) + "Unexpected parser state.");
                 }
             } else if (ctx.ADD() != null) {
-                if (sort == Definition.Sort.INT) {
+                if (sort == Sort.INT) {
                     if (settings.getNumericOverflow()) {
                         binaryemd.preConst = (int)expremd0.postConst + (int)expremd1.postConst;
                     } else {
                         binaryemd.preConst = Math.addExact((int)expremd0.postConst, (int)expremd1.postConst);
                     }
-                } else if (sort == Definition.Sort.LONG) {
+                } else if (sort == Sort.LONG) {
                     if (settings.getNumericOverflow()) {
                         binaryemd.preConst = (long)expremd0.postConst + (long)expremd1.postConst;
                     } else {
                         binaryemd.preConst = Math.addExact((long)expremd0.postConst, (long)expremd1.postConst);
                     }
-                } else if (sort == Definition.Sort.FLOAT) {
+                } else if (sort == Sort.FLOAT) {
                     if (settings.getNumericOverflow()) {
                         binaryemd.preConst = (float)expremd0.postConst + (float)expremd1.postConst;
                     } else {
                         binaryemd.preConst = Utility.addWithoutOverflow((float)expremd0.postConst, (float)expremd1.postConst);
                     }
-                } else if (sort == Definition.Sort.DOUBLE) {
+                } else if (sort == Sort.DOUBLE) {
                     if (settings.getNumericOverflow()) {
                         binaryemd.preConst = (double)expremd0.postConst + (double)expremd1.postConst;
                     } else {
                         binaryemd.preConst = Utility.addWithoutOverflow((double)expremd0.postConst, (double)expremd1.postConst);
                     }
-                } else if (sort == Definition.Sort.STRING) {
+                } else if (sort == Sort.STRING) {
                     binaryemd.preConst = "" + expremd0.postConst + expremd1.postConst;
                 } else {
                     throw new IllegalStateException(Metadata.error(ctx) + "Unexpected parser state.");
                 }
             } else if (ctx.SUB() != null) {
-                if (sort == Definition.Sort.INT) {
+                if (sort == Sort.INT) {
                     if (settings.getNumericOverflow()) {
                         binaryemd.preConst = (int)expremd0.postConst - (int)expremd1.postConst;
                     } else {
                         binaryemd.preConst = Math.subtractExact((int)expremd0.postConst, (int)expremd1.postConst);
                     }
-                } else if (sort == Definition.Sort.LONG) {
+                } else if (sort == Sort.LONG) {
                     if (settings.getNumericOverflow()) {
                         binaryemd.preConst = (long)expremd0.postConst - (long)expremd1.postConst;
                     } else {
                         binaryemd.preConst = Math.subtractExact((long)expremd0.postConst, (long)expremd1.postConst);
                     }
-                } else if (sort == Definition.Sort.FLOAT) {
+                } else if (sort == Sort.FLOAT) {
                     if (settings.getNumericOverflow()) {
                         binaryemd.preConst = (float)expremd0.postConst - (float)expremd1.postConst;
                     } else {
                         binaryemd.preConst = Utility.subtractWithoutOverflow((float)expremd0.postConst, (float)expremd1.postConst);
                     }
-                } else if (sort == Definition.Sort.DOUBLE) {
+                } else if (sort == Sort.DOUBLE) {
                     if (settings.getNumericOverflow()) {
                         binaryemd.preConst = (double)expremd0.postConst - (double)expremd1.postConst;
                     } else {
@@ -1264,51 +1273,51 @@ class Analyzer extends PainlessParserBaseVisitor<Void> {
                     throw new IllegalStateException(Metadata.error(ctx) + "Unexpected parser state.");
                 }
             } else if (ctx.LSH() != null) {
-                if (sort == Definition.Sort.INT) {
+                if (sort == Sort.INT) {
                     binaryemd.preConst = (int)expremd0.postConst << (int)expremd1.postConst;
-                } else if (sort == Definition.Sort.LONG) {
+                } else if (sort == Sort.LONG) {
                     binaryemd.preConst = (long)expremd0.postConst << (long)expremd1.postConst;
                 } else {
                     throw new IllegalStateException(Metadata.error(ctx) + "Unexpected parser state.");
                 }
             } else if (ctx.RSH() != null) {
-                if (sort == Definition.Sort.INT) {
+                if (sort == Sort.INT) {
                     binaryemd.preConst = (int)expremd0.postConst >> (int)expremd1.postConst;
-                } else if (sort == Definition.Sort.LONG) {
+                } else if (sort == Sort.LONG) {
                     binaryemd.preConst = (long)expremd0.postConst >> (long)expremd1.postConst;
                 } else {
                     throw new IllegalStateException(Metadata.error(ctx) + "Unexpected parser state.");
                 }
             } else if (ctx.USH() != null) {
-                if (sort == Definition.Sort.INT) {
+                if (sort == Sort.INT) {
                     binaryemd.preConst = (int)expremd0.postConst >>> (int)expremd1.postConst;
-                } else if (sort == Definition.Sort.LONG) {
+                } else if (sort == Sort.LONG) {
                     binaryemd.preConst = (long)expremd0.postConst >>> (long)expremd1.postConst;
                 } else {
                     throw new IllegalStateException(Metadata.error(ctx) + "Unexpected parser state.");
                 }
             } else if (ctx.BWAND() != null) {
-                if (sort == Definition.Sort.INT) {
+                if (sort == Sort.INT) {
                     binaryemd.preConst = (int)expremd0.postConst & (int)expremd1.postConst;
-                } else if (sort == Definition.Sort.LONG) {
+                } else if (sort == Sort.LONG) {
                     binaryemd.preConst = (long)expremd0.postConst & (long)expremd1.postConst;
                 } else {
                     throw new IllegalStateException(Metadata.error(ctx) + "Unexpected parser state.");
                 }
             } else if (ctx.BWXOR() != null) {
-                if (sort == Definition.Sort.BOOL) {
+                if (sort == Sort.BOOL) {
                     binaryemd.preConst = (boolean)expremd0.postConst ^ (boolean)expremd1.postConst;
-                } else if (sort == Definition.Sort.INT) {
+                } else if (sort == Sort.INT) {
                     binaryemd.preConst = (int)expremd0.postConst ^ (int)expremd1.postConst;
-                } else if (sort == Definition.Sort.LONG) {
+                } else if (sort == Sort.LONG) {
                     binaryemd.preConst = (long)expremd0.postConst ^ (long)expremd1.postConst;
                 } else {
                     throw new IllegalStateException(Metadata.error(ctx) + "Unexpected parser state.");
                 }
             } else if (ctx.BWOR() != null) {
-                if (sort == Definition.Sort.INT) {
+                if (sort == Sort.INT) {
                     binaryemd.preConst = (int)expremd0.postConst | (int)expremd1.postConst;
-                } else if (sort == Definition.Sort.LONG) {
+                } else if (sort == Sort.LONG) {
                     binaryemd.preConst = (long)expremd0.postConst | (long)expremd1.postConst;
                 } else {
                     throw new IllegalStateException(Metadata.error(ctx) + "Unexpected parser state.");
@@ -1342,7 +1351,7 @@ class Analyzer extends PainlessParserBaseVisitor<Void> {
             throw new IllegalArgumentException(Metadata.error(ctx) + "Unnecessary comparison of null constants.");
         }
 
-        final Definition.Type promote = equality ? promoteEquality(expremd0.from, expremd1.from) :
+        final Type promote = equality ? promoteEquality(expremd0.from, expremd1.from) :
             reference ? promoteReference(expremd0.from, expremd1.from) :
                 promoteNumeric(expremd0.from, expremd1.from, true, true);
 
@@ -1357,18 +1366,18 @@ class Analyzer extends PainlessParserBaseVisitor<Void> {
         markCast(expremd1);
 
         if (expremd0.postConst != null && expremd1.postConst != null) {
-            final Definition.Sort sort = promote.sort;
+            final Sort sort = promote.sort;
 
             if (ctx.EQ() != null || ctx.EQR() != null) {
-                if (sort == Definition.Sort.BOOL) {
+                if (sort == Sort.BOOL) {
                     compemd.preConst = (boolean)expremd0.postConst == (boolean)expremd1.postConst;
-                } else if (sort == Definition.Sort.INT) {
+                } else if (sort == Sort.INT) {
                     compemd.preConst = (int)expremd0.postConst == (int)expremd1.postConst;
-                } else if (sort == Definition.Sort.LONG) {
+                } else if (sort == Sort.LONG) {
                     compemd.preConst = (long)expremd0.postConst == (long)expremd1.postConst;
-                } else if (sort == Definition.Sort.FLOAT) {
+                } else if (sort == Sort.FLOAT) {
                     compemd.preConst = (float)expremd0.postConst == (float)expremd1.postConst;
-                } else if (sort == Definition.Sort.DOUBLE) {
+                } else if (sort == Sort.DOUBLE) {
                     compemd.preConst = (double)expremd0.postConst == (double)expremd1.postConst;
                 } else {
                     if (ctx.EQ() != null && !expremd0.isNull && !expremd1.isNull) {
@@ -1378,15 +1387,15 @@ class Analyzer extends PainlessParserBaseVisitor<Void> {
                     }
                 }
             } else if (ctx.NE() != null || ctx.NER() != null) {
-                if (sort == Definition.Sort.BOOL) {
+                if (sort == Sort.BOOL) {
                     compemd.preConst = (boolean)expremd0.postConst != (boolean)expremd1.postConst;
-                } else if (sort == Definition.Sort.INT) {
+                } else if (sort == Sort.INT) {
                     compemd.preConst = (int)expremd0.postConst != (int)expremd1.postConst;
-                } else if (sort == Definition.Sort.LONG) {
+                } else if (sort == Sort.LONG) {
                     compemd.preConst = (long)expremd0.postConst != (long)expremd1.postConst;
-                } else if (sort == Definition.Sort.FLOAT) {
+                } else if (sort == Sort.FLOAT) {
                     compemd.preConst = (float)expremd0.postConst != (float)expremd1.postConst;
-                } else if (sort == Definition.Sort.DOUBLE) {
+                } else if (sort == Sort.DOUBLE) {
                     compemd.preConst = (double)expremd0.postConst != (double)expremd1.postConst;
                 } else {
                     if (ctx.NE() != null && !expremd0.isNull && !expremd1.isNull) {
@@ -1396,43 +1405,43 @@ class Analyzer extends PainlessParserBaseVisitor<Void> {
                     }
                 }
             } else if (ctx.GTE() != null) {
-                if (sort == Definition.Sort.INT) {
+                if (sort == Sort.INT) {
                     compemd.preConst = (int)expremd0.postConst >= (int)expremd1.postConst;
-                } else if (sort == Definition.Sort.LONG) {
+                } else if (sort == Sort.LONG) {
                     compemd.preConst = (long)expremd0.postConst >= (long)expremd1.postConst;
-                } else if (sort == Definition.Sort.FLOAT) {
+                } else if (sort == Sort.FLOAT) {
                     compemd.preConst = (float)expremd0.postConst >= (float)expremd1.postConst;
-                } else if (sort == Definition.Sort.DOUBLE) {
+                } else if (sort == Sort.DOUBLE) {
                     compemd.preConst = (double)expremd0.postConst >= (double)expremd1.postConst;
                 }
             } else if (ctx.GT() != null) {
-                if (sort == Definition.Sort.INT) {
+                if (sort == Sort.INT) {
                     compemd.preConst = (int)expremd0.postConst > (int)expremd1.postConst;
-                } else if (sort == Definition.Sort.LONG) {
+                } else if (sort == Sort.LONG) {
                     compemd.preConst = (long)expremd0.postConst > (long)expremd1.postConst;
-                } else if (sort == Definition.Sort.FLOAT) {
+                } else if (sort == Sort.FLOAT) {
                     compemd.preConst = (float)expremd0.postConst > (float)expremd1.postConst;
-                } else if (sort == Definition.Sort.DOUBLE) {
+                } else if (sort == Sort.DOUBLE) {
                     compemd.preConst = (double)expremd0.postConst > (double)expremd1.postConst;
                 }
             } else if (ctx.LTE() != null) {
-                if (sort == Definition.Sort.INT) {
+                if (sort == Sort.INT) {
                     compemd.preConst = (int)expremd0.postConst <= (int)expremd1.postConst;
-                } else if (sort == Definition.Sort.LONG) {
+                } else if (sort == Sort.LONG) {
                     compemd.preConst = (long)expremd0.postConst <= (long)expremd1.postConst;
-                } else if (sort == Definition.Sort.FLOAT) {
+                } else if (sort == Sort.FLOAT) {
                     compemd.preConst = (float)expremd0.postConst <= (float)expremd1.postConst;
-                } else if (sort == Definition.Sort.DOUBLE) {
+                } else if (sort == Sort.DOUBLE) {
                     compemd.preConst = (double)expremd0.postConst <= (double)expremd1.postConst;
                 }
             } else if (ctx.LT() != null) {
-                if (sort == Definition.Sort.INT) {
+                if (sort == Sort.INT) {
                     compemd.preConst = (int)expremd0.postConst < (int)expremd1.postConst;
-                } else if (sort == Definition.Sort.LONG) {
+                } else if (sort == Sort.LONG) {
                     compemd.preConst = (long)expremd0.postConst < (long)expremd1.postConst;
-                } else if (sort == Definition.Sort.FLOAT) {
+                } else if (sort == Sort.FLOAT) {
                     compemd.preConst = (float)expremd0.postConst < (float)expremd1.postConst;
-                } else if (sort == Definition.Sort.DOUBLE) {
+                } else if (sort == Sort.DOUBLE) {
                     compemd.preConst = (double)expremd0.postConst < (double)expremd1.postConst;
                 }
             } else {
@@ -1505,7 +1514,7 @@ class Analyzer extends PainlessParserBaseVisitor<Void> {
         visit(exprctx2);
 
         if (condemd.to == null) {
-            final Definition.Type promote = promoteConditional(expremd1.from, expremd2.from, expremd1.preConst, expremd2.preConst);
+            final Type promote = promoteConditional(expremd1.from, expremd2.from, expremd1.preConst, expremd2.preConst);
 
             expremd1.to = promote;
             expremd2.to = promote;
@@ -1560,7 +1569,7 @@ class Analyzer extends PainlessParserBaseVisitor<Void> {
 
         assignemd.statement = true;
         assignemd.from = extstartemd.read ? extstartemd.current : definition.voidType;
-        assignemd.typesafe = extstartemd.current.sort != Definition.Sort.DEF;
+        assignemd.typesafe = extstartemd.current.sort != Sort.DEF;
 
         return null;
     }
@@ -1711,8 +1720,8 @@ class Analyzer extends PainlessParserBaseVisitor<Void> {
         final ParserRuleContext parent = braceenmd.parent;
         final Metadata.ExternalMetadata parentemd = metadata.getExternalMetadata(parent);
 
-        final boolean array = parentemd.current.sort == Definition.Sort.ARRAY;
-        final boolean def = parentemd.current.sort == Definition.Sort.DEF;
+        final boolean array = parentemd.current.sort == Sort.ARRAY;
+        final boolean def = parentemd.current.sort == Sort.DEF;
         boolean map = false;
         boolean list = false;
 
@@ -1761,16 +1770,16 @@ class Analyzer extends PainlessParserBaseVisitor<Void> {
             final boolean get = parentemd.read || parentemd.token > 0 || !braceenmd.last;
             final boolean set = braceenmd.last && store;
 
-            Definition.Method getter;
-            Definition.Method setter;
-            Definition.Type valuetype;
-            Definition.Type settype;
+            Method getter;
+            Method setter;
+            Type valuetype;
+            Type settype;
 
             if (map) {
                 getter = parentemd.current.struct.methods.get("get");
                 setter = parentemd.current.struct.methods.get("put");
 
-                if (getter != null && (getter.rtn.sort == Definition.Sort.VOID || getter.arguments.size() != 1)) {
+                if (getter != null && (getter.rtn.sort == Sort.VOID || getter.arguments.size() != 1)) {
                     throw new IllegalArgumentException(Metadata.error(ctx) +
                         "Illegal map get shortcut for type [" + parentemd.current.name + "].");
                 }
@@ -1791,13 +1800,13 @@ class Analyzer extends PainlessParserBaseVisitor<Void> {
                 getter = parentemd.current.struct.methods.get("get");
                 setter = parentemd.current.struct.methods.get("set");
 
-                if (getter != null && (getter.rtn.sort == Definition.Sort.VOID || getter.arguments.size() != 1 ||
-                    getter.arguments.get(0).sort != Definition.Sort.INT)) {
+                if (getter != null && (getter.rtn.sort == Sort.VOID || getter.arguments.size() != 1 ||
+                    getter.arguments.get(0).sort != Sort.INT)) {
                     throw new IllegalArgumentException(Metadata.error(ctx) +
                         "Illegal list get shortcut for type [" + parentemd.current.name + "].");
                 }
 
-                if (setter != null && (setter.arguments.size() != 2 || setter.arguments.get(0).sort != Definition.Sort.INT)) {
+                if (setter != null && (setter.arguments.size() != 2 || setter.arguments.get(0).sort != Sort.INT)) {
                     throw new IllegalArgumentException(Metadata.error(ctx) +
                         "Illegal list set shortcut for type [" + parentemd.current.name + "].");
                 }
@@ -1887,25 +1896,25 @@ class Analyzer extends PainlessParserBaseVisitor<Void> {
 
         final String name = ctx.EXTID().getText();
 
-        if (parentemd.current.sort == Definition.Sort.ARRAY) {
+        if (parentemd.current.sort == Sort.ARRAY) {
             throw new IllegalArgumentException(Metadata.error(ctx) + "Unexpected call [" + name + "] on an array.");
         } else if (callenmd.last && parentemd.storeExpr != null) {
             throw new IllegalArgumentException(Metadata.error(ctx) + "Cannot assign a value to a call [" + name + "].");
         }
 
-        final Definition.Struct struct = parentemd.current.struct;
+        final Struct struct = parentemd.current.struct;
         final List<ExpressionContext> arguments = ctx.arguments().expression();
         final int size = arguments.size();
-        Definition.Type[] types;
+        Type[] types;
 
-        final Definition.Method method = parentemd.statik ? struct.functions.get(name) : struct.methods.get(name);
-        final boolean def = parentemd.current.sort == Definition.Sort.DEF;
+        final Method method = parentemd.statik ? struct.functions.get(name) : struct.methods.get(name);
+        final boolean def = parentemd.current.sort == Sort.DEF;
 
         if (method == null && !def) {
             throw new IllegalArgumentException(
                 Metadata.error(ctx) + "Unknown call [" + name + "] on type [" + struct.name + "].");
         } else if (method != null) {
-            types = new Definition.Type[method.arguments.size()];
+            types = new Type[method.arguments.size()];
             method.arguments.toArray(types);
 
             callenmd.target = method;
@@ -1919,7 +1928,7 @@ class Analyzer extends PainlessParserBaseVisitor<Void> {
                     " but found [" + arguments.size() + "].");
             }
         } else {
-            types = new Definition.Type[arguments.size()];
+            types = new Type[arguments.size()];
             Arrays.fill(types, definition.defType);
 
             callenmd.target = name;
@@ -2010,7 +2019,7 @@ class Analyzer extends PainlessParserBaseVisitor<Void> {
             throw new IllegalStateException(Metadata.error(ctx) + "Unexpected field [" + value + "] load.");
         }
 
-        if (parentemd.current.sort == Definition.Sort.ARRAY) {
+        if (parentemd.current.sort == Sort.ARRAY) {
             if ("length".equals(value)) {
                 if (!parentemd.read) {
                     throw new IllegalArgumentException(Metadata.error(ctx) + "Must read array field [length].");
@@ -2025,14 +2034,14 @@ class Analyzer extends PainlessParserBaseVisitor<Void> {
             } else {
                 throw new IllegalArgumentException(Metadata.error(ctx) + "Unexpected array field [" + value + "].");
             }
-        } else if (parentemd.current.sort == Definition.Sort.DEF) {
+        } else if (parentemd.current.sort == Sort.DEF) {
             memberenmd.target = value;
             memberenmd.type = definition.defType;
             analyzeLoadStoreExternal(ctx);
             parentemd.current = memberenmd.type;
         } else {
-            final Definition.Struct struct = parentemd.current.struct;
-            final Definition.Field field = parentemd.statik ? struct.statics.get(value) : struct.members.get(value);
+            final Struct struct = parentemd.current.struct;
+            final Field field = parentemd.statik ? struct.statics.get(value) : struct.members.get(value);
 
             if (field != null) {
                 if (store && java.lang.reflect.Modifier.isFinal(field.reflect.getModifiers())) {
@@ -2048,21 +2057,21 @@ class Analyzer extends PainlessParserBaseVisitor<Void> {
                 final boolean get = parentemd.read || parentemd.token > 0 || !memberenmd.last;
                 final boolean set = memberenmd.last && store;
 
-                Definition.Method getter = struct.methods.get("get" + Character.toUpperCase(value.charAt(0)) + value.substring(1));
-                Definition.Method setter = struct.methods.get("set" + Character.toUpperCase(value.charAt(0)) + value.substring(1));
+                Method getter = struct.methods.get("get" + Character.toUpperCase(value.charAt(0)) + value.substring(1));
+                Method setter = struct.methods.get("set" + Character.toUpperCase(value.charAt(0)) + value.substring(1));
                 Object constant = null;
 
-                if (getter != null && (getter.rtn.sort == Definition.Sort.VOID || !getter.arguments.isEmpty())) {
+                if (getter != null && (getter.rtn.sort == Sort.VOID || !getter.arguments.isEmpty())) {
                     throw new IllegalArgumentException(Metadata.error(ctx) +
                         "Illegal get shortcut on field [" + value + "] for type [" + struct.name + "].");
                 }
 
-                if (setter != null && (setter.rtn.sort != Definition.Sort.VOID || setter.arguments.size() != 1)) {
+                if (setter != null && (setter.rtn.sort != Sort.VOID || setter.arguments.size() != 1)) {
                     throw new IllegalArgumentException(Metadata.error(ctx) +
                         "Illegal set shortcut on field [" + value + "] for type [" + struct.name + "].");
                 }
 
-                Definition.Type settype = setter == null ? null : setter.arguments.get(0);
+                Type settype = setter == null ? null : setter.arguments.get(0);
 
                 if (getter == null && setter == null) {
                     if (ctx.EXTID() != null) {
@@ -2072,14 +2081,14 @@ class Analyzer extends PainlessParserBaseVisitor<Void> {
                             getter = parentemd.current.struct.methods.get("get");
                             setter = parentemd.current.struct.methods.get("put");
 
-                            if (getter != null && (getter.rtn.sort == Definition.Sort.VOID || getter.arguments.size() != 1 ||
-                                getter.arguments.get(0).sort != Definition.Sort.STRING)) {
+                            if (getter != null && (getter.rtn.sort == Sort.VOID || getter.arguments.size() != 1 ||
+                                getter.arguments.get(0).sort != Sort.STRING)) {
                                 throw new IllegalArgumentException(Metadata.error(ctx) +
                                     "Illegal map get shortcut [" + value + "] for type [" + struct.name + "].");
                             }
 
                             if (setter != null && (setter.arguments.size() != 2 ||
-                                setter.arguments.get(0).sort != Definition.Sort.STRING)) {
+                                setter.arguments.get(0).sort != Sort.STRING)) {
                                 throw new IllegalArgumentException(Metadata.error(ctx) +
                                     "Illegal map set shortcut [" + value + "] for type [" + struct.name + "].");
                             }
@@ -2100,14 +2109,14 @@ class Analyzer extends PainlessParserBaseVisitor<Void> {
                             getter = parentemd.current.struct.methods.get("get");
                             setter = parentemd.current.struct.methods.get("set");
 
-                            if (getter != null && (getter.rtn.sort == Definition.Sort.VOID || getter.arguments.size() != 1 ||
-                                getter.arguments.get(0).sort != Definition.Sort.INT)) {
+                            if (getter != null && (getter.rtn.sort == Sort.VOID || getter.arguments.size() != 1 ||
+                                getter.arguments.get(0).sort != Sort.INT)) {
                                 throw new IllegalArgumentException(Metadata.error(ctx) +
                                     "Illegal list get shortcut [" + value + "] for type [" + struct.name + "].");
                             }
 
-                            if (setter != null && (setter.rtn.sort != Definition.Sort.VOID || setter.arguments.size() != 2 ||
-                                setter.arguments.get(0).sort != Definition.Sort.INT)) {
+                            if (setter != null && (setter.rtn.sort != Sort.VOID || setter.arguments.size() != 2 ||
+                                setter.arguments.get(0).sort != Sort.INT)) {
                                 throw new IllegalArgumentException(Metadata.error(ctx) +
                                     "Illegal list set shortcut [" + value + "] for type [" + struct.name + "].");
                             }
@@ -2171,7 +2180,7 @@ class Analyzer extends PainlessParserBaseVisitor<Void> {
         newenmd.last = parentemd.scope == 0 && dotctx == null && bracectx == null;
 
         final String name = ctx.TYPE().getText();
-        final Definition.Struct struct = definition.structs.get(name);
+        final Struct struct = definition.structs.get(name);
 
         if (parentemd.current != null) {
             throw new IllegalArgumentException(Metadata.error(ctx) + "Unexpected new call.");
@@ -2187,14 +2196,14 @@ class Analyzer extends PainlessParserBaseVisitor<Void> {
         final List<ExpressionContext> arguments = newclass ? ctx.arguments().expression() : ctx.expression();
         final int size = arguments.size();
 
-        Definition.Type[] types;
+        Type[] types;
 
         if (newarray) {
             if (!parentemd.read) {
                 throw new IllegalArgumentException(Metadata.error(ctx) + "A newly created array must be assigned.");
             }
 
-            types = new Definition.Type[size];
+            types = new Type[size];
             Arrays.fill(types, definition.intType);
 
             newenmd.target = "#makearray";
@@ -2209,10 +2218,10 @@ class Analyzer extends PainlessParserBaseVisitor<Void> {
                 throw new IllegalArgumentException(Metadata.error(ctx) + "A newly created array cannot have zero dimensions.");
             }
         } else if (newclass) {
-            final Definition.Constructor constructor = struct.constructors.get("new");
+            final Constructor constructor = struct.constructors.get("new");
 
             if (constructor != null) {
-                types = new Definition.Type[constructor.arguments.size()];
+                types = new Type[constructor.arguments.size()];
                 constructor.arguments.toArray(types);
 
                 newenmd.target = constructor;
@@ -2304,7 +2313,7 @@ class Analyzer extends PainlessParserBaseVisitor<Void> {
     @Override
     public Void visitIncrement(IncrementContext ctx) {
         final Metadata.ExpressionMetadata incremd = metadata.getExpressionMetadata(ctx);
-        final Definition.Sort sort = incremd.to == null ? null : incremd.to.sort;
+        final Sort sort = incremd.to == null ? null : incremd.to.sort;
         final boolean positive = ctx.INCR() != null;
 
         if (incremd.to == null) {
@@ -2362,7 +2371,7 @@ class Analyzer extends PainlessParserBaseVisitor<Void> {
                 extenmd.castFrom = getLegalCast(source, extenmd.type, extenmd.promote, false);
                 extenmd.castTo = getLegalCast(source, extenmd.promote, extenmd.type, true);
 
-                storeemd.to = add && extenmd.promote.sort == Definition.Sort.STRING ? storeemd.from : extenmd.promote;
+                storeemd.to = add && extenmd.promote.sort == Sort.STRING ? storeemd.from : extenmd.promote;
                 markCast(storeemd);
             } else {
                 storeemd.to = extenmd.type;
@@ -2388,15 +2397,15 @@ class Analyzer extends PainlessParserBaseVisitor<Void> {
         }
     }
 
-    private Definition.Cast getLegalCast(final ParserRuleContext source, final Definition.Type from, final Definition.Type to, final boolean explicit) {
-        final Definition.Cast cast = new Definition.Cast(from, to);
+    private Cast getLegalCast(final ParserRuleContext source, final Type from, final Type to, final boolean explicit) {
+        final Cast cast = new Cast(from, to);
 
         if (from.equals(to)) {
             return cast;
         }
 
-        if (from.sort == Definition.Sort.DEF && to.sort != Definition.Sort.VOID || from.sort != Definition.Sort.VOID && to.sort == Definition.Sort.DEF) {
-            final Definition.Transform transform = definition.transforms.get(cast);
+        if (from.sort == Sort.DEF && to.sort != Sort.VOID || from.sort != Sort.VOID && to.sort == Sort.DEF) {
+            final Transform transform = definition.transforms.get(cast);
 
             if (transform != null) {
                 return transform;
@@ -2831,8 +2840,8 @@ class Analyzer extends PainlessParserBaseVisitor<Void> {
         }
     }
 
-    private Definition.Transform checkTransform(final ParserRuleContext source, final Definition.Cast cast) {
-        final Definition.Transform transform = definition.transforms.get(cast);
+    private Transform checkTransform(final ParserRuleContext source, final Cast cast) {
+        final Transform transform = definition.transforms.get(cast);
 
         if (transform == null) {
             throw new ClassCastException(
@@ -2842,20 +2851,20 @@ class Analyzer extends PainlessParserBaseVisitor<Void> {
         return transform;
     }
 
-    private Object constCast(final ParserRuleContext source, final Object constant, final Definition.Cast cast) {
-        if (cast instanceof Definition.Transform) {
-            final Definition.Transform transform = (Definition.Transform)cast;
+    private Object constCast(final ParserRuleContext source, final Object constant, final Cast cast) {
+        if (cast instanceof Transform) {
+            final Transform transform = (Transform)cast;
             return invokeTransform(source, transform, constant);
         } else {
-            final Definition.Sort fsort = cast.from.sort;
-            final Definition.Sort tsort = cast.to.sort;
+            final Sort fsort = cast.from.sort;
+            final Sort tsort = cast.to.sort;
 
             if (fsort == tsort) {
                 return constant;
             } else if (fsort.numeric && tsort.numeric) {
                 Number number;
 
-                if (fsort == Definition.Sort.CHAR) {
+                if (fsort == Sort.CHAR) {
                     number = (int)(char)constant;
                 } else {
                     number = (Number)constant;
@@ -2880,8 +2889,8 @@ class Analyzer extends PainlessParserBaseVisitor<Void> {
         }
     }
 
-    private Object invokeTransform(final ParserRuleContext source, final Definition.Transform transform, final Object object) {
-        final Definition.Method method = transform.method;
+    private Object invokeTransform(final ParserRuleContext source, final Transform transform, final Object object) {
+        final Method method = transform.method;
         final java.lang.reflect.Method jmethod = method.reflect;
         final int modifiers = jmethod.getModifiers();
 
@@ -2899,16 +2908,16 @@ class Analyzer extends PainlessParserBaseVisitor<Void> {
         }
     }
 
-    private Definition.Type promoteNumeric(final Definition.Type from, boolean decimal, boolean primitive) {
-        final Definition.Sort sort = from.sort;
+    private Type promoteNumeric(final Type from, boolean decimal, boolean primitive) {
+        final Sort sort = from.sort;
 
-        if (sort == Definition.Sort.DEF) {
+        if (sort == Sort.DEF) {
             return definition.defType;
-        } else if ((sort == Definition.Sort.DOUBLE || sort == Definition.Sort.DOUBLE_OBJ || sort == Definition.Sort.NUMBER) && decimal) {
+        } else if ((sort == Sort.DOUBLE || sort == Sort.DOUBLE_OBJ || sort == Sort.NUMBER) && decimal) {
             return primitive ? definition.doubleType : definition.doubleobjType;
-        } else if ((sort == Definition.Sort.FLOAT || sort == Definition.Sort.FLOAT_OBJ) && decimal) {
+        } else if ((sort == Sort.FLOAT || sort == Sort.FLOAT_OBJ) && decimal) {
             return primitive ? definition.floatType : definition.floatobjType;
-        } else if (sort == Definition.Sort.LONG || sort == Definition.Sort.LONG_OBJ || sort == Definition.Sort.NUMBER) {
+        } else if (sort == Sort.LONG || sort == Sort.LONG_OBJ || sort == Sort.NUMBER) {
             return primitive ? definition.longType : definition.longobjType;
         } else if (sort.numeric) {
             return primitive ? definition.intType : definition.intobjType;
@@ -2917,25 +2926,25 @@ class Analyzer extends PainlessParserBaseVisitor<Void> {
         return null;
     }
 
-    private Definition.Type promoteNumeric(final Definition.Type from0, final Definition.Type from1, boolean decimal, boolean primitive) {
-        final Definition.Sort sort0 = from0.sort;
-        final Definition.Sort sort1 = from1.sort;
+    private Type promoteNumeric(final Type from0, final Type from1, boolean decimal, boolean primitive) {
+        final Sort sort0 = from0.sort;
+        final Sort sort1 = from1.sort;
 
-        if (sort0 == Definition.Sort.DEF || sort1 == Definition.Sort.DEF) {
+        if (sort0 == Sort.DEF || sort1 == Sort.DEF) {
             return definition.defType;
         }
 
         if (decimal) {
-            if (sort0 == Definition.Sort.DOUBLE || sort0 == Definition.Sort.DOUBLE_OBJ || sort0 == Definition.Sort.NUMBER ||
-                sort1 == Definition.Sort.DOUBLE || sort1 == Definition.Sort.DOUBLE_OBJ || sort1 == Definition.Sort.NUMBER) {
+            if (sort0 == Sort.DOUBLE || sort0 == Sort.DOUBLE_OBJ || sort0 == Sort.NUMBER ||
+                sort1 == Sort.DOUBLE || sort1 == Sort.DOUBLE_OBJ || sort1 == Sort.NUMBER) {
                 return primitive ? definition.doubleType : definition.doubleobjType;
-            } else if (sort0 == Definition.Sort.FLOAT || sort0 == Definition.Sort.FLOAT_OBJ || sort1 == Definition.Sort.FLOAT || sort1 == Definition.Sort.FLOAT_OBJ) {
+            } else if (sort0 == Sort.FLOAT || sort0 == Sort.FLOAT_OBJ || sort1 == Sort.FLOAT || sort1 == Sort.FLOAT_OBJ) {
                 return primitive ? definition.floatType : definition.floatobjType;
             }
         }
 
-        if (sort0 == Definition.Sort.LONG || sort0 == Definition.Sort.LONG_OBJ || sort0 == Definition.Sort.NUMBER ||
-            sort1 == Definition.Sort.LONG || sort1 == Definition.Sort.LONG_OBJ || sort1 == Definition.Sort.NUMBER) {
+        if (sort0 == Sort.LONG || sort0 == Sort.LONG_OBJ || sort0 == Sort.NUMBER ||
+            sort1 == Sort.LONG || sort1 == Sort.LONG_OBJ || sort1 == Sort.NUMBER) {
             return primitive ? definition.longType : definition.longobjType;
         } else if (sort0.numeric && sort1.numeric) {
             return primitive ? definition.intType : definition.intobjType;
@@ -2944,20 +2953,20 @@ class Analyzer extends PainlessParserBaseVisitor<Void> {
         return null;
     }
 
-    private Definition.Type promoteAdd(final Definition.Type from0, final Definition.Type from1) {
-        final Definition.Sort sort0 = from0.sort;
-        final Definition.Sort sort1 = from1.sort;
+    private Type promoteAdd(final Type from0, final Type from1) {
+        final Sort sort0 = from0.sort;
+        final Sort sort1 = from1.sort;
 
-        if (sort0 == Definition.Sort.STRING || sort1 == Definition.Sort.STRING) {
+        if (sort0 == Sort.STRING || sort1 == Sort.STRING) {
             return definition.stringType;
         }
 
         return promoteNumeric(from0, from1, true, true);
     }
 
-    private Definition.Type promoteXor(final Definition.Type from0, final Definition.Type from1) {
-        final Definition.Sort sort0 = from0.sort;
-        final Definition.Sort sort1 = from1.sort;
+    private Type promoteXor(final Type from0, final Type from1) {
+        final Sort sort0 = from0.sort;
+        final Sort sort1 = from1.sort;
 
         if (sort0.bool || sort1.bool) {
             return definition.booleanType;
@@ -2966,11 +2975,11 @@ class Analyzer extends PainlessParserBaseVisitor<Void> {
         return promoteNumeric(from0, from1, false, true);
     }
 
-    private Definition.Type promoteEquality(final Definition.Type from0, final Definition.Type from1) {
-        final Definition.Sort sort0 = from0.sort;
-        final Definition.Sort sort1 = from1.sort;
+    private Type promoteEquality(final Type from0, final Type from1) {
+        final Sort sort0 = from0.sort;
+        final Sort sort1 = from1.sort;
 
-        if (sort0 == Definition.Sort.DEF || sort1 == Definition.Sort.DEF) {
+        if (sort0 == Sort.DEF || sort1 == Sort.DEF) {
             return definition.defType;
         }
 
@@ -2987,11 +2996,11 @@ class Analyzer extends PainlessParserBaseVisitor<Void> {
         return definition.objectType;
     }
 
-    private Definition.Type promoteReference(final Definition.Type from0, final Definition.Type from1) {
-        final Definition.Sort sort0 = from0.sort;
-        final Definition.Sort sort1 = from1.sort;
+    private Type promoteReference(final Type from0, final Type from1) {
+        final Sort sort0 = from0.sort;
+        final Sort sort1 = from1.sort;
 
-        if (sort0 == Definition.Sort.DEF || sort1 == Definition.Sort.DEF) {
+        if (sort0 == Sort.DEF || sort1 == Sort.DEF) {
             return definition.defType;
         }
 
@@ -3008,15 +3017,15 @@ class Analyzer extends PainlessParserBaseVisitor<Void> {
         return definition.objectType;
     }
 
-    private Definition.Type promoteConditional(final Definition.Type from0, final Definition.Type from1, final Object const0, final Object const1) {
+    private Type promoteConditional(final Type from0, final Type from1, final Object const0, final Object const1) {
         if (from0.equals(from1)) {
             return from0;
         }
 
-        final Definition.Sort sort0 = from0.sort;
-        final Definition.Sort sort1 = from1.sort;
+        final Sort sort0 = from0.sort;
+        final Sort sort1 = from1.sort;
 
-        if (sort0 == Definition.Sort.DEF || sort1 == Definition.Sort.DEF) {
+        if (sort0 == Sort.DEF || sort1 == Sort.DEF) {
             return definition.defType;
         }
 
@@ -3027,17 +3036,17 @@ class Analyzer extends PainlessParserBaseVisitor<Void> {
         }
 
         if (sort0.numeric && sort1.numeric) {
-            if (sort0 == Definition.Sort.DOUBLE || sort0 == Definition.Sort.DOUBLE_OBJ || sort1 == Definition.Sort.DOUBLE || sort1 == Definition.Sort.DOUBLE_OBJ) {
+            if (sort0 == Sort.DOUBLE || sort0 == Sort.DOUBLE_OBJ || sort1 == Sort.DOUBLE || sort1 == Sort.DOUBLE_OBJ) {
                 return primitive ? definition.doubleType : definition.doubleobjType;
-            } else if (sort0 == Definition.Sort.FLOAT || sort0 == Definition.Sort.FLOAT_OBJ || sort1 == Definition.Sort.FLOAT || sort1 == Definition.Sort.FLOAT_OBJ) {
+            } else if (sort0 == Sort.FLOAT || sort0 == Sort.FLOAT_OBJ || sort1 == Sort.FLOAT || sort1 == Sort.FLOAT_OBJ) {
                 return primitive ? definition.floatType : definition.floatobjType;
-            } else if (sort0 == Definition.Sort.LONG || sort0 == Definition.Sort.LONG_OBJ || sort1 == Definition.Sort.LONG || sort1 == Definition.Sort.LONG_OBJ) {
+            } else if (sort0 == Sort.LONG || sort0 == Sort.LONG_OBJ || sort1 == Sort.LONG || sort1 == Sort.LONG_OBJ) {
                 return sort0.primitive && sort1.primitive ? definition.longType : definition.longobjType;
             } else {
-                if (sort0 == Definition.Sort.BYTE || sort0 == Definition.Sort.BYTE_OBJ) {
-                    if (sort1 == Definition.Sort.BYTE || sort1 == Definition.Sort.BYTE_OBJ) {
+                if (sort0 == Sort.BYTE || sort0 == Sort.BYTE_OBJ) {
+                    if (sort1 == Sort.BYTE || sort1 == Sort.BYTE_OBJ) {
                         return primitive ? definition.byteType : definition.byteobjType;
-                    } else if (sort1 == Definition.Sort.SHORT || sort1 == Definition.Sort.SHORT_OBJ) {
+                    } else if (sort1 == Sort.SHORT || sort1 == Sort.SHORT_OBJ) {
                         if (const1 != null) {
                             final short constant = (short)const1;
 
@@ -3047,9 +3056,9 @@ class Analyzer extends PainlessParserBaseVisitor<Void> {
                         }
 
                         return primitive ? definition.shortType : definition.shortobjType;
-                    } else if (sort1 == Definition.Sort.CHAR || sort1 == Definition.Sort.CHAR_OBJ) {
+                    } else if (sort1 == Sort.CHAR || sort1 == Sort.CHAR_OBJ) {
                         return primitive ? definition.intType : definition.intobjType;
-                    } else if (sort1 == Definition.Sort.INT || sort1 == Definition.Sort.INT_OBJ) {
+                    } else if (sort1 == Sort.INT || sort1 == Sort.INT_OBJ) {
                         if (const1 != null) {
                             final int constant = (int)const1;
 
@@ -3060,8 +3069,8 @@ class Analyzer extends PainlessParserBaseVisitor<Void> {
 
                         return primitive ? definition.intType : definition.intobjType;
                     }
-                } else if (sort0 == Definition.Sort.SHORT || sort0 == Definition.Sort.SHORT_OBJ) {
-                    if (sort1 == Definition.Sort.BYTE || sort1 == Definition.Sort.BYTE_OBJ) {
+                } else if (sort0 == Sort.SHORT || sort0 == Sort.SHORT_OBJ) {
+                    if (sort1 == Sort.BYTE || sort1 == Sort.BYTE_OBJ) {
                         if (const0 != null) {
                             final short constant = (short)const0;
 
@@ -3071,11 +3080,11 @@ class Analyzer extends PainlessParserBaseVisitor<Void> {
                         }
 
                         return primitive ? definition.shortType : definition.shortobjType;
-                    } else if (sort1 == Definition.Sort.SHORT || sort1 == Definition.Sort.SHORT_OBJ) {
+                    } else if (sort1 == Sort.SHORT || sort1 == Sort.SHORT_OBJ) {
                         return primitive ? definition.shortType : definition.shortobjType;
-                    } else if (sort1 == Definition.Sort.CHAR || sort1 == Definition.Sort.CHAR_OBJ) {
+                    } else if (sort1 == Sort.CHAR || sort1 == Sort.CHAR_OBJ) {
                         return primitive ? definition.intType : definition.intobjType;
-                    } else if (sort1 == Definition.Sort.INT || sort1 == Definition.Sort.INT_OBJ) {
+                    } else if (sort1 == Sort.INT || sort1 == Sort.INT_OBJ) {
                         if (const1 != null) {
                             final int constant = (int)const1;
 
@@ -3086,14 +3095,14 @@ class Analyzer extends PainlessParserBaseVisitor<Void> {
 
                         return primitive ? definition.intType : definition.intobjType;
                     }
-                } else if (sort0 == Definition.Sort.CHAR || sort0 == Definition.Sort.CHAR_OBJ) {
-                    if (sort1 == Definition.Sort.BYTE || sort1 == Definition.Sort.BYTE_OBJ) {
+                } else if (sort0 == Sort.CHAR || sort0 == Sort.CHAR_OBJ) {
+                    if (sort1 == Sort.BYTE || sort1 == Sort.BYTE_OBJ) {
                         return primitive ? definition.intType : definition.intobjType;
-                    } else if (sort1 == Definition.Sort.SHORT || sort1 == Definition.Sort.SHORT_OBJ) {
+                    } else if (sort1 == Sort.SHORT || sort1 == Sort.SHORT_OBJ) {
                         return primitive ? definition.intType : definition.intobjType;
-                    } else if (sort1 == Definition.Sort.CHAR || sort1 == Definition.Sort.CHAR_OBJ) {
+                    } else if (sort1 == Sort.CHAR || sort1 == Sort.CHAR_OBJ) {
                         return primitive ? definition.charType : definition.charobjType;
-                    } else if (sort1 == Definition.Sort.INT || sort1 == Definition.Sort.INT_OBJ) {
+                    } else if (sort1 == Sort.INT || sort1 == Sort.INT_OBJ) {
                         if (const1 != null) {
                             final int constant = (int)const1;
 
@@ -3104,8 +3113,8 @@ class Analyzer extends PainlessParserBaseVisitor<Void> {
 
                         return primitive ? definition.intType : definition.intobjType;
                     }
-                } else if (sort0 == Definition.Sort.INT || sort0 == Definition.Sort.INT_OBJ) {
-                    if (sort1 == Definition.Sort.BYTE || sort1 == Definition.Sort.BYTE_OBJ) {
+                } else if (sort0 == Sort.INT || sort0 == Sort.INT_OBJ) {
+                    if (sort1 == Sort.BYTE || sort1 == Sort.BYTE_OBJ) {
                         if (const0 != null) {
                             final int constant = (int)const0;
 
@@ -3115,7 +3124,7 @@ class Analyzer extends PainlessParserBaseVisitor<Void> {
                         }
 
                         return primitive ? definition.intType : definition.intobjType;
-                    } else if (sort1 == Definition.Sort.SHORT || sort1 == Definition.Sort.SHORT_OBJ) {
+                    } else if (sort1 == Sort.SHORT || sort1 == Sort.SHORT_OBJ) {
                         if (const0 != null) {
                             final int constant = (int)const0;
 
@@ -3125,7 +3134,7 @@ class Analyzer extends PainlessParserBaseVisitor<Void> {
                         }
 
                         return primitive ? definition.intType : definition.intobjType;
-                    } else if (sort1 == Definition.Sort.CHAR || sort1 == Definition.Sort.CHAR_OBJ) {
+                    } else if (sort1 == Sort.CHAR || sort1 == Sort.CHAR_OBJ) {
                         if (const0 != null) {
                             final int constant = (int)const0;
 
@@ -3135,15 +3144,15 @@ class Analyzer extends PainlessParserBaseVisitor<Void> {
                         }
 
                         return primitive ? definition.intType : definition.intobjType;
-                    } else if (sort1 == Definition.Sort.INT || sort1 == Definition.Sort.INT_OBJ) {
+                    } else if (sort1 == Sort.INT || sort1 == Sort.INT_OBJ) {
                         return primitive ? definition.intType : definition.intobjType;
                     }
                 }
             }
         }
 
-        final Definition.Pair pair = new Definition.Pair(from0, from1);
-        final Definition.Type bound = definition.bounds.get(pair);
+        final Pair pair = new Pair(from0, from1);
+        final Type bound = definition.bounds.get(pair);
 
         return bound == null ? definition.objectType : bound;
     }

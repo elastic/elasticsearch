@@ -66,8 +66,6 @@ public class SubSearchContext extends FilteredSearchContext {
     private boolean trackScores;
     private boolean version;
 
-    private InnerHitsContext innerHitsContext;
-
     public SubSearchContext(SearchContext context) {
         super(context);
         this.fetchSearchResult = new FetchSearchResult();
@@ -326,13 +324,4 @@ public class SubSearchContext extends FilteredSearchContext {
         throw new UnsupportedOperationException("Not supported");
     }
 
-    @Override
-    public void innerHits(InnerHitsContext innerHitsContext) {
-        this.innerHitsContext = innerHitsContext;
-    }
-
-    @Override
-    public InnerHitsContext innerHits() {
-        return innerHitsContext;
-    }
 }

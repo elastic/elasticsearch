@@ -91,6 +91,7 @@ public abstract class SearchContext extends DelegatingHasContextAndHeaders imple
 
     private Multimap<Lifetime, Releasable> clearables = null;
     private final AtomicBoolean closed = new AtomicBoolean(false);
+    private InnerHitsContext innerHitsContext;
 
     protected final ParseFieldMatcher parseFieldMatcher;
 
@@ -174,9 +175,12 @@ public abstract class SearchContext extends DelegatingHasContextAndHeaders imple
 
     public abstract void highlight(SearchContextHighlight highlight);
 
-    public abstract void innerHits(InnerHitsContext innerHitsContext);
-
-    public abstract InnerHitsContext innerHits();
+    public InnerHitsContext innerHits() {
+        if (innerHitsContext == null) {
+            innerHitsContext = new InnerHitsContext();
+        }
+        return innerHitsContext;
+    }
 
     public abstract SuggestionSearchContext suggest();
 

@@ -45,6 +45,7 @@ import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.discovery.zen.fd.FaultDetection;
 import org.elasticsearch.discovery.zen.membership.MembershipAction;
 import org.elasticsearch.discovery.zen.publish.PublishClusterStateAction;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.TestCustomMetaData;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -101,12 +102,12 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
                 .build();
 
         Settings masterNodeSettings = Settings.builder()
-                .put("node.data", false)
+                .put(Node.NODE_DATA_SETTING.getKey(), false)
                 .put(defaultSettings)
                 .build();
         internalCluster().startNodesAsync(2, masterNodeSettings).get();
         Settings dateNodeSettings = Settings.builder()
-                .put("node.master", false)
+                .put(Node.NODE_MASTER_SETTING.getKey(), false)
                 .put(defaultSettings)
                 .build();
         internalCluster().startNodesAsync(2, dateNodeSettings).get();
@@ -148,12 +149,12 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
                 .build();
 
         Settings masterNodeSettings = Settings.builder()
-                .put("node.data", false)
+                .put(Node.NODE_DATA_SETTING.getKey(), false)
                 .put(defaultSettings)
                 .build();
         String master = internalCluster().startNode(masterNodeSettings);
         Settings dateNodeSettings = Settings.builder()
-                .put("node.master", false)
+                .put(Node.NODE_MASTER_SETTING.getKey(), false)
                 .put(defaultSettings)
                 .build();
         internalCluster().startNodesAsync(2, dateNodeSettings).get();

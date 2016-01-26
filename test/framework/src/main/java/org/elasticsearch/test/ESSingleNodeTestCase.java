@@ -171,7 +171,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             .put(EsExecutors.PROCESSORS, 1) // limit the number of threads created
             .put("http.enabled", false)
             .put("node.local", true)
-            .put("node.data", true)
+            .put(Node.NODE_DATA_SETTING.getKey(), true)
             .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING, true) // make sure we get what we set :)
             .build();
         Node build = new MockNode(settings, getVersion(), getPlugins());

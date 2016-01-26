@@ -63,7 +63,8 @@ public class FileScriptTests extends ESTestCase {
             .put("script.engine." + MockScriptEngine.NAME + ".file.aggs", false)
             .put("script.engine." + MockScriptEngine.NAME + ".file.search", false)
             .put("script.engine." + MockScriptEngine.NAME + ".file.mapping", false)
-            .put("script.engine." + MockScriptEngine.NAME + ".file.update", false).build();
+            .put("script.engine." + MockScriptEngine.NAME + ".file.update", false)
+            .put("script.engine." + MockScriptEngine.NAME + ".file.ingest", false).build();
         ScriptService scriptService = makeScriptService(settings);
         Script script = new Script("script1", ScriptService.ScriptType.FILE, MockScriptEngine.NAME, null);
         for (ScriptContext context : ScriptContext.Standard.values()) {

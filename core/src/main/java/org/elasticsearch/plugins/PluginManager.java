@@ -101,6 +101,7 @@ public class PluginManager {
             "discovery-ec2",
             "discovery-gce",
             "discovery-multicast",
+            "ingest-geoip",
             "lang-javascript",
             "lang-plan-a",
             "lang-python",

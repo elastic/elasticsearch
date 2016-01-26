@@ -37,6 +37,7 @@ import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.elasticsearch.search.rescore.RescoreBuilder;
+import org.elasticsearch.search.suggest.SuggestionBuilder;
 import org.joda.time.ReadableInstant;
 
 import java.io.EOFException;
@@ -227,6 +228,15 @@ public abstract class StreamOutput extends OutputStream {
         } else {
             writeBoolean(true);
             writeVInt(integer);
+        }
+    }
+
+    public void writeOptionalFloat(@Nullable Float floatValue) throws IOException {
+        if (floatValue == null) {
+            writeBoolean(false);
+        } else {
+            writeBoolean(true);
+            writeFloat(floatValue);
         }
     }
 
@@ -683,5 +693,12 @@ public abstract class StreamOutput extends OutputStream {
      */
     public void writeRescorer(RescoreBuilder<?> rescorer) throws IOException {
         writeNamedWriteable(rescorer);
+    }
+
+    /**
+     * Writes a {@link SuggestionBuilder} to the current stream
+     */
+    public void writeSuggestion(SuggestionBuilder suggestion) throws IOException {
+        writeNamedWriteable(suggestion);
     }
 }

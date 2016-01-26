@@ -632,7 +632,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
         assertEquals("Hotel Amsterdam in Berlin", suggestResponse.getSuggest().getSuggestion(suggestionName).iterator().next().getOptions().iterator().next().getText().string());
     }
 
-    public void assertSuggestions(String suggestionName, SuggestBuilder.SuggestionBuilder suggestBuilder, String... suggestions) {
+    public void assertSuggestions(String suggestionName, SuggestionBuilder suggestBuilder, String... suggestions) {
         SuggestResponse suggestResponse = client().prepareSuggest(INDEX).addSuggestion(suggestBuilder
         ).execute().actionGet();
         CompletionSuggestSearchIT.assertSuggestions(suggestResponse, suggestionName, suggestions);

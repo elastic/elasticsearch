@@ -73,6 +73,7 @@ import static org.hamcrest.Matchers.sameInstance;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 @ESIntegTestCase.SuppressLocalMode
+@TestLogging("_root:DEBUG")
 public class ZenDiscoveryIT extends ESIntegTestCase {
 
     @Test
@@ -139,7 +140,6 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
     }
 
     @Test
-    @TestLogging(value = "action.admin.cluster.health:TRACE")
     public void testNodeFailuresAreProcessedOnce() throws ExecutionException, InterruptedException, IOException {
         Settings defaultSettings = Settings.builder()
                 .put(FaultDetection.SETTING_PING_TIMEOUT, "1s")

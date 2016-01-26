@@ -33,6 +33,7 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import java.util.Arrays;
@@ -48,6 +49,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.hamcrest.Matchers.equalTo;
 
+@TestLogging("_root:DEBUG")
 public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
 
     private final ESLogger logger = Loggers.getLogger(RecoveryWhileUnderLoadIT.class);

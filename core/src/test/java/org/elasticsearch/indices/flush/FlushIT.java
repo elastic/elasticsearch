@@ -20,9 +20,9 @@ package org.elasticsearch.indices.flush;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
+import org.elasticsearch.action.admin.indices.flush.SyncedFlushResponse;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
-import org.elasticsearch.action.admin.indices.flush.SyncedFlushResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -86,7 +86,6 @@ public class FlushIT extends ESIntegTestCase {
         }
     }
 
-    @TestLogging("indices:TRACE")
     public void testSyncedFlush() throws ExecutionException, InterruptedException, IOException {
         internalCluster().ensureAtLeastNumDataNodes(2);
         prepareCreate("test").setSettings(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).get();

@@ -23,7 +23,10 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.cluster.*;
+import org.elasticsearch.cluster.ClusterInfo;
+import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
@@ -54,17 +57,25 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 
 /**
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0, transportClientRatio = 0)
 @ESIntegTestCase.SuppressLocalMode
+@TestLogging("_root:DEBUG")
 public class RareClusterStateIT extends ESIntegTestCase {
 
     @Override
@@ -97,7 +108,6 @@ public class RareClusterStateIT extends ESIntegTestCase {
     }
 
     @Test
-    @TestLogging("gateway:TRACE")
     public void testAssignmentWithJustAddedNodes() throws Exception {
         internalCluster().startNode();
         final String index = "index";
@@ -162,7 +172,6 @@ public class RareClusterStateIT extends ESIntegTestCase {
     }
 
     @Test
-    @TestLogging(value = "cluster.service:TRACE")
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/14932")
     public void testDeleteCreateInOneBulk() throws Exception {
         internalCluster().startNodesAsync(2, Settings.builder()

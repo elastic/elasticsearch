@@ -20,7 +20,6 @@
 package org.elasticsearch.cluster;
 
 import com.google.common.base.Predicate;
-
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Priority;
@@ -41,15 +40,18 @@ import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.ESIntegTestCase.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.isOneOf;
+import static org.hamcrest.Matchers.not;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 @ESIntegTestCase.SuppressLocalMode
+@TestLogging("_root:DEBUG,cluster.service:TRACE,discovery.zen:TRACE")
 public class MinimumMasterNodesIT extends ESIntegTestCase {
 
     @Test
-    @TestLogging("cluster.service:TRACE,discovery.zen:TRACE,gateway:TRACE,transport.tracer:TRACE")
-    public void simpleMinimumMasterNodes() throws Exception {
+    public void testSimpleMinimumMasterNodes() throws Exception {
 
         Settings settings = settingsBuilder()
                 .put("discovery.type", "zen")

@@ -159,17 +159,15 @@ public class DiscoveryNode implements Streamable, ToXContent {
      * @param version     the version of the node.
      */
     public DiscoveryNode(String nodeName, String nodeId, String hostName, String hostAddress, TransportAddress address, Map<String, String> attributes, Version version) {
-        if (nodeName != null) {
-            this.nodeName = nodeName.intern();
-        }
+        this.nodeName = nodeName;
         ImmutableOpenMap.Builder<String, String> builder = ImmutableOpenMap.builder();
         for (Map.Entry<String, String> entry : attributes.entrySet()) {
-            builder.put(entry.getKey().intern(), entry.getValue().intern());
+            builder.put(entry.getKey(), entry.getValue());
         }
         this.attributes = builder.build();
-        this.nodeId = nodeId.intern();
-        this.hostName = hostName.intern();
-        this.hostAddress = hostAddress.intern();
+        this.nodeId = nodeId;
+        this.hostName = hostName;
+        this.hostAddress = hostAddress;
         this.address = address;
         this.version = version;
     }
@@ -192,17 +190,15 @@ public class DiscoveryNode implements Streamable, ToXContent {
      * @param version     the version of the node.
      */
     public DiscoveryNode(String nodeName, String nodeId, String hostName, String hostAddress, TransportAddress address, ImmutableOpenMap<String, String> attributes, Version version) {
-        if (nodeName != null) {
-            this.nodeName = nodeName.intern();
-        }
+        this.nodeName = nodeName;
         ImmutableOpenMap.Builder<String, String> builder = ImmutableOpenMap.builder();
         for (ObjectObjectCursor<String, String> entry : attributes) {
-            builder.put(entry.key.intern(), entry.value.intern());
+            builder.put(entry.key, entry.value);
         }
         this.attributes = builder.build();
-        this.nodeId = nodeId.intern();
-        this.hostName = hostName.intern();
-        this.hostAddress = hostAddress.intern();
+        this.nodeId = nodeId;
+        this.hostName = hostName;
+        this.hostAddress = hostAddress;
         this.address = address;
         this.version = version;
     }
@@ -353,15 +349,15 @@ public class DiscoveryNode implements Streamable, ToXContent {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        nodeName = in.readString().intern();
-        nodeId = in.readString().intern();
-        hostName = in.readString().intern();
-        hostAddress = in.readString().intern();
+        nodeName = in.readString();
+        nodeId = in.readString();
+        hostName = in.readString();
+        hostAddress = in.readString();
         address = TransportAddressSerializers.addressFromStream(in);
         int size = in.readVInt();
         ImmutableOpenMap.Builder<String, String> attributes = ImmutableOpenMap.builder(size);
         for (int i = 0; i < size; i++) {
-            attributes.put(in.readString().intern(), in.readString().intern());
+            attributes.put(in.readString(), in.readString());
         }
         this.attributes = attributes.build();
         version = Version.readVersion(in);

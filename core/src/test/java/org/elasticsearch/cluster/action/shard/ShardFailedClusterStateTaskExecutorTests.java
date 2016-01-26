@@ -33,11 +33,11 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.FailedRerouteAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESAllocationTestCase;
 import org.junit.Before;
 
@@ -95,7 +95,9 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
     }
 
     public void testNonExistentShardsAreMarkedAsSuccessful() throws Exception {
-        List<ShardStateAction.ShardRoutingEntry> tasks = createNonExistentShards("test non existent shards are marked as successful");
+        String reason = "test non existent shards are marked as successful";
+        ClusterState currentState = createClusterStateWithStartedShards(reason);
+        List<ShardStateAction.ShardRoutingEntry> tasks = createNonExistentShards(currentState, reason);
         ClusterStateTaskExecutor.BatchResult<ShardStateAction.ShardRoutingEntry> result = executor.execute(clusterState, tasks);
         assertTasksSuccessful(tasks, result, clusterState, false);
     }
@@ -104,7 +106,7 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
         String reason = "test trivially successful tasks batched with failing tasks";
         ClusterState currentState = createClusterStateWithStartedShards(reason);
         List<ShardStateAction.ShardRoutingEntry> failingTasks = createExistingShards(currentState, reason);
-        List<ShardStateAction.ShardRoutingEntry> nonExistentTasks = createNonExistentShards(reason);
+        List<ShardStateAction.ShardRoutingEntry> nonExistentTasks = createNonExistentShards(currentState, reason);
         ShardStateAction.ShardFailedClusterStateTaskExecutor failingExecutor = new ShardStateAction.ShardFailedClusterStateTaskExecutor(allocationService, null, logger) {
             @Override
             RoutingAllocation.Result applyFailedShards(ClusterState currentState, List<FailedRerouteAllocation.FailedShard> failedShards) {
@@ -155,14 +157,28 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
         return toTasks(shardsToFail, indexUUID, reason);
     }
 
-    private List<ShardStateAction.ShardRoutingEntry> createNonExistentShards(String reason) {
+    private List<ShardStateAction.ShardRoutingEntry> createNonExistentShards(ClusterState currentState, String reason) {
+        // add shards from a non-existent index
         MetaData nonExistentMetaData =
             MetaData.builder()
                 .put(IndexMetaData.builder("non-existent").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(numberOfReplicas))
                 .build();
         RoutingTable routingTable = RoutingTable.builder().addAsNew(nonExistentMetaData.index("non-existent")).build();
         String nonExistentIndexUUID = nonExistentMetaData.index("non-existent").getIndexUUID();
-        return toTasks(routingTable.allShards(), nonExistentIndexUUID, reason);
+
+        List<ShardStateAction.ShardRoutingEntry> existingShards = createExistingShards(currentState, reason);
+        List<ShardStateAction.ShardRoutingEntry> shardsWithMismatchedAllocationIds = new ArrayList<>();
+        for (ShardStateAction.ShardRoutingEntry existingShard : existingShards) {
+            ShardRouting sr = existingShard.getShardRouting();
+            ShardRouting nonExistentShardRouting =
+                TestShardRouting.newShardRouting(sr.index(), sr.id(), sr.currentNodeId(), sr.relocatingNodeId(), sr.restoreSource(), sr.primary(), sr.state(), sr.version());
+            shardsWithMismatchedAllocationIds.add(new ShardStateAction.ShardRoutingEntry(nonExistentShardRouting, existingShard.indexUUID, existingShard.message, existingShard.failure));
+        }
+
+        List<ShardStateAction.ShardRoutingEntry> tasks = new ArrayList<>();
+        tasks.addAll(toTasks(routingTable.allShards(), nonExistentIndexUUID, reason));
+        tasks.addAll(shardsWithMismatchedAllocationIds);
+        return tasks;
     }
 
     private static void assertTasksSuccessful(

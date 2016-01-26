@@ -47,17 +47,14 @@ public class LocalIndicesCleanerTests extends AbstractIndicesCleanerTestCase {
 
     @Override
     protected void assertIndicesCount(int count) throws Exception {
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    assertThat(client().admin().indices().prepareGetSettings().get().getIndexToSettings().size(), equalTo(count));
-                } catch (IndexNotFoundException e) {
-                    if (shieldEnabled) {
-                        assertThat(0, equalTo(count));
-                    } else {
-                        throw e;
-                    }
+        assertBusy(() -> {
+            try {
+                assertThat(client().admin().indices().prepareGetSettings().get().getIndexToSettings().size(), equalTo(count));
+            } catch (IndexNotFoundException e) {
+                if (shieldEnabled) {
+                    assertThat(0, equalTo(count));
+                } else {
+                    throw e;
                 }
             }
         });

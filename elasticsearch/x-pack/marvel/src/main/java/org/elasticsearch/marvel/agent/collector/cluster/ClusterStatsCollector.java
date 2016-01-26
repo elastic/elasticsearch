@@ -18,7 +18,7 @@ import org.elasticsearch.license.plugin.core.LicenseUtils;
 import org.elasticsearch.license.plugin.core.LicensesManagerService;
 import org.elasticsearch.marvel.MarvelSettings;
 import org.elasticsearch.marvel.agent.collector.AbstractCollector;
-import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
+import org.elasticsearch.marvel.agent.exporter.MonitoringDoc;
 import org.elasticsearch.marvel.license.MarvelLicensee;
 import org.elasticsearch.shield.InternalClient;
 
@@ -41,9 +41,6 @@ public class ClusterStatsCollector extends AbstractCollector<ClusterStatsCollect
 
     public static final String NAME = "cluster-stats-collector";
 
-    public static final String CLUSTER_INFO_TYPE = "cluster_info";
-    public static final String CLUSTER_STATS_TYPE = "cluster_stats";
-
     private final ClusterName clusterName;
     private final LicensesManagerService licensesManagerService;
     private final Client client;
@@ -65,8 +62,8 @@ public class ClusterStatsCollector extends AbstractCollector<ClusterStatsCollect
     }
 
     @Override
-    protected Collection<MarvelDoc> doCollect() throws Exception {
-        List<MarvelDoc> results = new ArrayList<>(1);
+    protected Collection<MonitoringDoc> doCollect() throws Exception {
+        List<MonitoringDoc> results = new ArrayList<>(1);
 
         // Retrieves cluster stats
         ClusterStatsResponse clusterStats = null;
@@ -85,8 +82,7 @@ public class ClusterStatsCollector extends AbstractCollector<ClusterStatsCollect
         DiscoveryNode sourceNode = localNode();
 
         // Adds a cluster info document
-        String resolvedIndex = resolveDataIndexName(timestamp);
-        ClusterInfoMarvelDoc clusterInfoDoc = new ClusterInfoMarvelDoc(resolvedIndex, CLUSTER_INFO_TYPE, clusterUUID);
+        ClusterInfoMonitoringDoc clusterInfoDoc = new ClusterInfoMonitoringDoc(monitoringId(), monitoringVersion());
         clusterInfoDoc.setClusterUUID(clusterUUID);
         clusterInfoDoc.setTimestamp(timestamp);
         clusterInfoDoc.setSourceNode(sourceNode);
@@ -98,9 +94,8 @@ public class ClusterStatsCollector extends AbstractCollector<ClusterStatsCollect
 
         // Adds a cluster stats document
         if (super.shouldCollect()) {
-            ClusterStatsMarvelDoc clusterStatsDoc = new ClusterStatsMarvelDoc();
+            ClusterStatsMonitoringDoc clusterStatsDoc = new ClusterStatsMonitoringDoc(monitoringId(), monitoringVersion());
             clusterStatsDoc.setClusterUUID(clusterUUID);
-            clusterStatsDoc.setType(CLUSTER_STATS_TYPE);
             clusterStatsDoc.setTimestamp(timestamp);
             clusterStatsDoc.setSourceNode(sourceNode);
             clusterStatsDoc.setClusterStats(clusterStats);

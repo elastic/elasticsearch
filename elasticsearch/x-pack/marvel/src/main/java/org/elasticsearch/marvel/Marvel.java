@@ -15,7 +15,6 @@ import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.marvel.agent.AgentService;
 import org.elasticsearch.marvel.agent.collector.CollectorModule;
 import org.elasticsearch.marvel.agent.exporter.ExporterModule;
-import org.elasticsearch.marvel.agent.renderer.RendererModule;
 import org.elasticsearch.marvel.cleaner.CleanerService;
 import org.elasticsearch.marvel.license.LicenseModule;
 import org.elasticsearch.marvel.license.MarvelLicensee;
@@ -53,7 +52,6 @@ public class Marvel {
             modules.add(new LicenseModule());
             modules.add(new CollectorModule());
             modules.add(new ExporterModule(settings));
-            modules.add(new RendererModule());
         }
         return Collections.unmodifiableList(modules);
     }

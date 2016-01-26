@@ -9,16 +9,14 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.marvel.agent.exporter.ExportBulk;
-import org.elasticsearch.marvel.agent.exporter.MonitoringIndexNameResolver;
-import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
-import org.elasticsearch.marvel.agent.renderer.Renderer;
-import org.elasticsearch.marvel.agent.renderer.RendererRegistry;
+import org.elasticsearch.marvel.agent.exporter.MonitoringDoc;
+import org.elasticsearch.marvel.agent.resolver.MonitoringIndexNameResolver;
+import org.elasticsearch.marvel.agent.resolver.ResolversRegistry;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -31,27 +29,22 @@ public class LocalBulk extends ExportBulk {
 
     private final ESLogger logger;
     private final Client client;
-    private final MonitoringIndexNameResolver indexNameResolver;
-    private final RendererRegistry renderers;
+    private final ResolversRegistry resolvers;
 
-    private BytesStreamOutput buffer = null;
     BulkRequestBuilder requestBuilder;
-
     AtomicReference<State> state = new AtomicReference<>();
 
-    public LocalBulk(String name, ESLogger logger, Client client, MonitoringIndexNameResolver indexNameResolver,
-                     RendererRegistry renderers) {
+    public LocalBulk(String name, ESLogger logger, Client client, ResolversRegistry resolvers) {
         super(name);
         this.logger = logger;
         this.client = client;
-        this.indexNameResolver = indexNameResolver;
-        this.renderers = renderers;
+        this.resolvers = resolvers;
         state.set(State.ACTIVE);
     }
 
     @Override
-    public synchronized ExportBulk add(Collection<MarvelDoc> docs) throws Exception {
-        for (MarvelDoc marvelDoc : docs) {
+    public synchronized ExportBulk add(Collection<MonitoringDoc> docs) throws Exception {
+        for (MonitoringDoc doc : docs) {
             if (state.get() != State.ACTIVE) {
                 return this;
             }
@@ -59,38 +52,24 @@ public class LocalBulk extends ExportBulk {
                 requestBuilder = client.prepareBulk();
             }
 
-            // Get the appropriate renderer in order to render the MarvelDoc
-            Renderer renderer = renderers.getRenderer(marvelDoc);
-            assert renderer != null : "unable to render monitoring document of type [" + marvelDoc.getType() + "]. no renderer registered";
+            try {
+                MonitoringIndexNameResolver<MonitoringDoc> resolver = resolvers.getResolver(doc);
+                if (resolver != null) {
+                    IndexRequest request = new IndexRequest(resolver.index(doc), resolver.type(doc), resolver.id(doc));
+                    request.source(resolver.source(doc, XContentType.SMILE));
+                    requestBuilder.add(request);
 
-            if (renderer == null) {
-                logger.warn("local exporter [{}] - unable to render monitoring document of type [{}]: no renderer found in registry",
-                        name, marvelDoc.getType());
-                continue;
+                    if (logger.isTraceEnabled()) {
+                        logger.trace("local exporter [{}] - added index request [index={}, type={}, id={}]",
+                                name, request.index(), request.type(), request.id());
+                    }
+                } else {
+                    logger.warn("local exporter [{}] - unable to render monitoring document of type [{}]: no renderer found in registry",
+                            name, doc);
+                }
+            } catch (Exception e) {
+                logger.warn("local exporter [{}] - failed to add document [{}], skipping it", e, name, doc);
             }
-
-            IndexRequestBuilder request = client.prepareIndex();
-
-            // we need the index to be based on the document timestamp and/or template version
-            request.setIndex(indexNameResolver.resolve(marvelDoc));
-
-            if (marvelDoc.getType() != null) {
-                request.setType(marvelDoc.getType());
-            }
-            if (marvelDoc.getId() != null) {
-                request.setId(marvelDoc.getId());
-            }
-
-            if (buffer == null) {
-                buffer = new BytesStreamOutput();
-            } else {
-                buffer.reset();
-            }
-
-            renderer.render(marvelDoc, XContentType.SMILE, buffer);
-            request.setSource(buffer.bytes().toBytes());
-
-            requestBuilder.add(request);
         }
         return this;
     }
@@ -108,9 +87,6 @@ public class LocalBulk extends ExportBulk {
             }
         } finally {
             requestBuilder = null;
-            if (buffer != null) {
-                buffer.reset();
-            }
         }
     }
 
@@ -118,7 +94,6 @@ public class LocalBulk extends ExportBulk {
         state.set(State.TERMINATING);
         synchronized (this) {
             requestBuilder = null;
-            buffer = null;
             state.compareAndSet(State.TERMINATING, State.TERMINATED);
         }
     }

@@ -1,0 +1,18 @@
+{
+  "template": ".monitoring-data-${monitoring.template.version}",
+  "settings": {
+    "index.xpack.version": "${project.version}",
+    "index.number_of_shards": 1,
+    "index.number_of_replicas": 1,
+    "index.codec": "best_compression",
+    "index.mapper.dynamic": false
+  },
+  "mappings": {
+    "cluster_info": {
+      "enabled": false
+    },
+    "node": {
+      "enabled": false
+    }
+  }
+}

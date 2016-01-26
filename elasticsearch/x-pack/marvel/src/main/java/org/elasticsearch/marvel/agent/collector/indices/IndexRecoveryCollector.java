@@ -15,7 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.marvel.MarvelSettings;
 import org.elasticsearch.marvel.agent.collector.AbstractCollector;
-import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
+import org.elasticsearch.marvel.agent.exporter.MonitoringDoc;
 import org.elasticsearch.marvel.license.MarvelLicensee;
 import org.elasticsearch.shield.InternalClient;
 import org.elasticsearch.shield.Shield;
@@ -29,13 +29,12 @@ import java.util.List;
 /**
  * Collector for the Recovery API.
  * <p>
- * This collector runs on the master node only and collects a {@link IndexRecoveryMarvelDoc} document
+ * This collector runs on the master node only and collects a {@link IndexRecoveryMonitoringDoc} document
  * for every index that has on-going shard recoveries.
  */
 public class IndexRecoveryCollector extends AbstractCollector<IndexRecoveryCollector> {
 
     public static final String NAME = "index-recovery-collector";
-    public static final String TYPE = "index_recovery";
 
     private final Client client;
 
@@ -52,8 +51,8 @@ public class IndexRecoveryCollector extends AbstractCollector<IndexRecoveryColle
     }
 
     @Override
-    protected Collection<MarvelDoc> doCollect() throws Exception {
-        List<MarvelDoc> results = new ArrayList<>(1);
+    protected Collection<MonitoringDoc> doCollect() throws Exception {
+        List<MonitoringDoc> results = new ArrayList<>(1);
         try {
             RecoveryResponse recoveryResponse = client.admin().indices().prepareRecoveries()
                     .setIndices(marvelSettings.indices())
@@ -62,9 +61,8 @@ public class IndexRecoveryCollector extends AbstractCollector<IndexRecoveryColle
                     .get(marvelSettings.recoveryTimeout());
 
             if (recoveryResponse.hasRecoveries()) {
-                IndexRecoveryMarvelDoc indexRecoveryDoc = new IndexRecoveryMarvelDoc();;
+                IndexRecoveryMonitoringDoc indexRecoveryDoc = new IndexRecoveryMonitoringDoc(monitoringId(), monitoringVersion());
                 indexRecoveryDoc.setClusterUUID(clusterUUID());
-                indexRecoveryDoc.setType(TYPE);
                 indexRecoveryDoc.setTimestamp(System.currentTimeMillis());
                 indexRecoveryDoc.setSourceNode(localNode());
                 indexRecoveryDoc.setRecoveryResponse(recoveryResponse);

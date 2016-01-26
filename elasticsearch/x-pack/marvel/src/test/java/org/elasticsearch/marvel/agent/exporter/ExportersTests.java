@@ -11,9 +11,8 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
-import org.elasticsearch.marvel.agent.exporter.local.LocalExporter;
-import org.elasticsearch.marvel.agent.renderer.RendererRegistry;
 import org.elasticsearch.marvel.MarvelSettings;
+import org.elasticsearch.marvel.agent.exporter.local.LocalExporter;
 import org.elasticsearch.marvel.cleaner.CleanerService;
 import org.elasticsearch.shield.InternalClient;
 import org.elasticsearch.test.ESTestCase;
@@ -58,7 +57,7 @@ public class ExportersTests extends ESTestCase {
 
         // we always need to have the local exporter as it serves as the default one
         factories.put(LocalExporter.TYPE, new LocalExporter.Factory(new InternalClient.Insecure(client), clusterService,
-                mock(RendererRegistry.class), mock(CleanerService.class)));
+                mock(CleanerService.class)));
         clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(MarvelSettings.COLLECTORS,
                 MarvelSettings.INTERVAL, MarvelSettings.EXPORTERS_SETTINGS)));
         exporters = new Exporters(Settings.EMPTY, factories, clusterService, clusterSettings);
@@ -270,7 +269,7 @@ public class ExportersTests extends ESTestCase {
             }
 
             @Override
-            public void export(Collection<MarvelDoc> marvelDocs) throws Exception {
+            public void export(Collection<MonitoringDoc> monitoringDocs) throws Exception {
             }
 
             @Override

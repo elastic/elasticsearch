@@ -51,6 +51,6 @@ public class MarvelTemplateUtilsTests extends ESTestCase {
         assertThat(MarvelTemplateUtils.dataTemplateName(),
                 equalTo(MarvelTemplateUtils.DATA_TEMPLATE_NAME_PREFIX + MarvelTemplateUtils.TEMPLATE_VERSION));
         int version = randomIntBetween(1, 100);
-        assertThat(MarvelTemplateUtils.dataTemplateName(version), equalTo(".monitoring-es-data-" + version));
+        assertThat(MarvelTemplateUtils.dataTemplateName(version), equalTo(".monitoring-data-" + version));
     }
 }

@@ -17,7 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.marvel.MarvelSettings;
 import org.elasticsearch.marvel.agent.collector.AbstractCollector;
-import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
+import org.elasticsearch.marvel.agent.exporter.MonitoringDoc;
 import org.elasticsearch.marvel.license.MarvelLicensee;
 import org.elasticsearch.shield.InternalClient;
 import org.elasticsearch.shield.Shield;
@@ -31,13 +31,12 @@ import java.util.List;
 /**
  * Collector for indices statistics.
  * <p>
- * This collector runs on the master node only and collect a {@link IndexStatsMarvelDoc} document
+ * This collector runs on the master node only and collect a {@link IndexStatsMonitoringDoc} document
  * for each existing index in the cluster.
  */
 public class IndexStatsCollector extends AbstractCollector<IndexStatsCollector> {
 
     public static final String NAME = "index-stats-collector";
-    public static final String TYPE = "index_stats";
 
     private final Client client;
 
@@ -54,8 +53,8 @@ public class IndexStatsCollector extends AbstractCollector<IndexStatsCollector> 
     }
 
     @Override
-    protected Collection<MarvelDoc> doCollect() throws Exception {
-        List<MarvelDoc> results = new ArrayList<>(1);
+    protected Collection<MonitoringDoc> doCollect() throws Exception {
+        List<MonitoringDoc> results = new ArrayList<>();
         try {
             IndicesStatsResponse indicesStats = client.admin().indices().prepareStats()
                     .setIndices(marvelSettings.indices())
@@ -76,9 +75,8 @@ public class IndexStatsCollector extends AbstractCollector<IndexStatsCollector> 
             DiscoveryNode sourceNode = localNode();
 
             for (IndexStats indexStats : indicesStats.getIndices().values()) {
-                IndexStatsMarvelDoc indexStatsDoc = new IndexStatsMarvelDoc();
+                IndexStatsMonitoringDoc indexStatsDoc = new IndexStatsMonitoringDoc(monitoringId(), monitoringVersion());
                 indexStatsDoc.setClusterUUID(clusterUUID);
-                indexStatsDoc.setType(TYPE);
                 indexStatsDoc.setTimestamp(timestamp);
                 indexStatsDoc.setSourceNode(sourceNode);
                 indexStatsDoc.setIndexStats(indexStats);

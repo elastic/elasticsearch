@@ -11,15 +11,18 @@ import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.plugin.core.LicenseState;
 import org.elasticsearch.license.plugin.core.Licensee;
 import org.elasticsearch.marvel.MarvelSettings;
+import org.elasticsearch.marvel.MonitoringIds;
 import org.elasticsearch.marvel.agent.exporter.Exporter;
 import org.elasticsearch.marvel.agent.exporter.Exporters;
 import org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils;
+import org.elasticsearch.marvel.agent.exporter.MonitoringDoc;
+import org.elasticsearch.marvel.agent.resolver.MonitoringIndexNameResolver;
 import org.elasticsearch.marvel.license.MarvelLicensee;
 import org.elasticsearch.marvel.test.MarvelIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.VersionUtils;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
-import org.joda.time.format.DateTimeFormat;
 
 import java.util.Locale;
 
@@ -212,21 +215,26 @@ public abstract class AbstractIndicesCleanerTestCase extends MarvelIntegTestCase
         throw new IllegalStateException("unable to find listener");
     }
 
+    private MonitoringDoc randomMonitoringDoc() {
+        return new MonitoringDoc(randomFrom(MonitoringIds.values()).getId(), VersionUtils.randomVersion(random()).toString());
+    }
+
     /**
      * Creates a monitoring data index in a given version.
      */
     protected void createDataIndex(int version, DateTime creationDate) {
-        String indexName = MarvelSettings.MONITORING_DATA_INDEX_PREFIX + String.valueOf(version);
-        createIndex(indexName, creationDate);
+        createIndex(new MockDataIndexNameResolver(version).index(randomMonitoringDoc()), creationDate);
     }
 
     /**
      * Creates a monitoring timestamped index in a given version.
      */
     protected void createTimestampedIndex(int version, DateTime creationDate) {
-        String indexName = MarvelSettings.MONITORING_INDICES_PREFIX + String.valueOf(version) + "-"
-                + DateTimeFormat.forPattern(Exporter.DEFAULT_INDEX_NAME_TIME_FORMAT).withZoneUTC().print(creationDate.getMillis());
-        createIndex(indexName, creationDate);
+        MonitoringDoc monitoringDoc = randomMonitoringDoc();
+        monitoringDoc.setTimestamp(creationDate.getMillis());
+
+        MonitoringIndexNameResolver.Timestamped resolver = new MockTimestampedIndexNameResolver(monitoringDoc.getMonitoringId(), version);
+        createIndex(resolver.index(monitoringDoc), creationDate);
     }
 
     protected abstract void createIndex(String name, DateTime creationDate);

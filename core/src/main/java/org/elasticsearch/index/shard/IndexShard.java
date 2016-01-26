@@ -998,7 +998,9 @@ public class IndexShard extends AbstractIndexShardComponent {
             // to wake up and fix our indexing buffer.  We could do this async instead, but cost should
             // be low, and it's rare this happens.
             indexingMemoryController.forceCheck();
-            assert engineConfig.getIndexingBufferSize() != IndexingMemoryController.INACTIVE_SHARD_INDEXING_BUFFER || state == IndexShardState.CLOSED: "active=" + active + " state=" + state + " shard=" + shardId();
+
+            // This can false trip, e.g. if a node is closing while a shard is starting up:
+            //assert engineConfig.getIndexingBufferSize() != IndexingMemoryController.INACTIVE_SHARD_INDEXING_BUFFER || state == IndexShardState.CLOSED: "active=" + active + " state=" + state + " shard=" + shardId();
         }
     }
 

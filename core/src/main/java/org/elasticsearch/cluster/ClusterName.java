@@ -33,7 +33,7 @@ public class ClusterName implements Streamable {
 
     public static final String SETTING = "cluster.name";
 
-    public static final ClusterName DEFAULT = new ClusterName("elasticsearch".intern());
+    public static final ClusterName DEFAULT = new ClusterName("elasticsearch");
 
     private String value;
 
@@ -46,7 +46,7 @@ public class ClusterName implements Streamable {
     }
 
     public ClusterName(String value) {
-        this.value = value.intern();
+        this.value = value;
     }
 
     public String value() {
@@ -61,7 +61,7 @@ public class ClusterName implements Streamable {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        value = in.readString().intern();
+        value = in.readString();
     }
 
     @Override

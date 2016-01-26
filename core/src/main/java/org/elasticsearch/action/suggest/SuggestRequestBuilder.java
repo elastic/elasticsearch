@@ -27,7 +27,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.search.suggest.SuggestBuilder;
-import org.elasticsearch.search.suggest.SuggestBuilder.SuggestionBuilder;
+import org.elasticsearch.search.suggest.SuggestionBuilder;
 
 import java.io.IOException;
 
@@ -45,7 +45,7 @@ public class SuggestRequestBuilder extends BroadcastOperationRequestBuilder<Sugg
     /**
      * Add a definition for suggestions to the request
      */
-    public <T> SuggestRequestBuilder addSuggestion(SuggestionBuilder<T> suggestion) {
+    public SuggestRequestBuilder addSuggestion(SuggestionBuilder<?> suggestion) {
         suggest.addSuggestion(suggestion);
         return this;
     }

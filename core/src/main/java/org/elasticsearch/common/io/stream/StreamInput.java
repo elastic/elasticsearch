@@ -38,6 +38,7 @@ import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.elasticsearch.search.rescore.RescoreBuilder;
+import org.elasticsearch.search.suggest.SuggestionBuilder;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
@@ -277,6 +278,14 @@ public abstract class StreamInput extends InputStream {
     public String readOptionalString() throws IOException {
         if (readBoolean()) {
             return readString();
+        }
+        return null;
+    }
+
+    @Nullable
+    public Float readOptionalFloat() throws IOException {
+        if (readBoolean()) {
+            return readFloat();
         }
         return null;
     }
@@ -681,6 +690,13 @@ public abstract class StreamInput extends InputStream {
      */
     public RescoreBuilder<?> readRescorer() throws IOException {
         return readNamedWriteable(RescoreBuilder.class);
+    }
+
+    /**
+     * Reads a {@link SuggestionBuilder} from the current stream
+     */
+    public SuggestionBuilder<?> readSuggestion() throws IOException {
+        return readNamedWriteable(SuggestionBuilder.class);
     }
 
     /**

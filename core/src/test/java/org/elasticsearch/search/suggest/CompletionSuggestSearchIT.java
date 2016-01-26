@@ -20,6 +20,7 @@ package org.elasticsearch.search.suggest;
 
 import com.carrotsearch.hppc.ObjectLongHashMap;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
+
 import org.apache.lucene.analysis.TokenStreamToAutomaton;
 import org.apache.lucene.search.suggest.document.ContextSuggestField;
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
@@ -907,7 +908,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
     }
 
 
-    public void assertSuggestions(String suggestionName, SuggestBuilder.SuggestionBuilder suggestBuilder, String... suggestions) {
+    public void assertSuggestions(String suggestionName, SuggestionBuilder suggestBuilder, String... suggestions) {
         SuggestResponse suggestResponse = client().prepareSuggest(INDEX).addSuggestion(suggestBuilder
         ).execute().actionGet();
         assertSuggestions(suggestResponse, suggestionName, suggestions);

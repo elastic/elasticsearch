@@ -20,6 +20,8 @@ package org.elasticsearch.search.suggest;
 
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.plugins.Plugin;
@@ -31,6 +33,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.hasSize;
@@ -59,16 +62,7 @@ public class CustomSuggesterSearchIT extends ESIntegTestCase {
         String randomField = randomAsciiOfLength(10);
         String randomSuffix = randomAsciiOfLength(10);
         SuggestBuilder suggestBuilder = new SuggestBuilder();
-        suggestBuilder.addSuggestion(
-                new SuggestBuilder.SuggestionBuilder<SuggestBuilder.SuggestionBuilder>("someName", "custom") {
-                    @Override
-                    protected XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
-                        builder.field("field", randomField);
-                        builder.field("suffix", randomSuffix);
-                        return builder;
-                    }
-                }.text(randomText)
-        );
+        suggestBuilder.addSuggestion(new CustomSuggestionBuilder("someName", randomField, randomSuffix).text(randomText));
         SearchRequestBuilder searchRequestBuilder = client().prepareSearch("test").setTypes("test").setFrom(0).setSize(1)
                 .suggest(suggestBuilder);
 
@@ -81,6 +75,53 @@ public class CustomSuggesterSearchIT extends ESIntegTestCase {
         assertThat(suggestions, hasSize(2));
         assertThat(suggestions.get(0).getText().string(), is(String.format(Locale.ROOT, "%s-%s-%s-12", randomText, randomField, randomSuffix)));
         assertThat(suggestions.get(1).getText().string(), is(String.format(Locale.ROOT, "%s-%s-%s-123", randomText, randomField, randomSuffix)));
+    }
+
+    class CustomSuggestionBuilder extends SuggestionBuilder<CustomSuggestionBuilder> {
+
+        private String randomField;
+        private String randomSuffix;
+
+        public CustomSuggestionBuilder(String name, String randomField, String randomSuffix) {
+            super(name);
+            this.randomField = randomField;
+            this.randomSuffix = randomSuffix;
+        }
+
+        @Override
+        protected XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.field("field", randomField);
+            builder.field("suffix", randomSuffix);
+            return builder;
+        }
+
+        @Override
+        public String getWriteableName() {
+            return "custom";
+        }
+
+        @Override
+        public void doWriteTo(StreamOutput out) throws IOException {
+            out.writeString(randomField);
+            out.writeString(randomSuffix);
+        }
+
+        @Override
+        public CustomSuggestionBuilder doReadFrom(StreamInput in, String name) throws IOException {
+            return new CustomSuggestionBuilder(in.readString(), in.readString(), in.readString());
+        }
+
+        @Override
+        protected boolean doEquals(CustomSuggestionBuilder other) {
+            return Objects.equals(randomField, other.randomField) &&
+                    Objects.equals(randomSuffix, other.randomSuffix);
+        }
+
+        @Override
+        protected int doHashCode() {
+            return Objects.hash(randomField, randomSuffix);
+        }
+
     }
 
 }

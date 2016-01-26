@@ -30,6 +30,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.search.suggest.SuggestBuilder;
+import org.elasticsearch.search.suggest.SuggestionBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -99,10 +100,10 @@ public final class SuggestRequest extends BroadcastRequest<SuggestRequest> {
     }
 
     /**
-     * set a new source using a {@link org.elasticsearch.search.suggest.SuggestBuilder.SuggestionBuilder}
+     * set a new source using a {@link org.elasticsearch.search.suggest.SuggestionBuilder}
      * for completion suggestion lookup
      */
-    public SuggestRequest suggest(SuggestBuilder.SuggestionBuilder suggestionBuilder) {
+    public SuggestRequest suggest(SuggestionBuilder suggestionBuilder) {
         return suggest(suggestionBuilder.buildAsBytes(Requests.CONTENT_TYPE));
     }
 

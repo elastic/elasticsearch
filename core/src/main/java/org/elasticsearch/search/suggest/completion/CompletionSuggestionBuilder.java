@@ -22,11 +22,13 @@ import org.apache.lucene.search.suggest.document.FuzzyCompletionQuery;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.RegexpFlag;
-import org.elasticsearch.search.suggest.SuggestBuilder;
+import org.elasticsearch.search.suggest.SuggestionBuilder;
 import org.elasticsearch.search.suggest.completion.context.CategoryQueryContext;
 import org.elasticsearch.search.suggest.completion.context.GeoQueryContext;
 
@@ -45,7 +47,7 @@ import java.util.Set;
  * are created at index-time and so must be defined in the mapping with the type "completion" before
  * indexing.
  */
-public class CompletionSuggestionBuilder extends SuggestBuilder.SuggestionBuilder<CompletionSuggestionBuilder> {
+public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSuggestionBuilder> {
 
     final static String SUGGESTION_NAME = "completion";
     static final ParseField PAYLOAD_FIELD = new ParseField("payload");
@@ -56,7 +58,7 @@ public class CompletionSuggestionBuilder extends SuggestBuilder.SuggestionBuilde
     private final Set<String> payloadFields = new HashSet<>();
 
     public CompletionSuggestionBuilder(String name) {
-        super(name, SUGGESTION_NAME);
+        super(name);
     }
 
     /**
@@ -255,8 +257,9 @@ public class CompletionSuggestionBuilder extends SuggestBuilder.SuggestionBuilde
      * Sets the prefix to provide completions for.
      * The prefix gets analyzed by the suggest analyzer.
      */
+    @Override
     public CompletionSuggestionBuilder prefix(String prefix) {
-        super.setPrefix(prefix);
+        super.prefix(prefix);
         return this;
     }
 
@@ -264,7 +267,7 @@ public class CompletionSuggestionBuilder extends SuggestBuilder.SuggestionBuilde
      * Same as {@link #prefix(String)} with fuzziness of <code>fuzziness</code>
      */
     public CompletionSuggestionBuilder prefix(String prefix, Fuzziness fuzziness) {
-        super.setPrefix(prefix);
+        super.prefix(prefix);
         this.fuzzyOptionsBuilder = new FuzzyOptionsBuilder().setFuzziness(fuzziness);
         return this;
     }
@@ -274,7 +277,7 @@ public class CompletionSuggestionBuilder extends SuggestBuilder.SuggestionBuilde
      * see {@link FuzzyOptionsBuilder}
      */
     public CompletionSuggestionBuilder prefix(String prefix, FuzzyOptionsBuilder fuzzyOptionsBuilder) {
-        super.setPrefix(prefix);
+        super.prefix(prefix);
         this.fuzzyOptionsBuilder = fuzzyOptionsBuilder;
         return this;
     }
@@ -282,8 +285,9 @@ public class CompletionSuggestionBuilder extends SuggestBuilder.SuggestionBuilde
     /**
      * Sets a regular expression pattern for prefixes to provide completions for.
      */
+    @Override
     public CompletionSuggestionBuilder regex(String regex) {
-        super.setRegex(regex);
+        super.regex(regex);
         return this;
     }
 
@@ -361,5 +365,34 @@ public class CompletionSuggestionBuilder extends SuggestBuilder.SuggestionBuilde
             builder.endObject();
         }
         return builder;
+    }
+
+    @Override
+    public String getWriteableName() {
+        return SUGGESTION_NAME;
+    }
+
+    @Override
+    public void doWriteTo(StreamOutput out) throws IOException {
+        // NORELEASE
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public CompletionSuggestionBuilder doReadFrom(StreamInput in, String name) throws IOException {
+        // NORELEASE
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    protected boolean doEquals(CompletionSuggestionBuilder other) {
+        // NORELEASE
+        return false;
+    }
+
+    @Override
+    protected int doHashCode() {
+        // NORELEASE
+        return 0;
     }
 }

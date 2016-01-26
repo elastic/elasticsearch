@@ -18,10 +18,12 @@
  */
 package org.elasticsearch.search.suggest.phrase;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.script.Template;
-import org.elasticsearch.search.suggest.SuggestBuilder.SuggestionBuilder;
+import org.elasticsearch.search.suggest.SuggestionBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -29,12 +31,18 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.Set;
 
 /**
  * Defines the actual suggest command for phrase suggestions ( <tt>phrase</tt>).
  */
 public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionBuilder> {
+
+    static final String SUGGESTION_NAME = "phrase";
+
+    public static final PhraseSuggestionBuilder PROTOTYPE = new PhraseSuggestionBuilder("_na_");
+
     private Float maxErrors;
     private String separator;
     private Float realWordErrorLikelihood;
@@ -51,7 +59,7 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
     private Boolean collatePrune;
 
     public PhraseSuggestionBuilder(String name) {
-        super(name, "phrase");
+        super(name);
     }
 
     /**
@@ -65,6 +73,13 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
         }
         this.gramSize = gramSize;
         return this;
+    }
+
+    /**
+     * get the {@link #gramSize(int)} parameter
+     */
+    public Integer gramSize() {
+        return this.gramSize;
     }
 
     /**
@@ -82,12 +97,26 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
     }
 
     /**
+     * get the maxErrors setting
+     */
+    public Float maxErrors() {
+        return this.maxErrors;
+    }
+
+    /**
      * Sets the separator that is used to separate terms in the bigram field. If
      * not set the whitespace character is used as a separator.
      */
     public PhraseSuggestionBuilder separator(String separator) {
         this.separator = separator;
         return this;
+    }
+
+    /**
+     * get the separator that is used to separate terms in the bigram field.
+     */
+    public String separator() {
+        return this.separator;
     }
 
     /**
@@ -98,6 +127,13 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
     public PhraseSuggestionBuilder realWordErrorLikelihood(Float realWordErrorLikelihood) {
         this.realWordErrorLikelihood = realWordErrorLikelihood;
         return this;
+    }
+
+    /**
+     * get the {@link #realWordErrorLikelihood(Float)} parameter
+     */
+    public Float realWordErrorLikelihood() {
+        return this.realWordErrorLikelihood;
     }
 
     /**
@@ -112,6 +148,13 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
     public PhraseSuggestionBuilder confidence(Float confidence) {
         this.confidence = confidence;
         return this;
+    }
+
+    /**
+     * get the {@link #confidence()} parameter
+     */
+    public Float confidence() {
+        return this.confidence;
     }
 
     /**
@@ -147,6 +190,13 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
     }
 
     /**
+     * get the setting for {@link #forceUnigrams()}
+     */
+    public Boolean forceUnigrams() {
+        return this.forceUnigrams;
+    }
+
+    /**
      * Sets an explicit smoothing model used for this suggester. The default is
      * {@link PhraseSuggestionBuilder.StupidBackoff}.
      */
@@ -161,6 +211,13 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
     }
 
     /**
+     * get the {@link #tokenLimit(int)} parameter
+     */
+    public Integer tokenLimit() {
+        return this.tokenLimit;
+    }
+
+    /**
      * Setup highlighting for suggestions.  If this is called a highlight field
      * is returned with suggestions wrapping changed tokens with preTag and postTag.
      */
@@ -171,6 +228,20 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
         this.preTag = preTag;
         this.postTag = postTag;
         return this;
+    }
+
+    /**
+     * get the pre-tag for the highlighter set with {@link #highlight(String, String)}
+     */
+    public String preTag() {
+        return this.preTag;
+    }
+
+    /**
+     * get the post-tag for the highlighter set with {@link #highlight(String, String)}
+     */
+    public String postTag() {
+        return this.postTag;
     }
 
     /**
@@ -190,6 +261,13 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
     }
 
     /**
+     * gets the query used for filtering out suggested phrases (collation).
+     */
+    public Template collateQuery() {
+        return this.collateQuery;
+    }
+
+    /**
      * Sets additional params for collate script
      */
     public PhraseSuggestionBuilder collateParams(Map<String, Object> collateParams) {
@@ -198,11 +276,25 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
     }
 
     /**
+     * gets additional params for collate script
+     */
+    public Map<String, Object> collateParams() {
+        return this.collateParams;
+    }
+
+    /**
      * Sets whether to prune suggestions after collation
      */
     public PhraseSuggestionBuilder collatePrune(boolean collatePrune) {
         this.collatePrune = collatePrune;
         return this;
+    }
+
+    /**
+     * Gets whether to prune suggestions after collation
+     */
+    public Boolean collatePrune() {
+        return this.collatePrune;
     }
 
     @Override
@@ -428,7 +520,7 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
         private Float minDocFreq;
 
         /**
-         * @param field Sets from what field to fetch the candidate suggestions from. 
+         * @param field Sets from what field to fetch the candidate suggestions from.
          */
         public DirectCandidateGenerator(String field) {
             super("direct_generator");
@@ -653,6 +745,84 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
             return builder;
         }
 
+    }
+
+    @Override
+    public String getWriteableName() {
+        return SUGGESTION_NAME;
+    }
+
+    @Override
+    public void doWriteTo(StreamOutput out) throws IOException {
+        out.writeOptionalFloat(maxErrors);
+        out.writeOptionalFloat(realWordErrorLikelihood);
+        out.writeOptionalFloat(confidence);
+        out.writeOptionalVInt(gramSize);
+        // NORELEASE model.writeTo();
+        out.writeOptionalBoolean(forceUnigrams);
+        out.writeOptionalVInt(tokenLimit);
+        out.writeOptionalString(preTag);
+        out.writeOptionalString(postTag);
+        out.writeOptionalString(separator);
+        if (collateQuery != null) {
+            out.writeBoolean(true);
+            collateQuery.writeTo(out);
+        } else {
+            out.writeBoolean(false);
+        }
+        out.writeMap(collateParams);
+        out.writeOptionalBoolean(collatePrune);
+        // NORELEASE write Map<String, List<CandidateGenerator>> generators = new HashMap<>();
+    }
+
+    @Override
+    public PhraseSuggestionBuilder doReadFrom(StreamInput in, String name) throws IOException {
+        PhraseSuggestionBuilder builder = new PhraseSuggestionBuilder(name);
+        builder.maxErrors = in.readOptionalFloat();
+        builder.realWordErrorLikelihood = in.readOptionalFloat();
+        builder.confidence = in.readOptionalFloat();
+        builder.gramSize = in.readOptionalVInt();
+        // NORELEASE read model
+        builder.forceUnigrams = in.readOptionalBoolean();
+        builder.tokenLimit = in.readOptionalVInt();
+        builder.preTag = in.readOptionalString();
+        builder.postTag = in.readOptionalString();
+        builder.separator = in.readOptionalString();
+        if (in.readBoolean()) {
+            builder.collateQuery = Template.readTemplate(in);
+        }
+        builder.collateParams = in.readMap();
+        builder.collatePrune = in.readOptionalBoolean();
+        // NORELEASE read Map<String, List<CandidateGenerator>> generators;
+        return builder;
+    }
+
+    @Override
+    protected boolean doEquals(PhraseSuggestionBuilder other) {
+        return Objects.equals(maxErrors, other.maxErrors) &&
+                Objects.equals(separator, other.separator) &&
+                Objects.equals(realWordErrorLikelihood, other.realWordErrorLikelihood) &&
+                Objects.equals(confidence, other.confidence) &&
+                // NORELEASE Objects.equals(generator, other.generator) &&
+                Objects.equals(gramSize, other.gramSize) &&
+                // NORELEASE Objects.equals(model, other.model) &&
+                Objects.equals(forceUnigrams, other.forceUnigrams) &&
+                Objects.equals(tokenLimit, other.tokenLimit) &&
+                Objects.equals(preTag, other.preTag) &&
+                Objects.equals(postTag, other.postTag) &&
+                Objects.equals(collateQuery, other.collateQuery) &&
+                Objects.equals(collateParams, other.collateParams) &&
+                Objects.equals(collatePrune, other.collatePrune);
+    }
+
+    @Override
+    protected int doHashCode() {
+        return Objects.hash(maxErrors, separator, realWordErrorLikelihood, confidence,
+                /** NORELEASE generators, */
+                gramSize,
+                /** NORELEASE model, */
+                forceUnigrams, tokenLimit, preTag, postTag,
+                collateQuery, collateParams, collatePrune);
     }
 
 }

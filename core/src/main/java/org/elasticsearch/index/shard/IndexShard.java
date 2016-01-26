@@ -882,7 +882,6 @@ public class IndexShard extends AbstractIndexShardComponent {
 
         // This will activate our shard so we get our fair share of the indexing buffer during recovery:
         markLastWrite();
-        assert engineConfig.getIndexingBufferSize() != IndexingMemoryController.INACTIVE_SHARD_INDEXING_BUFFER;
 
         return engineConfig.getTranslogRecoveryPerformer().performBatchRecovery(engine(), operations);
     }
@@ -921,8 +920,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         engineConfig.setCreate(indexExists == false);
         if (skipTranslogRecovery == false) {
             // This will activate our shard so we get our fair share of the indexing buffer during recovery:
-            activate();
-            assert engineConfig.getIndexingBufferSize() != IndexingMemoryController.INACTIVE_SHARD_INDEXING_BUFFER;
+            markLastWrite();
         }
         createNewEngine(skipTranslogRecovery, engineConfig);
         return engineConfig.getTranslogRecoveryPerformer().getRecoveredTypes();
@@ -996,24 +994,15 @@ public class IndexShard extends AbstractIndexShardComponent {
         }
     }
 
-    /** Returns timestamp of last indexing operation */
-    public long getLastWriteNS() {
-        return lastWriteNS;
-    }
-
     /** Records timestamp of the last write operation, possibly switching {@code active} to true if we were inactive. */
     private void markLastWrite() {
         lastWriteNS = System.nanoTime();
-        activate();
-    }
-
-    private void activate() {
         if (active.getAndSet(true) == false) {
             // We are currently inactive, but a new write operation just showed up, so we now notify IMC
             // to wake up and fix our indexing buffer.  We could do this async instead, but cost should
             // be low, and it's rare this happens.
             indexingMemoryController.forceCheck();
-            assert engineConfig.getIndexingBufferSize() != IndexingMemoryController.INACTIVE_SHARD_INDEXING_BUFFER;
+            assert engineConfig.getIndexingBufferSize() != IndexingMemoryController.INACTIVE_SHARD_INDEXING_BUFFER: "active=" + active + " state=" + state + " shard=" + shardId();
         }
     }
 

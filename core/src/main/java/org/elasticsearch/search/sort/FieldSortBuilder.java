@@ -68,7 +68,6 @@ public class FieldSortBuilder extends SortBuilder {
      * Sets the value when a field is missing in a doc. Can also be set to <tt>_last</tt> or
      * <tt>_first</tt> to sort missing last or first respectively.
      */
-    @Override
     public FieldSortBuilder missing(Object missing) {
         this.missing = missing;
         return this;

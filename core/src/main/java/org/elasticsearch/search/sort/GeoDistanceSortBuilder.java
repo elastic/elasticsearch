@@ -219,16 +219,6 @@ public class GeoDistanceSortBuilder extends SortBuilder
     }
 
     /**
-     * Not relevant.
-     *
-     * TODO should this throw an exception rather than silently ignore a parameter that is not used?
-     */
-    @Override
-    public GeoDistanceSortBuilder missing(Object missing) {
-        return this;
-    }
-
-    /**
      * Defines which distance to use for sorting in the case a document contains multiple geo points.
      * Possible values: min and max
      */

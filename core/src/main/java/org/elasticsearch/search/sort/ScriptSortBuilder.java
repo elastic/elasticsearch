@@ -63,14 +63,6 @@ public class ScriptSortBuilder extends SortBuilder {
     }
 
     /**
-     * Not really relevant.
-     */
-    @Override
-    public SortBuilder missing(Object missing) {
-        return this;
-    }
-
-    /**
      * Defines which distance to use for sorting in the case a document contains multiple geo points.
      * Possible values: min and max
      */

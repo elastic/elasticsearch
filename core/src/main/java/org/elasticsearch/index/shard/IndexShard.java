@@ -422,6 +422,7 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     private IndexShardState recovering(String reason, RecoveryState recoveryState) throws IndexShardStartedException,
             IndexShardRelocatedException, IndexShardRecoveringException, IndexShardClosedException {
+
         synchronized (mutex) {
             if (state == IndexShardState.CLOSED) {
                 throw new IndexShardClosedException(shardId);
@@ -505,7 +506,7 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     public void create(Engine.Create create) {
         ensureWriteAllowed(create);
-        markLastWrite(create);
+        markLastWrite();
         create = indexingService.preCreate(create);
         try {
             if (logger.isTraceEnabled()) {
@@ -556,7 +557,7 @@ public class IndexShard extends AbstractIndexShardComponent {
      */
     public boolean index(Engine.Index index) {
         ensureWriteAllowed(index);
-        markLastWrite(index);
+        markLastWrite();
         index = indexingService.preIndex(index);
         final boolean created;
         try {
@@ -594,7 +595,7 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     public void delete(Engine.Delete delete) {
         ensureWriteAllowed(delete);
-        markLastWrite(delete);
+        markLastWrite();
         delete = indexingService.preDelete(delete);
         try {
             if (logger.isTraceEnabled()) {
@@ -878,7 +879,15 @@ public class IndexShard extends AbstractIndexShardComponent {
         if (state != IndexShardState.RECOVERING) {
             throw new IndexShardNotRecoveringException(shardId, state);
         }
+
+        // This will activate our shard so we get our fair share of the indexing buffer during recovery:
+        markLastWrite();
+
         return engineConfig.getTranslogRecoveryPerformer().performBatchRecovery(engine(), operations);
+    }
+
+    public ByteSizeValue getIndexingBufferSize() {
+        return engineConfig.getIndexingBufferSize();
     }
 
     /**
@@ -894,6 +903,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         if (state != IndexShardState.RECOVERING) {
             throw new IndexShardNotRecoveringException(shardId, state);
         }
+
         recoveryState.setStage(RecoveryState.Stage.VERIFY_INDEX);
         // also check here, before we apply the translog
         if (Booleans.parseBoolean(checkIndexOnStartup, false)) {
@@ -908,6 +918,10 @@ public class IndexShard extends AbstractIndexShardComponent {
         // but we need to make sure we don't loose deletes until we are done recovering
         engineConfig.setEnableGcDeletes(false);
         engineConfig.setCreate(indexExists == false);
+        if (skipTranslogRecovery == false) {
+            // This will activate our shard so we get our fair share of the indexing buffer during recovery:
+            markLastWrite();
+        }
         createNewEngine(skipTranslogRecovery, engineConfig);
         return engineConfig.getTranslogRecoveryPerformer().getRecoveredTypes();
     }
@@ -980,19 +994,15 @@ public class IndexShard extends AbstractIndexShardComponent {
         }
     }
 
-    /** Returns timestamp of last indexing operation */
-    public long getLastWriteNS() {
-        return lastWriteNS;
-    }
-
     /** Records timestamp of the last write operation, possibly switching {@code active} to true if we were inactive. */
-    private void markLastWrite(Engine.Operation op) {
-        lastWriteNS = op.startTime();
+    private void markLastWrite() {
+        lastWriteNS = System.nanoTime();
         if (active.getAndSet(true) == false) {
             // We are currently inactive, but a new write operation just showed up, so we now notify IMC
             // to wake up and fix our indexing buffer.  We could do this async instead, but cost should
             // be low, and it's rare this happens.
             indexingMemoryController.forceCheck();
+            assert engineConfig.getIndexingBufferSize() != IndexingMemoryController.INACTIVE_SHARD_INDEXING_BUFFER || state == IndexShardState.CLOSED: "active=" + active + " state=" + state + " shard=" + shardId();
         }
     }
 
@@ -1111,6 +1121,13 @@ public class IndexShard extends AbstractIndexShardComponent {
      * if the shard is inactive.
      */
     public boolean checkIdle(long inactiveTimeNS) {
+
+        if (state == IndexShardState.RECOVERING) {
+            // Make sure during local translog replay, where the engine is replaying ops directly via the engine, bypassing our shard active
+            // logic here, that we still get our fair share of the total indexing buffer:
+            return false;
+        }
+
         if (System.nanoTime() - lastWriteNS >= inactiveTimeNS) {
             boolean wasActive = active.getAndSet(false);
             if (wasActive) {

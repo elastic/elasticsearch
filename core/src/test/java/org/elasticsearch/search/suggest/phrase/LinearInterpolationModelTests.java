@@ -20,15 +20,18 @@
 package org.elasticsearch.search.suggest.phrase;
 
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder.LinearInterpolation;
+import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder.SmoothingModel;
 
-public class LinearInterpolationModelTests extends SmoothingModelTest<LinearInterpolation> {
+import static org.hamcrest.Matchers.instanceOf;
+
+public class LinearInterpolationModelTests extends SmoothingModelTestCase {
 
     @Override
-    protected LinearInterpolation createTestModel() {
+    protected SmoothingModel createTestModel() {
         double trigramLambda = randomDoubleBetween(0.0, 10.0, false);
         double bigramLambda = randomDoubleBetween(0.0, 10.0, false);
         double unigramLambda = randomDoubleBetween(0.0, 10.0, false);
-        // normalize
+        // normalize so parameters sum to 1
         double sum = trigramLambda + bigramLambda + unigramLambda;
         return new LinearInterpolation(trigramLambda / sum, bigramLambda / sum, unigramLambda / sum);
     }
@@ -37,7 +40,8 @@ public class LinearInterpolationModelTests extends SmoothingModelTest<LinearInte
      * mutate the given model so the returned smoothing model is different
      */
     @Override
-    protected LinearInterpolation createMutation(LinearInterpolation original) {
+    protected LinearInterpolation createMutation(SmoothingModel input) {
+        LinearInterpolation original = (LinearInterpolation) input;
         // swap two values permute original lambda values
         switch (randomIntBetween(0, 2)) {
         case 0:
@@ -51,5 +55,15 @@ public class LinearInterpolationModelTests extends SmoothingModelTest<LinearInte
             // swap first and last
             return new LinearInterpolation(original.getUnigramLambda(), original.getBigramLambda(), original.getTrigramLambda());
         }
+    }
+
+    @Override
+    void assertWordScorer(WordScorer wordScorer, SmoothingModel in) {
+        LinearInterpolation testModel = (LinearInterpolation) in;
+        LinearInterpoatingScorer testScorer = (LinearInterpoatingScorer) wordScorer;
+        assertThat(wordScorer, instanceOf(LinearInterpoatingScorer.class));
+        assertEquals(testModel.getTrigramLambda(), (testScorer).trigramLambda(), 1e-15);
+        assertEquals(testModel.getBigramLambda(), (testScorer).bigramLambda(), 1e-15);
+        assertEquals(testModel.getUnigramLambda(), (testScorer).unigramLambda(), 1e-15);
     }
 }

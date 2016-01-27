@@ -18,8 +18,12 @@
  */
 package org.elasticsearch.search.suggest.phrase;
 
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -30,6 +34,7 @@ import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.script.Template;
 import org.elasticsearch.search.suggest.SuggestBuilder.SuggestionBuilder;
+import org.elasticsearch.search.suggest.phrase.WordScorer.WordScorerFactory;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -50,7 +55,7 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
     private Float confidence;
     private final Map<String, List<CandidateGenerator>> generators = new HashMap<>();
     private Integer gramSize;
-    private SmoothingModel<?> model;
+    private SmoothingModel model;
     private Boolean forceUnigrams;
     private Integer tokenLimit;
     private String preTag;
@@ -159,7 +164,7 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
      * Sets an explicit smoothing model used for this suggester. The default is
      * {@link PhraseSuggestionBuilder.StupidBackoff}.
      */
-    public PhraseSuggestionBuilder smoothingModel(SmoothingModel<?> model) {
+    public PhraseSuggestionBuilder smoothingModel(SmoothingModel model) {
         this.model = model;
         return this;
     }
@@ -292,7 +297,7 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
      * Smoothing</a> for details.
      * </p>
      */
-    public static final class StupidBackoff extends SmoothingModel<StupidBackoff> {
+    public static final class StupidBackoff extends SmoothingModel {
         /**
          * Default discount parameter for {@link StupidBackoff} smoothing
          */
@@ -341,8 +346,9 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
         }
 
         @Override
-        protected boolean doEquals(StupidBackoff other) {
-            return Objects.equals(discount, other.discount);
+        protected boolean doEquals(SmoothingModel other) {
+            StupidBackoff otherModel = (StupidBackoff) other;
+            return Objects.equals(discount, otherModel.discount);
         }
 
         @Override
@@ -351,7 +357,7 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
         }
 
         @Override
-        public StupidBackoff fromXContent(QueryParseContext parseContext) throws IOException {
+        public SmoothingModel fromXContent(QueryParseContext parseContext) throws IOException {
             XContentParser parser = parseContext.parser();
             XContentParser.Token token;
             String fieldName = null;
@@ -366,6 +372,12 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
             }
             return new StupidBackoff(discount);
         }
+
+        @Override
+        public WordScorerFactory buildWordScorerFactory() {
+            return (IndexReader reader, Terms terms, String field, double realWordLikelyhood, BytesRef separator)
+                    -> new StupidBackoffScorer(reader, terms, field, realWordLikelyhood, separator, discount);
+        }
     }
 
     /**
@@ -377,7 +389,7 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
      * Smoothing</a> for details.
      * </p>
      */
-    public static final class Laplace extends SmoothingModel<Laplace> {
+    public static final class Laplace extends SmoothingModel {
         private double alpha = DEFAULT_LAPLACE_ALPHA;
         private static final String NAME = "laplace";
         private static final ParseField ALPHA_FIELD = new ParseField("alpha");
@@ -419,13 +431,14 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
         }
 
         @Override
-        public Laplace readFrom(StreamInput in) throws IOException {
+        public SmoothingModel readFrom(StreamInput in) throws IOException {
             return new Laplace(in.readDouble());
         }
 
         @Override
-        protected boolean doEquals(Laplace other) {
-            return Objects.equals(alpha, other.alpha);
+        protected boolean doEquals(SmoothingModel other) {
+            Laplace otherModel = (Laplace) other;
+            return Objects.equals(alpha, otherModel.alpha);
         }
 
         @Override
@@ -434,7 +447,7 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
         }
 
         @Override
-        public Laplace fromXContent(QueryParseContext parseContext) throws IOException {
+        public SmoothingModel fromXContent(QueryParseContext parseContext) throws IOException {
             XContentParser parser = parseContext.parser();
             XContentParser.Token token;
             String fieldName = null;
@@ -449,10 +462,16 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
             }
             return new Laplace(alpha);
         }
+
+        @Override
+        public WordScorerFactory buildWordScorerFactory() {
+            return (IndexReader reader, Terms terms, String field, double realWordLikelyhood, BytesRef separator)
+                    -> new LaplaceScorer(reader, terms,  field, realWordLikelyhood, separator, alpha);
+        }
     }
 
 
-    public static abstract class SmoothingModel<SM extends SmoothingModel<?>> implements NamedWriteable<SM>, ToXContent {
+    public static abstract class SmoothingModel implements NamedWriteable<SmoothingModel>, ToXContent {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -471,16 +490,18 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
                 return false;
             }
             @SuppressWarnings("unchecked")
-            SM other = (SM) obj;
+            SmoothingModel other = (SmoothingModel) obj;
             return doEquals(other);
         }
 
-        public abstract SM fromXContent(QueryParseContext parseContext) throws IOException;
+        public abstract SmoothingModel fromXContent(QueryParseContext parseContext) throws IOException;
+
+        public abstract WordScorerFactory buildWordScorerFactory();
 
         /**
          * subtype specific implementation of "equals".
          */
-        protected abstract boolean doEquals(SM other);
+        protected abstract boolean doEquals(SmoothingModel other);
 
         protected abstract XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException;
     }
@@ -493,7 +514,7 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
      * Smoothing</a> for details.
      * </p>
      */
-    public static final class LinearInterpolation extends SmoothingModel<LinearInterpolation> {
+    public static final class LinearInterpolation extends SmoothingModel {
         private static final String NAME = "linear";
         static final LinearInterpolation PROTOTYPE = new LinearInterpolation(0.8, 0.1, 0.1);
         private final double trigramLambda;
@@ -563,10 +584,11 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
         }
 
         @Override
-        protected boolean doEquals(LinearInterpolation other) {
-            return Objects.equals(trigramLambda, other.trigramLambda) &&
-                    Objects.equals(bigramLambda, other.bigramLambda) &&
-                    Objects.equals(unigramLambda, other.unigramLambda);
+        protected boolean doEquals(SmoothingModel other) {
+            final LinearInterpolation otherModel = (LinearInterpolation) other;
+            return Objects.equals(trigramLambda, otherModel.trigramLambda) &&
+                    Objects.equals(bigramLambda, otherModel.bigramLambda) &&
+                    Objects.equals(unigramLambda, otherModel.unigramLambda);
         }
 
         @Override
@@ -579,35 +601,45 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
             XContentParser parser = parseContext.parser();
             XContentParser.Token token;
             String fieldName = null;
-            final double[] lambdas = new double[3];
+            double trigramLambda = 0.0;
+            double bigramLambda = 0.0;
+            double unigramLambda = 0.0;
             ParseFieldMatcher matcher = parseContext.parseFieldMatcher();
             while ((token = parser.nextToken()) != Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     fieldName = parser.currentName();
-                }
-                if (token.isValue()) {
+                } else if (token.isValue()) {
                     if (matcher.match(fieldName, TRIGRAM_FIELD)) {
-                        lambdas[0] = parser.doubleValue();
-                        if (lambdas[0] < 0) {
+                        trigramLambda = parser.doubleValue();
+                        if (trigramLambda < 0) {
                             throw new IllegalArgumentException("trigram_lambda must be positive");
                         }
                     } else if (matcher.match(fieldName, BIGRAM_FIELD)) {
-                        lambdas[1] = parser.doubleValue();
-                        if (lambdas[1] < 0) {
+                        bigramLambda = parser.doubleValue();
+                        if (bigramLambda < 0) {
                             throw new IllegalArgumentException("bigram_lambda must be positive");
                         }
                     } else if (matcher.match(fieldName, UNIGRAM_FIELD)) {
-                        lambdas[2] = parser.doubleValue();
-                        if (lambdas[2] < 0) {
+                        unigramLambda = parser.doubleValue();
+                        if (unigramLambda < 0) {
                             throw new IllegalArgumentException("unigram_lambda must be positive");
                         }
                     } else {
                         throw new IllegalArgumentException(
                                 "suggester[phrase][smoothing][linear] doesn't support field [" + fieldName + "]");
                     }
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(), "[" + NAME + "] unknown token [" + token + "] after [" + fieldName + "]");
                 }
             }
-            return new LinearInterpolation(lambdas[0], lambdas[1], lambdas[2]);
+            return new LinearInterpolation(trigramLambda, bigramLambda, unigramLambda);
+        }
+
+        @Override
+        public WordScorerFactory buildWordScorerFactory() {
+            return (IndexReader reader, Terms terms, String field, double realWordLikelyhood, BytesRef separator) ->
+                        new LinearInterpoatingScorer(reader, terms, field, realWordLikelyhood, separator, trigramLambda, bigramLambda,
+                            unigramLambda);
         }
     }
 

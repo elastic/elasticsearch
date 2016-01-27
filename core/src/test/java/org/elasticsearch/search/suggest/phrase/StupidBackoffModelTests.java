@@ -19,12 +19,15 @@
 
 package org.elasticsearch.search.suggest.phrase;
 
+import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder.SmoothingModel;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder.StupidBackoff;
 
-public class StupidBackoffModelTests extends SmoothingModelTest<StupidBackoff> {
+import static org.hamcrest.Matchers.instanceOf;
+
+public class StupidBackoffModelTests extends SmoothingModelTestCase {
 
     @Override
-    protected StupidBackoff createTestModel() {
+    protected SmoothingModel createTestModel() {
         return new StupidBackoff(randomDoubleBetween(0.0, 10.0, false));
     }
 
@@ -32,7 +35,15 @@ public class StupidBackoffModelTests extends SmoothingModelTest<StupidBackoff> {
      * mutate the given model so the returned smoothing model is different
      */
     @Override
-    protected StupidBackoff createMutation(StupidBackoff original) {
+    protected StupidBackoff createMutation(SmoothingModel input) {
+        StupidBackoff original = (StupidBackoff) input;
         return new StupidBackoff(original.getDiscount() + 0.1);
+    }
+
+    @Override
+    void assertWordScorer(WordScorer wordScorer, SmoothingModel input) {
+        assertThat(wordScorer, instanceOf(StupidBackoffScorer.class));
+        StupidBackoff testModel = (StupidBackoff) input;
+        assertEquals(testModel.getDiscount(), ((StupidBackoffScorer) wordScorer).discount(), Double.MIN_VALUE);
     }
 }

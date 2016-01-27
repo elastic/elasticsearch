@@ -19,11 +19,23 @@
 
 package org.elasticsearch.search.suggest.phrase;
 
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
+import org.apache.lucene.analysis.miscellaneous.PerFieldAnalyzerWrapper;
+import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.TextField;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.MultiFields;
+import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -43,14 +55,15 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
-public abstract class SmoothingModelTest<SM extends SmoothingModel<?>> extends ESTestCase {
+public abstract class SmoothingModelTestCase extends ESTestCase {
 
     private static NamedWriteableRegistry namedWriteableRegistry;
-    private static IndicesQueriesRegistry indicesQueriesRegistry;
 
     /**
      * setup for the whole base test class
@@ -63,33 +76,31 @@ public abstract class SmoothingModelTest<SM extends SmoothingModel<?>> extends E
             namedWriteableRegistry.registerPrototype(SmoothingModel.class, LinearInterpolation.PROTOTYPE);
             namedWriteableRegistry.registerPrototype(SmoothingModel.class, StupidBackoff.PROTOTYPE);
         }
-        indicesQueriesRegistry = new IndicesQueriesRegistry(Settings.settingsBuilder().build(), Collections.emptySet(), namedWriteableRegistry);
     }
 
     @AfterClass
     public static void afterClass() throws Exception {
         namedWriteableRegistry = null;
-        indicesQueriesRegistry = null;
     }
 
     /**
      * create random model that is put under test
      */
-    protected abstract SM createTestModel();
+    protected abstract SmoothingModel createTestModel();
 
     /**
      * mutate the given model so the returned smoothing model is different
      */
-    protected abstract SM createMutation(SM original) throws IOException;
+    protected abstract SmoothingModel createMutation(SmoothingModel original) throws IOException;
 
     /**
      * Test that creates new smoothing model from a random test smoothing model and checks both for equality
      */
     public void testFromXContent() throws IOException {
-        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
+        QueryParseContext context = new QueryParseContext(new IndicesQueriesRegistry(Settings.settingsBuilder().build(), Collections.emptyMap()));
         context.parseFieldMatcher(new ParseFieldMatcher(Settings.EMPTY));
 
-        SM testModel = createTestModel();
+        SmoothingModel testModel = createTestModel();
         XContentBuilder contentBuilder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
         if (randomBoolean()) {
             contentBuilder.prettyPrint();
@@ -99,21 +110,45 @@ public abstract class SmoothingModelTest<SM extends SmoothingModel<?>> extends E
         contentBuilder.endObject();
         XContentParser parser = XContentHelper.createParser(contentBuilder.bytes());
         context.reset(parser);
-        SmoothingModel<?> prototype = (SmoothingModel<?>) namedWriteableRegistry.getPrototype(SmoothingModel.class,
+        parser.nextToken();  // go to start token, real parsing would do that in the outer element parser
+        SmoothingModel prototype = (SmoothingModel) namedWriteableRegistry.getPrototype(SmoothingModel.class,
                 testModel.getWriteableName());
-        SmoothingModel<?> parsedModel = prototype.fromXContent(context);
+        SmoothingModel parsedModel = prototype.fromXContent(context);
         assertNotSame(testModel, parsedModel);
         assertEquals(testModel, parsedModel);
         assertEquals(testModel.hashCode(), parsedModel.hashCode());
     }
 
     /**
+     * Test the WordScorer emitted by the smoothing model
+     */
+    public void testBuildWordScorer() throws IOException {
+        SmoothingModel testModel = createTestModel();
+
+        Map<String, Analyzer> mapping = new HashMap<>();
+        mapping.put("field", new WhitespaceAnalyzer());
+        PerFieldAnalyzerWrapper wrapper = new PerFieldAnalyzerWrapper(new WhitespaceAnalyzer(), mapping);
+        IndexWriter writer = new IndexWriter(new RAMDirectory(), new IndexWriterConfig(wrapper));
+        Document doc = new Document();
+        doc.add(new Field("field", "someText", TextField.TYPE_NOT_STORED));
+        writer.addDocument(doc);
+        DirectoryReader ir = DirectoryReader.open(writer, false);
+
+        WordScorer wordScorer = testModel.buildWordScorerFactory().newScorer(ir, MultiFields.getTerms(ir , "field"), "field", 0.9d, BytesRefs.toBytesRef(" "));
+        assertWordScorer(wordScorer, testModel);
+    }
+
+    /**
+     * implementation dependant assertions on the wordScorer produced by the smoothing model under test
+     */
+    abstract void assertWordScorer(WordScorer wordScorer, SmoothingModel testModel);
+
+    /**
      * Test serialization and deserialization of the tested model.
      */
-    @SuppressWarnings("unchecked")
     public void testSerialization() throws IOException {
-        SM testModel = createTestModel();
-        SM deserializedModel = (SM) copyModel(testModel);
+        SmoothingModel testModel = createTestModel();
+        SmoothingModel deserializedModel = copyModel(testModel);
         assertEquals(testModel, deserializedModel);
         assertEquals(testModel.hashCode(), deserializedModel.hashCode());
         assertNotSame(testModel, deserializedModel);
@@ -124,7 +159,7 @@ public abstract class SmoothingModelTest<SM extends SmoothingModel<?>> extends E
      */
     @SuppressWarnings("unchecked")
     public void testEqualsAndHashcode() throws IOException {
-            SM firstModel = createTestModel();
+            SmoothingModel firstModel = createTestModel();
             assertFalse("smoothing model is equal to null", firstModel.equals(null));
             assertFalse("smoothing model is equal to incompatible type", firstModel.equals(""));
             assertTrue("smoothing model is not equal to self", firstModel.equals(firstModel));
@@ -132,13 +167,13 @@ public abstract class SmoothingModelTest<SM extends SmoothingModel<?>> extends E
                     equalTo(firstModel.hashCode()));
             assertThat("different smoothing models should not be equal", createMutation(firstModel), not(equalTo(firstModel)));
 
-            SM secondModel = (SM) copyModel(firstModel);
+            SmoothingModel secondModel = copyModel(firstModel);
             assertTrue("smoothing model is not equal to self", secondModel.equals(secondModel));
             assertTrue("smoothing model is not equal to its copy", firstModel.equals(secondModel));
             assertTrue("equals is not symmetric", secondModel.equals(firstModel));
             assertThat("smoothing model copy's hashcode is different from original hashcode", secondModel.hashCode(), equalTo(firstModel.hashCode()));
 
-            SM thirdModel = (SM) copyModel(secondModel);
+            SmoothingModel thirdModel = copyModel(secondModel);
             assertTrue("smoothing model is not equal to self", thirdModel.equals(thirdModel));
             assertTrue("smoothing model is not equal to its copy", secondModel.equals(thirdModel));
             assertThat("smoothing model copy's hashcode is different from original hashcode", secondModel.hashCode(), equalTo(thirdModel.hashCode()));
@@ -148,11 +183,11 @@ public abstract class SmoothingModelTest<SM extends SmoothingModel<?>> extends E
             assertTrue("equals is not symmetric", thirdModel.equals(firstModel));
     }
 
-    static SmoothingModel<?> copyModel(SmoothingModel<?> original) throws IOException {
+    static SmoothingModel copyModel(SmoothingModel original) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             original.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
-                SmoothingModel<?> prototype = (SmoothingModel<?>) namedWriteableRegistry.getPrototype(SmoothingModel.class, original.getWriteableName());
+                SmoothingModel prototype = (SmoothingModel) namedWriteableRegistry.getPrototype(SmoothingModel.class, original.getWriteableName());
                 return prototype.readFrom(in);
             }
         }

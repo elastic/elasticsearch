@@ -51,9 +51,6 @@ import org.elasticsearch.action.indexedscripts.get.GetIndexedScriptResponse;
 import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptRequest;
 import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptRequestBuilder;
 import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptResponse;
-import org.elasticsearch.action.ingest.SimulatePipelineRequest;
-import org.elasticsearch.action.ingest.SimulatePipelineRequestBuilder;
-import org.elasticsearch.action.ingest.SimulatePipelineResponse;
 import org.elasticsearch.action.percolate.MultiPercolateRequest;
 import org.elasticsearch.action.percolate.MultiPercolateRequestBuilder;
 import org.elasticsearch.action.percolate.MultiPercolateResponse;
@@ -85,7 +82,6 @@ import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.support.Headers;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
 
@@ -595,21 +591,6 @@ public interface Client extends ElasticsearchClient, Releasable {
     ActionFuture<FieldStatsResponse> fieldStats(FieldStatsRequest request);
 
     void fieldStats(FieldStatsRequest request, ActionListener<FieldStatsResponse> listener);
-
-    /**
-     * Simulates an ingest pipeline
-     */
-    void simulatePipeline(SimulatePipelineRequest request, ActionListener<SimulatePipelineResponse> listener);
-
-    /**
-     * Simulates an ingest pipeline
-     */
-    ActionFuture<SimulatePipelineResponse> simulatePipeline(SimulatePipelineRequest request);
-
-    /**
-     * Simulates an ingest pipeline
-     */
-    SimulatePipelineRequestBuilder prepareSimulatePipeline(BytesReference source);
 
     /**
      * Returns this clients settings

@@ -100,12 +100,12 @@ public class IngestClientIT extends ESIntegTestCase {
             .endObject().bytes();
         SimulatePipelineResponse response;
         if (randomBoolean()) {
-            response = client().prepareSimulatePipeline(bytes)
+            response = client().admin().cluster().prepareSimulatePipeline(bytes)
                 .setId("_id").get();
         } else {
             SimulatePipelineRequest request = new SimulatePipelineRequest(bytes);
             request.setId("_id");
-            response = client().simulatePipeline(request).get();
+            response = client().admin().cluster().simulatePipeline(request).get();
         }
         assertThat(response.isVerbose(), equalTo(false));
         assertThat(response.getPipelineId(), equalTo("_id"));

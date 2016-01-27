@@ -91,6 +91,9 @@ import org.elasticsearch.action.ingest.GetPipelineRequestBuilder;
 import org.elasticsearch.action.ingest.GetPipelineResponse;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.ingest.PutPipelineRequestBuilder;
+import org.elasticsearch.action.ingest.SimulatePipelineRequest;
+import org.elasticsearch.action.ingest.SimulatePipelineRequestBuilder;
+import org.elasticsearch.action.ingest.SimulatePipelineResponse;
 import org.elasticsearch.action.ingest.WritePipelineResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 
@@ -528,4 +531,19 @@ public interface ClusterAdminClient extends ElasticsearchClient {
      * Returns a stored ingest pipeline
      */
     GetPipelineRequestBuilder prepareGetPipeline(String... ids);
+
+    /**
+     * Simulates an ingest pipeline
+     */
+    void simulatePipeline(SimulatePipelineRequest request, ActionListener<SimulatePipelineResponse> listener);
+
+    /**
+     * Simulates an ingest pipeline
+     */
+    ActionFuture<SimulatePipelineResponse> simulatePipeline(SimulatePipelineRequest request);
+
+    /**
+     * Simulates an ingest pipeline
+     */
+    SimulatePipelineRequestBuilder prepareSimulatePipeline(BytesReference source);
 }

@@ -810,21 +810,6 @@ public abstract class AbstractClient extends AbstractComponent implements Client
         return new FieldStatsRequestBuilder(this, FieldStatsAction.INSTANCE);
     }
 
-    @Override
-    public void simulatePipeline(SimulatePipelineRequest request, ActionListener<SimulatePipelineResponse> listener) {
-        execute(SimulatePipelineAction.INSTANCE, request, listener);
-    }
-
-    @Override
-    public ActionFuture<SimulatePipelineResponse> simulatePipeline(SimulatePipelineRequest request) {
-        return execute(SimulatePipelineAction.INSTANCE, request);
-    }
-
-    @Override
-    public SimulatePipelineRequestBuilder prepareSimulatePipeline(BytesReference source) {
-        return new SimulatePipelineRequestBuilder(this, SimulatePipelineAction.INSTANCE, source);
-    }
-
     static class Admin implements AdminClient {
 
         private final ClusterAdmin clusterAdmin;
@@ -1248,6 +1233,21 @@ public abstract class AbstractClient extends AbstractComponent implements Client
         @Override
         public GetPipelineRequestBuilder prepareGetPipeline(String... ids) {
             return new GetPipelineRequestBuilder(this, GetPipelineAction.INSTANCE, ids);
+        }
+
+        @Override
+        public void simulatePipeline(SimulatePipelineRequest request, ActionListener<SimulatePipelineResponse> listener) {
+            execute(SimulatePipelineAction.INSTANCE, request, listener);
+        }
+
+        @Override
+        public ActionFuture<SimulatePipelineResponse> simulatePipeline(SimulatePipelineRequest request) {
+            return execute(SimulatePipelineAction.INSTANCE, request);
+        }
+
+        @Override
+        public SimulatePipelineRequestBuilder prepareSimulatePipeline(BytesReference source) {
+            return new SimulatePipelineRequestBuilder(this, SimulatePipelineAction.INSTANCE, source);
         }
     }
 

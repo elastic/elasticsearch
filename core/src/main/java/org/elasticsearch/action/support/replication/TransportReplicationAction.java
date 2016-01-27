@@ -749,6 +749,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         private final AtomicInteger pending;
         private final int totalShards;
         private final Releasable indexShardReference;
+        private final ClusterState clusterState;
 
         public ReplicationPhase(ReplicaRequest replicaRequest, Response finalResponse, ShardId shardId,
                                 TransportChannel channel, Releasable indexShardReference) {
@@ -762,14 +763,14 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
             // we have to make sure that every operation indexed into the primary after recovery start will also be replicated
             // to the recovery target. If we use an old cluster state, we may miss a relocation that has started since then.
             // If the index gets deleted after primary operation, we skip replication
-            final ClusterState state = clusterService.state();
-            final IndexRoutingTable index = state.getRoutingTable().index(shardId.getIndex());
+            this.clusterState = clusterService.state();
+            final IndexRoutingTable index = clusterState.getRoutingTable().index(shardId.getIndex());
             final IndexShardRoutingTable shardRoutingTable = (index != null) ? index.shard(shardId.id()) : null;
-            final IndexMetaData indexMetaData = state.getMetaData().index(shardId.getIndex());
+            final IndexMetaData indexMetaData = clusterState.getMetaData().index(shardId.getIndex());
             this.shards = (shardRoutingTable != null) ? shardRoutingTable.shards() : Collections.emptyList();
             this.executeOnReplica = (indexMetaData == null) || shouldExecuteReplication(indexMetaData.getSettings());
             this.indexUUID = (indexMetaData != null) ? indexMetaData.getIndexUUID() : null;
-            this.nodes = state.getNodes();
+            this.nodes = clusterState.getNodes();
 
             if (shards.isEmpty()) {
                 logger.debug("replication phase for request [{}] on [{}] is skipped due to index deletion after primary operation", replicaRequest, shardId);
@@ -797,7 +798,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
             this.pending = new AtomicInteger(numberOfPendingShardInstances);
             if (logger.isTraceEnabled()) {
                 logger.trace("replication phase started. pending [{}], action [{}], request [{}], cluster state version used [{}]", pending.get(),
-                    transportReplicaAction, replicaRequest, state.version());
+                    transportReplicaAction, replicaRequest, clusterState.version());
             }
         }
 
@@ -899,8 +900,12 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                             } else {
                                 String message = String.format(Locale.ROOT, "failed to perform %s on replica on node %s", transportReplicaAction, node);
                                 logger.warn("[{}] {}", exp, shardId, message);
+                                final IndexShardRoutingTable indexShard =
+                                    clusterState.getRoutingTable().shardRoutingTable(shard.index().getName(), shard.getId());
+                                final ShardRouting primary = indexShard.primaryShard();
                                 shardStateAction.shardFailed(
                                     shard,
+                                    primary,
                                     indexUUID,
                                     message,
                                     exp,

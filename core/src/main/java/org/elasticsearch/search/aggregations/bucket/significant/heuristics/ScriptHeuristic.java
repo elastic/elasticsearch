@@ -87,7 +87,7 @@ public class ScriptHeuristic extends SignificanceHeuristic {
 
     @Override
     public void initialize(InternalAggregation.ReduceContext context) {
-        searchScript = context.scriptService().executable(script, ScriptContext.Standard.AGGS, context, Collections.emptyMap());
+        searchScript = context.scriptService().executable(script, ScriptContext.Standard.AGGS, Collections.emptyMap());
         searchScript.setNextVar("_subset_freq", subsetDfHolder);
         searchScript.setNextVar("_subset_size", subsetSizeHolder);
         searchScript.setNextVar("_superset_freq", supersetDfHolder);
@@ -175,7 +175,7 @@ public class ScriptHeuristic extends SignificanceHeuristic {
             }
             ExecutableScript searchScript;
             try {
-                searchScript = scriptService.executable(script, ScriptContext.Standard.AGGS, context, Collections.emptyMap());
+                searchScript = scriptService.executable(script, ScriptContext.Standard.AGGS, Collections.emptyMap());
             } catch (Exception e) {
                 throw new ElasticsearchParseException("failed to parse [{}] significance heuristic. the script [{}] could not be loaded", e, script, heuristicName);
             }

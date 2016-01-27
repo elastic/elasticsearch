@@ -42,7 +42,7 @@ public class RestMultiGetAction extends BaseRestHandler {
 
     @Inject
     public RestMultiGetAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+        super(settings, client);
         controller.registerHandler(GET, "/_mget", this);
         controller.registerHandler(POST, "/_mget", this);
         controller.registerHandler(GET, "/{index}/_mget", this);

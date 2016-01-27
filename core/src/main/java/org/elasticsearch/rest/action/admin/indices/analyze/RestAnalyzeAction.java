@@ -61,7 +61,7 @@ public class RestAnalyzeAction extends BaseRestHandler {
 
     @Inject
     public RestAnalyzeAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+        super(settings, client);
         controller.registerHandler(GET, "/_analyze", this);
         controller.registerHandler(GET, "/{index}/_analyze", this);
         controller.registerHandler(POST, "/_analyze", this);

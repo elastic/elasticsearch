@@ -50,6 +50,7 @@ import org.jboss.netty.channel.ChannelPipelineFactory;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.Collection;
+import java.util.Collections;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.containsString;
@@ -79,9 +80,8 @@ public class NettyTransportIT extends ESIntegTestCase {
         Client transportClient = internalCluster().transportClient();
         ClusterHealthResponse clusterIndexHealths = transportClient.admin().cluster().prepareHealth().get();
         assertThat(clusterIndexHealths.getStatus(), is(ClusterHealthStatus.GREEN));
-
         try {
-            transportClient.admin().cluster().prepareHealth().putHeader("ERROR", "MY MESSAGE").get();
+            transportClient.filterWithHeader(Collections.singletonMap("ERROR", "MY MESSAGE")).admin().cluster().prepareHealth().get();
             fail("Expected exception, but didnt happen");
         } catch (ElasticsearchException e) {
             assertThat(e.getMessage(), containsString("MY MESSAGE"));
@@ -142,8 +142,9 @@ public class NettyTransportIT extends ESIntegTestCase {
                             final TransportRequest request = reg.newRequest();
                             request.remoteAddress(new InetSocketTransportAddress((InetSocketAddress) channel.getRemoteAddress()));
                             request.readFrom(buffer);
-                            if (request.hasHeader("ERROR")) {
-                                throw new ElasticsearchException((String) request.getHeader("ERROR"));
+                            String error = threadPool.getThreadContext().getHeader("ERROR");
+                            if (error != null) {
+                                throw new ElasticsearchException(error);
                             }
                             if (reg.getExecutor() == ThreadPool.Names.SAME) {
                                 //noinspection unchecked

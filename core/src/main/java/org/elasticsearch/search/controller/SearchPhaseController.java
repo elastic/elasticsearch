@@ -31,7 +31,6 @@ import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldDocs;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.common.HasContextAndHeaders;
 import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -299,7 +298,7 @@ public class SearchPhaseController extends AbstractComponent {
     }
 
     public InternalSearchResponse merge(ScoreDoc[] sortedDocs, AtomicArray<? extends QuerySearchResultProvider> queryResultsArr,
-            AtomicArray<? extends FetchSearchResultProvider> fetchResultsArr, HasContextAndHeaders headersContext) {
+                                        AtomicArray<? extends FetchSearchResultProvider> fetchResultsArr) {
 
         List<? extends AtomicArray.Entry<? extends QuerySearchResultProvider>> queryResults = queryResultsArr.asList();
         List<? extends AtomicArray.Entry<? extends FetchSearchResultProvider>> fetchResults = fetchResultsArr.asList();
@@ -407,7 +406,7 @@ public class SearchPhaseController extends AbstractComponent {
                 for (AtomicArray.Entry<? extends QuerySearchResultProvider> entry : queryResults) {
                     aggregationsList.add((InternalAggregations) entry.value.queryResult().aggregations());
                 }
-                aggregations = InternalAggregations.reduce(aggregationsList, new ReduceContext(bigArrays, scriptService, headersContext));
+                aggregations = InternalAggregations.reduce(aggregationsList, new ReduceContext(bigArrays, scriptService));
             }
         }
 
@@ -430,7 +429,7 @@ public class SearchPhaseController extends AbstractComponent {
                 }).collect(Collectors.toList());
                 for (SiblingPipelineAggregator pipelineAggregator : pipelineAggregators) {
                     InternalAggregation newAgg = pipelineAggregator.doReduce(new InternalAggregations(newAggs), new ReduceContext(
-                            bigArrays, scriptService, headersContext));
+                            bigArrays, scriptService));
                     newAggs.add(newAgg);
                 }
                 aggregations = new InternalAggregations(newAggs);

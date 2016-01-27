@@ -36,7 +36,7 @@ public class RestVerifyRepositoryAction extends BaseRestHandler {
 
     @Inject
     public RestVerifyRepositoryAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+        super(settings, client);
         controller.registerHandler(POST, "/_snapshot/{repository}/_verify", this);
     }
 

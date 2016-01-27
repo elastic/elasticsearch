@@ -44,7 +44,7 @@ public class RestMultiPercolateAction extends BaseRestHandler {
 
     @Inject
     public RestMultiPercolateAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+        super(settings, client);
         controller.registerHandler(POST, "/_mpercolate", this);
         controller.registerHandler(POST, "/{index}/_mpercolate", this);
         controller.registerHandler(POST, "/{index}/{type}/_mpercolate", this);

@@ -22,7 +22,6 @@ package org.elasticsearch.search.internal;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.ContextAndHeaderHolder;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -57,7 +56,7 @@ import static org.elasticsearch.search.Scroll.readScroll;
  * </pre>
  */
 
-public class ShardSearchLocalRequest extends ContextAndHeaderHolder implements ShardSearchRequest {
+public class ShardSearchLocalRequest implements ShardSearchRequest {
 
     private String index;
     private int shardId;
@@ -84,7 +83,6 @@ public class ShardSearchLocalRequest extends ContextAndHeaderHolder implements S
         this.scroll = searchRequest.scroll();
         this.filteringAliases = filteringAliases;
         this.nowInMillis = nowInMillis;
-        copyContextAndHeadersFrom(searchRequest);
     }
 
     public ShardSearchLocalRequest(String[] types, long nowInMillis) {

@@ -92,7 +92,7 @@ public class DeleteRequest extends ReplicationRequest<DeleteRequest> implements 
      * The new request will inherit though headers and context from the original request that caused it.
      */
     public DeleteRequest(DeleteRequest request, ActionRequest originalRequest) {
-        super(request, originalRequest);
+        super(request);
         this.type = request.type();
         this.id = request.id();
         this.routing = request.routing();
@@ -100,14 +100,6 @@ public class DeleteRequest extends ReplicationRequest<DeleteRequest> implements 
         this.refresh = request.refresh();
         this.version = request.version();
         this.versionType = request.versionType();
-    }
-
-    /**
-     * Creates a delete request caused by some other request, which is provided as an
-     * argument so that its headers and context can be copied to the new request
-     */
-    public DeleteRequest(ActionRequest request) {
-        super(request);
     }
 
     @Override

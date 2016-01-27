@@ -21,7 +21,6 @@ package org.elasticsearch.action.index;
 
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocumentRequest;
 import org.elasticsearch.action.RoutingMissingException;
@@ -161,19 +160,11 @@ public class IndexRequest extends ReplicationRequest<IndexRequest> implements Do
     }
 
     /**
-     * Creates an index request caused by some other request, which is provided as an
-     * argument so that its headers and context can be copied to the new request
-     */
-    public IndexRequest(ActionRequest request) {
-        super(request);
-    }
-
-    /**
      * Copy constructor that creates a new index request that is a copy of the one provided as an argument.
      * The new request will inherit though headers and context from the original request that caused it.
      */
-    public IndexRequest(IndexRequest indexRequest, ActionRequest originalRequest) {
-        super(indexRequest, originalRequest);
+    public IndexRequest(IndexRequest indexRequest) {
+        super(indexRequest);
         this.type = indexRequest.type;
         this.id = indexRequest.id;
         this.routing = indexRequest.routing;

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.get;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.RealtimeRequest;
 import org.elasticsearch.action.ValidateActions;
@@ -72,8 +71,7 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
      * Copy constructor that creates a new get request that is a copy of the one provided as an argument.
      * The new request will inherit though headers and context from the original request that caused it.
      */
-    public GetRequest(GetRequest getRequest, ActionRequest originalRequest) {
-        super(originalRequest);
+    public GetRequest(GetRequest getRequest) {
         this.index = getRequest.index;
         this.type = getRequest.type;
         this.id = getRequest.id;
@@ -96,14 +94,6 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
     public GetRequest(String index) {
         super(index);
         this.type = "_all";
-    }
-
-    /**
-     * Constructs a new get request starting from the provided request, meaning that it will
-     * inherit its headers and context, and against the specified index.
-     */
-    public GetRequest(ActionRequest request, String index) {
-        super(request, index);
     }
 
     /**

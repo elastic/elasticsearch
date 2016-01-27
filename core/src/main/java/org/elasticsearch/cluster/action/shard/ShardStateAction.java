@@ -74,13 +74,15 @@ public class ShardStateAction extends AbstractComponent {
 
     private final TransportService transportService;
     private final ClusterService clusterService;
+    private final ThreadPool threadPool;
 
     @Inject
     public ShardStateAction(Settings settings, ClusterService clusterService, TransportService transportService,
-                            AllocationService allocationService, RoutingService routingService) {
+                            AllocationService allocationService, RoutingService routingService, ThreadPool threadPool) {
         super(settings);
         this.transportService = transportService;
         this.clusterService = clusterService;
+        this.threadPool = threadPool;
 
         transportService.registerRequestHandler(SHARD_STARTED_ACTION_NAME, ShardRoutingEntry::new, ThreadPool.Names.SAME, new ShardStartedTransportHandler(clusterService, new ShardStartedClusterStateTaskExecutor(allocationService, logger), logger));
         transportService.registerRequestHandler(SHARD_FAILED_ACTION_NAME, ShardRoutingEntry::new, ThreadPool.Names.SAME, new ShardFailedTransportHandler(clusterService, new ShardFailedClusterStateTaskExecutor(allocationService, routingService, logger), logger));
@@ -124,7 +126,7 @@ public class ShardStateAction extends AbstractComponent {
     }
 
     public void shardFailed(final ShardRouting shardRouting, final String indexUUID, final String message, @Nullable final Throwable failure, Listener listener) {
-        ClusterStateObserver observer = new ClusterStateObserver(clusterService, null, logger);
+        ClusterStateObserver observer = new ClusterStateObserver(clusterService, null, logger, threadPool.getThreadContext());
         ShardRoutingEntry shardRoutingEntry = new ShardRoutingEntry(shardRouting, indexUUID, message, failure);
         sendShardAction(SHARD_FAILED_ACTION_NAME, observer, shardRoutingEntry, listener);
     }
@@ -290,7 +292,7 @@ public class ShardStateAction extends AbstractComponent {
     }
 
     public void shardStarted(final ShardRouting shardRouting, String indexUUID, final String message, Listener listener) {
-        ClusterStateObserver observer = new ClusterStateObserver(clusterService, null, logger);
+        ClusterStateObserver observer = new ClusterStateObserver(clusterService, null, logger, threadPool.getThreadContext());
         ShardRoutingEntry shardRoutingEntry = new ShardRoutingEntry(shardRouting, indexUUID, message, null);
         sendShardAction(SHARD_STARTED_ACTION_NAME, observer, shardRoutingEntry, listener);
     }

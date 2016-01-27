@@ -917,7 +917,6 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         for (Item item : unlikeItems) {
             request.add(item.toTermVectorsRequest());
         }
-        request.copyContextAndHeadersFrom(searchContext);
         return client.multiTermVectors(request).actionGet();
     }
 

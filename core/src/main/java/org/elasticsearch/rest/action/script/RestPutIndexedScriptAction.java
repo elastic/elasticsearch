@@ -55,7 +55,7 @@ public class RestPutIndexedScriptAction extends BaseRestHandler {
     }
 
     protected RestPutIndexedScriptAction(Settings settings, RestController controller, boolean registerDefaultHandlers, Client client) {
-        super(settings, controller, client);
+        super(settings, client);
         if (registerDefaultHandlers) {
             controller.registerHandler(POST, "/_scripts/{lang}/{id}", this);
             controller.registerHandler(PUT, "/_scripts/{lang}/{id}", this);
@@ -67,7 +67,7 @@ public class RestPutIndexedScriptAction extends BaseRestHandler {
 
     final class CreateHandler extends BaseRestHandler {
         protected CreateHandler(Settings settings, RestController controller, Client client) {
-            super(settings, controller, client);
+            super(settings, client);
         }
 
         @Override

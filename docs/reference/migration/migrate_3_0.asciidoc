@@ -314,6 +314,12 @@ disable doc values is by using the `doc_values` property of mappings.
 [[breaking_30_plugins]]
 === Plugin changes
 
+==== Site plugins removed
+
+Site plugins have been removed. It is recommended to migrate site plugins to Kibana plugins.
+
+==== Plugins with custom query implementations
+
 Plugins implementing custom queries need to implement the `fromXContent(QueryParseContext)` method in their
 `QueryParser` subclass rather than `parse`. This method will take care of parsing the query from `XContent` format
 into an intermediate query representation that can be streamed between the nodes in binary format, effectively the

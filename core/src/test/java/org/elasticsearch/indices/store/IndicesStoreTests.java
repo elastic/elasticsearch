@@ -30,9 +30,12 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.cluster.TestClusterService;
+import org.elasticsearch.transport.TransportService;
 import org.junit.Before;
 
 import java.util.Arrays;
@@ -60,7 +63,7 @@ public class IndicesStoreTests extends ESTestCase {
     @Before
     public void before() {
         localNode = new DiscoveryNode("abc", new LocalTransportAddress("abc"), Version.CURRENT);
-        indicesStore = new IndicesStore();
+        indicesStore = new IndicesStore(Settings.EMPTY, null, new TestClusterService(), new TransportService(null, null), null);
     }
 
     public void testShardCanBeDeletedNoShardRouting() throws Exception {

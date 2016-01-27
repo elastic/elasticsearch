@@ -183,7 +183,7 @@ public class TransportNodesListGatewayMetaState extends TransportNodesAction<Tra
         }
 
         NodeRequest(String nodeId, TransportNodesListGatewayMetaState.Request request) {
-            super(request, nodeId);
+            super(nodeId);
         }
 
         @Override

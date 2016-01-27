@@ -92,7 +92,7 @@ public class IndicesQueryCacheTests extends ESTestCase {
         s.setQueryCachingPolicy(QueryCachingPolicy.ALWAYS_CACHE);
 
         Settings settings = Settings.builder()
-                .put(IndicesQueryCache.INDICES_CACHE_QUERY_COUNT, 10)
+                .put(IndicesQueryCache.INDICES_CACHE_QUERY_COUNT_SETTING.getKey(), 10)
                 .build();
         IndicesQueryCache cache = new IndicesQueryCache(settings);
         s.setQueryCache(cache);
@@ -172,7 +172,7 @@ public class IndicesQueryCacheTests extends ESTestCase {
         s2.setQueryCachingPolicy(QueryCachingPolicy.ALWAYS_CACHE);
 
         Settings settings = Settings.builder()
-                .put(IndicesQueryCache.INDICES_CACHE_QUERY_COUNT, 10)
+                .put(IndicesQueryCache.INDICES_CACHE_QUERY_COUNT_SETTING.getKey(), 10)
                 .build();
         IndicesQueryCache cache = new IndicesQueryCache(settings);
         s1.setQueryCache(cache);
@@ -297,7 +297,7 @@ public class IndicesQueryCacheTests extends ESTestCase {
         s2.setQueryCachingPolicy(QueryCachingPolicy.ALWAYS_CACHE);
 
         Settings settings = Settings.builder()
-                .put(IndicesQueryCache.INDICES_CACHE_QUERY_COUNT, 10)
+                .put(IndicesQueryCache.INDICES_CACHE_QUERY_COUNT_SETTING.getKey(), 10)
                 .build();
         IndicesQueryCache cache = new IndicesQueryCache(settings);
         s1.setQueryCache(cache);

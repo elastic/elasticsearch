@@ -38,11 +38,6 @@ public class ChildTaskRequest extends TransportRequest {
     private long parentTaskId;
 
     protected ChildTaskRequest() {
-
-    }
-
-    protected ChildTaskRequest(TransportRequest parentTaskRequest) {
-        super(parentTaskRequest);
     }
 
     public void setParentTask(String parentTaskNode, long parentTaskId) {

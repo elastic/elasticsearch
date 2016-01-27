@@ -70,14 +70,6 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
     }
 
     /**
-     * Creates a bulk request caused by some other request, which is provided as an
-     * argument so that its headers and context can be copied to the new request
-     */
-    public BulkRequest(ActionRequest<?> request) {
-        super(request);
-    }
-
-    /**
      * Adds a list of requests to be executed. Either index or delete requests.
      */
     public BulkRequest add(ActionRequest<?>... requests) {

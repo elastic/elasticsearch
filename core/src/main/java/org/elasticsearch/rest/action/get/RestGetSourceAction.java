@@ -48,7 +48,7 @@ public class RestGetSourceAction extends BaseRestHandler {
 
     @Inject
     public RestGetSourceAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+        super(settings, client);
         controller.registerHandler(GET, "/{index}/{type}/{id}/_source", this);
     }
 

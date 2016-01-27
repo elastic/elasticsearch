@@ -75,7 +75,6 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
         maybeSet(randomSuggestion::text, randomAsciiOfLengthBetween(2, 20));
         maybeSet(randomSuggestion::prefix, randomAsciiOfLengthBetween(2, 20));
         maybeSet(randomSuggestion::regex, randomAsciiOfLengthBetween(2, 20));
-        maybeSet(randomSuggestion::field, randomAsciiOfLengthBetween(2, 20));
         maybeSet(randomSuggestion::analyzer, randomAsciiOfLengthBetween(2, 20));
         maybeSet(randomSuggestion::size, randomIntBetween(1, 20));
         maybeSet(randomSuggestion::shardSize, randomInt(20));
@@ -122,7 +121,7 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
         assertNotSame(mutation, firstBuilder);
         if (randomBoolean()) {
             // change one of the common SuggestionBuilder parameters
-            switch (randomIntBetween(0, 6)) {
+            switch (randomIntBetween(0, 5)) {
             case 0:
                 mutation.text(randomValueOtherThan(mutation.text(), () -> randomAsciiOfLengthBetween(2, 20)));
                 break;
@@ -133,16 +132,13 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
                 mutation.regex(randomValueOtherThan(mutation.regex(), () -> randomAsciiOfLengthBetween(2, 20)));
                 break;
             case 3:
-                mutation.field(randomValueOtherThan(mutation.field(), () -> randomAsciiOfLengthBetween(2, 20)));
+                mutation.shardSize(randomValueOtherThan(mutation.shardSize(), () -> randomIntBetween(1, 20)));
                 break;
             case 4:
                 mutation.analyzer(randomValueOtherThan(mutation.analyzer(), () -> randomAsciiOfLengthBetween(2, 20)));
                 break;
             case 5:
                 mutation.size(randomValueOtherThan(mutation.size(), () -> randomIntBetween(1, 20)));
-                break;
-            case 6:
-                mutation.shardSize(randomValueOtherThan(mutation.shardSize(), () -> randomIntBetween(1, 20)));
                 break;
             }
         } else {

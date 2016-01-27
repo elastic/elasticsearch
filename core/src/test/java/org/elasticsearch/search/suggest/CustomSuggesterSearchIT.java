@@ -79,18 +79,16 @@ public class CustomSuggesterSearchIT extends ESIntegTestCase {
 
     class CustomSuggestionBuilder extends SuggestionBuilder<CustomSuggestionBuilder> {
 
-        private String randomField;
         private String randomSuffix;
 
         public CustomSuggestionBuilder(String name, String randomField, String randomSuffix) {
-            super(name);
-            this.randomField = randomField;
+            super(name, randomField);
             this.randomSuffix = randomSuffix;
         }
 
         @Override
         protected XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field("field", randomField);
+            builder.field("field", fieldname);
             builder.field("suffix", randomSuffix);
             return builder;
         }
@@ -102,24 +100,22 @@ public class CustomSuggesterSearchIT extends ESIntegTestCase {
 
         @Override
         public void doWriteTo(StreamOutput out) throws IOException {
-            out.writeString(randomField);
             out.writeString(randomSuffix);
         }
 
         @Override
-        public CustomSuggestionBuilder doReadFrom(StreamInput in, String name) throws IOException {
-            return new CustomSuggestionBuilder(in.readString(), in.readString(), in.readString());
+        public CustomSuggestionBuilder doReadFrom(StreamInput in, String name, String fieldname) throws IOException {
+            return new CustomSuggestionBuilder(name, fieldname, in.readString());
         }
 
         @Override
         protected boolean doEquals(CustomSuggestionBuilder other) {
-            return Objects.equals(randomField, other.randomField) &&
-                    Objects.equals(randomSuffix, other.randomSuffix);
+            return Objects.equals(randomSuffix, other.randomSuffix);
         }
 
         @Override
         protected int doHashCode() {
-            return Objects.hash(randomField, randomSuffix);
+            return Objects.hash(randomSuffix);
         }
 
     }

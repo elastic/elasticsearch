@@ -41,7 +41,7 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
 
     static final String SUGGESTION_NAME = "phrase";
 
-    public static final PhraseSuggestionBuilder PROTOTYPE = new PhraseSuggestionBuilder("_na_");
+    public static final PhraseSuggestionBuilder PROTOTYPE = new PhraseSuggestionBuilder("_na_", "_na_");
 
     private Float maxErrors;
     private String separator;
@@ -58,8 +58,8 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
     private Map<String, Object> collateParams;
     private Boolean collatePrune;
 
-    public PhraseSuggestionBuilder(String name) {
-        super(name);
+    public PhraseSuggestionBuilder(String name, String fieldname) {
+        super(name, fieldname);
     }
 
     /**
@@ -776,8 +776,8 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
     }
 
     @Override
-    public PhraseSuggestionBuilder doReadFrom(StreamInput in, String name) throws IOException {
-        PhraseSuggestionBuilder builder = new PhraseSuggestionBuilder(name);
+    public PhraseSuggestionBuilder doReadFrom(StreamInput in, String name, String fieldname) throws IOException {
+        PhraseSuggestionBuilder builder = new PhraseSuggestionBuilder(name, fieldname);
         builder.maxErrors = in.readOptionalFloat();
         builder.realWordErrorLikelihood = in.readOptionalFloat();
         builder.confidence = in.readOptionalFloat();

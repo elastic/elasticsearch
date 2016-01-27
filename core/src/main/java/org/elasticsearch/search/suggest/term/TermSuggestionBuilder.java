@@ -48,8 +48,8 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
      * @param name
      *            The name of this suggestion. This is a required parameter.
      */
-    public TermSuggestionBuilder(String name) {
-        super(name);
+    public TermSuggestionBuilder(String name, String fieldname) {
+        super(name, fieldname);
     }
 
     /**
@@ -238,7 +238,7 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
     }
 
     @Override
-    public TermSuggestionBuilder doReadFrom(StreamInput in, String name) throws IOException {
+    public TermSuggestionBuilder doReadFrom(StreamInput in, String name, String fieldname) throws IOException {
         // NORELEASE
         throw new UnsupportedOperationException();
     }

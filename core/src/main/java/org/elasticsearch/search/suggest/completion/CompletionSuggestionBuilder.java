@@ -57,8 +57,8 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
     private final Map<String, List<ToXContent>> queryContexts = new HashMap<>();
     private final Set<String> payloadFields = new HashSet<>();
 
-    public CompletionSuggestionBuilder(String name) {
-        super(name);
+    public CompletionSuggestionBuilder(String name, String fieldname) {
+        super(name, fieldname);
     }
 
     /**
@@ -379,7 +379,7 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
     }
 
     @Override
-    public CompletionSuggestionBuilder doReadFrom(StreamInput in, String name) throws IOException {
+    public CompletionSuggestionBuilder doReadFrom(StreamInput in, String name, String fieldName) throws IOException {
         // NORELEASE
         throw new UnsupportedOperationException();
     }

@@ -35,8 +35,7 @@ import java.util.Objects;
 public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> extends ToXContentToBytes implements NamedWriteable<T> {
 
     protected final String name;
-    // TODO this seems mandatory and should be constructor arg
-    protected String fieldname;
+    protected final String fieldname;
     protected String text;
     protected String prefix;
     protected String regex;
@@ -52,8 +51,9 @@ public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> extends 
     protected static final ParseField SIZE_FIELD = new ParseField("size");
     protected static final ParseField SHARDSIZE_FIELD = new ParseField("shard_size");
 
-    public SuggestionBuilder(String name) {
+    public SuggestionBuilder(String name, String fieldname) {
         this.name = name;
+        this.fieldname = fieldname;
     }
 
     /**
@@ -118,11 +118,9 @@ public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> extends 
             builder.field(REGEX_FIELD.getPreferredName(), regex);
         }
         builder.startObject(getSuggesterName());
+        builder.field(FIELDNAME_FIELD.getPreferredName(), fieldname);
         if (analyzer != null) {
             builder.field(ANALYZER_FIELD.getPreferredName(), analyzer);
-        }
-        if (fieldname != null) {
-            builder.field(FIELDNAME_FIELD.getPreferredName(), fieldname);
         }
         if (size != null) {
             builder.field(SIZE_FIELD.getPreferredName(), size);
@@ -143,18 +141,6 @@ public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> extends 
     }
 
     protected abstract XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException;
-
-    /**
-     * Sets from what field to fetch the candidate suggestions from. This is an
-     * required option and needs to be set via this setter or
-     * {@link org.elasticsearch.search.suggest.term.TermSuggestionBuilder#field(String)}
-     * method
-     */
-    @SuppressWarnings("unchecked")
-    public T field(String field) {
-        this.fieldname = field;
-        return (T)this;
-    }
 
     /**
      * get the {@link #field()} parameter
@@ -228,8 +214,8 @@ public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> extends 
     @Override
     public final T readFrom(StreamInput in) throws IOException {
         String name = in.readString();
-        T suggestionBuilder = doReadFrom(in, name);
-        suggestionBuilder.fieldname = in.readOptionalString();
+        String fieldname = in.readString();
+        T suggestionBuilder = doReadFrom(in, name, fieldname);
         suggestionBuilder.text = in.readOptionalString();
         suggestionBuilder.prefix = in.readOptionalString();
         suggestionBuilder.regex = in.readOptionalString();
@@ -243,14 +229,15 @@ public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> extends 
      * Subclass should return a new instance, reading itself from the input string
      * @param in the input string to read from
      * @param name the name of the suggestion (read from stream by {@link SuggestionBuilder}
+     * @param fieldname the name of the field the suggestion it targeting (read from stream by {@link SuggestionBuilder}
      */
-    protected abstract T doReadFrom(StreamInput in, String name) throws IOException;
+    protected abstract T doReadFrom(StreamInput in, String name, String fieldname) throws IOException;
 
     @Override
     public final void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
+        out.writeString(fieldname);
         doWriteTo(out);
-        out.writeOptionalString(fieldname);
         out.writeOptionalString(text);
         out.writeOptionalString(prefix);
         out.writeOptionalString(regex);

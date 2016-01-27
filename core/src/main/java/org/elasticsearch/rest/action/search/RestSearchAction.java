@@ -262,7 +262,7 @@ public class RestSearchAction extends BaseRestHandler {
             int suggestSize = request.paramAsInt("suggest_size", 5);
             String suggestMode = request.param("suggest_mode");
             searchSourceBuilder.suggest(new SuggestBuilder().addSuggestion(
-                    termSuggestion(suggestField).field(suggestField).text(suggestText).size(suggestSize).suggestMode(suggestMode)));
+                    termSuggestion(suggestField, suggestField).text(suggestText).size(suggestSize).suggestMode(suggestMode)));
             modified = true;
         }
         return modified;

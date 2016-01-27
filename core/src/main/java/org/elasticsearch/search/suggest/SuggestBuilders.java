@@ -32,32 +32,35 @@ public abstract class SuggestBuilders {
      * Creates a term suggestion lookup query with the provided <code>name</code>
      *
      * @param name The suggestion name
+     * @param fieldname The target field name for this suggestion
      * @return a {@link org.elasticsearch.search.suggest.term.TermSuggestionBuilder}
      * instance
      */
-    public static TermSuggestionBuilder termSuggestion(String name) {
-        return new TermSuggestionBuilder(name);
+    public static TermSuggestionBuilder termSuggestion(String name, String fieldname) {
+        return new TermSuggestionBuilder(name, fieldname);
     }
 
     /**
      * Creates a phrase suggestion lookup query with the provided <code>name</code>
      *
      * @param name The suggestion name
+     * @param fieldname The target field name for this suggestion
      * @return a {@link org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder}
      * instance
      */
-    public static PhraseSuggestionBuilder phraseSuggestion(String name) {
-        return new PhraseSuggestionBuilder(name);
+    public static PhraseSuggestionBuilder phraseSuggestion(String name, String fieldname) {
+        return new PhraseSuggestionBuilder(name, fieldname);
     }
 
     /**
      * Creates a completion suggestion lookup query with the provided <code>name</code>
      *
      * @param name The suggestion name
+     * @param fieldname The target field for the suggestion
      * @return a {@link org.elasticsearch.search.suggest.completion.CompletionSuggestionBuilder}
      * instance
      */
-    public static CompletionSuggestionBuilder completionSuggestion(String name) {
-        return new CompletionSuggestionBuilder(name);
+    public static CompletionSuggestionBuilder completionSuggestion(String name, String fieldname) {
+        return new CompletionSuggestionBuilder(name, fieldname);
     }
 }

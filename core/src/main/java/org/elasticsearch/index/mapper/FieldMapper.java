@@ -451,8 +451,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             builder.field("index_options", indexOptionToString(fieldType().indexOptions()));
         }
 
-        doXContentAnalyzers(builder, includeDefaults);
-
         if (fieldType().similarity() != null) {
             builder.field("similarity", fieldType().similarity().name());
         } else if (includeDefaults) {
@@ -469,23 +467,26 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         }
     }
 
-    protected void doXContentAnalyzers(XContentBuilder builder, boolean includeDefaults) throws IOException {
+    protected final void doXContentAnalyzers(XContentBuilder builder, boolean includeDefaults) throws IOException {
+        if (fieldType.tokenized() == false) {
+            return;
+        }
         if (fieldType().indexAnalyzer() == null) {
             if (includeDefaults) {
                 builder.field("analyzer", "default");
             }
         } else {
-            boolean writeSearchAnalyzer = includeDefaults || fieldType().searchAnalyzer().name().startsWith("_") == false
-                    && fieldType().searchAnalyzer().name().equals("default") == false
-                    && fieldType().searchAnalyzer().name().equals(fieldType().indexAnalyzer().name()) == false;
-            // If we are going to write the search_analyzer then we need to write the analyzer as well since the search_analyzer 
-            // should not be specified without the analyzer
-            if (writeSearchAnalyzer || includeDefaults || fieldType().indexAnalyzer().name().startsWith("_") == false
-                    && fieldType().indexAnalyzer().name().equals("default") == false) {
+            boolean hasDefaultIndexAnalyzer = fieldType().indexAnalyzer().name().equals("default");
+            boolean hasDifferentSearchAnalyzer = fieldType().searchAnalyzer().name().equals(fieldType().indexAnalyzer().name()) == false;
+            boolean hasDifferentSearchQuoteAnalyzer = fieldType().searchAnalyzer().name().equals(fieldType().searchQuoteAnalyzer().name()) == false;
+            if (includeDefaults || hasDefaultIndexAnalyzer == false || hasDifferentSearchAnalyzer || hasDifferentSearchQuoteAnalyzer) {
                 builder.field("analyzer", fieldType().indexAnalyzer().name());
-            }
-            if (writeSearchAnalyzer) {
-                builder.field("search_analyzer", fieldType().searchAnalyzer().name());
+                if (hasDifferentSearchAnalyzer || hasDifferentSearchQuoteAnalyzer) {
+                    builder.field("search_analyzer", fieldType().searchAnalyzer().name());
+                    if (hasDifferentSearchQuoteAnalyzer) {
+                        builder.field("search_quote_analyzer", fieldType().searchQuoteAnalyzer().name());
+                    }
+                }
             }
         }
     }

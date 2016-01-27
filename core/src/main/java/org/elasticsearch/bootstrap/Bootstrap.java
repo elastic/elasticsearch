@@ -171,7 +171,7 @@ final class Bootstrap {
         // placeholder
         Settings nodeSettings = Settings.settingsBuilder()
                 .put(settings)
-                .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING, true)
+                .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING.getKey(), true)
                 .build();
 
         node = new Node(nodeSettings);

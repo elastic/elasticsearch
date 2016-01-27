@@ -1451,6 +1451,7 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 3l);
     }
 
+    @SuppressWarnings("deprecation") // fuzzy queries will be removed in 4.0
     public void testSpanMultiTermQuery() throws IOException {
         createIndex("test");
 

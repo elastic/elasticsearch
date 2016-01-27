@@ -78,7 +78,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
         controller.registerHandler(GET, "/{index}/{type}/_msearch/template", this);
         controller.registerHandler(POST, "/{index}/{type}/_msearch/template", this);
 
-        this.allowExplicitIndex = settings.getAsBoolean("rest.action.multi.allow_explicit_index", true);
+        this.allowExplicitIndex = MULTI_ALLOW_EXPLICIT_INDEX.get(settings);
         this.indicesQueriesRegistry = indicesQueriesRegistry;
     }
 

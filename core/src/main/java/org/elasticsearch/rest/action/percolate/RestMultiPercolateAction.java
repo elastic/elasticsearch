@@ -53,7 +53,7 @@ public class RestMultiPercolateAction extends BaseRestHandler {
         controller.registerHandler(GET, "/{index}/_mpercolate", this);
         controller.registerHandler(GET, "/{index}/{type}/_mpercolate", this);
 
-        this.allowExplicitIndex = settings.getAsBoolean("rest.action.multi.allow_explicit_index", true);
+        this.allowExplicitIndex = MULTI_ALLOW_EXPLICIT_INDEX.get(settings);
     }
 
     @Override

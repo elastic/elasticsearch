@@ -114,7 +114,7 @@ public class TransportClient extends AbstractClient {
                 .put( InternalSettingsPreparer.prepareSettings(settings))
                 .put("network.server", false)
                 .put(Node.NODE_CLIENT_SETTING.getKey(), true)
-                .put(CLIENT_TYPE_SETTING, CLIENT_TYPE);
+                .put(CLIENT_TYPE_SETTING_S.getKey(), CLIENT_TYPE);
             return new PluginsService(settingsBuilder.build(), null, null, pluginClasses);
         }
 

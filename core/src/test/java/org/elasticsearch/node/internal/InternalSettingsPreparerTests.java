@@ -60,13 +60,13 @@ public class InternalSettingsPreparerTests extends ESTestCase {
     public void testEmptySettings() {
         Settings settings = InternalSettingsPreparer.prepareSettings(Settings.EMPTY);
         assertNotNull(settings.get("name")); // a name was set
-        assertNotNull(settings.get(ClusterName.SETTING)); // a cluster name was set
+        assertNotNull(settings.get(ClusterName.CLUSTER_NAME_SETTING.getKey())); // a cluster name was set
         int size = settings.names().size();
 
         Environment env = InternalSettingsPreparer.prepareEnvironment(baseEnvSettings, null);
         settings = env.settings();
         assertNotNull(settings.get("name")); // a name was set
-        assertNotNull(settings.get(ClusterName.SETTING)); // a cluster name was set
+        assertNotNull(settings.get(ClusterName.CLUSTER_NAME_SETTING.getKey())); // a cluster name was set
         assertEquals(settings.toString(), size + 1 /* path.home is in the base settings */, settings.names().size());
         String home = Environment.PATH_HOME_SETTING.get(baseEnvSettings);
         String configDir = env.configFile().toString();
@@ -75,9 +75,9 @@ public class InternalSettingsPreparerTests extends ESTestCase {
 
     public void testClusterNameDefault() {
         Settings settings = InternalSettingsPreparer.prepareSettings(Settings.EMPTY);
-        assertEquals(ClusterName.DEFAULT.value(), settings.get(ClusterName.SETTING));
+        assertEquals(ClusterName.DEFAULT.value(), settings.get(ClusterName.CLUSTER_NAME_SETTING.getKey()));
         settings = InternalSettingsPreparer.prepareEnvironment(baseEnvSettings, null).settings();
-        assertEquals(ClusterName.DEFAULT.value(), settings.get(ClusterName.SETTING));
+        assertEquals(ClusterName.DEFAULT.value(), settings.get(ClusterName.CLUSTER_NAME_SETTING.getKey()));
     }
 
     public void testReplacePromptPlaceholders() {

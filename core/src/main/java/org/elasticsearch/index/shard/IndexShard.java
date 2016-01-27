@@ -855,7 +855,8 @@ public class IndexShard extends AbstractIndexShardComponent {
             throw new IndexShardNotRecoveringException(shardId, state);
         }
         // We set active because we are now writing operations to the engine; this way, if we go idle after some time and become inactive,
-        // we still give sync'd flush a chance to run:
+        // we still invoke any onShardInactive listeners ... we won't sync'd flush in this case because we only do that on primary and this
+        // is a replica
         active.set(true);
         return engineConfig.getTranslogRecoveryPerformer().performBatchRecovery(getEngine(), operations);
     }

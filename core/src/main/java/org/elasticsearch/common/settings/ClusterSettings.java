@@ -19,7 +19,9 @@
 package org.elasticsearch.common.settings;
 
 import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
+import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.DestructiveOperations;
+import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.client.transport.TransportClientNodesService;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.InternalClusterInfoService;
@@ -55,6 +57,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.store.IndexStoreConfig;
 import org.elasticsearch.indices.analysis.HunspellService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
+import org.elasticsearch.indices.cache.query.IndicesQueryCache;
 import org.elasticsearch.indices.cache.request.IndicesRequestCache;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.RecoverySettings;
@@ -138,6 +141,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
         FsRepository.REPOSITORIES_LOCATION_SETTING,
         IndexStoreConfig.INDICES_STORE_THROTTLE_TYPE_SETTING,
         IndexStoreConfig.INDICES_STORE_THROTTLE_MAX_BYTES_PER_SEC_SETTING,
+        IndicesQueryCache.INDICES_CACHE_QUERY_SIZE_SETTING,
+        IndicesQueryCache.INDICES_CACHE_QUERY_COUNT_SETTING,
         IndicesTTLService.INDICES_TTL_INTERVAL_SETTING,
         MappingUpdatedAction.INDICES_MAPPING_DYNAMIC_TIMEOUT_SETTING,
         MetaData.SETTING_READ_ONLY_SETTING,
@@ -261,6 +266,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
         URLRepository.REPOSITORIES_LIST_DIRECTORIES_SETTING,
         URLRepository.REPOSITORIES_URL_SETTING,
         URLRepository.SUPPORTED_PROTOCOLS_SETTING,
+        TransportMasterNodeReadAction.FORCE_LOCAL_SETTING,
+        AutoCreateIndex.AUTO_CREATE_INDEX_SETTING,
         ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING,
         EsExecutors.PROCESSORS_SETTING)));
 }

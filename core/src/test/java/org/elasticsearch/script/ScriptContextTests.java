@@ -39,16 +39,20 @@ public class ScriptContextTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
             // no file watching, so we don't need a ResourceWatcherService
-            .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING, false)
-            .put("script." + PLUGIN_NAME + "_custom_globally_disabled_op", false)
-            .put("script.engine." + MockScriptEngine.NAME + ".inline." + PLUGIN_NAME + "_custom_exp_disabled_op", false)
+            .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING.getKey(), "off")
+            .put("script." + PLUGIN_NAME + "_custom_globally_disabled_op", "false")
+            .put("script.engine." + MockScriptEngine.NAME + ".inline." + PLUGIN_NAME + "_custom_exp_disabled_op", "false")
             .build();
         Set<ScriptEngineService> engines = new HashSet<>(Collections.singletonList(new MockScriptEngine()));
+        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections.singletonList(new ScriptEngineRegistry.ScriptEngineRegistration(MockScriptEngine.class, MockScriptEngine.TYPES)));
         List<ScriptContext.Plugin> customContexts = Arrays.asList(
             new ScriptContext.Plugin(PLUGIN_NAME, "custom_op"),
             new ScriptContext.Plugin(PLUGIN_NAME, "custom_exp_disabled_op"),
             new ScriptContext.Plugin(PLUGIN_NAME, "custom_globally_disabled_op"));
-        return new ScriptService(settings, new Environment(settings), engines, null, new ScriptContextRegistry(customContexts));
+        ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(customContexts);
+        ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
+
+        return new ScriptService(settings, new Environment(settings), engines, null, scriptEngineRegistry, scriptContextRegistry, scriptSettings);
     }
 
     public void testCustomGlobalScriptContextSettings() throws Exception {

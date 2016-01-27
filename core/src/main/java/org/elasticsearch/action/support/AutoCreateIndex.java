@@ -25,6 +25,7 @@ import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.MapperService;
 
@@ -40,30 +41,30 @@ public final class AutoCreateIndex {
     private final String[] matches;
     private final String[] matches2;
     private final IndexNameExpressionResolver resolver;
+    public static final Setting<AutoCreate> AUTO_CREATE_INDEX_SETTING = new Setting<>("action.auto_create_index", "true", AutoCreate::new, false, Setting.Scope.CLUSTER);
 
     @Inject
     public AutoCreateIndex(Settings settings, IndexNameExpressionResolver resolver) {
         this.resolver = resolver;
         dynamicMappingDisabled = !MapperService.INDEX_MAPPER_DYNAMIC_SETTING.get(settings);
-        String value = settings.get("action.auto_create_index");
-        if (value == null || Booleans.isExplicitTrue(value)) {
+        final AutoCreate autoCreate = AUTO_CREATE_INDEX_SETTING.get(settings);
+        if (autoCreate.autoCreateIndex) {
             needToCheck = true;
             globallyDisabled = false;
-            matches = null;
-            matches2 = null;
-        } else if (Booleans.isExplicitFalse(value)) {
+            matches = autoCreate.indices;
+            if (matches != null) {
+                matches2 = new String[matches.length];
+                for (int i = 0; i < matches.length; i++) {
+                    matches2[i] = matches[i].substring(1);
+                }
+            } else {
+                matches2 = null;
+            }
+        } else {
             needToCheck = false;
             globallyDisabled = true;
             matches = null;
             matches2 = null;
-        } else {
-            needToCheck = true;
-            globallyDisabled = false;
-            matches = Strings.commaDelimitedListToStringArray(value);
-            matches2 = new String[matches.length];
-            for (int i = 0; i < matches.length; i++) {
-                matches2[i] = matches[i].substring(1);
-            }
         }
     }
 
@@ -109,5 +110,33 @@ public final class AutoCreateIndex {
             }
         }
         return false;
+    }
+
+    public static class AutoCreate {
+        private final boolean autoCreateIndex;
+        private final String[] indices;
+
+        public AutoCreate(String value) {
+            boolean autoCreateIndex;
+            String[] indices = null;
+            try {
+                autoCreateIndex = Booleans.parseBooleanExact(value);
+            } catch (IllegalArgumentException ex) {
+                try {
+                    indices = Strings.commaDelimitedListToStringArray(value);
+                    for (String string : indices) {
+                        if (string == null || string.length() == 0) {
+                            throw new IllegalArgumentException("Can't parse [" + value + "] for setting [action.auto_create_index] must be either [true, false, or a comma seperated list of index patterns]");
+                        }
+                    }
+                    autoCreateIndex = true;
+                } catch (IllegalArgumentException ex1) {
+                    ex1.addSuppressed(ex);
+                    throw ex1;
+                }
+            }
+            this.indices = indices;
+            this.autoCreateIndex = autoCreateIndex;
+        }
     }
 }

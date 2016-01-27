@@ -66,13 +66,6 @@ public final class TranslogConfig {
     }
 
     /**
-     * Returns <code>true</code> iff each low level operation shoudl be fsynced
-     */
-    public boolean isSyncOnEachOperation() {
-        return indexSettings.getTranslogSyncInterval().millis() == 0;
-    }
-
-    /**
      * Returns the index indexSettings
      */
     public IndexSettings getIndexSettings() {

@@ -90,7 +90,7 @@ public class ContextAndHeaderTransportIT extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put("script.indexed", "on")
+                .put("script.indexed", "true")
                 .put(NetworkModule.HTTP_ENABLED.getKey(), true)
                 .build();
     }

@@ -51,9 +51,8 @@ public class SearchAfterIT extends ESIntegTestCase {
     private static final int NUM_DOCS = 100;
 
     public void testsShouldFail() throws Exception {
-        client().admin().indices().prepareCreate("test").execute().actionGet();
-        client().prepareIndex("test", "type1", "0").setSource("field1", 0, "field2", "toto").execute().actionGet();
-        refresh();
+        createIndex("test");
+        indexRandom(true, client().prepareIndex("test", "type1", "0").setSource("field1", 0, "field2", "toto"));
 
         try {
             client().prepareSearch("test")

@@ -17,6 +17,7 @@ your application to Elasticsearch 3.0.
 * <<breaking_30_allocation>>
 * <<breaking_30_percolator>>
 * <<breaking_30_packaging>>
+* <<breaking_30_scripting>>
 
 [[breaking_30_search_changes]]
 === Warmers
@@ -231,6 +232,10 @@ The following settings have been removed without replacement
 The `index.translog.flush_threshold_ops` setting is not supported anymore. In order to control flushes based on the transaction log
 growth use `index.translog.flush_threshold_size` instead. Changing the translog type with `index.translog.fs.type` is not supported
 anymore, the `buffered` implementation is now the only available option and uses a fixed `8kb` buffer.
+
+The translog by default is fsynced on a request basis such that the ability to fsync on every operation is not necessary anymore. In-fact it can
+be a performance bottleneck and it's trappy since it enabled by a special value set on `index.translog.sync_interval`. `index.translog.sync_interval`
+now doesn't accept a value less than `100ms` which prevents fsyncing too often if async durability is enabled. The special value `0` is not supported anymore.
 
 ==== Request Cache Settings
 
@@ -684,3 +689,15 @@ and these error messages would be lost to the nether. The default has
 changed to now route standard output to the journal and standard error
 to inherit this setting (these are the defaults for systemd). These
 settings can be modified by editing the elasticsearch.service file.
+
+[[breaking_30_scripting]]
+=== Scripting
+
+==== Script mode settings
+
+Previously script mode settings (e.g., "script.inline: true",
+"script.engine.groovy.inline.aggs: false", etc.) accepted the values
+`on`, `true`, `1`, and `yes` for enabling a scripting mode, and the
+values `off`, `false`, `0`, and `no` for disabling a scripting mode.
+The variants `on`, `1`, and `yes ` for enabling and `off`, `0`,
+and `no` for disabling are no longer supported.

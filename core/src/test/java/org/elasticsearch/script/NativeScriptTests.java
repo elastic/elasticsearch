@@ -50,7 +50,8 @@ public class NativeScriptTests extends ESTestCase {
                 .put("name", "testNativeScript")
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .build();
-        ScriptModule scriptModule = new ScriptModule(settings);
+        SettingsModule settingsModule = new SettingsModule(settings, new SettingsFilter(settings));
+        ScriptModule scriptModule = new ScriptModule(settingsModule);
         scriptModule.registerScript("my", MyNativeScriptFactory.class);
         Injector injector = new ModulesBuilder().add(
                 new EnvironmentModule(new Environment(settings)),
@@ -70,10 +71,10 @@ public class NativeScriptTests extends ESTestCase {
         Settings.Builder builder = Settings.settingsBuilder();
         if (randomBoolean()) {
             ScriptType scriptType = randomFrom(ScriptType.values());
-            builder.put(ScriptModes.SCRIPT_SETTINGS_PREFIX + scriptType, randomFrom(ScriptMode.values()));
+            builder.put("script" + "." + scriptType.getScriptType(), randomFrom(ScriptMode.values()));
         } else {
-            String scriptContext = randomFrom(ScriptContext.Standard.values()).getKey();
-            builder.put(ScriptModes.SCRIPT_SETTINGS_PREFIX + scriptContext, randomFrom(ScriptMode.values()));
+            ScriptContext scriptContext = randomFrom(ScriptContext.Standard.values());
+            builder.put("script" + "." + scriptContext.getKey(), randomFrom(ScriptMode.values()));
         }
         Settings settings = builder.put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
         Environment environment = new Environment(settings);
@@ -81,8 +82,10 @@ public class NativeScriptTests extends ESTestCase {
         Map<String, NativeScriptFactory> nativeScriptFactoryMap = new HashMap<>();
         nativeScriptFactoryMap.put("my", new MyNativeScriptFactory());
         Set<ScriptEngineService> scriptEngineServices = singleton(new NativeScriptEngineService(settings, nativeScriptFactoryMap));
-        ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(new ArrayList<ScriptContext.Plugin>());
-        ScriptService scriptService = new ScriptService(settings, environment, scriptEngineServices, resourceWatcherService, scriptContextRegistry);
+        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections.singletonList(new ScriptEngineRegistry.ScriptEngineRegistration(NativeScriptEngineService.class, NativeScriptEngineService.TYPES)));
+        ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(new ArrayList<>());
+        ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
+        ScriptService scriptService = new ScriptService(settings, environment, scriptEngineServices, resourceWatcherService, scriptEngineRegistry, scriptContextRegistry, scriptSettings);
 
         for (ScriptContext scriptContext : scriptContextRegistry.scriptContexts()) {
             assertThat(scriptService.compile(new Script("my", ScriptType.INLINE, NativeScriptEngineService.NAME, null), scriptContext,

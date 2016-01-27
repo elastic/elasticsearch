@@ -104,7 +104,7 @@ public class FunctionScoreBackwardCompatibilityIT extends ESBackcompatTestCase {
     @Override
     protected Settings commonNodeSettings(int nodeOrdinal) {
         return Settings.builder().put(super.commonNodeSettings(nodeOrdinal))
-                .put("script.inline", "on").build();
+                .put("script.inline", "true").build();
     }
 
     private void checkFunctionScoreStillWorks(String... ids) throws ExecutionException, InterruptedException, IOException {

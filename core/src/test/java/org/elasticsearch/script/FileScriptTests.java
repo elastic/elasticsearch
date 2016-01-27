@@ -40,16 +40,19 @@ public class FileScriptTests extends ESTestCase {
         settings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), homeDir)
                 // no file watching, so we don't need a ResourceWatcherService
-            .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING, false)
+            .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING.getKey(), false)
             .put(settings)
             .build();
         Set<ScriptEngineService> engines = new HashSet<>(Collections.singletonList(new MockScriptEngine()));
-        return new ScriptService(settings, new Environment(settings), engines, null, new ScriptContextRegistry(Collections.emptyList()));
+        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections.singletonList(new ScriptEngineRegistry.ScriptEngineRegistration(MockScriptEngine.class, MockScriptEngine.TYPES)));
+        ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Collections.emptyList());
+        ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
+        return new ScriptService(settings, new Environment(settings), engines, null, scriptEngineRegistry, scriptContextRegistry, scriptSettings);
     }
 
     public void testFileScriptFound() throws Exception {
         Settings settings = Settings.builder()
-            .put("script.engine." + MockScriptEngine.NAME + ".file.aggs", false).build();
+            .put("script.engine." + MockScriptEngine.NAME + ".file.aggs", "false").build();
         ScriptService scriptService = makeScriptService(settings);
         Script script = new Script("script1", ScriptService.ScriptType.FILE, MockScriptEngine.NAME, null);
         assertNotNull(scriptService.compile(script, ScriptContext.Standard.SEARCH, Collections.emptyMap()));
@@ -57,11 +60,11 @@ public class FileScriptTests extends ESTestCase {
 
     public void testAllOpsDisabled() throws Exception {
         Settings settings = Settings.builder()
-            .put("script.engine." + MockScriptEngine.NAME + ".file.aggs", false)
-            .put("script.engine." + MockScriptEngine.NAME + ".file.search", false)
-            .put("script.engine." + MockScriptEngine.NAME + ".file.mapping", false)
-            .put("script.engine." + MockScriptEngine.NAME + ".file.update", false)
-            .put("script.engine." + MockScriptEngine.NAME + ".file.ingest", false).build();
+            .put("script.engine." + MockScriptEngine.NAME + ".file.aggs", "false")
+            .put("script.engine." + MockScriptEngine.NAME + ".file.search", "false")
+            .put("script.engine." + MockScriptEngine.NAME + ".file.mapping", "false")
+            .put("script.engine." + MockScriptEngine.NAME + ".file.update", "false")
+            .put("script.engine." + MockScriptEngine.NAME + ".file.ingest", "false").build();
         ScriptService scriptService = makeScriptService(settings);
         Script script = new Script("script1", ScriptService.ScriptType.FILE, MockScriptEngine.NAME, null);
         for (ScriptContext context : ScriptContext.Standard.values()) {

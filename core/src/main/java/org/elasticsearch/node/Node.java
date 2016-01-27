@@ -188,11 +188,12 @@ public class Node implements Releasable {
                 modules.add(pluginModule);
             }
             modules.add(new PluginsModule(pluginsService));
-            modules.add(new SettingsModule(this.settings, settingsFilter));
+            SettingsModule settingsModule = new SettingsModule(this.settings, settingsFilter);
+            modules.add(settingsModule);
             modules.add(new EnvironmentModule(environment));
             modules.add(new NodeModule(this, monitorService));
             modules.add(new NetworkModule(networkService, settings, false, namedWriteableRegistry));
-            modules.add(new ScriptModule(this.settings));
+            modules.add(new ScriptModule(settingsModule));
             modules.add(new NodeEnvironmentModule(nodeEnvironment));
             modules.add(new ClusterNameModule(this.settings));
             modules.add(new ThreadPoolModule(threadPool));

@@ -18,10 +18,6 @@
  */
 package org.elasticsearch.messy.tests;
 
-import java.io.IOException;
-import java.lang.reflect.Proxy;
-import java.util.Collections;
-
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.Accountable;
@@ -62,6 +58,7 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
+import org.elasticsearch.script.ScriptEngineRegistry;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.mustache.MustacheScriptEngineService;
@@ -73,6 +70,10 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
 import org.junit.After;
 import org.junit.Before;
+
+import java.io.IOException;
+import java.lang.reflect.Proxy;
+import java.util.Collections;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -100,10 +101,10 @@ public class TemplateQueryParserTests extends ESTestCase {
                 });
         Index index = new Index("test");
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index, settings);
-        ScriptModule scriptModule = new ScriptModule(settings);
-        // TODO: make this use a mock engine instead of mustache and it will no longer be messy!
-        scriptModule.addScriptEngine(MustacheScriptEngineService.class);
         SettingsModule settingsModule = new SettingsModule(settings, new SettingsFilter(settings));
+        ScriptModule scriptModule = new ScriptModule(settingsModule);
+        // TODO: make this use a mock engine instead of mustache and it will no longer be messy!
+        scriptModule.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(MustacheScriptEngineService.class, MustacheScriptEngineService.TYPES));
         settingsModule.registerSetting(InternalSettingsPlugin.VERSION_CREATED);
         injector = new ModulesBuilder().add(
                 new EnvironmentModule(new Environment(settings)),

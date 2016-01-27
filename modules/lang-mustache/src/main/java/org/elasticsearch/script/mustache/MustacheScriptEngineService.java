@@ -18,13 +18,8 @@
  */
 package org.elasticsearch.script.mustache;
 
-import java.lang.ref.SoftReference;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
-import java.util.Collections;
-import java.io.Reader;
-import java.util.Map;
-
+import com.github.mustachejava.DefaultMustacheFactory;
+import com.github.mustachejava.Mustache;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -40,8 +35,13 @@ import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.lookup.SearchLookup;
 
-import com.github.mustachejava.Mustache;
-import com.github.mustachejava.DefaultMustacheFactory;
+import java.io.Reader;
+import java.lang.ref.SoftReference;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Main entry point handling template registration, compilation and
@@ -54,6 +54,9 @@ import com.github.mustachejava.DefaultMustacheFactory;
 public final class MustacheScriptEngineService extends AbstractComponent implements ScriptEngineService {
 
     public static final String NAME = "mustache";
+
+    public static final List<String> TYPES = Collections.singletonList(NAME);
+
     static final String CONTENT_TYPE_PARAM = "content_type";
     static final String JSON_CONTENT_TYPE = "application/json";
     static final String PLAIN_TEXT_CONTENT_TYPE = "text/plain";
@@ -109,17 +112,17 @@ public final class MustacheScriptEngineService extends AbstractComponent impleme
     }
 
     @Override
-    public String[] types() {
-        return new String[] {NAME};
+    public List<String> getTypes() {
+        return TYPES;
     }
 
     @Override
-    public String[] extensions() {
-        return new String[] {NAME};
+    public List<String> getExtensions() {
+        return TYPES;
     }
 
     @Override
-    public boolean sandboxed() {
+    public boolean isSandboxed() {
         return true;
     }
 

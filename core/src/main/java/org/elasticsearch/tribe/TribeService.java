@@ -107,7 +107,7 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
         if (sb.get("cluster.name") == null) {
             sb.put("cluster.name", "tribe_" + Strings.randomBase64UUID()); // make sure it won't join other tribe nodes in the same JVM
         }
-        sb.put(TransportMasterNodeReadAction.FORCE_LOCAL_SETTING, true);
+        sb.put(TransportMasterNodeReadAction.FORCE_LOCAL_SETTING.getKey(), true);
         return sb.build();
     }
 
@@ -135,6 +135,9 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
             Settings.Builder sb = Settings.builder().put(entry.getValue());
             sb.put("name", settings.get("name") + "/" + entry.getKey());
             sb.put(Environment.PATH_HOME_SETTING.getKey(), Environment.PATH_HOME_SETTING.get(settings)); // pass through ES home dir
+            if (Environment.PATH_CONF_SETTING.exists(settings)) {
+                sb.put(Environment.PATH_CONF_SETTING.getKey(), Environment.PATH_CONF_SETTING.get(settings));
+            }
             sb.put(TRIBE_NAME, entry.getKey());
             if (sb.get("http.enabled") == null) {
                 sb.put("http.enabled", false);

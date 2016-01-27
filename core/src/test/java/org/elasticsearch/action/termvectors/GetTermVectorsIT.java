@@ -153,7 +153,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
                         "field1", "type=string,index=no", // no tvs
                         "field2", "type=string,index=no,store=true",  // no tvs
                         "field3", "type=string,index=no,term_vector=yes", // no tvs
-                        "field4", "type=string,index=not_analyzed", // yes tvs
+                        "field4", "type=keyword", // yes tvs
                         "field5", "type=string,index=analyzed")); // yes tvs
 
         ensureYellow();

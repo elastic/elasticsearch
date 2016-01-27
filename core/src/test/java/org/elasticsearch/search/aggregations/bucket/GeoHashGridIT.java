@@ -90,7 +90,7 @@ public class GeoHashGridIT extends ESIntegTestCase {
         Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
 
         assertAcked(prepareCreate("idx").setSettings(settings)
-                .addMapping("type", "location", "type=geo_point", "city", "type=string,index=not_analyzed"));
+                .addMapping("type", "location", "type=geo_point", "city", "type=keyword"));
 
         List<IndexRequestBuilder> cities = new ArrayList<>();
         Random random = getRandom();
@@ -115,7 +115,7 @@ public class GeoHashGridIT extends ESIntegTestCase {
         indexRandom(true, cities);
 
         assertAcked(prepareCreate("multi_valued_idx").setSettings(settings)
-                .addMapping("type", "location", "type=geo_point", "city", "type=string,index=not_analyzed"));
+                .addMapping("type", "location", "type=geo_point", "city", "type=keyword"));
 
         cities = new ArrayList<>();
         multiValuedExpectedDocCountsForGeoHash = new ObjectIntHashMap<>(numDocs * 2);

@@ -42,7 +42,7 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.Uid;
-import org.elasticsearch.index.mapper.core.StringFieldMapper;
+import org.elasticsearch.index.mapper.core.KeywordFieldMapper;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
@@ -131,15 +131,15 @@ public class ParentFieldMapper extends MetadataFieldMapper {
 
         @Override
         public MetadataFieldMapper getDefault(Settings indexSettings, MappedFieldType fieldType, String typeName) {
-            StringFieldMapper parentJoinField = createParentJoinFieldMapper(typeName, new BuilderContext(indexSettings, new ContentPath(0)));
+            KeywordFieldMapper parentJoinField = createParentJoinFieldMapper(typeName, new BuilderContext(indexSettings, new ContentPath(0)));
             MappedFieldType childJoinFieldType = Defaults.FIELD_TYPE.clone();
             childJoinFieldType.setName(joinField(null));
             return new ParentFieldMapper(parentJoinField, childJoinFieldType, null, indexSettings);
         }
     }
 
-    static StringFieldMapper createParentJoinFieldMapper(String docType, BuilderContext context) {
-        StringFieldMapper.Builder parentJoinField = new StringFieldMapper.Builder(joinField(docType));
+    static KeywordFieldMapper createParentJoinFieldMapper(String docType, BuilderContext context) {
+        KeywordFieldMapper.Builder parentJoinField = new KeywordFieldMapper.Builder(joinField(docType));
         parentJoinField.indexOptions(IndexOptions.NONE);
         parentJoinField.docValues(true);
         parentJoinField.fieldType().setDocValuesType(DocValuesType.SORTED);
@@ -205,9 +205,9 @@ public class ParentFieldMapper extends MetadataFieldMapper {
     private final String parentType;
     // has no impact of field data settings, is just here for creating a join field,
     // the parent field mapper in the child type pointing to this type determines the field data settings for this join field
-    private final StringFieldMapper parentJoinField;
+    private final KeywordFieldMapper parentJoinField;
 
-    private ParentFieldMapper(StringFieldMapper parentJoinField, MappedFieldType childJoinFieldType, String parentType, Settings indexSettings) {
+    private ParentFieldMapper(KeywordFieldMapper parentJoinField, MappedFieldType childJoinFieldType, String parentType, Settings indexSettings) {
         super(NAME, childJoinFieldType, Defaults.FIELD_TYPE, indexSettings);
         this.parentType = parentType;
         this.parentJoinField = parentJoinField;

@@ -614,10 +614,10 @@ public class SearchFieldsTests extends ESIntegTestCase {
 
     public void testScriptFields() throws Exception {
         assertAcked(prepareCreate("index").addMapping("type",
-                "s", "type=string,index=not_analyzed",
+                "s", "type=keyword",
                 "l", "type=long",
                 "d", "type=double",
-                "ms", "type=string,index=not_analyzed",
+                "ms", "type=keyword",
                 "ml", "type=long",
                 "md", "type=double").get());
         final int numDocs = randomIntBetween(3, 8);

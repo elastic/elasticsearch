@@ -50,10 +50,12 @@ public class IndicesStatsTests extends ESSingleNodeTestCase {
                 .startObject("doc")
                     .startObject("properties")
                         .startObject("foo")
-                            .field("type", "string")
-                            .field("index", "not_analyzed")
+                            .field("type", "keyword")
                             .field("doc_values", true)
                             .field("store", true)
+                        .endObject()
+                        .startObject("bar")
+                            .field("type", "string")
                             .field("term_vector", "with_positions_offsets_payloads")
                         .endObject()
                     .endObject()
@@ -61,7 +63,7 @@ public class IndicesStatsTests extends ESSingleNodeTestCase {
             .endObject();
         assertAcked(client().admin().indices().prepareCreate("test").addMapping("doc", mapping));
         ensureGreen("test");
-        client().prepareIndex("test", "doc", "1").setSource("foo", "bar").get();
+        client().prepareIndex("test", "doc", "1").setSource("foo", "bar", "bar", "baz").get();
         client().admin().indices().prepareRefresh("test").get();
 
         IndicesStatsResponse rsp = client().admin().indices().prepareStats("test").get();
@@ -73,7 +75,7 @@ public class IndicesStatsTests extends ESSingleNodeTestCase {
         assertThat(stats.getDocValuesMemoryInBytes(), greaterThan(0L));
 
         // now check multiple segments stats are merged together
-        client().prepareIndex("test", "doc", "2").setSource("foo", "bar").get();
+        client().prepareIndex("test", "doc", "2").setSource("foo", "bar", "bar", "baz").get();
         client().admin().indices().prepareRefresh("test").get();
 
         rsp = client().admin().indices().prepareStats("test").get();

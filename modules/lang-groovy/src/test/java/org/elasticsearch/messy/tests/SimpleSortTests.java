@@ -65,7 +65,7 @@ public class SimpleSortTests extends ESIntegTestCase {
         Random random = random();
         assertAcked(prepareCreate("test")
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
-                        .startObject("str_value").field("type", "string").field("index", "not_analyzed").startObject("fielddata").field("format", random().nextBoolean() ? "doc_values" : null).endObject().endObject()
+                        .startObject("str_value").field("type", "keyword").startObject("fielddata").field("format", random().nextBoolean() ? "doc_values" : null).endObject().endObject()
                         .startObject("boolean_value").field("type", "boolean").endObject()
                         .startObject("byte_value").field("type", "byte").startObject("fielddata").field("format", random().nextBoolean() ? "doc_values" : null).endObject().endObject()
                         .startObject("short_value").field("type", "short").startObject("fielddata").field("format", random().nextBoolean() ? "doc_values" : null).endObject().endObject()
@@ -226,7 +226,7 @@ public class SimpleSortTests extends ESIntegTestCase {
         // We have to specify mapping explicitly because by the time search is performed dynamic mapping might not
         // be propagated to all nodes yet and sort operation fail when the sort field is not defined
         String mapping = jsonBuilder().startObject().startObject("type1").startObject("properties")
-                .startObject("svalue").field("type", "string").field("index", "not_analyzed").startObject("fielddata").field("format", random().nextBoolean() ? "doc_values" : null).endObject().endObject()
+                .startObject("svalue").field("type", "keyword").startObject("fielddata").field("format", random().nextBoolean() ? "doc_values" : null).endObject().endObject()
                 .endObject().endObject().endObject().string();
         assertAcked(prepareCreate("test").addMapping("type1", mapping));
         ensureGreen();

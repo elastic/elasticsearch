@@ -189,7 +189,7 @@ public class ScriptSortBuilder extends SortBuilder {
             builder.field("nested_path", nestedPath);
         }
         if (nestedFilter != null) {
-            builder.field("nested_filter", nestedFilter, params);
+            builder.field("nested_filter", nestedFilter, builderParams);
         }
         builder.endObject();
         return builder;

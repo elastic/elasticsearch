@@ -18,7 +18,7 @@ import static org.hamcrest.Matchers.is;
 public class MarvelPluginClientTests extends ESTestCase {
     public void testModulesWithClientSettings() {
         Settings settings = Settings.builder()
-                .put(Client.CLIENT_TYPE_SETTING, TransportClient.CLIENT_TYPE)
+                .put(Client.CLIENT_TYPE_SETTING_S.getKey(), TransportClient.CLIENT_TYPE)
                 .build();
 
         MarvelPlugin plugin = new MarvelPlugin(settings);
@@ -30,7 +30,7 @@ public class MarvelPluginClientTests extends ESTestCase {
     public void testModulesWithNodeSettings() {
         // these settings mimic what ES does when running as a node...
         Settings settings = Settings.builder()
-                .put(Client.CLIENT_TYPE_SETTING, "node")
+                .put(Client.CLIENT_TYPE_SETTING_S.getKey(), "node")
                 .build();
         MarvelPlugin plugin = new MarvelPlugin(settings);
         assertThat(plugin.isEnabled(), is(true));

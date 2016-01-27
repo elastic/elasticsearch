@@ -101,7 +101,7 @@ public class MarvelPlugin extends Plugin {
     }
 
     public static boolean marvelEnabled(Settings settings) {
-        if (!"node".equals(settings.get(Client.CLIENT_TYPE_SETTING))) {
+        if (!"node".equals(settings.get(Client.CLIENT_TYPE_SETTING_S.getKey()))) {
             logger.trace("marvel cannot be started on a transport client");
             return false;
         }

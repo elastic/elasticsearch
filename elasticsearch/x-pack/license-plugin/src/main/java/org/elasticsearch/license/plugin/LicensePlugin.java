@@ -45,11 +45,11 @@ public class LicensePlugin extends Plugin {
     public LicensePlugin(Settings settings) {
         if (DiscoveryNode.clientNode(settings)) {
             // Enable plugin only on node clients
-            this.isEnabled = "node".equals(settings.get(Client.CLIENT_TYPE_SETTING));
+            this.isEnabled = "node".equals(settings.get(Client.CLIENT_TYPE_SETTING_S.getKey()));
         } else {
             this.isEnabled = true;
         }
-        transportClient = "transport".equals(settings.get(Client.CLIENT_TYPE_SETTING));
+        transportClient = "transport".equals(settings.get(Client.CLIENT_TYPE_SETTING_S.getKey()));
     }
 
     @Override

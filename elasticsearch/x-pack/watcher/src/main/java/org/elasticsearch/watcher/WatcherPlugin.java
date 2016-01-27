@@ -113,7 +113,7 @@ public class WatcherPlugin extends Plugin {
 
     public WatcherPlugin(Settings settings) {
         this.settings = settings;
-        transportClient = "transport".equals(settings.get(Client.CLIENT_TYPE_SETTING));
+        transportClient = "transport".equals(settings.get(Client.CLIENT_TYPE_SETTING_S.getKey()));
         enabled = watcherEnabled(settings);
         validAutoCreateIndex(settings);
     }

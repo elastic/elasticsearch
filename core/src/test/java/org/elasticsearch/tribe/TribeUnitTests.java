@@ -76,7 +76,7 @@ public class TribeUnitTests extends ESTestCase {
         System.setProperty("es.tribe.t2.cluster.name", "tribe2");
 
         try {
-            assertTribeNodeSuccesfullyCreated(Settings.EMPTY);
+            assertTribeNodeSuccessfullyCreated(Settings.EMPTY);
         } finally {
             System.clearProperty("es.cluster.name");
             System.clearProperty("es.tribe.t1.cluster.name");
@@ -88,10 +88,10 @@ public class TribeUnitTests extends ESTestCase {
     public void testThatTribeClientsIgnoreGlobalConfig() throws Exception {
         Path pathConf = getDataPath("elasticsearch.yml").getParent();
         Settings settings = Settings.builder().put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING, true).put("path.conf", pathConf).build();
-        assertTribeNodeSuccesfullyCreated(settings);
+        assertTribeNodeSuccessfullyCreated(settings);
     }
 
-    private static void assertTribeNodeSuccesfullyCreated(Settings extraSettings) throws Exception {
+    private static void assertTribeNodeSuccessfullyCreated(Settings extraSettings) throws Exception {
         //tribe node doesn't need the node.mode setting, as it's forced local internally anyways. The tribe clients do need it to make sure
         //they can find their corresponding tribes using the proper transport
         Settings settings = Settings.builder().put("http.enabled", false).put("node.name", "tribe_node")

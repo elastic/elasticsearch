@@ -133,6 +133,10 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
             Settings.Builder sb = Settings.builder().put(entry.getValue());
             sb.put("name", settings.get("name") + "/" + entry.getKey());
             sb.put("path.home", settings.get("path.home")); // pass through ES home dir
+            String confDir = settings.get("path.conf");
+            if (Strings.isEmpty(confDir) == false) {
+                sb.put("path.conf", confDir);
+            }
             sb.put(TRIBE_NAME, entry.getKey());
             if (sb.get("http.enabled") == null) {
                 sb.put("http.enabled", false);

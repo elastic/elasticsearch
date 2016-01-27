@@ -88,7 +88,7 @@ public class ClearRolesCacheTests extends ShieldIntegTestCase {
             logger.debug("--> created role [{}]", role);
         }
 
-        ensureYellow(ShieldTemplateService.SHIELD_ADMIN_INDEX_NAME);
+        ensureGreen(ShieldTemplateService.SHIELD_ADMIN_INDEX_NAME);
 
         // warm up the caches on every node
         for (ESNativeRolesStore rolesStore : internalCluster().getInstances(ESNativeRolesStore.class)) {
@@ -127,7 +127,7 @@ public class ClearRolesCacheTests extends ShieldIntegTestCase {
         assertRolesAreCorrect(shieldClient, toModify);
     }
 
-    public void testModifyingDocumentsDirectlyAndClearingCache() throws Exception {
+    public void testModifyingDocumentsDirectly() throws Exception {
         Client client = internalCluster().transportClient();
 
         int modifiedRolesCount = randomIntBetween(1, roles.length);
@@ -142,14 +142,9 @@ public class ClearRolesCacheTests extends ShieldIntegTestCase {
             logger.debug("--> updated role [{}] with run_as", role);
         }
 
+        // in this test, the poller runs too frequently to check the cache still has roles without run as
+        // clear the cache and we should definitely see the latest values!
         ShieldClient shieldClient = new ShieldClient(client);
-        for (String role : roles) {
-            GetRolesResponse roleResponse = shieldClient.prepareGetRoles().roles(role).get();
-            assertThat(roleResponse.isExists(), is(true));
-            final String[] runAs = roleResponse.roles().get(0).getRunAs();
-            assertThat("role [" + role + "] should be cached and no rules have run as set", runAs == null || runAs.length == 0, is(true));
-        }
-
         final boolean useHttp = randomBoolean();
         final boolean clearAll = randomBoolean();
         logger.debug("--> starting to clear roles. using http [{}] clearing all [{}]", useHttp, clearAll);

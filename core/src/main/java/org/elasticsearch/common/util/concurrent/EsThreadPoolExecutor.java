@@ -151,7 +151,7 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
         return runnable;
     }
 
-    private static class FilterAbstractRunnable extends AbstractRunnable {
+    private  class FilterAbstractRunnable extends AbstractRunnable {
         private final ThreadContext contextHolder;
         private final AbstractRunnable in;
         private final ThreadContext.StoredContext ctx;
@@ -184,9 +184,18 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
 
         @Override
         protected void doRun() throws Exception {
+            boolean started = false;
             try (ThreadContext.StoredContext ingore = contextHolder.stashContext()){
                 ctx.restore();
+                started = true;
                 in.doRun();
+            } catch (IllegalStateException ex) {
+                if (started || isShutdown() == false) {
+                    throw ex;
+                }
+                // if we hit an ISE here we have been shutting down
+                // this comes from the threadcontext and barfs if
+                // our threadpool has been shutting down
             }
         }
 
@@ -197,7 +206,7 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
 
     }
 
-    private static class FilterRunnable implements Runnable {
+    private  class FilterRunnable implements Runnable {
         private final ThreadContext contextHolder;
         private final Runnable in;
         private final ThreadContext.StoredContext ctx;
@@ -210,9 +219,18 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
 
         @Override
         public void run() {
+            boolean started = false;
             try (ThreadContext.StoredContext ingore = contextHolder.stashContext()){
                 ctx.restore();
+                started = true;
                 in.run();
+            } catch (IllegalStateException ex) {
+                if (started || isShutdown() == false) {
+                    throw ex;
+                }
+                // if we hit an ISE here we have been shutting down
+                // this comes from the threadcontext and barfs if
+                // our threadpool has been shutting down
             }
         }
         @Override

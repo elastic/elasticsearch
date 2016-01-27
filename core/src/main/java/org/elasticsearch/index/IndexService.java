@@ -147,9 +147,9 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
         this.listeners[0] = slowLog;
         System.arraycopy(listenersIn, 0, this.listeners, 1, listenersIn.length);
         // kick off async ops for the first shard in this index
-        this.fsyncTask = indexSettings.getTranslogDurability() == Translog.Durability.REQUEST ? null : new AsyncTranslogFSync(this);
         this.refreshTask = new AsyncRefreshTask(this);
         searchSlowLog = new SearchSlowLog(indexSettings);
+        rescheduleFsyncTask(indexSettings.getTranslogDurability());
     }
 
     public int numberOfShards() {
@@ -582,7 +582,9 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
 
     private void rescheduleFsyncTask(Translog.Durability durability) {
         try {
-            IOUtils.closeWhileHandlingException(fsyncTask);
+            if (fsyncTask != null) {
+                fsyncTask.close();
+            }
         } finally {
             fsyncTask = durability == Translog.Durability.REQUEST ? null : new AsyncTranslogFSync(this);
         }

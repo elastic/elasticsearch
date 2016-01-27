@@ -33,6 +33,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
+import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -54,6 +55,7 @@ import org.elasticsearch.search.fetch.innerhits.InnerHitsBuilder.InnerHit;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.highlight.HighlightBuilderTests;
 import org.elasticsearch.search.rescore.QueryRescoreBuilderTests;
+import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
@@ -261,6 +263,56 @@ public class SearchSourceBuilderTests extends ESTestCase {
                     break;
                 }
             }
+        }
+
+        if (randomBoolean()) {
+            int numSearchFrom = randomIntBetween(1, 5);
+            // We build a json version of the search_from first in order to
+            // ensure that every number type remain the same before/after xcontent (de)serialization.
+            // This is not a problem because the final type of each field value is extracted from associated sort field.
+            // This little trick ensure that equals and hashcode are the same when using the xcontent serialization.
+            XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
+            jsonBuilder.startObject();
+            jsonBuilder.startArray("search_from");
+            for (int i = 0; i < numSearchFrom; i++) {
+                int branch = randomInt(8);
+                switch (branch) {
+                    case 0:
+                        jsonBuilder.value(randomInt());
+                        break;
+                    case 1:
+                        jsonBuilder.value(randomFloat());
+                        break;
+                    case 2:
+                        jsonBuilder.value(randomLong());
+                        break;
+                    case 3:
+                        jsonBuilder.value(randomDouble());
+                        break;
+                    case 4:
+                        jsonBuilder.value(randomAsciiOfLengthBetween(5, 20));
+                        break;
+                    case 5:
+                        jsonBuilder.value(randomBoolean());
+                        break;
+                    case 6:
+                        jsonBuilder.value(randomByte());
+                        break;
+                    case 7:
+                        jsonBuilder.value(randomShort());
+                        break;
+                    case 8:
+                        jsonBuilder.value(new Text(randomAsciiOfLengthBetween(5, 20)));
+                        break;
+                }
+            }
+            jsonBuilder.endArray();
+            jsonBuilder.endObject();
+            XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(jsonBuilder.bytes());
+            parser.nextToken();
+            parser.nextToken();
+            parser.nextToken();
+            builder.searchAfter(SearchAfterBuilder.PROTOTYPE.fromXContent(parser, null).getSortValues());
         }
         if (randomBoolean()) {
             builder.highlighter(HighlightBuilderTests.randomHighlighterBuilder());

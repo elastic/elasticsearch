@@ -154,6 +154,10 @@
         "request_cache": {
           "type" : "boolean",
           "description" : "Specify if request cache should be used for this request or not, defaults to index level setting"
+        },
+        "search_after": {
+          "type" : "list",
+          "description" : "An array of sort values that indicates where the sort of the top hits should start"
         }
       }
     },

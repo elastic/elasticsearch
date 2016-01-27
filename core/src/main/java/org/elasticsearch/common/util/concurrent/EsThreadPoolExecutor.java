@@ -184,13 +184,14 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
 
         @Override
         protected void doRun() throws Exception {
-            boolean started = false;
+            boolean whileRunning = false;
             try (ThreadContext.StoredContext ingore = contextHolder.stashContext()){
                 ctx.restore();
-                started = true;
+                whileRunning = true;
                 in.doRun();
+                whileRunning = false;
             } catch (IllegalStateException ex) {
-                if (started || isShutdown() == false) {
+                if (whileRunning || isShutdown() == false) {
                     throw ex;
                 }
                 // if we hit an ISE here we have been shutting down
@@ -219,13 +220,14 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
 
         @Override
         public void run() {
-            boolean started = false;
+            boolean whileRunning = false;
             try (ThreadContext.StoredContext ingore = contextHolder.stashContext()){
                 ctx.restore();
-                started = true;
+                whileRunning = true;
                 in.run();
+                whileRunning = false;
             } catch (IllegalStateException ex) {
-                if (started || isShutdown() == false) {
+                if (whileRunning || isShutdown() == false) {
                     throw ex;
                 }
                 // if we hit an ISE here we have been shutting down

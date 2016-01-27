@@ -108,7 +108,7 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
     private final IndexingSlowLog slowLog;
     private final IndexingOperationListener[] listeners;
     private volatile AsyncRefreshTask refreshTask;
-    private final AsyncTranslogFSync fsyncTask;
+    private volatile AsyncTranslogFSync fsyncTask;
     private final SearchSlowLog searchSlowLog;
 
     public IndexService(IndexSettings indexSettings, NodeEnvironment nodeEnv,
@@ -147,11 +147,7 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
         this.listeners[0] = slowLog;
         System.arraycopy(listenersIn, 0, this.listeners, 1, listenersIn.length);
         // kick off async ops for the first shard in this index
-        if (this.indexSettings.getTranslogSyncInterval().millis() != 0) {
-            this.fsyncTask = new AsyncTranslogFSync(this);
-        } else {
-            this.fsyncTask = null;
-        }
+        this.fsyncTask = indexSettings.getTranslogDurability() == Translog.Durability.REQUEST ? null : new AsyncTranslogFSync(this);
         this.refreshTask = new AsyncRefreshTask(this);
         searchSlowLog = new SearchSlowLog(indexSettings);
     }
@@ -565,6 +561,7 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
     }
 
     public synchronized void updateMetaData(final IndexMetaData metadata) {
+        final Translog.Durability oldTranslogDurability = indexSettings.getTranslogDurability();
         if (indexSettings.updateIndexMetaData(metadata)) {
             for (final IndexShard shard : this.shards.values()) {
                 try {
@@ -576,6 +573,18 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
             if (refreshTask.getInterval().equals(indexSettings.getRefreshInterval()) == false) {
                 rescheduleRefreshTasks();
             }
+            final Translog.Durability durability = indexSettings.getTranslogDurability();
+            if (durability != oldTranslogDurability) {
+                rescheduleFsyncTask(durability);
+            }
+        }
+    }
+
+    private void rescheduleFsyncTask(Translog.Durability durability) {
+        try {
+            IOUtils.closeWhileHandlingException(fsyncTask);
+        } finally {
+            fsyncTask = durability == Translog.Durability.REQUEST ? null : new AsyncTranslogFSync(this);
         }
     }
 

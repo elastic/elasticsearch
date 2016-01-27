@@ -109,7 +109,7 @@ public class ShieldIndexSearcherWrapper extends IndexSearcherWrapper {
                 throw new IllegalStateException(LoggerMessageFormat.format("couldn't extract shardId from reader [{}]", reader));
             }
 
-            IndicesAccessControl.IndexAccessControl permissions = indicesAccessControl.getIndexPermissions(shardId.getIndex());
+            IndicesAccessControl.IndexAccessControl permissions = indicesAccessControl.getIndexPermissions(shardId.getIndexName());
             // No permissions have been defined for an index, so don't intercept the index reader for access control
             if (permissions == null) {
                 return reader;

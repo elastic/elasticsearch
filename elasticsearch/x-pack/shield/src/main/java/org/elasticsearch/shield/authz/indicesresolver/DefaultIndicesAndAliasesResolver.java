@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.authz.AuthorizationService;
@@ -142,8 +141,8 @@ public class DefaultIndicesAndAliasesResolver implements IndicesAndAliasesResolv
         //to make sure that the operation is executed on the aliases that we authorized it to execute on.
         //If we can't replace because we got an empty set, we can only throw exception.
         if (finalAliases.isEmpty()) {
-            Index index = matchAllAliases ? new Index(MetaData.ALL) : new Index(Arrays.toString(aliases));
-            throw new IndexNotFoundException(index.getName());
+            String indexName = matchAllAliases ? MetaData.ALL : Arrays.toString(aliases);
+            throw new IndexNotFoundException(indexName);
         }
         return finalAliases;
     }
@@ -231,8 +230,8 @@ public class DefaultIndicesAndAliasesResolver implements IndicesAndAliasesResolv
         //If we can't replace because we got an empty set, we can only throw exception.
         //Downside of this is that a single item exception is going to make fail the composite request that holds it as a whole.
         if (resolvedIndices == null || resolvedIndices.isEmpty()) {
-            Index index = IndexNameExpressionResolver.isAllIndices(indicesList(originalIndices)) ? new Index(MetaData.ALL) : new Index(Arrays.toString(originalIndices));
-            throw new IndexNotFoundException(index.getName());
+            String indexName = IndexNameExpressionResolver.isAllIndices(indicesList(originalIndices)) ? MetaData.ALL : Arrays.toString(originalIndices);
+            throw new IndexNotFoundException(indexName);
         }
         return resolvedIndices;
     }

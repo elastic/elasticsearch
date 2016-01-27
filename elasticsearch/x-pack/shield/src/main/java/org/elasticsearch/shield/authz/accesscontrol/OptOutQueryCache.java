@@ -52,23 +52,23 @@ public final class OptOutQueryCache extends AbstractIndexComponent implements Qu
         }
 
         // At this level only IndicesRequest
-        final String index;
+        final String indexName;
         if (context.getRequest() instanceof ShardSearchRequest) {
-            index = ((ShardSearchRequest) context.getRequest()).index();
+            indexName = ((ShardSearchRequest) context.getRequest()).index();
         } else if (context.getRequest() instanceof BroadcastShardRequest) {
-            index = ((BroadcastShardRequest) context.getRequest()).shardId().getIndex();
+            indexName = ((BroadcastShardRequest) context.getRequest()).shardId().getIndexName();
         } else {
             return weight;
         }
 
-        IndicesAccessControl.IndexAccessControl indexAccessControl = indicesAccessControl.getIndexPermissions(index);
+        IndicesAccessControl.IndexAccessControl indexAccessControl = indicesAccessControl.getIndexPermissions(indexName);
         if (indexAccessControl != null && indexAccessControl.getFields() != null) {
-            logger.debug("opting out of the query cache. request for index [{}] has field level security enabled", index);
+            logger.debug("opting out of the query cache. request for index [{}] has field level security enabled", indexName);
             // If in the future there is a Query#extractFields() then we can be smart on when to skip the query cache.
             // (only cache if all fields in the query also are defined in the role)
             return weight;
         } else {
-            logger.trace("not opting out of the query cache. request for index [{}] has field level security disabled", index);
+            logger.trace("not opting out of the query cache. request for index [{}] has field level security disabled", indexName);
             return indicesQueryCache.doCache(weight, policy);
         }
     }

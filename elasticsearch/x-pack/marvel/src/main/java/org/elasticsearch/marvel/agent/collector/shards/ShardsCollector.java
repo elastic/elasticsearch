@@ -60,7 +60,7 @@ public class ShardsCollector extends AbstractCollector<ShardsCollector> {
                     long timestamp = System.currentTimeMillis();
 
                     for (ShardRouting shard : shards) {
-                        if (match(shard.getIndex())) {
+                        if (match(shard.getIndexName())) {
                             results.add(new ShardMarvelDoc(null, TYPE, id(stateUUID, shard), clusterUUID, timestamp, shard, stateUUID));
                         }
                     }

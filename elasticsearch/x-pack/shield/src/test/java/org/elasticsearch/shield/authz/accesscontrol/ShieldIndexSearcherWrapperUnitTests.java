@@ -76,7 +76,7 @@ public class ShieldIndexSearcherWrapperUnitTests extends ESTestCase {
 
     @Before
     public void before() throws Exception {
-        Index index = new Index("_index");
+        Index index = new Index("_index", "testUUID");
         indexSettings = IndexSettingsModule.newIndexSettings(index, Settings.EMPTY);
         AnalysisService analysisService = new AnalysisService(indexSettings, Collections.emptyMap(), Collections.emptyMap(),
                 Collections.emptyMap(), Collections.emptyMap());
@@ -142,7 +142,6 @@ public class ShieldIndexSearcherWrapperUnitTests extends ESTestCase {
     }
 
     public void testWrapSearcherWhenFeatureDisabled() throws Exception {
-        ShardId shardId = new ShardId("_index", 0);
         shieldIndexSearcherWrapper = new ShieldIndexSearcherWrapper(indexSettings, null, mapperService, null, threadContext, licenseState);
         IndexSearcher indexSearcher = new IndexSearcher(esIn);
         IndexSearcher result = shieldIndexSearcherWrapper.wrap(indexSearcher);
@@ -241,8 +240,7 @@ public class ShieldIndexSearcherWrapperUnitTests extends ESTestCase {
     }
 
     public void testDelegateSimilarity() throws Exception {
-        ShardId shardId = new ShardId("_index", 0);
-        IndexSettings settings = IndexSettingsModule.newIndexSettings(new Index("_index"), Settings.EMPTY);
+        IndexSettings settings = IndexSettingsModule.newIndexSettings("_index", Settings.EMPTY);
         BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(settings, new IndicesWarmer(settings.getSettings(), null), new BitsetFilterCache.Listener() {
             @Override
             public void onCache(ShardId shardId, Accountable accountable) {

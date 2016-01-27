@@ -25,7 +25,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.mapper.MapperService;
@@ -33,7 +32,6 @@ import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesWarmer;
-import org.elasticsearch.shield.authz.InternalAuthorizationService;
 import org.elasticsearch.shield.license.ShieldLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -55,7 +53,7 @@ import static org.mockito.Mockito.when;
 public class ShieldIndexSearcherWrapperIntegrationTests extends ESTestCase {
 
     public void testDLS() throws Exception {
-        ShardId shardId = new ShardId("_index", 0);
+        ShardId shardId = new ShardId("_index", "_na_", 0);
         MapperService mapperService = mock(MapperService.class);
         when(mapperService.docMappers(anyBoolean())).thenReturn(Collections.emptyList());
         when(mapperService.simpleMatchToIndexNames(anyString())).then(new Answer<Collection<String>>() {
@@ -67,9 +65,9 @@ public class ShieldIndexSearcherWrapperIntegrationTests extends ESTestCase {
 
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         IndicesAccessControl.IndexAccessControl indexAccessControl = new IndicesAccessControl.IndexAccessControl(true, null, singleton(new BytesArray("{}")));
-        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(shardId.index(), Settings.EMPTY);
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(shardId.getIndex(), Settings.EMPTY);
         QueryShardContext queryShardContext = mock(QueryShardContext.class);
-        IndexSettings settings = IndexSettingsModule.newIndexSettings(new Index("_index"), Settings.EMPTY);
+        IndexSettings settings = IndexSettingsModule.newIndexSettings("_index", Settings.EMPTY);
         BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(settings, new IndicesWarmer(settings.getSettings(), null), new BitsetFilterCache.Listener() {
             @Override
             public void onCache(ShardId shardId, Accountable accountable) {

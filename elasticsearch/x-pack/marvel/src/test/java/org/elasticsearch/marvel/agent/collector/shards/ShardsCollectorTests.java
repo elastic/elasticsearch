@@ -138,7 +138,7 @@ public class ShardsCollectorTests extends AbstractCollectorTestCase {
         int[] shards = new int[nbIndices];
         for (MarvelDoc marvelDoc : results) {
             ShardRouting routing = ((ShardMarvelDoc) marvelDoc).getShardRouting();
-            int index = Integer.parseInt(routing.index().substring(indexPrefix.length()));
+            int index = Integer.parseInt(routing.getIndexName().substring(indexPrefix.length()));
             shards[index]++;
         }
 

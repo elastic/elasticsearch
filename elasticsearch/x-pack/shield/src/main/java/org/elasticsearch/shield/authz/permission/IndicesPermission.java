@@ -112,7 +112,7 @@ public interface IndicesPermission extends Permission, Iterable<IndicesPermissio
                 AliasOrIndex aliasOrIndex = allAliasesAndIndices.get(indexOrAlias);
                 if (aliasOrIndex != null) {
                     for (IndexMetaData indexMetaData : aliasOrIndex.getIndices()) {
-                        concreteIndices.add(indexMetaData.getIndex());
+                        concreteIndices.add(indexMetaData.getIndex().getName());
                     }
                 }
 

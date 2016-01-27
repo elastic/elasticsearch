@@ -55,7 +55,7 @@ public class SlowWatchStatsTests extends AbstractWatcherIntegrationTestCase {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 // So it is predictable how many slow watches we need to add to accumulate pending watches
-                .put(EsExecutors.PROCESSORS, "1")
+                .put(EsExecutors.PROCESSORS_SETTING.getKey(), "1")
                 .build();
     }
 

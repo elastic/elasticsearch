@@ -226,22 +226,22 @@ public final class SuggestUtils {
             } else if (parseFieldMatcher.match(fieldName, Fields.SORT)) {
                 suggestion.sort(SuggestUtils.resolveSort(parser.text()));
             } else if (parseFieldMatcher.match(fieldName, Fields.STRING_DISTANCE)) {
-            suggestion.stringDistance(SuggestUtils.resolveDistance(parser.text()));
+                suggestion.stringDistance(SuggestUtils.resolveDistance(parser.text()));
             } else if (parseFieldMatcher.match(fieldName, Fields.MAX_EDITS)) {
-            suggestion.maxEdits(parser.intValue());
+                suggestion.maxEdits(parser.intValue());
                 if (suggestion.maxEdits() < 1 || suggestion.maxEdits() > LevenshteinAutomata.MAXIMUM_SUPPORTED_DISTANCE) {
                     throw new IllegalArgumentException("Illegal max_edits value " + suggestion.maxEdits());
                 }
             } else if (parseFieldMatcher.match(fieldName, Fields.MAX_INSPECTIONS)) {
-            suggestion.maxInspections(parser.intValue());
+                suggestion.maxInspections(parser.intValue());
             } else if (parseFieldMatcher.match(fieldName, Fields.MAX_TERM_FREQ)) {
-            suggestion.maxTermFreq(parser.floatValue());
+                suggestion.maxTermFreq(parser.floatValue());
             } else if (parseFieldMatcher.match(fieldName, Fields.PREFIX_LENGTH)) {
-            suggestion.prefixLength(parser.intValue());
+                suggestion.prefixLength(parser.intValue());
             } else if (parseFieldMatcher.match(fieldName, Fields.MIN_WORD_LENGTH)) {
-            suggestion.minQueryLength(parser.intValue());
+                suggestion.minQueryLength(parser.intValue());
             } else if (parseFieldMatcher.match(fieldName, Fields.MIN_DOC_FREQ)) {
-            suggestion.minDocFreq(parser.floatValue());
+                suggestion.minDocFreq(parser.floatValue());
             } else {
                 return false;
             }

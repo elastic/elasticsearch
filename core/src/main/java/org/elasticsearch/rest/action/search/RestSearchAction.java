@@ -55,6 +55,7 @@ import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.search.suggest.SuggestBuilders.termSuggestion;
+import static org.elasticsearch.search.suggest.term.TermSuggestionBuilder.SuggestMode;
 
 /**
  *
@@ -262,7 +263,9 @@ public class RestSearchAction extends BaseRestHandler {
             int suggestSize = request.paramAsInt("suggest_size", 5);
             String suggestMode = request.param("suggest_mode");
             searchSourceBuilder.suggest(new SuggestBuilder().addSuggestion(
-                    termSuggestion(suggestField).field(suggestField).text(suggestText).size(suggestSize).suggestMode(suggestMode)));
+                    termSuggestion(suggestField).field(suggestField)
+                        .text(suggestText).size(suggestSize)
+                        .suggestMode(SuggestMode.fromString(suggestMode))));
             modified = true;
         }
         return modified;

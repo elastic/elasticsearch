@@ -49,9 +49,11 @@ import java.util.Set;
  */
 public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSuggestionBuilder> {
 
+    public static final CompletionSuggestionBuilder PROTOTYPE = new CompletionSuggestionBuilder("_na_"); // name doesn't matter
     final static String SUGGESTION_NAME = "completion";
     static final ParseField PAYLOAD_FIELD = new ParseField("payload");
     static final ParseField CONTEXTS_FIELD = new ParseField("contexts", "context");
+
     private FuzzyOptionsBuilder fuzzyOptionsBuilder;
     private RegexOptionsBuilder regexOptionsBuilder;
     private final Map<String, List<ToXContent>> queryContexts = new HashMap<>();

@@ -70,17 +70,9 @@ import static org.elasticsearch.ElasticsearchException.readStackTrace;
 
 public abstract class StreamInput extends InputStream {
 
-    private final NamedWriteableRegistry namedWriteableRegistry;
-
     private Version version = Version.CURRENT;
 
-    protected StreamInput() {
-        this.namedWriteableRegistry = new NamedWriteableRegistry();
-    }
-
-    protected StreamInput(NamedWriteableRegistry namedWriteableRegistry) {
-        this.namedWriteableRegistry = namedWriteableRegistry;
-    }
+    protected StreamInput() { }
 
     public Version getVersion() {
         return this.version;

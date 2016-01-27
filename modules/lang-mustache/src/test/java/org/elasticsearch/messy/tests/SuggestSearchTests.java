@@ -27,6 +27,8 @@ import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.search.suggest.SuggestBuilders.phraseSuggestion;
 import static org.elasticsearch.search.suggest.SuggestBuilders.termSuggestion;
 import static org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder.candidateGenerator;
+import static org.elasticsearch.search.suggest.SuggestionBuilder.SortBy;
+import static org.elasticsearch.search.suggest.SuggestionBuilder.SuggestMode;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSuggestion;
@@ -100,7 +102,7 @@ public class SuggestSearchTests extends ESIntegTestCase {
         refresh();
 
         TermSuggestionBuilder termSuggest = termSuggestion("test")
-                .suggestMode("always") // Always, otherwise the results can vary between requests.
+                .suggestMode(SuggestMode.ALWAYS) // Always, otherwise the results can vary between requests.
                 .text("abcd")
                 .field("text");
         logger.info("--> run suggestions with one index");
@@ -114,7 +116,7 @@ public class SuggestSearchTests extends ESIntegTestCase {
         index("test_1", "type1", "4", "text", "ab cc");
         refresh();
         termSuggest = termSuggestion("test")
-                .suggestMode("always") // Always, otherwise the results can vary between requests.
+                .suggestMode(SuggestMode.ALWAYS) // Always, otherwise the results can vary between requests.
                 .text("ab cd")
                 .minWordLength(1)
                 .field("text");
@@ -141,7 +143,7 @@ public class SuggestSearchTests extends ESIntegTestCase {
         refresh();
 
         termSuggest = termSuggestion("test")
-                .suggestMode("always") // Always, otherwise the results can vary between requests.
+                .suggestMode(SuggestMode.ALWAYS) // Always, otherwise the results can vary between requests.
                 .text("ab cd")
                 .minWordLength(1)
                 .field("text");
@@ -161,7 +163,7 @@ public class SuggestSearchTests extends ESIntegTestCase {
 
 
         termSuggest = termSuggestion("test")
-                .suggestMode("always") // Always, otherwise the results can vary between requests.
+                .suggestMode(SuggestMode.ALWAYS) // Always, otherwise the results can vary between requests.
                 .text("ABCD")
                 .minWordLength(1)
                 .field("text");
@@ -241,7 +243,7 @@ public class SuggestSearchTests extends ESIntegTestCase {
         assertThat("didn't ask for suggestions but got some", search.getSuggest(), nullValue());
 
         TermSuggestionBuilder termSuggestion = termSuggestion("test")
-                .suggestMode("always") // Always, otherwise the results can vary between requests.
+                .suggestMode(SuggestMode.ALWAYS) // Always, otherwise the results can vary between requests.
                 .text("abcd")
                 .field("text")
                 .size(10);
@@ -316,7 +318,7 @@ public class SuggestSearchTests extends ESIntegTestCase {
         assertThat("didn't ask for suggestions but got some", search.getSuggest(), nullValue());
 
         TermSuggestionBuilder termSuggest = termSuggestion("test")
-                .suggestMode("always") // Always, otherwise the results can vary between requests.
+                .suggestMode(SuggestMode.ALWAYS) // Always, otherwise the results can vary between requests.
                 .text("abcd")
                 .field("text");
         Suggest suggest = searchSuggest( termSuggest);
@@ -336,7 +338,7 @@ public class SuggestSearchTests extends ESIntegTestCase {
         refresh();
 
         TermSuggestionBuilder termSuggest = termSuggestion("test")
-                .suggestMode("always") // Always, otherwise the results can vary between requests.
+                .suggestMode(SuggestMode.ALWAYS) // Always, otherwise the results can vary between requests.
                 .text("abcd")
                 .field("text");
         Suggest suggest = searchSuggest( termSuggest);
@@ -361,13 +363,13 @@ public class SuggestSearchTests extends ESIntegTestCase {
         Suggest suggest = searchSuggest(
                 termSuggestion("size1")
                         .size(1).text("prefix_abcd").maxTermFreq(10).prefixLength(1).minDocFreq(0)
-                        .field("field1").suggestMode("always"),
+                        .field("field1").suggestMode(SuggestMode.ALWAYS),
                 termSuggestion("field2")
                         .field("field2").text("prefix_eeeh prefix_efgh")
-                        .maxTermFreq(10).minDocFreq(0).suggestMode("always"),
+                        .maxTermFreq(10).minDocFreq(0).suggestMode(SuggestMode.ALWAYS),
                 termSuggestion("accuracy")
-                        .field("field2").text("prefix_efgh").setAccuracy(1f)
-                        .maxTermFreq(10).minDocFreq(0).suggestMode("always"));
+                        .field("field2").text("prefix_efgh").accuracy(1f)
+                        .maxTermFreq(10).minDocFreq(0).suggestMode(SuggestMode.ALWAYS));
         assertSuggestion(suggest, 0, "size1", "prefix_aacd");
         assertThat(suggest.getSuggestion("field2").getEntries().get(0).getText().string(), equalTo("prefix_eeeh"));
         assertSuggestion(suggest, 0, "field2", "prefix_efgh");
@@ -403,15 +405,15 @@ public class SuggestSearchTests extends ESIntegTestCase {
 
         Suggest suggest = searchSuggest( "prefix_abcd",
                 termSuggestion("size3SortScoreFirst")
-                        .size(3).minDocFreq(0).field("field1").suggestMode("always"),
+                        .size(3).minDocFreq(0).field("field1").suggestMode(SuggestMode.ALWAYS),
                 termSuggestion("size10SortScoreFirst")
-                        .size(10).minDocFreq(0).field("field1").suggestMode("always").shardSize(50),
+                        .size(10).minDocFreq(0).field("field1").suggestMode(SuggestMode.ALWAYS).shardSize(50),
                 termSuggestion("size3SortScoreFirstMaxEdits1")
                         .maxEdits(1)
-                        .size(10).minDocFreq(0).field("field1").suggestMode("always"),
+                        .size(10).minDocFreq(0).field("field1").suggestMode(SuggestMode.ALWAYS),
                 termSuggestion("size10SortFrequencyFirst")
-                        .size(10).sort("frequency").shardSize(1000)
-                        .minDocFreq(0).field("field1").suggestMode("always"));
+                        .size(10).sort(SortBy.FREQUENCY).shardSize(1000)
+                        .minDocFreq(0).field("field1").suggestMode(SuggestMode.ALWAYS));
 
         // The commented out assertions fail sometimes because suggestions are based off of shard frequencies instead of index frequencies.
         assertSuggestion(suggest, 0, "size3SortScoreFirst", "prefix_aacd", "prefix_abcc", "prefix_accd");
@@ -784,7 +786,7 @@ public class SuggestSearchTests extends ESIntegTestCase {
 
         Suggest suggest = searchSuggest( "foobar",
                 termSuggestion("simple")
-                        .size(10).minDocFreq(0).field("field1").suggestMode("always"));
+                        .size(10).minDocFreq(0).field("field1").suggestMode(SuggestMode.ALWAYS));
         ElasticsearchAssertions.assertSuggestionSize(suggest, 0, 3, "simple");
     }
 

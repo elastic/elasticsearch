@@ -53,6 +53,7 @@ public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> extends 
     protected static final ParseField SHARDSIZE_FIELD = new ParseField("shard_size");
 
     public SuggestionBuilder(String name) {
+        Objects.requireNonNull(name, "Suggester 'name' cannot be null");
         this.name = name;
     }
 
@@ -296,4 +297,5 @@ public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> extends 
      * HashCode for the subclass of {@link SuggestionBuilder} to implement.
      */
     protected abstract int doHashCode();
+
 }

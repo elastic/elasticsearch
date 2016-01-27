@@ -19,32 +19,30 @@
 package org.elasticsearch.search.suggest;
 
 import org.elasticsearch.action.support.ToXContentToBytes;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Defines how to perform suggesting. This builders allows a number of global options to be specified and
- * an arbitrary number of {@link org.elasticsearch.search.suggest.term.TermSuggestionBuilder} instances.
+ * an arbitrary number of {@link SuggestionBuilder} instances.
  * <p>
- * Suggesting works by suggesting terms that appear in the suggest text that are similar compared to the terms in
- * provided text. These spelling suggestions are based on several options described in this class.
+ * Suggesting works by suggesting terms/phrases that appear in the suggest text that are similar compared
+ * to the terms in provided text. These suggestions are based on several options described in this class.
  */
-public class SuggestBuilder extends ToXContentToBytes {
+public class SuggestBuilder extends ToXContentToBytes implements Writeable<SuggestBuilder> {
 
-    private final String name;
     private String globalText;
-
     private final List<SuggestionBuilder<?>> suggestions = new ArrayList<>();
 
     public SuggestBuilder() {
-        this.name = null;
-    }
-
-    public SuggestBuilder(String name) {
-        this.name = name;
     }
 
     /**
@@ -54,7 +52,7 @@ public class SuggestBuilder extends ToXContentToBytes {
      * The suggest text gets analyzed by the suggest analyzer or the suggest field search analyzer.
      * For each analyzed token, suggested terms are suggested if possible.
      */
-    public SuggestBuilder setText(String globalText) {
+    public SuggestBuilder setText(@Nullable String globalText) {
         this.globalText = globalText;
         return this;
     }
@@ -77,12 +75,7 @@ public class SuggestBuilder extends ToXContentToBytes {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        if(name == null) {
-            builder.startObject();
-        } else {
-            builder.startObject(name);
-        }
-
+        builder.startObject();
         if (globalText != null) {
             builder.field("text", globalText);
         }
@@ -92,4 +85,45 @@ public class SuggestBuilder extends ToXContentToBytes {
         builder.endObject();
         return builder;
     }
+
+    @Override
+    public SuggestBuilder readFrom(StreamInput in) throws IOException {
+        final SuggestBuilder builder = new SuggestBuilder();
+        builder.globalText = in.readOptionalString();
+        final int size = in.readVInt();
+        for (int i = 0; i < size; i++) {
+            builder.suggestions.add(in.readSuggestion());
+        }
+        return builder;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeOptionalString(globalText);
+        final int size = suggestions.size();
+        out.writeVInt(size);
+        for (int i = 0; i < size; i++) {
+            out.writeSuggestion(suggestions.get(i));
+        }
+    }
+
+    @Override
+    public boolean equals(Object other) {
+        if (this == other) {
+            return true;
+        }
+        if (other == null || getClass() != other.getClass()) {
+            return false;
+        }
+        @SuppressWarnings("unchecked")
+        SuggestBuilder o = (SuggestBuilder)other;
+        return Objects.equals(globalText, o.globalText) &&
+               Objects.equals(suggestions, o.suggestions);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(globalText, suggestions);
+    }
+
 }

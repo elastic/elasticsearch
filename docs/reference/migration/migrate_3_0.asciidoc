@@ -16,6 +16,7 @@ your application to Elasticsearch 3.0.
 * <<breaking_30_thread_pool>>
 * <<breaking_30_allocation>>
 * <<breaking_30_percolator>>
+* <<breaking_30_packaging>>
 
 [[breaking_30_search_changes]]
 === Warmers
@@ -256,6 +257,11 @@ amount of heap as long as the total indexing buffer heap used across all shards 
 [[breaking_30_mapping_changes]]
 === Mapping changes
 
+==== Default doc values settings
+
+Doc values are now also on by default on numeric and boolean fields that are
+not indexed.
+
 ==== Transform removed
 
 The `transform` feature from mappings has been removed. It made issues very hard to debug.
@@ -266,6 +272,12 @@ When a floating-point number is encountered, it is now dynamically mapped as a
 float by default instead of a double. The reasoning is that floats should be
 more than enough for most cases but would decrease storage requirements
 significantly.
+
+==== `index` property
+
+On all types but `string`, the `index` property now only accepts `true`/`false`
+instead of `not_analyzed`/`no`. The `string` field still accepts
+`analyzed`/`not_analyzed`/`no`.
 
 ==== `_source`'s `format` option
 
@@ -286,6 +298,12 @@ values as follows:
   "boost": 42
 }
 ----
+
+==== `fielddata.format`
+
+Setting `fielddata.format: doc_values` in the mappings used to implicitly
+enable doc values on a field. This no longer works: the only way to enable or
+disable doc values is by using the `doc_values` property of mappings.
 
 
 [[breaking_30_plugins]]
@@ -544,6 +562,10 @@ to index a document only if it doesn't already exist.
 
 `InternalLineStringBuilder` is removed in favour of `LineStringBuilder`, `InternalPolygonBuilder` in favour of PolygonBuilder` and `Ring` has been replaced with `LineStringBuilder`. Also the abstract base classes `BaseLineStringBuilder` and `BasePolygonBuilder` haven been merged with their corresponding implementations.
 
+==== RescoreBuilder
+
+`RecoreBuilder.Rescorer` was merged with `RescoreBuilder`, which now is an abstract superclass. QueryRescoreBuilder currently is its only implementation.
+
 [[breaking_30_cache_concurrency]]
 === Cache concurrency level settings removed
 
@@ -643,4 +665,22 @@ The percolate api can no longer accept documents that have fields that don't exi
 When percolating an existing document then specifying a document in the source of the percolate request is not allowed
 any more.
 
+The percolate api no longer modifies the mappings. Before the percolate api could be used to dynamically introduce new
+fields to the mappings based on the fields in the document being percolated. This no longer works, because these
+unmapped fields are not persisted in the mapping.
+
 Percolator documents are no longer excluded from the search response.
+
+[[breaking_30_packaging]]
+=== Packaging
+
+==== Default logging using systemd (since Elasticsearch 2.2.0)
+
+In previous versions of Elasticsearch, the default logging
+configuration routed standard output to /dev/null and standard error to
+the journal. However, there are often critical error messages at
+startup that are logged to standard output rather than standard error
+and these error messages would be lost to the nether. The default has
+changed to now route standard output to the journal and standard error
+to inherit this setting (these are the defaults for systemd). These
+settings can be modified by editing the elasticsearch.service file.

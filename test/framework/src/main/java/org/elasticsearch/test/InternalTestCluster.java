@@ -24,7 +24,6 @@ import com.carrotsearch.randomizedtesting.SysGlobals;
 import com.carrotsearch.randomizedtesting.generators.RandomInts;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
-
 import org.apache.lucene.store.StoreRateLimiting;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
@@ -63,6 +62,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.discovery.DiscoveryService;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.IndexModule;
@@ -145,11 +145,6 @@ import static org.junit.Assert.fail;
 public final class InternalTestCluster extends TestCluster {
 
     private final ESLogger logger = Loggers.getLogger(getClass());
-
-    /**
-     * A node level setting that holds a per node random seed that is consistent across node restarts
-     */
-    public static final String SETTING_CLUSTER_NODE_SEED = "test.cluster.node.seed";
 
     /**
      * The number of ports in the range used for this JVM
@@ -287,16 +282,16 @@ public final class InternalTestCluster extends TestCluster {
                 for (int i = 0; i < numOfDataPaths; i++) {
                     dataPath.append(baseDir.resolve("d" + i).toAbsolutePath()).append(',');
                 }
-                builder.put("path.data", dataPath.toString());
+                builder.put(Environment.PATH_DATA_SETTING.getKey(), dataPath.toString());
             }
         }
-        builder.put("path.shared_data", baseDir.resolve("custom"));
-        builder.put("path.home", baseDir);
-        builder.put("path.repo", baseDir.resolve("repos"));
+        builder.put(Environment.PATH_SHARED_DATA_SETTING.getKey(), baseDir.resolve("custom"));
+        builder.put(Environment.PATH_HOME_SETTING.getKey(), baseDir);
+        builder.put(Environment.PATH_REPO_SETTING.getKey(), baseDir.resolve("repos"));
         builder.put("transport.tcp.port", TRANSPORT_BASE_PORT + "-" + (TRANSPORT_BASE_PORT + PORTS_PER_CLUSTER));
         builder.put("http.port", HTTP_BASE_PORT + "-" + (HTTP_BASE_PORT + PORTS_PER_CLUSTER));
         builder.put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING, true);
-        builder.put("node.mode", nodeMode);
+        builder.put(Node.NODE_MODE_SETTING.getKey(), nodeMode);
         builder.put("http.pipelining", enableHttpPipelining);
         if (Strings.hasLength(System.getProperty("es.logger.level"))) {
             builder.put("logger.level", System.getProperty("es.logger.level"));
@@ -327,10 +322,10 @@ public final class InternalTestCluster extends TestCluster {
             return "local"; // default if nothing is specified
         }
         if (Strings.hasLength(System.getProperty("es.node.mode"))) {
-            builder.put("node.mode", System.getProperty("es.node.mode"));
+            builder.put(Node.NODE_MODE_SETTING.getKey(), System.getProperty("es.node.mode"));
         }
         if (Strings.hasLength(System.getProperty("es.node.local"))) {
-            builder.put("node.local", System.getProperty("es.node.local"));
+            builder.put(Node.NODE_LOCAL_SETTING.getKey(), System.getProperty("es.node.local"));
         }
         if (DiscoveryNode.localNode(builder.build())) {
             return "local";
@@ -381,8 +376,7 @@ public final class InternalTestCluster extends TestCluster {
 
     private Settings getRandomNodeSettings(long seed) {
         Random random = new Random(seed);
-        Builder builder = Settings.settingsBuilder()
-                .put(SETTING_CLUSTER_NODE_SEED, seed);
+        Builder builder = Settings.settingsBuilder();
         if (isLocalTransportConfigured() == false) {
             builder.put(Transport.TRANSPORT_TCP_COMPRESS.getKey(), rarely(random));
         }
@@ -390,19 +384,15 @@ public final class InternalTestCluster extends TestCluster {
             builder.put("cache.recycler.page.type", RandomPicks.randomFrom(random, PageCacheRecycler.Type.values()));
         }
         if (random.nextInt(10) == 0) { // 10% of the nodes have a very frequent check interval
-            builder.put(SearchService.KEEPALIVE_INTERVAL_KEY, TimeValue.timeValueMillis(10 + random.nextInt(2000)));
+            builder.put(SearchService.KEEPALIVE_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(10 + random.nextInt(2000)));
         } else if (random.nextInt(10) != 0) { // 90% of the time - 10% of the time we don't set anything
-            builder.put(SearchService.KEEPALIVE_INTERVAL_KEY, TimeValue.timeValueSeconds(10 + random.nextInt(5 * 60)));
+            builder.put(SearchService.KEEPALIVE_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(10 + random.nextInt(5 * 60)));
         }
         if (random.nextBoolean()) { // sometimes set a
-            builder.put(SearchService.DEFAULT_KEEPALIVE_KEY, TimeValue.timeValueSeconds(100 + random.nextInt(5 * 60)));
+            builder.put(SearchService.DEFAULT_KEEPALIVE_SETTING.getKey(), TimeValue.timeValueSeconds(100 + random.nextInt(5 * 60)));
         }
 
-        if (random.nextInt(10) == 0) {
-            // node gets an extra cpu this time
-            builder.put(EsExecutors.PROCESSORS, 1 + EsExecutors.boundedNumberOfProcessors(Settings.EMPTY));
-        }
-
+        builder.put(EsExecutors.PROCESSORS_SETTING.getKey(), 1 + random.nextInt(3));
         if (random.nextBoolean()) {
             if (random.nextBoolean()) {
                 builder.put("indices.fielddata.cache.size", 1 + random.nextInt(1000), ByteSizeUnit.MB);
@@ -458,7 +448,7 @@ public final class InternalTestCluster extends TestCluster {
         }
 
         if (random.nextBoolean()) {
-            builder.put(ScriptService.SCRIPT_CACHE_SIZE_SETTING, RandomInts.randomIntBetween(random, -100, 2000));
+            builder.put(ScriptService.SCRIPT_CACHE_SIZE_SETTING.getKey(), RandomInts.randomIntBetween(random, 0, 2000));
         }
         if (random.nextBoolean()) {
             builder.put(ScriptService.SCRIPT_CACHE_EXPIRE_SETTING, TimeValue.timeValueMillis(RandomInts.randomIntBetween(random, 750, 10000000)));
@@ -595,10 +585,10 @@ public final class InternalTestCluster extends TestCluster {
         String name = buildNodeName(nodeId);
         assert !nodes.containsKey(name);
         Settings finalSettings = settingsBuilder()
-                .put("path.home", baseDir) // allow overriding path.home
+                .put(Environment.PATH_HOME_SETTING.getKey(), baseDir) // allow overriding path.home
                 .put(settings)
                 .put("name", name)
-                .put(DiscoveryService.SETTING_DISCOVERY_SEED, seed)
+                .put(DiscoveryService.DISCOVERY_SEED_SETTING.getKey(), seed)
                 .build();
         MockNode node = new MockNode(finalSettings, version, plugins);
         return new NodeAndClient(name, node);
@@ -676,10 +666,10 @@ public final class InternalTestCluster extends TestCluster {
 
     public synchronized Client startNodeClient(Settings settings) {
         ensureOpen(); // currently unused
-        Builder builder = settingsBuilder().put(settings).put("node.client", true);
+        Builder builder = settingsBuilder().put(settings).put(Node.NODE_CLIENT_SETTING.getKey(), true);
         if (size() == 0) {
             // if we are the first node - don't wait for a state
-            builder.put("discovery.initial_state_timeout", 0);
+            builder.put(DiscoveryService.INITIAL_STATE_TIMEOUT_SETTING.getKey(), 0);
         }
         String name = startNode(builder);
         return nodes.get(name).nodeClient();
@@ -845,8 +835,8 @@ public final class InternalTestCluster extends TestCluster {
                     IOUtils.rm(nodeEnv.nodeDataPaths());
                 }
             }
-            final long newIdSeed = node.settings().getAsLong(DiscoveryService.SETTING_DISCOVERY_SEED, 0l) + 1; // use a new seed to make sure we have new node id
-            Settings finalSettings = Settings.builder().put(node.settings()).put(newSettings).put(DiscoveryService.SETTING_DISCOVERY_SEED, newIdSeed).build();
+            final long newIdSeed = DiscoveryService.DISCOVERY_SEED_SETTING.get(node.settings()) + 1; // use a new seed to make sure we have new node id
+            Settings finalSettings = Settings.builder().put(node.settings()).put(newSettings).put(DiscoveryService.DISCOVERY_SEED_SETTING.getKey(), newIdSeed).build();
             Collection<Class<? extends Plugin>> plugins = node.getPlugins();
             Version version = node.getVersion();
             node = new MockNode(finalSettings, version, plugins);
@@ -891,15 +881,18 @@ public final class InternalTestCluster extends TestCluster {
             Settings nodeSettings = node.settings();
             Builder builder = settingsBuilder()
                     .put("client.transport.nodes_sampler_interval", "1s")
-                    .put("path.home", baseDir)
+                    .put(Environment.PATH_HOME_SETTING.getKey(), baseDir)
                     .put("name", TRANSPORT_CLIENT_PREFIX + node.settings().get("name"))
                     .put(ClusterName.SETTING, clusterName).put("client.transport.sniff", sniff)
-                    .put("node.mode", nodeSettings.get("node.mode", nodeMode))
-                    .put("node.local", nodeSettings.get("node.local", ""))
+                    .put(Node.NODE_MODE_SETTING.getKey(), Node.NODE_MODE_SETTING.exists(nodeSettings) ? Node.NODE_MODE_SETTING.get(nodeSettings) : nodeMode)
                     .put("logger.prefix", nodeSettings.get("logger.prefix", ""))
                     .put("logger.level", nodeSettings.get("logger.level", "INFO"))
                     .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING, true)
                     .put(settings);
+
+            if (Node.NODE_LOCAL_SETTING.exists(nodeSettings)) {
+                builder.put(Node.NODE_LOCAL_SETTING.getKey(), Node.NODE_LOCAL_SETTING.get(nodeSettings));
+            }
 
             TransportClient.Builder clientBuilder = TransportClient.builder().settings(builder.build());
             for (Class<? extends Plugin> plugin : plugins) {
@@ -957,7 +950,7 @@ public final class InternalTestCluster extends TestCluster {
             NodeAndClient nodeAndClient = nodes.get(buildNodeName);
             if (nodeAndClient == null) {
                 changed = true;
-                Builder clientSettingsBuilder = Settings.builder().put("node.client", true);
+                Builder clientSettingsBuilder = Settings.builder().put(Node.NODE_CLIENT_SETTING.getKey(), true);
                 nodeAndClient = buildNode(i, sharedNodesSeeds[i], clientSettingsBuilder.build(), Version.CURRENT);
                 nodeAndClient.node.start();
                 logger.info("Start Shared Node [{}] not shared", nodeAndClient.name);
@@ -1467,7 +1460,7 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     public synchronized Async<List<String>> startMasterOnlyNodesAsync(int numNodes, Settings settings) {
-        Settings settings1 = Settings.builder().put(settings).put("node.master", true).put("node.data", false).build();
+        Settings settings1 = Settings.builder().put(settings).put(Node.NODE_MASTER_SETTING.getKey(), true).put(Node.NODE_DATA_SETTING.getKey(), false).build();
         return startNodesAsync(numNodes, settings1, Version.CURRENT);
     }
 
@@ -1476,7 +1469,7 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     public synchronized Async<List<String>> startDataOnlyNodesAsync(int numNodes, Settings settings) {
-        Settings settings1 = Settings.builder().put(settings).put("node.master", false).put("node.data", true).build();
+        Settings settings1 = Settings.builder().put(settings).put(Node.NODE_MASTER_SETTING.getKey(), false).put(Node.NODE_DATA_SETTING.getKey(), true).build();
         return startNodesAsync(numNodes, settings1, Version.CURRENT);
     }
 
@@ -1485,12 +1478,12 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     public synchronized Async<String> startMasterOnlyNodeAsync(Settings settings) {
-        Settings settings1 = Settings.builder().put(settings).put("node.master", true).put("node.data", false).build();
+        Settings settings1 = Settings.builder().put(settings).put(Node.NODE_MASTER_SETTING.getKey(), true).put(Node.NODE_DATA_SETTING.getKey(), false).build();
         return startNodeAsync(settings1, Version.CURRENT);
     }
 
     public synchronized String startMasterOnlyNode(Settings settings) {
-        Settings settings1 = Settings.builder().put(settings).put("node.master", true).put("node.data", false).build();
+        Settings settings1 = Settings.builder().put(settings).put(Node.NODE_MASTER_SETTING.getKey(), true).put(Node.NODE_DATA_SETTING.getKey(), false).build();
         return startNode(settings1, Version.CURRENT);
     }
 
@@ -1499,12 +1492,12 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     public synchronized Async<String> startDataOnlyNodeAsync(Settings settings) {
-        Settings settings1 = Settings.builder().put(settings).put("node.master", false).put("node.data", true).build();
+        Settings settings1 = Settings.builder().put(settings).put(Node.NODE_MASTER_SETTING.getKey(), false).put(Node.NODE_DATA_SETTING.getKey(), true).build();
         return startNodeAsync(settings1, Version.CURRENT);
     }
 
     public synchronized String startDataOnlyNode(Settings settings) {
-        Settings settings1 = Settings.builder().put(settings).put("node.master", false).put("node.data", true).build();
+        Settings settings1 = Settings.builder().put(settings).put(Node.NODE_MASTER_SETTING.getKey(), false).put(Node.NODE_DATA_SETTING.getKey(), true).build();
         return startNode(settings1, Version.CURRENT);
     }
 

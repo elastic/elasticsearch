@@ -48,7 +48,7 @@ public class NativeScriptTests extends ESTestCase {
     public void testNativeScript() throws InterruptedException {
         Settings settings = Settings.settingsBuilder()
                 .put("name", "testNativeScript")
-                .put("path.home", createTempDir())
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .build();
         ScriptModule scriptModule = new ScriptModule(settings);
         scriptModule.registerScript("my", MyNativeScriptFactory.class);
@@ -75,7 +75,7 @@ public class NativeScriptTests extends ESTestCase {
             String scriptContext = randomFrom(ScriptContext.Standard.values()).getKey();
             builder.put(ScriptModes.SCRIPT_SETTINGS_PREFIX + scriptContext, randomFrom(ScriptMode.values()));
         }
-        Settings settings = builder.put("path.home", createTempDir()).build();
+        Settings settings = builder.put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
         Environment environment = new Environment(settings);
         ResourceWatcherService resourceWatcherService = new ResourceWatcherService(settings, null);
         Map<String, NativeScriptFactory> nativeScriptFactoryMap = new HashMap<>();

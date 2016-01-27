@@ -101,6 +101,7 @@ public class PluginManager {
             "discovery-ec2",
             "discovery-gce",
             "discovery-multicast",
+            "ingest-geoip",
             "lang-javascript",
             "lang-plan-a",
             "lang-python",
@@ -258,9 +259,7 @@ public class PluginManager {
         }
 
         // check for jar hell before any copying
-        if (info.isJvm()) {
-            jarHellCheck(root, info.isIsolated());
-        }
+        jarHellCheck(root, info.isIsolated());
 
         // read optional security policy (extra permissions)
         // if it exists, confirm or warn the user

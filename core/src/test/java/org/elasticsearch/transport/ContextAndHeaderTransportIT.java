@@ -37,6 +37,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -67,7 +68,6 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.node.Node.HTTP_ENABLED;
 import static org.elasticsearch.rest.RestStatus.OK;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -89,10 +89,10 @@ public class ContextAndHeaderTransportIT extends ESIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return settingsBuilder()
-            .put(super.nodeSettings(nodeOrdinal))
-            .put("script.indexed", "on")
-            .put(HTTP_ENABLED, true)
-            .build();
+                .put(super.nodeSettings(nodeOrdinal))
+                .put("script.indexed", "on")
+                .put(NetworkModule.HTTP_ENABLED.getKey(), true)
+                .build();
     }
 
     @Override

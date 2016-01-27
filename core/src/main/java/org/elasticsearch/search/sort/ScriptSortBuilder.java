@@ -22,11 +22,8 @@ package org.elasticsearch.search.sort;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptService.ScriptType;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  * Script sort builder allows to sort based on a custom script expression.
@@ -35,16 +32,7 @@ public class ScriptSortBuilder extends SortBuilder {
 
     private Script script;
 
-    @Deprecated
-    private String scriptString;
-
     private final String type;
-
-    @Deprecated
-    private String lang;
-
-    @Deprecated
-    private Map<String, Object> params;
 
     private SortOrder order;
 
@@ -63,66 +51,6 @@ public class ScriptSortBuilder extends SortBuilder {
     public ScriptSortBuilder(Script script, String type) {
         this.script = script;
         this.type = type;
-    }
-
-    /**
-     * Constructs a script sort builder with the script and the type.
-     *
-     * @param script
-     *            The script to use.
-     * @param type
-     *            The type, can either be "string" or "number".
-     *
-     * @deprecated Use {@link #ScriptSortBuilder(Script, String)} instead.
-     */
-    @Deprecated
-    public ScriptSortBuilder(String script, String type) {
-        this.scriptString = script;
-        this.type = type;
-    }
-
-    /**
-     * Adds a parameter to the script.
-     *
-     * @param name
-     *            The name of the parameter.
-     * @param value
-     *            The value of the parameter.
-     *
-     * @deprecated Use {@link #ScriptSortBuilder(Script, String)} instead.
-     */
-    @Deprecated
-    public ScriptSortBuilder param(String name, Object value) {
-        if (params == null) {
-            params = new HashMap<>();
-        }
-        params.put(name, value);
-        return this;
-    }
-
-    /**
-     * Sets parameters for the script.
-     *
-     * @param params
-     *            The script parameters
-     *
-     * @deprecated Use {@link #ScriptSortBuilder(Script, String)} instead.
-     */
-    @Deprecated
-    public ScriptSortBuilder setParams(Map<String, Object> params) {
-        this.params = params;
-        return this;
-    }
-
-    /**
-     * The language of the script.
-     *
-     * @deprecated Use {@link #ScriptSortBuilder(Script, String)} instead.
-     */
-    @Deprecated
-    public ScriptSortBuilder lang(String lang) {
-        this.lang = lang;
-        return this;
     }
 
     /**
@@ -172,12 +100,7 @@ public class ScriptSortBuilder extends SortBuilder {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params builderParams) throws IOException {
         builder.startObject("_script");
-        if (script == null) {
-
-            builder.field("script", new Script(scriptString, ScriptType.INLINE, lang, params));
-        } else {
-            builder.field("script", script);
-        }
+        builder.field("script", script);
         builder.field("type", type);
         if (order == SortOrder.DESC) {
             builder.field("reverse", true);
@@ -189,7 +112,7 @@ public class ScriptSortBuilder extends SortBuilder {
             builder.field("nested_path", nestedPath);
         }
         if (nestedFilter != null) {
-            builder.field("nested_filter", nestedFilter, params);
+            builder.field("nested_filter", nestedFilter, builderParams);
         }
         builder.endObject();
         return builder;

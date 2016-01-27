@@ -29,6 +29,7 @@ import org.elasticsearch.threadpool.ThreadPool.Names;
 import java.lang.reflect.Field;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
@@ -47,6 +48,7 @@ import static org.hamcrest.Matchers.sameInstance;
 /**
  */
 public class UpdateThreadPoolSettingsTests extends ESTestCase {
+
     public void testCorrectThreadPoolTypePermittedInSettings() throws InterruptedException {
         String threadPoolName = randomThreadPoolName();
         ThreadPool.ThreadPoolType correctThreadPoolType = ThreadPool.THREAD_POOL_TYPES.get(threadPoolName);
@@ -452,11 +454,10 @@ public class UpdateThreadPoolSettingsTests extends ESTestCase {
         Set<ThreadPool.ThreadPoolType> set = new HashSet<>();
         set.addAll(Arrays.asList(ThreadPool.ThreadPoolType.values()));
         set.remove(ThreadPool.THREAD_POOL_TYPES.get(threadPoolName));
-        ThreadPool.ThreadPoolType invalidThreadPoolType = randomFrom(set.toArray(new ThreadPool.ThreadPoolType[set.size()]));
-        return invalidThreadPoolType;
+        return randomFrom(set.toArray(new ThreadPool.ThreadPoolType[set.size()]));
     }
 
     private String randomThreadPool(ThreadPool.ThreadPoolType type) {
-        return randomFrom(ThreadPool.THREAD_POOL_TYPES.entrySet().stream().filter(t -> t.getValue().equals(type)).map(t -> t.getKey()).collect(Collectors.toList()));
+        return randomFrom(ThreadPool.THREAD_POOL_TYPES.entrySet().stream().filter(t -> t.getValue().equals(type)).map(Map.Entry::getKey).collect(Collectors.toList()));
     }
 }

@@ -117,13 +117,9 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static java.util.Collections.unmodifiableMap;
-import static org.elasticsearch.common.network.NetworkService.TcpSettings.TCP_BLOCKING;
 import static org.elasticsearch.common.network.NetworkService.TcpSettings.TCP_BLOCKING_CLIENT;
 import static org.elasticsearch.common.network.NetworkService.TcpSettings.TCP_BLOCKING_SERVER;
 import static org.elasticsearch.common.network.NetworkService.TcpSettings.TCP_CONNECT_TIMEOUT;
-import static org.elasticsearch.common.network.NetworkService.TcpSettings.TCP_DEFAULT_CONNECT_TIMEOUT;
-import static org.elasticsearch.common.network.NetworkService.TcpSettings.TCP_DEFAULT_RECEIVE_BUFFER_SIZE;
-import static org.elasticsearch.common.network.NetworkService.TcpSettings.TCP_DEFAULT_SEND_BUFFER_SIZE;
 import static org.elasticsearch.common.network.NetworkService.TcpSettings.TCP_KEEP_ALIVE;
 import static org.elasticsearch.common.network.NetworkService.TcpSettings.TCP_NO_DELAY;
 import static org.elasticsearch.common.network.NetworkService.TcpSettings.TCP_RECEIVE_BUFFER_SIZE;
@@ -221,8 +217,8 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         }
 
         this.workerCount = settings.getAsInt(WORKER_COUNT, EsExecutors.boundedNumberOfProcessors(settings) * 2);
-        this.blockingClient = settings.getAsBoolean("transport.netty.transport.tcp.blocking_client", settings.getAsBoolean(TCP_BLOCKING_CLIENT, settings.getAsBoolean(TCP_BLOCKING, false)));
-        this.connectTimeout = this.settings.getAsTime("transport.netty.connect_timeout", settings.getAsTime("transport.tcp.connect_timeout", settings.getAsTime(TCP_CONNECT_TIMEOUT, TCP_DEFAULT_CONNECT_TIMEOUT)));
+        this.blockingClient = settings.getAsBoolean("transport.netty.transport.tcp.blocking_client", TCP_BLOCKING_CLIENT.get(settings));
+        this.connectTimeout = this.settings.getAsTime("transport.netty.connect_timeout", settings.getAsTime("transport.tcp.connect_timeout", TCP_CONNECT_TIMEOUT.get(settings)));
         this.maxCumulationBufferCapacity = this.settings.getAsBytesSize("transport.netty.max_cumulation_buffer_capacity", null);
         this.maxCompositeBufferComponents = this.settings.getAsInt("transport.netty.max_composite_buffer_components", -1);
         this.compress = Transport.TRANSPORT_TCP_COMPRESS.get(settings);
@@ -362,29 +358,25 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         clientBootstrap.setPipelineFactory(configureClientChannelPipelineFactory());
         clientBootstrap.setOption("connectTimeoutMillis", connectTimeout.millis());
 
-        String tcpNoDelay = settings.get("transport.netty.tcp_no_delay", settings.get(TCP_NO_DELAY, "true"));
-        if (!"default".equals(tcpNoDelay)) {
-            clientBootstrap.setOption("tcpNoDelay", Booleans.parseBoolean(tcpNoDelay, null));
-        }
+        boolean tcpNoDelay = settings.getAsBoolean("transport.netty.tcp_no_delay", TCP_NO_DELAY.get(settings));
+        clientBootstrap.setOption("tcpNoDelay", tcpNoDelay);
 
-        String tcpKeepAlive = settings.get("transport.netty.tcp_keep_alive", settings.get(TCP_KEEP_ALIVE, "true"));
-        if (!"default".equals(tcpKeepAlive)) {
-            clientBootstrap.setOption("keepAlive", Booleans.parseBoolean(tcpKeepAlive, null));
-        }
+        boolean tcpKeepAlive = settings.getAsBoolean("transport.netty.tcp_keep_alive", TCP_KEEP_ALIVE.get(settings));
+        clientBootstrap.setOption("keepAlive", tcpKeepAlive);
 
-        ByteSizeValue tcpSendBufferSize = settings.getAsBytesSize("transport.netty.tcp_send_buffer_size", settings.getAsBytesSize(TCP_SEND_BUFFER_SIZE, TCP_DEFAULT_SEND_BUFFER_SIZE));
-        if (tcpSendBufferSize != null && tcpSendBufferSize.bytes() > 0) {
+        ByteSizeValue tcpSendBufferSize = settings.getAsBytesSize("transport.netty.tcp_send_buffer_size", TCP_SEND_BUFFER_SIZE.get(settings));
+        if (tcpSendBufferSize.bytes() > 0) {
             clientBootstrap.setOption("sendBufferSize", tcpSendBufferSize.bytes());
         }
 
-        ByteSizeValue tcpReceiveBufferSize = settings.getAsBytesSize("transport.netty.tcp_receive_buffer_size", settings.getAsBytesSize(TCP_RECEIVE_BUFFER_SIZE, TCP_DEFAULT_RECEIVE_BUFFER_SIZE));
-        if (tcpReceiveBufferSize != null && tcpReceiveBufferSize.bytes() > 0) {
+        ByteSizeValue tcpReceiveBufferSize = settings.getAsBytesSize("transport.netty.tcp_receive_buffer_size", TCP_RECEIVE_BUFFER_SIZE.get(settings));
+        if (tcpReceiveBufferSize.bytes() > 0) {
             clientBootstrap.setOption("receiveBufferSize", tcpReceiveBufferSize.bytes());
         }
 
         clientBootstrap.setOption("receiveBufferSizePredictorFactory", receiveBufferSizePredictorFactory);
 
-        boolean reuseAddress = settings.getAsBoolean("transport.netty.reuse_address", settings.getAsBoolean(TCP_REUSE_ADDRESS, NetworkUtils.defaultReuseAddress()));
+        boolean reuseAddress = settings.getAsBoolean("transport.netty.reuse_address", TCP_REUSE_ADDRESS.get(settings));
         clientBootstrap.setOption("reuseAddress", reuseAddress);
 
         return clientBootstrap;
@@ -403,26 +395,22 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             fallbackSettingsBuilder.put("publish_host", fallbackPublishHost);
         }
 
-        String fallbackTcpNoDelay = settings.get("transport.netty.tcp_no_delay", settings.get(TCP_NO_DELAY, "true"));
-        if (fallbackTcpNoDelay != null) {
-            fallbackSettingsBuilder.put("tcp_no_delay", fallbackTcpNoDelay);
-        }
+        boolean fallbackTcpNoDelay = settings.getAsBoolean("transport.netty.tcp_no_delay", TCP_NO_DELAY.get(settings));
+        fallbackSettingsBuilder.put("tcp_no_delay", fallbackTcpNoDelay);
 
-        String fallbackTcpKeepAlive = settings.get("transport.netty.tcp_keep_alive", settings.get(TCP_KEEP_ALIVE, "true"));
-        if (fallbackTcpKeepAlive != null) {
+        boolean fallbackTcpKeepAlive = settings.getAsBoolean("transport.netty.tcp_keep_alive", TCP_KEEP_ALIVE.get(settings));
             fallbackSettingsBuilder.put("tcp_keep_alive", fallbackTcpKeepAlive);
-        }
 
-        boolean fallbackReuseAddress = settings.getAsBoolean("transport.netty.reuse_address", settings.getAsBoolean(TCP_REUSE_ADDRESS, NetworkUtils.defaultReuseAddress()));
+        boolean fallbackReuseAddress = settings.getAsBoolean("transport.netty.reuse_address", TCP_REUSE_ADDRESS.get(settings));
         fallbackSettingsBuilder.put("reuse_address", fallbackReuseAddress);
 
-        ByteSizeValue fallbackTcpSendBufferSize = settings.getAsBytesSize("transport.netty.tcp_send_buffer_size", settings.getAsBytesSize(TCP_SEND_BUFFER_SIZE, TCP_DEFAULT_SEND_BUFFER_SIZE));
-        if (fallbackTcpSendBufferSize != null) {
+        ByteSizeValue fallbackTcpSendBufferSize = settings.getAsBytesSize("transport.netty.tcp_send_buffer_size", TCP_SEND_BUFFER_SIZE.get(settings));
+        if (fallbackTcpSendBufferSize.bytes() >= 0) {
             fallbackSettingsBuilder.put("tcp_send_buffer_size", fallbackTcpSendBufferSize);
         }
 
-        ByteSizeValue fallbackTcpBufferSize = settings.getAsBytesSize("transport.netty.tcp_receive_buffer_size", settings.getAsBytesSize(TCP_RECEIVE_BUFFER_SIZE, TCP_DEFAULT_RECEIVE_BUFFER_SIZE));
-        if (fallbackTcpBufferSize != null) {
+        ByteSizeValue fallbackTcpBufferSize = settings.getAsBytesSize("transport.netty.tcp_receive_buffer_size", TCP_RECEIVE_BUFFER_SIZE.get(settings));
+        if (fallbackTcpBufferSize.bytes() >= 0) {
             fallbackSettingsBuilder.put("tcp_receive_buffer_size", fallbackTcpBufferSize);
         }
 
@@ -552,15 +540,15 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
     }
 
     private void createServerBootstrap(String name, Settings settings) {
-        boolean blockingServer = settings.getAsBoolean("transport.tcp.blocking_server", this.settings.getAsBoolean(TCP_BLOCKING_SERVER, this.settings.getAsBoolean(TCP_BLOCKING, false)));
+        boolean blockingServer = settings.getAsBoolean("transport.tcp.blocking_server", TCP_BLOCKING_SERVER.get(settings));
         String port = settings.get("port");
         String bindHost = settings.get("bind_host");
         String publishHost = settings.get("publish_host");
         String tcpNoDelay = settings.get("tcp_no_delay");
         String tcpKeepAlive = settings.get("tcp_keep_alive");
         boolean reuseAddress = settings.getAsBoolean("reuse_address", NetworkUtils.defaultReuseAddress());
-        ByteSizeValue tcpSendBufferSize = settings.getAsBytesSize("tcp_send_buffer_size", TCP_DEFAULT_SEND_BUFFER_SIZE);
-        ByteSizeValue tcpReceiveBufferSize = settings.getAsBytesSize("tcp_receive_buffer_size", TCP_DEFAULT_RECEIVE_BUFFER_SIZE);
+        ByteSizeValue tcpSendBufferSize = settings.getAsBytesSize("tcp_send_buffer_size", TCP_SEND_BUFFER_SIZE.getDefault(settings));
+        ByteSizeValue tcpReceiveBufferSize = settings.getAsBytesSize("tcp_receive_buffer_size", TCP_RECEIVE_BUFFER_SIZE.getDefault(settings));
 
         logger.debug("using profile[{}], worker_count[{}], port[{}], bind_host[{}], publish_host[{}], compress[{}], connect_timeout[{}], connections_per_node[{}/{}/{}/{}/{}], receive_predictor[{}->{}]",
                 name, workerCount, port, bindHost, publishHost, compress, connectTimeout, connectionsPerNodeRecovery, connectionsPerNodeBulk, connectionsPerNodeReg, connectionsPerNodeState, connectionsPerNodePing, receivePredictorMin, receivePredictorMax);

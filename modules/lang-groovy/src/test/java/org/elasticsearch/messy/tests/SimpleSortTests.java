@@ -55,7 +55,6 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.VersionUtils;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -109,7 +108,6 @@ public class SimpleSortTests extends ESIntegTestCase {
         return pluginList(GroovyPlugin.class, InternalSettingsPlugin.class);
     }
 
-    @TestLogging("action.search.type:TRACE")
     @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch/issues/9421")
     public void testIssue8226() {
         int numIndices = between(5, 10);
@@ -195,7 +193,7 @@ public class SimpleSortTests extends ESIntegTestCase {
 
     public void testIssue6639() throws ExecutionException, InterruptedException {
         assertAcked(prepareCreate("$index")
-                .addMapping("$type","{\"$type\": {\"properties\": {\"grantee\": {\"index\": \"not_analyzed\", \"term_vector\": \"with_positions_offsets\", \"type\": \"string\", \"analyzer\": \"snowball\", \"boost\": 1.0, \"store\": \"yes\"}}}}"));
+                .addMapping("$type","{\"$type\": {\"properties\": {\"grantee\": {\"index\": \"not_analyzed\", \"term_vector\": \"with_positions_offsets\", \"type\": \"string\", \"analyzer\": \"snowball\", \"boost\": 1.0, \"store\": true}}}}"));
         indexRandom(true,
                 client().prepareIndex("$index", "$type", "data.activity.5").setSource("{\"django_ct\": \"data.activity\", \"grantee\": \"Grantee 1\"}"),
                 client().prepareIndex("$index", "$type", "data.activity.6").setSource("{\"django_ct\": \"data.activity\", \"grantee\": \"Grantee 2\"}"));

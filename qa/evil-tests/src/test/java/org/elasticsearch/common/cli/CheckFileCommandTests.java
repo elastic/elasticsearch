@@ -124,7 +124,7 @@ public class CheckFileCommandTests extends ESTestCase {
         try (FileSystem fs = Jimfs.newFileSystem(configuration)) {
             Path path = fs.getPath(randomAsciiOfLength(10));
             Settings settings = Settings.builder()
-                    .put("path.home", createTempDir().toString())
+                    .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                     .build();
             new CreateFileCommand(captureOutputTerminal, path).execute(settings, new Environment(settings));
             assertThat(Files.exists(path), is(true));
@@ -141,7 +141,7 @@ public class CheckFileCommandTests extends ESTestCase {
             Files.write(path, "anything".getBytes(StandardCharsets.UTF_8));
 
             Settings settings = Settings.builder()
-                    .put("path.home", createTempDir().toString())
+                    .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                     .build();
             new DeleteFileCommand(captureOutputTerminal, path).execute(settings, new Environment(settings));
             assertThat(Files.exists(path), is(false));
@@ -173,7 +173,7 @@ public class CheckFileCommandTests extends ESTestCase {
             this.fs = fs;
             this.paths = new Path[] { writePath(fs, "p1", "anything"), writePath(fs, "p2", "anything"), writePath(fs, "p3", "anything") };
             Settings settings = Settings.settingsBuilder()
-                    .put("path.home", baseDir.toString())
+                    .put(Environment.PATH_HOME_SETTING.getKey(), baseDir.toString())
                     .build();
             return super.execute(Settings.EMPTY, new Environment(settings));
         }

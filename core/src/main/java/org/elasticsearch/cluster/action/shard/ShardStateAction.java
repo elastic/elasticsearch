@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.MasterNodeChangePredicate;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -61,6 +62,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.routing.ShardRouting.readShardRoutingEntry;
 
@@ -91,7 +94,7 @@ public class ShardStateAction extends AbstractComponent {
             logger.warn("{} no master known for action [{}] for shard [{}]", shardRoutingEntry.getShardRouting().shardId(), actionName, shardRoutingEntry.getShardRouting());
             waitForNewMasterAndRetry(actionName, observer, shardRoutingEntry, listener);
         } else {
-            logger.debug("{} sending [{}] to [{}] for shard [{}]", shardRoutingEntry.getShardRouting().getId(), actionName, masterNode.getId(), shardRoutingEntry);
+            logger.debug("{} sending [{}] to [{}] for shard [{}]", shardRoutingEntry.getShardRouting().shardId(), actionName, masterNode.getId(), shardRoutingEntry);
             transportService.sendRequest(masterNode,
                 actionName, shardRoutingEntry, new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
                     @Override
@@ -146,7 +149,7 @@ public class ShardStateAction extends AbstractComponent {
 
             @Override
             public void onClusterServiceClose() {
-                logger.warn("{} node closed while execution action [{}] for shard [{}]", shardRoutingEntry.failure, shardRoutingEntry.getShardRouting().getId(), actionName, shardRoutingEntry.getShardRouting());
+                logger.warn("{} node closed while execution action [{}] for shard [{}]", shardRoutingEntry.failure, shardRoutingEntry.getShardRouting().shardId(), actionName, shardRoutingEntry.getShardRouting());
                 listener.onFailure(new NodeClosedException(clusterService.localNode()));
             }
 
@@ -211,12 +214,12 @@ public class ShardStateAction extends AbstractComponent {
         }
     }
 
-    private static class ShardFailedClusterStateTaskExecutor implements ClusterStateTaskExecutor<ShardRoutingEntry> {
+    static class ShardFailedClusterStateTaskExecutor implements ClusterStateTaskExecutor<ShardRoutingEntry> {
         private final AllocationService allocationService;
         private final RoutingService routingService;
         private final ESLogger logger;
 
-        public ShardFailedClusterStateTaskExecutor(AllocationService allocationService, RoutingService routingService, ESLogger logger) {
+        ShardFailedClusterStateTaskExecutor(AllocationService allocationService, RoutingService routingService, ESLogger logger) {
             this.allocationService = allocationService;
             this.routingService = routingService;
             this.logger = logger;
@@ -225,21 +228,54 @@ public class ShardStateAction extends AbstractComponent {
         @Override
         public BatchResult<ShardRoutingEntry> execute(ClusterState currentState, List<ShardRoutingEntry> tasks) throws Exception {
             BatchResult.Builder<ShardRoutingEntry> batchResultBuilder = BatchResult.builder();
-            List<FailedRerouteAllocation.FailedShard> failedShards = new ArrayList<>(tasks.size());
-            for (ShardRoutingEntry task : tasks) {
-                failedShards.add(new FailedRerouteAllocation.FailedShard(task.shardRouting, task.message, task.failure));
-            }
+
+            // partition tasks into those that correspond to shards
+            // that exist versus do not exist
+            Map<Boolean, List<ShardRoutingEntry>> partition =
+                tasks.stream().collect(Collectors.partitioningBy(task -> shardExists(currentState, task)));
+
+            // tasks that correspond to non-existent shards are marked
+            // as successful
+            batchResultBuilder.successes(partition.get(false));
+
             ClusterState maybeUpdatedState = currentState;
+            List<ShardRoutingEntry> tasksToFail = partition.get(true);
             try {
-                RoutingAllocation.Result result = allocationService.applyFailedShards(currentState, failedShards);
+                List<FailedRerouteAllocation.FailedShard> failedShards =
+                    tasksToFail
+                        .stream()
+                        .map(task -> new FailedRerouteAllocation.FailedShard(task.shardRouting, task.message, task.failure))
+                        .collect(Collectors.toList());
+                RoutingAllocation.Result result = applyFailedShards(currentState, failedShards);
                 if (result.changed()) {
                     maybeUpdatedState = ClusterState.builder(currentState).routingResult(result).build();
                 }
-                batchResultBuilder.successes(tasks);
+                batchResultBuilder.successes(tasksToFail);
             } catch (Throwable t) {
-                batchResultBuilder.failures(tasks, t);
+                // failures are communicated back to the requester
+                // cluster state will not be updated in this case
+                batchResultBuilder.failures(tasksToFail, t);
             }
+
             return batchResultBuilder.build(maybeUpdatedState);
+        }
+
+        // visible for testing
+        RoutingAllocation.Result applyFailedShards(ClusterState currentState, List<FailedRerouteAllocation.FailedShard> failedShards) {
+            return allocationService.applyFailedShards(currentState, failedShards);
+        }
+
+        private boolean shardExists(ClusterState currentState, ShardRoutingEntry task) {
+            RoutingNodes.RoutingNodeIterator routingNodeIterator =
+                currentState.getRoutingNodes().routingNodeIter(task.getShardRouting().currentNodeId());
+            if (routingNodeIterator != null) {
+                for (ShardRouting maybe : routingNodeIterator) {
+                    if (task.getShardRouting().isSameAllocation(maybe)) {
+                        return true;
+                    }
+                }
+            }
+            return false;
         }
 
         @Override

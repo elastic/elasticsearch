@@ -51,11 +51,11 @@ class PluginPropertiesTask extends Copy {
             if (extension.description == null) {
                 throw new InvalidUserDataException('description is a required setting for esplugin')
             }
-            if (extension.jvm && extension.classname == null) {
-                throw new InvalidUserDataException('classname is a required setting for esplugin with jvm=true')
+            if (extension.classname == null) {
+                throw new InvalidUserDataException('classname is a required setting for esplugin')
             }
             doFirst {
-                if (extension.jvm && extension.isolated == false) {
+                if (extension.isolated == false) {
                     String warning = "WARNING: Disabling plugin isolation in ${project.path} is deprecated and will be removed in the future"
                     logger.warn("${'=' * warning.length()}\n${warning}\n${'=' * warning.length()}")
                 }
@@ -74,10 +74,8 @@ class PluginPropertiesTask extends Copy {
             'version': extension.version,
             'elasticsearchVersion': VersionProperties.elasticsearch,
             'javaVersion': project.targetCompatibility as String,
-            'jvm': extension.jvm as String,
-            'site': extension.site as String,
             'isolated': extension.isolated as String,
-            'classname': extension.jvm ? extension.classname : 'NA'
+            'classname': extension.classname
         ]
     }
 }

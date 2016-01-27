@@ -230,7 +230,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         SuggestResponse suggestResponse = client().suggest(request).get();
         assertThat(suggestResponse.getSuccessfulShards(), equalTo(0));
         for (ShardOperationFailedException exception : suggestResponse.getShardFailures()) {
-            assertThat(exception.reason(), containsString("ParsingException[[completion] failed to parse field [payload]]; nested: IllegalStateException[expected value but got [START_OBJECT]]"));
+            assertThat(exception.reason(), containsString("ParsingException[[completion] failed to parse field [payload]]; nested: IllegalStateException[Can't get text on a START_OBJECT"));
         }
     }
 

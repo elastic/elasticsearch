@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDeci
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.recovery.RecoveryState;
@@ -438,11 +439,11 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
     public void testRecoveryDifferentNodeOrderStartup() throws Exception {
         // we need different data paths so we make sure we start the second node fresh
 
-        final String node_1 = internalCluster().startNode(settingsBuilder().put("path.data", createTempDir()).build());
+        final String node_1 = internalCluster().startNode(settingsBuilder().put(Environment.PATH_DATA_SETTING.getKey(), createTempDir()).build());
 
         client().prepareIndex("test", "type1", "1").setSource("field", "value").execute().actionGet();
 
-        internalCluster().startNode(settingsBuilder().put("path.data", createTempDir()).build());
+        internalCluster().startNode(settingsBuilder().put(Environment.PATH_DATA_SETTING.getKey(), createTempDir()).build());
 
         ensureGreen();
 

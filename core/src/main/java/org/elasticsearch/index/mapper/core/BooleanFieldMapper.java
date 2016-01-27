@@ -40,7 +40,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.lenientNodeBooleanValue;
 import static org.elasticsearch.index.mapper.MapperBuilders.booleanField;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseMultiField;
@@ -106,7 +106,7 @@ public class BooleanFieldMapper extends FieldMapper {
                     if (propNode == null) {
                         throw new MapperParsingException("Property [null_value] cannot be null.");
                     }
-                    builder.nullValue(nodeBooleanValue(propNode));
+                    builder.nullValue(lenientNodeBooleanValue(propNode));
                     iterator.remove();
                 } else if (parseMultiField(builder, name, parserContext, propName, propNode)) {
                     iterator.remove();
@@ -225,7 +225,9 @@ public class BooleanFieldMapper extends FieldMapper {
         if (value == null) {
             return;
         }
-        fields.add(new Field(fieldType().name(), value ? "T" : "F", fieldType()));
+        if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
+            fields.add(new Field(fieldType().name(), value ? "T" : "F", fieldType()));
+        }
         if (fieldType().hasDocValues()) {
             fields.add(new SortedNumericDocValuesField(fieldType().name(), value ? 1 : 0));
         }

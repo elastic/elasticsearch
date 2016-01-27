@@ -186,7 +186,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         Version version = randomBoolean() ? Version.CURRENT : VersionUtils.randomVersionBetween(random(), Version.V_2_0_0_beta1, Version.CURRENT);
         Settings settings = Settings.settingsBuilder()
                 .put("name", AbstractQueryTestCase.class.toString())
-                .put("path.home", createTempDir())
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING, false)
                 .build();
         Settings indexSettings = Settings.settingsBuilder()
@@ -218,7 +218,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                     @Override
                     protected void configure() {
                         Settings settings = Settings.builder()
-                                .put("path.home", createTempDir())
+                                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                                 // no file watching, so we don't need a ResourceWatcherService
                                 .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING, false)
                                 .build();

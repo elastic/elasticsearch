@@ -20,6 +20,7 @@
 package org.elasticsearch.index.analysis;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -32,7 +33,7 @@ import static org.hamcrest.Matchers.instanceOf;
 public class SimpleIcuAnalysisTests extends ESTestCase {
     public void testDefaultsIcuAnalysis() throws IOException {
         Settings settings = settingsBuilder()
-                .put("path.home", createTempDir()).build();
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
         AnalysisService analysisService = createAnalysisService(settings);
 
         TokenizerFactory tokenizerFactory = analysisService.tokenizer("icu_tokenizer");

@@ -154,11 +154,9 @@ public class BootstrapForTesting {
                     try (InputStream stream = url.openStream()) {
                         properties.load(stream);
                     }
-                    if (Boolean.parseBoolean(properties.getProperty("jvm"))) {
-                        String clazz = properties.getProperty("classname");
-                        if (clazz != null) {
-                            Class.forName(clazz);
-                        }
+                    String clazz = properties.getProperty("classname");
+                    if (clazz != null) {
+                        Class.forName(clazz);
                     }
                 }
             } catch (Exception e) {

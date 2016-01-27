@@ -38,7 +38,7 @@ public class FileScriptTests extends ESTestCase {
         Path mockscript = scriptsDir.resolve("script1.mockscript");
         Files.write(mockscript, "1".getBytes("UTF-8"));
         settings = Settings.builder()
-            .put("path.home", homeDir)
+            .put(Environment.PATH_HOME_SETTING.getKey(), homeDir)
                 // no file watching, so we don't need a ResourceWatcherService
             .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING, false)
             .put(settings)
@@ -60,7 +60,8 @@ public class FileScriptTests extends ESTestCase {
             .put("script.engine." + MockScriptEngine.NAME + ".file.aggs", false)
             .put("script.engine." + MockScriptEngine.NAME + ".file.search", false)
             .put("script.engine." + MockScriptEngine.NAME + ".file.mapping", false)
-            .put("script.engine." + MockScriptEngine.NAME + ".file.update", false).build();
+            .put("script.engine." + MockScriptEngine.NAME + ".file.update", false)
+            .put("script.engine." + MockScriptEngine.NAME + ".file.ingest", false).build();
         ScriptService scriptService = makeScriptService(settings);
         Script script = new Script("script1", ScriptService.ScriptType.FILE, MockScriptEngine.NAME, null);
         for (ScriptContext context : ScriptContext.Standard.values()) {

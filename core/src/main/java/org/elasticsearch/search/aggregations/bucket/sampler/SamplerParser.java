@@ -23,7 +23,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParser;
 import org.elasticsearch.search.internal.SearchContext;
@@ -56,10 +55,10 @@ public class SamplerParser implements Aggregator.Parser {
         String executionHint = null;
         int shardSize = DEFAULT_SHARD_SAMPLE_SIZE;
         int maxDocsPerValue = MAX_DOCS_PER_VALUE_DEFAULT;
+        ValuesSourceParser vsParser = null;
         boolean diversityChoiceMade = false;
 
-        ValuesSourceParser<ValuesSource> vsParser = ValuesSourceParser.any(aggregationName, InternalSampler.TYPE, context).scriptable(true)
-                .formattable(false).build();
+        vsParser = ValuesSourceParser.any(aggregationName, InternalSampler.TYPE, context).scriptable(true).formattable(false).build();
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -89,7 +88,7 @@ public class SamplerParser implements Aggregator.Parser {
             }
         }
 
-        ValuesSourceConfig<ValuesSource> vsConfig = vsParser.config();
+        ValuesSourceConfig vsConfig = vsParser.config();
         if (vsConfig.valid()) {
             return new SamplerAggregator.DiversifiedFactory(aggregationName, shardSize, executionHint, vsConfig, maxDocsPerValue);
         } else {

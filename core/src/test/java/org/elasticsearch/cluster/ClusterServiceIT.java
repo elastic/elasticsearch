@@ -35,6 +35,7 @@ import org.elasticsearch.common.inject.Singleton;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -305,7 +306,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
                 .build();
 
         InternalTestCluster.Async<String> master = internalCluster().startNodeAsync(settings);
-        InternalTestCluster.Async<String> nonMaster = internalCluster().startNodeAsync(settingsBuilder().put(settings).put("node.master", false).build());
+        InternalTestCluster.Async<String> nonMaster = internalCluster().startNodeAsync(settingsBuilder().put(settings).put(Node.NODE_MASTER_SETTING.getKey(), false).build());
         master.get();
         ensureGreen(); // make sure we have a cluster
 
@@ -642,7 +643,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
         Settings settings = settingsBuilder()
                 .put("discovery.type", "zen")
                 .put("discovery.zen.minimum_master_nodes", 1)
-                .put(ZenDiscovery.SETTING_PING_TIMEOUT, "400ms")
+                .put(ZenDiscovery.PING_TIMEOUT_SETTING.getKey(), "400ms")
                 .put("discovery.initial_state_timeout", "500ms")
                 .build();
 

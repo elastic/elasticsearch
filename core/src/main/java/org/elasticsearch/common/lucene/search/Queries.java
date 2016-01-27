@@ -117,12 +117,6 @@ public class Queries {
         if (minimumShouldMatch == null) {
             return query;
         }
-        // Queries with a single word expanded with synonyms 
-        // have their coordination factor disabled (@see org.apache.lucene.util.QueryBuilder#analyzeBoolean()).
-        // minimumShouldMatch should not be applicable in such case.
-        if (query.isCoordDisabled()) {
-            return query;
-        }
         int optionalClauses = 0;
         for (BooleanClause c : query.clauses()) {
             if (c.getOccur() == BooleanClause.Occur.SHOULD) {

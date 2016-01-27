@@ -20,6 +20,7 @@ package org.elasticsearch.rest;
 
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -47,9 +48,9 @@ public class CorsRegexIT extends ESIntegTestCase {
         return Settings.settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(SETTING_CORS_ALLOW_ORIGIN, "/https?:\\/\\/localhost(:[0-9]+)?/")
-                .put(SETTING_CORS_ALLOW_CREDENTIALS, true)
-                .put(SETTING_CORS_ENABLED, true)
-                .put(Node.HTTP_ENABLED, true)
+                .put(SETTING_CORS_ALLOW_CREDENTIALS.getKey(), true)
+                .put(SETTING_CORS_ENABLED.getKey(), true)
+                .put(NetworkModule.HTTP_ENABLED.getKey(), true)
                 .build();
     }
 

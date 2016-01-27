@@ -7,12 +7,12 @@
                     "mapping":{
                         "type":"{dynamic_type}",
                         "index":"analyzed",
-                        "store":"yes",
+                        "store":true,
                         "fields":{
                             "org":{
                                 "type":"{dynamic_type}",
                                 "index":"not_analyzed",
-                                "store":"yes"
+                                "store":true
                             }
                         }
                     }

@@ -112,9 +112,6 @@ public class PluginBuildPlugin extends BuildPlugin {
                 include 'config/**'
                 include 'bin/**'
             }
-            from('src/site') {
-                include '_site/**'
-            }
         }
         project.assemble.dependsOn(bundle)
 

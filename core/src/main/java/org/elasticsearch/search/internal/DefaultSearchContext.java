@@ -27,7 +27,9 @@ import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
@@ -115,6 +117,7 @@ public class DefaultSearchContext extends SearchContext {
     private Sort sort;
     private Float minimumScore;
     private boolean trackScores = false; // when sorting, track scores as well...
+    private FieldDoc searchAfter;
     /**
      * The original query as sent by the user without the types and aliases
      * applied. Putting things in here leaks them into highlighting so don't add
@@ -547,6 +550,17 @@ public class DefaultSearchContext extends SearchContext {
     @Override
     public boolean trackScores() {
         return this.trackScores;
+    }
+
+    @Override
+    public SearchContext searchAfter(FieldDoc searchAfter) {
+        this.searchAfter = searchAfter;
+        return this;
+    }
+
+    @Override
+    public FieldDoc searchAfter() {
+        return searchAfter;
     }
 
     @Override

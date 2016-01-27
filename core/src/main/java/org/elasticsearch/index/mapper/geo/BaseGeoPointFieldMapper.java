@@ -199,17 +199,17 @@ public abstract class BaseGeoPointFieldMapper extends FieldMapper implements Arr
                 String propName = Strings.toUnderscoreCase(entry.getKey());
                 Object propNode = entry.getValue();
                 if (propName.equals("lat_lon")) {
-                    builder.enableLatLon(XContentMapValues.nodeBooleanValue(propNode));
+                    builder.enableLatLon(XContentMapValues.lenientNodeBooleanValue(propNode));
                     iterator.remove();
                 } else if (propName.equals("precision_step")) {
                     builder.precisionStep(XContentMapValues.nodeIntegerValue(propNode));
                     iterator.remove();
                 } else if (propName.equals("geohash")) {
-                    builder.enableGeoHash(XContentMapValues.nodeBooleanValue(propNode));
+                    builder.enableGeoHash(XContentMapValues.lenientNodeBooleanValue(propNode));
                     iterator.remove();
                 } else if (propName.equals("geohash_prefix")) {
-                    builder.geoHashPrefix(XContentMapValues.nodeBooleanValue(propNode));
-                    if (XContentMapValues.nodeBooleanValue(propNode)) {
+                    builder.geoHashPrefix(XContentMapValues.lenientNodeBooleanValue(propNode));
+                    if (XContentMapValues.lenientNodeBooleanValue(propNode)) {
                         builder.enableGeoHash(true);
                     }
                     iterator.remove();
@@ -221,7 +221,7 @@ public abstract class BaseGeoPointFieldMapper extends FieldMapper implements Arr
                     }
                     iterator.remove();
                 } else if (propName.equals(Names.IGNORE_MALFORMED)) {
-                    builder.ignoreMalformed(XContentMapValues.nodeBooleanValue(propNode));
+                    builder.ignoreMalformed(XContentMapValues.lenientNodeBooleanValue(propNode));
                     iterator.remove();
                 } else if (parseMultiField(builder, name, parserContext, propName, propNode)) {
                     iterator.remove();

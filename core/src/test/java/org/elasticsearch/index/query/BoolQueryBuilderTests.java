@@ -280,7 +280,7 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
                         .minimumNumberShouldMatch("3")
                         .disableCoord(true)
                         .buildAsBytes()).toQuery(createShardContext());
-        assertEquals(0, bq.getMinimumNumberShouldMatch());
+        assertEquals(3, bq.getMinimumNumberShouldMatch());
     }
 
     public void testFromJson() throws IOException {

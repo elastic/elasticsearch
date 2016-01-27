@@ -36,6 +36,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.MockNode;
@@ -158,19 +159,19 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     private Node newNode() {
         Settings settings = Settings.builder()
             .put(ClusterName.SETTING, InternalTestCluster.clusterName("single-node-cluster", randomLong()))
-            .put("path.home", createTempDir())
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
             // TODO: use a consistent data path for custom paths
             // This needs to tie into the ESIntegTestCase#indexSettings() method
-            .put("path.shared_data", createTempDir().getParent())
+            .put(Environment.PATH_SHARED_DATA_SETTING.getKey(), createTempDir().getParent())
             .put("node.name", nodeName())
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
             .put("script.inline", "on")
             .put("script.indexed", "on")
-            .put(EsExecutors.PROCESSORS, 1) // limit the number of threads created
+            .put(EsExecutors.PROCESSORS_SETTING.getKey(), 1) // limit the number of threads created
             .put("http.enabled", false)
-            .put("node.local", true)
-            .put("node.data", true)
+            .put(Node.NODE_LOCAL_SETTING.getKey(), true)
+            .put(Node.NODE_DATA_SETTING.getKey(), true)
             .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING, true) // make sure we get what we set :)
             .build();
         Node build = new MockNode(settings, getVersion(), getPlugins());

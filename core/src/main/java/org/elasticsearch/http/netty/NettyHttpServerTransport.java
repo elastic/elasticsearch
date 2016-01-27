@@ -19,7 +19,6 @@
 
 package org.elasticsearch.http.netty;
 
-import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -27,7 +26,8 @@ import org.elasticsearch.common.netty.NettyUtils;
 import org.elasticsearch.common.netty.OpenChannelsHandler;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkService;
-import org.elasticsearch.common.network.NetworkUtils;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Scope;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
@@ -77,9 +77,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.common.network.NetworkService.TcpSettings.TCP_BLOCKING;
-import static org.elasticsearch.common.network.NetworkService.TcpSettings.TCP_BLOCKING_SERVER;
-import static org.elasticsearch.common.network.NetworkService.TcpSettings.TCP_DEFAULT_RECEIVE_BUFFER_SIZE;
-import static org.elasticsearch.common.network.NetworkService.TcpSettings.TCP_DEFAULT_SEND_BUFFER_SIZE;
 import static org.elasticsearch.common.network.NetworkService.TcpSettings.TCP_KEEP_ALIVE;
 import static org.elasticsearch.common.network.NetworkService.TcpSettings.TCP_NO_DELAY;
 import static org.elasticsearch.common.network.NetworkService.TcpSettings.TCP_RECEIVE_BUFFER_SIZE;
@@ -96,19 +93,19 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
         NettyUtils.setup();
     }
 
-    public static final String SETTING_CORS_ENABLED = "http.cors.enabled";
+    public static final Setting<Boolean> SETTING_CORS_ENABLED = Setting.boolSetting("http.cors.enabled", false, false, Scope.CLUSTER);
     public static final String SETTING_CORS_ALLOW_ORIGIN = "http.cors.allow-origin";
-    public static final String SETTING_CORS_MAX_AGE = "http.cors.max-age";
+    public static final Setting<Integer> SETTING_CORS_MAX_AGE = Setting.intSetting("http.cors.max-age", 1728000, false, Scope.CLUSTER);
     public static final String SETTING_CORS_ALLOW_METHODS = "http.cors.allow-methods";
     public static final String SETTING_CORS_ALLOW_HEADERS = "http.cors.allow-headers";
-    public static final String SETTING_CORS_ALLOW_CREDENTIALS = "http.cors.allow-credentials";
-    public static final String SETTING_PIPELINING = "http.pipelining";
+    public static final Setting<Boolean> SETTING_CORS_ALLOW_CREDENTIALS = Setting.boolSetting("http.cors.allow-credentials", false, false, Scope.CLUSTER);
+
+    public static final Setting<Boolean> SETTING_PIPELINING = Setting.boolSetting("http.pipelining", true, false, Scope.CLUSTER);
     public static final String SETTING_PIPELINING_MAX_EVENTS = "http.pipelining.max_events";
     public static final String SETTING_HTTP_COMPRESSION = "http.compression";
     public static final String SETTING_HTTP_COMPRESSION_LEVEL = "http.compression_level";
-    public static final String SETTING_HTTP_DETAILED_ERRORS_ENABLED = "http.detailed_errors.enabled";
+    public static final Setting<Boolean> SETTING_HTTP_DETAILED_ERRORS_ENABLED = Setting.boolSetting("http.detailed_errors.enabled", true, false, Scope.CLUSTER);
 
-    public static final boolean DEFAULT_SETTING_PIPELINING = true;
     public static final int DEFAULT_SETTING_PIPELINING_MAX_EVENTS = 10000;
     public static final String DEFAULT_PORT_RANGE = "9200-9300";
 
@@ -145,8 +142,8 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
 
     protected int publishPort;
 
-    protected final String tcpNoDelay;
-    protected final String tcpKeepAlive;
+    protected final boolean tcpNoDelay;
+    protected final boolean tcpKeepAlive;
     protected final boolean reuseAddress;
 
     protected final ByteSizeValue tcpSendBufferSize;
@@ -190,17 +187,17 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
         this.maxCumulationBufferCapacity = settings.getAsBytesSize("http.netty.max_cumulation_buffer_capacity", null);
         this.maxCompositeBufferComponents = settings.getAsInt("http.netty.max_composite_buffer_components", -1);
         this.workerCount = settings.getAsInt("http.netty.worker_count", EsExecutors.boundedNumberOfProcessors(settings) * 2);
-        this.blockingServer = settings.getAsBoolean("http.netty.http.blocking_server", settings.getAsBoolean(TCP_BLOCKING_SERVER, settings.getAsBoolean(TCP_BLOCKING, false)));
+        this.blockingServer = settings.getAsBoolean("http.netty.http.blocking_server", TCP_BLOCKING.get(settings));
         this.port = settings.get("http.netty.port", settings.get("http.port", DEFAULT_PORT_RANGE));
         this.bindHosts = settings.getAsArray("http.netty.bind_host", settings.getAsArray("http.bind_host", settings.getAsArray("http.host", null)));
         this.publishHosts = settings.getAsArray("http.netty.publish_host", settings.getAsArray("http.publish_host", settings.getAsArray("http.host", null)));
         this.publishPort = settings.getAsInt("http.netty.publish_port", settings.getAsInt("http.publish_port", 0));
-        this.tcpNoDelay = settings.get("http.netty.tcp_no_delay", settings.get(TCP_NO_DELAY, "true"));
-        this.tcpKeepAlive = settings.get("http.netty.tcp_keep_alive", settings.get(TCP_KEEP_ALIVE, "true"));
-        this.reuseAddress = settings.getAsBoolean("http.netty.reuse_address", settings.getAsBoolean(TCP_REUSE_ADDRESS, NetworkUtils.defaultReuseAddress()));
-        this.tcpSendBufferSize = settings.getAsBytesSize("http.netty.tcp_send_buffer_size", settings.getAsBytesSize(TCP_SEND_BUFFER_SIZE, TCP_DEFAULT_SEND_BUFFER_SIZE));
-        this.tcpReceiveBufferSize = settings.getAsBytesSize("http.netty.tcp_receive_buffer_size", settings.getAsBytesSize(TCP_RECEIVE_BUFFER_SIZE, TCP_DEFAULT_RECEIVE_BUFFER_SIZE));
-        this.detailedErrorsEnabled = settings.getAsBoolean(SETTING_HTTP_DETAILED_ERRORS_ENABLED, true);
+        this.tcpNoDelay = settings.getAsBoolean("http.netty.tcp_no_delay", TCP_NO_DELAY.get(settings));
+        this.tcpKeepAlive = settings.getAsBoolean("http.netty.tcp_keep_alive", TCP_KEEP_ALIVE.get(settings));
+        this.reuseAddress = settings.getAsBoolean("http.netty.reuse_address", TCP_REUSE_ADDRESS.get(settings));
+        this.tcpSendBufferSize = settings.getAsBytesSize("http.netty.tcp_send_buffer_size", TCP_SEND_BUFFER_SIZE.get(settings));
+        this.tcpReceiveBufferSize = settings.getAsBytesSize("http.netty.tcp_receive_buffer_size", TCP_RECEIVE_BUFFER_SIZE.get(settings));
+        this.detailedErrorsEnabled = SETTING_HTTP_DETAILED_ERRORS_ENABLED.get(settings);
 
         long defaultReceiverPredictor = 512 * 1024;
         if (JvmInfo.jvmInfo().getMem().getDirectMemoryMax().bytes() > 0) {
@@ -220,7 +217,7 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
 
         this.compression = settings.getAsBoolean(SETTING_HTTP_COMPRESSION, false);
         this.compressionLevel = settings.getAsInt(SETTING_HTTP_COMPRESSION_LEVEL, 6);
-        this.pipelining = settings.getAsBoolean(SETTING_PIPELINING, DEFAULT_SETTING_PIPELINING);
+        this.pipelining = SETTING_PIPELINING.get(settings);
         this.pipeliningMaxEvents = settings.getAsInt(SETTING_PIPELINING_MAX_EVENTS, DEFAULT_SETTING_PIPELINING_MAX_EVENTS);
 
         // validate max content length
@@ -261,16 +258,13 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
 
         serverBootstrap.setPipelineFactory(configureServerChannelPipelineFactory());
 
-        if (!"default".equals(tcpNoDelay)) {
-            serverBootstrap.setOption("child.tcpNoDelay", Booleans.parseBoolean(tcpNoDelay, null));
-        }
-        if (!"default".equals(tcpKeepAlive)) {
-            serverBootstrap.setOption("child.keepAlive", Booleans.parseBoolean(tcpKeepAlive, null));
-        }
-        if (tcpSendBufferSize != null && tcpSendBufferSize.bytes() > 0) {
+        serverBootstrap.setOption("child.tcpNoDelay", tcpNoDelay);
+        serverBootstrap.setOption("child.keepAlive", tcpKeepAlive);
+        if (tcpSendBufferSize.bytes() > 0) {
+
             serverBootstrap.setOption("child.sendBufferSize", tcpSendBufferSize.bytes());
         }
-        if (tcpReceiveBufferSize != null && tcpReceiveBufferSize.bytes() > 0) {
+        if (tcpReceiveBufferSize.bytes() > 0) {
             serverBootstrap.setOption("child.receiveBufferSize", tcpReceiveBufferSize.bytes());
         }
         serverBootstrap.setOption("receiveBufferSizePredictorFactory", receiveBufferSizePredictorFactory);
@@ -312,7 +306,8 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
             throw new BindHttpException("Publish address [" + publishInetAddress + "] does not match any of the bound addresses [" + boundAddresses + "]");
         }
 
-        final InetSocketAddress publishAddress = new InetSocketAddress(publishInetAddress, publishPort);;
+        final InetSocketAddress publishAddress = new InetSocketAddress(publishInetAddress, publishPort);
+        ;
         this.boundAddress = new BoundTransportAddress(boundAddresses.toArray(new TransportAddress[boundAddresses.size()]), new InetSocketTransportAddress(publishAddress));
     }
 

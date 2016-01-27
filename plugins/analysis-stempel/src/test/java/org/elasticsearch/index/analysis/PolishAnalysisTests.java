@@ -50,7 +50,7 @@ public class PolishAnalysisTests extends ESTestCase {
     public void testDefaultsPolishAnalysis() throws IOException {
         Index index = new Index("test");
         Settings settings = settingsBuilder()
-                .put("path.home", createTempDir())
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .build();
 

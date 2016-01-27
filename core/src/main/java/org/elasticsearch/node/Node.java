@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterNameModule;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.component.Lifecycle;
@@ -46,6 +47,7 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
@@ -75,6 +77,7 @@ import org.elasticsearch.indices.ttl.IndicesTTLService;
 import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
+import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.percolator.PercolatorModule;
 import org.elasticsearch.percolator.PercolatorService;
 import org.elasticsearch.plugins.Plugin;
@@ -109,6 +112,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 
@@ -118,8 +122,15 @@ import static org.elasticsearch.common.settings.Settings.settingsBuilder;
  */
 public class Node implements Releasable {
 
+    public static final Setting<Boolean> WRITE_PORTS_FIELD_SETTING = Setting.boolSetting("node.portsfile", false, false, Setting.Scope.CLUSTER);
+    public static final Setting<Boolean> NODE_CLIENT_SETTING = Setting.boolSetting("node.client", false, false, Setting.Scope.CLUSTER);
+    public static final Setting<Boolean> NODE_DATA_SETTING = Setting.boolSetting("node.data", true, false, Setting.Scope.CLUSTER);
+    public static final Setting<Boolean> NODE_MASTER_SETTING = Setting.boolSetting("node.master", true, false, Setting.Scope.CLUSTER);
+    public static final Setting<Boolean> NODE_LOCAL_SETTING = Setting.boolSetting("node.local", false, false, Setting.Scope.CLUSTER);
+    public static final Setting<String> NODE_MODE_SETTING = new Setting<>("node.mode", "network", Function.identity(), false, Setting.Scope.CLUSTER);
+    public static final Setting<Boolean> NODE_INGEST_SETTING = Setting.boolSetting("node.ingest", true, false, Setting.Scope.CLUSTER);
+
     private static final String CLIENT_TYPE = "node";
-    public static final String HTTP_ENABLED = "http.enabled";
     private final Lifecycle lifecycle = new Lifecycle();
     private final Injector injector;
     private final Settings settings;
@@ -189,7 +200,7 @@ public class Node implements Releasable {
             modules.add(new ClusterModule(this.settings));
             modules.add(new IndicesModule());
             modules.add(new SearchModule(settings, namedWriteableRegistry));
-            modules.add(new ActionModule(false));
+            modules.add(new ActionModule(DiscoveryNode.ingestNode(settings), false));
             modules.add(new GatewayModule(settings));
             modules.add(new NodeClientModule());
             modules.add(new PercolatorModule());
@@ -229,6 +240,13 @@ public class Node implements Releasable {
      */
     public Client client() {
         return client;
+    }
+
+    /**
+     * Returns the environment of the node
+     */
+    public Environment getEnvironment() {
+        return environment;
     }
 
     /**
@@ -275,7 +293,7 @@ public class Node implements Releasable {
         injector.getInstance(ResourceWatcherService.class).start();
         injector.getInstance(TribeService.class).start();
 
-        if (System.getProperty("es.tests.portsfile", "false").equals("true")) {
+        if (WRITE_PORTS_FIELD_SETTING.get(settings)) {
             if (settings.getAsBoolean("http.enabled", true)) {
                 HttpServerTransport http = injector.getInstance(HttpServerTransport.class);
                 writePortsFile("http", http.boundAddress());
@@ -346,6 +364,12 @@ public class Node implements Releasable {
         StopWatch stopWatch = new StopWatch("node_close");
         stopWatch.start("tribe");
         injector.getInstance(TribeService.class).close();
+        stopWatch.stop().start("node_service");
+        try {
+            injector.getInstance(NodeService.class).close();
+        } catch (IOException e) {
+            logger.warn("NodeService close failed", e);
+        }
         stopWatch.stop().start("http");
         if (settings.getAsBoolean("http.enabled", true)) {
             injector.getInstance(HttpServer.class).close();

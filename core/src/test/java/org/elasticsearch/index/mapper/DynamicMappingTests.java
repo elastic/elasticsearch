@@ -374,7 +374,7 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
 
     public void testReuseExistingMappings() throws IOException, Exception {
         IndexService indexService = createIndex("test", Settings.EMPTY, "type",
-                "my_field1", "type=string,store=yes",
+                "my_field1", "type=string,store=true",
                 "my_field2", "type=integer,precision_step=10",
                 "my_field3", "type=long,doc_values=false",
                 "my_field4", "type=float,index_options=freqs",

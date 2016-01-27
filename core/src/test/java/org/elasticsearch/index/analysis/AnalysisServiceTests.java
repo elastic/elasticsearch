@@ -53,7 +53,11 @@ public class AnalysisServiceTests extends ESTestCase {
 
     public void testDefaultAnalyzers() throws IOException {
         Version version = VersionUtils.randomVersion(getRandom());
-        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).put("path.home", createTempDir().toString()).build();
+        Settings settings = Settings
+            .builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, version)
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(new Index("index"), settings);
         AnalysisService analysisService = new AnalysisRegistry(null, new Environment(settings)).build(idxSettings);
         assertThat(analysisService.defaultIndexAnalyzer().analyzer(), instanceOf(StandardAnalyzer.class));
@@ -123,7 +127,7 @@ public class AnalysisServiceTests extends ESTestCase {
 
     public void testConfigureCamelCaseTokenFilter() throws IOException {
         // tests a filter that
-        Settings settings = Settings.builder().put("path.home", createTempDir().toString()).build();
+        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
         Settings indexSettings = settingsBuilder()
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put("index.analysis.filter.wordDelimiter.type", "word_delimiter")
@@ -169,7 +173,7 @@ public class AnalysisServiceTests extends ESTestCase {
     }
 
     public void testCameCaseOverride() throws IOException {
-        Settings settings = Settings.builder().put("path.home", createTempDir().toString()).build();
+        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
         Settings indexSettings = settingsBuilder()
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put("index.analysis.filter.wordDelimiter.type", "word_delimiter")
@@ -196,7 +200,7 @@ public class AnalysisServiceTests extends ESTestCase {
     }
 
     public void testBuiltInAnalyzersAreCached() throws IOException {
-        Settings settings = Settings.builder().put("path.home", createTempDir().toString()).build();
+        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
         Settings indexSettings = settingsBuilder()
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(new Index("index"), indexSettings);

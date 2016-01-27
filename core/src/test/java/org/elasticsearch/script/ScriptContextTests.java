@@ -37,7 +37,7 @@ public class ScriptContextTests extends ESTestCase {
 
     ScriptService makeScriptService() throws Exception {
         Settings settings = Settings.builder()
-            .put("path.home", createTempDir())
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
             // no file watching, so we don't need a ResourceWatcherService
             .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING, false)
             .put("script." + PLUGIN_NAME + "_custom_globally_disabled_op", false)

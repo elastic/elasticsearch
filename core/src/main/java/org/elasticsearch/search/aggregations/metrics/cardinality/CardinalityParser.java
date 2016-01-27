@@ -24,7 +24,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParser;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -44,7 +43,7 @@ public class CardinalityParser implements Aggregator.Parser {
     @Override
     public AggregatorFactory parse(String name, XContentParser parser, SearchContext context) throws IOException {
 
-        ValuesSourceParser<ValuesSource> vsParser = ValuesSourceParser.any(name, InternalCardinality.TYPE, context).formattable(false).build();
+        ValuesSourceParser<?> vsParser = ValuesSourceParser.any(name, InternalCardinality.TYPE, context).formattable(false).build();
 
         long precisionThreshold = -1;
 

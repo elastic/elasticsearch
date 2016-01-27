@@ -41,7 +41,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.lenientNodeBooleanValue;
 
 /**
  * Mapping configuration for a type.
@@ -237,7 +237,7 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());
                 Object fieldNode = entry.getValue();
                 if (fieldName.equals("required")) {
-                    required = nodeBooleanValue(fieldNode);
+                    required = lenientNodeBooleanValue(fieldNode);
                 }
             }
             this.routing = new Routing(required);
@@ -254,13 +254,13 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());
                 Object fieldNode = entry.getValue();
                 if (fieldName.equals("enabled")) {
-                    enabled = nodeBooleanValue(fieldNode);
+                    enabled = lenientNodeBooleanValue(fieldNode);
                 } else if (fieldName.equals("format")) {
                     format = fieldNode.toString();
                 } else if (fieldName.equals("default") && fieldNode != null) {
                     defaultTimestamp = fieldNode.toString();
                 } else if (fieldName.equals("ignore_missing")) {
-                    ignoreMissing = nodeBooleanValue(fieldNode);
+                    ignoreMissing = lenientNodeBooleanValue(fieldNode);
                 }
             }
             this.timestamp = new Timestamp(enabled, format, defaultTimestamp, ignoreMissing);

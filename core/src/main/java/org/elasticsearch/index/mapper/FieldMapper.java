@@ -24,6 +24,7 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.lucene.Lucene;
@@ -223,6 +224,15 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             return context.path().pathAsText(name);
         }
 
+        protected boolean defaultDocValues(Version indexCreated) {
+            if (indexCreated.onOrAfter(Version.V_3_0_0)) {
+                // add doc values by default to keyword (boolean, numerics, etc.) fields
+                return fieldType.tokenized() == false;
+            } else {
+                return fieldType.tokenized() == false && fieldType.indexOptions() != IndexOptions.NONE;
+            }
+        }
+
         protected void setupFieldType(BuilderContext context) {
             fieldType.setName(buildFullName(context));
             if (fieldType.indexAnalyzer() == null && fieldType.tokenized() == false && fieldType.indexOptions() != IndexOptions.NONE) {
@@ -233,17 +243,10 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 Settings settings = Settings.builder().put(fieldType.fieldDataType().getSettings()).put(fieldDataSettings).build();
                 fieldType.setFieldDataType(new FieldDataType(fieldType.fieldDataType().getType(), settings));
             }
-            boolean defaultDocValues = fieldType.tokenized() == false && fieldType.indexOptions() != IndexOptions.NONE;
-            // backcompat for "fielddata: format: docvalues" for now...
-            boolean fieldDataDocValues = fieldType.fieldDataType() != null
-                && FieldDataType.DOC_VALUES_FORMAT_VALUE.equals(fieldType.fieldDataType().getFormat(context.indexSettings()));
-            if (fieldDataDocValues && docValuesSet && fieldType.hasDocValues() == false) {
-                // this forces the doc_values setting to be written, so fielddata does not mask the original setting
-                defaultDocValues = true;
-            }
+            boolean defaultDocValues = defaultDocValues(context.indexCreatedVersion());
             defaultFieldType.setHasDocValues(defaultDocValues);
             if (docValuesSet == false) {
-                fieldType.setHasDocValues(defaultDocValues || fieldDataDocValues);
+                fieldType.setHasDocValues(defaultDocValues);
             }
         }
     }
@@ -395,7 +398,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         boolean defaultIndexed = defaultFieldType.indexOptions() != IndexOptions.NONE;
         if (includeDefaults || indexed != defaultIndexed ||
             fieldType().tokenized() != defaultFieldType.tokenized()) {
-            builder.field("index", indexTokenizeOptionToString(indexed, fieldType().tokenized()));
+            builder.field("index", indexTokenizeOption(indexed, fieldType().tokenized()));
         }
         if (includeDefaults || fieldType().stored() != defaultFieldType.stored()) {
             builder.field("store", fieldType().stored());
@@ -492,14 +495,9 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         }
     }
 
-    protected static String indexTokenizeOptionToString(boolean indexed, boolean tokenized) {
-        if (!indexed) {
-            return "no";
-        } else if (tokenized) {
-            return "analyzed";
-        } else {
-            return "not_analyzed";
-        }
+    /* Only protected so that string can override it */
+    protected Object indexTokenizeOption(boolean indexed, boolean tokenized) {
+        return indexed;
     }
 
     protected boolean hasCustomFieldDataSettings() {

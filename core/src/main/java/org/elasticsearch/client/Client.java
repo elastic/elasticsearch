@@ -55,6 +55,17 @@ import org.elasticsearch.action.indexedscripts.get.GetIndexedScriptResponse;
 import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptRequest;
 import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptRequestBuilder;
 import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptResponse;
+import org.elasticsearch.action.ingest.DeletePipelineRequest;
+import org.elasticsearch.action.ingest.DeletePipelineRequestBuilder;
+import org.elasticsearch.action.ingest.GetPipelineRequest;
+import org.elasticsearch.action.ingest.GetPipelineRequestBuilder;
+import org.elasticsearch.action.ingest.GetPipelineResponse;
+import org.elasticsearch.action.ingest.PutPipelineRequest;
+import org.elasticsearch.action.ingest.PutPipelineRequestBuilder;
+import org.elasticsearch.action.ingest.SimulatePipelineRequest;
+import org.elasticsearch.action.ingest.SimulatePipelineRequestBuilder;
+import org.elasticsearch.action.ingest.SimulatePipelineResponse;
+import org.elasticsearch.action.ingest.WritePipelineResponse;
 import org.elasticsearch.action.percolate.MultiPercolateRequest;
 import org.elasticsearch.action.percolate.MultiPercolateRequestBuilder;
 import org.elasticsearch.action.percolate.MultiPercolateResponse;
@@ -85,6 +96,7 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
 
@@ -596,6 +608,66 @@ public interface Client extends ElasticsearchClient, Releasable {
     ActionFuture<FieldStatsResponse> fieldStats(FieldStatsRequest request);
 
     void fieldStats(FieldStatsRequest request, ActionListener<FieldStatsResponse> listener);
+
+    /**
+     * Stores an ingest pipeline
+     */
+    void putPipeline(PutPipelineRequest request, ActionListener<WritePipelineResponse> listener);
+
+    /**
+     * Stores an ingest pipeline
+     */
+    ActionFuture<WritePipelineResponse> putPipeline(PutPipelineRequest request);
+
+    /**
+     * Stores an ingest pipeline
+     */
+    PutPipelineRequestBuilder preparePutPipeline(String id, BytesReference source);
+
+    /**
+     * Deletes a stored ingest pipeline
+     */
+    void deletePipeline(DeletePipelineRequest request, ActionListener<WritePipelineResponse> listener);
+
+    /**
+     * Deletes a stored ingest pipeline
+     */
+    ActionFuture<WritePipelineResponse> deletePipeline(DeletePipelineRequest request);
+
+    /**
+     * Deletes a stored ingest pipeline
+     */
+    DeletePipelineRequestBuilder prepareDeletePipeline();
+
+    /**
+     * Returns a stored ingest pipeline
+     */
+    void getPipeline(GetPipelineRequest request, ActionListener<GetPipelineResponse> listener);
+
+    /**
+     * Returns a stored ingest pipeline
+     */
+    ActionFuture<GetPipelineResponse> getPipeline(GetPipelineRequest request);
+
+    /**
+     * Returns a stored ingest pipeline
+     */
+    GetPipelineRequestBuilder prepareGetPipeline(String... ids);
+
+    /**
+     * Simulates an ingest pipeline
+     */
+    void simulatePipeline(SimulatePipelineRequest request, ActionListener<SimulatePipelineResponse> listener);
+
+    /**
+     * Simulates an ingest pipeline
+     */
+    ActionFuture<SimulatePipelineResponse> simulatePipeline(SimulatePipelineRequest request);
+
+    /**
+     * Simulates an ingest pipeline
+     */
+    SimulatePipelineRequestBuilder prepareSimulatePipeline(BytesReference source);
 
     /**
      * Returns this clients settings

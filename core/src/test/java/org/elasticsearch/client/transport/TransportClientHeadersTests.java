@@ -36,6 +36,7 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -83,7 +84,7 @@ public class TransportClientHeadersTests extends AbstractClientHeadersTestCase {
                 .put("node.name", "transport_client_" + this.getTestName() + "_1")
                 .put("client.transport.nodes_sampler_interval", "1s")
                 .put(HEADER_SETTINGS)
-                .put("path.home", createTempDir().toString()).build())
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build())
             .addPlugin(InternalTransportService.TestPlugin.class)
             .build();
 

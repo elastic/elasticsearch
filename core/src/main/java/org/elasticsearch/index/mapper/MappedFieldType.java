@@ -199,10 +199,8 @@ public abstract class MappedFieldType extends FieldType {
         if (stored() != other.stored()) {
             conflicts.add("mapper [" + name() + "] has different [store] values");
         }
-        if (hasDocValues() == false && other.hasDocValues()) {
-            // don't add conflict if this mapper has doc values while the mapper to merge doesn't since doc values are implicitly set
-            // when the doc_values field data format is configured
-            conflicts.add("mapper [" + name() + "] has different [doc_values] values, cannot change from disabled to enabled");
+        if (hasDocValues() != other.hasDocValues()) {
+            conflicts.add("mapper [" + name() + "] has different [doc_values] values");
         }
         if (omitNorms() && !other.omitNorms()) {
             conflicts.add("mapper [" + name() + "] has different [omit_norms] values, cannot change from disable to enabled");

@@ -41,6 +41,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 /**
  * A setting. Encapsulates typical stuff like default value, parsing, and scope.
@@ -71,7 +72,20 @@ public class Setting<T> extends ToXContentToBytes {
     }
 
     /**
+     * Creates a new Setting instance
+     * @param key the settings key for this setting.
+     * @param fallBackSetting a setting to fall back to if the current setting is not set.
+     * @param parser a parser that parses the string rep into a complex datatype.
+     * @param dynamic true iff this setting can be dynamically updateable
+     * @param scope the scope of this setting
+     */
+    public Setting(String key, Setting<T> fallBackSetting, Function<String, T> parser, boolean dynamic, Scope scope) {
+        this(key, fallBackSetting::getRaw, parser, dynamic, scope);
+    }
+
+    /**
      * Returns the settings key or a prefix if this setting is a group setting
+     *
      * @see #isGroupSetting()
      */
     public final String getKey() {
@@ -106,11 +120,19 @@ public class Setting<T> extends ToXContentToBytes {
     }
 
     /**
-     * Returns the default values string representation for this setting.
+     * Returns the default value string representation for this setting.
      * @param settings a settings object for settings that has a default value depending on another setting if available
      */
-    public final String getDefault(Settings settings) {
+    public final String getDefaultRaw(Settings settings) {
         return defaultValue.apply(settings);
+    }
+
+    /**
+     * Returns the default value for this setting.
+     * @param settings a settings object for settings that has a default value depending on another setting if available
+     */
+    public final T getDefault(Settings settings) {
+        return parser.apply(getDefaultRaw(settings));
     }
 
     /**
@@ -309,6 +331,10 @@ public class Setting<T> extends ToXContentToBytes {
         return new Setting<>(key, (s) -> Long.toString(defaultValue), (s) -> parseLong(s, minValue, key), dynamic, scope);
     }
 
+    public static Setting<String> simpleString(String key, boolean dynamic, Scope scope) {
+        return new Setting<>(key, "", Function.identity(), dynamic, scope);
+    }
+
     public static int parseInt(String s, int minValue, String key) {
         int value = Integer.parseInt(s);
         if (value < minValue) {
@@ -333,6 +359,10 @@ public class Setting<T> extends ToXContentToBytes {
         return new Setting<>(key, (s) -> Boolean.toString(defaultValue), Booleans::parseBooleanExact, dynamic, scope);
     }
 
+    public static Setting<Boolean> boolSetting(String key, Setting<Boolean> fallbackSetting, boolean dynamic, Scope scope) {
+        return new Setting<>(key, fallbackSetting, Booleans::parseBooleanExact, dynamic, scope);
+    }
+
     public static Setting<ByteSizeValue> byteSizeSetting(String key, String percentage, boolean dynamic, Scope scope) {
         return new Setting<>(key, (s) -> percentage, (s) -> MemorySizeValue.parseBytesSizeValueOrHeapRatio(s, key), dynamic, scope);
     }
@@ -348,25 +378,15 @@ public class Setting<T> extends ToXContentToBytes {
     public static <T> Setting<List<T>> listSetting(String key, List<String> defaultStringValue, Function<String, T> singleValueParser, boolean dynamic, Scope scope) {
         return listSetting(key, (s) -> defaultStringValue, singleValueParser, dynamic, scope);
     }
+
+    public static <T> Setting<List<T>> listSetting(String key, Setting<List<T>> fallbackSetting, Function<String, T> singleValueParser, boolean dynamic, Scope scope) {
+        return listSetting(key, (s) -> parseableStringToList(fallbackSetting.getRaw(s)), singleValueParser, dynamic, scope);
+    }
+
     public static <T> Setting<List<T>> listSetting(String key, Function<Settings, List<String>> defaultStringValue, Function<String, T> singleValueParser, boolean dynamic, Scope scope) {
-        Function<String, List<T>> parser = (s) -> {
-            try (XContentParser xContentParser = XContentType.JSON.xContent().createParser(s)){
-                XContentParser.Token token = xContentParser.nextToken();
-                if (token != XContentParser.Token.START_ARRAY) {
-                    throw new IllegalArgumentException("expected START_ARRAY but got " + token);
-                }
-                ArrayList<T> list = new ArrayList<>();
-                while ((token = xContentParser.nextToken()) !=XContentParser.Token.END_ARRAY) {
-                    if (token != XContentParser.Token.VALUE_STRING) {
-                        throw new IllegalArgumentException("expected VALUE_STRING but got " + token);
-                    }
-                    list.add(singleValueParser.apply(xContentParser.text()));
-                }
-                return list;
-            } catch (IOException e) {
-                throw new IllegalArgumentException("failed to parse array", e);
-            }
-        };
+        Function<String, List<T>> parser = (s) ->
+                parseableStringToList(s).stream().map(singleValueParser).collect(Collectors.toList());
+
         return new Setting<List<T>>(key, (s) -> arrayToParsableString(defaultStringValue.apply(s).toArray(Strings.EMPTY_ARRAY)), parser, dynamic, scope) {
             private final Pattern pattern = Pattern.compile(Pattern.quote(key)+"(\\.\\d+)?");
             @Override
@@ -386,6 +406,26 @@ public class Setting<T> extends ToXContentToBytes {
             }
         };
     }
+
+    private static List<String> parseableStringToList(String parsableString) {
+        try (XContentParser xContentParser = XContentType.JSON.xContent().createParser(parsableString)) {
+            XContentParser.Token token = xContentParser.nextToken();
+            if (token != XContentParser.Token.START_ARRAY) {
+                throw new IllegalArgumentException("expected START_ARRAY but got " + token);
+            }
+            ArrayList<String> list = new ArrayList<>();
+            while ((token = xContentParser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                if (token != XContentParser.Token.VALUE_STRING) {
+                    throw new IllegalArgumentException("expected VALUE_STRING but got " + token);
+                }
+                list.add(xContentParser.text());
+            }
+            return list;
+        } catch (IOException e) {
+            throw new IllegalArgumentException("failed to parse array", e);
+        }
+    }
+
 
     private static String arrayToParsableString(String[] array) {
         try {

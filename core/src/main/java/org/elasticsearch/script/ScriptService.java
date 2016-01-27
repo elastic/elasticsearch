@@ -45,6 +45,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -83,8 +84,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
     static final String DISABLE_DYNAMIC_SCRIPTING_SETTING = "script.disable_dynamic";
 
     public static final String DEFAULT_SCRIPTING_LANGUAGE_SETTING = "script.default_lang";
-    public static final String SCRIPT_CACHE_SIZE_SETTING = "script.cache.max_size";
-    public static final int SCRIPT_CACHE_SIZE_DEFAULT = 100;
+    public static final Setting<Integer> SCRIPT_CACHE_SIZE_SETTING = Setting.intSetting("script.cache.max_size", 100, 0, false, Setting.Scope.CLUSTER);
     public static final String SCRIPT_CACHE_EXPIRE_SETTING = "script.cache.expire";
     public static final String SCRIPT_INDEX = ".scripts";
     public static final String DEFAULT_LANG = "groovy";
@@ -147,7 +147,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
 
         this.scriptEngines = scriptEngines;
         this.scriptContextRegistry = scriptContextRegistry;
-        int cacheMaxSize = settings.getAsInt(SCRIPT_CACHE_SIZE_SETTING, SCRIPT_CACHE_SIZE_DEFAULT);
+        int cacheMaxSize = SCRIPT_CACHE_SIZE_SETTING.get(settings);
         TimeValue cacheExpire = settings.getAsTime(SCRIPT_CACHE_EXPIRE_SETTING, null);
         logger.debug("using script cache with max_size [{}], expire [{}]", cacheMaxSize, cacheExpire);
 

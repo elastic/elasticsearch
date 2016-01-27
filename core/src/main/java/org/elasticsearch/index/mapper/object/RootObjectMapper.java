@@ -42,7 +42,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.lenientNodeBooleanValue;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseDateTimeFormatter;
 
 /**
@@ -189,10 +189,10 @@ public class RootObjectMapper extends ObjectMapper {
                 }
                 return true;
             } else if (fieldName.equals("date_detection")) {
-                ((Builder) builder).dateDetection = nodeBooleanValue(fieldNode);
+                ((Builder) builder).dateDetection = lenientNodeBooleanValue(fieldNode);
                 return true;
             } else if (fieldName.equals("numeric_detection")) {
-                ((Builder) builder).numericDetection = nodeBooleanValue(fieldNode);
+                ((Builder) builder).numericDetection = lenientNodeBooleanValue(fieldNode);
                 return true;
             }
             return false;

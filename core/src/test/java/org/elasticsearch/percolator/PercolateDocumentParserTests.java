@@ -23,7 +23,6 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.percolate.PercolateShardRequest;
-import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -90,10 +89,7 @@ public class PercolateDocumentParserTests extends ESTestCase {
         HighlightPhase highlightPhase = new HighlightPhase(Settings.EMPTY, new Highlighters());
         AggregatorParsers aggregatorParsers = new AggregatorParsers(Collections.emptySet(), Collections.emptySet());
         AggregationPhase aggregationPhase = new AggregationPhase(new AggregationParseElement(aggregatorParsers), new AggregationBinaryParseElement(aggregatorParsers));
-        MappingUpdatedAction mappingUpdatedAction = Mockito.mock(MappingUpdatedAction.class);
-        parser = new PercolateDocumentParser(
-                highlightPhase, new SortParseElement(), aggregationPhase, mappingUpdatedAction
-        );
+        parser = new PercolateDocumentParser(highlightPhase, new SortParseElement(), aggregationPhase);
 
         request = Mockito.mock(PercolateShardRequest.class);
         Mockito.when(request.shardId()).thenReturn(new ShardId(new Index("_index"), 0));

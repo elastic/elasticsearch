@@ -77,6 +77,7 @@ public class RestBulkAction extends BaseRestHandler {
         String defaultType = request.param("type");
         String defaultRouting = request.param("routing");
         String fieldsParam = request.param("fields");
+        String defaultPipeline = request.param("pipeline");
         String[] defaultFields = fieldsParam != null ? Strings.commaDelimitedListToStringArray(fieldsParam) : null;
 
         String consistencyLevel = request.param("consistency");
@@ -85,7 +86,7 @@ public class RestBulkAction extends BaseRestHandler {
         }
         bulkRequest.timeout(request.paramAsTime("timeout", BulkShardRequest.DEFAULT_TIMEOUT));
         bulkRequest.refresh(request.paramAsBoolean("refresh", bulkRequest.refresh()));
-        bulkRequest.add(request.content(), defaultIndex, defaultType, defaultRouting, defaultFields, null, allowExplicitIndex);
+        bulkRequest.add(request.content(), defaultIndex, defaultType, defaultRouting, defaultFields, defaultPipeline, null, allowExplicitIndex);
 
         client.bulk(bulkRequest, new RestBuilderListener<BulkResponse>(channel) {
             @Override

@@ -61,6 +61,7 @@ import org.elasticsearch.shield.authc.AuthenticationService;
 import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.client.ShieldClient;
+import org.elasticsearch.shield.support.ClientWithUser;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -408,19 +409,7 @@ public class ESNativeUsersStore extends AbstractComponent implements ClusterStat
         try {
             if (state.compareAndSet(State.INITIALIZED, State.STARTING)) {
                 this.authService = authProvider.get();
-                this.client = new FilterClient(clientProvider.get()) {
-                    @Override
-                    protected <Request extends ActionRequest<Request>, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void doExecute(Action<Request, Response, RequestBuilder> action, Request request, ActionListener<Response> listener) {
-                        try (ThreadContext.StoredContext ctx = threadPool().getThreadContext().stashContext()) {
-                            try {
-                                authService.attachUserHeaderIfMissing(adminUser.user());
-                            } catch (IOException e) {
-                                throw new ElasticsearchException("failed to set shield user", e);
-                            }
-                            super.doExecute(action, request, listener);
-                        }
-                    }
-                };
+                this.client = new ClientWithUser(clientProvider.get(), authService, adminUser.user());
                 this.scrollSize = settings.getAsInt("shield.authc.native.scroll.size", 1000);
                 this.scrollKeepAlive = settings.getAsTime("shield.authc.native.scroll.keep_alive", TimeValue.timeValueSeconds(10L));
 

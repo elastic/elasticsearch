@@ -311,6 +311,13 @@ public abstract class ShieldIntegTestCase extends ESIntegTestCase {
     @Override
     protected Function<Client,Client> getClientWrapper() {
         Map<String, String> headers = Collections.singletonMap("Authorization", basicAuthHeaderValue(nodeClientUsername(), nodeClientPassword()));
+        // we need to wrap node clients because we do not specify a shield user for nodes and all requests will use the system
+        // user. This is ok for internal n2n stuff but the test framework does other things like wiping indices, repositories, etc
+        // that the system user cannot do. so we wrap the node client with a user that can do these things since the client() calls
+        // are randomized to return both node clients and transport clients
+        // transport clients do not need to be wrapped since we specify the shield.user setting that sets the default user to be
+        // used for the transport client. If we did not set a default user then the transport client would not even be allowed
+        // to connect
         return client -> (client instanceof NodeClient) ? client.filterWithHeader(headers) : client;
     }
 }

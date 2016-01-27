@@ -6,11 +6,6 @@
 package org.elasticsearch.shield.audit.index;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.Action;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
@@ -22,7 +17,6 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.FilterClient;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterService;
@@ -51,12 +45,12 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.shield.admin.ShieldInternalUserHolder;
 import org.elasticsearch.shield.authz.privilege.SystemPrivilege;
+import org.elasticsearch.shield.support.ClientWithUser;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.audit.AuditTrail;
 import org.elasticsearch.shield.authc.AuthenticationService;
 import org.elasticsearch.shield.authc.AuthenticationToken;
-import org.elasticsearch.shield.authz.privilege.Privilege;
 import org.elasticsearch.shield.rest.RemoteHostHeader;
 import org.elasticsearch.shield.transport.filter.ShieldIpFilterRule;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -684,20 +678,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     private void initializeClient() {
         if (indexToRemoteCluster == false) {
             // in the absence of client settings for remote indexing, fall back to the client that was passed in.
-            Client unfiltered = clientProvider.get();
-            this.client = new FilterClient(unfiltered) {
-                @Override
-                protected <Request extends ActionRequest<Request>, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void doExecute(Action<Request, Response, RequestBuilder> action, Request request, ActionListener<Response> listener) {
-                    try (ThreadContext.StoredContext ctx = threadPool().getThreadContext().stashContext()) {
-                        try {
-                            authenticationService.attachUserHeaderIfMissing(auditUser.user());
-                        } catch (IOException e) {
-                            throw new ElasticsearchException("failed to attach audit user to request", e);
-                        }
-                        super.doExecute(action, request, listener);
-                    }
-                }
-            };
+            this.client = new ClientWithUser(clientProvider.get(), authenticationService, auditUser.user());
         } else {
             Settings clientSettings = settings.getByPrefix("shield.audit.index.client.");
             String[] hosts = clientSettings.getAsArray("hosts");

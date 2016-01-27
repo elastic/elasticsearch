@@ -6,11 +6,7 @@
 package org.elasticsearch.shield.authz.esnative;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
@@ -24,7 +20,6 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.FilterClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -37,7 +32,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -55,9 +49,9 @@ import org.elasticsearch.shield.authz.permission.Role;
 import org.elasticsearch.shield.authz.RoleDescriptor;
 import org.elasticsearch.shield.authz.store.RolesStore;
 import org.elasticsearch.shield.client.ShieldClient;
+import org.elasticsearch.shield.support.ClientWithUser;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -94,7 +88,6 @@ public class ESNativeRolesStore extends AbstractComponent implements RolesStore,
 
     private Client client;
     private ShieldClient shieldClient;
-    private AuthenticationService authService;
     private int scrollSize;
     private TimeValue scrollKeepAlive;
     private ScheduledFuture<?> versionChecker;
@@ -366,20 +359,7 @@ public class ESNativeRolesStore extends AbstractComponent implements RolesStore,
     public void start() {
         try {
             if (state.compareAndSet(State.INITIALIZED, State.STARTING)) {
-                this.authService = authProvider.get();
-                this.client = new FilterClient(clientProvider.get()) {
-                    @Override
-                    protected <Request extends ActionRequest<Request>, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void doExecute(Action<Request, Response, RequestBuilder> action, Request request, ActionListener<Response> listener) {
-                        try (ThreadContext.StoredContext ctx = threadPool().getThreadContext().stashContext()) {
-                            try {
-                                authService.attachUserHeaderIfMissing(adminUser.user());
-                            } catch (IOException e) {
-                                throw new ElasticsearchException("failed to set shield user", e);
-                            }
-                            super.doExecute(action, request, listener);
-                        }
-                    }
-                };
+                this.client = new ClientWithUser(clientProvider.get(), authProvider.get(), adminUser.user());
                 this.shieldClient = new ShieldClient(client);
                 this.scrollSize = settings.getAsInt("shield.authc.native.scroll.size", 1000);
                 this.scrollKeepAlive = settings.getAsTime("shield.authc.native.scroll.keep_alive", TimeValue.timeValueSeconds(10L));
@@ -417,7 +397,6 @@ public class ESNativeRolesStore extends AbstractComponent implements RolesStore,
         }
         this.roleCache.clear();
         this.client = null;
-        this.authService = null;
         this.shieldIndexExists = false;
         this.state.set(State.INITIALIZED);
     }

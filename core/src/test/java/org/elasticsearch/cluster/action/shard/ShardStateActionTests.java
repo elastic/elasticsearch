@@ -30,7 +30,9 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.ShardsIterator;
+import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.Discovery;
@@ -128,13 +130,11 @@ public class ShardStateActionTests extends ESTestCase {
 
         clusterService.setState(ClusterStateCreationUtils.stateWithActivePrimary(index, true, randomInt(5)));
 
-        String indexUUID = clusterService.state().metaData().index(index).getIndexUUID();
-
         AtomicBoolean success = new AtomicBoolean();
         CountDownLatch latch = new CountDownLatch(1);
 
         ShardRouting shardRouting = getRandomShardRouting(index);
-        shardStateAction.shardFailed(shardRouting, indexUUID, "test", getSimulatedFailure(), new ShardStateAction.Listener() {
+        shardStateAction.shardFailed(shardRouting, shardRouting, "test", getSimulatedFailure(), new ShardStateAction.Listener() {
             @Override
             public void onSuccess() {
                 success.set(true);
@@ -174,15 +174,14 @@ public class ShardStateActionTests extends ESTestCase {
         noMasterBuilder.masterNodeId(null);
         clusterService.setState(ClusterState.builder(clusterService.state()).nodes(noMasterBuilder));
 
-        String indexUUID = clusterService.state().metaData().index(index).getIndexUUID();
-
         CountDownLatch latch = new CountDownLatch(1);
         AtomicInteger retries = new AtomicInteger();
         AtomicBoolean success = new AtomicBoolean();
 
         setUpMasterRetryVerification(1, retries, latch, requestId -> {});
 
-        shardStateAction.shardFailed(getRandomShardRouting(index), indexUUID, "test", getSimulatedFailure(), new ShardStateAction.Listener() {
+        ShardRouting failedShard = getRandomShardRouting(index);
+        shardStateAction.shardFailed(failedShard, failedShard, "test", getSimulatedFailure(), new ShardStateAction.Listener() {
             @Override
             public void onSuccess() {
                 success.set(true);
@@ -208,8 +207,6 @@ public class ShardStateActionTests extends ESTestCase {
 
         clusterService.setState(ClusterStateCreationUtils.stateWithActivePrimary(index, true, randomInt(5)));
 
-        String indexUUID = clusterService.state().metaData().index(index).getIndexUUID();
-
         CountDownLatch latch = new CountDownLatch(1);
         AtomicInteger retries = new AtomicInteger();
         AtomicBoolean success = new AtomicBoolean();
@@ -232,7 +229,8 @@ public class ShardStateActionTests extends ESTestCase {
         final int numberOfRetries = randomIntBetween(1, 256);
         setUpMasterRetryVerification(numberOfRetries, retries, latch, retryLoop);
 
-        shardStateAction.shardFailed(getRandomShardRouting(index), indexUUID, "test", getSimulatedFailure(), new ShardStateAction.Listener() {
+        ShardRouting failedShard = getRandomShardRouting(index);
+        shardStateAction.shardFailed(failedShard, failedShard, "test", getSimulatedFailure(), new ShardStateAction.Listener() {
             @Override
             public void onSuccess() {
                 success.set(true);
@@ -265,11 +263,10 @@ public class ShardStateActionTests extends ESTestCase {
 
         clusterService.setState(ClusterStateCreationUtils.stateWithActivePrimary(index, true, randomInt(5)));
 
-        String indexUUID = clusterService.state().metaData().index(index).getIndexUUID();
-
         AtomicBoolean failure = new AtomicBoolean();
 
-        shardStateAction.shardFailed(getRandomShardRouting(index), indexUUID, "test", getSimulatedFailure(), new ShardStateAction.Listener() {
+        ShardRouting failedShard = getRandomShardRouting(index);
+        shardStateAction.shardFailed(failedShard, failedShard, "test", getSimulatedFailure(), new ShardStateAction.Listener() {
             @Override
             public void onSuccess() {
                 failure.set(false);
@@ -295,15 +292,13 @@ public class ShardStateActionTests extends ESTestCase {
 
         clusterService.setState(ClusterStateCreationUtils.stateWithActivePrimary(index, true, randomInt(5)));
 
-        String indexUUID = clusterService.state().metaData().index(index).getIndexUUID();
-
         AtomicBoolean success = new AtomicBoolean();
         CountDownLatch latch = new CountDownLatch(1);
 
         ShardRouting failedShard = getRandomShardRouting(index);
         RoutingTable routingTable = RoutingTable.builder(clusterService.state().getRoutingTable()).remove(index).build();
         clusterService.setState(ClusterState.builder(clusterService.state()).routingTable(routingTable));
-        shardStateAction.shardFailed(failedShard, indexUUID, "test", getSimulatedFailure(), new ShardStateAction.Listener() {
+        shardStateAction.shardFailed(failedShard, failedShard, "test", getSimulatedFailure(), new ShardStateAction.Listener() {
             @Override
             public void onSuccess() {
                 success.set(true);
@@ -323,6 +318,44 @@ public class ShardStateActionTests extends ESTestCase {
 
         latch.await();
         assertTrue(success.get());
+    }
+
+    public void testNoLongerPrimaryShardException() throws InterruptedException {
+        final String index = "test";
+
+        clusterService.setState(ClusterStateCreationUtils.stateWithActivePrimary(index, true, randomInt(5)));
+
+        ShardRouting failedShard = getRandomShardRouting(index);
+
+        String nodeId = randomFrom(clusterService.state().nodes().nodes().keys().toArray(String.class));
+
+        AtomicReference<Throwable> failure = new AtomicReference<>();
+        CountDownLatch latch = new CountDownLatch(1);
+
+        ShardRouting sourceFailedShard = TestShardRouting.newShardRouting(failedShard.index(), failedShard.id(), nodeId, randomBoolean(), randomFrom(ShardRoutingState.values()), failedShard.version());
+        shardStateAction.shardFailed(failedShard, sourceFailedShard, "test", getSimulatedFailure(), new ShardStateAction.Listener() {
+            @Override
+            public void onSuccess() {
+                failure.set(null);
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(Throwable t) {
+                failure.set(t);
+                latch.countDown();
+            }
+        });
+
+        ShardStateAction.NoLongerPrimaryShardException catastrophicError =
+            new ShardStateAction.NoLongerPrimaryShardException(failedShard.shardId(), "source shard [" + sourceFailedShard + " is neither the local allocation nor the primary allocation");
+        CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
+        transport.handleRemoteError(capturedRequests[0].requestId, catastrophicError);
+
+        latch.await();
+        assertNotNull(failure.get());
+        assertThat(failure.get(), instanceOf(ShardStateAction.NoLongerPrimaryShardException.class));
+        assertThat(failure.get().getMessage(), equalTo(catastrophicError.getMessage()));
     }
 
     private ShardRouting getRandomShardRouting(String index) {

@@ -24,6 +24,7 @@ import org.elasticsearch.action.TimestampParsingException;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.AbstractClientHeadersTestCase;
+import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.SnapshotId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -591,7 +592,14 @@ public class ExceptionSerializationTests extends ESTestCase {
         assertEquals("foo", e.getHeader("foo").get(0));
         assertEquals("bar", e.getHeader("foo").get(1));
         assertSame(status, e.status());
+    }
 
+    public void testNoLongerPrimaryShardException() throws IOException {
+        ShardId shardId = new ShardId(new Index(randomAsciiOfLength(4), randomAsciiOfLength(4)), randomIntBetween(0, Integer.MAX_VALUE));
+        String msg = randomAsciiOfLength(4);
+        ShardStateAction.NoLongerPrimaryShardException ex = serialize(new ShardStateAction.NoLongerPrimaryShardException(shardId, msg));
+        assertEquals(shardId, ex.getShardId());
+        assertEquals(msg, ex.getMessage());
     }
 
     public static class UnknownHeaderException extends ElasticsearchException {
@@ -776,6 +784,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(139, null);
         ids.put(140, org.elasticsearch.discovery.Discovery.FailedToCommitClusterStateException.class);
         ids.put(141, org.elasticsearch.index.query.QueryShardException.class);
+        ids.put(142, ShardStateAction.NoLongerPrimaryShardException.class);
 
         Map<Class<? extends ElasticsearchException>, Integer> reverse = new HashMap<>();
         for (Map.Entry<Integer, Class<? extends ElasticsearchException>> entry : ids.entrySet()) {

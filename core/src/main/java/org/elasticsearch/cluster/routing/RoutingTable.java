@@ -43,6 +43,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Predicate;
 
 /**
@@ -135,6 +136,13 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
             throw new ShardNotFoundException(shardId);
         }
         return shard;
+    }
+
+    public IndexShardRoutingTable shardRoutingTableOrNull(ShardId shardId) {
+        return Optional
+            .ofNullable(index(shardId.getIndexName()))
+            .flatMap(irt -> Optional.ofNullable(irt.shard(shardId.getId())))
+            .orElse(null);
     }
 
     public RoutingTable validateRaiseException(MetaData metaData) throws RoutingValidationException {

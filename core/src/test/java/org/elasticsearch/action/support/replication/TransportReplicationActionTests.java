@@ -550,7 +550,7 @@ public class TransportReplicationActionTests extends ESTestCase {
             }
         }
 
-        runReplicateTest(shardRoutingTable, assignedReplicas, totalShards);
+        runReplicateTest(state, shardRoutingTable, assignedReplicas, totalShards);
     }
 
     public void testReplicationWithShadowIndex() throws ExecutionException, InterruptedException {
@@ -581,18 +581,22 @@ public class TransportReplicationActionTests extends ESTestCase {
                 totalShards++;
             }
         }
-        runReplicateTest(shardRoutingTable, assignedReplicas, totalShards);
+        runReplicateTest(state, shardRoutingTable, assignedReplicas, totalShards);
     }
 
 
-    protected void runReplicateTest(IndexShardRoutingTable shardRoutingTable, int assignedReplicas, int totalShards) throws InterruptedException, ExecutionException {
+    protected void runReplicateTest(ClusterState state, IndexShardRoutingTable shardRoutingTable, int assignedReplicas, int totalShards) throws InterruptedException, ExecutionException {
         final ShardIterator shardIt = shardRoutingTable.shardsIt();
         final ShardId shardId = shardIt.shardId();
         final Request request = new Request(shardId);
         final PlainActionFuture<Response> listener = new PlainActionFuture<>();
         logger.debug("expecting [{}] assigned replicas, [{}] total shards. using state: \n{}", assignedReplicas, totalShards, clusterService.state().prettyPrint());
 
-        Releasable reference = getOrCreateIndexShardOperationsCounter();
+        TransportReplicationAction.IndexShardReference reference = getOrCreateIndexShardOperationsCounter();
+
+        ShardRouting primaryShard = state.getRoutingTable().shardRoutingTable(shardId).primaryShard();
+        indexShardRouting.set(primaryShard);
+
         assertIndexShardCounter(2);
         // TODO: set a default timeout
         TransportReplicationAction<Request, Request, Response>.ReplicationPhase replicationPhase =
@@ -755,6 +759,8 @@ public class TransportReplicationActionTests extends ESTestCase {
         // one replica to make sure replication is attempted
         clusterService.setState(state(index, true,
                 ShardRoutingState.STARTED, ShardRoutingState.STARTED));
+        ShardRouting primaryShard = clusterService.state().routingTable().shardRoutingTable(shardId).primaryShard();
+        indexShardRouting.set(primaryShard);
         logger.debug("--> using initial state:\n{}", clusterService.state().prettyPrint());
         Request request = new Request(shardId).timeout("100ms");
         PlainActionFuture<Response> listener = new PlainActionFuture<>();

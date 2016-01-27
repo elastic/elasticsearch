@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.action.shard;
 
+import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
@@ -28,6 +29,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardIterator;
@@ -38,6 +40,9 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.FailedRerouteAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.discovery.DiscoveryService;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESAllocationTestCase;
 import org.junit.Before;
 
@@ -45,12 +50,15 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.not;
 
 public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCase {
@@ -119,9 +127,25 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
         tasks.addAll(failingTasks);
         tasks.addAll(nonExistentTasks);
         ClusterStateTaskExecutor.BatchResult<ShardStateAction.ShardRoutingEntry> result = failingExecutor.execute(currentState, tasks);
-        Map<ShardStateAction.ShardRoutingEntry, Boolean> taskResultMap =
-            failingTasks.stream().collect(Collectors.toMap(Function.identity(), task -> false));
-        taskResultMap.putAll(nonExistentTasks.stream().collect(Collectors.toMap(Function.identity(), task -> true)));
+        Map<ShardStateAction.ShardRoutingEntry, ClusterStateTaskExecutor.TaskResult> taskResultMap =
+            failingTasks.stream().collect(Collectors.toMap(Function.identity(), task -> ClusterStateTaskExecutor.TaskResult.failure(new RuntimeException("simulated applyFailedShards failure"))));
+        taskResultMap.putAll(nonExistentTasks.stream().collect(Collectors.toMap(Function.identity(), task -> ClusterStateTaskExecutor.TaskResult.success())));
+        assertTaskResults(taskResultMap, result, currentState, false);
+    }
+
+    public void testIllegalShardFailureRequests() throws Exception {
+        String reason = "test illegal shard failure requests";
+        ClusterState currentState = createClusterStateWithStartedShards(reason);
+        List<ShardStateAction.ShardRoutingEntry> failingTasks = createExistingShards(currentState, reason);
+        List<ShardStateAction.ShardRoutingEntry> tasks = new ArrayList<>();
+        for (ShardStateAction.ShardRoutingEntry failingTask : failingTasks) {
+            tasks.add(new ShardStateAction.ShardRoutingEntry(failingTask.getShardRouting(), randomInvalidSourceShard(currentState, failingTask.getShardRouting()), failingTask.message, failingTask.failure));
+        }
+        Map<ShardStateAction.ShardRoutingEntry, ClusterStateTaskExecutor.TaskResult> taskResultMap =
+            tasks.stream().collect(Collectors.toMap(
+                Function.identity(),
+                task -> ClusterStateTaskExecutor.TaskResult.failure(new ShardStateAction.NoLongerPrimaryShardException(task.getShardRouting().shardId(), "source shard [" + task.sourceShardRouting + "] is neither the local allocation nor the primary allocation"))));
+        ClusterStateTaskExecutor.BatchResult<ShardStateAction.ShardRoutingEntry> result = executor.execute(currentState, tasks);
         assertTaskResults(taskResultMap, result, currentState, false);
     }
 
@@ -156,17 +180,22 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
         for (int i = 0; i < numberOfTasks; i++) {
             shardsToFail.add(randomFrom(failures));
         }
-        return toTasks(shardsToFail, indexUUID, reason);
+        return toTasks(currentState, shardsToFail, indexUUID, reason);
     }
 
     private List<ShardStateAction.ShardRoutingEntry> createNonExistentShards(ClusterState currentState, String reason) {
         // add shards from a non-existent index
-        MetaData nonExistentMetaData =
-            MetaData.builder()
-                .put(IndexMetaData.builder("non-existent").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(numberOfReplicas))
-                .build();
-        RoutingTable routingTable = RoutingTable.builder().addAsNew(nonExistentMetaData.index("non-existent")).build();
-        String nonExistentIndexUUID = nonExistentMetaData.index("non-existent").getIndexUUID();
+        String nonExistentIndexUUID = "non-existent";
+        Index index = new Index("non-existent", nonExistentIndexUUID);
+        List<String> nodeIds = new ArrayList<>();
+        for (ObjectCursor<String> nodeId : currentState.nodes().getNodes().keys()) {
+            nodeIds.add(nodeId.toString());
+        }
+        List<ShardRouting> nonExistentShards = new ArrayList<>();
+        nonExistentShards.add(nonExistentShardRouting(index, nodeIds, true));
+        for (int i = 0; i < numberOfReplicas; i++) {
+            nonExistentShards.add(nonExistentShardRouting(index, nodeIds, false));
+        }
 
         List<ShardStateAction.ShardRoutingEntry> existingShards = createExistingShards(currentState, reason);
         List<ShardStateAction.ShardRoutingEntry> shardsWithMismatchedAllocationIds = new ArrayList<>();
@@ -174,13 +203,17 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
             ShardRouting sr = existingShard.getShardRouting();
             ShardRouting nonExistentShardRouting =
                 TestShardRouting.newShardRouting(sr.index(), sr.id(), sr.currentNodeId(), sr.relocatingNodeId(), sr.restoreSource(), sr.primary(), sr.state(), sr.version());
-            shardsWithMismatchedAllocationIds.add(new ShardStateAction.ShardRoutingEntry(nonExistentShardRouting, existingShard.indexUUID, existingShard.message, existingShard.failure));
+            shardsWithMismatchedAllocationIds.add(new ShardStateAction.ShardRoutingEntry(nonExistentShardRouting, nonExistentShardRouting, existingShard.message, existingShard.failure));
         }
 
         List<ShardStateAction.ShardRoutingEntry> tasks = new ArrayList<>();
-        tasks.addAll(toTasks(routingTable.allShards(), nonExistentIndexUUID, reason));
+        nonExistentShards.forEach(shard -> tasks.add(new ShardStateAction.ShardRoutingEntry(shard, shard, reason, new CorruptIndexException("simulated", nonExistentIndexUUID))));
         tasks.addAll(shardsWithMismatchedAllocationIds);
         return tasks;
+    }
+
+    private ShardRouting nonExistentShardRouting(Index index, List<String> nodeIds, boolean primary) {
+        return TestShardRouting.newShardRouting(index, 0, randomFrom(nodeIds), primary, randomFrom(ShardRoutingState.INITIALIZING, ShardRoutingState.RELOCATING, ShardRoutingState.STARTED), randomIntBetween(1, 8));
     }
 
     private static void assertTasksSuccessful(
@@ -189,13 +222,13 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
         ClusterState clusterState,
         boolean clusterStateChanged
     ) {
-        Map<ShardStateAction.ShardRoutingEntry, Boolean> taskResultMap =
-            tasks.stream().collect(Collectors.toMap(Function.identity(), task -> true));
+        Map<ShardStateAction.ShardRoutingEntry, ClusterStateTaskExecutor.TaskResult> taskResultMap =
+            tasks.stream().collect(Collectors.toMap(Function.identity(), task -> ClusterStateTaskExecutor.TaskResult.success()));
         assertTaskResults(taskResultMap, result, clusterState, clusterStateChanged);
     }
 
     private static void assertTaskResults(
-        Map<ShardStateAction.ShardRoutingEntry, Boolean> taskResultMap,
+        Map<ShardStateAction.ShardRoutingEntry, ClusterStateTaskExecutor.TaskResult> taskResultMap,
         ClusterStateTaskExecutor.BatchResult<ShardStateAction.ShardRoutingEntry> result,
         ClusterState clusterState,
         boolean clusterStateChanged
@@ -203,24 +236,29 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
         // there should be as many task results as tasks
         assertEquals(taskResultMap.size(), result.executionResults.size());
 
-        for (Map.Entry<ShardStateAction.ShardRoutingEntry, Boolean> entry : taskResultMap.entrySet()) {
+        for (Map.Entry<ShardStateAction.ShardRoutingEntry, ClusterStateTaskExecutor.TaskResult> entry : taskResultMap.entrySet()) {
             // every task should have a corresponding task result
             assertTrue(result.executionResults.containsKey(entry.getKey()));
 
             // the task results are as expected
-            assertEquals(entry.getValue(), result.executionResults.get(entry.getKey()).isSuccess());
+            assertEquals(entry.getValue().isSuccess(), result.executionResults.get(entry.getKey()).isSuccess());
         }
 
-        // every shard that we requested to be successfully failed is
-        // gone
         List<ShardRouting> shards = clusterState.getRoutingTable().allShards();
-        for (Map.Entry<ShardStateAction.ShardRoutingEntry, Boolean> entry : taskResultMap.entrySet()) {
-            if (entry.getValue()) {
+        for (Map.Entry<ShardStateAction.ShardRoutingEntry, ClusterStateTaskExecutor.TaskResult> entry : taskResultMap.entrySet()) {
+            if (entry.getValue().isSuccess()) {
+                // the shard was successfully failed and so should not
+                // be in the routing table
                 for (ShardRouting shard : shards) {
                     if (entry.getKey().getShardRouting().allocationId() != null) {
                         assertThat(shard.allocationId(), not(equalTo(entry.getKey().getShardRouting().allocationId())));
                     }
                 }
+            } else {
+                // check we saw the expected failure
+                ClusterStateTaskExecutor.TaskResult actualResult = result.executionResults.get(entry.getKey());
+                assertThat(actualResult.getFailure(), instanceOf(entry.getValue().getFailure().getClass()));
+                assertThat(actualResult.getFailure().getMessage(), equalTo(entry.getValue().getFailure().getMessage()));
             }
         }
 
@@ -231,11 +269,49 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
         }
     }
 
-    private static List<ShardStateAction.ShardRoutingEntry> toTasks(List<ShardRouting> shards, String indexUUID, String message) {
+    private static List<ShardStateAction.ShardRoutingEntry> toTasks(ClusterState currentState, List<ShardRouting> shards, String indexUUID, String message) {
         return shards
             .stream()
-            .map(shard -> new ShardStateAction.ShardRoutingEntry(shard, indexUUID, message, new CorruptIndexException("simulated", indexUUID)))
+            .map(shard -> new ShardStateAction.ShardRoutingEntry(shard, randomValidSourceShard(currentState, shard), message, new CorruptIndexException("simulated", indexUUID)))
             .collect(Collectors.toList());
     }
 
+    private static ShardRouting randomValidSourceShard(ClusterState currentState, ShardRouting shardRouting) {
+        // for the request node ID to be valid, either the request is
+        // from the node the shard is assigned to, or the request is
+        // from the node holding the primary shard
+        if (randomBoolean()) {
+            // request from local node
+            return shardRouting;
+        } else {
+            // request from primary node unless in the case of
+            // non-existent shards there is not one and we fallback to
+            // the local node
+            ShardRouting primaryNodeId = primaryShard(currentState, shardRouting);
+            return primaryNodeId != null ? primaryNodeId : shardRouting;
+        }
+    }
+
+    private static ShardRouting randomInvalidSourceShard(ClusterState currentState, ShardRouting shardRouting) {
+        ShardRouting primaryShard = primaryShard(currentState, shardRouting);
+        Set<ShardRouting> shards =
+            currentState
+                .routingTable()
+                .allShards()
+                .stream()
+                .filter(shard -> !shard.isSameAllocation(shardRouting))
+                .filter(shard -> !shard.isSameAllocation(primaryShard))
+                .collect(Collectors.toSet());
+        if (!shards.isEmpty()) {
+            return randomSubsetOf(1, shards.toArray(new ShardRouting[0])).get(0);
+        } else {
+            return
+                TestShardRouting.newShardRouting(shardRouting.index(), shardRouting.id(), DiscoveryService.generateNodeId(Settings.EMPTY), randomBoolean(), randomFrom(ShardRoutingState.values()), shardRouting.version());
+        }
+    }
+
+    private static ShardRouting primaryShard(ClusterState currentState, ShardRouting shardRouting) {
+        IndexShardRoutingTable indexShard = currentState.getRoutingTable().shardRoutingTableOrNull(shardRouting.shardId());
+        return indexShard == null ? null : indexShard.primaryShard();
+    }
 }

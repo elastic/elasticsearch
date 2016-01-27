@@ -778,16 +778,15 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         private final List<ShardRouting> shards;
         private final DiscoveryNodes nodes;
         private final boolean executeOnReplica;
-        private final String indexUUID;
         private final AtomicBoolean finished = new AtomicBoolean();
         private final AtomicInteger success = new AtomicInteger(1); // We already wrote into the primary shard
         private final ConcurrentMap<String, Throwable> shardReplicaFailures = ConcurrentCollections.newConcurrentMap();
         private final AtomicInteger pending;
         private final int totalShards;
-        private final Releasable indexShardReference;
+        private final IndexShardReference indexShardReference;
 
         public ReplicationPhase(ReplicaRequest replicaRequest, Response finalResponse, ShardId shardId,
-                                TransportChannel channel, Releasable indexShardReference) {
+                                TransportChannel channel, IndexShardReference indexShardReference) {
             this.replicaRequest = replicaRequest;
             this.channel = channel;
             this.finalResponse = finalResponse;
@@ -804,7 +803,6 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
             final IndexMetaData indexMetaData = state.getMetaData().index(shardId.getIndex());
             this.shards = (shardRoutingTable != null) ? shardRoutingTable.shards() : Collections.emptyList();
             this.executeOnReplica = (indexMetaData == null) || shouldExecuteReplication(indexMetaData.getSettings());
-            this.indexUUID = (indexMetaData != null) ? indexMetaData.getIndexUUID() : null;
             this.nodes = state.getNodes();
 
             if (shards.isEmpty()) {
@@ -940,22 +938,22 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                                 String message = String.format(Locale.ROOT, "failed to perform %s on replica on node %s", transportReplicaAction, node);
                                 logger.warn("[{}] {}", exp, shardId, message);
                                 shardStateAction.shardFailed(
-                                        shard,
-                                        indexUUID,
-                                        message,
-                                        exp,
-                                        new ShardStateAction.Listener() {
-                                            @Override
-                                            public void onSuccess() {
-                                                onReplicaFailure(nodeId, exp);
-                                            }
-
-                                            @Override
-                                            public void onFailure(Throwable t) {
-                                                // TODO: handle catastrophic non-channel failures
-                                                onReplicaFailure(nodeId, exp);
-                                            }
+                                    shard,
+                                    indexShardReference.routingEntry(),
+                                    message,
+                                    exp,
+                                    new ShardStateAction.Listener() {
+                                        @Override
+                                        public void onSuccess() {
+                                            onReplicaFailure(nodeId, exp);
                                         }
+
+                                        @Override
+                                        public void onFailure(Throwable t) {
+                                            // TODO: handle catastrophic non-channel failures
+                                            onReplicaFailure(nodeId, exp);
+                                        }
+                                    }
                                 );
                             }
                         }

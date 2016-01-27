@@ -27,7 +27,7 @@ public class MarvelF {
 
     public static void main(String[] args) throws Throwable {
         Settings.Builder settings = Settings.builder();
-        settings.put("script.inline", "on");
+        settings.put("script.inline", "true");
         settings.put("security.manager.enabled", "false");
         settings.put("plugins.load_classpath_plugins", "false");
         settings.put("cluster.name", MarvelF.class.getSimpleName());

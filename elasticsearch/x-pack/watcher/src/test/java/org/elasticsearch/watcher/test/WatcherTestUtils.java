@@ -21,8 +21,10 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.script.ScriptContextRegistry;
+import org.elasticsearch.script.ScriptEngineRegistry;
 import org.elasticsearch.script.ScriptEngineService;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptSettings;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -240,16 +242,19 @@ public final class WatcherTestUtils {
 
     public static ScriptServiceProxy getScriptServiceProxy(ThreadPool tp) throws Exception {
         Settings settings = Settings.settingsBuilder()
-                .put("script.inline", "on")
-                .put("script.indexed", "on")
+                .put("script.inline", "true")
+                .put("script.indexed", "true")
                 .put("path.home", createTempDir())
                 .build();
         XMustacheScriptEngineService mustacheScriptEngineService = new XMustacheScriptEngineService(settings);
         Set<ScriptEngineService> engineServiceSet = new HashSet<>();
         engineServiceSet.add(mustacheScriptEngineService);
-        ScriptContextRegistry registry = new ScriptContextRegistry(Arrays.asList(ScriptServiceProxy.INSTANCE));
+        ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Arrays.asList(ScriptServiceProxy.INSTANCE));
 
-        return  ScriptServiceProxy.of(new ScriptService(settings, new Environment(settings), engineServiceSet, new ResourceWatcherService(settings, tp), registry));
+        ScriptEngineRegistry scriptEngineRegistry =
+                new ScriptEngineRegistry(Collections.singletonList(new ScriptEngineRegistry.ScriptEngineRegistration(XMustacheScriptEngineService.class, XMustacheScriptEngineService.TYPES)));
+        ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
+        return  ScriptServiceProxy.of(new ScriptService(settings, new Environment(settings), engineServiceSet, new ResourceWatcherService(settings, tp), scriptEngineRegistry, scriptContextRegistry, scriptSettings));
     }
 
     public static SearchType getRandomSupportedSearchType() {

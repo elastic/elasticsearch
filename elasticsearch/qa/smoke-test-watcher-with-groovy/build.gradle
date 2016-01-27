@@ -8,7 +8,7 @@ dependencies {
 integTest {
   cluster {
     plugin 'x-pack', project(':x-plugins:elasticsearch:x-pack')
-    systemProperty 'es.script.inline', 'on'
+    systemProperty 'es.script.inline', 'true'
     systemProperty 'es.shield.enabled', 'false'
     systemProperty 'es.marvel.enabled', 'false'
   }

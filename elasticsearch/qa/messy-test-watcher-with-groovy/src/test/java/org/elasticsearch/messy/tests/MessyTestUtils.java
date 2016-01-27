@@ -10,8 +10,10 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.script.ScriptContextRegistry;
+import org.elasticsearch.script.ScriptEngineRegistry;
 import org.elasticsearch.script.ScriptEngineService;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptSettings;
 import org.elasticsearch.script.groovy.GroovyScriptEngineService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -28,8 +30,8 @@ import java.util.Set;
 public final class MessyTestUtils {
     public static ScriptServiceProxy getScriptServiceProxy(ThreadPool tp) throws Exception {
         Settings settings = Settings.settingsBuilder()
-                .put("script.inline", "on")
-                .put("script.indexed", "on")
+                .put("script.inline", "true")
+                .put("script.indexed", "true")
                 .put("path.home", LuceneTestCase.createTempDir())
                 .build();
         XMustacheScriptEngineService mustacheScriptEngineService = new XMustacheScriptEngineService(settings);
@@ -37,8 +39,15 @@ public final class MessyTestUtils {
         Set<ScriptEngineService> engineServiceSet = new HashSet<>();
         engineServiceSet.add(mustacheScriptEngineService);
         engineServiceSet.add(groovyScriptEngineService);
-        ScriptContextRegistry registry = new ScriptContextRegistry(Arrays.asList(ScriptServiceProxy.INSTANCE));
+        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(
+                Arrays.asList(
+                        new ScriptEngineRegistry.ScriptEngineRegistration(GroovyScriptEngineService.class, GroovyScriptEngineService.TYPES),
+                        new ScriptEngineRegistry.ScriptEngineRegistration(XMustacheScriptEngineService.class, XMustacheScriptEngineService.TYPES)
+                )
+        );
+        ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Arrays.asList(ScriptServiceProxy.INSTANCE));
 
-        return  ScriptServiceProxy.of(new ScriptService(settings, new Environment(settings), engineServiceSet, new ResourceWatcherService(settings, tp), registry));
+        ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
+        return  ScriptServiceProxy.of(new ScriptService(settings, new Environment(settings), engineServiceSet, new ResourceWatcherService(settings, tp), scriptEngineRegistry, scriptContextRegistry, scriptSettings));
     }
 }

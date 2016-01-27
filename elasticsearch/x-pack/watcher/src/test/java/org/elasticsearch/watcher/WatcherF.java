@@ -29,7 +29,7 @@ public class WatcherF {
         Settings.Builder settings = Settings.builder();
         settings.put("http.cors.enabled", "true");
         settings.put("http.cors.allow-origin", "*");
-        settings.put("script.inline", "on");
+        settings.put("script.inline", "true");
         settings.put("shield.enabled", "false");
         settings.put("security.manager.enabled", "false");
         settings.put("cluster.name", WatcherF.class.getSimpleName());

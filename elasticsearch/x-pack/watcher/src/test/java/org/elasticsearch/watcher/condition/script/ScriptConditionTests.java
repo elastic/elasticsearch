@@ -67,7 +67,7 @@ public class ScriptConditionTests extends ESTestCase {
 
     public void testExecuteMergedParams() throws Exception {
         ScriptServiceProxy scriptService = getScriptServiceProxy(tp);
-        Script script = Script.inline("ctx.payload.hits.total > threshold").lang(ScriptService.DEFAULT_LANG).params(singletonMap("threshold", 1)).build();
+        Script script = Script.inline("ctx.payload.hits.total > threshold").lang(Script.DEFAULT_LANG).params(singletonMap("threshold", 1)).build();
         ExecutableScriptCondition executable = new ExecutableScriptCondition(new ScriptCondition(script), logger, scriptService);
         SearchResponse response = new SearchResponse(InternalSearchResponse.empty(), "", 3, 3, 500l, new ShardSearchFailure[0]);
         WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response));

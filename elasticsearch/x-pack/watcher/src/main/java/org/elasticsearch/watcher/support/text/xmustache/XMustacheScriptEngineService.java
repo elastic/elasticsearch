@@ -23,6 +23,7 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import java.io.IOException;
 import java.lang.ref.SoftReference;
 import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
@@ -32,6 +33,8 @@ import java.util.Map;
 public class XMustacheScriptEngineService extends AbstractComponent implements ScriptEngineService {
 
     public static final String NAME = "xmustache";
+
+    public static final List<String> TYPES = Collections.singletonList(NAME);
 
     /**
      * @param settings automatically wired by Guice.
@@ -58,17 +61,17 @@ public class XMustacheScriptEngineService extends AbstractComponent implements S
     }
 
     @Override
-    public String[] types() {
-        return new String[] { NAME };
+    public List<String> getTypes() {
+        return TYPES;
     }
 
     @Override
-    public String[] extensions() {
-        return new String[] { NAME };
+    public List<String> getExtensions() {
+        return TYPES;
     }
 
     @Override
-    public boolean sandboxed() {
+    public boolean isSandboxed() {
         return true;
     }
 

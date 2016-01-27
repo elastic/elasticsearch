@@ -11,13 +11,17 @@ import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 /**
  * A dummy script engine used for testing. Scripts must be a number. Running the script
  */
 public class SleepScriptEngine implements ScriptEngineService {
+
     public static final String NAME = "sleep";
+
+    public static final List<String> TYPES = Collections.singletonList(NAME);
 
     public static class TestPlugin extends Plugin {
 
@@ -35,23 +39,23 @@ public class SleepScriptEngine implements ScriptEngineService {
         }
 
         public void onModule(ScriptModule module) {
-            module.addScriptEngine(SleepScriptEngine.class);
+            module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(SleepScriptEngine.class, SleepScriptEngine.TYPES));
         }
 
     }
 
     @Override
-    public String[] types() {
-        return new String[]{ NAME };
+    public List<String> getTypes() {
+        return TYPES;
     }
 
     @Override
-    public String[] extensions() {
-        return types();
+    public List<String> getExtensions() {
+        return TYPES;
     }
 
     @Override
-    public boolean sandboxed() {
+    public boolean isSandboxed() {
         return true;
     }
 

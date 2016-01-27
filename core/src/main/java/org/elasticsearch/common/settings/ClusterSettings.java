@@ -21,6 +21,7 @@ package org.elasticsearch.common.settings;
 import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.client.transport.TransportClientNodesService;
+import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -36,6 +37,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.SnapshotInProgressAl
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.cluster.service.InternalClusterService;
 import org.elasticsearch.common.logging.ESLoggerFactory;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.common.network.NetworkModule;
@@ -258,5 +260,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         URLRepository.ALLOWED_URLS_SETTING,
         URLRepository.REPOSITORIES_LIST_DIRECTORIES_SETTING,
         URLRepository.REPOSITORIES_URL_SETTING,
-        URLRepository.SUPPORTED_PROTOCOLS_SETTING)));
+        URLRepository.SUPPORTED_PROTOCOLS_SETTING,
+        ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING,
+        EsExecutors.PROCESSORS_SETTING)));
 }

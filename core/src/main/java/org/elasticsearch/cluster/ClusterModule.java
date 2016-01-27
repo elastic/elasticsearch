@@ -57,6 +57,7 @@ import org.elasticsearch.cluster.service.InternalClusterService;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.ExtensionPoint;
 import org.elasticsearch.gateway.GatewayAllocator;
@@ -64,6 +65,7 @@ import org.elasticsearch.gateway.GatewayAllocator;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Function;
 
 /**
  * Configures classes and services that affect the entire cluster.
@@ -72,7 +74,7 @@ public class ClusterModule extends AbstractModule {
 
     public static final String EVEN_SHARD_COUNT_ALLOCATOR = "even_shard";
     public static final String BALANCED_ALLOCATOR = "balanced"; // default
-    public static final String SHARDS_ALLOCATOR_TYPE_KEY = "cluster.routing.allocation.type";
+    public static final Setting<String> SHARDS_ALLOCATOR_TYPE_SETTING = new Setting<>("cluster.routing.allocation.type", BALANCED_ALLOCATOR, Function.identity(), false, Setting.Scope.CLUSTER);
     public static final List<Class<? extends AllocationDecider>> DEFAULT_ALLOCATION_DECIDERS =
         Collections.unmodifiableList(Arrays.asList(
             SameShardAllocationDecider.class,
@@ -121,7 +123,7 @@ public class ClusterModule extends AbstractModule {
     @Override
     protected void configure() {
         // bind ShardsAllocator
-        String shardsAllocatorType = shardsAllocators.bindType(binder(), settings, ClusterModule.SHARDS_ALLOCATOR_TYPE_KEY, ClusterModule.BALANCED_ALLOCATOR);
+        String shardsAllocatorType = shardsAllocators.bindType(binder(), settings, ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING.getKey(), ClusterModule.BALANCED_ALLOCATOR);
         if (shardsAllocatorType.equals(ClusterModule.EVEN_SHARD_COUNT_ALLOCATOR)) {
             final ESLogger logger = Loggers.getLogger(getClass(), settings);
             logger.warn("{} allocator has been removed in 2.0 using {} instead", ClusterModule.EVEN_SHARD_COUNT_ALLOCATOR, ClusterModule.BALANCED_ALLOCATOR);

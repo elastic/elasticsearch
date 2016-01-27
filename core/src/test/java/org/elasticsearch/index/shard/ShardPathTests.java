@@ -120,7 +120,7 @@ public class ShardPathTests extends ESTestCase {
             final boolean includeNodeId = randomBoolean();
             indexSetttings = indexSettingsBuilder.put(IndexMetaData.SETTING_DATA_PATH, "custom").build();
             nodeSettings = settingsBuilder().put(Environment.PATH_SHARED_DATA_SETTING.getKey(), path.toAbsolutePath().toAbsolutePath())
-                    .put(NodeEnvironment.ADD_NODE_ID_TO_CUSTOM_PATH, includeNodeId).build();
+                    .put(NodeEnvironment.ADD_NODE_ID_TO_CUSTOM_PATH.getKey(), includeNodeId).build();
             if (includeNodeId) {
                 customPath = path.resolve("custom").resolve("0");
             } else {

@@ -18,10 +18,12 @@
  */
 package org.elasticsearch.env;
 
+import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -41,35 +43,75 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 
 @LuceneTestCase.SuppressFileSystems("ExtrasFS") // TODO: fix test to allow extras
 public class NodeEnvironmentTests extends ESTestCase {
     private final IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("foo", Settings.EMPTY);
 
+    public void testNodeLockSillySettings() {
+        try {
+            NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.get(Settings.builder()
+                    .put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), between(Integer.MIN_VALUE, 0)).build());
+            fail("expected failure");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("must be >= 1"));
+        }
+
+        // Even though its silly MAXINT nodes is a-ok!
+        int value = between(1, Integer.MAX_VALUE);
+        int max = NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.get(
+                Settings.builder().put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), value).build());
+        assertEquals(value, max);
+    }
+
     public void testNodeLockSingleEnvironment() throws IOException {
         NodeEnvironment env = newNodeEnvironment(Settings.builder()
-                .put("node.max_local_storage_nodes", 1).build());
+                .put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), 1).build());
         Settings settings = env.getSettings();
         List<String> dataPaths = Environment.PATH_DATA_SETTING.get(env.getSettings());
 
         try {
+            // Reuse the same location and attempt to lock again
             new NodeEnvironment(settings, new Environment(settings));
-            fail("env is already locked");
+            fail("env has already locked all the data directories it is allowed");
         } catch (IllegalStateException ex) {
-
+            assertThat(ex.getMessage(), containsString("Failed to obtain node lock"));
         }
-        env.close();
 
-        // now can recreate and lock it
+        // Close the environment that holds the lock and make sure we can get the lock after release
+        env.close();
         env = new NodeEnvironment(settings, new Environment(settings));
-        assertEquals(env.nodeDataPaths().length, dataPaths.size());
+        assertThat(env.nodeDataPaths(), arrayWithSize(dataPaths.size()));
 
         for (int i = 0; i < dataPaths.size(); i++) {
             assertTrue(env.nodeDataPaths()[i].startsWith(PathUtils.get(dataPaths.get(i))));
         }
         env.close();
-        assertTrue("LockedShards: " + env.lockedShards(), env.lockedShards().isEmpty());
+        assertThat(env.lockedShards(), empty());
+    }
 
+    @SuppressForbidden(reason = "System.out.*")
+    public void testSegmentInfosTracing() {
+        // Defaults to not hooking up std out
+        assertNull(SegmentInfos.getInfoStream());
+
+        try {
+            // False means don't hook up std out
+            NodeEnvironment.applySegmentInfosTrace(
+                    Settings.builder().put(NodeEnvironment.ENABLE_LUCENE_SEGMENT_INFOS_TRACE_SETTING.getKey(), false).build());
+            assertNull(SegmentInfos.getInfoStream());
+
+            // But true means hook std out up statically
+            NodeEnvironment.applySegmentInfosTrace(
+                    Settings.builder().put(NodeEnvironment.ENABLE_LUCENE_SEGMENT_INFOS_TRACE_SETTING.getKey(), true).build());
+            assertEquals(System.out, SegmentInfos.getInfoStream());
+        } finally {
+            // Clean up after ourselves
+            SegmentInfos.setInfoStream(null);
+        }
     }
 
     public void testNodeLockMultipleEnvironment() throws IOException {
@@ -312,7 +354,7 @@ public class NodeEnvironmentTests extends ESTestCase {
 
         env.close();
         NodeEnvironment env2 = newNodeEnvironment(dataPaths, "/tmp",
-                Settings.builder().put(NodeEnvironment.ADD_NODE_ID_TO_CUSTOM_PATH, false).build());
+                Settings.builder().put(NodeEnvironment.ADD_NODE_ID_TO_CUSTOM_PATH.getKey(), false).build());
 
         assertThat(env2.availableShardPaths(sid), equalTo(env2.availableShardPaths(sid)));
         assertThat(env2.resolveCustomLocation(s2, sid), equalTo(PathUtils.get("/tmp/foo/myindex/0")));

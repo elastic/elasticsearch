@@ -70,9 +70,8 @@ public class ClientProxy implements InitializingService.Initializable {
 
     @Override
     public void init(Injector injector) {
-        client = injector.getInstance(Client.class);
         if (shieldIntegration != null) {
-            client = new FilterClient(client) {
+            this.client = new FilterClient(injector.getInstance(Client.class)) {
                 @Override
                 protected <Request extends ActionRequest<Request>, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void doExecute(Action<Request, Response, RequestBuilder> action, Request request, ActionListener<Response> listener) {
                     try (ThreadContext.StoredContext ctx = threadPool().getThreadContext().stashContext()) {
@@ -81,6 +80,8 @@ public class ClientProxy implements InitializingService.Initializable {
                     }
                 }
             };
+        } else {
+            this.client = injector.getInstance(Client.class);
         }
     }
 

@@ -31,9 +31,6 @@ import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.percolate.PercolateShardRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
-import org.elasticsearch.common.HasContext;
-import org.elasticsearch.common.HasContextAndHeaders;
-import org.elasticsearch.common.HasHeaders;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.lease.Releasables;
@@ -123,7 +120,7 @@ public class PercolateContext extends SearchContext {
     public PercolateContext(PercolateShardRequest request, SearchShardTarget searchShardTarget, IndexShard indexShard,
                             IndexService indexService, PageCacheRecycler pageCacheRecycler,
                             BigArrays bigArrays, ScriptService scriptService, Query aliasFilter, ParseFieldMatcher parseFieldMatcher) {
-        super(parseFieldMatcher, request);
+        super(parseFieldMatcher);
         this.indexShard = indexShard;
         this.indexService = indexService;
         this.fieldDataService = indexService.fieldData();
@@ -144,7 +141,7 @@ public class PercolateContext extends SearchContext {
 
     // for testing:
     PercolateContext(PercolateShardRequest request, SearchShardTarget searchShardTarget, MapperService mapperService) {
-        super(null, request);
+        super(null);
         this.searchShardTarget = searchShardTarget;
         this.mapperService = mapperService;
         this.indexService = null;
@@ -685,82 +682,6 @@ public class PercolateContext extends SearchContext {
     @Override
     public InnerHitsContext innerHits() {
         throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public <V> V putInContext(Object key, Object value) {
-        assert false : "percolatecontext does not support contexts & headers";
-        return null;
-    }
-
-    @Override
-    public void putAllInContext(ObjectObjectAssociativeContainer<Object, Object> map) {
-        assert false : "percolatocontext does not support contexts & headers";
-    }
-
-    @Override
-    public <V> V getFromContext(Object key) {
-        return null;
-    }
-
-    @Override
-    public <V> V getFromContext(Object key, V defaultValue) {
-        return defaultValue;
-    }
-
-    @Override
-    public boolean hasInContext(Object key) {
-        return false;
-    }
-
-    @Override
-    public int contextSize() {
-        return 0;
-    }
-
-    @Override
-    public boolean isContextEmpty() {
-        return true;
-    }
-
-    @Override
-    public ImmutableOpenMap<Object, Object> getContext() {
-        return ImmutableOpenMap.of();
-    }
-
-    @Override
-    public void copyContextFrom(HasContext other) {
-        assert false : "percolatecontext does not support contexts & headers";
-    }
-
-    @Override
-    public <V> void putHeader(String key, V value) {
-        assert false : "percolatecontext does not support contexts & headers";
-    }
-
-    @Override
-    public <V> V getHeader(String key) {
-        return null;
-    }
-
-    @Override
-    public boolean hasHeader(String key) {
-        return false;
-    }
-
-    @Override
-    public Set<String> getHeaders() {
-        return Collections.emptySet();
-    }
-
-    @Override
-    public void copyHeadersFrom(HasHeaders from) {
-        assert false : "percolatecontext does not support contexts & headers";
-    }
-
-    @Override
-    public void copyContextAndHeadersFrom(HasContextAndHeaders other) {
-        assert false : "percolatecontext does not support contexts & headers";
     }
 
     @Override

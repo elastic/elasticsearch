@@ -83,7 +83,7 @@ public class NettyHttpChannelTests extends ESTestCase {
         Settings settings = Settings.builder()
                 .put(NettyHttpServerTransport.SETTING_CORS_ENABLED.getKey(), true)
                 .build();
-        httpServerTransport = new NettyHttpServerTransport(settings, networkService, bigArrays);
+        httpServerTransport = new NettyHttpServerTransport(settings, networkService, bigArrays, threadPool);
         HttpRequest httpRequest = new TestHttpRequest();
         httpRequest.headers().add(HttpHeaders.Names.ORIGIN, "remote");
         httpRequest.headers().add(HttpHeaders.Names.USER_AGENT, "Mozilla fake");
@@ -107,7 +107,7 @@ public class NettyHttpChannelTests extends ESTestCase {
                 .put(NettyHttpServerTransport.SETTING_CORS_ENABLED.getKey(), true)
                 .put(NettyHttpServerTransport.SETTING_CORS_ALLOW_ORIGIN, "remote-host")
                 .build();
-        httpServerTransport = new NettyHttpServerTransport(settings, networkService, bigArrays);
+        httpServerTransport = new NettyHttpServerTransport(settings, networkService, bigArrays, threadPool);
         HttpRequest httpRequest = new TestHttpRequest();
         httpRequest.headers().add(HttpHeaders.Names.ORIGIN, "remote");
         httpRequest.headers().add(HttpHeaders.Names.USER_AGENT, "Mozilla fake");

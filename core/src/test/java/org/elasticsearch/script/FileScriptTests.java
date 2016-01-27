@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.script;
 
-import org.elasticsearch.common.ContextAndHeaderHolder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
@@ -52,16 +51,14 @@ public class FileScriptTests extends ESTestCase {
     }
 
     public void testFileScriptFound() throws Exception {
-        ContextAndHeaderHolder contextAndHeaders = new ContextAndHeaderHolder();
         Settings settings = Settings.builder()
             .put("script.engine." + MockScriptEngine.NAME + ".file.aggs", "false").build();
         ScriptService scriptService = makeScriptService(settings);
         Script script = new Script("script1", ScriptService.ScriptType.FILE, MockScriptEngine.NAME, null);
-        assertNotNull(scriptService.compile(script, ScriptContext.Standard.SEARCH, contextAndHeaders, Collections.emptyMap()));
+        assertNotNull(scriptService.compile(script, ScriptContext.Standard.SEARCH, Collections.emptyMap()));
     }
 
     public void testAllOpsDisabled() throws Exception {
-        ContextAndHeaderHolder contextAndHeaders = new ContextAndHeaderHolder();
         Settings settings = Settings.builder()
             .put("script.engine." + MockScriptEngine.NAME + ".file.aggs", "false")
             .put("script.engine." + MockScriptEngine.NAME + ".file.search", "false")
@@ -72,7 +69,7 @@ public class FileScriptTests extends ESTestCase {
         Script script = new Script("script1", ScriptService.ScriptType.FILE, MockScriptEngine.NAME, null);
         for (ScriptContext context : ScriptContext.Standard.values()) {
             try {
-                scriptService.compile(script, context, contextAndHeaders, Collections.emptyMap());
+                scriptService.compile(script, context, Collections.emptyMap());
                 fail(context.getKey() + " script should have been rejected");
             } catch(Exception e) {
                 assertTrue(e.getMessage(), e.getMessage().contains("scripts of type [file], operation [" + context.getKey() + "] and lang [" + MockScriptEngine.NAME + "] are disabled"));

@@ -96,7 +96,7 @@ public class TransportNodesInfoAction extends TransportNodesAction<NodesInfoRequ
         }
 
         NodeInfoRequest(String nodeId, NodesInfoRequest request) {
-            super(request, nodeId);
+            super(nodeId);
             this.request = request;
         }
 

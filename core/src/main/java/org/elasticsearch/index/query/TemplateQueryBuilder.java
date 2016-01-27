@@ -100,7 +100,7 @@ public class TemplateQueryBuilder extends AbstractQueryBuilder<TemplateQueryBuil
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        BytesReference querySource = context.executeQueryTemplate(template, SearchContext.current());
+        BytesReference querySource = context.executeQueryTemplate(template);
         try (XContentParser qSourceParser = XContentFactory.xContent(querySource).createParser(querySource)) {
             final QueryShardContext contextCopy = new QueryShardContext(context);
             contextCopy.reset(qSourceParser);

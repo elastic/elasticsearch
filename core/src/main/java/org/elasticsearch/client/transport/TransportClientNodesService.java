@@ -29,7 +29,6 @@ import org.elasticsearch.action.admin.cluster.node.liveness.TransportLivenessAct
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.client.Requests;
-import org.elasticsearch.client.support.Headers;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -80,8 +79,6 @@ public class TransportClientNodesService extends AbstractComponent {
 
     private final Version minCompatibilityVersion;
 
-    private final Headers headers;
-
     // nodes that are added to be discovered
     private volatile List<DiscoveryNode> listedNodes = Collections.emptyList();
 
@@ -109,13 +106,12 @@ public class TransportClientNodesService extends AbstractComponent {
 
     @Inject
     public TransportClientNodesService(Settings settings, ClusterName clusterName, TransportService transportService,
-                                       ThreadPool threadPool, Headers headers, Version version) {
+                                       ThreadPool threadPool, Version version) {
         super(settings);
         this.clusterName = clusterName;
         this.transportService = transportService;
         this.threadPool = threadPool;
         this.minCompatibilityVersion = version.minimumCompatibilityVersion();
-        this.headers = headers;
 
         this.nodesSamplerInterval = CLIENT_TRANSPORT_NODES_SAMPLER_INTERVAL.get(this.settings);
         this.pingTimeout = CLIENT_TRANSPORT_PING_TIMEOUT.get(this.settings).millis();
@@ -364,7 +360,7 @@ public class TransportClientNodesService extends AbstractComponent {
                 }
                 try {
                     LivenessResponse livenessResponse = transportService.submitRequest(listedNode, TransportLivenessAction.NAME,
-                            headers.applyTo(new LivenessRequest()),
+                            new LivenessRequest(),
                             TransportRequestOptions.builder().withType(TransportRequestOptions.Type.STATE).withTimeout(pingTimeout).build(),
                             new FutureTransportResponseHandler<LivenessResponse>() {
                                 @Override
@@ -434,8 +430,7 @@ public class TransportClientNodesService extends AbstractComponent {
                                     return;
                                 }
                             }
-                            transportService.sendRequest(listedNode, ClusterStateAction.NAME,
-                                    headers.applyTo(Requests.clusterStateRequest().clear().nodes(true).local(true)),
+                            transportService.sendRequest(listedNode, ClusterStateAction.NAME, Requests.clusterStateRequest().clear().nodes(true).local(true),
                                     TransportRequestOptions.builder().withType(TransportRequestOptions.Type.STATE).withTimeout(pingTimeout).build(),
                                     new BaseTransportResponseHandler<ClusterStateResponse>() {
 

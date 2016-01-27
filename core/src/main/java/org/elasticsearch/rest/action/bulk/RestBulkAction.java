@@ -58,7 +58,7 @@ public class RestBulkAction extends BaseRestHandler {
 
     @Inject
     public RestBulkAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+        super(settings, client);
 
         controller.registerHandler(POST, "/_bulk", this);
         controller.registerHandler(PUT, "/_bulk", this);

@@ -211,7 +211,7 @@ public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeA
                 @Override
                 public void doRun() throws IOException {
                     final InternalSearchResponse internalResponse = searchPhaseController.merge(sortedShardList, queryResults,
-                            fetchResults, request);
+                            fetchResults);
                     String scrollId = null;
                     if (request.scroll() != null) {
                         scrollId = TransportSearchHelper.buildScrollId(request.searchType(), firstResults, null);

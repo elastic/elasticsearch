@@ -33,7 +33,7 @@ public class RestDeletePipelineAction extends BaseRestHandler {
 
     @Inject
     public RestDeletePipelineAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+        super(settings, client);
         controller.registerHandler(RestRequest.Method.DELETE, "/_ingest/pipeline/{id}", this);
     }
 

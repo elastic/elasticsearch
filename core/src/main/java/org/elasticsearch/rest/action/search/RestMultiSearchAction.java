@@ -62,7 +62,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
 
     @Inject
     public RestMultiSearchAction(Settings settings, RestController controller, Client client, IndicesQueriesRegistry indicesQueriesRegistry) {
-        super(settings, controller, client);
+        super(settings, client);
 
         controller.registerHandler(GET, "/_msearch", this);
         controller.registerHandler(POST, "/_msearch", this);

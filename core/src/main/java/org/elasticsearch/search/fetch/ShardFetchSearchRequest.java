@@ -46,7 +46,7 @@ public class ShardFetchSearchRequest extends ShardFetchRequest implements Indice
     }
 
     public ShardFetchSearchRequest(SearchRequest request, long id, IntArrayList list, ScoreDoc lastEmittedDoc) {
-        super(request, id, list, lastEmittedDoc);
+        super(id, list, lastEmittedDoc);
         this.originalIndices = new OriginalIndices(request);
     }
 

@@ -125,7 +125,7 @@ public class SearchServiceTransportAction extends AbstractComponent {
     }
 
     public void sendClearAllScrollContexts(DiscoveryNode node, ClearScrollRequest request, final ActionListener<TransportResponse> listener) {
-        transportService.sendRequest(node, CLEAR_SCROLL_CONTEXTS_ACTION_NAME, new ClearScrollContextsRequest(request), new ActionListenerResponseHandler<TransportResponse>(listener) {
+        transportService.sendRequest(node, CLEAR_SCROLL_CONTEXTS_ACTION_NAME, new ClearScrollContextsRequest(), new ActionListenerResponseHandler<TransportResponse>(listener) {
             @Override
             public TransportResponse newInstance() {
                 return TransportResponse.Empty.INSTANCE;
@@ -220,11 +220,10 @@ public class SearchServiceTransportAction extends AbstractComponent {
         }
 
         ScrollFreeContextRequest(ClearScrollRequest request, long id) {
-            this((TransportRequest) request, id);
+            this(id);
         }
 
-        private ScrollFreeContextRequest(TransportRequest request, long id) {
-            super(request);
+        private ScrollFreeContextRequest(long id) {
             this.id = id;
         }
 
@@ -252,7 +251,7 @@ public class SearchServiceTransportAction extends AbstractComponent {
         }
 
         SearchFreeContextRequest(SearchRequest request, long id) {
-            super(request, id);
+            super(id);
             this.originalIndices = new OriginalIndices(request);
         }
 
@@ -322,14 +321,6 @@ public class SearchServiceTransportAction extends AbstractComponent {
     }
 
     public static class ClearScrollContextsRequest extends TransportRequest {
-
-        public ClearScrollContextsRequest() {
-        }
-
-        ClearScrollContextsRequest(TransportRequest request) {
-            super(request);
-        }
-
     }
 
     class ClearScrollContextsTransportHandler implements TransportRequestHandler<ClearScrollContextsRequest> {

@@ -74,7 +74,7 @@ public class TransportPercolateAction extends TransportBroadcastAction<Percolate
         request.startTime = System.currentTimeMillis();
         if (request.getRequest() != null) {
             //create a new get request to make sure it has the same headers and context as the original percolate request
-            GetRequest getRequest = new GetRequest(request.getRequest(), request);
+            GetRequest getRequest = new GetRequest(request.getRequest());
             getAction.execute(getRequest, new ActionListener<GetResponse>() {
                 @Override
                 public void onResponse(GetResponse getResponse) {
@@ -150,7 +150,7 @@ public class TransportPercolateAction extends TransportBroadcastAction<Percolate
         } else {
             PercolatorService.ReduceResult result = null;
             try {
-                result = percolatorService.reduce(onlyCount, shardResults, request);
+                result = percolatorService.reduce(onlyCount, shardResults);
             } catch (IOException e) {
                 throw new ElasticsearchException("error during reduce phase", e);
             }

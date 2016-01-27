@@ -113,7 +113,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
     protected void doExecute(final UpdateRequest request, final ActionListener<UpdateResponse> listener) {
         // if we don't have a master, we don't have metadata, that's fine, let it find a master using create index API
         if (autoCreateIndex.shouldAutoCreate(request.index(), clusterService.state())) {
-            createIndexAction.execute(new CreateIndexRequest(request).index(request.index()).cause("auto(update api)").masterNodeTimeout(request.timeout()), new ActionListener<CreateIndexResponse>() {
+            createIndexAction.execute(new CreateIndexRequest().index(request.index()).cause("auto(update api)").masterNodeTimeout(request.timeout()), new ActionListener<CreateIndexResponse>() {
                 @Override
                 public void onResponse(CreateIndexResponse result) {
                     innerExecute(request, listener);
@@ -164,12 +164,12 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
     }
 
     protected void shardOperation(final UpdateRequest request, final ActionListener<UpdateResponse> listener, final int retryCount) {
-        IndexService indexService = indicesService.indexServiceSafe(request.concreteIndex());
-        IndexShard indexShard = indexService.getShard(request.shardId());
+        final IndexService indexService = indicesService.indexServiceSafe(request.concreteIndex());
+        final IndexShard indexShard = indexService.getShard(request.shardId());
         final UpdateHelper.Result result = updateHelper.prepare(request, indexShard);
         switch (result.operation()) {
             case UPSERT:
-                IndexRequest upsertRequest = new IndexRequest(result.action(), request);
+                IndexRequest upsertRequest = new IndexRequest((IndexRequest)result.action());
                 // we fetch it from the index request so we don't generate the bytes twice, its already done in the index request
                 final BytesReference upsertSourceBytes = upsertRequest.source();
                 indexAction.execute(upsertRequest, new ActionListener<IndexResponse>() {
@@ -206,7 +206,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 });
                 break;
             case INDEX:
-                IndexRequest indexRequest = new IndexRequest(result.action(), request);
+                IndexRequest indexRequest = new IndexRequest((IndexRequest)result.action());
                 // we fetch it from the index request so we don't generate the bytes twice, its already done in the index request
                 final BytesReference indexSourceBytes = indexRequest.source();
                 indexAction.execute(indexRequest, new ActionListener<IndexResponse>() {

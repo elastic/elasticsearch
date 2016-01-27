@@ -83,7 +83,6 @@ public class RecoverySettings extends AbstractComponent {
         this.internalActionLongTimeout = INDICES_RECOVERY_INTERNAL_LONG_ACTION_TIMEOUT_SETTING.get(settings);
 
         this.activityTimeout = INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING.get(settings);
-
         this.maxBytesPerSec = INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.get(settings);
         if (maxBytesPerSec.bytes() <= 0) {
             rateLimiter = null;

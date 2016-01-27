@@ -57,7 +57,7 @@ public class IndexTemplateFilteringIT extends ESIntegTestCase {
                 .setTemplate("no_match")
                 .addMapping("type3", "field3", "type=string").get();
 
-        assertAcked(prepareCreate("test").putHeader("header_test", "header_value"));
+        assertAcked(prepareCreate("test"));
 
         GetMappingsResponse response = client().admin().indices().prepareGetMappings("test").get();
         assertThat(response, notNullValue());
@@ -70,7 +70,7 @@ public class IndexTemplateFilteringIT extends ESIntegTestCase {
         @Override
         public boolean apply(CreateIndexClusterStateUpdateRequest request, IndexTemplateMetaData template) {
             //make sure that no_match template is filtered out before the custom filters as it doesn't match the index name
-            return (template.name().equals("template2") || template.name().equals("no_match")) && request.originalMessage().getHeader("header_test").equals("header_value");
+            return (template.name().equals("template2") || template.name().equals("no_match"));
         }
     }
 

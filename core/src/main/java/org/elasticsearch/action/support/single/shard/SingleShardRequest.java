@@ -56,15 +56,6 @@ public abstract class SingleShardRequest<Request extends SingleShardRequest<Requ
         this.index = index;
     }
 
-    protected SingleShardRequest(ActionRequest<?> request) {
-        super(request);
-    }
-
-    protected SingleShardRequest(ActionRequest<?> request, String index) {
-        super(request);
-        this.index = index;
-    }
-
     /**
      * @return a validation exception if the index property hasn't been set
      */

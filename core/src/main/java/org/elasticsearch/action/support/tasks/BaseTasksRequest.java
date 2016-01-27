@@ -65,15 +65,6 @@ public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends
      * Get information about tasks from nodes based on the nodes ids specified.
      * If none are passed, information for all nodes will be returned.
      */
-    public BaseTasksRequest(ActionRequest<?> request, String... nodesIds) {
-        super(request);
-        this.nodesIds = nodesIds;
-    }
-
-    /**
-     * Get information about tasks from nodes based on the nodes ids specified.
-     * If none are passed, information for all nodes will be returned.
-     */
     public BaseTasksRequest(String... nodesIds) {
         this.nodesIds = nodesIds;
     }

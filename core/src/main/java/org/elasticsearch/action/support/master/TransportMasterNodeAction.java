@@ -121,7 +121,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
         }
 
         public void start() {
-            this.observer = new ClusterStateObserver(clusterService, request.masterNodeTimeout(), logger);
+            this.observer = new ClusterStateObserver(clusterService, request.masterNodeTimeout(), logger, threadPool.getThreadContext());
             doStart();
         }
 

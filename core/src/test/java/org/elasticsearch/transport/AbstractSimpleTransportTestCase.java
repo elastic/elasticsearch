@@ -37,6 +37,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -200,6 +201,61 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         } catch (Exception e) {
             assertThat(e.getMessage(), false, equalTo(true));
         }
+
+        serviceA.removeHandler("sayHello");
+    }
+
+    public void testThreadContext() throws ExecutionException, InterruptedException {
+
+        serviceA.registerRequestHandler("ping_pong", StringMessageRequest::new, ThreadPool.Names.GENERIC, (request, channel) -> {
+            assertEquals("ping_user", threadPool.getThreadContext().getHeader("test.ping.user"));
+            assertNull(threadPool.getThreadContext().getTransient("my_private_context"));
+            try {
+                StringMessageResponse response = new StringMessageResponse("pong");
+                threadPool.getThreadContext().putHeader("test.pong.user", "pong_user");
+                channel.sendResponse(response);
+            } catch (IOException e) {
+                assertThat(e.getMessage(), false, equalTo(true));
+            }
+        });
+        final Object context = new Object();
+        final String executor = randomFrom(ThreadPool.THREAD_POOL_TYPES.keySet().toArray(new String[0]));
+        BaseTransportResponseHandler<StringMessageResponse> baseTransportResponseHandler = new BaseTransportResponseHandler<StringMessageResponse>() {
+            @Override
+            public StringMessageResponse newInstance() {
+                return new StringMessageResponse();
+            }
+
+            @Override
+            public String executor() {
+                return executor;
+            }
+
+            @Override
+            public void handleResponse(StringMessageResponse response) {
+                assertThat("pong", equalTo(response.message));
+                assertEquals("ping_user", threadPool.getThreadContext().getHeader("test.ping.user"));
+                assertNull(threadPool.getThreadContext().getHeader("test.pong.user"));
+                assertSame(context, threadPool.getThreadContext().getTransient("my_private_context"));
+                threadPool.getThreadContext().putHeader("some.temp.header", "booooom");
+            }
+
+            @Override
+            public void handleException(TransportException exp) {
+                assertThat("got exception instead of a response: " + exp.getMessage(), false, equalTo(true));
+            }
+        };
+        StringMessageRequest ping = new StringMessageRequest("ping");
+        threadPool.getThreadContext().putHeader("test.ping.user", "ping_user");
+        threadPool.getThreadContext().putTransient("my_private_context", context);
+
+        TransportFuture<StringMessageResponse> res = serviceB.submitRequest(nodeA, "ping_pong", ping, baseTransportResponseHandler);
+
+        StringMessageResponse message = res.get();
+        assertThat("pong", equalTo(message.message));
+        assertEquals("ping_user", threadPool.getThreadContext().getHeader("test.ping.user"));
+        assertSame(context, threadPool.getThreadContext().getTransient("my_private_context"));
+        assertNull("this header is only visible in the handler context", threadPool.getThreadContext().getHeader("some.temp.header"));
 
         serviceA.removeHandler("sayHello");
     }

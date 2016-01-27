@@ -39,7 +39,6 @@ import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.common.HasContextAndHeaders;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -136,14 +135,14 @@ public class PercolatorService extends AbstractComponent {
         multi = new MultiDocumentPercolatorIndex(cache);
     }
 
-    public ReduceResult reduce(boolean onlyCount, List<PercolateShardResponse> shardResponses, HasContextAndHeaders headersContext) throws IOException {
+    public ReduceResult reduce(boolean onlyCount, List<PercolateShardResponse> shardResponses) throws IOException {
         if (onlyCount) {
             long finalCount = 0;
             for (PercolateShardResponse shardResponse : shardResponses) {
                 finalCount += shardResponse.topDocs().totalHits;
             }
 
-            InternalAggregations reducedAggregations = reduceAggregations(shardResponses, headersContext);
+            InternalAggregations reducedAggregations = reduceAggregations(shardResponses);
             return new PercolatorService.ReduceResult(finalCount, reducedAggregations);
         } else {
             int requestedSize = shardResponses.get(0).requestedSize();
@@ -163,7 +162,7 @@ public class PercolatorService extends AbstractComponent {
                 Map<String, HighlightField> hl = shardResponse.hls().get(doc.doc);
                 matches[i] = new PercolateResponse.Match(new Text(shardResponse.getIndex()), new Text(id), doc.score, hl);
             }
-            InternalAggregations reducedAggregations = reduceAggregations(shardResponses, headersContext);
+            InternalAggregations reducedAggregations = reduceAggregations(shardResponses);
             return new PercolatorService.ReduceResult(foundMatches, matches, reducedAggregations);
         }
     }
@@ -309,7 +308,7 @@ public class PercolatorService extends AbstractComponent {
         cache.close();
     }
 
-    private InternalAggregations reduceAggregations(List<PercolateShardResponse> shardResults, HasContextAndHeaders headersContext) {
+    private InternalAggregations reduceAggregations(List<PercolateShardResponse> shardResults) {
         if (shardResults.get(0).aggregations() == null) {
             return null;
         }
@@ -318,7 +317,7 @@ public class PercolatorService extends AbstractComponent {
         for (PercolateShardResponse shardResult : shardResults) {
             aggregationsList.add(shardResult.aggregations());
         }
-        InternalAggregations aggregations = InternalAggregations.reduce(aggregationsList, new InternalAggregation.ReduceContext(bigArrays, scriptService, headersContext));
+        InternalAggregations aggregations = InternalAggregations.reduce(aggregationsList, new InternalAggregation.ReduceContext(bigArrays, scriptService));
         if (aggregations != null) {
             List<SiblingPipelineAggregator> pipelineAggregators = shardResults.get(0).pipelineAggregators();
             if (pipelineAggregators != null) {
@@ -326,7 +325,7 @@ public class PercolatorService extends AbstractComponent {
                     return (InternalAggregation) p;
                 }).collect(Collectors.toList());
                 for (SiblingPipelineAggregator pipelineAggregator : pipelineAggregators) {
-                    InternalAggregation newAgg = pipelineAggregator.doReduce(new InternalAggregations(newAggs), new InternalAggregation.ReduceContext(bigArrays, scriptService, headersContext));
+                    InternalAggregation newAgg = pipelineAggregator.doReduce(new InternalAggregations(newAggs), new InternalAggregation.ReduceContext(bigArrays, scriptService));
                     newAggs.add(newAgg);
                 }
                 aggregations = new InternalAggregations(newAggs);

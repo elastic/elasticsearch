@@ -47,7 +47,6 @@ public class InternalTemplateService implements TemplateService {
             CompiledScript compiledScript = scriptService.compile(
                 script,
                 ScriptContext.Standard.INGEST,
-                null /* we can supply null here, because ingest doesn't use indexed scripts */,
                 Collections.emptyMap()
             );
             return new Template() {

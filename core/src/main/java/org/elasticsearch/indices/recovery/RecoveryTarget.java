@@ -308,7 +308,7 @@ public class RecoveryTarget extends AbstractComponent implements IndexEventListe
         @Override
         public void messageReceived(final RecoveryTranslogOperationsRequest request, final TransportChannel channel) throws Exception {
             try (RecoveriesCollection.StatusRef statusRef = onGoingRecoveries.getStatusSafe(request.recoveryId(), request.shardId())) {
-                final ClusterStateObserver observer = new ClusterStateObserver(clusterService, null, logger);
+                final ClusterStateObserver observer = new ClusterStateObserver(clusterService, null, logger, threadPool.getThreadContext());
                 final RecoveryStatus recoveryStatus = statusRef.status();
                 final RecoveryState.Translog translog = recoveryStatus.state().getTranslog();
                 translog.totalOperations(request.totalTranslogOps());

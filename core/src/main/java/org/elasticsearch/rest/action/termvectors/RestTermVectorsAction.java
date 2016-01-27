@@ -49,7 +49,7 @@ public class RestTermVectorsAction extends BaseRestHandler {
 
     @Inject
     public RestTermVectorsAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+        super(settings, client);
         controller.registerHandler(GET, "/{index}/{type}/_termvectors", this);
         controller.registerHandler(POST, "/{index}/{type}/_termvectors", this);
         controller.registerHandler(GET, "/{index}/{type}/{id}/_termvectors", this);

@@ -44,7 +44,7 @@ public class RestPercolateAction extends BaseRestHandler {
 
     @Inject
     public RestPercolateAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+        super(settings, client);
         controller.registerHandler(GET, "/{index}/{type}/_percolate", this);
         controller.registerHandler(POST, "/{index}/{type}/_percolate", this);
 
@@ -109,7 +109,7 @@ public class RestPercolateAction extends BaseRestHandler {
     final class RestCountPercolateDocHandler extends BaseRestHandler {
 
         private RestCountPercolateDocHandler(Settings settings, final RestController controller, Client client) {
-            super(settings, controller, client);
+            super(settings, client);
         }
 
         @Override
@@ -123,7 +123,7 @@ public class RestPercolateAction extends BaseRestHandler {
     final class RestPercolateExistingDocHandler extends BaseRestHandler {
 
         protected RestPercolateExistingDocHandler(Settings settings, final RestController controller, Client client) {
-            super(settings, controller, client);
+            super(settings, client);
         }
 
         @Override
@@ -136,7 +136,7 @@ public class RestPercolateAction extends BaseRestHandler {
     final class RestCountPercolateExistingDocHandler extends BaseRestHandler {
 
         protected RestCountPercolateExistingDocHandler(Settings settings, final RestController controller, Client client) {
-            super(settings, controller, client);
+            super(settings, client);
         }
 
         @Override

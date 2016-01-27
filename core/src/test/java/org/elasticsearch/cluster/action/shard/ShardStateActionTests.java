@@ -70,7 +70,7 @@ public class ShardStateActionTests extends ESTestCase {
 
     private static class TestShardStateAction extends ShardStateAction {
         public TestShardStateAction(Settings settings, ClusterService clusterService, TransportService transportService, AllocationService allocationService, RoutingService routingService) {
-            super(settings, clusterService, transportService, allocationService, routingService);
+            super(settings, clusterService, transportService, allocationService, routingService, THREAD_POOL);
         }
 
         private Runnable onBeforeWaitForNewMasterAndRetry;

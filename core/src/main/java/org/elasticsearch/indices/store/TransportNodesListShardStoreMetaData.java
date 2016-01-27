@@ -341,7 +341,7 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
         }
 
         NodeRequest(String nodeId, TransportNodesListShardStoreMetaData.Request request) {
-            super(request, nodeId);
+            super(nodeId);
             this.shardId = request.shardId;
             this.unallocated = request.unallocated;
         }

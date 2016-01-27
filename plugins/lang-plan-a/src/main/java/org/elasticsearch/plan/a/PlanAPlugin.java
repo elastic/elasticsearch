@@ -20,6 +20,7 @@
 package org.elasticsearch.plan.a;
 
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.ScriptEngineRegistry;
 import org.elasticsearch.script.ScriptModule;
 
 public final class PlanAPlugin extends Plugin {
@@ -35,6 +36,6 @@ public final class PlanAPlugin extends Plugin {
     }
 
     public void onModule(final ScriptModule module) {
-        module.addScriptEngine(PlanAScriptEngineService.class);
+        module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(PlanAScriptEngineService.class, PlanAScriptEngineService.TYPES));
     }
 }

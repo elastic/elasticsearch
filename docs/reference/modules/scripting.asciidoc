@@ -244,8 +244,8 @@ every script engine, through the following settings that need to be added to the
 
 [source,yaml]
 -----------------------------------
-script.inline: on
-script.indexed: on
+script.inline: true
+script.indexed: true
 
 -----------------------------------
 
@@ -261,8 +261,8 @@ script settings:
 [cols="<,<",options="header",]
 |=======================================================================
 |Value |Description
-| `off` |scripting is turned off completely, in the context of the setting being set.
-| `on`  |scripting is turned on, in the context of the setting being set.
+| `false` |scripting is turned off completely, in the context of the setting being set.
+| `true`  |scripting is turned on, in the context of the setting being set.
 | `sandbox` |scripts may be executed only for languages that are sandboxed
 |=======================================================================
 
@@ -272,7 +272,7 @@ The default values are the following:
 -----------------------------------
 script.inline: sandbox
 script.indexed: sandbox
-script.file: on
+script.file: true
 
 -----------------------------------
 
@@ -305,8 +305,8 @@ and plugins execution though, as the above defaults still get applied.
 
 [source,yaml]
 -----------------------------------
-script.update: off
-script.mapping: off
+script.update: false
+script.mapping: false
 
 -----------------------------------
 
@@ -317,21 +317,21 @@ precedence over any other generic settings.
 
 [source,yaml]
 -----------------------------------
-script.engine.groovy.file.aggs: on
-script.engine.groovy.file.mapping: on
-script.engine.groovy.file.search: on
-script.engine.groovy.file.update: on
-script.engine.groovy.file.plugin: on
-script.engine.groovy.indexed.aggs: on
-script.engine.groovy.indexed.mapping: off
-script.engine.groovy.indexed.search: on
-script.engine.groovy.indexed.update: off
-script.engine.groovy.indexed.plugin: off
-script.engine.groovy.inline.aggs: on
-script.engine.groovy.inline.mapping: off
-script.engine.groovy.inline.search: off
-script.engine.groovy.inline.update: off
-script.engine.groovy.inline.plugin: off
+script.engine.groovy.file.aggs: true
+script.engine.groovy.file.mapping: true
+script.engine.groovy.file.search: true
+script.engine.groovy.file.update: true
+script.engine.groovy.file.plugin: true
+script.engine.groovy.indexed.aggs: true
+script.engine.groovy.indexed.mapping: false
+script.engine.groovy.indexed.search: true
+script.engine.groovy.indexed.update: false
+script.engine.groovy.indexed.plugin: false
+script.engine.groovy.inline.aggs: true
+script.engine.groovy.inline.mapping: false
+script.engine.groovy.inline.search: false
+script.engine.groovy.inline.update: false
+script.engine.groovy.inline.plugin: false
 
 -----------------------------------
 

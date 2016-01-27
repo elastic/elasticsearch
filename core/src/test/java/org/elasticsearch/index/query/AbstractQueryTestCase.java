@@ -22,7 +22,6 @@ package org.elasticsearch.index.query;
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
-
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
@@ -88,7 +87,9 @@ import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script.ScriptParseException;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptContextRegistry;
+import org.elasticsearch.script.ScriptEngineRegistry;
 import org.elasticsearch.script.ScriptEngineService;
+import org.elasticsearch.script.ScriptSettings;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
@@ -187,7 +188,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         Settings settings = Settings.settingsBuilder()
                 .put("name", AbstractQueryTestCase.class.toString())
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-                .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING, false)
+                .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING.getKey(), false)
                 .build();
         Settings indexSettings = Settings.settingsBuilder()
                 .put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
@@ -214,13 +215,13 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                         bindMapperExtension();
                     }
                 },
-                new ScriptModule(settings) {
+                new ScriptModule(settingsModule) {
                     @Override
                     protected void configure() {
                         Settings settings = Settings.builder()
                                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                                 // no file watching, so we don't need a ResourceWatcherService
-                                .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING, false)
+                                .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING.getKey(), false)
                                 .build();
                         MockScriptEngine mockScriptEngine = new MockScriptEngine();
                         Multibinder<ScriptEngineService> multibinder = Multibinder.newSetBinder(binder(), ScriptEngineService.class);
@@ -228,9 +229,14 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                         Set<ScriptEngineService> engines = new HashSet<>();
                         engines.add(mockScriptEngine);
                         List<ScriptContext.Plugin> customContexts = new ArrayList<>();
-                        bind(ScriptContextRegistry.class).toInstance(new ScriptContextRegistry(customContexts));
+                        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections.singletonList(new ScriptEngineRegistry.ScriptEngineRegistration(MockScriptEngine.class, MockScriptEngine.TYPES)));
+                        bind(ScriptEngineRegistry.class).toInstance(scriptEngineRegistry);
+                        ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(customContexts);
+                        bind(ScriptContextRegistry.class).toInstance(scriptContextRegistry);
+                        ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
+                        bind(ScriptSettings.class).toInstance(scriptSettings);
                         try {
-                            ScriptService scriptService = new ScriptService(settings, new Environment(settings), engines, null, new ScriptContextRegistry(customContexts));
+                            ScriptService scriptService = new ScriptService(settings, new Environment(settings), engines, null, scriptEngineRegistry, scriptContextRegistry, scriptSettings);
                             bind(ScriptService.class).toInstance(scriptService);
                         } catch(IOException e) {
                             throw new IllegalStateException("error while binding ScriptService", e);

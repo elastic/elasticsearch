@@ -21,10 +21,11 @@ package org.elasticsearch.ingest;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.ingest.InternalTemplateService;
 import org.elasticsearch.ingest.core.TemplateService;
 import org.elasticsearch.script.ScriptContextRegistry;
+import org.elasticsearch.script.ScriptEngineRegistry;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptSettings;
 import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
@@ -39,13 +40,15 @@ public abstract class AbstractMustacheTests extends ESTestCase {
     public void init() throws Exception {
         Settings settings = Settings.builder()
             .put("path.home", createTempDir())
-            .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING, false)
+            .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING.getKey(), false)
             .build();
         MustacheScriptEngineService mustache = new MustacheScriptEngineService(settings);
-        ScriptContextRegistry registry = new ScriptContextRegistry(Collections.emptyList());
-        ScriptService scriptService = new ScriptService(
-            settings, new Environment(settings), Collections.singleton(mustache), null, registry
-        );
+        ScriptEngineRegistry scriptEngineRegistry =
+            new ScriptEngineRegistry(Collections.singletonList(new ScriptEngineRegistry.ScriptEngineRegistration(MustacheScriptEngineService.class, MustacheScriptEngineService.TYPES)));
+        ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Collections.emptyList());
+        ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
+        ScriptService scriptService =
+            new ScriptService(settings, new Environment(settings), Collections.singleton(mustache), null, scriptEngineRegistry, scriptContextRegistry, scriptSettings);
         templateService = new InternalTemplateService(scriptService);
     }
 

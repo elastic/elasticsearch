@@ -39,10 +39,9 @@ public class IndexedExpressionTests extends ESIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal));
-        builder.put("script.engine.expression.indexed.update", "off");
-        builder.put("script.engine.expression.indexed.search", "off");
-        builder.put("script.engine.expression.indexed.aggs", "off");
-        builder.put("script.engine.expression.indexed.mapping", "off");
+        builder.put("script.engine.expression.indexed.update", "false");
+        builder.put("script.engine.expression.indexed.search", "false");
+        builder.put("script.engine.expression.indexed.mapping", "false");
         return builder.build();
     }
 

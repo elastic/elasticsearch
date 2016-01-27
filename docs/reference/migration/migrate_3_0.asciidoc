@@ -17,6 +17,7 @@ your application to Elasticsearch 3.0.
 * <<breaking_30_allocation>>
 * <<breaking_30_percolator>>
 * <<breaking_30_packaging>>
+* <<breaking_30_scripting>>
 
 [[breaking_30_search_changes]]
 === Warmers
@@ -684,3 +685,15 @@ and these error messages would be lost to the nether. The default has
 changed to now route standard output to the journal and standard error
 to inherit this setting (these are the defaults for systemd). These
 settings can be modified by editing the elasticsearch.service file.
+
+[[breaking_30_scripting]]
+=== Scripting
+
+==== Script mode settings
+
+Previously script mode settings (e.g., "script.inline: true",
+"script.engine.groovy.inline.aggs: false", etc.) accepted the values
+`on`, `true`, `1`, and `yes` for enabling a scripting mode, and the
+values `off`, `false`, `0`, and `no` for disabling a scripting mode.
+The variants `on`, `1`, and `yes ` for enabling and `off`, `0`,
+and `no` for disabling are no longer supported.

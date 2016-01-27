@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.watcher.test;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
@@ -101,6 +102,7 @@ import static org.hamcrest.core.IsNot.not;
 /**
  */
 @ClusterScope(scope = SUITE, numClientNodes = 0, transportClientRatio = 0, randomDynamicTemplates = false, maxNumDataNodes = 3)
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/1380")
 public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase {
 
     private static final boolean timeWarpEnabled = SystemPropertyUtil.getBoolean("tests.timewarp", true);

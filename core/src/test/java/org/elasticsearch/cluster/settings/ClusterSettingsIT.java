@@ -331,7 +331,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
 
     private void createNode(Settings settings) {
         internalCluster().startNode(Settings.builder()
-                        .put(ClusterName.SETTING, "ClusterSettingsIT")
+                        .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), "ClusterSettingsIT")
                         .put("node.name", "ClusterSettingsIT")
                         .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                         .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)

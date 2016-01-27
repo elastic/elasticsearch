@@ -195,7 +195,7 @@ final class ExternalNode implements Closeable {
             Settings clientSettings = settingsBuilder().put(externalNodeSettings)
                     .put("client.transport.nodes_sampler_interval", "1s")
                     .put("name", "transport_client_" + nodeInfo.getNode().name())
-                    .put(ClusterName.SETTING, clusterName).put("client.transport.sniff", false).build();
+                    .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), clusterName).put("client.transport.sniff", false).build();
             TransportClient client = TransportClient.builder().settings(clientSettings).build();
             client.addTransportAddress(addr);
             this.client = client;

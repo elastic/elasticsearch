@@ -24,6 +24,7 @@ import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.client.transport.TransportClientNodesService;
 import org.elasticsearch.cluster.ClusterModule;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -267,6 +268,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         TransportMasterNodeReadAction.FORCE_LOCAL_SETTING,
         AutoCreateIndex.AUTO_CREATE_INDEX_SETTING,
         BaseRestHandler.MULTI_ALLOW_EXPLICIT_INDEX,
+        ClusterName.CLUSTER_NAME_SETTING,
         ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING,
         EsExecutors.PROCESSORS_SETTING)));
 }

@@ -351,15 +351,15 @@ public final class InternalTestCluster extends TestCluster {
                 .put(getRandomNodeSettings(nodeSeed));
         Settings settings = nodeConfigurationSource.nodeSettings(nodeOrdinal);
         if (settings != null) {
-            if (settings.get(ClusterName.SETTING) != null) {
-                throw new IllegalStateException("Tests must not set a '" + ClusterName.SETTING + "' as a node setting set '" + ClusterName.SETTING + "': [" + settings.get(ClusterName.SETTING) + "]");
+            if (settings.get(ClusterName.CLUSTER_NAME_SETTING.getKey()) != null) {
+                throw new IllegalStateException("Tests must not set a '" + ClusterName.CLUSTER_NAME_SETTING.getKey() + "' as a node setting set '" + ClusterName.CLUSTER_NAME_SETTING.getKey() + "': [" + settings.get(ClusterName.CLUSTER_NAME_SETTING.getKey()) + "]");
             }
             builder.put(settings);
         }
         if (others != null) {
             builder.put(others);
         }
-        builder.put(ClusterName.SETTING, clusterName);
+        builder.put(ClusterName.CLUSTER_NAME_SETTING.getKey(), clusterName);
         return builder.build();
     }
 
@@ -882,7 +882,7 @@ public final class InternalTestCluster extends TestCluster {
                     .put("client.transport.nodes_sampler_interval", "1s")
                     .put(Environment.PATH_HOME_SETTING.getKey(), baseDir)
                     .put("name", TRANSPORT_CLIENT_PREFIX + node.settings().get("name"))
-                    .put(ClusterName.SETTING, clusterName).put("client.transport.sniff", sniff)
+                    .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), clusterName).put("client.transport.sniff", sniff)
                     .put(Node.NODE_MODE_SETTING.getKey(), Node.NODE_MODE_SETTING.exists(nodeSettings) ? Node.NODE_MODE_SETTING.get(nodeSettings) : nodeMode)
                     .put("logger.prefix", nodeSettings.get("logger.prefix", ""))
                     .put("logger.level", nodeSettings.get("logger.level", "INFO"))

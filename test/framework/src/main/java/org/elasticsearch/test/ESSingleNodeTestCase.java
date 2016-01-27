@@ -158,7 +158,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
 
     private Node newNode() {
         Settings settings = Settings.builder()
-            .put(ClusterName.SETTING, InternalTestCluster.clusterName("single-node-cluster", randomLong()))
+            .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), InternalTestCluster.clusterName("single-node-cluster", randomLong()))
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
             // TODO: use a consistent data path for custom paths
             // This needs to tie into the ESIntegTestCase#indexSettings() method

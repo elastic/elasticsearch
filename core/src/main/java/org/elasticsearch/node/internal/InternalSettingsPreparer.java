@@ -162,8 +162,8 @@ public class InternalSettingsPreparer {
         }
 
         // put the cluster name
-        if (output.get(ClusterName.SETTING) == null) {
-            output.put(ClusterName.SETTING, ClusterName.DEFAULT.value());
+        if (output.get(ClusterName.CLUSTER_NAME_SETTING.getKey()) == null) {
+            output.put(ClusterName.CLUSTER_NAME_SETTING.getKey(), ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY));
         }
 
         replacePromptPlaceholders(output, terminal);

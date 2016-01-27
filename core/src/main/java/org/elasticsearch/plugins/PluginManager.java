@@ -103,7 +103,7 @@ public class PluginManager {
             "discovery-multicast",
             "ingest-geoip",
             "lang-javascript",
-            "lang-plan-a",
+            "lang-painless",
             "lang-python",
             "mapper-attachments",
             "mapper-murmur3",

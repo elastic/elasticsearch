@@ -27,7 +27,7 @@ List projects = [
   'plugins:discovery-multicast',
   'plugins:ingest-geoip',
   'plugins:lang-javascript',
-  'plugins:lang-plan-a',
+  'plugins:lang-painless',
   'plugins:lang-python',
   'plugins:mapper-attachments',
   'plugins:mapper-murmur3',

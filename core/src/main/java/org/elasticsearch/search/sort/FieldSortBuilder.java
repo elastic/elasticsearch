@@ -103,7 +103,10 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
 
     /** Returns the value used when a field is missing in a doc. */
     public Object missing() {
-        return this.missing;
+        if (missing instanceof BytesRef) {
+            return ((BytesRef) missing).utf8ToString();
+        }
+        return missing;
     }
 
     /**
@@ -200,9 +203,14 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
 
     @Override
     public boolean equals(Object other) {
-        if (! (other instanceof FieldSortBuilder)) {
+        if (this == other) {
+            return true;
+        }
+
+        if (other== null || getClass() != other.getClass()) {
             return false;
         }
+
         FieldSortBuilder builder = (FieldSortBuilder) other;
         return (Objects.equals(this.fieldName, builder.fieldName) &&
                 Objects.equals(this.nestedFilter, builder.nestedFilter) &&
@@ -234,12 +242,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
             out.writeBoolean(false);
         }
         out.writeOptionalString(this.nestedPath);
-        if (this.missing != null) {
-            out.writeBoolean(true);
-            out.writeGenericValue(this.missing);
-        } else {
-            out.writeBoolean(false);
-        }
+        out.writeGenericValue(this.missing);
         
         if (this.order != null) {
             out.writeBoolean(true);
@@ -261,9 +264,8 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
             result.setNestedFilter(query);
         }
         result.setNestedPath(in.readOptionalString());
-        if (in.readBoolean()) {
-            result.missing(in.readGenericValue());
-        }
+        result.missing(in.readGenericValue());
+
         if (in.readBoolean()) {
             result.order(SortOrder.readOrderFrom(in));
         }

@@ -22,7 +22,6 @@ package org.elasticsearch.index.cache.query.index;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.query.QueryCache;
@@ -36,7 +35,6 @@ public class IndexQueryCache extends AbstractIndexComponent implements QueryCach
 
     final IndicesQueryCache indicesQueryCache;
 
-    @Inject
     public IndexQueryCache(IndexSettings indexSettings, IndicesQueryCache indicesQueryCache) {
         super(indexSettings);
         this.indicesQueryCache = indicesQueryCache;

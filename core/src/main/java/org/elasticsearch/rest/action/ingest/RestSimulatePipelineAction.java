@@ -34,7 +34,7 @@ public class RestSimulatePipelineAction extends BaseRestHandler {
 
     @Inject
     public RestSimulatePipelineAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+        super(settings, client);
         controller.registerHandler(RestRequest.Method.POST, "/_ingest/pipeline/{id}/_simulate", this);
         controller.registerHandler(RestRequest.Method.GET, "/_ingest/pipeline/{id}/_simulate", this);
         controller.registerHandler(RestRequest.Method.POST, "/_ingest/pipeline/_simulate", this);

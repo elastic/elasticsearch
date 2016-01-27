@@ -158,7 +158,7 @@ public final class IngestActionFilter extends AbstractComponent implements Actio
             if (itemResponses.isEmpty()) {
                 return bulkRequest;
             } else {
-                BulkRequest modifiedBulkRequest = new BulkRequest(bulkRequest);
+                BulkRequest modifiedBulkRequest = new BulkRequest();
                 modifiedBulkRequest.refresh(bulkRequest.refresh());
                 modifiedBulkRequest.consistencyLevel(bulkRequest.consistencyLevel());
                 modifiedBulkRequest.timeout(bulkRequest.timeout());

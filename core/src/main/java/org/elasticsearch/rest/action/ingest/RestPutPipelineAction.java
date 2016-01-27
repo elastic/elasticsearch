@@ -34,7 +34,7 @@ public class RestPutPipelineAction extends BaseRestHandler {
 
     @Inject
     public RestPutPipelineAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+        super(settings, client);
         controller.registerHandler(RestRequest.Method.PUT, "/_ingest/pipeline/{id}", this);
     }
 

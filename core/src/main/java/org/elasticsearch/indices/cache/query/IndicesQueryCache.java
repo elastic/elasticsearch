@@ -32,9 +32,10 @@ import org.apache.lucene.search.Weight;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.ShardCoreKeyMap;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Scope;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.MemorySizeValue;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.shard.ShardId;
 
@@ -48,10 +49,10 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class IndicesQueryCache extends AbstractComponent implements QueryCache, Closeable {
 
-    public static final String INDICES_CACHE_QUERY_SIZE = "indices.queries.cache.size";
-    @Deprecated
-    public static final String DEPRECATED_INDICES_CACHE_QUERY_SIZE = "indices.cache.filter.size";
-    public static final String INDICES_CACHE_QUERY_COUNT = "indices.queries.cache.count";
+    public static final Setting<ByteSizeValue> INDICES_CACHE_QUERY_SIZE_SETTING = Setting.byteSizeSetting(
+            "indices.queries.cache.size", "10%", false, Scope.CLUSTER);
+    public static final Setting<Integer> INDICES_CACHE_QUERY_COUNT_SETTING = Setting.intSetting(
+            "indices.queries.cache.count", 10000, 1, false, Scope.CLUSTER);
 
     private final LRUQueryCache cache;
     private final ShardCoreKeyMap shardKeyMap = new ShardCoreKeyMap();
@@ -66,21 +67,10 @@ public class IndicesQueryCache extends AbstractComponent implements QueryCache, 
     @Inject
     public IndicesQueryCache(Settings settings) {
         super(settings);
-        String sizeString = settings.get(INDICES_CACHE_QUERY_SIZE);
-        if (sizeString == null) {
-            sizeString = settings.get(DEPRECATED_INDICES_CACHE_QUERY_SIZE);
-            if (sizeString != null) {
-                deprecationLogger.deprecated("The [" + DEPRECATED_INDICES_CACHE_QUERY_SIZE
-                        + "] settings is now deprecated, use [" + INDICES_CACHE_QUERY_SIZE + "] instead");
-            }
-        }
-        if (sizeString == null) {
-            sizeString = "10%";
-        }
-        final ByteSizeValue size = MemorySizeValue.parseBytesSizeValueOrHeapRatio(sizeString, INDICES_CACHE_QUERY_SIZE);
-        final int count = settings.getAsInt(INDICES_CACHE_QUERY_COUNT, 1000);
-        logger.debug("using [node] query cache with size [{}], actual_size [{}], max filter count [{}]",
-                sizeString, size, count);
+        final ByteSizeValue size = INDICES_CACHE_QUERY_SIZE_SETTING.get(settings);
+        final int count = INDICES_CACHE_QUERY_COUNT_SETTING.get(settings);
+        logger.debug("using [node] query cache with size [{}] max filter count [{}]",
+                size, count);
         cache = new LRUQueryCache(count, size.bytes()) {
 
             private Stats getStats(Object coreKey) {

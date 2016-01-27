@@ -57,6 +57,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.store.IndexStoreConfig;
 import org.elasticsearch.indices.analysis.HunspellService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
+import org.elasticsearch.indices.cache.query.IndicesQueryCache;
 import org.elasticsearch.indices.cache.request.IndicesRequestCache;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.RecoverySettings;
@@ -140,6 +141,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
         FsRepository.REPOSITORIES_LOCATION_SETTING,
         IndexStoreConfig.INDICES_STORE_THROTTLE_TYPE_SETTING,
         IndexStoreConfig.INDICES_STORE_THROTTLE_MAX_BYTES_PER_SEC_SETTING,
+        IndicesQueryCache.INDICES_CACHE_QUERY_SIZE_SETTING,
+        IndicesQueryCache.INDICES_CACHE_QUERY_COUNT_SETTING,
         IndicesTTLService.INDICES_TTL_INTERVAL_SETTING,
         MappingUpdatedAction.INDICES_MAPPING_DYNAMIC_TIMEOUT_SETTING,
         MetaData.SETTING_READ_ONLY_SETTING,

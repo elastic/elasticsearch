@@ -31,7 +31,6 @@ import org.elasticsearch.index.cache.query.QueryCache;
  */
 public class NoneQueryCache extends AbstractIndexComponent implements QueryCache {
 
-    @Inject
     public NoneQueryCache(IndexSettings indexSettings) {
         super(indexSettings);
         logger.debug("Using no query cache");

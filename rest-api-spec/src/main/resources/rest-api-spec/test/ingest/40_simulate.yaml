@@ -207,7 +207,7 @@
                 {
                   "set" : {
                     "tag" : "processor[set]-0",
-                    "field" : "field2",
+                    "field" : "field2.value",
                     "value" : "_value"
                   }
                 },
@@ -215,6 +215,16 @@
                   "set" : {
                     "field" : "field3",
                     "value" : "third_val"
+                  }
+                },
+                {
+                  "uppercase" : {
+                    "field" : "field2.value"
+                  }
+                },
+                {
+                  "lowercase" : {
+                    "field" : "foo.bar.0.item"
                   }
                 }
               ]
@@ -225,25 +235,39 @@
                 "_type": "type",
                 "_id": "id",
                 "_source": {
-                  "foo": "bar"
+                  "foo": {
+                    "bar" : [ {"item": "HELLO"} ]
+                  }
                 }
               }
             ]
           }
   - length: { docs: 1 }
-  - length: { docs.0.processor_results: 2 }
+  - length: { docs.0.processor_results: 4 }
   - match: { docs.0.processor_results.0.tag: "processor[set]-0" }
   - length: { docs.0.processor_results.0.doc._source: 2 }
-  - match: { docs.0.processor_results.0.doc._source.foo: "bar" }
-  - match: { docs.0.processor_results.0.doc._source.field2: "_value" }
+  - match: { docs.0.processor_results.0.doc._source.foo.bar.0.item: "HELLO" }
+  - match: { docs.0.processor_results.0.doc._source.field2.value: "_value" }
   - length: { docs.0.processor_results.0.doc._ingest: 1 }
   - is_true: docs.0.processor_results.0.doc._ingest.timestamp
   - length: { docs.0.processor_results.1.doc._source: 3 }
-  - match: { docs.0.processor_results.1.doc._source.foo: "bar" }
-  - match: { docs.0.processor_results.1.doc._source.field2: "_value" }
+  - match: { docs.0.processor_results.1.doc._source.foo.bar.0.item: "HELLO" }
+  - match: { docs.0.processor_results.1.doc._source.field2.value: "_value" }
   - match: { docs.0.processor_results.1.doc._source.field3: "third_val" }
   - length: { docs.0.processor_results.1.doc._ingest: 1 }
   - is_true: docs.0.processor_results.1.doc._ingest.timestamp
+  - length: { docs.0.processor_results.2.doc._source: 3 }
+  - match: { docs.0.processor_results.2.doc._source.foo.bar.0.item: "HELLO" }
+  - match: { docs.0.processor_results.2.doc._source.field2.value: "_VALUE" }
+  - match: { docs.0.processor_results.2.doc._source.field3: "third_val" }
+  - length: { docs.0.processor_results.2.doc._ingest: 1 }
+  - is_true: docs.0.processor_results.2.doc._ingest.timestamp
+  - length: { docs.0.processor_results.3.doc._source: 3 }
+  - match: { docs.0.processor_results.3.doc._source.foo.bar.0.item: "hello" }
+  - match: { docs.0.processor_results.3.doc._source.field2.value: "_VALUE" }
+  - match: { docs.0.processor_results.3.doc._source.field3: "third_val" }
+  - length: { docs.0.processor_results.3.doc._ingest: 1 }
+  - is_true: docs.0.processor_results.3.doc._ingest.timestamp
 
 ---
 "Test simulate with exception thrown":

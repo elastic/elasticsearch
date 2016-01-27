@@ -77,9 +77,9 @@ public class IngestClientIT extends ESIntegTestCase {
             .endObject()
             .endArray()
             .endObject().bytes();
-        client().preparePutPipeline("_id", pipelineSource)
+        client().admin().cluster().preparePutPipeline("_id", pipelineSource)
                 .get();
-        GetPipelineResponse getResponse = client().prepareGetPipeline("_id")
+        GetPipelineResponse getResponse = client().admin().cluster().prepareGetPipeline("_id")
                 .get();
         assertThat(getResponse.isFound(), is(true));
         assertThat(getResponse.pipelines().size(), equalTo(1));
@@ -100,12 +100,12 @@ public class IngestClientIT extends ESIntegTestCase {
             .endObject().bytes();
         SimulatePipelineResponse response;
         if (randomBoolean()) {
-            response = client().prepareSimulatePipeline(bytes)
+            response = client().admin().cluster().prepareSimulatePipeline(bytes)
                 .setId("_id").get();
         } else {
             SimulatePipelineRequest request = new SimulatePipelineRequest(bytes);
             request.setId("_id");
-            response = client().simulatePipeline(request).get();
+            response = client().admin().cluster().simulatePipeline(request).get();
         }
         assertThat(response.isVerbose(), equalTo(false));
         assertThat(response.getPipelineId(), equalTo("_id"));
@@ -134,7 +134,7 @@ public class IngestClientIT extends ESIntegTestCase {
             .endArray()
             .endObject().bytes();
         PutPipelineRequest putPipelineRequest = new PutPipelineRequest("_id", source);
-        client().putPipeline(putPipelineRequest).get();
+        client().admin().cluster().putPipeline(putPipelineRequest).get();
 
         int numRequests = scaledRandomIntBetween(32, 128);
         BulkRequest bulkRequest = new BulkRequest();
@@ -170,10 +170,10 @@ public class IngestClientIT extends ESIntegTestCase {
             .endArray()
             .endObject().bytes();
         PutPipelineRequest putPipelineRequest = new PutPipelineRequest("_id", source);
-        client().putPipeline(putPipelineRequest).get();
+        client().admin().cluster().putPipeline(putPipelineRequest).get();
 
         GetPipelineRequest getPipelineRequest = new GetPipelineRequest("_id");
-        GetPipelineResponse getResponse = client().getPipeline(getPipelineRequest).get();
+        GetPipelineResponse getResponse = client().admin().cluster().getPipeline(getPipelineRequest).get();
         assertThat(getResponse.isFound(), is(true));
         assertThat(getResponse.pipelines().size(), equalTo(1));
         assertThat(getResponse.pipelines().get(0).getId(), equalTo("_id"));
@@ -192,10 +192,10 @@ public class IngestClientIT extends ESIntegTestCase {
         assertThat(doc.get("processed"), equalTo(true));
 
         DeletePipelineRequest deletePipelineRequest = new DeletePipelineRequest("_id");
-        WritePipelineResponse response = client().deletePipeline(deletePipelineRequest).get();
+        WritePipelineResponse response = client().admin().cluster().deletePipeline(deletePipelineRequest).get();
         assertThat(response.isAcknowledged(), is(true));
 
-        getResponse = client().prepareGetPipeline("_id").get();
+        getResponse = client().admin().cluster().prepareGetPipeline("_id").get();
         assertThat(getResponse.isFound(), is(false));
         assertThat(getResponse.pipelines().size(), equalTo(0));
     }

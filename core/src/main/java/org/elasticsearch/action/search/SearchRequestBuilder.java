@@ -28,6 +28,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.Template;
 import org.elasticsearch.search.Scroll;
+import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorFactory;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -341,6 +342,15 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      */
     public SearchRequestBuilder addSort(SortBuilder sort) {
         sourceBuilder().sort(sort);
+        return this;
+    }
+
+    /**
+     * Set the sort values that indicates which docs this request should "search after".
+     *
+     */
+    public SearchRequestBuilder searchAfter(Object[] values) {
+        sourceBuilder().searchAfter(values);
         return this;
     }
 

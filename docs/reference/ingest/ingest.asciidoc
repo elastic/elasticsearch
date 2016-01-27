@@ -1014,7 +1014,7 @@ response:
       {
          "processor_results": [
             {
-               "processor_id": "processor[set]-0",
+               "tag": "processor[set]-0",
                "doc": {
                   "_id": "id",
                   "_ttl": null,
@@ -1033,7 +1033,7 @@ response:
                }
             },
             {
-               "processor_id": "processor[set]-1",
+               "tag": "processor[set]-1",
                "doc": {
                   "_id": "id",
                   "_ttl": null,
@@ -1057,7 +1057,7 @@ response:
       {
          "processor_results": [
             {
-               "processor_id": "processor[set]-0",
+               "tag": "processor[set]-0",
                "doc": {
                   "_id": "id",
                   "_ttl": null,
@@ -1076,7 +1076,7 @@ response:
                }
             },
             {
-               "processor_id": "processor[set]-1",
+               "tag": "processor[set]-1",
                "doc": {
                   "_id": "id",
                   "_ttl": null,

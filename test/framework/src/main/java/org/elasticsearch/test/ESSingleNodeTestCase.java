@@ -166,12 +166,12 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             .put("node.name", nodeName())
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put("script.inline", "on")
-            .put("script.indexed", "on")
-            .put(EsExecutors.PROCESSORS, 1) // limit the number of threads created
+            .put("script.inline", "true")
+            .put("script.indexed", "true")
+            .put(EsExecutors.PROCESSORS_SETTING.getKey(), 1) // limit the number of threads created
             .put("http.enabled", false)
-            .put("node.local", true)
-            .put("node.data", true)
+            .put(Node.NODE_LOCAL_SETTING.getKey(), true)
+            .put(Node.NODE_DATA_SETTING.getKey(), true)
             .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING, true) // make sure we get what we set :)
             .build();
         Node build = new MockNode(settings, getVersion(), getPlugins());

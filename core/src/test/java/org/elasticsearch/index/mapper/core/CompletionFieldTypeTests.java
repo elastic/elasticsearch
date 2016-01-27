@@ -34,21 +34,21 @@ public class CompletionFieldTypeTests extends FieldTypeTestCase {
 
     @Before
     public void setupProperties() {
-        addModifier(new Modifier("preserve_separators", false, true) {
+        addModifier(new Modifier("preserve_separators", false) {
             @Override
             public void modify(MappedFieldType ft) {
                 CompletionFieldMapper.CompletionFieldType cft = (CompletionFieldMapper.CompletionFieldType)ft;
                 cft.setPreserveSep(false);
             }
         });
-        addModifier(new Modifier("preserve_position_increments", false, true) {
+        addModifier(new Modifier("preserve_position_increments", false) {
             @Override
             public void modify(MappedFieldType ft) {
                 CompletionFieldMapper.CompletionFieldType cft = (CompletionFieldMapper.CompletionFieldType)ft;
                 cft.setPreservePositionIncrements(false);
             }
         });
-        addModifier(new Modifier("context_mappings", false, true) {
+        addModifier(new Modifier("context_mappings", false) {
             @Override
             public void modify(MappedFieldType ft) {
                 CompletionFieldMapper.CompletionFieldType cft = (CompletionFieldMapper.CompletionFieldType)ft;

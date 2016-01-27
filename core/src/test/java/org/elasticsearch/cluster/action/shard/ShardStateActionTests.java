@@ -27,19 +27,19 @@ import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingService;
+import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.Discovery;
+import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.cluster.TestClusterService;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.NodeDisconnectedException;
 import org.elasticsearch.transport.NodeNotConnectedException;
-import org.elasticsearch.transport.RemoteTransportException;
-import org.elasticsearch.transport.SendRequestTransportException;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
@@ -48,8 +48,6 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -291,6 +289,41 @@ public class ShardStateActionTests extends ESTestCase {
         transport.handleRemoteError(capturedRequests[0].requestId, new TransportException("simulated"));
 
         assertTrue(failure.get());
+    }
+
+    public void testShardNotFound() throws InterruptedException {
+        final String index = "test";
+
+        clusterService.setState(stateWithStartedPrimary(index, true, randomInt(5)));
+
+        String indexUUID = clusterService.state().metaData().index(index).getIndexUUID();
+
+        AtomicBoolean success = new AtomicBoolean();
+        CountDownLatch latch = new CountDownLatch(1);
+
+        ShardRouting failedShard = getRandomShardRouting(index);
+        RoutingTable routingTable = RoutingTable.builder(clusterService.state().getRoutingTable()).remove(index).build();
+        clusterService.setState(ClusterState.builder(clusterService.state()).routingTable(routingTable));
+        shardStateAction.shardFailed(failedShard, indexUUID, "test", getSimulatedFailure(), new ShardStateAction.Listener() {
+            @Override
+            public void onSuccess() {
+                success.set(true);
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(Throwable t) {
+                success.set(false);
+                latch.countDown();
+                assert false;
+            }
+        });
+
+        CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
+        transport.handleResponse(capturedRequests[0].requestId, TransportResponse.Empty.INSTANCE);
+
+        latch.await();
+        assertTrue(success.get());
     }
 
     private ShardRouting getRandomShardRouting(String index) {

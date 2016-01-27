@@ -20,10 +20,11 @@
 package org.elasticsearch.script.expression;
 
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.ScriptEngineRegistry;
 import org.elasticsearch.script.ScriptModule;
 
 public class ExpressionPlugin extends Plugin {
-    
+
     @Override
     public String name() {
         return "lang-expression";
@@ -35,6 +36,6 @@ public class ExpressionPlugin extends Plugin {
     }
 
     public void onModule(ScriptModule module) {
-        module.addScriptEngine(ExpressionScriptEngineService.class);
+        module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(ExpressionScriptEngineService.class, ExpressionScriptEngineService.TYPES));
     }
 }

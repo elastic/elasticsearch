@@ -52,7 +52,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.lenientNodeBooleanValue;
 import static org.elasticsearch.index.mapper.MapperBuilders.geoShapeField;
 
 
@@ -184,11 +184,11 @@ public class GeoShapeFieldMapper extends FieldMapper {
                     builder.fieldType().setStrategyName(fieldNode.toString());
                     iterator.remove();
                 } else if (Names.COERCE.equals(fieldName)) {
-                    builder.coerce(nodeBooleanValue(fieldNode));
+                    builder.coerce(lenientNodeBooleanValue(fieldNode));
                     iterator.remove();
                 } else if (Names.STRATEGY_POINTS_ONLY.equals(fieldName)
                     && builder.fieldType().strategyName.equals(SpatialStrategy.TERM.getStrategyName()) == false) {
-                    builder.fieldType().setPointsOnly(XContentMapValues.nodeBooleanValue(fieldNode));
+                    builder.fieldType().setPointsOnly(XContentMapValues.lenientNodeBooleanValue(fieldNode));
                     iterator.remove();
                 }
             }

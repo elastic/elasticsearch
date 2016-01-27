@@ -29,6 +29,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -39,7 +40,6 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.URL;
-import java.net.UnknownHostException;
 import java.nio.file.Path;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -81,7 +81,7 @@ public abstract class ESSmokeClientTestCase extends LuceneTestCase {
                 .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING, true) // prevents any settings to be replaced by system properties.
                 .put("client.transport.ignore_cluster_name", true)
                 .put(Environment.PATH_HOME_SETTING.getKey(), tempDir)
-                .put("node.mode", "network").build(); // we require network here!
+                .put(Node.NODE_MODE_SETTING.getKey(), "network").build(); // we require network here!
 
         TransportClient.Builder transportClientBuilder = TransportClient.builder().settings(clientSettings);
         TransportClient client = transportClientBuilder.build().addTransportAddresses(transportAddresses);

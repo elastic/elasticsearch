@@ -56,7 +56,7 @@ public class TribeUnitTests extends ESTestCase {
     public static void createTribes() {
         Settings baseSettings = Settings.builder()
             .put("http.enabled", false)
-            .put("node.mode", NODE_MODE)
+            .put(Node.NODE_MODE_SETTING.getKey(), NODE_MODE)
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
 
         tribe1 = new TribeClientNode(
@@ -91,7 +91,7 @@ public class TribeUnitTests extends ESTestCase {
         System.setProperty("es.tribe.t2.discovery.id.seed", Long.toString(random().nextLong()));
 
         try {
-            assertTribeNodeSuccesfullyCreated(Settings.EMPTY);
+            assertTribeNodeSuccessfullyCreated(Settings.EMPTY);
         } finally {
             System.clearProperty("es.cluster.name");
             System.clearProperty("es.tribe.t1.cluster.name");
@@ -108,10 +108,10 @@ public class TribeUnitTests extends ESTestCase {
             .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING, true)
             .put(Environment.PATH_CONF_SETTING.getKey(), pathConf)
             .build();
-        assertTribeNodeSuccesfullyCreated(settings);
+        assertTribeNodeSuccessfullyCreated(settings);
     }
 
-    private static void assertTribeNodeSuccesfullyCreated(Settings extraSettings) throws Exception {
+    private static void assertTribeNodeSuccessfullyCreated(Settings extraSettings) throws Exception {
         //tribe node doesn't need the node.mode setting, as it's forced local internally anyways. The tribe clients do need it to make sure
         //they can find their corresponding tribes using the proper transport
         Settings settings = Settings.builder().put("http.enabled", false).put("node.name", "tribe_node")

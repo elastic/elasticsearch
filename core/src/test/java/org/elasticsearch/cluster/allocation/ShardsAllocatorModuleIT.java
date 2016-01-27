@@ -40,10 +40,10 @@ public class ShardsAllocatorModuleIT extends ESIntegTestCase {
     }
 
     public void testLoadByShortKeyShardsAllocator() throws IOException {
-        Settings build = settingsBuilder().put(ClusterModule.SHARDS_ALLOCATOR_TYPE_KEY, "even_shard") // legacy just to make sure we don't barf
+        Settings build = settingsBuilder().put(ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING.getKey(), "even_shard") // legacy just to make sure we don't barf
                 .build();
         assertAllocatorInstance(build, BalancedShardsAllocator.class);
-        build = settingsBuilder().put(ClusterModule.SHARDS_ALLOCATOR_TYPE_KEY, ClusterModule.BALANCED_ALLOCATOR).build();
+        build = settingsBuilder().put(ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING.getKey(), ClusterModule.BALANCED_ALLOCATOR).build();
         assertAllocatorInstance(build, BalancedShardsAllocator.class);
     }
 

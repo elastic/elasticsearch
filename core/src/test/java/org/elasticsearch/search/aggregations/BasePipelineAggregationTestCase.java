@@ -101,11 +101,12 @@ public abstract class BasePipelineAggregationTestCase<AF extends PipelineAggrega
 
         namedWriteableRegistry = new NamedWriteableRegistry();
         index = new Index("test");
+        SettingsModule settingsModule = new SettingsModule(settings, new SettingsFilter(settings));
         injector = new ModulesBuilder().add(
                 new EnvironmentModule(new Environment(settings)),
-                new SettingsModule(settings, new SettingsFilter(settings)),
+                settingsModule,
                 new ThreadPoolModule(new ThreadPool(settings)),
-                new ScriptModule(settings),
+                new ScriptModule(settingsModule),
                 new IndicesModule() {
 
                     @Override

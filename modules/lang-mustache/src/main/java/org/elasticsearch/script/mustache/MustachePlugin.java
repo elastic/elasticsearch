@@ -20,6 +20,7 @@
 package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.ScriptEngineRegistry;
 import org.elasticsearch.script.ScriptModule;
 
 public class MustachePlugin extends Plugin {
@@ -35,6 +36,6 @@ public class MustachePlugin extends Plugin {
     }
 
     public void onModule(ScriptModule module) {
-        module.addScriptEngine(MustacheScriptEngineService.class);
+        module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(MustacheScriptEngineService.class, MustacheScriptEngineService.TYPES));
     }
 }

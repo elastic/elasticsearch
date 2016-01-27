@@ -62,6 +62,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 @ESIntegTestCase.SuppressLocalMode
+@TestLogging("_root:DEBUG,cluster.service:TRACE,discovery.zen:TRACE")
 public class MinimumMasterNodesIT extends ESIntegTestCase {
 
     @Override
@@ -71,7 +72,6 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         return classes;
     }
 
-    @TestLogging("cluster.service:TRACE,discovery.zen:TRACE,gateway:TRACE,transport.tracer:TRACE")
     public void testSimpleMinimumMasterNodes() throws Exception {
 
         Settings settings = settingsBuilder()

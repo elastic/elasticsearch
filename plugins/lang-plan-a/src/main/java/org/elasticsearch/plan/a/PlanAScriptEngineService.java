@@ -37,7 +37,9 @@ import java.security.AccessController;
 import java.security.Permissions;
 import java.security.PrivilegedAction;
 import java.security.ProtectionDomain;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -49,6 +51,8 @@ public class PlanAScriptEngineService extends AbstractComponent implements Scrip
      * Standard name of the Plan A language.
      */
     public static final String NAME = "plan-a";
+
+    public static final List<String> TYPES = Collections.singletonList(NAME);
 
     /**
      * Default compiler settings to be used.
@@ -97,8 +101,8 @@ public class PlanAScriptEngineService extends AbstractComponent implements Scrip
      * @return Always contains only the single name of the language.
      */
     @Override
-    public String[] types() {
-        return new String[] { NAME };
+    public List<String> getTypes() {
+        return TYPES;
     }
 
     /**
@@ -106,8 +110,8 @@ public class PlanAScriptEngineService extends AbstractComponent implements Scrip
      * @return Always contains only the single extension of the language.
      */
     @Override
-    public String[] extensions() {
-        return new String[] { NAME };
+    public List<String> getExtensions() {
+        return TYPES;
     }
 
     /**
@@ -115,7 +119,7 @@ public class PlanAScriptEngineService extends AbstractComponent implements Scrip
      * @return Always true as the engine should be secure at runtime.
      */
     @Override
-    public boolean sandboxed() {
+    public boolean isSandboxed() {
         return true;
     }
 

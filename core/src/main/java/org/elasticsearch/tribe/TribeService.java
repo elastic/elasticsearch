@@ -101,13 +101,13 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
         }
         // its a tribe configured node..., force settings
         Settings.Builder sb = Settings.builder().put(settings);
-        sb.put("node.client", true); // this node should just act as a node client
+        sb.put(Node.NODE_CLIENT_SETTING.getKey(), true); // this node should just act as a node client
         sb.put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "local"); // a tribe node should not use zen discovery
         sb.put(DiscoveryService.INITIAL_STATE_TIMEOUT_SETTING.getKey(), 0); // nothing is going to be discovered, since no master will be elected
         if (sb.get("cluster.name") == null) {
             sb.put("cluster.name", "tribe_" + Strings.randomBase64UUID()); // make sure it won't join other tribe nodes in the same JVM
         }
-        sb.put(TransportMasterNodeReadAction.FORCE_LOCAL_SETTING, true);
+        sb.put(TransportMasterNodeReadAction.FORCE_LOCAL_SETTING.getKey(), true);
         return sb.build();
     }
 
@@ -135,11 +135,14 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
             Settings.Builder sb = Settings.builder().put(entry.getValue());
             sb.put("name", settings.get("name") + "/" + entry.getKey());
             sb.put(Environment.PATH_HOME_SETTING.getKey(), Environment.PATH_HOME_SETTING.get(settings)); // pass through ES home dir
+            if (Environment.PATH_CONF_SETTING.exists(settings)) {
+                sb.put(Environment.PATH_CONF_SETTING.getKey(), Environment.PATH_CONF_SETTING.get(settings));
+            }
             sb.put(TRIBE_NAME, entry.getKey());
             if (sb.get("http.enabled") == null) {
                 sb.put("http.enabled", false);
             }
-            sb.put("node.client", true);
+            sb.put(Node.NODE_CLIENT_SETTING.getKey(), true);
             nodes.add(new TribeClientNode(sb.build()));
         }
 

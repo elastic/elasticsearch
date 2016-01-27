@@ -20,6 +20,7 @@ package org.elasticsearch.search.internal;
 
 
 import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.util.Counter;
@@ -240,6 +241,10 @@ public abstract class SearchContext extends DelegatingHasContextAndHeaders imple
     public abstract SearchContext trackScores(boolean trackScores);
 
     public abstract boolean trackScores();
+
+    public abstract SearchContext searchAfter(FieldDoc searchAfter);
+
+    public abstract FieldDoc searchAfter();
 
     public abstract SearchContext parsedPostFilter(ParsedQuery postFilter);
 

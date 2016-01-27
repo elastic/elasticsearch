@@ -19,37 +19,48 @@
 
 package org.elasticsearch.script;
 
-import org.elasticsearch.common.Booleans;
-
-import java.util.Locale;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Mode for a specific script, used for script settings.
- * Defines whether a certain script or catefory of scripts can be executed or not, or whether it can
+ * Defines whether a certain script or category of scripts can be executed or not, or whether it can
  * only be executed by a sandboxed scripting language.
  */
 enum ScriptMode {
-    ON,
-    OFF,
-    SANDBOX;
+    ON("true"),
+    OFF("false"),
+    SANDBOX("sandbox");
 
-    static ScriptMode parse(String input) {
-        input = input.toLowerCase(Locale.ROOT);
-        if (Booleans.isExplicitTrue(input)) {
-            return ON;
-        }
-        if (Booleans.isExplicitFalse(input)) {
-            return OFF;
-        }
-        if (SANDBOX.toString().equals(input)) {
-            return SANDBOX;
-        }
-        throw new IllegalArgumentException("script mode [" + input + "] not supported");
+    private final String mode;
+
+    ScriptMode(String mode) {
+        this.mode = mode;
     }
 
+    private static final Map<String, ScriptMode> SCRIPT_MODES;
+
+    static {
+        SCRIPT_MODES = new HashMap<>();
+        for (ScriptMode scriptMode : ScriptMode.values()) {
+            SCRIPT_MODES.put(scriptMode.mode, scriptMode);
+        }
+    }
+
+    static ScriptMode parse(String input) {
+        ScriptMode scriptMode = SCRIPT_MODES.get(input);
+        if (scriptMode == null) {
+            throw new IllegalArgumentException("script mode [" + input + "] not supported");
+        }
+        return scriptMode;
+    }
+
+    public String getMode() {
+        return mode;
+    }
 
     @Override
     public String toString() {
-        return name().toLowerCase(Locale.ROOT);
+        return mode;
     }
 }

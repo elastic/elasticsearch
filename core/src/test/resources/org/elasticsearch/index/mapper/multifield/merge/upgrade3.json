@@ -8,7 +8,7 @@
                     "not_indexed3":{
                         type:"string",
                         index:"no",
-                        store:"yes"
+                        store:true
                     }
                 }
             }

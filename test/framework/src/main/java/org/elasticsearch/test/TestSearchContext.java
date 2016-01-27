@@ -26,6 +26,7 @@ import java.util.Set;
 
 import com.carrotsearch.hppc.ObjectObjectAssociativeContainer;
 import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.util.Counter;
@@ -392,6 +393,16 @@ public class TestSearchContext extends SearchContext {
     @Override
     public boolean trackScores() {
         return false;
+    }
+
+    @Override
+    public SearchContext searchAfter(FieldDoc searchAfter) {
+        return null;
+    }
+
+    @Override
+    public FieldDoc searchAfter() {
+        return null;
     }
 
     @Override

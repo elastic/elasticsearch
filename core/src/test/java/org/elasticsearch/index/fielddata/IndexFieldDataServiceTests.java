@@ -234,4 +234,23 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
     public void testRequireDocValuesOnBools() {
         doTestRequireDocValues(new BooleanFieldMapper.BooleanFieldType());
     }
+
+    public void testDisabled() {
+        ThreadPool threadPool = new ThreadPool("random_threadpool_name");
+        StringFieldMapper.StringFieldType ft = new StringFieldMapper.StringFieldType();
+        try {
+            IndicesFieldDataCache cache = new IndicesFieldDataCache(Settings.EMPTY, null, threadPool);
+            IndexFieldDataService ifds = new IndexFieldDataService(IndexSettingsModule.newIndexSettings(new Index("test"), Settings.EMPTY), cache, null, null);
+            ft.setName("some_str");
+            ft.setFieldDataType(new FieldDataType("string", Settings.builder().put(FieldDataType.FORMAT_KEY, "disabled").build()));
+            try {
+                ifds.getForField(ft);
+                fail();
+            } catch (IllegalStateException e) {
+                assertThat(e.getMessage(), containsString("Field data loading is forbidden on [some_str]"));
+            }
+        } finally {
+            threadPool.shutdown();
+        }
+    }
 }

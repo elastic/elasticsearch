@@ -24,7 +24,6 @@ import com.carrotsearch.randomizedtesting.SysGlobals;
 import com.carrotsearch.randomizedtesting.generators.RandomInts;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
-
 import org.apache.lucene.store.StoreRateLimiting;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
@@ -291,7 +290,7 @@ public final class InternalTestCluster extends TestCluster {
         builder.put("transport.tcp.port", TRANSPORT_BASE_PORT + "-" + (TRANSPORT_BASE_PORT + PORTS_PER_CLUSTER));
         builder.put("http.port", HTTP_BASE_PORT + "-" + (HTTP_BASE_PORT + PORTS_PER_CLUSTER));
         builder.put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING, true);
-        builder.put("node.mode", nodeMode);
+        builder.put(Node.NODE_MODE_SETTING.getKey(), nodeMode);
         builder.put("http.pipelining", enableHttpPipelining);
         if (Strings.hasLength(System.getProperty("es.logger.level"))) {
             builder.put("logger.level", System.getProperty("es.logger.level"));
@@ -322,10 +321,10 @@ public final class InternalTestCluster extends TestCluster {
             return "local"; // default if nothing is specified
         }
         if (Strings.hasLength(System.getProperty("es.node.mode"))) {
-            builder.put("node.mode", System.getProperty("es.node.mode"));
+            builder.put(Node.NODE_MODE_SETTING.getKey(), System.getProperty("es.node.mode"));
         }
         if (Strings.hasLength(System.getProperty("es.node.local"))) {
-            builder.put("node.local", System.getProperty("es.node.local"));
+            builder.put(Node.NODE_LOCAL_SETTING.getKey(), System.getProperty("es.node.local"));
         }
         if (DiscoveryNode.localNode(builder.build())) {
             return "local";
@@ -392,11 +391,7 @@ public final class InternalTestCluster extends TestCluster {
             builder.put(SearchService.DEFAULT_KEEPALIVE_SETTING.getKey(), TimeValue.timeValueSeconds(100 + random.nextInt(5 * 60)));
         }
 
-        if (random.nextInt(10) == 0) {
-            // node gets an extra cpu this time
-            builder.put(EsExecutors.PROCESSORS, 1 + EsExecutors.boundedNumberOfProcessors(Settings.EMPTY));
-        }
-
+        builder.put(EsExecutors.PROCESSORS_SETTING.getKey(), 1 + random.nextInt(3));
         if (random.nextBoolean()) {
             if (random.nextBoolean()) {
                 builder.put("indices.fielddata.cache.size", 1 + random.nextInt(1000), ByteSizeUnit.MB);
@@ -455,7 +450,7 @@ public final class InternalTestCluster extends TestCluster {
             builder.put(ScriptService.SCRIPT_CACHE_SIZE_SETTING.getKey(), RandomInts.randomIntBetween(random, 0, 2000));
         }
         if (random.nextBoolean()) {
-            builder.put(ScriptService.SCRIPT_CACHE_EXPIRE_SETTING, TimeValue.timeValueMillis(RandomInts.randomIntBetween(random, 750, 10000000)));
+            builder.put(ScriptService.SCRIPT_CACHE_EXPIRE_SETTING.getKey(), TimeValue.timeValueMillis(RandomInts.randomIntBetween(random, 750, 10000000)));
         }
 
         // always default delayed allocation to 0 to make sure we have tests are not delayed
@@ -670,7 +665,7 @@ public final class InternalTestCluster extends TestCluster {
 
     public synchronized Client startNodeClient(Settings settings) {
         ensureOpen(); // currently unused
-        Builder builder = settingsBuilder().put(settings).put("node.client", true);
+        Builder builder = settingsBuilder().put(settings).put(Node.NODE_CLIENT_SETTING.getKey(), true);
         if (size() == 0) {
             // if we are the first node - don't wait for a state
             builder.put(DiscoveryService.INITIAL_STATE_TIMEOUT_SETTING.getKey(), 0);
@@ -888,12 +883,15 @@ public final class InternalTestCluster extends TestCluster {
                     .put(Environment.PATH_HOME_SETTING.getKey(), baseDir)
                     .put("name", TRANSPORT_CLIENT_PREFIX + node.settings().get("name"))
                     .put(ClusterName.SETTING, clusterName).put("client.transport.sniff", sniff)
-                    .put("node.mode", nodeSettings.get("node.mode", nodeMode))
-                    .put("node.local", nodeSettings.get("node.local", ""))
+                    .put(Node.NODE_MODE_SETTING.getKey(), Node.NODE_MODE_SETTING.exists(nodeSettings) ? Node.NODE_MODE_SETTING.get(nodeSettings) : nodeMode)
                     .put("logger.prefix", nodeSettings.get("logger.prefix", ""))
                     .put("logger.level", nodeSettings.get("logger.level", "INFO"))
                     .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING, true)
                     .put(settings);
+
+            if (Node.NODE_LOCAL_SETTING.exists(nodeSettings)) {
+                builder.put(Node.NODE_LOCAL_SETTING.getKey(), Node.NODE_LOCAL_SETTING.get(nodeSettings));
+            }
 
             TransportClient.Builder clientBuilder = TransportClient.builder().settings(builder.build());
             for (Class<? extends Plugin> plugin : plugins) {
@@ -951,7 +949,7 @@ public final class InternalTestCluster extends TestCluster {
             NodeAndClient nodeAndClient = nodes.get(buildNodeName);
             if (nodeAndClient == null) {
                 changed = true;
-                Builder clientSettingsBuilder = Settings.builder().put("node.client", true);
+                Builder clientSettingsBuilder = Settings.builder().put(Node.NODE_CLIENT_SETTING.getKey(), true);
                 nodeAndClient = buildNode(i, sharedNodesSeeds[i], clientSettingsBuilder.build(), Version.CURRENT);
                 nodeAndClient.node.start();
                 logger.info("Start Shared Node [{}] not shared", nodeAndClient.name);
@@ -1461,7 +1459,7 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     public synchronized Async<List<String>> startMasterOnlyNodesAsync(int numNodes, Settings settings) {
-        Settings settings1 = Settings.builder().put(settings).put("node.master", true).put("node.data", false).build();
+        Settings settings1 = Settings.builder().put(settings).put(Node.NODE_MASTER_SETTING.getKey(), true).put(Node.NODE_DATA_SETTING.getKey(), false).build();
         return startNodesAsync(numNodes, settings1, Version.CURRENT);
     }
 
@@ -1470,7 +1468,7 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     public synchronized Async<List<String>> startDataOnlyNodesAsync(int numNodes, Settings settings) {
-        Settings settings1 = Settings.builder().put(settings).put("node.master", false).put("node.data", true).build();
+        Settings settings1 = Settings.builder().put(settings).put(Node.NODE_MASTER_SETTING.getKey(), false).put(Node.NODE_DATA_SETTING.getKey(), true).build();
         return startNodesAsync(numNodes, settings1, Version.CURRENT);
     }
 
@@ -1479,12 +1477,12 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     public synchronized Async<String> startMasterOnlyNodeAsync(Settings settings) {
-        Settings settings1 = Settings.builder().put(settings).put("node.master", true).put("node.data", false).build();
+        Settings settings1 = Settings.builder().put(settings).put(Node.NODE_MASTER_SETTING.getKey(), true).put(Node.NODE_DATA_SETTING.getKey(), false).build();
         return startNodeAsync(settings1, Version.CURRENT);
     }
 
     public synchronized String startMasterOnlyNode(Settings settings) {
-        Settings settings1 = Settings.builder().put(settings).put("node.master", true).put("node.data", false).build();
+        Settings settings1 = Settings.builder().put(settings).put(Node.NODE_MASTER_SETTING.getKey(), true).put(Node.NODE_DATA_SETTING.getKey(), false).build();
         return startNode(settings1, Version.CURRENT);
     }
 
@@ -1493,12 +1491,12 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     public synchronized Async<String> startDataOnlyNodeAsync(Settings settings) {
-        Settings settings1 = Settings.builder().put(settings).put("node.master", false).put("node.data", true).build();
+        Settings settings1 = Settings.builder().put(settings).put(Node.NODE_MASTER_SETTING.getKey(), false).put(Node.NODE_DATA_SETTING.getKey(), true).build();
         return startNodeAsync(settings1, Version.CURRENT);
     }
 
     public synchronized String startDataOnlyNode(Settings settings) {
-        Settings settings1 = Settings.builder().put(settings).put("node.master", false).put("node.data", true).build();
+        Settings settings1 = Settings.builder().put(settings).put(Node.NODE_MASTER_SETTING.getKey(), false).put(Node.NODE_DATA_SETTING.getKey(), true).build();
         return startNode(settings1, Version.CURRENT);
     }
 

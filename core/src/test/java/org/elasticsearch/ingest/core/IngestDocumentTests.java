@@ -20,7 +20,6 @@
 package org.elasticsearch.ingest.core;
 
 import org.elasticsearch.ingest.RandomDocumentPicks;
-import org.elasticsearch.ingest.core.IngestDocument;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -970,7 +969,31 @@ public class IngestDocumentTests extends ESTestCase {
     public void testCopyConstructor() {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         IngestDocument copy = new IngestDocument(ingestDocument);
-        assertThat(ingestDocument.getSourceAndMetadata(), not(sameInstance(copy.getSourceAndMetadata())));
-        assertThat(ingestDocument.getSourceAndMetadata(), equalTo(copy.getSourceAndMetadata()));
+        recursiveEqualsButNotSameCheck(ingestDocument.getSourceAndMetadata(), copy.getSourceAndMetadata());
     }
+
+    private void recursiveEqualsButNotSameCheck(Object a, Object b) {
+        assertThat(a, not(sameInstance(b)));
+        assertThat(a, equalTo(b));
+        if (a instanceof Map) {
+            Map<?, ?> mapA = (Map<?, ?>) a;
+            Map<?, ?> mapB = (Map<?, ?>) b;
+            for (Map.Entry<?, ?> entry : mapA.entrySet()) {
+                if (entry.getValue() instanceof List || entry.getValue() instanceof Map) {
+                    recursiveEqualsButNotSameCheck(entry.getValue(), mapB.get(entry.getKey()));
+                }
+            }
+        } else if (a instanceof List) {
+            List<?> listA = (List<?>) a;
+            List<?> listB = (List<?>) b;
+            for (int i = 0; i < listA.size(); i++) {
+                Object value = listA.get(i);
+                if (value instanceof List || value instanceof Map) {
+                    recursiveEqualsButNotSameCheck(value, listB.get(i));
+                }
+            }
+        }
+
+    }
+
 }

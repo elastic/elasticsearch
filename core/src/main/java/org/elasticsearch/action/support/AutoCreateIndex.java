@@ -23,11 +23,15 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.MapperService;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Encapsulates the logic of whether a new index should be automatically created when
@@ -35,99 +39,84 @@ import org.elasticsearch.index.mapper.MapperService;
  */
 public final class AutoCreateIndex {
 
-    private final boolean needToCheck;
-    private final boolean globallyDisabled;
-    private final boolean dynamicMappingDisabled;
-    private final String[] matches;
-    private final String[] matches2;
-    private final IndexNameExpressionResolver resolver;
     public static final Setting<AutoCreate> AUTO_CREATE_INDEX_SETTING = new Setting<>("action.auto_create_index", "true", AutoCreate::new, false, Setting.Scope.CLUSTER);
+
+    private final boolean dynamicMappingDisabled;
+    private final IndexNameExpressionResolver resolver;
+    private final AutoCreate autoCreate;
 
     @Inject
     public AutoCreateIndex(Settings settings, IndexNameExpressionResolver resolver) {
         this.resolver = resolver;
         dynamicMappingDisabled = !MapperService.INDEX_MAPPER_DYNAMIC_SETTING.get(settings);
-        final AutoCreate autoCreate = AUTO_CREATE_INDEX_SETTING.get(settings);
-        if (autoCreate.autoCreateIndex) {
-            needToCheck = true;
-            globallyDisabled = false;
-            matches = autoCreate.indices;
-            if (matches != null) {
-                matches2 = new String[matches.length];
-                for (int i = 0; i < matches.length; i++) {
-                    matches2[i] = matches[i].substring(1);
-                }
-            } else {
-                matches2 = null;
-            }
-        } else {
-            needToCheck = false;
-            globallyDisabled = true;
-            matches = null;
-            matches2 = null;
-        }
+        this.autoCreate = AUTO_CREATE_INDEX_SETTING.get(settings);
     }
 
     /**
      * Do we really need to check if an index should be auto created?
      */
     public boolean needToCheck() {
-        return this.needToCheck;
+        return this.autoCreate.autoCreateIndex;
     }
 
     /**
      * Should the index be auto created?
      */
     public boolean shouldAutoCreate(String index, ClusterState state) {
-        if (!needToCheck) {
+        if (autoCreate.autoCreateIndex == false) {
             return false;
         }
-        boolean exists = resolver.hasIndexOrAlias(index, state);
-        if (exists) {
+        if (dynamicMappingDisabled) {
             return false;
         }
-        if (globallyDisabled || dynamicMappingDisabled) {
+        if (resolver.hasIndexOrAlias(index, state)) {
             return false;
         }
         // matches not set, default value of "true"
-        if (matches == null) {
+        if (autoCreate.expressions.isEmpty()) {
             return true;
         }
-        for (int i = 0; i < matches.length; i++) {
-            char c = matches[i].charAt(0);
-            if (c == '-') {
-                if (Regex.simpleMatch(matches2[i], index)) {
-                    return false;
-                }
-            } else if (c == '+') {
-                if (Regex.simpleMatch(matches2[i], index)) {
-                    return true;
-                }
-            } else {
-                if (Regex.simpleMatch(matches[i], index)) {
-                    return true;
-                }
+        for (Tuple<String, Boolean> expression : autoCreate.expressions) {
+            String indexExpression = expression.v1();
+            boolean include = expression.v2();
+            if (Regex.simpleMatch(indexExpression, index)) {
+                return include;
             }
         }
         return false;
     }
 
-    public static class AutoCreate {
+    private static class AutoCreate {
         private final boolean autoCreateIndex;
-        private final String[] indices;
+        private final List<Tuple<String, Boolean>> expressions;
 
-        public AutoCreate(String value) {
+        private AutoCreate(String value) {
             boolean autoCreateIndex;
-            String[] indices = null;
+            List<Tuple<String, Boolean>> expressions = new ArrayList<>();
             try {
                 autoCreateIndex = Booleans.parseBooleanExact(value);
             } catch (IllegalArgumentException ex) {
                 try {
-                    indices = Strings.commaDelimitedListToStringArray(value);
-                    for (String string : indices) {
-                        if (string == null || string.length() == 0) {
-                            throw new IllegalArgumentException("Can't parse [" + value + "] for setting [action.auto_create_index] must be either [true, false, or a comma seperated list of index patterns]");
+                    String[] patterns = Strings.commaDelimitedListToStringArray(value);
+                    for (String pattern : patterns) {
+                        if (pattern == null || pattern.length() == 0) {
+                            throw new IllegalArgumentException("Can't parse [" + value + "] for setting [action.auto_create_index] must be either [true, false, or a comma separated list of index patterns]");
                         }
+                        Tuple<String, Boolean> expression;
+                        if (pattern.startsWith("-")) {
+                            if (pattern.length() == 1) {
+                                throw new IllegalArgumentException("Can't parse [" + value + "] for setting [action.auto_create_index] must contain an index name after [-]");
+                            }
+                            expression = new Tuple<>(pattern.substring(1), false);
+                        } else if(pattern.startsWith("+")) {
+                            if (pattern.length() == 1) {
+                                throw new IllegalArgumentException("Can't parse [" + value + "] for setting [action.auto_create_index] must contain an index name after [+]");
+                            }
+                            expression = new Tuple<>(pattern.substring(1), true);
+                        } else {
+                            expression = new Tuple<>(pattern, true);
+                        }
+                        expressions.add(expression);
                     }
                     autoCreateIndex = true;
                 } catch (IllegalArgumentException ex1) {
@@ -135,7 +124,7 @@ public final class AutoCreateIndex {
                     throw ex1;
                 }
             }
-            this.indices = indices;
+            this.expressions = expressions;
             this.autoCreateIndex = autoCreateIndex;
         }
     }

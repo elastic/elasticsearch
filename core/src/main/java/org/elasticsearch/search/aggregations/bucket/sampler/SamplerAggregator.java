@@ -230,7 +230,7 @@ public class SamplerAggregator extends SingleBucketAggregator {
         }
 
         @Override
-        protected AggregatorFactory doReadFrom(String name, StreamInput in) throws IOException {
+        protected Factory doReadFrom(String name, StreamInput in) throws IOException {
             Factory factory = new Factory(name);
             factory.shardSize = in.readVInt();
             return factory;

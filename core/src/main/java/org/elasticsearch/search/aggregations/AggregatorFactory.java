@@ -43,8 +43,7 @@ import java.util.Objects;
 /**
  * A factory that knows how to create an {@link Aggregator} of a specific type.
  */
-public abstract class AggregatorFactory<AF extends AggregatorFactory<AF>> extends ToXContentToBytes
-        implements NamedWriteable<AggregatorFactory<AF>> {
+public abstract class AggregatorFactory<AF extends AggregatorFactory<AF>> extends ToXContentToBytes implements NamedWriteable<AF> {
 
     protected String name;
     protected Type type;
@@ -165,16 +164,16 @@ public abstract class AggregatorFactory<AF extends AggregatorFactory<AF>> extend
     }
 
     @Override
-    public final AggregatorFactory<AF> readFrom(StreamInput in) throws IOException {
+    public final AF readFrom(StreamInput in) throws IOException {
         String name = in.readString();
-        AggregatorFactory<AF> factory = doReadFrom(name, in);
+        AF factory = doReadFrom(name, in);
         factory.factories = AggregatorFactories.EMPTY.readFrom(in);
         factory.factories.setParent(this);
         factory.metaData = in.readMap();
         return factory;
     }
 
-    protected abstract AggregatorFactory<AF> doReadFrom(String name, StreamInput in) throws IOException;
+    protected abstract AF doReadFrom(String name, StreamInput in) throws IOException;
 
     @Override
     public final void writeTo(StreamOutput out) throws IOException {

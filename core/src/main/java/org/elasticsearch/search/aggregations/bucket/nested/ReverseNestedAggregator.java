@@ -186,7 +186,7 @@ public class ReverseNestedAggregator extends SingleBucketAggregator {
         }
 
         @Override
-        protected AggregatorFactory doReadFrom(String name, StreamInput in) throws IOException {
+        protected Factory doReadFrom(String name, StreamInput in) throws IOException {
             Factory factory = new Factory(name);
             factory.path = in.readOptionalString();
             return factory;

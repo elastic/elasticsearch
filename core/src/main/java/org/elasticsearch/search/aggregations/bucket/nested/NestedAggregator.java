@@ -198,7 +198,7 @@ public class NestedAggregator extends SingleBucketAggregator {
         }
 
         @Override
-        protected AggregatorFactory doReadFrom(String name, StreamInput in) throws IOException {
+        protected Factory doReadFrom(String name, StreamInput in) throws IOException {
             String path = in.readString();
             Factory factory = new Factory(name, path);
             return factory;

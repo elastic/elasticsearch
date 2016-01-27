@@ -88,7 +88,7 @@ public class InternalAuthenticationService extends AbstractComponent implements 
             if (anonymousService.enabled()) {
                 // we must put the user in the request context, so it'll be copied to the
                 // transport request - without it, the transport will assume system user
-                putUserInContext(anonymousService.anonymousUser());
+                setUser(anonymousService.anonymousUser());
                 return anonymousService.anonymousUser();
             }
             auditTrail.anonymousAccessDenied(request);
@@ -148,7 +148,7 @@ public class InternalAuthenticationService extends AbstractComponent implements 
 
         // we must put the user in the request context, so it'll be copied to the
         // transport request - without it, the transport will assume system user
-        putUserInContext(user);
+        setUser(user);
         return user;
     }
 
@@ -169,12 +169,13 @@ public class InternalAuthenticationService extends AbstractComponent implements 
                 }
             }
             user = decodeUser(header);
-        }
-        if (user == null) {
+            assert user != null;
+            putUserInContext(user);
+        } else {
             user = authenticateWithRealms(action, message, fallbackUser);
-            setUserHeader(user);
+            setUser(user);
         }
-        putUserInContext(user);
+
         return user;
     }
 

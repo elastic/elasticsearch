@@ -233,6 +233,10 @@ The `index.translog.flush_threshold_ops` setting is not supported anymore. In or
 growth use `index.translog.flush_threshold_size` instead. Changing the translog type with `index.translog.fs.type` is not supported
 anymore, the `buffered` implementation is now the only available option and uses a fixed `8kb` buffer.
 
+The translog by default is fsynced on a request basis such that the ability to fsync on every operation is not necessary anymore. In-fact it can
+be a performance bottleneck and it's trappy since it enabled by a special value set on `index.translog.sync_interval`. `index.translog.sync_interval`
+now doesn't accept a value less than `100ms` which prevents fsyncing too often if async durability is enabled. The special value `0` is not supported anymore.
+
 ==== Request Cache Settings
 
 The deprecated settings `index.cache.query.enable` and `indices.cache.query.size` have been removed and are replaced with

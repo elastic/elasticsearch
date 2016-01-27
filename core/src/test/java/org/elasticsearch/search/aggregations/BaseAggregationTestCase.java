@@ -79,7 +79,7 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public abstract class BaseAggregationTestCase<AF extends AggregatorFactory> extends ESTestCase {
+public abstract class BaseAggregationTestCase<AB extends AggregatorBuilder<AB>> extends ESTestCase {
 
     protected static final String STRING_FIELD_NAME = "mapped_string";
     protected static final String INT_FIELD_NAME = "mapped_int";
@@ -105,7 +105,7 @@ public abstract class BaseAggregationTestCase<AF extends AggregatorFactory> exte
     private static IndicesQueriesRegistry queriesRegistry;
     private static ParseFieldMatcher parseFieldMatcher;
 
-    protected abstract AF createTestAggregatorFactory();
+    protected abstract AB createTestAggregatorBuilder();
 
     /**
      * Setup for the whole base test class.
@@ -232,9 +232,9 @@ public abstract class BaseAggregationTestCase<AF extends AggregatorFactory> exte
      * the two queries.
      */
     public void testFromXContent() throws IOException {
-        AF testAgg = createTestAggregatorFactory();
-        AggregatorFactories factories = AggregatorFactories.builder().addAggregator(testAgg).build();
-        String contentString = factories.toString();
+        AB testAgg = createTestAggregatorBuilder();
+        AggregatorFactories.Builder factoriesBuilder = AggregatorFactories.builder().addAggregator(testAgg);
+        String contentString = factoriesBuilder.toString();
         XContentParser parser = XContentFactory.xContent(contentString).createParser(contentString);
         QueryParseContext parseContext = new QueryParseContext(queriesRegistry);
         parseContext.reset(parser);
@@ -246,7 +246,7 @@ public abstract class BaseAggregationTestCase<AF extends AggregatorFactory> exte
         assertSame(XContentParser.Token.FIELD_NAME, parser.nextToken());
         assertEquals(testAgg.type.name(), parser.currentName());
         assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
-        AggregatorFactory newAgg = aggParsers.parser(testAgg.getType()).parse(testAgg.name, parser, parseContext);
+        AggregatorBuilder newAgg = aggParsers.parser(testAgg.getType()).parse(testAgg.name, parser, parseContext);
         assertSame(XContentParser.Token.END_OBJECT, parser.currentToken());
         assertSame(XContentParser.Token.END_OBJECT, parser.nextToken());
         assertSame(XContentParser.Token.END_OBJECT, parser.nextToken());
@@ -262,13 +262,13 @@ public abstract class BaseAggregationTestCase<AF extends AggregatorFactory> exte
      */
 
     public void testSerialization() throws IOException {
-        AF testAgg = createTestAggregatorFactory();
+        AB testAgg = createTestAggregatorBuilder();
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             testAgg.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
-                AggregatorFactory prototype = (AggregatorFactory) namedWriteableRegistry.getPrototype(AggregatorFactory.class,
-                        testAgg.getWriteableName());
-                AggregatorFactory deserializedQuery = prototype.readFrom(in);
+                AggregatorBuilder prototype = (AggregatorBuilder) namedWriteableRegistry.getPrototype(AggregatorBuilder.class, 
+                    testAgg.getWriteableName());
+                AggregatorBuilder deserializedQuery = prototype.readFrom(in);
                 assertEquals(deserializedQuery, testAgg);
                 assertEquals(deserializedQuery.hashCode(), testAgg.hashCode());
                 assertNotSame(deserializedQuery, testAgg);
@@ -278,20 +278,20 @@ public abstract class BaseAggregationTestCase<AF extends AggregatorFactory> exte
 
 
     public void testEqualsAndHashcode() throws IOException {
-        AF firstAgg = createTestAggregatorFactory();
+        AB firstAgg = createTestAggregatorBuilder();
         assertFalse("aggregation is equal to null", firstAgg.equals(null));
         assertFalse("aggregation is equal to incompatible type", firstAgg.equals(""));
         assertTrue("aggregation is not equal to self", firstAgg.equals(firstAgg));
         assertThat("same aggregation's hashcode returns different values if called multiple times", firstAgg.hashCode(),
                 equalTo(firstAgg.hashCode()));
 
-        AF secondQuery = copyAggregation(firstAgg);
+        AB secondQuery = copyAggregation(firstAgg);
         assertTrue("aggregation is not equal to self", secondQuery.equals(secondQuery));
         assertTrue("aggregation is not equal to its copy", firstAgg.equals(secondQuery));
         assertTrue("equals is not symmetric", secondQuery.equals(firstAgg));
         assertThat("aggregation copy's hashcode is different from original hashcode", secondQuery.hashCode(), equalTo(firstAgg.hashCode()));
 
-        AF thirdQuery = copyAggregation(secondQuery);
+        AB thirdQuery = copyAggregation(secondQuery);
         assertTrue("aggregation is not equal to self", thirdQuery.equals(thirdQuery));
         assertTrue("aggregation is not equal to its copy", secondQuery.equals(thirdQuery));
         assertThat("aggregation copy's hashcode is different from original hashcode", secondQuery.hashCode(),
@@ -304,14 +304,14 @@ public abstract class BaseAggregationTestCase<AF extends AggregatorFactory> exte
 
     // we use the streaming infra to create a copy of the query provided as
     // argument
-    private AF copyAggregation(AF agg) throws IOException {
+    private AB copyAggregation(AB agg) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             agg.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
-                AggregatorFactory prototype = (AggregatorFactory) namedWriteableRegistry.getPrototype(AggregatorFactory.class,
-                        agg.getWriteableName());
+                AggregatorBuilder prototype = (AggregatorBuilder) namedWriteableRegistry.getPrototype(AggregatorBuilder.class, 
+                    agg.getWriteableName());
                 @SuppressWarnings("unchecked")
-                AF secondAgg = (AF) prototype.readFrom(in);
+                AB secondAgg = (AB) prototype.readFrom(in);
                 return secondAgg;
             }
         }

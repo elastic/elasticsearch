@@ -105,7 +105,8 @@ public class AvgBucketPipelineAggregator extends BucketMetricsPipelineAggregator
         }
 
         @Override
-        public void doValidate(AggregatorFactory parent, AggregatorFactory[] aggFactories, List<PipelineAggregatorFactory> pipelineAggregatorFactories) {
+        public void doValidate(AggregatorFactory<?> parent, AggregatorFactory<?>[] aggFactories,
+                List<PipelineAggregatorFactory> pipelineAggregatorFactories) {
             if (bucketsPaths.length != 1) {
                 throw new IllegalStateException(PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName()
                         + " must contain a single entry for aggregation [" + name + "]");

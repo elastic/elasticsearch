@@ -33,7 +33,9 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
@@ -85,28 +87,22 @@ public class MissingAggregator extends SingleBucketAggregator {
         return new InternalMissing(name, 0, buildEmptySubAggregations(), pipelineAggregators(), metaData());
     }
 
-    public static class Factory extends ValuesSourceAggregatorFactory<ValuesSource, Factory> {
+    public static class MissingAggregatorBuilder extends ValuesSourceAggregatorBuilder<ValuesSource, MissingAggregatorBuilder> {
 
-        public Factory(String name, ValueType targetValueType) {
+        public MissingAggregatorBuilder(String name, ValueType targetValueType) {
             super(name, InternalMissing.TYPE, ValuesSourceType.ANY, targetValueType);
         }
 
         @Override
-        protected MissingAggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
-                Map<String, Object> metaData) throws IOException {
-            return new MissingAggregator(name, factories, null, aggregationContext, parent, pipelineAggregators, metaData);
+        protected ValuesSourceAggregatorFactory<ValuesSource, ?> innerBuild(AggregationContext context,
+                ValuesSourceConfig<ValuesSource> config) {
+            return new MissingAggregatorFactory(name, type, config);
         }
 
         @Override
-        protected MissingAggregator doCreateInternal(ValuesSource valuesSource, AggregationContext aggregationContext, Aggregator parent,
-                boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-            return new MissingAggregator(name, factories, valuesSource, aggregationContext, parent, pipelineAggregators, metaData);
-        }
-
-        @Override
-        protected Factory innerReadFrom(String name, ValuesSourceType valuesSourceType,
+        protected MissingAggregatorBuilder innerReadFrom(String name, ValuesSourceType valuesSourceType,
                 ValueType targetValueType, StreamInput in) {
-            return new Factory(name, targetValueType);
+            return new MissingAggregatorBuilder(name, targetValueType);
         }
 
         @Override

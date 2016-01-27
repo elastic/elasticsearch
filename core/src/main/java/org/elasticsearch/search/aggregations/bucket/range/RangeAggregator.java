@@ -41,8 +41,10 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
+import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorBuilder;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.format.ValueFormat;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.aggregations.support.format.ValueParser;
@@ -396,46 +398,34 @@ public class RangeAggregator extends BucketsAggregator {
         }
     }
 
-    public static abstract class AbstractFactory<AF extends AbstractFactory<AF, R>, R extends Range>
-            extends ValuesSourceAggregatorFactory<ValuesSource.Numeric, AF> {
+    public static abstract class AbstractBuilder<AB extends AbstractBuilder<AB, R>, R extends Range>
+            extends ValuesSourceAggregatorBuilder<ValuesSource.Numeric, AB> {
 
-        private final InternalRange.Factory rangeFactory;
-        private List<R> ranges = new ArrayList<>();
-        private boolean keyed = false;
+        protected final InternalRange.Factory<?, ?> rangeFactory;
+        protected List<R> ranges = new ArrayList<>();
+        protected boolean keyed = false;
 
-        protected AbstractFactory(String name, InternalRange.Factory rangeFactory) {
+        protected AbstractBuilder(String name, InternalRange.Factory<?, ?> rangeFactory) {
             super(name, rangeFactory.type(), rangeFactory.getValueSourceType(), rangeFactory.getValueType());
             this.rangeFactory = rangeFactory;
         }
 
-        public AF addRange(R range) {
+        public AB addRange(R range) {
             ranges.add(range);
-            return (AF) this;
+            return (AB) this;
         }
 
         public List<R> ranges() {
             return ranges;
         }
 
-        public AF keyed(boolean keyed) {
+        public AB keyed(boolean keyed) {
             this.keyed = keyed;
-            return (AF) this;
+            return (AB) this;
         }
 
         public boolean keyed() {
             return keyed;
-        }
-
-        @Override
-        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
-                Map<String, Object> metaData) throws IOException {
-            return new Unmapped(name, ranges, keyed, config.format(), aggregationContext, parent, rangeFactory, pipelineAggregators, metaData);
-        }
-
-        @Override
-        protected Aggregator doCreateInternal(ValuesSource.Numeric valuesSource, AggregationContext aggregationContext, Aggregator parent,
-                boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-            return new RangeAggregator(name, factories, valuesSource, config.format(), rangeFactory, ranges, keyed, aggregationContext, parent, pipelineAggregators, metaData);
         }
 
         @Override
@@ -446,14 +436,14 @@ public class RangeAggregator extends BucketsAggregator {
         }
 
         @Override
-        protected AF innerReadFrom(String name, ValuesSourceType valuesSourceType,
+        protected AB innerReadFrom(String name, ValuesSourceType valuesSourceType,
                 ValueType targetValueType, StreamInput in) throws IOException {
-            AbstractFactory<AF, R> factory = createFactoryFromStream(name, in);
+            AbstractBuilder<AB, R> factory = createFactoryFromStream(name, in);
             factory.keyed = in.readBoolean();
-            return (AF) factory;
+            return (AB) factory;
         }
 
-        protected abstract AbstractFactory<AF, R> createFactoryFromStream(String name, StreamInput in) throws IOException;
+        protected abstract AbstractBuilder<AB, R> createFactoryFromStream(String name, StreamInput in) throws IOException;
 
         @Override
         protected void innerWriteTo(StreamOutput out) throws IOException {
@@ -471,15 +461,15 @@ public class RangeAggregator extends BucketsAggregator {
 
         @Override
         protected boolean innerEquals(Object obj) {
-            AbstractFactory<AF, R> other = (AbstractFactory<AF, R>) obj;
+            AbstractBuilder<AB, R> other = (AbstractBuilder<AB, R>) obj;
             return Objects.equals(ranges, other.ranges)
                     && Objects.equals(keyed, other.keyed);
         }
     }
 
-    public static class Factory extends AbstractFactory<Factory, Range> {
+    public static class RangeAggregatorBuilder extends AbstractBuilder<RangeAggregatorBuilder, Range> {
 
-        public Factory(String name) {
+        public RangeAggregatorBuilder(String name) {
             super(name, InternalRange.FACTORY);
         }
 
@@ -493,7 +483,7 @@ public class RangeAggregator extends BucketsAggregator {
          * @param to
          *            the upper bound on the distances, exclusive
          */
-        public Factory addRange(String key, double from, double to) {
+        public RangeAggregatorBuilder addRange(String key, double from, double to) {
             addRange(new Range(key, from, to));
             return this;
         }
@@ -503,7 +493,7 @@ public class RangeAggregator extends BucketsAggregator {
          * automatically generated based on <code>from</code> and
          * <code>to</code>.
          */
-        public Factory addRange(double from, double to) {
+        public RangeAggregatorBuilder addRange(double from, double to) {
             return addRange(null, from, to);
         }
 
@@ -515,7 +505,7 @@ public class RangeAggregator extends BucketsAggregator {
          * @param to
          *            the upper bound on the distances, exclusive
          */
-        public Factory addUnboundedTo(String key, double to) {
+        public RangeAggregatorBuilder addUnboundedTo(String key, double to) {
             addRange(new Range(key, null, to));
             return this;
         }
@@ -524,7 +514,7 @@ public class RangeAggregator extends BucketsAggregator {
          * Same as {@link #addUnboundedTo(String, double)} but the key will be
          * computed automatically.
          */
-        public Factory addUnboundedTo(double to) {
+        public RangeAggregatorBuilder addUnboundedTo(double to) {
             return addUnboundedTo(null, to);
         }
 
@@ -536,7 +526,7 @@ public class RangeAggregator extends BucketsAggregator {
          * @param from
          *            the lower bound on the distances, inclusive
          */
-        public Factory addUnboundedFrom(String key, double from) {
+        public RangeAggregatorBuilder addUnboundedFrom(String key, double from) {
             addRange(new Range(key, from, null));
             return this;
         }
@@ -545,14 +535,19 @@ public class RangeAggregator extends BucketsAggregator {
          * Same as {@link #addUnboundedFrom(String, double)} but the key will be
          * computed automatically.
          */
-        public Factory addUnboundedFrom(double from) {
+        public RangeAggregatorBuilder addUnboundedFrom(double from) {
             return addUnboundedFrom(null, from);
         }
 
         @Override
-        protected Factory createFactoryFromStream(String name, StreamInput in) throws IOException {
+        protected RangeAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig<Numeric> config) {
+            return new RangeAggregatorFactory(name, type, config, ranges, keyed, rangeFactory);
+        }
+
+        @Override
+        protected RangeAggregatorBuilder createFactoryFromStream(String name, StreamInput in) throws IOException {
             int size = in.readVInt();
-            Factory factory = new Factory(name);
+            RangeAggregatorBuilder factory = new RangeAggregatorBuilder(name);
             for (int i = 0; i < size; i++) {
                 factory.addRange(Range.PROTOTYPE.readFrom(in));
             }

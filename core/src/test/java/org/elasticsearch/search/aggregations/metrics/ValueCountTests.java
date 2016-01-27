@@ -23,11 +23,11 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCountAggregator;
 
-public class ValueCountTests extends BaseAggregationTestCase<ValueCountAggregator.Factory> {
+public class ValueCountTests extends BaseAggregationTestCase<ValueCountAggregator.ValueCountAggregatorBuilder> {
 
     @Override
-    protected final ValueCountAggregator.Factory createTestAggregatorFactory() {
-        ValueCountAggregator.Factory factory = new ValueCountAggregator.Factory("foo", null);
+    protected final ValueCountAggregator.ValueCountAggregatorBuilder createTestAggregatorBuilder() {
+        ValueCountAggregator.ValueCountAggregatorBuilder factory = new ValueCountAggregator.ValueCountAggregatorBuilder("foo", null);
         String field = randomNumericField();
         int randomFieldBranch = randomInt(3);
         switch (randomFieldBranch) {

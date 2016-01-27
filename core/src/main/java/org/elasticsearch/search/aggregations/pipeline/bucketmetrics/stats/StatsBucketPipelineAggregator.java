@@ -111,7 +111,7 @@ public class StatsBucketPipelineAggregator extends BucketMetricsPipelineAggregat
         }
 
         @Override
-        public void doValidate(AggregatorFactory parent, AggregatorFactory[] aggFactories,
+        public void doValidate(AggregatorFactory<?> parent, AggregatorFactory<?>[] aggFactories,
                 List<PipelineAggregatorFactory> pipelineAggregatorFactories) {
             if (bucketsPaths.length != 1) {
                 throw new IllegalStateException(Parser.BUCKETS_PATH.getPreferredName()

@@ -85,7 +85,7 @@ public abstract class BucketMetricsFactory<AF extends BucketMetricsFactory<AF>> 
     protected abstract PipelineAggregator createInternal(Map<String, Object> metaData) throws IOException;
 
     @Override
-    public void doValidate(AggregatorFactory parent, AggregatorFactory[] aggFactories,
+    public void doValidate(AggregatorFactory<?> parent, AggregatorFactory<?>[] aggFactories,
             List<PipelineAggregatorFactory> pipelineAggregatorFactories) {
         if (bucketsPaths.length != 1) {
             throw new IllegalStateException(PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName()

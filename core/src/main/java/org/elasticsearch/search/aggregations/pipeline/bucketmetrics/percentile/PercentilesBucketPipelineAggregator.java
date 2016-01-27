@@ -147,6 +147,12 @@ public class PercentilesBucketPipelineAggregator extends BucketMetricsPipelineAg
          * Set the percentages to calculate percentiles for in this aggregation
          */
         public Factory percents(double[] percents) {
+            for (Double p : percents) {
+                if (p == null || p < 0.0 || p > 100.0) {
+                    throw new IllegalArgumentException(PercentilesBucketParser.PERCENTS.getPreferredName()
+                            + " must only contain non-null doubles from 0.0-100.0 inclusive");
+                }
+            }
             this.percents = percents;
             return this;
         }
@@ -157,8 +163,8 @@ public class PercentilesBucketPipelineAggregator extends BucketMetricsPipelineAg
         }
 
         @Override
-        public void doValidate(AggregatorFactory parent, AggregatorFactory[] aggFactories,
-                               List<PipelineAggregatorFactory> pipelineAggregatorFactories) {
+        public void doValidate(AggregatorFactory<?> parent, AggregatorFactory<?>[] aggFactories,
+                List<PipelineAggregatorFactory> pipelineAggregatorFactories) {
             if (bucketsPaths.length != 1) {
                 throw new IllegalStateException(PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName()
                         + " must contain a single entry for aggregation [" + name + "]");

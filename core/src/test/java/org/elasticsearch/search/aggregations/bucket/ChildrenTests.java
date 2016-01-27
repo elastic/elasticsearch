@@ -21,15 +21,15 @@ package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 import org.elasticsearch.search.aggregations.bucket.children.ParentToChildrenAggregator;
-import org.elasticsearch.search.aggregations.bucket.children.ParentToChildrenAggregator.Factory;
+import org.elasticsearch.search.aggregations.bucket.children.ParentToChildrenAggregator.ChildrenAggregatorBuilder;
 
-public class ChildrenTests extends BaseAggregationTestCase<ParentToChildrenAggregator.Factory> {
+public class ChildrenTests extends BaseAggregationTestCase<ParentToChildrenAggregator.ChildrenAggregatorBuilder> {
 
     @Override
-    protected Factory createTestAggregatorFactory() {
+    protected ChildrenAggregatorBuilder createTestAggregatorBuilder() {
         String name = randomAsciiOfLengthBetween(3, 20);
         String childType = randomAsciiOfLengthBetween(5, 40);
-        Factory factory = new Factory(name, childType);
+        ChildrenAggregatorBuilder factory = new ChildrenAggregatorBuilder(name, childType);
         return factory;
     }
 

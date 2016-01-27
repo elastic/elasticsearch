@@ -123,9 +123,9 @@ public class NestedAggregatorTests extends ESSingleNodeTestCase {
         AggregationContext context = new AggregationContext(searchContext);
 
         AggregatorFactories.Builder builder = AggregatorFactories.builder();
-        NestedAggregator.Factory factory = new NestedAggregator.Factory("test", "nested_field");
+        NestedAggregator.NestedAggregatorBuilder factory = new NestedAggregator.NestedAggregatorBuilder("test", "nested_field");
         builder.addAggregator(factory);
-        AggregatorFactories factories = builder.build();
+        AggregatorFactories factories = builder.build(context);
         searchContext.aggregations(new SearchContextAggregations(factories));
         factories.init(context);
         Aggregator[] aggs = factories.createTopLevelAggregators();

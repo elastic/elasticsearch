@@ -22,11 +22,11 @@ package org.elasticsearch.search.aggregations.bucket;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 import org.elasticsearch.search.aggregations.bucket.sampler.SamplerAggregator;
 
-public class SamplerTests extends BaseAggregationTestCase<SamplerAggregator.Factory> {
+public class SamplerTests extends BaseAggregationTestCase<SamplerAggregator.SamplerAggregatorBuilder> {
 
     @Override
-    protected final SamplerAggregator.Factory createTestAggregatorFactory() {
-        SamplerAggregator.Factory factory = new SamplerAggregator.Factory("foo");
+    protected final SamplerAggregator.SamplerAggregatorBuilder createTestAggregatorBuilder() {
+        SamplerAggregator.SamplerAggregatorBuilder factory = new SamplerAggregator.SamplerAggregatorBuilder("foo");
         if (randomBoolean()) {
             factory.shardSize(randomIntBetween(1, 1000));
         }

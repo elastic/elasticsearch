@@ -84,7 +84,7 @@ public abstract class AbstractValuesSourceParser<VS extends ValuesSource>
     }
 
     @Override
-    public final ValuesSourceAggregatorFactory<VS, ?> parse(String aggregationName, XContentParser parser, QueryParseContext context)
+    public final ValuesSourceAggregatorBuilder<VS, ?> parse(String aggregationName, XContentParser parser, QueryParseContext context)
             throws IOException {
 
         String field = null;
@@ -146,7 +146,7 @@ public abstract class AbstractValuesSourceParser<VS extends ValuesSource>
             }
         }
 
-        ValuesSourceAggregatorFactory<VS, ?> factory = createFactory(aggregationName, this.valuesSourceType, this.targetValueType,
+        ValuesSourceAggregatorBuilder<VS, ?> factory = createFactory(aggregationName, this.valuesSourceType, this.targetValueType,
                 otherOptions);
         factory.field(field);
         factory.script(script);
@@ -158,7 +158,7 @@ public abstract class AbstractValuesSourceParser<VS extends ValuesSource>
     }
 
     /**
-     * Creates a {@link ValuesSourceAggregatorFactory} from the information
+     * Creates a {@link ValuesSourceAggregatorBuilder} from the information
      * gathered by the subclass. Options parsed in
      * {@link AbstractValuesSourceParser} itself will be added to the factory
      * after it has been returned by this method.
@@ -176,7 +176,7 @@ public abstract class AbstractValuesSourceParser<VS extends ValuesSource>
      *            method
      * @return the created factory
      */
-    protected abstract ValuesSourceAggregatorFactory<VS, ?> createFactory(String aggregationName, ValuesSourceType valuesSourceType,
+    protected abstract ValuesSourceAggregatorBuilder<VS, ?> createFactory(String aggregationName, ValuesSourceType valuesSourceType,
             ValueType targetValueType, Map<ParseField, Object> otherOptions);
 
     /**

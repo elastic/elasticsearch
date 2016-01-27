@@ -21,13 +21,13 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
-import org.elasticsearch.search.aggregations.metrics.percentiles.PercentilesAggregatorFactory;
+import org.elasticsearch.search.aggregations.metrics.percentiles.PercentilesAggregatorBuilder;
 
-public class PercentilesTests extends BaseAggregationTestCase<PercentilesAggregatorFactory> {
+public class PercentilesTests extends BaseAggregationTestCase<PercentilesAggregatorBuilder> {
 
     @Override
-    protected PercentilesAggregatorFactory createTestAggregatorFactory() {
-        PercentilesAggregatorFactory factory = new PercentilesAggregatorFactory(randomAsciiOfLengthBetween(1, 20));
+    protected PercentilesAggregatorBuilder createTestAggregatorBuilder() {
+        PercentilesAggregatorBuilder factory = new PercentilesAggregatorBuilder(randomAsciiOfLengthBetween(1, 20));
         if (randomBoolean()) {
             factory.keyed(randomBoolean());
         }

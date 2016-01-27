@@ -24,7 +24,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.rounding.Rounding;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.NumericValuesSourceParser;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
@@ -51,9 +51,9 @@ public class HistogramParser extends NumericValuesSourceParser {
     }
 
     @Override
-    protected HistogramAggregator.Factory<?> createFactory(String aggregationName, ValuesSourceType valuesSourceType,
+    protected HistogramAggregator.AbstractBuilder<?> createFactory(String aggregationName, ValuesSourceType valuesSourceType,
             ValueType targetValueType, Map<ParseField, Object> otherOptions) {
-        HistogramAggregator.Factory factory = new HistogramAggregator.Factory(aggregationName);
+        HistogramAggregator.HistogramAggregatorBuilder factory = new HistogramAggregator.HistogramAggregatorBuilder(aggregationName);
         Long interval = (Long) otherOptions.get(Rounding.Interval.INTERVAL_FIELD);
         if (interval == null) {
             throw new ParsingException(null, "Missing required field [interval] for histogram aggregation [" + aggregationName + "]");
@@ -163,7 +163,7 @@ public class HistogramParser extends NumericValuesSourceParser {
     }
 
     @Override
-    public AggregatorFactory<?> getFactoryPrototypes() {
-        return HistogramAggregator.Factory.PROTOTYPE;
+    public AggregatorBuilder<?> getFactoryPrototypes() {
+        return HistogramAggregator.HistogramAggregatorBuilder.PROTOTYPE;
     }
 }

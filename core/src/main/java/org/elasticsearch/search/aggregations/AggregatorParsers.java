@@ -60,8 +60,8 @@ public class AggregatorParsers {
         Map<String, Aggregator.Parser> aggParsersBuilder = new HashMap<>(aggParsers.size());
         for (Aggregator.Parser parser : aggParsers) {
             aggParsersBuilder.put(parser.type(), parser);
-            AggregatorFactory<?> factoryPrototype = parser.getFactoryPrototypes();
-            namedWriteableRegistry.registerPrototype(AggregatorFactory.class, factoryPrototype);
+            AggregatorBuilder<?> factoryPrototype = parser.getFactoryPrototypes();
+            namedWriteableRegistry.registerPrototype(AggregatorBuilder.class, factoryPrototype);
         }
         this.aggParsers = unmodifiableMap(aggParsersBuilder);
         Map<String, PipelineAggregator.Parser> pipelineAggregatorParsersBuilder = new HashMap<>(pipelineAggregatorParsers.size());
@@ -105,12 +105,13 @@ public class AggregatorParsers {
      *
      * @throws IOException When parsing fails for unknown reasons.
      */
-    public AggregatorFactories parseAggregators(XContentParser parser, QueryParseContext parseContext) throws IOException {
+    public AggregatorFactories.Builder parseAggregators(XContentParser parser, QueryParseContext parseContext) throws IOException {
         return parseAggregators(parser, parseContext, 0);
     }
 
 
-    private AggregatorFactories parseAggregators(XContentParser parser, QueryParseContext parseContext, int level) throws IOException {
+    private AggregatorFactories.Builder parseAggregators(XContentParser parser, QueryParseContext parseContext, int level)
+            throws IOException {
         Matcher validAggMatcher = VALID_AGG_NAME.matcher("");
         AggregatorFactories.Builder factories = new AggregatorFactories.Builder();
 
@@ -132,9 +133,9 @@ public class AggregatorParsers {
                         + token + "], expected a [" + XContentParser.Token.START_OBJECT + "].");
             }
 
-            AggregatorFactory aggFactory = null;
+            AggregatorBuilder<?> aggFactory = null;
             PipelineAggregatorFactory pipelineAggregatorFactory = null;
-            AggregatorFactories subFactories = null;
+            AggregatorFactories.Builder subFactories = null;
 
             Map<String, Object> metaData = null;
 
@@ -222,7 +223,7 @@ public class AggregatorParsers {
             }
 
             if (subFactories != null) {
-                    aggFactory.subFactories(subFactories);
+                    aggFactory.subAggregations(subFactories);
             }
 
             if (level == 0) {
@@ -245,7 +246,7 @@ public class AggregatorParsers {
             }
         }
 
-        return factories.build();
+        return factories;
     }
 
 }

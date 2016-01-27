@@ -29,10 +29,10 @@ import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
-import org.elasticsearch.search.aggregations.NonCollectingAggregator;
 import org.elasticsearch.search.aggregations.bucket.BestDocsDeferringCollector;
 import org.elasticsearch.search.aggregations.bucket.DeferringBucketCollector;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
@@ -40,8 +40,9 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
+import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
@@ -190,20 +191,20 @@ public class SamplerAggregator extends SingleBucketAggregator {
         return new InternalSampler(name, 0, buildEmptySubAggregations(), pipelineAggregators(), metaData());
     }
 
-    public static class Factory extends AggregatorFactory<Factory> {
+    public static class SamplerAggregatorBuilder extends AggregatorBuilder<SamplerAggregatorBuilder> {
 
         public static final int DEFAULT_SHARD_SAMPLE_SIZE = 100;
 
         private int shardSize = DEFAULT_SHARD_SAMPLE_SIZE;
 
-        public Factory(String name) {
+        public SamplerAggregatorBuilder(String name) {
             super(name, InternalSampler.TYPE);
         }
 
         /**
          * Set the max num docs to be returned from each shard.
          */
-        public Factory shardSize(int shardSize) {
+        public SamplerAggregatorBuilder shardSize(int shardSize) {
             this.shardSize = shardSize;
             return this;
         }
@@ -216,9 +217,8 @@ public class SamplerAggregator extends SingleBucketAggregator {
         }
 
         @Override
-        public Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket,
-                List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-            return new SamplerAggregator(name, shardSize, factories, context, parent, pipelineAggregators, metaData);
+        protected AggregatorFactory<?> doBuild(AggregationContext context) {
+            return new SamplerAggregatorFactory(name, type, shardSize);
         }
 
         @Override
@@ -230,8 +230,8 @@ public class SamplerAggregator extends SingleBucketAggregator {
         }
 
         @Override
-        protected AggregatorFactory doReadFrom(String name, StreamInput in) throws IOException {
-            Factory factory = new Factory(name);
+        protected SamplerAggregatorBuilder doReadFrom(String name, StreamInput in) throws IOException {
+            SamplerAggregatorBuilder factory = new SamplerAggregatorBuilder(name);
             factory.shardSize = in.readVInt();
             return factory;
         }
@@ -248,30 +248,30 @@ public class SamplerAggregator extends SingleBucketAggregator {
 
         @Override
         protected boolean doEquals(Object obj) {
-            Factory other = (Factory) obj;
+            SamplerAggregatorBuilder other = (SamplerAggregatorBuilder) obj;
             return Objects.equals(shardSize, other.shardSize);
         }
 
     }
 
-    public static class DiversifiedFactory extends ValuesSourceAggregatorFactory<ValuesSource, DiversifiedFactory> {
+    public static class DiversifiedAggregatorBuilder extends ValuesSourceAggregatorBuilder<ValuesSource, DiversifiedAggregatorBuilder> {
 
         public static final Type TYPE = new Type("diversified_sampler");
 
         public static final int MAX_DOCS_PER_VALUE_DEFAULT = 1;
 
-        private int shardSize = Factory.DEFAULT_SHARD_SAMPLE_SIZE;
+        private int shardSize = SamplerAggregatorBuilder.DEFAULT_SHARD_SAMPLE_SIZE;
         private int maxDocsPerValue = MAX_DOCS_PER_VALUE_DEFAULT;
         private String executionHint = null;
 
-        public DiversifiedFactory(String name) {
+        public DiversifiedAggregatorBuilder(String name) {
             super(name, TYPE, ValuesSourceType.ANY, null);
         }
 
         /**
          * Set the max num docs to be returned from each shard.
          */
-        public DiversifiedFactory shardSize(int shardSize) {
+        public DiversifiedAggregatorBuilder shardSize(int shardSize) {
             this.shardSize = shardSize;
             return this;
         }
@@ -286,7 +286,7 @@ public class SamplerAggregator extends SingleBucketAggregator {
         /**
          * Set the max num docs to be returned per value.
          */
-        public DiversifiedFactory maxDocsPerValue(int maxDocsPerValue) {
+        public DiversifiedAggregatorBuilder maxDocsPerValue(int maxDocsPerValue) {
             this.maxDocsPerValue = maxDocsPerValue;
             return this;
         }
@@ -301,7 +301,7 @@ public class SamplerAggregator extends SingleBucketAggregator {
         /**
          * Set the execution hint.
          */
-        public DiversifiedFactory executionHint(String executionHint) {
+        public DiversifiedAggregatorBuilder executionHint(String executionHint) {
             this.executionHint = executionHint;
             return this;
         }
@@ -314,49 +314,9 @@ public class SamplerAggregator extends SingleBucketAggregator {
         }
 
         @Override
-        protected Aggregator doCreateInternal(ValuesSource valuesSource, AggregationContext context, Aggregator parent,
-                boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
-                throws IOException {
-
-            if (valuesSource instanceof ValuesSource.Numeric) {
-                return new DiversifiedNumericSamplerAggregator(name, shardSize, factories, context, parent, pipelineAggregators, metaData,
-                        (Numeric) valuesSource, maxDocsPerValue);
-            }
-
-            if (valuesSource instanceof ValuesSource.Bytes) {
-                ExecutionMode execution = null;
-                if (executionHint != null) {
-                    execution = ExecutionMode.fromString(executionHint, context.searchContext().parseFieldMatcher());
-                }
-
-                // In some cases using ordinals is just not supported: override
-                // it
-                if(execution==null){
-                    execution = ExecutionMode.GLOBAL_ORDINALS;
-                }
-                if ((execution.needsGlobalOrdinals()) && (!(valuesSource instanceof ValuesSource.Bytes.WithOrdinals))) {
-                    execution = ExecutionMode.MAP;
-                }
-                return execution.create(name, factories, shardSize, maxDocsPerValue, valuesSource, context, parent, pipelineAggregators,
-                        metaData);
-            }
-
-            throw new AggregationExecutionException("Sampler aggregation cannot be applied to field [" + config.fieldContext().field() +
-                    "]. It can only be applied to numeric or string fields.");
-        }
-
-        @Override
-        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent,
-                List<PipelineAggregator> pipelineAggregators,
-                Map<String, Object> metaData) throws IOException {
-            final UnmappedSampler aggregation = new UnmappedSampler(name, pipelineAggregators, metaData);
-
-            return new NonCollectingAggregator(name, aggregationContext, parent, factories, pipelineAggregators, metaData) {
-                @Override
-                public InternalAggregation buildEmptyAggregation() {
-                    return aggregation;
-                }
-            };
+        protected ValuesSourceAggregatorFactory<ValuesSource, ?> innerBuild(AggregationContext context,
+                ValuesSourceConfig<ValuesSource> config) {
+            return new DiversifiedAggregatorFactory(name, TYPE, config, shardSize, maxDocsPerValue, executionHint);
         }
 
         @Override
@@ -370,9 +330,9 @@ public class SamplerAggregator extends SingleBucketAggregator {
         }
 
         @Override
-        protected DiversifiedFactory innerReadFrom(String name, ValuesSourceType valuesSourceType,
+        protected DiversifiedAggregatorBuilder innerReadFrom(String name, ValuesSourceType valuesSourceType,
                 ValueType targetValueType, StreamInput in) throws IOException {
-            DiversifiedFactory factory = new DiversifiedFactory(name);
+            DiversifiedAggregatorBuilder factory = new DiversifiedAggregatorBuilder(name);
             factory.shardSize = in.readVInt();
             factory.maxDocsPerValue = in.readVInt();
             factory.executionHint = in.readOptionalString();
@@ -393,7 +353,7 @@ public class SamplerAggregator extends SingleBucketAggregator {
 
         @Override
         protected boolean innerEquals(Object obj) {
-            DiversifiedFactory other = (DiversifiedFactory) obj;
+            DiversifiedAggregatorBuilder other = (DiversifiedAggregatorBuilder) obj;
             return Objects.equals(shardSize, other.shardSize)
                     && Objects.equals(maxDocsPerValue, other.maxDocsPerValue)
                     && Objects.equals(executionHint, other.executionHint);

@@ -35,7 +35,8 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
+import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorBuilder;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
@@ -112,30 +113,22 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
         Releasables.close(counts);
     }
 
-    public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource, Factory> {
+    public static class ValueCountAggregatorBuilder
+            extends ValuesSourceAggregatorBuilder.LeafOnly<ValuesSource, ValueCountAggregatorBuilder> {
 
-        public Factory(String name, ValueType targetValueType) {
+        public ValueCountAggregatorBuilder(String name, ValueType targetValueType) {
             super(name, InternalValueCount.TYPE, ValuesSourceType.ANY, targetValueType);
         }
 
         @Override
-        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent,
-                List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-            return new ValueCountAggregator(name, null, config.formatter(), aggregationContext, parent, pipelineAggregators, metaData);
+        protected ValueCountAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig<ValuesSource> config) {
+            return new ValueCountAggregatorFactory(name, type, config);
         }
 
         @Override
-        protected Aggregator doCreateInternal(ValuesSource valuesSource, AggregationContext aggregationContext, Aggregator parent,
-                boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
-                throws IOException {
-            return new ValueCountAggregator(name, valuesSource, config.formatter(), aggregationContext, parent, pipelineAggregators,
-                    metaData);
-        }
-
-        @Override
-        protected ValuesSourceAggregatorFactory<ValuesSource, Factory> innerReadFrom(String name, ValuesSourceType valuesSourceType,
-                ValueType targetValueType, StreamInput in) {
-            return new ValueCountAggregator.Factory(name, targetValueType);
+        protected ValuesSourceAggregatorBuilder<ValuesSource, ValueCountAggregatorBuilder> innerReadFrom(String name,
+                ValuesSourceType valuesSourceType, ValueType targetValueType, StreamInput in) {
+            return new ValueCountAggregator.ValueCountAggregatorBuilder(name, targetValueType);
         }
 
         @Override

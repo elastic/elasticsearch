@@ -122,7 +122,7 @@ public class EquivalenceTests extends ESIntegTestCase {
             }
         }
 
-        RangeAggregator.Factory query = range("range").field("values");
+        RangeAggregator.RangeAggregatorBuilder query = range("range").field("values");
         for (int i = 0; i < ranges.length; ++i) {
             String key = Integer.toString(i);
             if (ranges[i][0] == Double.NEGATIVE_INFINITY) {
@@ -236,15 +236,16 @@ public class EquivalenceTests extends ESIntegTestCase {
 
         assertNoFailures(client().admin().indices().prepareRefresh("idx").setIndicesOptions(IndicesOptions.lenientExpandOpen()).execute().get());
 
-        TermsAggregatorFactory.ExecutionMode[] globalOrdinalModes = new TermsAggregatorFactory.ExecutionMode[]{
-                TermsAggregatorFactory.ExecutionMode.GLOBAL_ORDINALS_HASH,
-                TermsAggregatorFactory.ExecutionMode.GLOBAL_ORDINALS
+        TermsAggregatorFactory.ExecutionMode[] globalOrdinalModes = new TermsAggregatorFactory.ExecutionMode[] {
+                TermsAggregatorFactory.ExecutionMode.GLOBAL_ORDINALS_HASH, TermsAggregatorFactory.ExecutionMode.GLOBAL_ORDINALS
         };
 
         SearchResponse resp = client().prepareSearch("idx")
                 .addAggregation(terms("long").field("long_values").size(maxNumTerms).collectMode(randomFrom(SubAggCollectionMode.values())).subAggregation(min("min").field("num")))
                 .addAggregation(terms("double").field("double_values").size(maxNumTerms).collectMode(randomFrom(SubAggCollectionMode.values())).subAggregation(max("max").field("num")))
-                .addAggregation(terms("string_map").field("string_values").collectMode(randomFrom(SubAggCollectionMode.values())).executionHint(TermsAggregatorFactory.ExecutionMode.MAP.toString()).size(maxNumTerms).subAggregation(stats("stats").field("num")))
+                .addAggregation(terms("string_map").field("string_values").collectMode(randomFrom(SubAggCollectionMode.values()))
+                        .executionHint(TermsAggregatorFactory.ExecutionMode.MAP.toString()).size(maxNumTerms)
+                        .subAggregation(stats("stats").field("num")))
                 .addAggregation(terms("string_global_ordinals").field("string_values").collectMode(randomFrom(SubAggCollectionMode.values())).executionHint(globalOrdinalModes[randomInt(globalOrdinalModes.length - 1)].toString()).size(maxNumTerms).subAggregation(extendedStats("stats").field("num")))
                 .addAggregation(terms("string_global_ordinals_doc_values").field("string_values.doc_values").collectMode(randomFrom(SubAggCollectionMode.values())).executionHint(globalOrdinalModes[randomInt(globalOrdinalModes.length - 1)].toString()).size(maxNumTerms).subAggregation(extendedStats("stats").field("num")))
                 .execute().actionGet();

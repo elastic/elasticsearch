@@ -23,16 +23,16 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 import org.elasticsearch.search.aggregations.metrics.scripted.ScriptedMetricAggregator;
-import org.elasticsearch.search.aggregations.metrics.scripted.ScriptedMetricAggregator.Factory;
+import org.elasticsearch.search.aggregations.metrics.scripted.ScriptedMetricAggregator.ScriptedMetricAggregatorBuilder;
 
 import java.util.HashMap;
 import java.util.Map;
 
-public class ScriptedMetricTests extends BaseAggregationTestCase<ScriptedMetricAggregator.Factory> {
+public class ScriptedMetricTests extends BaseAggregationTestCase<ScriptedMetricAggregator.ScriptedMetricAggregatorBuilder> {
 
     @Override
-    protected Factory createTestAggregatorFactory() {
-        Factory factory = new Factory(randomAsciiOfLengthBetween(1, 20));
+    protected ScriptedMetricAggregatorBuilder createTestAggregatorBuilder() {
+        ScriptedMetricAggregatorBuilder factory = new ScriptedMetricAggregatorBuilder(randomAsciiOfLengthBetween(1, 20));
         if (randomBoolean()) {
             factory.initScript(randomScript("initScript"));
         }

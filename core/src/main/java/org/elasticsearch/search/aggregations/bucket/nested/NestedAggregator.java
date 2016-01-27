@@ -34,14 +34,13 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
-import org.elasticsearch.search.aggregations.NonCollectingAggregator;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -150,7 +149,7 @@ public class NestedAggregator extends SingleBucketAggregator {
         return null;
     }
 
-    public static class Factory extends AggregatorFactory<Factory> {
+    public static class NestedAggregatorBuilder extends AggregatorBuilder<NestedAggregatorBuilder> {
 
         private final String path;
 
@@ -161,7 +160,7 @@ public class NestedAggregator extends SingleBucketAggregator {
          *            the path to use for this nested aggregation. The path must
          *            match the path to a nested object in the mappings.
          */
-        public Factory(String name, String path) {
+        public NestedAggregatorBuilder(String name, String path) {
             super(name, InternalNested.TYPE);
             this.path = path;
         }
@@ -174,19 +173,8 @@ public class NestedAggregator extends SingleBucketAggregator {
         }
 
         @Override
-        public Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket,
-                List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-            if (collectsFromSingleBucket == false) {
-                return asMultiBucketAggregator(this, context, parent);
-            }
-            ObjectMapper objectMapper = context.searchContext().getObjectMapper(path);
-            if (objectMapper == null) {
-                return new Unmapped(name, context, parent, pipelineAggregators, metaData);
-            }
-            if (!objectMapper.nested().isNested()) {
-                throw new AggregationExecutionException("[nested] nested path [" + path + "] is not nested");
-            }
-            return new NestedAggregator(name, factories, objectMapper, context, parent, pipelineAggregators, metaData);
+        protected AggregatorFactory<?> doBuild(AggregationContext context) throws IOException {
+            return new NestedAggregatorFactory(name, type, path);
         }
 
         @Override
@@ -198,9 +186,9 @@ public class NestedAggregator extends SingleBucketAggregator {
         }
 
         @Override
-        protected AggregatorFactory doReadFrom(String name, StreamInput in) throws IOException {
+        protected NestedAggregatorBuilder doReadFrom(String name, StreamInput in) throws IOException {
             String path = in.readString();
-            Factory factory = new Factory(name, path);
+            NestedAggregatorBuilder factory = new NestedAggregatorBuilder(name, path);
             return factory;
         }
 
@@ -216,21 +204,8 @@ public class NestedAggregator extends SingleBucketAggregator {
 
         @Override
         protected boolean doEquals(Object obj) {
-            Factory other = (Factory) obj;
+            NestedAggregatorBuilder other = (NestedAggregatorBuilder) obj;
             return Objects.equals(path, other.path);
-        }
-
-        private final static class Unmapped extends NonCollectingAggregator {
-
-            public Unmapped(String name, AggregationContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
-                    throws IOException {
-                super(name, context, parent, pipelineAggregators, metaData);
-            }
-
-            @Override
-            public InternalAggregation buildEmptyAggregation() {
-                return new InternalNested(name, 0, buildEmptySubAggregations(), pipelineAggregators(), metaData());
-            }
         }
     }
 

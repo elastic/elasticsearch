@@ -16,175 +16,33 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.search.aggregations.support;
 
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
-import org.elasticsearch.index.fielddata.IndexNumericFieldData;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.core.BooleanFieldMapper;
-import org.elasticsearch.index.mapper.core.DateFieldMapper;
-import org.elasticsearch.index.mapper.core.NumberFieldMapper;
-import org.elasticsearch.index.mapper.ip.IpFieldMapper;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.SearchScript;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
-import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.format.ValueFormat;
-import org.elasticsearch.search.internal.SearchContext;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
-/**
- *
- */
+// NORELEASE this needs to extend AggregatorFactory<AF> after refactoring is complete
 public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource, AF extends ValuesSourceAggregatorFactory<VS, AF>>
         extends AggregatorFactory<AF> {
 
-    public static abstract class LeafOnly<VS extends ValuesSource, AF extends ValuesSourceAggregatorFactory<VS, AF>>
-            extends ValuesSourceAggregatorFactory<VS, AF> {
-
-        protected LeafOnly(String name, Type type, ValuesSourceType valuesSourceType, ValueType targetValueType) {
-            super(name, type, valuesSourceType, targetValueType);
-        }
-
-        @Override
-        public AF subFactories(AggregatorFactories subFactories) {
-            throw new AggregationInitializationException("Aggregator [" + name + "] of type [" + type + "] cannot accept sub-aggregations");
-        }
-    }
-
-    private final ValuesSourceType valuesSourceType;
-    private final ValueType targetValueType;
-    private String field = null;
-    private Script script = null;
-    private ValueType valueType = null;
-    private String format = null;
-    private Object missing = null;
-    private DateTimeZone timeZone;
     protected ValuesSourceConfig<VS> config;
 
-    protected ValuesSourceAggregatorFactory(String name, Type type, ValuesSourceType valuesSourceType, ValueType targetValueType) {
+    public ValuesSourceAggregatorFactory(String name, Type type, ValuesSourceConfig<VS> config) {
         super(name, type);
-        this.valuesSourceType = valuesSourceType;
-        this.targetValueType = targetValueType;
+        this.config = config;
     }
 
-    /**
-     * Sets the field to use for this aggregation.
-     */
-    public AF field(String field) {
-        this.field = field;
-        return (AF) this;
-    }
-
-    /**
-     * Gets the field to use for this aggregation.
-     */
-    public String field() {
-        return field;
-    }
-
-    /**
-     * Sets the script to use for this aggregation.
-     */
-    public AF script(Script script) {
-        this.script = script;
-        return (AF) this;
-    }
-
-    /**
-     * Gets the script to use for this aggregation.
-     */
-    public Script script() {
-        return script;
-    }
-
-    /**
-     * Sets the {@link ValueType} for the value produced by this aggregation
-     */
-    public AF valueType(ValueType valueType) {
-        this.valueType = valueType;
-        return (AF) this;
-    }
-
-    /**
-     * Gets the {@link ValueType} for the value produced by this aggregation
-     */
-    public ValueType valueType() {
-        return valueType;
-    }
-
-    /**
-     * Sets the format to use for the output of the aggregation.
-     */
-    public AF format(String format) {
-        this.format = format;
-        return (AF) this;
-    }
-
-    /**
-     * Gets the format to use for the output of the aggregation.
-     */
-    public String format() {
-        return format;
-    }
-
-    /**
-     * Sets the value to use when the aggregation finds a missing value in a
-     * document
-     */
-    public AF missing(Object missing) {
-        this.missing = missing;
-        return (AF) this;
-    }
-
-    /**
-     * Gets the value to use when the aggregation finds a missing value in a
-     * document
-     */
-    public Object missing() {
-        return missing;
-    }
-
-    /**
-     * Sets the time zone to use for this aggregation
-     */
-    public AF timeZone(DateTimeZone timeZone) {
-        this.timeZone = timeZone;
-        return (AF) this;
-    }
-
-    /**
-     * Gets the time zone to use for this aggregation
-     */
     public DateTimeZone timeZone() {
-        return timeZone;
-    }
-
-    @Override
-    public void doInit(AggregationContext context) {
-        this.config = config(context);
-        if (config == null || !config.valid()) {
-            resolveValuesSourceConfigFromAncestors(name, this.parent, config.valueSourceType());
+        return config.timeZone;
         }
-
-    }
 
     @Override
     public Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket,
@@ -196,105 +54,6 @@ public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource, AF 
         return doCreateInternal(vs, context, parent, collectsFromSingleBucket, pipelineAggregators, metaData);
     }
 
-    @Override
-    public void doValidate() {
-    }
-
-    public ValuesSourceConfig<VS> config(AggregationContext context) {
-
-        ValueType valueType = this.valueType != null ? this.valueType : targetValueType;
-
-        if (field == null) {
-            if (script == null) {
-                ValuesSourceConfig<VS> config = new ValuesSourceConfig(ValuesSourceType.ANY);
-                config.format = resolveFormat(null, valueType);
-                return config;
-            }
-            ValuesSourceType valuesSourceType = valueType != null ? valueType.getValuesSourceType() : this.valuesSourceType;
-            if (valuesSourceType == null || valuesSourceType == ValuesSourceType.ANY) {
-                // the specific value source type is undefined, but for scripts,
-                // we need to have a specific value source
-                // type to know how to handle the script values, so we fallback
-                // on Bytes
-                valuesSourceType = ValuesSourceType.BYTES;
-            }
-            ValuesSourceConfig<VS> config = new ValuesSourceConfig<VS>(valuesSourceType);
-            config.missing = missing;
-            config.format = resolveFormat(format, valueType);
-            config.script = createScript(script, context.searchContext());
-            config.scriptValueType = valueType;
-            return config;
-        }
-
-        MappedFieldType fieldType = context.searchContext().smartNameFieldType(field);
-        if (fieldType == null) {
-            ValuesSourceType valuesSourceType = valueType != null ? valueType.getValuesSourceType() : this.valuesSourceType;
-            ValuesSourceConfig<VS> config = new ValuesSourceConfig<>(valuesSourceType);
-            config.missing = missing;
-            config.format = resolveFormat(format, valueType);
-            config.unmapped = true;
-            if (valueType != null) {
-                // todo do we really need this for unmapped?
-                config.scriptValueType = valueType;
-            }
-            return config;
-        }
-
-        IndexFieldData<?> indexFieldData = context.searchContext().fieldData().getForField(fieldType);
-
-        ValuesSourceConfig config;
-        if (valuesSourceType == ValuesSourceType.ANY) {
-            if (indexFieldData instanceof IndexNumericFieldData) {
-                config = new ValuesSourceConfig<>(ValuesSourceType.NUMERIC);
-            } else if (indexFieldData instanceof IndexGeoPointFieldData) {
-                config = new ValuesSourceConfig<>(ValuesSourceType.GEOPOINT);
-            } else {
-                config = new ValuesSourceConfig<>(ValuesSourceType.BYTES);
-            }
-        } else {
-            config = new ValuesSourceConfig(valuesSourceType);
-        }
-
-        config.fieldContext = new FieldContext(field, indexFieldData, fieldType);
-        config.missing = missing;
-        config.script = createScript(script, context.searchContext());
-        config.format = resolveFormat(format, this.timeZone, fieldType);
-        return config;
-    }
-
-    private SearchScript createScript(Script script, SearchContext context) {
-        return script == null ? null
-                : context.scriptService().search(context.lookup(), script, ScriptContext.Standard.AGGS, Collections.emptyMap());
-    }
-
-    private static ValueFormat resolveFormat(@Nullable String format, @Nullable ValueType valueType) {
-        if (valueType == null) {
-            return ValueFormat.RAW; // we can't figure it out
-        }
-        ValueFormat valueFormat = valueType.defaultFormat;
-        if (valueFormat != null && valueFormat instanceof ValueFormat.Patternable && format != null) {
-            return ((ValueFormat.Patternable) valueFormat).create(format);
-        }
-        return valueFormat;
-    }
-
-    private static ValueFormat resolveFormat(@Nullable String format, @Nullable DateTimeZone timezone, MappedFieldType fieldType) {
-        if (fieldType instanceof DateFieldMapper.DateFieldType) {
-            return format != null ? ValueFormat.DateTime.format(format, timezone) : ValueFormat.DateTime.mapper(
-                    (DateFieldMapper.DateFieldType) fieldType, timezone);
-        }
-        if (fieldType instanceof IpFieldMapper.IpFieldType) {
-            return ValueFormat.IPv4;
-        }
-        if (fieldType instanceof BooleanFieldMapper.BooleanFieldType) {
-            return ValueFormat.BOOLEAN;
-        }
-        if (fieldType instanceof NumberFieldMapper.NumberFieldType) {
-            return format != null ? ValueFormat.Number.format(format) : ValueFormat.RAW;
-        }
-        return ValueFormat.RAW;
-    }
-
     protected abstract Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException;
 
@@ -302,146 +61,4 @@ public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource, AF 
             boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
             throws IOException;
 
-    private void resolveValuesSourceConfigFromAncestors(String aggName, AggregatorFactory parent,
-            ValuesSourceType requiredValuesSourceType) {
-        ValuesSourceConfig config;
-        while (parent != null) {
-            if (parent instanceof ValuesSourceAggregatorFactory) {
-                config = ((ValuesSourceAggregatorFactory) parent).config;
-                if (config != null && config.valid()) {
-                    if (requiredValuesSourceType == null || requiredValuesSourceType == ValuesSourceType.ANY
-                            || requiredValuesSourceType == config.valueSourceType) {
-                        ValueFormat format = config.format;
-                        this.config = config;
-                        // if the user explicitly defined a format pattern,
-                        // we'll do our best to keep it even when we inherit the
-                        // value source form one of the ancestor aggregations
-                        if (this.config.formatPattern != null && format != null && format instanceof ValueFormat.Patternable) {
-                            this.config.format = ((ValueFormat.Patternable) format).create(this.config.formatPattern);
-                        }
-                        return;
-                    }
-                }
-            }
-            parent = parent.parent();
-        }
-        throw new AggregationExecutionException("could not find the appropriate value context to perform aggregation [" + aggName + "]");
-    }
-
-    @Override
-    protected final void doWriteTo(StreamOutput out) throws IOException {
-        valuesSourceType.writeTo(out);
-        boolean hasTargetValueType = targetValueType != null;
-        out.writeBoolean(hasTargetValueType);
-        if (hasTargetValueType) {
-            targetValueType.writeTo(out);
-        }
-        innerWriteTo(out);
-        out.writeOptionalString(field);
-        boolean hasScript = script != null;
-        out.writeBoolean(hasScript);
-        if (hasScript) {
-            script.writeTo(out);
-        }
-        boolean hasValueType = valueType != null;
-        out.writeBoolean(hasValueType);
-        if (hasValueType) {
-            valueType.writeTo(out);
-        }
-        out.writeOptionalString(format);
-        out.writeGenericValue(missing);
-        boolean hasTimeZone = timeZone != null;
-        out.writeBoolean(hasTimeZone);
-        if (hasTimeZone) {
-            out.writeString(timeZone.getID());
-        }
-    }
-
-    protected abstract void innerWriteTo(StreamOutput out) throws IOException;
-
-    @Override
-    protected final ValuesSourceAggregatorFactory<VS, AF> doReadFrom(String name, StreamInput in) throws IOException {
-        ValuesSourceType valuesSourceType = ValuesSourceType.ANY.readFrom(in);
-        ValueType targetValueType = null;
-        if (in.readBoolean()) {
-            targetValueType = ValueType.STRING.readFrom(in);
-        }
-        ValuesSourceAggregatorFactory<VS, AF> factory = innerReadFrom(name, valuesSourceType, targetValueType, in);
-        factory.field = in.readOptionalString();
-        if (in.readBoolean()) {
-            factory.script = Script.readScript(in);
-        }
-        if (in.readBoolean()) {
-            factory.valueType = ValueType.STRING.readFrom(in);
-        }
-        factory.format = in.readOptionalString();
-        factory.missing = in.readGenericValue();
-        if (in.readBoolean()) {
-            factory.timeZone = DateTimeZone.forID(in.readString());
-        }
-        return factory;
-    }
-
-    protected abstract ValuesSourceAggregatorFactory<VS, AF> innerReadFrom(String name, ValuesSourceType valuesSourceType,
-            ValueType targetValueType, StreamInput in) throws IOException;
-
-    @Override
-    public final XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        if (field != null) {
-            builder.field("field", field);
-        }
-        if (script != null) {
-            builder.field("script", script);
-        }
-        if (missing != null) {
-            builder.field("missing", missing);
-        }
-        if (format != null) {
-            builder.field("format", format);
-        }
-        if (timeZone != null) {
-            builder.field("time_zone", timeZone);
-        }
-        if (valueType != null) {
-            builder.field("value_type", valueType.getPreferredName());
-        }
-        doXContentBody(builder, params);
-        builder.endObject();
-        return builder;
-    }
-
-    protected abstract XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException;
-
-    @Override
-    protected final int doHashCode() {
-        return Objects.hash(field, format, missing, script, targetValueType, timeZone, valueType, valuesSourceType,
-                innerHashCode());
-    }
-
-    protected abstract int innerHashCode();
-
-    @Override
-    protected final boolean doEquals(Object obj) {
-        ValuesSourceAggregatorFactory<?, ?> other = (ValuesSourceAggregatorFactory<?, ?>) obj;
-        if (!Objects.equals(field, other.field))
-            return false;
-        if (!Objects.equals(format, other.format))
-            return false;
-        if (!Objects.equals(missing, other.missing))
-            return false;
-        if (!Objects.equals(script, other.script))
-            return false;
-        if (!Objects.equals(targetValueType, other.targetValueType))
-            return false;
-        if (!Objects.equals(timeZone, other.timeZone))
-            return false;
-        if (!Objects.equals(valueType, other.valueType))
-            return false;
-        if (!Objects.equals(valuesSourceType, other.valuesSourceType))
-            return false;
-        return innerEquals(obj);
-    }
-
-    protected abstract boolean innerEquals(Object obj);
 }

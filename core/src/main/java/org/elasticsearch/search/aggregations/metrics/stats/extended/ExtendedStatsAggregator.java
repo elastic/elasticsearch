@@ -37,8 +37,10 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
+import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorBuilder;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.io.IOException;
@@ -196,15 +198,15 @@ public class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue
         Releasables.close(counts, maxes, mins, sumOfSqrs, sums);
     }
 
-    public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.Numeric, Factory> {
+    public static class ExtendedStatsAggregatorBuilder extends ValuesSourceAggregatorBuilder.LeafOnly<ValuesSource.Numeric, ExtendedStatsAggregatorBuilder> {
 
         private double sigma = 2.0;
 
-        public Factory(String name) {
+        public ExtendedStatsAggregatorBuilder(String name) {
             super(name, InternalExtendedStats.TYPE, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
         }
 
-        public Factory sigma(double sigma) {
+        public ExtendedStatsAggregatorBuilder sigma(double sigma) {
             this.sigma = sigma;
             return this;
         }
@@ -214,24 +216,14 @@ public class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue
         }
 
         @Override
-        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent,
-                List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-            return new ExtendedStatsAggregator(name, null, config.formatter(), aggregationContext, parent, sigma, pipelineAggregators,
-                    metaData);
+        protected ExtendedStatsAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig<Numeric> config) {
+            return new ExtendedStatsAggregatorFactory(name, type, config, sigma);
         }
 
         @Override
-        protected Aggregator doCreateInternal(ValuesSource.Numeric valuesSource, AggregationContext aggregationContext, Aggregator parent,
-                boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
-                throws IOException {
-            return new ExtendedStatsAggregator(name, valuesSource, config.formatter(), aggregationContext, parent, sigma,
-                    pipelineAggregators, metaData);
-        }
-
-        @Override
-        protected Factory innerReadFrom(String name, ValuesSourceType valuesSourceType,
+        protected ExtendedStatsAggregatorBuilder innerReadFrom(String name, ValuesSourceType valuesSourceType,
                 ValueType targetValueType, StreamInput in) throws IOException {
-            ExtendedStatsAggregator.Factory factory = new ExtendedStatsAggregator.Factory(name);
+            ExtendedStatsAggregator.ExtendedStatsAggregatorBuilder factory = new ExtendedStatsAggregator.ExtendedStatsAggregatorBuilder(name);
             factory.sigma = in.readDouble();
             return factory;
         }
@@ -254,7 +246,7 @@ public class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue
 
         @Override
         protected boolean innerEquals(Object obj) {
-            Factory other = (Factory) obj;
+            ExtendedStatsAggregatorBuilder other = (ExtendedStatsAggregatorBuilder) obj;
             return Objects.equals(sigma, other.sigma);
         }
     }

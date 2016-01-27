@@ -23,16 +23,16 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 import org.elasticsearch.search.aggregations.bucket.filters.FiltersAggregator;
-import org.elasticsearch.search.aggregations.bucket.filters.FiltersAggregator.Factory;
+import org.elasticsearch.search.aggregations.bucket.filters.FiltersAggregator.FiltersAggregatorBuilder;
 import org.elasticsearch.search.aggregations.bucket.filters.FiltersAggregator.KeyedFilter;
 
-public class FiltersTests extends BaseAggregationTestCase<FiltersAggregator.Factory> {
+public class FiltersTests extends BaseAggregationTestCase<FiltersAggregator.FiltersAggregatorBuilder> {
 
     @Override
-    protected Factory createTestAggregatorFactory() {
+    protected FiltersAggregatorBuilder createTestAggregatorBuilder() {
 
         int size = randomIntBetween(1, 20);
-        Factory factory;
+        FiltersAggregatorBuilder factory;
         if (randomBoolean()) {
             KeyedFilter[] filters = new KeyedFilter[size];
             for (int i = 0; i < size; i++) {
@@ -42,7 +42,7 @@ public class FiltersTests extends BaseAggregationTestCase<FiltersAggregator.Fact
                 filters[i] = new KeyedFilter(randomAsciiOfLengthBetween(1, 20),
                         QueryBuilders.termQuery(randomAsciiOfLengthBetween(5, 20), randomAsciiOfLengthBetween(5, 20)));
             }
-            factory = new Factory(randomAsciiOfLengthBetween(1, 20), filters);
+            factory = new FiltersAggregatorBuilder(randomAsciiOfLengthBetween(1, 20), filters);
         } else {
             QueryBuilder<?>[] filters = new QueryBuilder<?>[size];
             for (int i = 0; i < size; i++) {
@@ -51,7 +51,7 @@ public class FiltersTests extends BaseAggregationTestCase<FiltersAggregator.Fact
                 // builder.query(RandomQueryBuilder.createQuery(getRandom()));
                 filters[i] = QueryBuilders.termQuery(randomAsciiOfLengthBetween(5, 20), randomAsciiOfLengthBetween(5, 20));
             }
-            factory = new Factory(randomAsciiOfLengthBetween(1, 20), filters);
+            factory = new FiltersAggregatorBuilder(randomAsciiOfLengthBetween(1, 20), filters);
         }
         if (randomBoolean()) {
             factory.otherBucket(randomBoolean());

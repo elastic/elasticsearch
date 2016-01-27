@@ -21,14 +21,14 @@ package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Range;
-import org.elasticsearch.search.aggregations.bucket.range.date.DateRangeAggregatorFactory;
+import org.elasticsearch.search.aggregations.bucket.range.date.DateRangeAggregatorBuilder;
 
-public class DateRangeTests extends BaseAggregationTestCase<DateRangeAggregatorFactory> {
+public class DateRangeTests extends BaseAggregationTestCase<DateRangeAggregatorBuilder> {
 
     @Override
-    protected DateRangeAggregatorFactory createTestAggregatorFactory() {
+    protected DateRangeAggregatorBuilder createTestAggregatorBuilder() {
         int numRanges = randomIntBetween(1, 10);
-        DateRangeAggregatorFactory factory = new DateRangeAggregatorFactory("foo");
+        DateRangeAggregatorBuilder factory = new DateRangeAggregatorBuilder("foo");
         for (int i = 0; i < numRanges; i++) {
             String key = null;
             if (randomBoolean()) {

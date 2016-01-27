@@ -127,10 +127,10 @@ public abstract class TermsAggregator extends BucketsAggregator {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field(TermsAggregatorFactory.REQUIRED_SIZE_FIELD_NAME.getPreferredName(), requiredSize);
-            builder.field(TermsAggregatorFactory.SHARD_SIZE_FIELD_NAME.getPreferredName(), shardSize);
-            builder.field(TermsAggregatorFactory.MIN_DOC_COUNT_FIELD_NAME.getPreferredName(), minDocCount);
-            builder.field(TermsAggregatorFactory.SHARD_MIN_DOC_COUNT_FIELD_NAME.getPreferredName(), shardMinDocCount);
+            builder.field(TermsAggregatorBuilder.REQUIRED_SIZE_FIELD_NAME.getPreferredName(), requiredSize);
+            builder.field(TermsAggregatorBuilder.SHARD_SIZE_FIELD_NAME.getPreferredName(), shardSize);
+            builder.field(TermsAggregatorBuilder.MIN_DOC_COUNT_FIELD_NAME.getPreferredName(), minDocCount);
+            builder.field(TermsAggregatorBuilder.SHARD_MIN_DOC_COUNT_FIELD_NAME.getPreferredName(), shardMinDocCount);
             return builder;
         }
 

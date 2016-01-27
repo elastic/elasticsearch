@@ -22,14 +22,11 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.rounding.DateTimeUnit;
 import org.elasticsearch.common.rounding.Rounding;
-import org.elasticsearch.common.rounding.TimeZoneRounding;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -44,19 +41,17 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
+import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorBuilder;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-
-import static java.util.Collections.unmodifiableMap;
 
 public class HistogramAggregator extends BucketsAggregator {
 
@@ -162,125 +157,91 @@ public class HistogramAggregator extends BucketsAggregator {
         Releasables.close(bucketOrds);
     }
 
-    public static class Factory<AF extends Factory<AF>> extends ValuesSourceAggregatorFactory<ValuesSource.Numeric, AF> {
+    public static class HistogramAggregatorBuilder extends AbstractBuilder<HistogramAggregatorBuilder> {
+        public static final HistogramAggregatorBuilder PROTOTYPE = new HistogramAggregatorBuilder("");
 
-        public static final Factory PROTOTYPE = new Factory("");
-
-        private long interval;
-        private long offset = 0;
-        private InternalOrder order = (InternalOrder) Histogram.Order.KEY_ASC;
-        private boolean keyed = false;
-        private long minDocCount = 0;
-        private ExtendedBounds extendedBounds;
-        private final InternalHistogram.Factory<?> histogramFactory;
-
-        public Factory(String name) {
-            this(name, InternalHistogram.HISTOGRAM_FACTORY);
+        public HistogramAggregatorBuilder(String name) {
+            super(name, InternalHistogram.HISTOGRAM_FACTORY);
         }
 
-        private Factory(String name, InternalHistogram.Factory<?> histogramFactory) {
+        @Override
+        protected HistogramAggregatorBuilder createFactoryFromStream(String name, StreamInput in) throws IOException {
+            return new HistogramAggregatorBuilder(name);
+        }
+
+        @Override
+        protected HistogramAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig<Numeric> config) {
+            return new HistogramAggregatorFactory(name, type, config, interval, offset, order, keyed, minDocCount, extendedBounds);
+        }
+
+    }
+
+    public static abstract class AbstractBuilder<AB extends AbstractBuilder<AB>>
+            extends ValuesSourceAggregatorBuilder<ValuesSource.Numeric, AB> {
+
+        protected long interval;
+        protected long offset = 0;
+        protected InternalOrder order = (InternalOrder) Histogram.Order.KEY_ASC;
+        protected boolean keyed = false;
+        protected long minDocCount = 0;
+        protected ExtendedBounds extendedBounds;
+
+        private AbstractBuilder(String name, InternalHistogram.Factory<?> histogramFactory) {
             super(name, histogramFactory.type(), ValuesSourceType.NUMERIC, histogramFactory.valueType());
-            this.histogramFactory = histogramFactory;
         }
 
         public long interval() {
             return interval;
         }
 
-        public AF interval(long interval) {
+        public AB interval(long interval) {
             this.interval = interval;
-            return (AF) this;
+            return (AB) this;
         }
 
         public long offset() {
             return offset;
         }
 
-        public AF offset(long offset) {
+        public AB offset(long offset) {
             this.offset = offset;
-            return (AF) this;
+            return (AB) this;
         }
 
         public Histogram.Order order() {
             return order;
         }
 
-        public AF order(Histogram.Order order) {
+        public AB order(Histogram.Order order) {
             this.order = (InternalOrder) order;
-            return (AF) this;
+            return (AB) this;
         }
 
         public boolean keyed() {
             return keyed;
         }
 
-        public AF keyed(boolean keyed) {
+        public AB keyed(boolean keyed) {
             this.keyed = keyed;
-            return (AF) this;
+            return (AB) this;
         }
 
         public long minDocCount() {
             return minDocCount;
         }
 
-        public AF minDocCount(long minDocCount) {
+        public AB minDocCount(long minDocCount) {
             this.minDocCount = minDocCount;
-            return (AF) this;
+            return (AB) this;
         }
 
         public ExtendedBounds extendedBounds() {
             return extendedBounds;
         }
 
-        public AF extendedBounds(ExtendedBounds extendedBounds) {
+        public AB extendedBounds(ExtendedBounds extendedBounds) {
             this.extendedBounds = extendedBounds;
-            return (AF) this;
-        }
-
-        public InternalHistogram.Factory<?> getHistogramFactory() {
-            return histogramFactory;
-        }
-
-        @Override
-        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
-                Map<String, Object> metaData) throws IOException {
-            Rounding rounding = createRounding();
-            return new HistogramAggregator(name, factories, rounding, order, keyed, minDocCount, extendedBounds, null, config.formatter(),
-                    histogramFactory, aggregationContext, parent, pipelineAggregators, metaData);
-        }
-
-        protected Rounding createRounding() {
-            if (interval < 1) {
-                throw new ParsingException(null, "[interval] must be 1 or greater for histogram aggregation [" + name() + "]: " + interval);
-            }
-
-            Rounding rounding = new Rounding.Interval(interval);
-            if (offset != 0) {
-                rounding = new Rounding.OffsetRounding(rounding, offset);
-            }
-            return rounding;
-        }
-
-        @Override
-        protected Aggregator doCreateInternal(ValuesSource.Numeric valuesSource, AggregationContext aggregationContext, Aggregator parent,
-                boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
-                throws IOException {
-            if (collectsFromSingleBucket == false) {
-                return asMultiBucketAggregator(this, aggregationContext, parent);
-            }
-            Rounding rounding = createRounding();
-            // we need to round the bounds given by the user and we have to do it for every aggregator we create
-            // as the rounding is not necessarily an idempotent operation.
-            // todo we need to think of a better structure to the factory/agtor
-            // code so we won't need to do that
-            ExtendedBounds roundedBounds = null;
-            if (extendedBounds != null) {
-                // we need to process & validate here using the parser
-                extendedBounds.processAndValidate(name, aggregationContext.searchContext(), config.parser());
-                roundedBounds = extendedBounds.round(rounding);
-            }
-            return new HistogramAggregator(name, factories, rounding, order, keyed, minDocCount, roundedBounds, valuesSource,
-                    config.formatter(), histogramFactory, aggregationContext, parent, pipelineAggregators, metaData);
+            return (AB) this;
         }
 
         @Override
@@ -317,9 +278,9 @@ public class HistogramAggregator extends BucketsAggregator {
         }
 
         @Override
-        protected AF innerReadFrom(String name, ValuesSourceType valuesSourceType, ValueType targetValueType, StreamInput in)
+        protected AB innerReadFrom(String name, ValuesSourceType valuesSourceType, ValueType targetValueType, StreamInput in)
                 throws IOException {
-            Factory<AF> factory = createFactoryFromStream(name, in);
+            AbstractBuilder<AB> factory = createFactoryFromStream(name, in);
             factory.interval = in.readVLong();
             factory.offset = in.readVLong();
             if (in.readBoolean()) {
@@ -330,13 +291,10 @@ public class HistogramAggregator extends BucketsAggregator {
             if (in.readBoolean()) {
                 factory.extendedBounds = ExtendedBounds.readFrom(in);
             }
-            return (AF) factory;
+            return (AB) factory;
         }
 
-        protected Factory<AF> createFactoryFromStream(String name, StreamInput in)
-                throws IOException {
-            return new Factory<AF>(name);
-        }
+        protected abstract AB createFactoryFromStream(String name, StreamInput in) throws IOException;
 
         @Override
         protected void innerWriteTo(StreamOutput out) throws IOException {
@@ -363,14 +321,13 @@ public class HistogramAggregator extends BucketsAggregator {
 
         @Override
         protected int innerHashCode() {
-            return Objects.hash(histogramFactory, interval, offset, order, keyed, minDocCount, extendedBounds);
+            return Objects.hash(interval, offset, order, keyed, minDocCount, extendedBounds);
     }
 
         @Override
         protected boolean innerEquals(Object obj) {
-            Factory other = (Factory) obj;
-            return Objects.equals(histogramFactory, other.histogramFactory)
-                    && Objects.equals(interval, other.interval)
+            AbstractBuilder other = (AbstractBuilder) obj;
+            return Objects.equals(interval, other.interval)
                     && Objects.equals(offset, other.offset)
                     && Objects.equals(order, other.order)
                     && Objects.equals(keyed, other.keyed)
@@ -379,57 +336,35 @@ public class HistogramAggregator extends BucketsAggregator {
         }
     }
 
-    public static class DateHistogramFactory extends Factory<DateHistogramFactory> {
+    public static class DateHistogramAggregatorBuilder extends AbstractBuilder<DateHistogramAggregatorBuilder> {
 
-        public static final DateHistogramFactory PROTOTYPE = new DateHistogramFactory("");
-        public static final Map<String, DateTimeUnit> DATE_FIELD_UNITS;
-
-        static {
-            Map<String, DateTimeUnit> dateFieldUnits = new HashMap<>();
-            dateFieldUnits.put("year", DateTimeUnit.YEAR_OF_CENTURY);
-            dateFieldUnits.put("1y", DateTimeUnit.YEAR_OF_CENTURY);
-            dateFieldUnits.put("quarter", DateTimeUnit.QUARTER);
-            dateFieldUnits.put("1q", DateTimeUnit.QUARTER);
-            dateFieldUnits.put("month", DateTimeUnit.MONTH_OF_YEAR);
-            dateFieldUnits.put("1M", DateTimeUnit.MONTH_OF_YEAR);
-            dateFieldUnits.put("week", DateTimeUnit.WEEK_OF_WEEKYEAR);
-            dateFieldUnits.put("1w", DateTimeUnit.WEEK_OF_WEEKYEAR);
-            dateFieldUnits.put("day", DateTimeUnit.DAY_OF_MONTH);
-            dateFieldUnits.put("1d", DateTimeUnit.DAY_OF_MONTH);
-            dateFieldUnits.put("hour", DateTimeUnit.HOUR_OF_DAY);
-            dateFieldUnits.put("1h", DateTimeUnit.HOUR_OF_DAY);
-            dateFieldUnits.put("minute", DateTimeUnit.MINUTES_OF_HOUR);
-            dateFieldUnits.put("1m", DateTimeUnit.MINUTES_OF_HOUR);
-            dateFieldUnits.put("second", DateTimeUnit.SECOND_OF_MINUTE);
-            dateFieldUnits.put("1s", DateTimeUnit.SECOND_OF_MINUTE);
-            DATE_FIELD_UNITS = unmodifiableMap(dateFieldUnits);
-        }
+        public static final DateHistogramAggregatorBuilder PROTOTYPE = new DateHistogramAggregatorBuilder("");
 
         private DateHistogramInterval dateHistogramInterval;
 
-        public DateHistogramFactory(String name) {
+        public DateHistogramAggregatorBuilder(String name) {
             super(name, InternalDateHistogram.HISTOGRAM_FACTORY);
         }
 
         /**
          * Set the interval.
          */
-        public DateHistogramFactory dateHistogramInterval(DateHistogramInterval dateHistogramInterval) {
+        public DateHistogramAggregatorBuilder dateHistogramInterval(DateHistogramInterval dateHistogramInterval) {
             this.dateHistogramInterval = dateHistogramInterval;
             return this;
         }
 
-        public DateHistogramFactory offset(String offset) {
+        public DateHistogramAggregatorBuilder offset(String offset) {
             return offset(parseStringOffset(offset));
         }
 
         protected static long parseStringOffset(String offset) {
             if (offset.charAt(0) == '-') {
-                return -TimeValue.parseTimeValue(offset.substring(1), null, DateHistogramFactory.class.getSimpleName() + ".parseOffset")
+                return -TimeValue.parseTimeValue(offset.substring(1), null, DateHistogramAggregatorBuilder.class.getSimpleName() + ".parseOffset")
                         .millis();
             }
             int beginIndex = offset.charAt(0) == '+' ? 1 : 0;
-            return TimeValue.parseTimeValue(offset.substring(beginIndex), null, DateHistogramFactory.class.getSimpleName() + ".parseOffset")
+            return TimeValue.parseTimeValue(offset.substring(beginIndex), null, DateHistogramAggregatorBuilder.class.getSimpleName() + ".parseOffset")
                     .millis();
         }
 
@@ -438,40 +373,9 @@ public class HistogramAggregator extends BucketsAggregator {
         }
 
         @Override
-        protected Rounding createRounding() {
-            TimeZoneRounding.Builder tzRoundingBuilder;
-            if (dateHistogramInterval != null) {
-            DateTimeUnit dateTimeUnit = DATE_FIELD_UNITS.get(dateHistogramInterval.toString());
-            if (dateTimeUnit != null) {
-                tzRoundingBuilder = TimeZoneRounding.builder(dateTimeUnit);
-            } else {
-                // the interval is a time value?
-                tzRoundingBuilder = TimeZoneRounding.builder(TimeValue.parseTimeValue(dateHistogramInterval.toString(), null, getClass()
-                        .getSimpleName() + ".interval"));
-            }
-            } else {
-                // the interval is an integer time value in millis?
-                tzRoundingBuilder = TimeZoneRounding.builder(TimeValue.timeValueMillis(interval()));
-            }
-            if (timeZone() != null) {
-                tzRoundingBuilder.timeZone(timeZone());
-            }
-            Rounding rounding = tzRoundingBuilder.offset(offset()).build();
-            return rounding;
-        }
-
-        @Override
-        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent,
-                List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-            return super.createUnmapped(aggregationContext, parent, pipelineAggregators, metaData);
-        }
-
-        @Override
-        protected Aggregator doCreateInternal(Numeric valuesSource, AggregationContext aggregationContext, Aggregator parent,
-                boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
-                throws IOException {
-            return super
-                    .doCreateInternal(valuesSource, aggregationContext, parent, collectsFromSingleBucket, pipelineAggregators, metaData);
+        protected DateHistogramAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig<Numeric> config) {
+            return new DateHistogramAggregatorFactory(name, type, config, interval, dateHistogramInterval, offset, order, keyed,
+                    minDocCount, extendedBounds);
         }
 
         @Override
@@ -490,9 +394,9 @@ public class HistogramAggregator extends BucketsAggregator {
         }
 
         @Override
-        protected DateHistogramFactory createFactoryFromStream(String name, StreamInput in)
+        protected DateHistogramAggregatorBuilder createFactoryFromStream(String name, StreamInput in)
                 throws IOException {
-            DateHistogramFactory factory = new DateHistogramFactory(name);
+            DateHistogramAggregatorBuilder factory = new DateHistogramAggregatorBuilder(name);
             if (in.readBoolean()) {
                 factory.dateHistogramInterval = DateHistogramInterval.readFromStream(in);
             }
@@ -515,7 +419,7 @@ public class HistogramAggregator extends BucketsAggregator {
 
         @Override
         protected boolean innerEquals(Object obj) {
-            DateHistogramFactory other = (DateHistogramFactory) obj;
+            DateHistogramAggregatorBuilder other = (DateHistogramAggregatorBuilder) obj;
             return super.innerEquals(obj)
                     && Objects.equals(dateHistogramInterval, other.dateHistogramInterval);
         }

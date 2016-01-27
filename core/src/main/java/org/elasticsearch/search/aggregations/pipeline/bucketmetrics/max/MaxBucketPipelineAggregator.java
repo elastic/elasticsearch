@@ -112,7 +112,7 @@ public class MaxBucketPipelineAggregator extends BucketMetricsPipelineAggregator
         }
 
         @Override
-        public void doValidate(AggregatorFactory parent, AggregatorFactory[] aggFactories,
+        public void doValidate(AggregatorFactory<?> parent, AggregatorFactory<?>[] aggFactories,
                 List<PipelineAggregatorFactory> pipelineAggregatorFactories) {
             if (bucketsPaths.length != 1) {
                 throw new IllegalStateException(PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName()

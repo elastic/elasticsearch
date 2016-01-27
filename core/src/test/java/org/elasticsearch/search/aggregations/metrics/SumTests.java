@@ -21,11 +21,11 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.search.aggregations.metrics.sum.SumAggregator;
 
-public class SumTests extends AbstractNumericMetricTestCase<SumAggregator.Factory> {
+public class SumTests extends AbstractNumericMetricTestCase<SumAggregator.SumAggregatorBuilder> {
 
     @Override
-    protected SumAggregator.Factory doCreateTestAggregatorFactory() {
-        return new SumAggregator.Factory("foo");
+    protected SumAggregator.SumAggregatorBuilder doCreateTestAggregatorFactory() {
+        return new SumAggregator.SumAggregatorBuilder("foo");
     }
 
 }

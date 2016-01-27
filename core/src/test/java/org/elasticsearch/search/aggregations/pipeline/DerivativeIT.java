@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.pipeline;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -601,6 +602,12 @@ public class DerivativeIT extends ESIntegTestCase {
             Throwable cause = ExceptionsHelper.unwrapCause(e);
             if (cause == null) {
                 throw e;
+            } else if (cause instanceof SearchPhaseExecutionException) {
+                SearchPhaseExecutionException spee = (SearchPhaseExecutionException) e;
+                Throwable rootCause = spee.getRootCause();
+                if (!(rootCause instanceof IllegalArgumentException)) {
+                    throw e;
+                }
             } else if (!(cause instanceof IllegalArgumentException)) {
                 throw e;
             }

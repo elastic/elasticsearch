@@ -24,7 +24,7 @@ import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.AggregatorBuilder;
 
 import java.io.IOException;
 
@@ -39,21 +39,22 @@ public class FilterParser implements Aggregator.Parser {
     }
 
     @Override
-    public FilterAggregator.Factory parse(String aggregationName, XContentParser parser, QueryParseContext context) throws IOException {
+    public FilterAggregator.FilterAggregatorBuilder parse(String aggregationName, XContentParser parser, QueryParseContext context)
+            throws IOException {
         QueryBuilder<?> filter = context.parseInnerQueryBuilder();
 
         if (filter == null) {
             throw new ParsingException(null, "filter cannot be null in filter aggregation [{}]", aggregationName);
         }
 
-        FilterAggregator.Factory factory = new FilterAggregator.Factory(aggregationName,
+        FilterAggregator.FilterAggregatorBuilder factory = new FilterAggregator.FilterAggregatorBuilder(aggregationName,
                 filter == null ? new MatchAllQueryBuilder() : filter);
         return factory;
     }
 
     @Override
-    public AggregatorFactory<?> getFactoryPrototypes() {
-        return new FilterAggregator.Factory(null, null);
+    public AggregatorBuilder<?> getFactoryPrototypes() {
+        return new FilterAggregator.FilterAggregatorBuilder(null, null);
     }
 
 }

@@ -54,7 +54,7 @@ public class MinTests extends AbstractNumericTestCase {
     public void testEmptyAggregation() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(histogram("histo").field("value").interval(1L).minDocCount(0).subAggregation(min("min")))
+                .addAggregation(histogram("histo").field("value").interval(1L).minDocCount(0).subAggregation(min("min").field("value")))
                 .execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));

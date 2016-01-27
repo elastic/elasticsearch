@@ -35,7 +35,7 @@ import org.elasticsearch.search.aggregations.bucket.AbstractTermsTestCase;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
-import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorFactory;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.joda.time.DateTime;
@@ -111,17 +111,17 @@ public class MinDocCountTests extends AbstractTermsTestCase {
     private enum Script {
         NO {
             @Override
-            TermsAggregatorFactory apply(TermsAggregatorFactory builder, String field) {
+            TermsAggregatorBuilder apply(TermsAggregatorBuilder builder, String field) {
                 return builder.field(field);
             }
         },
         YES {
             @Override
-            TermsAggregatorFactory apply(TermsAggregatorFactory builder, String field) {
+            TermsAggregatorBuilder apply(TermsAggregatorBuilder builder, String field) {
                 return builder.script(new org.elasticsearch.script.Script("doc['" + field + "'].values"));
             }
         };
-        abstract TermsAggregatorFactory apply(TermsAggregatorFactory builder, String field);
+        abstract TermsAggregatorBuilder apply(TermsAggregatorBuilder builder, String field);
     }
 
     // check that terms2 is a subset of terms1

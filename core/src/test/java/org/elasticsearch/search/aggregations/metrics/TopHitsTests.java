@@ -31,11 +31,11 @@ import org.elasticsearch.search.sort.SortOrder;
 import java.util.ArrayList;
 import java.util.List;;
 
-public class TopHitsTests extends BaseAggregationTestCase<TopHitsAggregator.Factory> {
+public class TopHitsTests extends BaseAggregationTestCase<TopHitsAggregator.TopHitsAggregatorBuilder> {
 
     @Override
-    protected final TopHitsAggregator.Factory createTestAggregatorFactory() {
-        TopHitsAggregator.Factory factory = new TopHitsAggregator.Factory("foo");
+    protected final TopHitsAggregator.TopHitsAggregatorBuilder createTestAggregatorBuilder() {
+        TopHitsAggregator.TopHitsAggregatorBuilder factory = new TopHitsAggregator.TopHitsAggregatorBuilder("foo");
         if (randomBoolean()) {
             factory.from(randomIntBetween(0, 10000));
         }

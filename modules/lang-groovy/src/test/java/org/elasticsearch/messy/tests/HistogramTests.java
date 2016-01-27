@@ -25,12 +25,10 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.groovy.GroovyPlugin;
-import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.histogram.ExtendedBounds;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Bucket;
-import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.max.Max;
 import org.elasticsearch.search.aggregations.metrics.stats.Stats;
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
@@ -40,7 +38,6 @@ import org.hamcrest.Matchers;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -50,7 +47,6 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.histogra
 import static org.elasticsearch.search.aggregations.AggregationBuilders.max;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.stats;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.containsString;
@@ -359,40 +355,6 @@ public class HistogramTests extends ESIntegTestCase {
         }
     }
 
-    public void testSingleValuedFieldWithSubAggregationInherited() throws Exception {
-        SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
-                        .subAggregation(sum("sum")))
-                .execute().actionGet();
-
-        assertSearchResponse(response);
-
-
-        Histogram histo = response.getAggregations().get("histo");
-        assertThat(histo, notNullValue());
-        assertThat(histo.getName(), equalTo("histo"));
-        assertThat(histo.getBuckets().size(), equalTo(numValueBuckets));
-
-        // TODO: use diamond once JI-9019884 is fixed
-        List<Histogram.Bucket> buckets = new ArrayList<Histogram.Bucket>(histo.getBuckets());
-        for (int i = 0; i < numValueBuckets; ++i) {
-            Histogram.Bucket bucket = buckets.get(i);
-            assertThat(bucket, notNullValue());
-            assertThat(((Number) bucket.getKey()).longValue(), equalTo((long) i * interval));
-            assertThat(bucket.getDocCount(), equalTo(valueCounts[i]));
-            assertThat(bucket.getAggregations().asList().isEmpty(), is(false));
-            Sum sum = bucket.getAggregations().get("sum");
-            assertThat(sum, notNullValue());
-            long s = 0;
-            for (int j = 0; j < numDocs; ++j) {
-                if ((j + 1) / interval == i) {
-                    s += j + 1;
-                }
-            }
-            assertThat(sum.getValue(), equalTo((double) s));
-        }
-    }
-
     public void testSingleValuedFieldOrderedBySubAggregationAsc() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).order(Histogram.Order.aggregation("sum", true))
@@ -469,46 +431,6 @@ public class HistogramTests extends ESIntegTestCase {
             }
             assertThat(sum.getValue(), equalTo((double) s));
             assertThat(sum.getValue(), lessThanOrEqualTo(previousSum));
-            previousSum = s;
-        }
-    }
-
-    public void testSingleValuedFieldOrderedByMultiValuedSubAggregationAscInherited() throws Exception {
-        SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).order(Histogram.Order.aggregation("stats.sum", true))
-                        .subAggregation(stats("stats")))
-                .execute().actionGet();
-
-        assertSearchResponse(response);
-
-
-        Histogram histo = response.getAggregations().get("histo");
-        assertThat(histo, notNullValue());
-        assertThat(histo.getName(), equalTo("histo"));
-        assertThat(histo.getBuckets().size(), equalTo(numValueBuckets));
-
-        LongHashSet visited = new LongHashSet();
-        double previousSum = Double.NEGATIVE_INFINITY;
-        // TODO: use diamond once JI-9019884 is fixed
-        List<Histogram.Bucket> buckets = new ArrayList<Histogram.Bucket>(histo.getBuckets());
-        for (int i = 0; i < numValueBuckets; ++i) {
-            Histogram.Bucket bucket = buckets.get(i);
-            assertThat(bucket, notNullValue());
-            long key = ((Number) bucket.getKey()).longValue();
-            assertTrue(visited.add(key));
-            int b = (int) (key / interval);
-            assertThat(bucket.getDocCount(), equalTo(valueCounts[b]));
-            assertThat(bucket.getAggregations().asList().isEmpty(), is(false));
-            Stats stats = bucket.getAggregations().get("stats");
-            assertThat(stats, notNullValue());
-            long s = 0;
-            for (int j = 0; j < numDocs; ++j) {
-                if ((j + 1) / interval == b) {
-                    s += j + 1;
-                }
-            }
-            assertThat(stats.getSum(), equalTo((double) s));
-            assertThat(stats.getSum(), greaterThanOrEqualTo(previousSum));
             previousSum = s;
         }
     }
@@ -697,55 +619,6 @@ public class HistogramTests extends ESIntegTestCase {
         }
     }
 
-    public void testMultiValuedFieldWithValueScriptWithInheritedSubAggregator() throws Exception {
-        SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(
-                        histogram("histo")
-                                .field(MULTI_VALUED_FIELD_NAME)
-                                .script(new Script("_value + 1"))
-                                .interval(interval)
-                                .subAggregation(
-                                        terms(MULTI_VALUED_FIELD_NAME).collectMode(randomFrom(SubAggCollectionMode.values())).order(
-                                                Terms.Order.term(true)))).execute().actionGet();
-
-        assertSearchResponse(response);
-
-        final int numBuckets = (numDocs + 2) / interval - 2 / interval + 1;
-        final long[] counts = new long[(numDocs + 2) / interval + 1];
-        for (int i = 0; i < numDocs; ++i) {
-            final int bucket1 = (i + 2) / interval;
-            final int bucket2 = (i + 3) / interval;
-            ++counts[bucket1];
-            if (bucket1 != bucket2) {
-                ++counts[bucket2];
-            }
-        }
-
-        Histogram histo = response.getAggregations().get("histo");
-        assertThat(histo, notNullValue());
-        assertThat(histo.getName(), equalTo("histo"));
-        List<? extends Bucket> buckets = histo.getBuckets();
-        assertThat(buckets.size(), equalTo(numBuckets));
-
-        for (int i = 0; i < numBuckets; i++) {
-            Histogram.Bucket bucket = buckets.get(i);
-            assertThat(bucket, notNullValue());
-            int key = ((2 / interval) + i) * interval;
-            assertThat(((Number) bucket.getKey()).longValue(), equalTo((long) key));
-            assertThat(bucket.getDocCount(), equalTo(counts[key / interval]));
-            Terms terms = bucket.getAggregations().get(MULTI_VALUED_FIELD_NAME);
-            assertThat(terms, notNullValue());
-            assertThat(terms.getName(), equalTo(MULTI_VALUED_FIELD_NAME));
-            int minTerm = Math.max(2, key - 1);
-            int maxTerm = Math.min(numDocs + 2, (key / interval + 1) * interval);
-            assertThat(terms.getBuckets().size(), equalTo(maxTerm - minTerm + 1));
-            Iterator<Terms.Bucket> iter = terms.getBuckets().iterator();
-            for (int j = minTerm; j <= maxTerm; ++j) {
-                assertThat(iter.next().getKeyAsNumber().longValue(), equalTo((long) j));
-            }
-        }
-    }
-
     public void testScriptSingleValue() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(histogram("histo").script(new Script("doc['" + SINGLE_VALUED_FIELD_NAME + "'].value")).interval(interval))
@@ -767,40 +640,6 @@ public class HistogramTests extends ESIntegTestCase {
         }
     }
 
-    public void testScriptSingleValueWithSubAggregatorInherited() throws Exception {
-        SearchResponse response = client()
-                .prepareSearch("idx")
-                .addAggregation(
-                        histogram("histo").script(new Script("doc['" + SINGLE_VALUED_FIELD_NAME + "'].value")).interval(interval)
-                                .subAggregation(sum("sum"))).execute().actionGet();
-
-        assertSearchResponse(response);
-
-        Histogram histo = response.getAggregations().get("histo");
-        assertThat(histo, notNullValue());
-        assertThat(histo.getName(), equalTo("histo"));
-        assertThat(histo.getBuckets().size(), equalTo(numValueBuckets));
-
-        // TODO: use diamond once JI-9019884 is fixed
-        List<Histogram.Bucket> buckets = new ArrayList<Histogram.Bucket>(histo.getBuckets());
-        for (int i = 0; i < numValueBuckets; ++i) {
-            Histogram.Bucket bucket = buckets.get(i);
-            assertThat(bucket, notNullValue());
-            assertThat(((Number) bucket.getKey()).longValue(), equalTo((long) i * interval));
-            assertThat(bucket.getDocCount(), equalTo(valueCounts[i]));
-            assertThat(bucket.getAggregations().asList().isEmpty(), is(false));
-            Sum sum = bucket.getAggregations().get("sum");
-            assertThat(sum, notNullValue());
-            long s = 0;
-            for (int j = 0; j < numDocs; ++j) {
-                if ((j + 1) / interval == i) {
-                    s += j + 1;
-                }
-            }
-            assertThat(sum.getValue(), equalTo((double) s));
-        }
-    }
-
     public void testScriptMultiValued() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(histogram("histo").script(new Script("doc['" + MULTI_VALUED_FIELD_NAME + "']")).interval(interval))
@@ -819,40 +658,6 @@ public class HistogramTests extends ESIntegTestCase {
             assertThat(bucket, notNullValue());
             assertThat(((Number) bucket.getKey()).longValue(), equalTo((long) i * interval));
             assertThat(bucket.getDocCount(), equalTo(valuesCounts[i]));
-        }
-    }
-
-    public void testScriptMultiValuedWithAggregatorInherited() throws Exception {
-        SearchResponse response = client()
-                .prepareSearch("idx")
-                .addAggregation(
-                        histogram("histo").script(new Script("doc['" + MULTI_VALUED_FIELD_NAME + "']")).interval(interval)
-                                .subAggregation(sum("sum"))).execute().actionGet();
-
-        assertSearchResponse(response);
-
-        Histogram histo = response.getAggregations().get("histo");
-        assertThat(histo, notNullValue());
-        assertThat(histo.getName(), equalTo("histo"));
-        List<? extends Bucket> buckets = histo.getBuckets();
-        assertThat(buckets.size(), equalTo(numValuesBuckets));
-
-        for (int i = 0; i < numValuesBuckets; ++i) {
-            Histogram.Bucket bucket = buckets.get(i);
-            assertThat(bucket, notNullValue());
-            assertThat(((Number) bucket.getKey()).longValue(), equalTo((long) i * interval));
-            assertThat(bucket.getDocCount(), equalTo(valuesCounts[i]));
-            assertThat(bucket.getAggregations().asList().isEmpty(), is(false));
-            Sum sum = bucket.getAggregations().get("sum");
-            assertThat(sum, notNullValue());
-            long s = 0;
-            for (int j = 0; j < numDocs; ++j) {
-                if ((j + 1) / interval == i || (j + 2) / interval == i) {
-                    s += j + 1;
-                    s += j + 2;
-                }
-            }
-            assertThat(sum.getValue(), equalTo((double) s));
         }
     }
 
@@ -929,7 +734,7 @@ public class HistogramTests extends ESIntegTestCase {
         SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(1L).minDocCount(0)
-                        .subAggregation(histogram("sub_histo").interval(1L)))
+                        .subAggregation(histogram("sub_histo").field("SINGLE_VALUED_FIELD_NAME").interval(1L)))
                 .execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));

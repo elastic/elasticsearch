@@ -21,13 +21,13 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 import org.elasticsearch.search.aggregations.metrics.geobounds.GeoBoundsAggregator;
-import org.elasticsearch.search.aggregations.metrics.geobounds.GeoBoundsAggregator.Factory;
+import org.elasticsearch.search.aggregations.metrics.geobounds.GeoBoundsAggregator.GeoBoundsAggregatorBuilder;
 
-public class GeoBoundsTests extends BaseAggregationTestCase<GeoBoundsAggregator.Factory> {
+public class GeoBoundsTests extends BaseAggregationTestCase<GeoBoundsAggregator.GeoBoundsAggregatorBuilder> {
 
     @Override
-    protected Factory createTestAggregatorFactory() {
-        Factory factory = new Factory(randomAsciiOfLengthBetween(1, 20));
+    protected GeoBoundsAggregatorBuilder createTestAggregatorBuilder() {
+        GeoBoundsAggregatorBuilder factory = new GeoBoundsAggregatorBuilder(randomAsciiOfLengthBetween(1, 20));
         String field = randomAsciiOfLengthBetween(3, 20);
         factory.field(field);
         if (randomBoolean()) {

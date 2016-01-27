@@ -251,7 +251,7 @@ public class SignificanceHeuristicTests extends ESTestCase {
     }
 
     protected SignificanceHeuristic parseFromBuilder(SignificanceHeuristicParserMapper heuristicParserMapper, SearchContext searchContext, SignificanceHeuristic significanceHeuristic) throws IOException {
-        SignificantTermsAggregatorFactory stBuilder = significantTerms("testagg");
+        SignificantTermsAggregatorBuilder stBuilder = significantTerms("testagg");
         stBuilder.significanceHeuristic(significanceHeuristic).field("text").minDocCount(200);
         XContentBuilder stXContentBuilder = XContentFactory.jsonBuilder();
         stBuilder.internalXContent(stXContentBuilder, null);
@@ -266,13 +266,13 @@ public class SignificanceHeuristicTests extends ESTestCase {
         parseContext.reset(stParser);
         parseContext.parseFieldMatcher(ParseFieldMatcher.STRICT);
         stParser.nextToken();
-        SignificantTermsAggregatorFactory aggregatorFactory = (SignificantTermsAggregatorFactory) new SignificantTermsParser(
+        SignificantTermsAggregatorBuilder aggregatorFactory = (SignificantTermsAggregatorBuilder) new SignificantTermsParser(
                 heuristicParserMapper, registry).parse("testagg", stParser, parseContext);
         stParser.nextToken();
         assertThat(aggregatorFactory.getBucketCountThresholds().getMinDocCount(), equalTo(200L));
         assertThat(stParser.currentToken(), equalTo(null));
         stParser.close();
-        return aggregatorFactory.getSignificanceHeuristic();
+        return aggregatorFactory.significanceHeuristic();
     }
 
     protected SignificanceHeuristic parseFromString(SignificanceHeuristicParserMapper heuristicParserMapper, SearchContext searchContext, String heuristicString) throws IOException {

@@ -43,16 +43,17 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
-import org.elasticsearch.search.aggregations.NonCollectingAggregator;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.FieldContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValuesSource.Bytes.ParentChild;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -189,7 +190,7 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator {
         Releasables.close(parentOrdToBuckets, parentOrdToOtherBuckets);
     }
 
-    public static class Factory extends ValuesSourceAggregatorFactory<ValuesSource.Bytes.WithOrdinals.ParentChild, Factory> {
+    public static class ChildrenAggregatorBuilder extends ValuesSourceAggregatorBuilder<ParentChild, ChildrenAggregatorBuilder> {
 
         private String parentType;
         private final String childType;
@@ -202,40 +203,20 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator {
          * @param childType
          *            the type of children documents
          */
-        public Factory(String name, String childType) {
+        public ChildrenAggregatorBuilder(String name, String childType) {
             super(name, InternalChildren.TYPE, ValuesSourceType.BYTES, ValueType.STRING);
             this.childType = childType;
         }
 
         @Override
-        public void doInit(AggregationContext context) {
-            resolveConfig(context);
+        protected ValuesSourceAggregatorFactory<ParentChild, ?> innerBuild(AggregationContext context,
+                ValuesSourceConfig<ParentChild> config) {
+            return new ChildrenAggregatorFactory(name, type, config, parentType, childFilter, parentFilter);
         }
 
         @Override
-        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
-                Map<String, Object> metaData) throws IOException {
-            return new NonCollectingAggregator(name, aggregationContext, parent, pipelineAggregators, metaData) {
-
-                @Override
-                public InternalAggregation buildEmptyAggregation() {
-                    return new InternalChildren(name, 0, buildEmptySubAggregations(), pipelineAggregators(), metaData());
-                }
-
-            };
-        }
-
-        @Override
-        protected Aggregator doCreateInternal(ValuesSource.Bytes.WithOrdinals.ParentChild valuesSource,
-                AggregationContext aggregationContext, Aggregator parent, boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators,
-                Map<String, Object> metaData) throws IOException {
-            long maxOrd = valuesSource.globalMaxOrd(aggregationContext.searchContext().searcher(), parentType);
-            return new ParentToChildrenAggregator(name, factories, aggregationContext, parent, parentType, childFilter, parentFilter,
-                    valuesSource, maxOrd, pipelineAggregators, metaData);
-        }
-
-        private void resolveConfig(AggregationContext aggregationContext) {
-            config = new ValuesSourceConfig<>(ValuesSourceType.BYTES);
+        protected ValuesSourceConfig<ParentChild> resolveConfig(AggregationContext aggregationContext) {
+            ValuesSourceConfig<ParentChild> config = new ValuesSourceConfig<>(ValuesSourceType.BYTES);
             DocumentMapper childDocMapper = aggregationContext.searchContext().mapperService().documentMapper(childType);
 
             if (childDocMapper != null) {
@@ -259,6 +240,7 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator {
             } else {
                 config.unmapped(true);
             }
+            return config;
         }
 
         @Override
@@ -268,10 +250,10 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator {
         }
 
         @Override
-        protected Factory innerReadFrom(String name, ValuesSourceType valuesSourceType,
+        protected ChildrenAggregatorBuilder innerReadFrom(String name, ValuesSourceType valuesSourceType,
                 ValueType targetValueType, StreamInput in) throws IOException {
             String childType = in.readString();
-            Factory factory = new Factory(name, childType);
+            ChildrenAggregatorBuilder factory = new ChildrenAggregatorBuilder(name, childType);
             return factory;
         }
 
@@ -287,7 +269,7 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator {
 
         @Override
         protected boolean innerEquals(Object obj) {
-            Factory other = (Factory) obj;
+            ChildrenAggregatorBuilder other = (ChildrenAggregatorBuilder) obj;
             return Objects.equals(childType, other.childType);
         }
 

@@ -38,7 +38,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.elasticsearch.search.rescore.RescoreBuilder;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorFactory;
 import org.joda.time.ReadableInstant;
 
@@ -643,9 +643,9 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
-     * Writes a {@link AggregatorFactory} to the current stream
+     * Writes a {@link AggregatorBuilder} to the current stream
      */
-    public void writeAggregatorFactory(AggregatorFactory factory) throws IOException {
+    public void writeAggregatorFactory(AggregatorBuilder factory) throws IOException {
         writeNamedWriteable(factory);
     }
 

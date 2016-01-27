@@ -118,6 +118,9 @@ public class ExtendedStatsBucketPipelineAggregator extends BucketMetricsPipeline
          * bounds
          */
         public Factory sigma(double sigma) {
+            if (sigma < 0.0) {
+                throw new IllegalArgumentException(ExtendedStatsBucketParser.SIGMA.getPreferredName() + " must be a non-negative double");
+            }
             this.sigma = sigma;
             return this;
         }
@@ -136,7 +139,7 @@ public class ExtendedStatsBucketPipelineAggregator extends BucketMetricsPipeline
         }
 
         @Override
-        public void doValidate(AggregatorFactory parent, AggregatorFactory[] aggFactories,
+        public void doValidate(AggregatorFactory<?> parent, AggregatorFactory<?>[] aggFactories,
                 List<PipelineAggregatorFactory> pipelineAggregatorFactories) {
             if (bucketsPaths.length != 1) {
                 throw new IllegalStateException(Parser.BUCKETS_PATH.getPreferredName()

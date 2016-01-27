@@ -20,6 +20,7 @@ package org.elasticsearch.search.aggregations.pipeline;
  */
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
@@ -429,11 +430,19 @@ public class PercentilesBucketIT extends ESIntegTestCase {
                             .percents(badPercents)).execute().actionGet();
 
             fail("Illegal percent's were provided but no exception was thrown.");
-        } catch (SearchPhaseExecutionException exception) {
-            ElasticsearchException[] rootCauses = exception.guessRootCauses();
-            assertThat(rootCauses.length, equalTo(1));
-            ElasticsearchException rootCause = rootCauses[0];
-            assertThat(rootCause.getMessage(), containsString("must only contain non-null doubles from 0.0-100.0 inclusive"));
+        } catch (Exception e) {
+            Throwable cause = ExceptionsHelper.unwrapCause(e);
+            if (cause == null) {
+                throw e;
+            } else if (cause instanceof SearchPhaseExecutionException) {
+                SearchPhaseExecutionException spee = (SearchPhaseExecutionException) e;
+                Throwable rootCause = spee.getRootCause();
+                if (!(rootCause instanceof IllegalArgumentException)) {
+                    throw e;
+                }
+            } else if (!(cause instanceof IllegalArgumentException)) {
+                throw e;
+            }
         }
 
     }
@@ -455,11 +464,19 @@ public class PercentilesBucketIT extends ESIntegTestCase {
                                         .percents(badPercents))).execute().actionGet();
 
             fail("Illegal percent's were provided but no exception was thrown.");
-        } catch (SearchPhaseExecutionException exception) {
-            ElasticsearchException[] rootCauses = exception.guessRootCauses();
-            assertThat(rootCauses.length, equalTo(1));
-            ElasticsearchException rootCause = rootCauses[0];
-            assertThat(rootCause.getMessage(), containsString("must only contain non-null doubles from 0.0-100.0 inclusive"));
+        } catch (Exception e) {
+            Throwable cause = ExceptionsHelper.unwrapCause(e);
+            if (cause == null) {
+                throw e;
+            } else if (cause instanceof SearchPhaseExecutionException) {
+                SearchPhaseExecutionException spee = (SearchPhaseExecutionException) e;
+                Throwable rootCause = spee.getRootCause();
+                if (!(rootCause instanceof IllegalArgumentException)) {
+                    throw e;
+                }
+            } else if (!(cause instanceof IllegalArgumentException)) {
+                throw e;
+            }
         }
 
     }

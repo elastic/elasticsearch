@@ -21,15 +21,15 @@ package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator;
-import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Factory;
+import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.RangeAggregatorBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Range;
 
-public class RangeTests extends BaseAggregationTestCase<RangeAggregator.Factory> {
+public class RangeTests extends BaseAggregationTestCase<RangeAggregator.RangeAggregatorBuilder> {
 
     @Override
-    protected Factory createTestAggregatorFactory() {
+    protected RangeAggregatorBuilder createTestAggregatorBuilder() {
         int numRanges = randomIntBetween(1, 10);
-        Factory factory = new Factory("foo");
+        RangeAggregatorBuilder factory = new RangeAggregatorBuilder("foo");
         for (int i = 0; i < numRanges; i++) {
             String key = null;
             if (randomBoolean()) {

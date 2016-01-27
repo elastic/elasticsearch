@@ -31,7 +31,7 @@ import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Order;
 import org.elasticsearch.search.aggregations.metrics.AbstractNumericTestCase;
 import org.elasticsearch.search.aggregations.metrics.percentiles.Percentile;
 import org.elasticsearch.search.aggregations.metrics.percentiles.PercentileRanks;
-import org.elasticsearch.search.aggregations.metrics.percentiles.PercentileRanksAggregatorFactory;
+import org.elasticsearch.search.aggregations.metrics.percentiles.PercentileRanksAggregatorBuilder;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -82,7 +82,7 @@ public class TDigestPercentileRanksTests extends AbstractNumericTestCase {
         return percents;
     }
 
-    private static PercentileRanksAggregatorFactory randomCompression(PercentileRanksAggregatorFactory builder) {
+    private static PercentileRanksAggregatorBuilder randomCompression(PercentileRanksAggregatorBuilder builder) {
         if (randomBoolean()) {
             builder.compression(randomIntBetween(20, 120) + randomDouble());
         }
@@ -116,7 +116,7 @@ public class TDigestPercentileRanksTests extends AbstractNumericTestCase {
         SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(histogram("histo").field("value").interval(1L).minDocCount(0)
-                        .subAggregation(randomCompression(percentileRanks("percentile_ranks"))
+                        .subAggregation(randomCompression(percentileRanks("percentile_ranks").field("value"))
                                 .values(10, 15)))
                 .execute().actionGet();
 
@@ -405,7 +405,7 @@ public class TDigestPercentileRanksTests extends AbstractNumericTestCase {
                 .setQuery(matchAllQuery())
                 .addAggregation(
                         histogram("histo").field("value").interval(2L)
-                            .subAggregation(randomCompression(percentileRanks("percentile_ranks").values(99)))
+                            .subAggregation(randomCompression(percentileRanks("percentile_ranks").field("value").values(99)))
                             .order(Order.aggregation("percentile_ranks", "99", asc)))
                 .execute().actionGet();
 

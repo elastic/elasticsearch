@@ -19,113 +19,45 @@
 
 package org.elasticsearch.search.aggregations.metrics.cardinality;
 
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
-public final class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource, CardinalityAggregatorFactory> {
+public class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource, CardinalityAggregatorFactory> {
 
-    public static final ParseField PRECISION_THRESHOLD_FIELD = new ParseField("precision_threshold");
+    private final Long precisionThreshold;
 
-    private Long precisionThreshold = null;
-
-    public CardinalityAggregatorFactory(String name, ValueType targetValueType) {
-        super(name, InternalCardinality.TYPE, ValuesSourceType.ANY, targetValueType);
-    }
-
-    /**
-     * Set a precision threshold. Higher values improve accuracy but also
-     * increase memory usage.
-     */
-    public CardinalityAggregatorFactory precisionThreshold(long precisionThreshold) {
+    public CardinalityAggregatorFactory(String name, Type type, ValuesSourceConfig<ValuesSource> config, Long precisionThreshold) {
+        super(name, type, config);
         this.precisionThreshold = precisionThreshold;
-        return this;
-    }
-
-    /**
-     * Get the precision threshold. Higher values improve accuracy but also
-     * increase memory usage. Will return <code>null</code> if the
-     * precisionThreshold has not been set yet.
-     */
-    public Long precisionThreshold() {
-        return precisionThreshold;
-    }
-
-    /**
-     * @deprecated no replacement - values will always be rehashed
-     */
-    @Deprecated
-    public void rehash(boolean rehash) {
-        // Deprecated all values are already rehashed so do nothing
-    }
-
-    private int precision(Aggregator parent) {
-        return precisionThreshold == null ? defaultPrecision(parent) : HyperLogLogPlusPlus.precisionFromThreshold(precisionThreshold);
     }
 
     @Override
-    protected Aggregator createUnmapped(AggregationContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
-            throws IOException {
-        return new CardinalityAggregator(name, null, precision(parent), config.formatter(), context, parent, pipelineAggregators, metaData);
-    }
-
-    @Override
-    protected Aggregator doCreateInternal(ValuesSource valuesSource, AggregationContext context, Aggregator parent,
-            boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-        return new CardinalityAggregator(name, valuesSource, precision(parent), config.formatter(), context, parent, pipelineAggregators,
+    protected Aggregator createUnmapped(AggregationContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
+            Map<String, Object> metaData) throws IOException {
+        return new CardinalityAggregator(name, null, precision(parent), config.formatter(), context, parent, pipelineAggregators,
                 metaData);
     }
 
     @Override
-    protected CardinalityAggregatorFactory innerReadFrom(String name, ValuesSourceType valuesSourceType,
-            ValueType targetValueType, StreamInput in) throws IOException {
-        CardinalityAggregatorFactory factory = new CardinalityAggregatorFactory(name, targetValueType);
-        if (in.readBoolean()) {
-            factory.precisionThreshold = in.readLong();
-        }
-        return factory;
+    protected Aggregator doCreateInternal(ValuesSource valuesSource, AggregationContext aggregationContext, Aggregator parent,
+            boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
+                    throws IOException {
+        return new CardinalityAggregator(name, valuesSource, precision(parent), config.formatter(), aggregationContext, parent,
+                pipelineAggregators, metaData);
     }
 
-    @Override
-    protected void innerWriteTo(StreamOutput out) throws IOException {
-        boolean hasPrecisionThreshold = precisionThreshold != null;
-        out.writeBoolean(hasPrecisionThreshold);
-        if (hasPrecisionThreshold) {
-            out.writeLong(precisionThreshold);
-        }
-    }
-
-    @Override
-    public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        if (precisionThreshold != null) {
-            builder.field(PRECISION_THRESHOLD_FIELD.getPreferredName(), precisionThreshold);
-        }
-        return builder;
-    }
-
-    @Override
-    protected int innerHashCode() {
-        return Objects.hash(precisionThreshold);
-    }
-
-    @Override
-    protected boolean innerEquals(Object obj) {
-        CardinalityAggregatorFactory other = (CardinalityAggregatorFactory) obj;
-        return Objects.equals(precisionThreshold, other.precisionThreshold);
+    private int precision(Aggregator parent) {
+        return precisionThreshold == null ? defaultPrecision(parent) : HyperLogLogPlusPlus.precisionFromThreshold(precisionThreshold);
     }
 
     /*
@@ -146,5 +78,4 @@ public final class CardinalityAggregatorFactory extends ValuesSourceAggregatorFa
 
         return Math.max(precision, HyperLogLogPlusPlus.MIN_PRECISION);
     }
-
 }

@@ -25,6 +25,7 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.bucket.terms.LongTermsAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -46,16 +47,19 @@ public class SignificantLongTermsAggregator extends LongTermsAggregator {
 
     public SignificantLongTermsAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource,
             ValueFormat format, BucketCountThresholds bucketCountThresholds, AggregationContext aggregationContext, Aggregator parent,
-            SignificantTermsAggregatorFactory termsAggFactory, IncludeExclude.LongFilter includeExclude,
+            SignificanceHeuristic significanceHeuristic, SignificantTermsAggregatorFactory termsAggFactory,
+            IncludeExclude.LongFilter includeExclude,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
 
         super(name, factories, valuesSource, format, null, bucketCountThresholds, aggregationContext, parent,
                 SubAggCollectionMode.DEPTH_FIRST, false, includeExclude, pipelineAggregators, metaData);
+        this.significanceHeuristic = significanceHeuristic;
         this.termsAggFactory = termsAggFactory;
     }
 
     protected long numCollectedDocs;
     private final SignificantTermsAggregatorFactory termsAggFactory;
+    private final SignificanceHeuristic significanceHeuristic;
 
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
@@ -95,7 +99,7 @@ public class SignificantLongTermsAggregator extends LongTermsAggregator {
             spare.supersetSize = supersetSize;
             // During shard-local down-selection we use subset/superset stats that are for this shard only
             // Back at the central reducer these properties will be updated with global stats
-            spare.updateScore(termsAggFactory.getSignificanceHeuristic());
+            spare.updateScore(significanceHeuristic);
 
             spare.bucketOrd = i;
             spare = (SignificantLongTerms.Bucket) ordered.insertWithOverflow(spare);
@@ -108,7 +112,7 @@ public class SignificantLongTermsAggregator extends LongTermsAggregator {
             list[i] = bucket;
         }
         return new SignificantLongTerms(subsetSize, supersetSize, name, formatter, bucketCountThresholds.getRequiredSize(),
-                bucketCountThresholds.getMinDocCount(), termsAggFactory.getSignificanceHeuristic(), Arrays.asList(list), pipelineAggregators(),
+                bucketCountThresholds.getMinDocCount(), significanceHeuristic, Arrays.asList(list), pipelineAggregators(),
                 metaData());
     }
 
@@ -119,7 +123,7 @@ public class SignificantLongTermsAggregator extends LongTermsAggregator {
         IndexReader topReader = searcher.getIndexReader();
         int supersetSize = topReader.numDocs();
         return new SignificantLongTerms(0, supersetSize, name, formatter, bucketCountThresholds.getRequiredSize(),
-                bucketCountThresholds.getMinDocCount(), termsAggFactory.getSignificanceHeuristic(),
+                bucketCountThresholds.getMinDocCount(), significanceHeuristic,
                 Collections.<InternalSignificantTerms.Bucket> emptyList(), pipelineAggregators(), metaData());
     }
 

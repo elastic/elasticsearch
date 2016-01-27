@@ -22,24 +22,23 @@ package org.elasticsearch.search.aggregations.metrics.percentiles;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.metrics.percentiles.hdr.HDRPercentileRanksAggregator;
+import org.elasticsearch.search.aggregations.metrics.percentiles.hdr.HDRPercentileRanksAggregatorFactory;
 import org.elasticsearch.search.aggregations.metrics.percentiles.tdigest.InternalTDigestPercentileRanks;
-import org.elasticsearch.search.aggregations.metrics.percentiles.tdigest.TDigestPercentileRanksAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.metrics.percentiles.tdigest.TDigestPercentileRanksAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory.LeafOnly;
+import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
+import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorBuilder.LeafOnly;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 
-public class PercentileRanksAggregatorFactory extends LeafOnly<ValuesSource.Numeric, PercentileRanksAggregatorFactory> {
+public class PercentileRanksAggregatorBuilder extends LeafOnly<ValuesSource.Numeric, PercentileRanksAggregatorBuilder> {
 
     private double[] values;
     private PercentilesMethod method = PercentilesMethod.TDIGEST;
@@ -47,14 +46,14 @@ public class PercentileRanksAggregatorFactory extends LeafOnly<ValuesSource.Nume
     private double compression = 100.0;
     private boolean keyed = false;
 
-    public PercentileRanksAggregatorFactory(String name) {
+    public PercentileRanksAggregatorBuilder(String name) {
         super(name, InternalTDigestPercentileRanks.TYPE, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
     }
 
     /**
      * Set the values to compute percentiles from.
      */
-    public PercentileRanksAggregatorFactory values(double... values) {
+    public PercentileRanksAggregatorBuilder values(double... values) {
         double[] sortedValues = Arrays.copyOf(values, values.length);
         Arrays.sort(sortedValues);
         this.values = sortedValues;
@@ -71,7 +70,7 @@ public class PercentileRanksAggregatorFactory extends LeafOnly<ValuesSource.Nume
     /**
      * Set whether the XContent response should be keyed
      */
-    public PercentileRanksAggregatorFactory keyed(boolean keyed) {
+    public PercentileRanksAggregatorBuilder keyed(boolean keyed) {
         this.keyed = keyed;
         return this;
     }
@@ -87,7 +86,7 @@ public class PercentileRanksAggregatorFactory extends LeafOnly<ValuesSource.Nume
      * Expert: set the number of significant digits in the values. Only relevant
      * when using {@link PercentilesMethod#HDR}.
      */
-    public PercentileRanksAggregatorFactory numberOfSignificantValueDigits(int numberOfSignificantValueDigits) {
+    public PercentileRanksAggregatorBuilder numberOfSignificantValueDigits(int numberOfSignificantValueDigits) {
         this.numberOfSignificantValueDigits = numberOfSignificantValueDigits;
         return this;
     }
@@ -104,7 +103,7 @@ public class PercentileRanksAggregatorFactory extends LeafOnly<ValuesSource.Nume
      * Expert: set the compression. Higher values improve accuracy but also
      * memory usage. Only relevant when using {@link PercentilesMethod#TDIGEST}.
      */
-    public PercentileRanksAggregatorFactory compression(double compression) {
+    public PercentileRanksAggregatorBuilder compression(double compression) {
         this.compression = compression;
         return this;
     }
@@ -117,7 +116,7 @@ public class PercentileRanksAggregatorFactory extends LeafOnly<ValuesSource.Nume
         return compression;
     }
 
-    public PercentileRanksAggregatorFactory method(PercentilesMethod method) {
+    public PercentileRanksAggregatorBuilder method(PercentilesMethod method) {
         this.method = method;
         return this;
     }
@@ -127,41 +126,21 @@ public class PercentileRanksAggregatorFactory extends LeafOnly<ValuesSource.Nume
     }
 
     @Override
-    protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+    protected ValuesSourceAggregatorFactory<Numeric, ?> innerBuild(AggregationContext context, ValuesSourceConfig<Numeric> config) {
         switch (method) {
         case TDIGEST:
-            return new TDigestPercentileRanksAggregator(name, null, aggregationContext, parent, values, compression, keyed,
-                    config.formatter(),
-                    pipelineAggregators, metaData);
+            return new TDigestPercentileRanksAggregatorFactory(name, type, config, values, compression, keyed);
         case HDR:
-            return new HDRPercentileRanksAggregator(name, null, aggregationContext, parent, values, numberOfSignificantValueDigits, keyed,
-                    config.formatter(), pipelineAggregators, metaData);
+            return new HDRPercentileRanksAggregatorFactory(name, type, config, values, numberOfSignificantValueDigits, keyed);
         default:
             throw new IllegalStateException("Illegal method [" + method.getName() + "]");
         }
     }
 
     @Override
-    protected Aggregator doCreateInternal(ValuesSource.Numeric valuesSource, AggregationContext aggregationContext, Aggregator parent,
-            boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
-            throws IOException {
-        switch (method) {
-        case TDIGEST:
-            return new TDigestPercentileRanksAggregator(name, valuesSource, aggregationContext, parent, values, compression, keyed,
-                    config.formatter(), pipelineAggregators, metaData);
-        case HDR:
-        return new HDRPercentileRanksAggregator(name, valuesSource, aggregationContext, parent, values, numberOfSignificantValueDigits,
-                keyed, config.formatter(), pipelineAggregators, metaData);
-        default:
-            throw new IllegalStateException("Illegal method [" + method.getName() + "]");
-        }
-    }
-
-    @Override
-    protected PercentileRanksAggregatorFactory innerReadFrom(String name, ValuesSourceType valuesSourceType,
+    protected PercentileRanksAggregatorBuilder innerReadFrom(String name, ValuesSourceType valuesSourceType,
             ValueType targetValueType, StreamInput in) throws IOException {
-        PercentileRanksAggregatorFactory factory = new PercentileRanksAggregatorFactory(name);
+        PercentileRanksAggregatorBuilder factory = new PercentileRanksAggregatorBuilder(name);
         factory.values = in.readDoubleArray();
         factory.keyed = in.readBoolean();
         factory.numberOfSignificantValueDigits = in.readVInt();
@@ -195,7 +174,7 @@ public class PercentileRanksAggregatorFactory extends LeafOnly<ValuesSource.Nume
 
     @Override
     protected boolean innerEquals(Object obj) {
-        PercentileRanksAggregatorFactory other = (PercentileRanksAggregatorFactory) obj;
+        PercentileRanksAggregatorBuilder other = (PercentileRanksAggregatorBuilder) obj;
         if (!Objects.equals(method, other.method)) {
             return false;
         }

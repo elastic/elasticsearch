@@ -21,7 +21,7 @@ package org.elasticsearch.search.aggregations.metrics.stats.extended;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.NumericValuesSourceParser;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
@@ -56,9 +56,9 @@ public class ExtendedStatsParser extends NumericValuesSourceParser {
     }
 
     @Override
-    protected ExtendedStatsAggregator.Factory createFactory(String aggregationName, ValuesSourceType valuesSourceType,
+    protected ExtendedStatsAggregator.ExtendedStatsAggregatorBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
             ValueType targetValueType, Map<ParseField, Object> otherOptions) {
-        ExtendedStatsAggregator.Factory factory = new ExtendedStatsAggregator.Factory(aggregationName);
+        ExtendedStatsAggregator.ExtendedStatsAggregatorBuilder factory = new ExtendedStatsAggregator.ExtendedStatsAggregatorBuilder(aggregationName);
         Double sigma = (Double) otherOptions.get(ExtendedStatsAggregator.SIGMA_FIELD);
         if (sigma != null) {
             factory.sigma(sigma);
@@ -67,7 +67,7 @@ public class ExtendedStatsParser extends NumericValuesSourceParser {
     }
 
     @Override
-    public AggregatorFactory<?> getFactoryPrototypes() {
-        return new ExtendedStatsAggregator.Factory(null);
+    public AggregatorBuilder<?> getFactoryPrototypes() {
+        return new ExtendedStatsAggregator.ExtendedStatsAggregatorBuilder(null);
     }
 }

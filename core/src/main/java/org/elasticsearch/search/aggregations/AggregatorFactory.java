@@ -16,35 +16,33 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.search.aggregations;
 
+package org.elasticsearch.search.aggregations;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.action.support.ToXContentToBytes;
-import org.elasticsearch.common.io.stream.NamedWriteable;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.internal.SearchContext.Lifetime;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
-/**
- * A factory that knows how to create an {@link Aggregator} of a specific type.
- */
-public abstract class AggregatorFactory<AF extends AggregatorFactory<AF>> extends ToXContentToBytes
-        implements NamedWriteable<AggregatorFactory<AF>> {
+// NORELEASE remove ToXContentToBytes here when agg refactoring complete
+public abstract class AggregatorFactory<AF extends AggregatorFactory<AF>> extends ToXContentToBytes {
+
+    // NORELEASE remove this method when agg refactoring complete
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        throw new UnsupportedOperationException("This should never be called");
+    }
 
     protected String name;
     protected Type type;
@@ -56,8 +54,10 @@ public abstract class AggregatorFactory<AF extends AggregatorFactory<AF>> extend
     /**
      * Constructs a new aggregator factory.
      *
-     * @param name  The aggregation name
-     * @param type  The aggregation type
+     * @param name
+     *            The aggregation name
+     * @param type
+     *            The aggregation type
      */
     public AggregatorFactory(String name, Type type) {
         this.name = name;
@@ -85,39 +85,17 @@ public abstract class AggregatorFactory<AF extends AggregatorFactory<AF>> extend
     }
 
     /**
-     * Registers sub-factories with this factory. The sub-factory will be responsible for the creation of sub-aggregators under the
-     * aggregator created by this factory.
+     * Registers sub-factories with this factory. The sub-factory will be
+     * responsible for the creation of sub-aggregators under the aggregator
+     * created by this factory.
      *
-     * @param subFactories  The sub-factories
-     * @return  this factory (fluent interface)
+     * @param subFactories
+     *            The sub-factories
+     * @return this factory (fluent interface)
      */
     public AF subFactories(AggregatorFactories subFactories) {
         this.factories = subFactories;
         this.factories.setParent(this);
-        return (AF) this;
-    }
-
-    /**
-     * Add a sub aggregation to this aggregation.
-     */
-    @SuppressWarnings("unchecked")
-    public AF subAggregation(AggregatorFactory<?> aggregation) {
-        AggregatorFactories.Builder builder = AggregatorFactories.builder();
-        builder.addAggregators(factories);
-        builder.addAggregator(aggregation);
-        factories = builder.build();
-        return (AF) this;
-    }
-
-    /**
-     * Add a sub aggregation to this aggregation.
-     */
-    @SuppressWarnings("unchecked")
-    public AF subAggregation(PipelineAggregatorFactory aggregation) {
-        AggregatorFactories.Builder builder = AggregatorFactories.builder();
-        builder.addAggregators(factories);
-        builder.addPipelineAggregator(aggregation);
-        factories = builder.build();
         return (AF) this;
     }
 
@@ -126,7 +104,8 @@ public abstract class AggregatorFactory<AF extends AggregatorFactory<AF>> extend
     }
 
     /**
-     * Validates the state of this factory (makes sure the factory is properly configured)
+     * Validates the state of this factory (makes sure the factory is properly
+     * configured)
      */
     public final void validate() {
         doValidate();
@@ -134,23 +113,32 @@ public abstract class AggregatorFactory<AF extends AggregatorFactory<AF>> extend
     }
 
     /**
-     * @return  The parent factory if one exists (will always return {@code null} for top level aggregator factories).
+     * @return The parent factory if one exists (will always return {@code null}
+     *         for top level aggregator factories).
      */
     public AggregatorFactory<?> parent() {
         return parent;
     }
 
-    protected abstract Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException;
+    // NORELEASE make this abstract when agg refactoring is complete
+    protected Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket,
+            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+        throw new UnsupportedOperationException("THIS SHOULD NEVER BE CALLED");
+    }
 
     /**
      * Creates the aggregator
      *
-     * @param parent                The parent aggregator (if this is a top level factory, the parent will be {@code null})
-     * @param collectsFromSingleBucket  If true then the created aggregator will only be collected with <tt>0</tt> as a bucket ordinal.
-     *                              Some factories can take advantage of this in order to return more optimized implementations.
+     * @param parent
+     *            The parent aggregator (if this is a top level factory, the
+     *            parent will be {@code null})
+     * @param collectsFromSingleBucket
+     *            If true then the created aggregator will only be collected
+     *            with <tt>0</tt> as a bucket ordinal. Some factories can take
+     *            advantage of this in order to return more optimized
+     *            implementations.
      *
-     * @return                      The created aggregator
+     * @return The created aggregator
      */
     public final Aggregator create(Aggregator parent, boolean collectsFromSingleBucket) throws IOException {
         return createInternal(context, parent, collectsFromSingleBucket, this.factories.createPipelineAggregators(), this.metaData);
@@ -164,64 +152,17 @@ public abstract class AggregatorFactory<AF extends AggregatorFactory<AF>> extend
         return (AF) this;
     }
 
-    @Override
-    public final AggregatorFactory<AF> readFrom(StreamInput in) throws IOException {
-        String name = in.readString();
-        AggregatorFactory<AF> factory = doReadFrom(name, in);
-        factory.factories = AggregatorFactories.EMPTY.readFrom(in);
-        factory.factories.setParent(this);
-        factory.metaData = in.readMap();
-        return factory;
-    }
-
-    protected abstract AggregatorFactory<AF> doReadFrom(String name, StreamInput in) throws IOException;
-
-    @Override
-    public final void writeTo(StreamOutput out) throws IOException {
-        out.writeString(name);
-        doWriteTo(out);
-        factories.writeTo(out);
-        out.writeMap(metaData);
-    }
-
-    protected abstract void doWriteTo(StreamOutput out) throws IOException;
-
-    @Override
-    public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(name);
-
-        if (this.metaData != null) {
-            builder.field("meta", this.metaData);
-        }
-        builder.field(type.name());
-        internalXContent(builder, params);
-
-        if (factories != null && (factories.countAggregators() + factories.countPipelineAggregators()) > 0) {
-            builder.field("aggregations");
-            factories.toXContent(builder, params);
-
-        }
-
-        return builder.endObject();
-    }
-
-    protected abstract XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException;
-
-    @Override
-    public String getWriteableName() {
-        return type.stream().toUtf8();
-    }
-
     public String getType() {
         return type.name();
     }
 
     /**
-     * Utility method. Given an {@link AggregatorFactory} that creates {@link Aggregator}s that only know how
-     * to collect bucket <tt>0</tt>, this returns an aggregator that can collect any bucket.
+     * Utility method. Given an {@link AggregatorFactory} that creates
+     * {@link Aggregator}s that only know how to collect bucket <tt>0</tt>, this
+     * returns an aggregator that can collect any bucket.
      */
-    protected static Aggregator asMultiBucketAggregator(final AggregatorFactory factory,
-            final AggregationContext context, final Aggregator parent) throws IOException {
+    protected static Aggregator asMultiBucketAggregator(final AggregatorFactory<?> factory, final AggregationContext context,
+            final Aggregator parent) throws IOException {
         final Aggregator first = factory.create(parent, true);
         final BigArrays bigArrays = context.bigArrays();
         return new Aggregator() {
@@ -339,32 +280,5 @@ public abstract class AggregatorFactory<AF extends AggregatorFactory<AF>> extend
             }
         };
     }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(factories, metaData, name, type, doHashCode());
-    }
-
-    protected abstract int doHashCode();
-
-    @Override
-    public boolean equals(Object obj) {
-        if (obj == null)
-            return false;
-        if (getClass() != obj.getClass())
-            return false;
-        AggregatorFactory<AF> other = (AggregatorFactory<AF>) obj;
-        if (!Objects.equals(name, other.name))
-            return false;
-        if (!Objects.equals(type, other.type))
-            return false;
-        if (!Objects.equals(metaData, other.metaData))
-            return false;
-        if (!Objects.equals(factories, other.factories))
-            return false;
-        return doEquals(obj);
-    }
-
-    protected abstract boolean doEquals(Object obj);
 
 }

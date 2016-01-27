@@ -27,14 +27,17 @@ import org.elasticsearch.common.network.Cidrs;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator;
-import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.AbstractFactory;
+import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.AbstractBuilder;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class IPv4RangeAggregatorFactory extends AbstractFactory<IPv4RangeAggregatorFactory, IPv4RangeAggregatorFactory.Range> {
+public class IPv4RangeAggregatorBuilder extends AbstractBuilder<IPv4RangeAggregatorBuilder, IPv4RangeAggregatorBuilder.Range> {
 
-    public IPv4RangeAggregatorFactory(String name) {
+    public IPv4RangeAggregatorBuilder(String name) {
         super(name, InternalIPv4Range.FACTORY);
     }
 
@@ -53,7 +56,7 @@ public class IPv4RangeAggregatorFactory extends AbstractFactory<IPv4RangeAggrega
      * @param to
      *            the upper bound on the distances, exclusive
      */
-    public IPv4RangeAggregatorFactory addRange(String key, String from, String to) {
+    public IPv4RangeAggregatorBuilder addRange(String key, String from, String to) {
         addRange(new Range(key, from, to));
         return this;
     }
@@ -62,7 +65,7 @@ public class IPv4RangeAggregatorFactory extends AbstractFactory<IPv4RangeAggrega
      * Same as {@link #addMaskRange(String, String)} but uses the mask itself as
      * a key.
      */
-    public IPv4RangeAggregatorFactory addMaskRange(String key, String mask) {
+    public IPv4RangeAggregatorBuilder addMaskRange(String key, String mask) {
         return addRange(new Range(key, mask));
     }
 
@@ -70,7 +73,7 @@ public class IPv4RangeAggregatorFactory extends AbstractFactory<IPv4RangeAggrega
      * Same as {@link #addMaskRange(String, String)} but uses the mask itself as
      * a key.
      */
-    public IPv4RangeAggregatorFactory addMaskRange(String mask) {
+    public IPv4RangeAggregatorBuilder addMaskRange(String mask) {
         return addRange(new Range(mask, mask));
     }
 
@@ -78,7 +81,7 @@ public class IPv4RangeAggregatorFactory extends AbstractFactory<IPv4RangeAggrega
      * Same as {@link #addRange(String, String, String)} but the key will be
      * automatically generated.
      */
-    public IPv4RangeAggregatorFactory addRange(String from, String to) {
+    public IPv4RangeAggregatorBuilder addRange(String from, String to) {
         return addRange(null, from, to);
     }
 
@@ -86,7 +89,7 @@ public class IPv4RangeAggregatorFactory extends AbstractFactory<IPv4RangeAggrega
      * Same as {@link #addRange(String, String, String)} but there will be no
      * lower bound.
      */
-    public IPv4RangeAggregatorFactory addUnboundedTo(String key, String to) {
+    public IPv4RangeAggregatorBuilder addUnboundedTo(String key, String to) {
         addRange(new Range(key, null, to));
         return this;
     }
@@ -95,7 +98,7 @@ public class IPv4RangeAggregatorFactory extends AbstractFactory<IPv4RangeAggrega
      * Same as {@link #addUnboundedTo(String, String)} but the key will be
      * generated automatically.
      */
-    public IPv4RangeAggregatorFactory addUnboundedTo(String to) {
+    public IPv4RangeAggregatorBuilder addUnboundedTo(String to) {
         return addUnboundedTo(null, to);
     }
 
@@ -103,7 +106,7 @@ public class IPv4RangeAggregatorFactory extends AbstractFactory<IPv4RangeAggrega
      * Same as {@link #addRange(String, String, String)} but there will be no
      * upper bound.
      */
-    public IPv4RangeAggregatorFactory addUnboundedFrom(String key, String from) {
+    public IPv4RangeAggregatorBuilder addUnboundedFrom(String key, String from) {
         addRange(new Range(key, from, null));
         return this;
     }
@@ -112,14 +115,19 @@ public class IPv4RangeAggregatorFactory extends AbstractFactory<IPv4RangeAggrega
      * Same as {@link #addUnboundedFrom(String, String)} but the key will be
      * generated automatically.
      */
-    public IPv4RangeAggregatorFactory addUnboundedFrom(String from) {
+    public IPv4RangeAggregatorBuilder addUnboundedFrom(String from) {
         return addUnboundedFrom(null, from);
     }
 
     @Override
-    protected IPv4RangeAggregatorFactory createFactoryFromStream(String name, StreamInput in) throws IOException {
+    protected Ipv4RangeAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig<Numeric> config) {
+        return new Ipv4RangeAggregatorFactory(name, type, config, ranges, keyed, rangeFactory);
+    }
+
+    @Override
+    protected IPv4RangeAggregatorBuilder createFactoryFromStream(String name, StreamInput in) throws IOException {
         int size = in.readVInt();
-        IPv4RangeAggregatorFactory factory = new IPv4RangeAggregatorFactory(name);
+        IPv4RangeAggregatorBuilder factory = new IPv4RangeAggregatorBuilder(name);
         for (int i = 0; i < size; i++) {
             factory.addRange(Range.PROTOTYPE.readFrom(in));
         }

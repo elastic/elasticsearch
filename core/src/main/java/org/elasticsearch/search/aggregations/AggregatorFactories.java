@@ -31,8 +31,6 @@ import org.elasticsearch.search.aggregations.support.AggregationPath.PathElement
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -44,9 +42,9 @@ import java.util.Set;
 /**
  *
  */
-public class AggregatorFactories extends ToXContentToBytes implements Writeable<AggregatorFactories> {
+public class AggregatorFactories {
 
-    public static final AggregatorFactories EMPTY = new AggregatorFactories(new AggregatorFactory<?>[0],
+    public static final AggregatorFactories EMPTY = new AggregatorFactories(new AggregatorBuilder<?>[0],
             new ArrayList<PipelineAggregatorFactory>());
 
     private AggregatorFactory<?> parent;
@@ -136,28 +134,24 @@ public class AggregatorFactories extends ToXContentToBytes implements Writeable<
         }
     }
 
-    public static class Builder {
+    public static class Builder extends ToXContentToBytes implements Writeable<Builder> {
+
+        public final static Builder PROTOTYPE = new Builder();
 
         private final Set<String> names = new HashSet<>();
-        private final List<AggregatorFactory<?>> factories = new ArrayList<>();
+        private final List<AggregatorBuilder<?>> aggregatorBuilders = new ArrayList<>();
         private final List<PipelineAggregatorFactory> pipelineAggregatorFactories = new ArrayList<>();
         private boolean skipResolveOrder;
 
         public Builder addAggregators(AggregatorFactories factories) {
-            for (AggregatorFactory<?> factory : factories.factories) {
-                addAggregator(factory);
-            }
-            for (PipelineAggregatorFactory factory : factories.pipelineAggregatorFactories) {
-                addPipelineAggregator(factory);
-            }
-            return this;
+            throw new UnsupportedOperationException("This needs to be removed");
         }
 
-        public Builder addAggregator(AggregatorFactory<?> factory) {
+        public Builder addAggregator(AggregatorBuilder<?> factory) {
             if (!names.add(factory.name)) {
                 throw new IllegalArgumentException("Two sibling aggregations cannot have the same name: [" + factory.name + "]");
             }
-            factories.add(factory);
+            aggregatorBuilders.add(factory);
             return this;
         }
 
@@ -174,27 +168,31 @@ public class AggregatorFactories extends ToXContentToBytes implements Writeable<
             return this;
         }
 
-        public AggregatorFactories build() {
-            if (factories.isEmpty() && pipelineAggregatorFactories.isEmpty()) {
+        public AggregatorFactories build(AggregationContext context) throws IOException {
+            if (aggregatorBuilders.isEmpty() && pipelineAggregatorFactories.isEmpty()) {
                 return EMPTY;
             }
             List<PipelineAggregatorFactory> orderedpipelineAggregators = null;
             if (skipResolveOrder) {
                 orderedpipelineAggregators = new ArrayList<>(pipelineAggregatorFactories);
             } else {
-                orderedpipelineAggregators = resolvePipelineAggregatorOrder(this.pipelineAggregatorFactories, this.factories);
+                orderedpipelineAggregators = resolvePipelineAggregatorOrder(this.pipelineAggregatorFactories, this.aggregatorBuilders);
             }
-            return new AggregatorFactories(factories.toArray(new AggregatorFactory<?>[factories.size()]), orderedpipelineAggregators);
+            AggregatorFactory<?>[] aggFactories = new AggregatorFactory<?>[aggregatorBuilders.size()];
+            for (int i = 0; i < aggregatorBuilders.size(); i++) {
+                aggFactories[i] = aggregatorBuilders.get(i).build(context);
+            }
+            return new AggregatorFactories(aggFactories, orderedpipelineAggregators);
         }
 
         private List<PipelineAggregatorFactory> resolvePipelineAggregatorOrder(List<PipelineAggregatorFactory> pipelineAggregatorFactories,
-                List<AggregatorFactory<?>> aggFactories) {
+                List<AggregatorBuilder<?>> aggFactories) {
             Map<String, PipelineAggregatorFactory> pipelineAggregatorFactoriesMap = new HashMap<>();
             for (PipelineAggregatorFactory factory : pipelineAggregatorFactories) {
                 pipelineAggregatorFactoriesMap.put(factory.getName(), factory);
             }
-            Map<String, AggregatorFactory<?>> aggFactoriesMap = new HashMap<>();
-            for (AggregatorFactory<?> aggFactory : aggFactories) {
+            Map<String, AggregatorBuilder<?>> aggFactoriesMap = new HashMap<>();
+            for (AggregatorBuilder<?> aggFactory : aggFactories) {
                 aggFactoriesMap.put(aggFactory.name, aggFactory);
             }
             List<PipelineAggregatorFactory> orderedPipelineAggregatorrs = new LinkedList<>();
@@ -208,7 +206,7 @@ public class AggregatorFactories extends ToXContentToBytes implements Writeable<
             return orderedPipelineAggregatorrs;
         }
 
-        private void resolvePipelineAggregatorOrder(Map<String, AggregatorFactory<?>> aggFactoriesMap,
+        private void resolvePipelineAggregatorOrder(Map<String, AggregatorBuilder<?>> aggFactoriesMap,
                 Map<String, PipelineAggregatorFactory> pipelineAggregatorFactoriesMap,
                 List<PipelineAggregatorFactory> orderedPipelineAggregators, List<PipelineAggregatorFactory> unmarkedFactories, Set<PipelineAggregatorFactory> temporarilyMarked,
                 PipelineAggregatorFactory factory) {
@@ -223,7 +221,7 @@ public class AggregatorFactories extends ToXContentToBytes implements Writeable<
                     if (bucketsPath.equals("_count") || bucketsPath.equals("_key")) {
                         continue;
                     } else if (aggFactoriesMap.containsKey(firstAggName)) {
-                        AggregatorFactory<?> aggFactory = aggFactoriesMap.get(firstAggName);
+                        AggregatorBuilder<?> aggFactory = aggFactoriesMap.get(firstAggName);
                         for (int i = 1; i < bucketsPathElements.size(); i++) {
                             PathElement pathElement = bucketsPathElements.get(i);
                             String aggName = pathElement.name;
@@ -232,9 +230,9 @@ public class AggregatorFactories extends ToXContentToBytes implements Writeable<
                             } else {
                                 // Check the non-pipeline sub-aggregator
                                 // factories
-                                AggregatorFactory<?>[] subFactories = aggFactory.factories.factories;
+                                AggregatorBuilder<?>[] subFactories = aggFactory.factoriesBuilder.getAggregatorFactories();
                                 boolean foundSubFactory = false;
-                                for (AggregatorFactory<?> subFactory : subFactories) {
+                                for (AggregatorBuilder<?> subFactory : subFactories) {
                                     if (aggName.equals(subFactory.name)) {
                                         aggFactory = subFactory;
                                         foundSubFactory = true;
@@ -243,7 +241,7 @@ public class AggregatorFactories extends ToXContentToBytes implements Writeable<
                                 }
                                 // Check the pipeline sub-aggregator factories
                                 if (!foundSubFactory && (i == bucketsPathElements.size() - 1)) {
-                                    List<PipelineAggregatorFactory> subPipelineFactories = aggFactory.factories.pipelineAggregatorFactories;
+                                    List<PipelineAggregatorFactory> subPipelineFactories = aggFactory.factoriesBuilder.pipelineAggregatorFactories;
                                     for (PipelineAggregatorFactory subFactory : subPipelineFactories) {
                                         if (aggName.equals(subFactory.name())) {
                                             foundSubFactory = true;
@@ -275,79 +273,80 @@ public class AggregatorFactories extends ToXContentToBytes implements Writeable<
             }
         }
 
-        AggregatorFactory<?>[] getAggregatorFactories() {
-            return this.factories.toArray(new AggregatorFactory<?>[this.factories.size()]);
+        AggregatorBuilder<?>[] getAggregatorFactories() {
+            return this.aggregatorBuilders.toArray(new AggregatorBuilder<?>[this.aggregatorBuilders.size()]);
         }
 
         List<PipelineAggregatorFactory> getPipelineAggregatorFactories() {
             return this.pipelineAggregatorFactories;
         }
-    }
 
-    @Override
-    public AggregatorFactories readFrom(StreamInput in) throws IOException {
-        int factoriesSize = in.readVInt();
-        AggregatorFactory<?>[] factoriesList = new AggregatorFactory<?>[factoriesSize];
-        for (int i = 0; i < factoriesSize; i++) {
-            AggregatorFactory<?> factory = in.readAggregatorFactory();
-            factoriesList[i] = factory;
+        public int count() {
+            return aggregatorBuilders.size() + pipelineAggregatorFactories.size();
         }
-        int pipelineFactoriesSize = in.readVInt();
-        List<PipelineAggregatorFactory> pipelineAggregatorFactoriesList = new ArrayList<PipelineAggregatorFactory>(pipelineFactoriesSize);
-        for (int i = 0; i < pipelineFactoriesSize; i++) {
-            PipelineAggregatorFactory factory = in.readPipelineAggregatorFactory();
-            pipelineAggregatorFactoriesList.add(factory);
-        }
-        AggregatorFactories aggregatorFactories = new AggregatorFactories(factoriesList,
-                Collections.unmodifiableList(pipelineAggregatorFactoriesList));
-        return aggregatorFactories;
-    }
 
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(this.factories.length);
-        for (AggregatorFactory<?> factory : factories) {
-            out.writeAggregatorFactory(factory);
+        @Override
+        public Builder readFrom(StreamInput in) throws IOException {
+            Builder builder = new Builder();
+            int factoriesSize = in.readVInt();
+            for (int i = 0; i < factoriesSize; i++) {
+                AggregatorBuilder<?> factory = in.readAggregatorFactory();
+                builder.addAggregator(factory);
+            }
+            int pipelineFactoriesSize = in.readVInt();
+            for (int i = 0; i < pipelineFactoriesSize; i++) {
+                PipelineAggregatorFactory factory = in.readPipelineAggregatorFactory();
+                builder.addPipelineAggregator(factory);
+            }
+            return builder;
         }
-        out.writeVInt(this.pipelineAggregatorFactories.size());
-        for (PipelineAggregatorFactory factory : pipelineAggregatorFactories) {
-            out.writePipelineAggregatorFactory(factory);
-        }
-    }
 
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        if (factories != null) {
-            for (AggregatorFactory<?> subAgg : factories) {
-                subAgg.toXContent(builder, params);
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeVInt(this.aggregatorBuilders.size());
+            for (AggregatorBuilder<?> factory : aggregatorBuilders) {
+                out.writeAggregatorFactory(factory);
+            }
+            out.writeVInt(this.pipelineAggregatorFactories.size());
+            for (PipelineAggregatorFactory factory : pipelineAggregatorFactories) {
+                out.writePipelineAggregatorFactory(factory);
             }
         }
-        if (pipelineAggregatorFactories != null) {
-            for (PipelineAggregatorFactory subAgg : pipelineAggregatorFactories) {
-                subAgg.toXContent(builder, params);
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            if (aggregatorBuilders != null) {
+                for (AggregatorBuilder<?> subAgg : aggregatorBuilders) {
+                    subAgg.toXContent(builder, params);
+                }
             }
+            if (pipelineAggregatorFactories != null) {
+                for (PipelineAggregatorFactory subAgg : pipelineAggregatorFactories) {
+                    subAgg.toXContent(builder, params);
+                }
+            }
+            builder.endObject();
+            return builder;
         }
-        builder.endObject();
-        return builder;
-    }
 
-    @Override
-    public int hashCode() {
-        return Objects.hash(Arrays.hashCode(factories), pipelineAggregatorFactories);
-    }
+        @Override
+        public int hashCode() {
+            return Objects.hash(aggregatorBuilders, pipelineAggregatorFactories);
+        }
 
-    @Override
-    public boolean equals(Object obj) {
-        if (obj == null)
-            return false;
-        if (getClass() != obj.getClass())
-            return false;
-        AggregatorFactories other = (AggregatorFactories) obj;
-        if (!Objects.deepEquals(factories, other.factories))
-            return false;
-        if (!Objects.equals(pipelineAggregatorFactories, other.pipelineAggregatorFactories))
-            return false;
-        return true;
+        @Override
+        public boolean equals(Object obj) {
+            if (obj == null)
+                return false;
+            if (getClass() != obj.getClass())
+                return false;
+            Builder other = (Builder) obj;
+            if (!Objects.equals(aggregatorBuilders, other.aggregatorBuilders))
+                return false;
+            if (!Objects.equals(pipelineAggregatorFactories, other.pipelineAggregatorFactories))
+                return false;
+            return true;
+        }
     }
 }

@@ -22,7 +22,7 @@ package org.elasticsearch.search.aggregations.bucket.sampler;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.AnyValuesSourceParser;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
@@ -41,13 +41,13 @@ public class DiversifiedSamplerParser extends AnyValuesSourceParser {
 
     @Override
     public String type() {
-        return SamplerAggregator.DiversifiedFactory.TYPE.name();
+        return SamplerAggregator.DiversifiedAggregatorBuilder.TYPE.name();
     }
 
     @Override
-    protected SamplerAggregator.DiversifiedFactory createFactory(String aggregationName, ValuesSourceType valuesSourceType,
+    protected SamplerAggregator.DiversifiedAggregatorBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
             ValueType targetValueType, Map<ParseField, Object> otherOptions) {
-        SamplerAggregator.DiversifiedFactory factory = new SamplerAggregator.DiversifiedFactory(aggregationName);
+        SamplerAggregator.DiversifiedAggregatorBuilder factory = new SamplerAggregator.DiversifiedAggregatorBuilder(aggregationName);
         Integer shardSize = (Integer) otherOptions.get(SamplerAggregator.SHARD_SIZE_FIELD);
         if (shardSize != null) {
             factory.shardSize(shardSize);
@@ -87,8 +87,8 @@ public class DiversifiedSamplerParser extends AnyValuesSourceParser {
     }
 
     @Override
-    public AggregatorFactory<?> getFactoryPrototypes() {
-        return new SamplerAggregator.DiversifiedFactory(null);
+    public AggregatorBuilder<?> getFactoryPrototypes() {
+        return new SamplerAggregator.DiversifiedAggregatorBuilder(null);
     }
 
 }

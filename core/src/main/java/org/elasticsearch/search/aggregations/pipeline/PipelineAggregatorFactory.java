@@ -69,7 +69,7 @@ public abstract class PipelineAggregatorFactory extends ToXContentToBytes implem
      * Validates the state of this factory (makes sure the factory is properly
      * configured)
      */
-    public final void validate(AggregatorFactory parent, AggregatorFactory[] factories,
+    public final void validate(AggregatorFactory<?> parent, AggregatorFactory<?>[] factories,
             List<PipelineAggregatorFactory> pipelineAggregatorFactories) {
         doValidate(parent, factories, pipelineAggregatorFactories);
     }
@@ -86,7 +86,7 @@ public abstract class PipelineAggregatorFactory extends ToXContentToBytes implem
         return aggregator;
     }
 
-    public void doValidate(AggregatorFactory parent, AggregatorFactory[] factories,
+    public void doValidate(AggregatorFactory<?> parent, AggregatorFactory<?>[] factories,
             List<PipelineAggregatorFactory> pipelineAggregatorFactories) {
     }
 

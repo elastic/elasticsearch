@@ -444,7 +444,7 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
         }
 
         @Override
-        public void doValidate(AggregatorFactory parent, AggregatorFactory[] aggFactories,
+        public void doValidate(AggregatorFactory<?> parent, AggregatorFactory<?>[] aggFactories,
                 List<PipelineAggregatorFactory> pipelineAggregatoractories) {
             if (minimize != null && minimize && !model.canBeMinimized()) {
                 // If the user asks to minimize, but this model doesn't support
@@ -455,11 +455,11 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
                 throw new IllegalStateException(PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName()
                         + " must contain a single entry for aggregation [" + name + "]");
             }
-            if (!(parent instanceof HistogramAggregator.Factory)) {
+            if (!(parent instanceof HistogramAggregator.AbstractBuilder)) {
                 throw new IllegalStateException("moving average aggregation [" + name
                         + "] must have a histogram or date_histogram as parent");
             } else {
-                HistogramAggregator.Factory histoParent = (HistogramAggregator.Factory) parent;
+                HistogramAggregator.AbstractBuilder histoParent = (HistogramAggregator.AbstractBuilder) parent;
                 if (histoParent.minDocCount() != 0) {
                     throw new IllegalStateException("parent histogram of moving average aggregation [" + name
                             + "] must have min_doc_count of 0");

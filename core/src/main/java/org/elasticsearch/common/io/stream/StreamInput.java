@@ -39,7 +39,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.elasticsearch.search.rescore.RescoreBuilder;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorFactory;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -666,10 +666,10 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
-     * Reads a {@link AggregatorFactory} from the current stream
+     * Reads a {@link AggregatorBuilder} from the current stream
      */
-    public AggregatorFactory readAggregatorFactory() throws IOException {
-        return readNamedWriteable(AggregatorFactory.class);
+    public AggregatorBuilder readAggregatorFactory() throws IOException {
+        return readNamedWriteable(AggregatorBuilder.class);
     }
 
     /**

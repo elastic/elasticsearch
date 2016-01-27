@@ -20,8 +20,6 @@
 package org.elasticsearch.search.aggregations.bucket.filters;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.ParseField;
@@ -35,6 +33,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
@@ -198,7 +197,7 @@ public class FiltersAggregator extends BucketsAggregator {
         return owningBucketOrdinal * totalNumKeys + filterOrd;
     }
 
-    public static class Factory extends AggregatorFactory<Factory> {
+    public static class FiltersAggregatorBuilder extends AggregatorBuilder<FiltersAggregatorBuilder> {
 
         private final List<KeyedFilter> filters;
         private final boolean keyed;
@@ -211,11 +210,11 @@ public class FiltersAggregator extends BucketsAggregator {
          * @param filters
          *            the KeyedFilters to use with this aggregation.
          */
-        public Factory(String name, KeyedFilter... filters) {
+        public FiltersAggregatorBuilder(String name, KeyedFilter... filters) {
             this(name, Arrays.asList(filters));
         }
 
-        private Factory(String name, List<KeyedFilter> filters) {
+        private FiltersAggregatorBuilder(String name, List<KeyedFilter> filters) {
             super(name, InternalFilters.TYPE);
             this.filters = filters;
             this.keyed = true;
@@ -227,7 +226,7 @@ public class FiltersAggregator extends BucketsAggregator {
          * @param filters
          *            the filters to use with this aggregation
          */
-        public Factory(String name, QueryBuilder<?>... filters) {
+        public FiltersAggregatorBuilder(String name, QueryBuilder<?>... filters) {
             super(name, InternalFilters.TYPE);
             List<KeyedFilter> keyedFilters = new ArrayList<>(filters.length);
             for (int i = 0; i < filters.length; i++) {
@@ -240,7 +239,7 @@ public class FiltersAggregator extends BucketsAggregator {
         /**
          * Set whether to include a bucket for documents not matching any filter
          */
-        public Factory otherBucket(boolean otherBucket) {
+        public FiltersAggregatorBuilder otherBucket(boolean otherBucket) {
             this.otherBucket = otherBucket;
             return this;
         }
@@ -256,7 +255,7 @@ public class FiltersAggregator extends BucketsAggregator {
          * Set the key to use for the bucket for documents not matching any
          * filter.
          */
-        public Factory otherBucketKey(String otherBucketKey) {
+        public FiltersAggregatorBuilder otherBucketKey(String otherBucketKey) {
             this.otherBucketKey = otherBucketKey;
             return this;
         }
@@ -269,31 +268,9 @@ public class FiltersAggregator extends BucketsAggregator {
             return otherBucketKey;
         }
 
-        // TODO: refactor in order to initialize the factory once with its parent,
-        // the context, etc. and then have a no-arg lightweight create method
-        // (since create may be called thousands of times)
-
-        private IndexSearcher searcher;
-        private String[] keys;
-        private Weight[] weights;
-
         @Override
-        public Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket,
-                List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-            IndexSearcher contextSearcher = context.searchContext().searcher();
-            if (searcher != contextSearcher) {
-                searcher = contextSearcher;
-                weights = new Weight[filters.size()];
-                keys = new String[filters.size()];
-                for (int i = 0; i < filters.size(); ++i) {
-                    KeyedFilter keyedFilter = filters.get(i);
-                    this.keys[i] = keyedFilter.key;
-                    Query filter = keyedFilter.filter.toFilter(context.searchContext().indexShard().getQueryShardContext());
-                    this.weights[i] = contextSearcher.createNormalizedWeight(filter, false);
-                }
-            }
-            return new FiltersAggregator(name, factories, keys, weights, keyed, otherBucket ? otherBucketKey : null, context, parent,
-                    pipelineAggregators, metaData);
+        protected AggregatorFactory<?> doBuild(AggregationContext context) throws IOException {
+            return new FiltersAggregatorFactory(name, type, filters, keyed, otherBucket, otherBucketKey, context);
         }
 
         @Override
@@ -319,22 +296,22 @@ public class FiltersAggregator extends BucketsAggregator {
         }
 
         @Override
-        protected Factory doReadFrom(String name, StreamInput in) throws IOException {
-            Factory factory;
+        protected FiltersAggregatorBuilder doReadFrom(String name, StreamInput in) throws IOException {
+            FiltersAggregatorBuilder factory;
             if (in.readBoolean()) {
                 int size = in.readVInt();
                 List<KeyedFilter> filters = new ArrayList<>(size);
                 for (int i = 0; i < size; i++) {
                     filters.add(KeyedFilter.PROTOTYPE.readFrom(in));
                 }
-                factory = new Factory(name, filters);
+                factory = new FiltersAggregatorBuilder(name, filters);
             } else {
                 int size = in.readVInt();
                 QueryBuilder<?>[] filters = new QueryBuilder<?>[size];
                 for (int i = 0; i < size; i++) {
                     filters[i] = in.readQuery();
                 }
-                factory = new Factory(name, filters);
+                factory = new FiltersAggregatorBuilder(name, filters);
             }
             factory.otherBucket = in.readBoolean();
             factory.otherBucketKey = in.readString();
@@ -366,7 +343,7 @@ public class FiltersAggregator extends BucketsAggregator {
 
         @Override
         protected boolean doEquals(Object obj) {
-            Factory other = (Factory) obj;
+            FiltersAggregatorBuilder other = (FiltersAggregatorBuilder) obj;
             return Objects.equals(filters, other.filters)
                     && Objects.equals(keyed, other.keyed)
                     && Objects.equals(otherBucket, other.otherBucket)

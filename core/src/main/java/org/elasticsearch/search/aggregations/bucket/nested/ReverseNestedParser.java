@@ -22,7 +22,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.AggregatorBuilder;
 
 import java.io.IOException;
 
@@ -37,7 +37,7 @@ public class ReverseNestedParser implements Aggregator.Parser {
     }
 
     @Override
-    public AggregatorFactory parse(String aggregationName, XContentParser parser, QueryParseContext context) throws IOException {
+    public AggregatorBuilder parse(String aggregationName, XContentParser parser, QueryParseContext context) throws IOException {
         String path = null;
 
         XContentParser.Token token;
@@ -57,7 +57,8 @@ public class ReverseNestedParser implements Aggregator.Parser {
             }
         }
 
-        ReverseNestedAggregator.Factory factory = new ReverseNestedAggregator.Factory(aggregationName);
+        ReverseNestedAggregator.ReverseNestedAggregatorBuilder factory = new ReverseNestedAggregator.ReverseNestedAggregatorBuilder(
+                aggregationName);
         if (path != null) {
             factory.path(path);
         }
@@ -65,7 +66,7 @@ public class ReverseNestedParser implements Aggregator.Parser {
     }
 
     @Override
-    public AggregatorFactory<?> getFactoryPrototypes() {
-        return new ReverseNestedAggregator.Factory(null);
+    public AggregatorBuilder<?> getFactoryPrototypes() {
+        return new ReverseNestedAggregator.ReverseNestedAggregatorBuilder(null);
     }
 }

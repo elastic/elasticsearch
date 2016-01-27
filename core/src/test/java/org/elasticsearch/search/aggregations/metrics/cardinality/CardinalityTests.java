@@ -22,11 +22,11 @@ package org.elasticsearch.search.aggregations.metrics.cardinality;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 
-public class CardinalityTests extends BaseAggregationTestCase<CardinalityAggregatorFactory> {
+public class CardinalityTests extends BaseAggregationTestCase<CardinalityAggregatorBuilder> {
 
     @Override
-    protected final CardinalityAggregatorFactory createTestAggregatorFactory() {
-        CardinalityAggregatorFactory factory = new CardinalityAggregatorFactory("foo", null);
+    protected final CardinalityAggregatorBuilder createTestAggregatorBuilder() {
+        CardinalityAggregatorBuilder factory = new CardinalityAggregatorBuilder("foo", null);
         String field = randomNumericField();
         int randomFieldBranch = randomInt(3);
         switch (randomFieldBranch) {

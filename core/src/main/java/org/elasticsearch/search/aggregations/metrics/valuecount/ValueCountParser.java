@@ -21,11 +21,11 @@ package org.elasticsearch.search.aggregations.metrics.valuecount;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.AnyValuesSourceParser;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
+import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
@@ -52,13 +52,13 @@ public class ValueCountParser extends AnyValuesSourceParser {
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory<ValuesSource, ValueCountAggregator.Factory> createFactory(String aggregationName,
-            ValuesSourceType valuesSourceType, ValueType targetValueType, Map<ParseField, Object> otherOptions) {
-        return new ValueCountAggregator.Factory(aggregationName, targetValueType);
+    protected ValuesSourceAggregatorBuilder<ValuesSource, ValueCountAggregator.ValueCountAggregatorBuilder> createFactory(
+            String aggregationName, ValuesSourceType valuesSourceType, ValueType targetValueType, Map<ParseField, Object> otherOptions) {
+        return new ValueCountAggregator.ValueCountAggregatorBuilder(aggregationName, targetValueType);
     }
 
     @Override
-    public AggregatorFactory<?> getFactoryPrototypes() {
-        return new ValueCountAggregator.Factory(null, null);
+    public AggregatorBuilder<?> getFactoryPrototypes() {
+        return new ValueCountAggregator.ValueCountAggregatorBuilder(null, null);
     }
 }

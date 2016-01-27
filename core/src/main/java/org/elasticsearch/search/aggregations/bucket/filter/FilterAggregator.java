@@ -19,8 +19,6 @@
 package org.elasticsearch.search.aggregations.bucket.filter;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -31,6 +29,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
@@ -86,7 +85,7 @@ public class FilterAggregator extends SingleBucketAggregator {
         return new InternalFilter(name, 0, buildEmptySubAggregations(), pipelineAggregators(), metaData());
     }
 
-    public static class Factory extends AggregatorFactory<Factory> {
+    public static class FilterAggregatorBuilder extends AggregatorBuilder<FilterAggregatorBuilder> {
 
         private QueryBuilder<?> filter;
 
@@ -98,28 +97,14 @@ public class FilterAggregator extends SingleBucketAggregator {
          *            filter will fall into the bucket defined by this
          *            {@link Filter} aggregation.
          */
-        public Factory(String name, QueryBuilder<?> filter) {
+        public FilterAggregatorBuilder(String name, QueryBuilder<?> filter) {
             super(name, InternalFilter.TYPE);
             this.filter = filter;
         }
 
-        // TODO: refactor in order to initialize the factory once with its parent,
-        // the context, etc. and then have a no-arg lightweight create method
-        // (since create may be called thousands of times)
-
-        private IndexSearcher searcher;
-        private Weight weight;
-
         @Override
-        public Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket,
-                List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-            IndexSearcher contextSearcher = context.searchContext().searcher();
-            if (searcher != contextSearcher) {
-                searcher = contextSearcher;
-                Query filter = this.filter.toQuery(context.searchContext().indexShard().getQueryShardContext());
-                weight = contextSearcher.createNormalizedWeight(filter, false);
-            }
-            return new FilterAggregator(name, weight, factories, context, parent, pipelineAggregators, metaData);
+        protected AggregatorFactory<?> doBuild(AggregationContext context) throws IOException {
+            return new FilterAggregatorFactory(name, type, filter, context);
         }
 
         @Override
@@ -131,8 +116,8 @@ public class FilterAggregator extends SingleBucketAggregator {
         }
 
         @Override
-        protected Factory doReadFrom(String name, StreamInput in) throws IOException {
-            Factory factory = new Factory(name, in.readQuery());
+        protected FilterAggregatorBuilder doReadFrom(String name, StreamInput in) throws IOException {
+            FilterAggregatorBuilder factory = new FilterAggregatorBuilder(name, in.readQuery());
             return factory;
         }
 
@@ -148,7 +133,7 @@ public class FilterAggregator extends SingleBucketAggregator {
 
         @Override
         protected boolean doEquals(Object obj) {
-            Factory other = (Factory) obj;
+            FilterAggregatorBuilder other = (FilterAggregatorBuilder) obj;
             return Objects.equals(filter, other.filter);
         }
 

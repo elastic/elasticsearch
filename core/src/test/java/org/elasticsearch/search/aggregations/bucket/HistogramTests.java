@@ -23,13 +23,13 @@ import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 import org.elasticsearch.search.aggregations.bucket.histogram.ExtendedBounds;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Order;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregator;
-import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregator.Factory;
+import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregator.HistogramAggregatorBuilder;
 
-public class HistogramTests extends BaseAggregationTestCase<HistogramAggregator.Factory> {
+public class HistogramTests extends BaseAggregationTestCase<HistogramAggregator.HistogramAggregatorBuilder> {
 
     @Override
-    protected Factory createTestAggregatorFactory() {
-        Factory factory = new Factory("foo");
+    protected HistogramAggregatorBuilder createTestAggregatorBuilder() {
+        HistogramAggregatorBuilder factory = new HistogramAggregatorBuilder("foo");
         factory.field(INT_FIELD_NAME);
         factory.interval(randomIntBetween(1, 100000));
         if (randomBoolean()) {

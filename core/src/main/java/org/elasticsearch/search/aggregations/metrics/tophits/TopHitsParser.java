@@ -27,7 +27,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField;
 import org.elasticsearch.search.fetch.FieldsParseElement;
@@ -73,8 +73,9 @@ public class TopHitsParser implements Aggregator.Parser {
     }
 
     @Override
-    public TopHitsAggregator.Factory parse(String aggregationName, XContentParser parser, QueryParseContext context) throws IOException {
-        TopHitsAggregator.Factory factory = new TopHitsAggregator.Factory(aggregationName);
+    public TopHitsAggregator.TopHitsAggregatorBuilder parse(String aggregationName, XContentParser parser, QueryParseContext context)
+            throws IOException {
+        TopHitsAggregator.TopHitsAggregatorBuilder factory = new TopHitsAggregator.TopHitsAggregatorBuilder(aggregationName);
         XContentParser.Token token;
         String currentFieldName = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -205,8 +206,8 @@ public class TopHitsParser implements Aggregator.Parser {
     }
 
     @Override
-    public AggregatorFactory<?> getFactoryPrototypes() {
-        return new TopHitsAggregator.Factory(null);
+    public AggregatorBuilder<?> getFactoryPrototypes() {
+        return new TopHitsAggregator.TopHitsAggregatorBuilder(null);
     }
 
 }

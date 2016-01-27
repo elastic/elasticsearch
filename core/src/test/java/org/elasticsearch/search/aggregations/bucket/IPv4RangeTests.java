@@ -22,15 +22,15 @@ package org.elasticsearch.search.aggregations.bucket;
 import org.elasticsearch.common.network.Cidrs;
 import org.elasticsearch.index.mapper.ip.IpFieldMapper;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
-import org.elasticsearch.search.aggregations.bucket.range.ipv4.IPv4RangeAggregatorFactory;
-import org.elasticsearch.search.aggregations.bucket.range.ipv4.IPv4RangeAggregatorFactory.Range;
+import org.elasticsearch.search.aggregations.bucket.range.ipv4.IPv4RangeAggregatorBuilder;
+import org.elasticsearch.search.aggregations.bucket.range.ipv4.IPv4RangeAggregatorBuilder.Range;
 
-public class IPv4RangeTests extends BaseAggregationTestCase<IPv4RangeAggregatorFactory> {
+public class IPv4RangeTests extends BaseAggregationTestCase<IPv4RangeAggregatorBuilder> {
 
     @Override
-    protected IPv4RangeAggregatorFactory createTestAggregatorFactory() {
+    protected IPv4RangeAggregatorBuilder createTestAggregatorBuilder() {
         int numRanges = randomIntBetween(1, 10);
-        IPv4RangeAggregatorFactory factory = new IPv4RangeAggregatorFactory("foo");
+        IPv4RangeAggregatorBuilder factory = new IPv4RangeAggregatorBuilder("foo");
         for (int i = 0; i < numRanges; i++) {
             String key = null;
             if (randomBoolean()) {

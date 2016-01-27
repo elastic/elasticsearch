@@ -37,7 +37,9 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
+import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
+import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorBuilder;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
@@ -118,29 +120,21 @@ public class MaxAggregator extends NumericMetricsAggregator.SingleValue {
         return new InternalMax(name, Double.NEGATIVE_INFINITY, formatter, pipelineAggregators(), metaData());
     }
 
-    public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.Numeric, Factory> {
+    public static class MaxAggregatorBuilder extends ValuesSourceAggregatorBuilder.LeafOnly<ValuesSource.Numeric, MaxAggregatorBuilder> {
 
-        public Factory(String name) {
+        public MaxAggregatorBuilder(String name) {
             super(name, InternalMax.TYPE, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
         }
 
         @Override
-        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent,
-                List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-            return new MaxAggregator(name, null, config.formatter(), aggregationContext, parent, pipelineAggregators, metaData);
+        protected MaxAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig<Numeric> config) {
+            return new MaxAggregatorFactory(name, type, config);
         }
 
         @Override
-        protected Aggregator doCreateInternal(ValuesSource.Numeric valuesSource, AggregationContext aggregationContext, Aggregator parent,
-                boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
-                throws IOException {
-            return new MaxAggregator(name, valuesSource, config.formatter(), aggregationContext, parent, pipelineAggregators, metaData);
-        }
-
-        @Override
-        protected Factory innerReadFrom(String name, ValuesSourceType valuesSourceType,
+        protected MaxAggregatorBuilder innerReadFrom(String name, ValuesSourceType valuesSourceType,
                 ValueType targetValueType, StreamInput in) {
-            return new MaxAggregator.Factory(name);
+            return new MaxAggregator.MaxAggregatorBuilder(name);
         }
 
         @Override

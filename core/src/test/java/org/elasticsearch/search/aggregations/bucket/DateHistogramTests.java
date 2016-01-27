@@ -23,13 +23,13 @@ import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.ExtendedBounds;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Order;
-import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregator.DateHistogramFactory;
+import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregator.DateHistogramAggregatorBuilder;
 
-public class DateHistogramTests extends BaseAggregationTestCase<DateHistogramFactory> {
+public class DateHistogramTests extends BaseAggregationTestCase<DateHistogramAggregatorBuilder> {
 
     @Override
-    protected DateHistogramFactory createTestAggregatorFactory() {
-        DateHistogramFactory factory = new DateHistogramFactory("foo");
+    protected DateHistogramAggregatorBuilder createTestAggregatorBuilder() {
+        DateHistogramAggregatorBuilder factory = new DateHistogramAggregatorBuilder("foo");
         factory.field(INT_FIELD_NAME);
         if (randomBoolean()) {
             factory.interval(randomIntBetween(1, 100000));

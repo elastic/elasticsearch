@@ -231,30 +231,34 @@ public class ShardStateAction extends AbstractComponent {
 
             // partition tasks into those that correspond to shards
             // that exist versus do not exist
-            Map<Boolean, List<ShardRoutingEntry>> partition =
-                tasks.stream().collect(Collectors.partitioningBy(task -> shardExists(currentState, task)));
+            Map<TaskClassification, List<ShardRoutingEntry>> partition =
+                tasks.stream().collect(Collectors.groupingBy(task -> classifyTask(currentState, task)));
 
             // tasks that correspond to non-existent shards are marked
             // as successful
-            batchResultBuilder.successes(partition.get(false));
+            if (partition.containsKey(TaskClassification.DOES_NOT_EXIST)) {
+                batchResultBuilder.successes(partition.get(TaskClassification.DOES_NOT_EXIST));
+            }
 
             ClusterState maybeUpdatedState = currentState;
-            List<ShardRoutingEntry> tasksToFail = partition.get(true);
-            try {
-                List<FailedRerouteAllocation.FailedShard> failedShards =
-                    tasksToFail
-                        .stream()
-                        .map(task -> new FailedRerouteAllocation.FailedShard(task.shardRouting, task.message, task.failure))
-                        .collect(Collectors.toList());
-                RoutingAllocation.Result result = applyFailedShards(currentState, failedShards);
-                if (result.changed()) {
-                    maybeUpdatedState = ClusterState.builder(currentState).routingResult(result).build();
+            if (partition.containsKey(TaskClassification.EXISTS_LEGAL)) {
+                List<ShardRoutingEntry> tasksToFail = partition.get(TaskClassification.EXISTS_LEGAL);
+                try {
+                    List<FailedRerouteAllocation.FailedShard> failedShards =
+                        tasksToFail
+                            .stream()
+                            .map(task -> new FailedRerouteAllocation.FailedShard(task.shardRouting, task.message, task.failure))
+                            .collect(Collectors.toList());
+                    RoutingAllocation.Result result = applyFailedShards(currentState, failedShards);
+                    if (result.changed()) {
+                        maybeUpdatedState = ClusterState.builder(currentState).routingResult(result).build();
+                    }
+                    batchResultBuilder.successes(tasksToFail);
+                } catch (Throwable t) {
+                    // failures are communicated back to the requester
+                    // cluster state will not be updated in this case
+                    batchResultBuilder.failures(tasksToFail, t);
                 }
-                batchResultBuilder.successes(tasksToFail);
-            } catch (Throwable t) {
-                // failures are communicated back to the requester
-                // cluster state will not be updated in this case
-                batchResultBuilder.failures(tasksToFail, t);
             }
 
             return batchResultBuilder.build(maybeUpdatedState);
@@ -265,17 +269,23 @@ public class ShardStateAction extends AbstractComponent {
             return allocationService.applyFailedShards(currentState, failedShards);
         }
 
-        private boolean shardExists(ClusterState currentState, ShardRoutingEntry task) {
+        private enum TaskClassification {
+            EXISTS_LEGAL,
+            EXISTS_ILLEGAL, // reserved for future use
+            DOES_NOT_EXIST
+        }
+
+        private TaskClassification classifyTask(ClusterState currentState, ShardRoutingEntry task) {
             RoutingNodes.RoutingNodeIterator routingNodeIterator =
                 currentState.getRoutingNodes().routingNodeIter(task.getShardRouting().currentNodeId());
             if (routingNodeIterator != null) {
                 for (ShardRouting maybe : routingNodeIterator) {
                     if (task.getShardRouting().isSameAllocation(maybe)) {
-                        return true;
+                        return TaskClassification.EXISTS_LEGAL;
                     }
                 }
             }
-            return false;
+            return TaskClassification.DOES_NOT_EXIST;
         }
 
         @Override

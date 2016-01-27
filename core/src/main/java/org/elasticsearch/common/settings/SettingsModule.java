@@ -87,7 +87,7 @@ public class SettingsModule extends AbstractModule {
     }
 
     public void validateTribeSettings(Settings settings, ClusterSettings clusterSettings) {
-        Map<String, Settings> groups = settings.getGroups("tribe.");
+        Map<String, Settings> groups = settings.getGroups("tribe.", true);
         for (Map.Entry<String, Settings>  tribeSettings : groups.entrySet()) {
             for (Map.Entry<String, String> entry : tribeSettings.getValue().getAsMap().entrySet()) {
                 validateClusterSetting(clusterSettings, entry.getKey(), tribeSettings.getValue());

@@ -192,10 +192,10 @@ public class QueryPhase implements SearchPhase {
                 final ScrollContext scrollContext = searchContext.scrollContext();
                 assert (scrollContext != null) == (searchContext.request().scroll() != null);
                 final TopDocsCollector<?> topDocsCollector;
-                ScoreDoc lastEmittedDoc;
+                ScoreDoc after = null;
                 if (searchContext.request().scroll() != null) {
                     numDocs = Math.min(searchContext.size(), totalNumDocs);
-                    lastEmittedDoc = scrollContext.lastEmittedDoc;
+                    after = scrollContext.lastEmittedDoc;
 
                     if (returnsDocsInOrder(query, searchContext.sort())) {
                         if (scrollContext.totalHits == -1) {
@@ -209,7 +209,7 @@ public class QueryPhase implements SearchPhase {
                             if (scrollContext.lastEmittedDoc != null) {
                                 BooleanQuery bq = new BooleanQuery.Builder()
                                     .add(query, BooleanClause.Occur.MUST)
-                                    .add(new MinDocQuery(lastEmittedDoc.doc + 1), BooleanClause.Occur.FILTER)
+                                    .add(new MinDocQuery(after.doc + 1), BooleanClause.Occur.FILTER)
                                     .build();
                                 query = bq;
                             }
@@ -217,7 +217,7 @@ public class QueryPhase implements SearchPhase {
                         }
                     }
                 } else {
-                    lastEmittedDoc = null;
+                    after = searchContext.searchAfter();
                 }
                 if (totalNumDocs == 0) {
                     // top collectors don't like a size of 0
@@ -226,13 +226,13 @@ public class QueryPhase implements SearchPhase {
                 assert numDocs > 0;
                 if (searchContext.sort() != null) {
                     topDocsCollector = TopFieldCollector.create(searchContext.sort(), numDocs,
-                            (FieldDoc) lastEmittedDoc, true, searchContext.trackScores(), searchContext.trackScores());
+                            (FieldDoc) after, true, searchContext.trackScores(), searchContext.trackScores());
                 } else {
                     rescore = !searchContext.rescore().isEmpty();
                     for (RescoreSearchContext rescoreContext : searchContext.rescore()) {
                         numDocs = Math.max(rescoreContext.window(), numDocs);
                     }
-                    topDocsCollector = TopScoreDocCollector.create(numDocs, lastEmittedDoc);
+                    topDocsCollector = TopScoreDocCollector.create(numDocs, after);
                 }
                 collector = topDocsCollector;
                 if (doProfile) {

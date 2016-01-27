@@ -101,7 +101,7 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
         }
         // its a tribe configured node..., force settings
         Settings.Builder sb = Settings.builder().put(settings);
-        sb.put("node.client", true); // this node should just act as a node client
+        sb.put(Node.NODE_CLIENT_SETTING.getKey(), true); // this node should just act as a node client
         sb.put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "local"); // a tribe node should not use zen discovery
         sb.put(DiscoveryService.INITIAL_STATE_TIMEOUT_SETTING.getKey(), 0); // nothing is going to be discovered, since no master will be elected
         if (sb.get("cluster.name") == null) {
@@ -139,7 +139,7 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
             if (sb.get("http.enabled") == null) {
                 sb.put("http.enabled", false);
             }
-            sb.put("node.client", true);
+            sb.put(Node.NODE_CLIENT_SETTING.getKey(), true);
             nodes.add(new TribeClientNode(sb.build()));
         }
 

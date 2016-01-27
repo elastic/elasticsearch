@@ -28,11 +28,11 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -43,7 +43,6 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 @ClusterScope(scope = Scope.TEST, numClientNodes = 0)
-@TestLogging("discovery.zen:TRACE")
 public class TransportClientRetryIT extends ESIntegTestCase {
     public void testRetry() throws IOException, ExecutionException, InterruptedException {
         Iterable<TransportService> instances = internalCluster().getInstances(TransportService.class);
@@ -55,7 +54,7 @@ public class TransportClientRetryIT extends ESIntegTestCase {
 
         Settings.Builder builder = settingsBuilder().put("client.transport.nodes_sampler_interval", "1s")
                 .put("name", "transport_client_retry_test")
-                .put("node.mode", internalCluster().getNodeMode())
+                .put(Node.NODE_MODE_SETTING.getKey(), internalCluster().getNodeMode())
                 .put(ClusterName.SETTING, internalCluster().getClusterName())
                 .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING, true)
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir());

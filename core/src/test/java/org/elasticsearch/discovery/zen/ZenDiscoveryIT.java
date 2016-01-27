@@ -45,6 +45,7 @@ import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.discovery.zen.fd.FaultDetection;
 import org.elasticsearch.discovery.zen.membership.MembershipAction;
 import org.elasticsearch.discovery.zen.publish.PublishClusterStateAction;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.TestCustomMetaData;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -77,6 +78,7 @@ import static org.hamcrest.Matchers.sameInstance;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 @ESIntegTestCase.SuppressLocalMode
+@TestLogging("_root:DEBUG")
 public class ZenDiscoveryIT extends ESIntegTestCase {
     public void testChangeRejoinOnMasterOptionIsDynamic() throws Exception {
         Settings nodeSettings = Settings.settingsBuilder()
@@ -101,12 +103,12 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
                 .build();
 
         Settings masterNodeSettings = Settings.builder()
-                .put("node.data", false)
+                .put(Node.NODE_DATA_SETTING.getKey(), false)
                 .put(defaultSettings)
                 .build();
         internalCluster().startNodesAsync(2, masterNodeSettings).get();
         Settings dateNodeSettings = Settings.builder()
-                .put("node.master", false)
+                .put(Node.NODE_MASTER_SETTING.getKey(), false)
                 .put(defaultSettings)
                 .build();
         internalCluster().startNodesAsync(2, dateNodeSettings).get();
@@ -139,7 +141,6 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
         assertThat(numRecoveriesAfterNewMaster, equalTo(numRecoveriesBeforeNewMaster));
     }
 
-    @TestLogging(value = "action.admin.cluster.health:TRACE")
     public void testNodeFailuresAreProcessedOnce() throws ExecutionException, InterruptedException, IOException {
         Settings defaultSettings = Settings.builder()
                 .put(FaultDetection.PING_TIMEOUT_SETTING.getKey(), "1s")
@@ -148,12 +149,12 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
                 .build();
 
         Settings masterNodeSettings = Settings.builder()
-                .put("node.data", false)
+                .put(Node.NODE_DATA_SETTING.getKey(), false)
                 .put(defaultSettings)
                 .build();
         String master = internalCluster().startNode(masterNodeSettings);
         Settings dateNodeSettings = Settings.builder()
-                .put("node.master", false)
+                .put(Node.NODE_MASTER_SETTING.getKey(), false)
                 .put(defaultSettings)
                 .build();
         internalCluster().startNodesAsync(2, dateNodeSettings).get();

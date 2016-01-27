@@ -56,7 +56,7 @@ public class TribeUnitTests extends ESTestCase {
     public static void createTribes() {
         Settings baseSettings = Settings.builder()
             .put("http.enabled", false)
-            .put("node.mode", NODE_MODE)
+            .put(Node.NODE_MODE_SETTING.getKey(), NODE_MODE)
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
 
         tribe1 = new TribeClientNode(

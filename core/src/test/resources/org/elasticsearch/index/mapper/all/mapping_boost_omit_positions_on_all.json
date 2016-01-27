@@ -11,7 +11,7 @@
                 "properties":{
                     "first":{
                         "type":"string",
-                        "store":"yes",
+                        "store":true,
                         "include_in_all":false
                     },
                     "last":{
@@ -29,7 +29,7 @@
                         "properties":{
                             "location":{
                                 "type":"string",
-                                "store":"yes"
+                                "store":true
                             }
                         }
                     },

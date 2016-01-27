@@ -32,13 +32,13 @@ public class GeoPointFieldTypeTests extends FieldTypeTestCase {
 
     @Before
     public void setupProperties() {
-        addModifier(new Modifier("geohash", false, true) {
+        addModifier(new Modifier("geohash", false) {
             @Override
             public void modify(MappedFieldType ft) {
                 ((BaseGeoPointFieldMapper.GeoPointFieldType)ft).setGeoHashEnabled(new StringFieldMapper.StringFieldType(), 1, true);
             }
         });
-        addModifier(new Modifier("lat_lon", false, true) {
+        addModifier(new Modifier("lat_lon", false) {
             @Override
             public void modify(MappedFieldType ft) {
                 ((BaseGeoPointFieldMapper.GeoPointFieldType)ft).setLatLonEnabled(new DoubleFieldMapper.DoubleFieldType(), new DoubleFieldMapper.DoubleFieldType());

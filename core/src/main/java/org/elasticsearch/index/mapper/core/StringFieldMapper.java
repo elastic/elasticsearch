@@ -31,6 +31,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -146,6 +147,27 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             StringFieldMapper.Builder builder = stringField(name);
+            // hack for the fact that string can't just accept true/false for
+            // the index property and still accepts no/not_analyzed/analyzed
+            final Object index = node.remove("index");
+            if (index != null) {
+                final String normalizedIndex = Strings.toUnderscoreCase(index.toString());
+                switch (normalizedIndex) {
+                case "analyzed":
+                    builder.tokenized(true);
+                    node.put("index", true);
+                    break;
+                case "not_analyzed":
+                    builder.tokenized(false);
+                    node.put("index", true);
+                    break;
+                case "no":
+                    node.put("index", false);
+                    break;
+                default:
+                    throw new IllegalArgumentException("Can't parse [index] value [" + index + "], expected [true], [false], [no], [not_analyzed] or [analyzed]");
+                }
+            }
             parseTextField(builder, name, node, parserContext);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
@@ -366,6 +388,17 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
         super.doMerge(mergeWith, updateAllTypes);
         this.includeInAll = ((StringFieldMapper) mergeWith).includeInAll;
         this.ignoreAbove = ((StringFieldMapper) mergeWith).ignoreAbove;
+    }
+
+    @Override
+    protected String indexTokenizeOption(boolean indexed, boolean tokenized) {
+        if (!indexed) {
+            return "no";
+        } else if (tokenized) {
+            return "analyzed";
+        } else {
+            return "not_analyzed";
+        }
     }
 
     @Override

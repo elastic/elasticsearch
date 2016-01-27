@@ -23,6 +23,7 @@ import org.apache.lucene.analysis.NumericTokenStream;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -281,17 +282,19 @@ public class SimpleNumericTests extends ESSingleNodeTestCase {
     public void testDocValues() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties")
-                .startObject("int")
+                .startObject("int1")
                     .field("type", "integer")
-                    .startObject("fielddata")
-                        .field("format", "doc_values")
-                    .endObject()
                 .endObject()
-                .startObject("double")
+                .startObject("int2")
+                    .field("type", "integer")
+                    .field("index", false)
+                .endObject()
+                .startObject("double1")
                     .field("type", "double")
-                    .startObject("fielddata")
-                        .field("format", "doc_values")
-                    .endObject()
+                .endObject()
+                .startObject("double2")
+                    .field("type", "integer")
+                    .field("index", false)
                 .endObject()
                 .endObject()
                 .endObject().endObject().string();
@@ -300,13 +303,110 @@ public class SimpleNumericTests extends ESSingleNodeTestCase {
 
         ParsedDocument parsedDoc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
+                .field("int1", "1234")
+                .field("double1", "1234")
+                .field("int2", "1234")
+                .field("double2", "1234")
+                .endObject()
+                .bytes());
+        Document doc = parsedDoc.rootDoc();
+        assertEquals(DocValuesType.SORTED_NUMERIC, SimpleStringMappingTests.docValuesType(doc, "int1"));
+        assertEquals(DocValuesType.SORTED_NUMERIC, SimpleStringMappingTests.docValuesType(doc, "double1"));
+        assertEquals(DocValuesType.SORTED_NUMERIC, SimpleStringMappingTests.docValuesType(doc, "int2"));
+        assertEquals(DocValuesType.SORTED_NUMERIC, SimpleStringMappingTests.docValuesType(doc, "double2"));
+
+    }
+
+    public void testBwCompatDocValues() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties")
+                .startObject("int1")
+                    .field("type", "integer")
+                .endObject()
+                .startObject("int2")
+                    .field("type", "integer")
+                    .field("index", "no")
+                .endObject()
+                .startObject("double1")
+                    .field("type", "double")
+                .endObject()
+                .startObject("double2")
+                    .field("type", "integer")
+                    .field("index", "no")
+                .endObject()
+                .endObject()
+                .endObject().endObject().string();
+
+        Settings oldIndexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_2_2_0).build();
+        DocumentMapper defaultMapper = createIndex("test", oldIndexSettings).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
+
+        ParsedDocument parsedDoc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
+                .startObject()
+                .field("int1", "1234")
+                .field("double1", "1234")
+                .field("int2", "1234")
+                .field("double2", "1234")
+                .endObject()
+                .bytes());
+        Document doc = parsedDoc.rootDoc();
+        assertEquals(DocValuesType.SORTED_NUMERIC, SimpleStringMappingTests.docValuesType(doc, "int1"));
+        assertEquals(DocValuesType.SORTED_NUMERIC, SimpleStringMappingTests.docValuesType(doc, "double1"));
+        assertEquals(DocValuesType.NONE, SimpleStringMappingTests.docValuesType(doc, "int2"));
+        assertEquals(DocValuesType.NONE, SimpleStringMappingTests.docValuesType(doc, "double2"));
+    }
+
+    public void testUnIndex() throws IOException {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties")
+                .startObject("int")
+                    .field("type", "integer")
+                    .field("index", false)
+                .endObject()
+                .startObject("double")
+                    .field("type", "double")
+                    .field("index", false)
+                .endObject()
+                .endObject()
+                .endObject().endObject().string();
+
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
+
+        assertEquals("{\"type\":{\"properties\":{\"double\":{\"type\":\"double\",\"index\":false},\"int\":{\"type\":\"integer\",\"index\":false}}}}",
+                defaultMapper.mapping().toString());
+
+        ParsedDocument parsedDoc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
+                .startObject()
                 .field("int", "1234")
                 .field("double", "1234")
                 .endObject()
                 .bytes());
         final Document doc = parsedDoc.rootDoc();
-        assertEquals(DocValuesType.SORTED_NUMERIC, SimpleStringMappingTests.docValuesType(doc, "int"));
-        assertEquals(DocValuesType.SORTED_NUMERIC, SimpleStringMappingTests.docValuesType(doc, "double"));
+        for (IndexableField field : doc.getFields("int")) {
+            assertEquals(IndexOptions.NONE, field.fieldType().indexOptions());
+        }
+        for (IndexableField field : doc.getFields("double")) {
+            assertEquals(IndexOptions.NONE, field.fieldType().indexOptions());
+        }
+    }
+
+    public void testBwCompatIndex() throws IOException {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties")
+                .startObject("int")
+                    .field("type", "integer")
+                    .field("index", "no")
+                .endObject()
+                .startObject("double")
+                    .field("type", "double")
+                    .field("index", "not_analyzed")
+                .endObject()
+                .endObject()
+                .endObject().endObject().string();
+
+        Settings oldSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_2_2_0).build();
+        DocumentMapper defaultMapper = createIndex("test", oldSettings).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
+        assertEquals("{\"type\":{\"properties\":{\"double\":{\"type\":\"double\"},\"int\":{\"type\":\"integer\",\"index\":false}}}}",
+                defaultMapper.mapping().toString());
     }
 
     public void testDocValuesOnNested() throws Exception {

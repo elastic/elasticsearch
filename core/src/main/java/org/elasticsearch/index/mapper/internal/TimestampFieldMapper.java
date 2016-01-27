@@ -43,7 +43,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.lenientNodeBooleanValue;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseDateTimeFormatter;
 
 public class TimestampFieldMapper extends MetadataFieldMapper {
@@ -134,7 +134,7 @@ public class TimestampFieldMapper extends MetadataFieldMapper {
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());
                 Object fieldNode = entry.getValue();
                 if (fieldName.equals("enabled")) {
-                    EnabledAttributeMapper enabledState = nodeBooleanValue(fieldNode) ? EnabledAttributeMapper.ENABLED : EnabledAttributeMapper.DISABLED;
+                    EnabledAttributeMapper enabledState = lenientNodeBooleanValue(fieldNode) ? EnabledAttributeMapper.ENABLED : EnabledAttributeMapper.DISABLED;
                     builder.enabled(enabledState);
                     iterator.remove();
                 } else if (fieldName.equals("format")) {
@@ -149,7 +149,7 @@ public class TimestampFieldMapper extends MetadataFieldMapper {
                     }
                     iterator.remove();
                 } else if (fieldName.equals("ignore_missing")) {
-                    ignoreMissing = nodeBooleanValue(fieldNode);
+                    ignoreMissing = lenientNodeBooleanValue(fieldNode);
                     builder.ignoreMissing(ignoreMissing);
                     iterator.remove();
                 }

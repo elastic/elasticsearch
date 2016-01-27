@@ -78,8 +78,8 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                 .setSettings(indexSettings())
                 .setOrder(0)
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
-                        .startObject("field1").field("type", "string").field("store", "yes").endObject()
-                        .startObject("field2").field("type", "string").field("store", "yes").field("index", "not_analyzed").endObject()
+                        .startObject("field1").field("type", "string").field("store", true).endObject()
+                        .startObject("field2").field("type", "string").field("store", true).field("index", "not_analyzed").endObject()
                         .endObject().endObject().endObject())
                 .get();
 
@@ -88,7 +88,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                 .setSettings(indexSettings())
                 .setOrder(1)
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
-                        .startObject("field2").field("type", "string").field("store", "no").endObject()
+                        .startObject("field2").field("type", "string").field("store", false).endObject()
                         .endObject().endObject().endObject())
                 .get();
 
@@ -99,7 +99,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                 .setCreate(true)
                 .setOrder(1)
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
-                        .startObject("field2").field("type", "string").field("store", "no").endObject()
+                        .startObject("field2").field("type", "string").field("store", false).endObject()
                         .endObject().endObject().endObject())
                 , IndexTemplateAlreadyExistsException.class
         );
@@ -145,8 +145,8 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                 .setTemplate("te*")
                 .setOrder(0)
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
-                        .startObject("field1").field("type", "string").field("store", "yes").endObject()
-                        .startObject("field2").field("type", "string").field("store", "yes").field("index", "not_analyzed").endObject()
+                        .startObject("field1").field("type", "string").field("store", true).endObject()
+                        .startObject("field2").field("type", "string").field("store", true).field("index", "not_analyzed").endObject()
                         .endObject().endObject().endObject())
                 .execute().actionGet();
 
@@ -170,8 +170,8 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                 .setTemplate("te*")
                 .setOrder(0)
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
-                        .startObject("field1").field("type", "string").field("store", "yes").endObject()
-                        .startObject("field2").field("type", "string").field("store", "yes").field("index", "not_analyzed").endObject()
+                        .startObject("field1").field("type", "string").field("store", true).endObject()
+                        .startObject("field2").field("type", "string").field("store", true).field("index", "not_analyzed").endObject()
                         .endObject().endObject().endObject())
                 .execute().actionGet();
 
@@ -190,8 +190,8 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                 .setTemplate("te*")
                 .setOrder(0)
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
-                        .startObject("field1").field("type", "string").field("store", "yes").endObject()
-                        .startObject("field2").field("type", "string").field("store", "yes").field("index", "not_analyzed").endObject()
+                        .startObject("field1").field("type", "string").field("store", true).endObject()
+                        .startObject("field2").field("type", "string").field("store", true).field("index", "not_analyzed").endObject()
                         .endObject().endObject().endObject())
                 .execute().actionGet();
 
@@ -213,8 +213,8 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                 .setTemplate("te*")
                 .setOrder(0)
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
-                        .startObject("field1").field("type", "string").field("store", "yes").endObject()
-                        .startObject("field2").field("type", "string").field("store", "yes").field("index", "not_analyzed").endObject()
+                        .startObject("field1").field("type", "string").field("store", true).endObject()
+                        .startObject("field2").field("type", "string").field("store", true).field("index", "not_analyzed").endObject()
                         .endObject().endObject().endObject())
                 .execute().actionGet();
 
@@ -223,8 +223,8 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                 .setTemplate("te*")
                 .setOrder(0)
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
-                        .startObject("field1").field("type", "string").field("store", "yes").endObject()
-                        .startObject("field2").field("type", "string").field("store", "yes").field("index", "not_analyzed").endObject()
+                        .startObject("field1").field("type", "string").field("store", true).endObject()
+                        .startObject("field2").field("type", "string").field("store", true).field("index", "not_analyzed").endObject()
                         .endObject().endObject().endObject())
                 .execute().actionGet();
 
@@ -233,8 +233,8 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                 .setTemplate("te*")
                 .setOrder(0)
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
-                        .startObject("field1").field("type", "string").field("store", "yes").endObject()
-                        .startObject("field2").field("type", "string").field("store", "yes").field("index", "not_analyzed").endObject()
+                        .startObject("field1").field("type", "string").field("store", true).endObject()
+                        .startObject("field2").field("type", "string").field("store", true).field("index", "not_analyzed").endObject()
                         .endObject().endObject().endObject())
                 .execute().actionGet();
 

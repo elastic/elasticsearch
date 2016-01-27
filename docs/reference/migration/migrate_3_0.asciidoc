@@ -257,6 +257,11 @@ amount of heap as long as the total indexing buffer heap used across all shards 
 [[breaking_30_mapping_changes]]
 === Mapping changes
 
+==== Default doc values settings
+
+Doc values are now also on by default on numeric and boolean fields that are
+not indexed.
+
 ==== Transform removed
 
 The `transform` feature from mappings has been removed. It made issues very hard to debug.
@@ -267,6 +272,12 @@ When a floating-point number is encountered, it is now dynamically mapped as a
 float by default instead of a double. The reasoning is that floats should be
 more than enough for most cases but would decrease storage requirements
 significantly.
+
+==== `index` property
+
+On all types but `string`, the `index` property now only accepts `true`/`false`
+instead of `not_analyzed`/`no`. The `string` field still accepts
+`analyzed`/`not_analyzed`/`no`.
 
 ==== `_source`'s `format` option
 
@@ -287,6 +298,12 @@ values as follows:
   "boost": 42
 }
 ----
+
+==== `fielddata.format`
+
+Setting `fielddata.format: doc_values` in the mappings used to implicitly
+enable doc values on a field. This no longer works: the only way to enable or
+disable doc values is by using the `doc_values` property of mappings.
 
 
 [[breaking_30_plugins]]

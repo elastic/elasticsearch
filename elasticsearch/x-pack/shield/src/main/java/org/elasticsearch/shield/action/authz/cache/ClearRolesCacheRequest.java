@@ -55,7 +55,7 @@ public class ClearRolesCacheRequest extends BaseNodesRequest<ClearRolesCacheRequ
         }
 
         public Node(ClearRolesCacheRequest request, String nodeId) {
-            super(request, nodeId);
+            super(nodeId);
             this.roles = request.roles();
         }
 

@@ -38,7 +38,7 @@ public class BulkUpdateTests extends ShieldIntegTestCase {
     public void testThatBulkUpdateDoesNotLoseFields() {
         assertThat(client().prepareIndex("index1", "type").setSource("{\"test\": \"test\"}").setId("1").get().isCreated(), is(true));
         GetResponse getResponse = internalCluster().transportClient().prepareGet("index1", "type", "1").setFields("test").get();
-        assertThat((String) getResponse.getField("test").getValue(), equalTo("test"));
+        assertThat(getResponse.getField("test").getValue(), equalTo("test"));
 
         if (randomBoolean()) {
             flushAndRefresh();

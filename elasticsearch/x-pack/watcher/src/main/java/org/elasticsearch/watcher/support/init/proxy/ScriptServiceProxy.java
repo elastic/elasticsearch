@@ -5,12 +5,13 @@
  */
 package org.elasticsearch.watcher.support.init.proxy;
 
-import org.elasticsearch.common.ContextAndHeaderHolder;
 import org.elasticsearch.common.inject.Injector;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.shield.ShieldIntegration;
 import org.elasticsearch.watcher.support.Script;
 import org.elasticsearch.watcher.support.init.InitializingService;
@@ -25,7 +26,8 @@ import java.util.Map;
 public class ScriptServiceProxy implements InitializingService.Initializable {
 
     private ScriptService service;
-    private ContextAndHeaderHolder contextAndHeaderHolder = new ContextAndHeaderHolder();
+    private ThreadContext threadContext;
+    private ShieldIntegration shieldIntegration;
 
     /**
      * Creates a proxy to the given script service (can be used for testing)
@@ -39,27 +41,49 @@ public class ScriptServiceProxy implements InitializingService.Initializable {
     @Override
     public void init(Injector injector) {
         this.service = injector.getInstance(ScriptService.class);
-        ShieldIntegration shieldIntegration = injector.getInstance(ShieldIntegration.class);
-        if (shieldIntegration != null) {
-            shieldIntegration.putUserInContext(contextAndHeaderHolder);
-        }
+        this.threadContext = injector.getInstance(ThreadPool.class).getThreadContext();
+        this.shieldIntegration = injector.getInstance(ShieldIntegration.class);
     }
 
     public CompiledScript compile(Script script) {
+        if (shieldIntegration != null) {
+            try (ThreadContext.StoredContext ctx = threadContext.stashContext()) {
+                shieldIntegration.setWatcherUser();
+                return compile(new org.elasticsearch.script.Script(script.script(), script.type(), script.lang(), script.params()));
+            }
+        }
         return compile(new org.elasticsearch.script.Script(script.script(), script.type(), script.lang(), script.params()));
     }
 
     public CompiledScript compile(org.elasticsearch.script.Script script) {
-        return service.compile(script, WatcherScriptContext.CTX, contextAndHeaderHolder, Collections.emptyMap());
+        if (shieldIntegration != null) {
+            try (ThreadContext.StoredContext ctx = threadContext.stashContext()) {
+                shieldIntegration.setWatcherUser();
+                return service.compile(script, WatcherScriptContext.CTX, Collections.emptyMap());
+            }
+        }
+        return service.compile(script, WatcherScriptContext.CTX, Collections.emptyMap());
     }
 
     public ExecutableScript executable(CompiledScript compiledScript, Map<String, Object> vars) {
+        if (shieldIntegration != null) {
+            try (ThreadContext.StoredContext ctx = threadContext.stashContext()) {
+                shieldIntegration.setWatcherUser();
+                return service.executable(compiledScript, vars);
+            }
+        }
         return service.executable(compiledScript, vars);
     }
 
 
     public ExecutableScript executable(org.elasticsearch.script.Script script) {
-        return service.executable(script, WatcherScriptContext.CTX, contextAndHeaderHolder, Collections.emptyMap());
+        if (shieldIntegration != null) {
+            try (ThreadContext.StoredContext ctx = threadContext.stashContext()) {
+                shieldIntegration.setWatcherUser();
+                return service.executable(script, WatcherScriptContext.CTX, Collections.emptyMap());
+            }
+        }
+        return service.executable(script, WatcherScriptContext.CTX, Collections.emptyMap());
     }
 
     public static final ScriptContext.Plugin INSTANCE = new ScriptContext.Plugin("elasticsearch-watcher", "watch");

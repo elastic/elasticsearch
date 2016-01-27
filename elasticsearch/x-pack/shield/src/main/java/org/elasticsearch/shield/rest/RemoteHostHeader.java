@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.shield.rest;
 
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.transport.TransportMessage;
 
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
@@ -22,23 +22,23 @@ public class RemoteHostHeader {
      * Extracts the remote address from the given rest request and puts in the request context. This will
      * then be copied to the subsequent action requests.
      */
-    public static void process(RestRequest request) {
-        request.putInContext(KEY, request.getRemoteAddress());
+    public static void process(RestRequest request, ThreadContext threadContext) {
+        threadContext.putTransient(KEY, request.getRemoteAddress());
     }
 
     /**
      * Extracts the rest remote address from the message context. If not found, returns {@code null}. transport
      * messages that were created by rest handlers, should have this in their context.
      */
-    public static InetSocketAddress restRemoteAddress(TransportMessage message) {
-        SocketAddress address = message.getFromContext(KEY);
+    public static InetSocketAddress restRemoteAddress(ThreadContext threadContext) {
+        SocketAddress address = threadContext.getTransient(KEY);
         if (address != null && address instanceof InetSocketAddress) {
             return (InetSocketAddress) address;
         }
         return null;
     }
 
-    public static void putRestRemoteAddress(TransportMessage message, SocketAddress address) {
-        message.putInContext(KEY, address);
+    public static void putRestRemoteAddress(ThreadContext threadContext, SocketAddress address) {
+        threadContext.putTransient(KEY, address);
     }
 }

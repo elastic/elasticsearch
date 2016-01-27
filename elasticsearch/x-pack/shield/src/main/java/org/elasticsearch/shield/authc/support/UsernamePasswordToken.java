@@ -6,10 +6,9 @@
 package org.elasticsearch.shield.authc.support;
 
 import org.elasticsearch.common.Base64;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.shield.authc.AuthenticationToken;
-import org.elasticsearch.transport.TransportMessage;
-import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 import java.nio.CharBuffer;
@@ -67,8 +66,8 @@ public class UsernamePasswordToken implements AuthenticationToken {
         return Objects.hash(username, password.hashCode());
     }
 
-    public static UsernamePasswordToken extractToken(TransportMessage<?> message, UsernamePasswordToken defaultToken) {
-        String authStr = message.getHeader(BASIC_AUTH_HEADER);
+    public static UsernamePasswordToken extractToken(ThreadContext context, UsernamePasswordToken defaultToken) {
+        String authStr = context.getHeader(BASIC_AUTH_HEADER);
         if (authStr == null) {
             return defaultToken;
         }
@@ -108,8 +107,8 @@ public class UsernamePasswordToken implements AuthenticationToken {
                 new SecuredString(Arrays.copyOfRange(userpasswd, i + 1, userpasswd.length)));
     }
 
-    public static void putTokenHeader(TransportRequest request, UsernamePasswordToken token) {
-        request.putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue(token.username, token.password));
+    public static void putTokenHeader(ThreadContext context, UsernamePasswordToken token) {
+        context.putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue(token.username, token.password));
     }
 
     public static String basicAuthHeaderValue(String username, SecuredString passwd) {

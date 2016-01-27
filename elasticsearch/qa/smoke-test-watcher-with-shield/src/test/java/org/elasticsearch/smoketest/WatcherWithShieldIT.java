@@ -15,8 +15,8 @@ import org.apache.http.client.methods.HttpPut;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.impl.conn.BasicHttpClientConnectionManager;
-import org.elasticsearch.client.support.Headers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -67,7 +67,7 @@ public class WatcherWithShieldIT extends ESRestTestCase {
     protected Settings restClientSettings() {
         String token = basicAuthHeaderValue("watcher_manager", new SecuredString("changeme".toCharArray()));
         return Settings.builder()
-                .put(Headers.PREFIX + ".Authorization", token)
+                .put(ThreadContext.PREFIX + ".Authorization", token)
                 .build();
     }
 
@@ -75,7 +75,7 @@ public class WatcherWithShieldIT extends ESRestTestCase {
     protected Settings restAdminSettings() {
         String token = basicAuthHeaderValue(TEST_ADMIN_USERNAME, new SecuredString(TEST_ADMIN_PASSWORD.toCharArray()));
         return Settings.builder()
-            .put(Headers.PREFIX + ".Authorization", token)
+            .put(ThreadContext.PREFIX + ".Authorization", token)
             .build();
     }
 }

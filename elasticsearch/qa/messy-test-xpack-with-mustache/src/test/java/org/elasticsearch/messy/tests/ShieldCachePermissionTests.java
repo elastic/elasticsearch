@@ -95,9 +95,9 @@ public class ShieldCachePermissionTests extends ShieldIntegTestCase {
 
         // Repeat with unauthorized user!!!!
         try {
-            response = client().prepareSearch("data").setTypes("a").setQuery(QueryBuilders.constantScoreQuery(
+            response = client().filterWithHeader(Collections.singletonMap("Authorization", basicAuthHeaderValue(READ_ONE_IDX_USER, new SecuredString("changeme".toCharArray()))))
+                    .prepareSearch("data").setTypes("a").setQuery(QueryBuilders.constantScoreQuery(
                     QueryBuilders.termsLookupQuery("token", new TermsLookup("tokens", "tokens", "1", "tokens"))))
-                    .putHeader("Authorization", basicAuthHeaderValue(READ_ONE_IDX_USER, new SecuredString("changeme".toCharArray())))
                     .execute().actionGet();
             fail("search phase exception should have been thrown! response was:\n" + response.toString());
         } catch (SearchPhaseExecutionException e) {
@@ -115,9 +115,9 @@ public class ShieldCachePermissionTests extends ShieldIntegTestCase {
 
         // Repeat with unauthorized user!!!!
         try {
-            response = client().prepareSearch("data").setTypes("a")
+            response = client().filterWithHeader(Collections.singletonMap("Authorization", basicAuthHeaderValue(READ_ONE_IDX_USER, new SecuredString("changeme".toCharArray()))))
+                    .prepareSearch("data").setTypes("a")
                     .setTemplate(new Template("testTemplate", ScriptService.ScriptType.INDEXED, MustacheScriptEngineService.NAME, null, Collections.<String, Object>singletonMap("name", "token")))
-                    .putHeader("Authorization", basicAuthHeaderValue(READ_ONE_IDX_USER, new SecuredString("changeme".toCharArray())))
                     .execute().actionGet();
             fail("search phase exception should have been thrown! response was:\n" + response.toString());
         } catch (SearchPhaseExecutionException e) {

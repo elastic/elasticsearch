@@ -29,6 +29,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
@@ -197,7 +198,7 @@ public class ESNativeTests extends ShieldIntegTestCase {
         client().prepareIndex("idx", "doc", "1").setSource("body", "foo").setRefresh(true).get();
 
         String token = basicAuthHeaderValue("joe", new SecuredString("s3krit".toCharArray()));
-        SearchResponse searchResp = client().prepareSearch("idx").putHeader("Authorization", token).get();
+        SearchResponse searchResp = client().filterWithHeader(Collections.singletonMap("Authorization", token)).prepareSearch("idx").get();
 
         assertEquals(searchResp.getHits().getTotalHits(), 1L);
     }
@@ -223,7 +224,7 @@ public class ESNativeTests extends ShieldIntegTestCase {
         // Index a document with the default test user
         client().prepareIndex("idx", "doc", "1").setSource("body", "foo").setRefresh(true).get();
         String token = basicAuthHeaderValue("joe", new SecuredString("s3krit".toCharArray()));
-        SearchResponse searchResp = client().prepareSearch("idx").putHeader("Authorization", token).get();
+        SearchResponse searchResp = client().filterWithHeader(Collections.singletonMap("Authorization", token)).prepareSearch("idx").get();
 
         assertEquals(searchResp.getHits().getTotalHits(), 1L);
 
@@ -234,7 +235,7 @@ public class ESNativeTests extends ShieldIntegTestCase {
                 .get();
 
         try {
-            client().prepareSearch("idx").putHeader("Authorization", token).get();
+            client().filterWithHeader(Collections.singletonMap("Authorization", token)).prepareSearch("idx").get();
             fail("authentication with old credentials after an update to the user should fail!");
         } catch (ElasticsearchSecurityException e) {
             // expected
@@ -242,7 +243,7 @@ public class ESNativeTests extends ShieldIntegTestCase {
         }
 
         token = basicAuthHeaderValue("joe", new SecuredString("s3krit2".toCharArray()));
-        searchResp = client().prepareSearch("idx").putHeader("Authorization", token).get();
+        searchResp = client().filterWithHeader(Collections.singletonMap("Authorization", token)).prepareSearch("idx").get();
         assertEquals(searchResp.getHits().getTotalHits(), 1L);
     }
 
@@ -267,14 +268,14 @@ public class ESNativeTests extends ShieldIntegTestCase {
         // Index a document with the default test user
         client().prepareIndex("idx", "doc", "1").setSource("body", "foo").setRefresh(true).get();
         String token = basicAuthHeaderValue("joe", new SecuredString("s3krit".toCharArray()));
-        SearchResponse searchResp = client().prepareSearch("idx").putHeader("Authorization", token).get();
+        SearchResponse searchResp = client().filterWithHeader(Collections.singletonMap("Authorization", token)).prepareSearch("idx").get();
 
         assertEquals(searchResp.getHits().getTotalHits(), 1L);
 
         DeleteUserResponse response = c.prepareDeleteUser().user("joe").get();
         assertThat(response.found(), is(true));
         try {
-            client().prepareSearch("idx").putHeader("Authorization", token).get();
+            client().filterWithHeader(Collections.singletonMap("Authorization", token)).prepareSearch("idx").get();
             fail("authentication with a deleted user should fail!");
         } catch (ElasticsearchSecurityException e) {
             // expected
@@ -304,7 +305,7 @@ public class ESNativeTests extends ShieldIntegTestCase {
 
         if (authenticate) {
             final String token = basicAuthHeaderValue("joe", new SecuredString("s3krit".toCharArray()));
-            ClusterHealthResponse response = client().admin().cluster().prepareHealth().putHeader("Authorization", token).get();
+            ClusterHealthResponse response = client().filterWithHeader(Collections.singletonMap("Authorization", token)).admin().cluster().prepareHealth().get();
             assertFalse(response.isTimedOut());
             c.prepareAddRole()
                     .name("test_role")
@@ -313,7 +314,7 @@ public class ESNativeTests extends ShieldIntegTestCase {
                             new String[]{"body", "title"}, new BytesArray("{\"match_all\": {}}"))
                     .get();
             try {
-                client().admin().cluster().prepareHealth().putHeader("Authorization", token).get();
+                client().filterWithHeader(Collections.singletonMap("Authorization", token)).admin().cluster().prepareHealth().get();
                 fail("user should not be able to execute any cluster actions!");
             } catch (ElasticsearchSecurityException e) {
                 assertThat(e.status(), is(RestStatus.FORBIDDEN));
@@ -356,11 +357,11 @@ public class ESNativeTests extends ShieldIntegTestCase {
         ensureGreen(ShieldTemplateService.SHIELD_ADMIN_INDEX_NAME);
 
         final String token = basicAuthHeaderValue("joe", new SecuredString("s3krit".toCharArray()));
-        ClusterHealthResponse response = client().admin().cluster().prepareHealth().putHeader("Authorization", token).get();
+        ClusterHealthResponse response = client().filterWithHeader(Collections.singletonMap("Authorization", token)).admin().cluster().prepareHealth().get();
         assertFalse(response.isTimedOut());
         c.prepareDeleteRole().role("test_role").get();
         try {
-            client().admin().cluster().prepareHealth().putHeader("Authorization", token).get();
+            client().filterWithHeader(Collections.singletonMap("Authorization", token)).admin().cluster().prepareHealth().get();
             fail("user should not be able to execute any actions!");
         } catch (ElasticsearchSecurityException e) {
             assertThat(e.status(), is(RestStatus.FORBIDDEN));

@@ -30,7 +30,7 @@ public class RestAckWatchAction extends WatcherRestHandler {
 
     @Inject
     public RestAckWatchAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+        super(settings, client);
         controller.registerHandler(RestRequest.Method.PUT, URI_BASE + "/watch/{id}/_ack", this);
         controller.registerHandler(RestRequest.Method.POST, URI_BASE + "/watch/{id}/_ack", this);
         controller.registerHandler(RestRequest.Method.PUT, URI_BASE + "/watch/{id}/{actions}/_ack", this);

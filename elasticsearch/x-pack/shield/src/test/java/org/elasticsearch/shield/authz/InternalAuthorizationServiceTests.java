@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.search.action.SearchServiceTransportAction;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.audit.AuditTrail;
@@ -34,6 +35,7 @@ import org.elasticsearch.shield.authz.privilege.GeneralPrivilege;
 import org.elasticsearch.shield.authz.privilege.IndexPrivilege;
 import org.elasticsearch.shield.authz.store.RolesStore;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
 import org.junit.Before;
 
@@ -56,6 +58,8 @@ public class InternalAuthorizationServiceTests extends ESTestCase {
     private RolesStore rolesStore;
     private ClusterService clusterService;
     private InternalAuthorizationService internalAuthorizationService;
+    private ThreadContext threadContext;
+    private ThreadPool threadPool;
 
     @Before
     public void setup() {
@@ -63,7 +67,12 @@ public class InternalAuthorizationServiceTests extends ESTestCase {
         clusterService = mock(ClusterService.class);
         auditTrail = mock(AuditTrail.class);
         AnonymousService anonymousService = new AnonymousService(Settings.EMPTY);
-        internalAuthorizationService = new InternalAuthorizationService(Settings.EMPTY, rolesStore, clusterService, auditTrail, anonymousService, new DefaultAuthenticationFailureHandler());
+        threadContext = new ThreadContext(Settings.EMPTY);
+        threadPool = mock(ThreadPool.class);
+        when(threadPool.getThreadContext()).thenReturn(threadContext);
+
+        internalAuthorizationService = new InternalAuthorizationService(Settings.EMPTY, rolesStore, clusterService,
+                auditTrail, anonymousService, new DefaultAuthenticationFailureHandler(), threadPool);
     }
 
     public void testActionsSystemUserIsAuthorized() {
@@ -297,7 +306,7 @@ public class InternalAuthorizationServiceTests extends ESTestCase {
         TransportRequest request = new IndicesExistsRequest("b");
         ClusterState state = mock(ClusterState.class);
         AnonymousService anonymousService = new AnonymousService(Settings.builder().put("shield.authc.anonymous.roles", "a_all").build());
-        internalAuthorizationService = new InternalAuthorizationService(Settings.EMPTY, rolesStore, clusterService, auditTrail, anonymousService, new DefaultAuthenticationFailureHandler());
+        internalAuthorizationService = new InternalAuthorizationService(Settings.EMPTY, rolesStore, clusterService, auditTrail, anonymousService, new DefaultAuthenticationFailureHandler(), threadPool);
 
         when(rolesStore.role("a_all")).thenReturn(Role.builder("a_all").add(IndexPrivilege.ALL, "a").build());
         when(clusterService.state()).thenReturn(state);
@@ -322,7 +331,7 @@ public class InternalAuthorizationServiceTests extends ESTestCase {
                 .put("shield.authc.anonymous.roles", "a_all")
                 .put(AnonymousService.SETTING_AUTHORIZATION_EXCEPTION_ENABLED, false)
                 .build());
-        internalAuthorizationService = new InternalAuthorizationService(Settings.EMPTY, rolesStore, clusterService, auditTrail, anonymousService, new DefaultAuthenticationFailureHandler());
+        internalAuthorizationService = new InternalAuthorizationService(Settings.EMPTY, rolesStore, clusterService, auditTrail, anonymousService, new DefaultAuthenticationFailureHandler(), threadPool);
 
         when(rolesStore.role("a_all")).thenReturn(Role.builder("a_all").add(IndexPrivilege.ALL, "a").build());
         when(clusterService.state()).thenReturn(state);

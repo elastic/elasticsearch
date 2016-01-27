@@ -194,7 +194,7 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
             }
             settings = builder.build();
 
-            doThrow(new IllegalStateException("indexing user should not be attached when sending remotely")).when(authService).attachUserHeaderIfMissing(any(TransportMessage.class), eq(user.user()));
+            doThrow(new IllegalStateException("indexing user should not be attached when sending remotely")).when(authService).attachUserHeaderIfMissing(eq(user.user()));
         }
 
         settings = Settings.builder().put(settings).put("path.home", createTempDir()).build();

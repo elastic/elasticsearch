@@ -11,9 +11,12 @@ import com.carrotsearch.hppc.ObjectLongMap;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectLongCursor;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionRequestBuilder;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
@@ -27,6 +30,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.FilterClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -40,11 +44,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.action.admin.user.AddUserRequest;
@@ -57,8 +61,8 @@ import org.elasticsearch.shield.authc.AuthenticationService;
 import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.client.ShieldClient;
+import org.elasticsearch.shield.support.ClientWithUser;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportMessage;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -114,16 +118,6 @@ public class ESNativeUsersStore extends AbstractComponent implements ClusterStat
         this.authProvider = authProvider;
         this.adminUser = userHolder;
         this.threadPool = threadPool;
-    }
-
-    private final void attachUser(TransportMessage message) {
-        try {
-            authService.attachUserHeaderIfMissing(message, adminUser.user());
-        } catch (IOException e) {
-            logger.error("failed to attach authorization to internal message!", e);
-            throw new ElasticsearchSecurityException("unable to attach administrative user to transport message",
-                    RestStatus.SERVICE_UNAVAILABLE, e);
-        }
     }
 
     @Nullable
@@ -207,7 +201,6 @@ public class ESNativeUsersStore extends AbstractComponent implements ClusterStat
                     .setSize(scrollSize)
                     .setFetchSource(true)
                     .request();
-            attachUser(request);
             request.indicesOptions().ignoreUnavailable();
 
             // This function is MADNESS! But it works, don't think about it too hard...
@@ -224,11 +217,9 @@ public class ESNativeUsersStore extends AbstractComponent implements ClusterStat
                         }
                         SearchScrollRequest scrollRequest = client.prepareSearchScroll(resp.getScrollId())
                                 .setScroll(scrollKeepAlive).request();
-                        attachUser(scrollRequest);
                         client.searchScroll(scrollRequest, this);
                     } else {
                         ClearScrollRequest clearScrollRequest = client.prepareClearScroll().addScrollId(resp.getScrollId()).request();
-                        attachUser(clearScrollRequest);
                         client.clearScroll(clearScrollRequest, new ActionListener<ClearScrollResponse>() {
                             @Override
                             public void onResponse(ClearScrollResponse response) {
@@ -291,7 +282,6 @@ public class ESNativeUsersStore extends AbstractComponent implements ClusterStat
         try {
             GetRequest request = client.prepareGet(ShieldTemplateService.SHIELD_ADMIN_INDEX_NAME, INDEX_USER_TYPE, user).request();
             request.indicesOptions().ignoreUnavailable();
-            attachUser(request);
             client.get(request, new ActionListener<GetResponse>() {
                 @Override
                 public void onResponse(GetResponse getFields) {
@@ -332,7 +322,6 @@ public class ESNativeUsersStore extends AbstractComponent implements ClusterStat
                             "password", String.valueOf(addUserRequest.passwordHash()),
                             "roles", addUserRequest.roles())
                     .request();
-            attachUser(request);
 
             client.index(request, new ActionListener<IndexResponse>() {
                 @Override
@@ -367,7 +356,6 @@ public class ESNativeUsersStore extends AbstractComponent implements ClusterStat
             DeleteRequest request = client.prepareDelete(ShieldTemplateService.SHIELD_ADMIN_INDEX_NAME,
                     INDEX_USER_TYPE, deleteUserRequest.user()).request();
             request.indicesOptions().ignoreUnavailable();
-            attachUser(request);
             client.delete(request, new ActionListener<DeleteResponse>() {
                 @Override
                 public void onResponse(DeleteResponse deleteResponse) {
@@ -420,8 +408,8 @@ public class ESNativeUsersStore extends AbstractComponent implements ClusterStat
     public void start() {
         try {
             if (state.compareAndSet(State.INITIALIZED, State.STARTING)) {
-                this.client = clientProvider.get();
                 this.authService = authProvider.get();
+                this.client = new ClientWithUser(clientProvider.get(), authService, adminUser.user());
                 this.scrollSize = settings.getAsInt("shield.authc.native.scroll.size", 1000);
                 this.scrollKeepAlive = settings.getAsTime("shield.authc.native.scroll.keep_alive", TimeValue.timeValueSeconds(10L));
 
@@ -484,7 +472,6 @@ public class ESNativeUsersStore extends AbstractComponent implements ClusterStat
         ShieldClient shieldClient = new ShieldClient(client);
         ClearRealmCacheRequest request = shieldClient.prepareClearRealmCache()
                 .usernames(username).request();
-        attachUser(request);
         shieldClient.clearRealmCache(request, new ActionListener<ClearRealmCacheResponse>() {
             @Override
             public void onResponse(ClearRealmCacheResponse nodes) {
@@ -628,7 +615,6 @@ public class ESNativeUsersStore extends AbstractComponent implements ClusterStat
                         .setVersion(true)
                         .setFetchSource(true)
                         .request();
-                attachUser(request);
                 response = client.search(request).actionGet();
 
                 boolean keepScrolling = response.getHits().getHits().length > 0;
@@ -639,7 +625,6 @@ public class ESNativeUsersStore extends AbstractComponent implements ClusterStat
                         map.put(username, version);
                     }
                     SearchScrollRequest scrollRequest = client.prepareSearchScroll(response.getScrollId()).setScroll(scrollKeepAlive).request();
-                    attachUser(scrollRequest);
                     response = client.searchScroll(scrollRequest).actionGet();
                     keepScrolling = response.getHits().getHits().length > 0;
                 }
@@ -648,7 +633,6 @@ public class ESNativeUsersStore extends AbstractComponent implements ClusterStat
             } finally {
                 if (response != null) {
                     ClearScrollRequest clearScrollRequest = client.prepareClearScroll().addScrollId(response.getScrollId()).request();
-                    attachUser(clearScrollRequest);
                     client.clearScroll(clearScrollRequest).actionGet();
                 }
             }

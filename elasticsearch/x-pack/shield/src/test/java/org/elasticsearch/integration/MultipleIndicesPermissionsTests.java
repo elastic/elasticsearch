@@ -13,21 +13,23 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredString;
-import org.elasticsearch.shield.authc.support.SecuredStringTests;
-import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.test.ShieldIntegTestCase;
 import org.elasticsearch.test.ShieldSettingsSource;
+
+import java.util.Collections;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.indicesQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;
+import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.is;
 
 public class MultipleIndicesPermissionsTests extends ShieldIntegTestCase {
-    protected static final String USERS_PASSWD_HASHED = new String(Hasher.BCRYPT.hash(new SecuredString("passwd".toCharArray())));
+    protected static final SecuredString PASSWD = new SecuredString("passwd".toCharArray());
+    protected static final String USERS_PASSWD_HASHED = new String(Hasher.BCRYPT.hash(PASSWD));
 
     @Override
     protected String configRoles() {
@@ -154,8 +156,8 @@ public class MultipleIndicesPermissionsTests extends ShieldIntegTestCase {
 
         Client client = internalCluster().transportClient();
 
-        SearchResponse response = client.prepareSearch("a")
-                .putHeader(BASIC_AUTH_HEADER, userHeader("user_a", "passwd"))
+        SearchResponse response = client.filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user_a", PASSWD)))
+                .prepareSearch("a")
                 .get();
         assertNoFailures(response);
         assertHitCount(response, 1);
@@ -164,16 +166,16 @@ public class MultipleIndicesPermissionsTests extends ShieldIntegTestCase {
                 new String[] { "_all"} : randomBoolean() ?
                 new String[] { "*" } :
                 new String[] {};
-        response = client.prepareSearch(indices)
-                .putHeader(BASIC_AUTH_HEADER, userHeader("user_a", "passwd"))
+        response = client.filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user_a", PASSWD)))
+                .prepareSearch(indices)
                 .get();
         assertNoFailures(response);
         assertHitCount(response, 1);
 
         try {
             indices = randomBoolean() ? new String[] { "a", "b" } : new String[] { "b", "a" };
-            client.prepareSearch(indices)
-                    .putHeader(BASIC_AUTH_HEADER, userHeader("user_a", "passwd"))
+            client.filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user_a", PASSWD)))
+                    .prepareSearch(indices)
                     .get();
             fail("expected an authorization excpetion when trying to search on multiple indices where there are no search permissions on one/some of them");
         } catch (ElasticsearchSecurityException e) {
@@ -181,15 +183,15 @@ public class MultipleIndicesPermissionsTests extends ShieldIntegTestCase {
             assertThat(e.status(), is(RestStatus.FORBIDDEN));
         }
 
-        response = client.prepareSearch("b")
-                .putHeader(BASIC_AUTH_HEADER, userHeader("user_ab", "passwd"))
+        response = client.filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user_ab", PASSWD)))
+                .prepareSearch("b")
                 .get();
         assertNoFailures(response);
         assertHitCount(response, 1);
 
         indices = randomBoolean() ? new String[] { "a", "b" } : new String[] { "b", "a" };
-        response = client.prepareSearch(indices)
-                .putHeader(BASIC_AUTH_HEADER, userHeader("user_ab", "passwd"))
+        response = client.filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user_ab", PASSWD)))
+                .prepareSearch(indices)
                 .get();
         assertNoFailures(response);
         assertHitCount(response, 2);
@@ -198,14 +200,10 @@ public class MultipleIndicesPermissionsTests extends ShieldIntegTestCase {
                 new String[] { "_all"} : randomBoolean() ?
                 new String[] { "*" } :
                 new String[] {};
-        response = client.prepareSearch(indices)
-                .putHeader(BASIC_AUTH_HEADER, userHeader("user_ab", "passwd"))
+        response = client.filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user_ab", PASSWD)))
+                .prepareSearch(indices)
                 .get();
         assertNoFailures(response);
         assertHitCount(response, 2);
-    }
-
-    private static String userHeader(String username, String password) {
-        return UsernamePasswordToken.basicAuthHeaderValue(username, SecuredStringTests.build(password));
     }
 }

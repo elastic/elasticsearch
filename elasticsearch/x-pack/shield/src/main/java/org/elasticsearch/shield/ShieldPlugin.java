@@ -7,12 +7,12 @@ package org.elasticsearch.shield;
 
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.support.Headers;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.plugins.Plugin;
@@ -194,7 +194,8 @@ public class ShieldPlugin extends Plugin {
         if (flsDlsEnabled(settings)) {
             module.setSearcherWrapper((indexService) -> new ShieldIndexSearcherWrapper(indexService.getIndexSettings(),
                     indexService.getQueryShardContext(), indexService.mapperService(),
-                    indexService.cache().bitsetFilterCache(), shieldLicenseState));
+                    indexService.cache().bitsetFilterCache(), indexService.getIndexServices().getThreadPool().getThreadContext(),
+                    shieldLicenseState));
         }
         if (clientMode == false) {
             module.registerQueryCache(ShieldPlugin.OPT_OUT_QUERY_CACHE, OptOutQueryCache::new);
@@ -263,7 +264,7 @@ public class ShieldPlugin extends Plugin {
     }
 
     private void addUserSettings(Settings.Builder settingsBuilder) {
-        String authHeaderSettingName = Headers.PREFIX + "." + UsernamePasswordToken.BASIC_AUTH_HEADER;
+        String authHeaderSettingName = ThreadContext.PREFIX + "." + UsernamePasswordToken.BASIC_AUTH_HEADER;
         if (settings.get(authHeaderSettingName) != null) {
             return;
         }

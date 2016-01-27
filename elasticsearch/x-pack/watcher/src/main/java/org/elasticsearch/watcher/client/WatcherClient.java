@@ -8,7 +8,6 @@ package org.elasticsearch.watcher.client;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.watcher.transport.actions.ack.AckWatchAction;
 import org.elasticsearch.watcher.transport.actions.ack.AckWatchRequest;
@@ -43,11 +42,13 @@ import org.elasticsearch.watcher.transport.actions.stats.WatcherStatsRequest;
 import org.elasticsearch.watcher.transport.actions.stats.WatcherStatsRequestBuilder;
 import org.elasticsearch.watcher.transport.actions.stats.WatcherStatsResponse;
 
+import java.util.Map;
+
 /**
  */
 public class WatcherClient {
 
-    private final ElasticsearchClient client;
+    private final Client client;
 
     @Inject
     public WatcherClient(Client client) {
@@ -323,4 +324,7 @@ public class WatcherClient {
         return client.execute(ExecuteWatchAction.INSTANCE, request);
     }
 
+    public WatcherClient filterWithHeader(Map<String, String> headers) {
+        return new WatcherClient(client.filterWithHeader(headers));
+    }
 }

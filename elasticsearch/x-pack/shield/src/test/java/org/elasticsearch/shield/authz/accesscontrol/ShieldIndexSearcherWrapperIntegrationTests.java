@@ -24,6 +24,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
@@ -36,7 +37,6 @@ import org.elasticsearch.shield.authz.InternalAuthorizationService;
 import org.elasticsearch.shield.license.ShieldLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
-import org.elasticsearch.transport.TransportRequest;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
@@ -65,10 +65,8 @@ public class ShieldIndexSearcherWrapperIntegrationTests extends ESTestCase {
             }
         });
 
-        TransportRequest request = new TransportRequest.Empty();
-        RequestContext.setCurrent(new RequestContext(request));
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         IndicesAccessControl.IndexAccessControl indexAccessControl = new IndicesAccessControl.IndexAccessControl(true, null, singleton(new BytesArray("{}")));
-        request.putInContext(InternalAuthorizationService.INDICES_PERMISSIONS_KEY, new IndicesAccessControl(true, singletonMap("_index", indexAccessControl)));
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(shardId.index(), Settings.EMPTY);
         QueryShardContext queryShardContext = mock(QueryShardContext.class);
         IndexSettings settings = IndexSettingsModule.newIndexSettings(new Index("_index"), Settings.EMPTY);
@@ -85,11 +83,16 @@ public class ShieldIndexSearcherWrapperIntegrationTests extends ESTestCase {
         });
         ShieldLicenseState licenseState = mock(ShieldLicenseState.class);
         when(licenseState.documentAndFieldLevelSecurityEnabled()).thenReturn(true);
-        ShieldIndexSearcherWrapper wrapper = new ShieldIndexSearcherWrapper(indexSettings, queryShardContext, mapperService, bitsetFilterCache, licenseState) {
+        ShieldIndexSearcherWrapper wrapper = new ShieldIndexSearcherWrapper(indexSettings, queryShardContext, mapperService, bitsetFilterCache, threadContext, licenseState) {
 
             @Override
             protected QueryShardContext copyQueryShardContext(QueryShardContext context) {
                 return queryShardContext;
+            }
+
+            @Override
+            protected IndicesAccessControl getIndicesAccessControl() {
+                return new IndicesAccessControl(true, singletonMap("_index", indexAccessControl));
             }
         };
 

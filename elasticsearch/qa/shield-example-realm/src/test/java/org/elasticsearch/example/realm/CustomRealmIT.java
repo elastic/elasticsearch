@@ -8,11 +8,11 @@ package org.elasticsearch.example.realm;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
-import org.elasticsearch.client.support.Headers;
 import org.elasticsearch.client.transport.NoNodeAvailableException;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
@@ -30,8 +30,8 @@ public class CustomRealmIT extends ESIntegTestCase {
     @Override
     protected Settings externalClusterClientSettings() {
         return Settings.builder()
-                .put(Headers.PREFIX + "." + CustomRealm.USER_HEADER, CustomRealm.KNOWN_USER)
-                .put(Headers.PREFIX + "." + CustomRealm.PW_HEADER, CustomRealm.KNOWN_PW)
+                .put(ThreadContext.PREFIX + "." + CustomRealm.USER_HEADER, CustomRealm.KNOWN_USER)
+                .put(ThreadContext.PREFIX + "." + CustomRealm.PW_HEADER, CustomRealm.KNOWN_PW)
                 .build();
     }
 
@@ -64,8 +64,8 @@ public class CustomRealmIT extends ESIntegTestCase {
 
         Settings settings = Settings.builder()
                 .put("cluster.name", clusterName)
-                .put(Headers.PREFIX + "." + CustomRealm.USER_HEADER, CustomRealm.KNOWN_USER)
-                .put(Headers.PREFIX + "." + CustomRealm.PW_HEADER, CustomRealm.KNOWN_PW)
+                .put(ThreadContext.PREFIX + "." + CustomRealm.USER_HEADER, CustomRealm.KNOWN_USER)
+                .put(ThreadContext.PREFIX + "." + CustomRealm.PW_HEADER, CustomRealm.KNOWN_PW)
                 .build();
         try (TransportClient client = TransportClient.builder().settings(settings).addPlugin(XPackPlugin.class).build()) {
             client.addTransportAddress(publishAddress);
@@ -83,8 +83,8 @@ public class CustomRealmIT extends ESIntegTestCase {
 
         Settings settings = Settings.builder()
                 .put("cluster.name", clusterName)
-                .put(Headers.PREFIX + "." + CustomRealm.USER_HEADER, CustomRealm.KNOWN_USER + randomAsciiOfLength(1))
-                .put(Headers.PREFIX + "." + CustomRealm.PW_HEADER, CustomRealm.KNOWN_PW)
+                .put(ThreadContext.PREFIX + "." + CustomRealm.USER_HEADER, CustomRealm.KNOWN_USER + randomAsciiOfLength(1))
+                .put(ThreadContext.PREFIX + "." + CustomRealm.PW_HEADER, CustomRealm.KNOWN_PW)
                 .build();
         try (TransportClient client = TransportClient.builder().addPlugin(XPackPlugin.class).settings(settings).build()) {
             client.addTransportAddress(publishAddress);

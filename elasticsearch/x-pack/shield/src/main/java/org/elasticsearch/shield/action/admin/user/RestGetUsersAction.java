@@ -29,7 +29,7 @@ public class RestGetUsersAction extends BaseRestHandler {
 
     @Inject
     public RestGetUsersAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+        super(settings, client);
         controller.registerHandler(RestRequest.Method.GET, "/_shield/user/", this);
         controller.registerHandler(RestRequest.Method.GET, "/_shield/user/{user}", this);
         controller.registerHandler(RestRequest.Method.GET, "/_shield/users/", this);

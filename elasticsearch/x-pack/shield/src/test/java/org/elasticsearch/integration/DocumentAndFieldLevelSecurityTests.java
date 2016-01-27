@@ -13,6 +13,8 @@ import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.test.ShieldIntegTestCase;
 
+import java.util.Collections;
+
 import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;
 import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -88,16 +90,16 @@ public class DocumentAndFieldLevelSecurityTests extends ShieldIntegTestCase {
                 .setRefresh(true)
                 .get();
 
-        SearchResponse response = client().prepareSearch("test")
-                .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))
+        SearchResponse response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+                .prepareSearch("test")
                 .get();
         assertHitCount(response, 1);
         assertSearchHits(response, "1");
         assertThat(response.getHits().getAt(0).getSource().size(), equalTo(1));
         assertThat(response.getHits().getAt(0).getSource().get("field1").toString(), equalTo("value1"));
 
-        response = client().prepareSearch("test")
-                .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD))
+        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
+                .prepareSearch("test")
                 .get();
         assertHitCount(response, 1);
         assertSearchHits(response, "2");
@@ -120,15 +122,15 @@ public class DocumentAndFieldLevelSecurityTests extends ShieldIntegTestCase {
         // Both users have the same role query, but user3 has access to field2 and not field1, which should result in zero hits:
         int max = scaledRandomIntBetween(4, 32);
         for (int i = 0; i < max; i++) {
-            SearchResponse response = client().prepareSearch("test")
-                    .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))
+            SearchResponse response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+                    .prepareSearch("test")
                     .get();
             assertHitCount(response, 1);
             assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
             assertThat(response.getHits().getAt(0).sourceAsMap().size(), equalTo(1));
             assertThat(response.getHits().getAt(0).sourceAsMap().get("field1"), equalTo("value1"));
-            response = client().prepareSearch("test")
-                    .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD))
+            response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
+                    .prepareSearch("test")
                     .get();
             assertHitCount(response, 1);
             assertThat(response.getHits().getAt(0).getId(), equalTo("2"));
@@ -137,8 +139,8 @@ public class DocumentAndFieldLevelSecurityTests extends ShieldIntegTestCase {
 
             // this is a bit weird the document level permission (all docs with field2:value2) don't match with the field level permissions (field1),
             // this results in document 2 being returned but no fields are visible:
-            response = client().prepareSearch("test")
-                    .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("user3", USERS_PASSWD))
+            response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user3", USERS_PASSWD)))
+                    .prepareSearch("test")
                     .get();
             assertHitCount(response, 1);
             assertThat(response.getHits().getAt(0).getId(), equalTo("2"));

@@ -7,9 +7,10 @@ package org.elasticsearch.shield.authc.support;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.Base64;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.transport.TransportRequest;
 import org.junit.Rule;
 import org.junit.rules.ExpectedException;
 
@@ -31,9 +32,9 @@ public class UsernamePasswordTokenTests extends ESTestCase {
     public ExpectedException thrown = ExpectedException.none();
 
     public void testPutToken() throws Exception {
-        TransportRequest request = new TransportRequest() {};
-        UsernamePasswordToken.putTokenHeader(request, new UsernamePasswordToken("user1", SecuredStringTests.build("test123")));
-        String header = request.getHeader(UsernamePasswordToken.BASIC_AUTH_HEADER);
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        UsernamePasswordToken.putTokenHeader(threadContext, new UsernamePasswordToken("user1", SecuredStringTests.build("test123")));
+        String header = threadContext.getHeader(UsernamePasswordToken.BASIC_AUTH_HEADER);
         assertThat(header, notNullValue());
         assertTrue(header.startsWith("Basic "));
         String token = header.substring("Basic ".length());
@@ -47,10 +48,10 @@ public class UsernamePasswordTokenTests extends ESTestCase {
     }
 
     public void testExtractToken() throws Exception {
-        TransportRequest request = new TransportRequest() {};
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         String header = "Basic " + Base64.encodeBytes("user1:test123".getBytes(StandardCharsets.UTF_8));
-        request.putHeader(UsernamePasswordToken.BASIC_AUTH_HEADER, header);
-        UsernamePasswordToken token = UsernamePasswordToken.extractToken(request, null);
+        threadContext.putHeader(UsernamePasswordToken.BASIC_AUTH_HEADER, header);
+        UsernamePasswordToken token = UsernamePasswordToken.extractToken(threadContext, null);
         assertThat(token, notNullValue());
         assertThat(token.principal(), equalTo("user1"));
         assertThat(new String(token.credentials().internalChars()), equalTo("test123"));
@@ -59,10 +60,10 @@ public class UsernamePasswordTokenTests extends ESTestCase {
     public void testExtractTokenInvalid() throws Exception {
         String[] invalidValues = { "Basic", "Basic ", "Basic f" };
         for (String value : invalidValues) {
-            TransportRequest request = new TransportRequest() {};
-            request.putHeader(UsernamePasswordToken.BASIC_AUTH_HEADER, value);
+            ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+            threadContext.putHeader(UsernamePasswordToken.BASIC_AUTH_HEADER, value);
             try {
-                UsernamePasswordToken.extractToken(request, null);
+                UsernamePasswordToken.extractToken(threadContext, null);
                 fail("Expected an authentication exception for invalid basic auth token [" + value + "]");
             } catch (ElasticsearchSecurityException e) {
                 // expected
@@ -72,11 +73,11 @@ public class UsernamePasswordTokenTests extends ESTestCase {
     }
 
     public void testThatAuthenticationExceptionContainsResponseHeaders() {
-        TransportRequest request = new TransportRequest() {};
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         String header = "BasicBroken";
-        request.putHeader(UsernamePasswordToken.BASIC_AUTH_HEADER, header);
+        threadContext.putHeader(UsernamePasswordToken.BASIC_AUTH_HEADER, header);
         try {
-            UsernamePasswordToken.extractToken(request, null);
+            UsernamePasswordToken.extractToken(threadContext, null);
             fail("Expected exception but did not happen");
         } catch (ElasticsearchSecurityException e) {
             assertAuthenticationException(e);

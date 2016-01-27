@@ -61,7 +61,7 @@ public final class WatcherUtils {
     }
 
     public static SearchRequest createSearchRequestFromPrototype(SearchRequest requestPrototype, WatchExecutionContext ctx, Payload payload) throws IOException {
-        SearchRequest request = new SearchRequest(requestPrototype)
+        SearchRequest request = new SearchRequest()
                 .indicesOptions(requestPrototype.indicesOptions())
                 .searchType(requestPrototype.searchType())
                 .indices(requestPrototype.indices())

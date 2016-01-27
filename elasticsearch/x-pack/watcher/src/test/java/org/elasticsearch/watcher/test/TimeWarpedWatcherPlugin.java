@@ -24,6 +24,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
+import java.util.stream.Stream;
 
 /**
  *
@@ -90,6 +91,11 @@ public class TimeWarpedWatcherPlugin extends WatcherPlugin {
         }
 
         public static class SameThreadExecutor implements WatchExecutor {
+
+            @Override
+            public Stream<Runnable> tasks() {
+                return Stream.empty();
+            }
 
             @Override
             public BlockingQueue<Runnable> queue() {

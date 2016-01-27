@@ -6,10 +6,9 @@
 package org.elasticsearch.shield.authc;
 
 import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.shield.ShieldSettingsFilter;
 import org.elasticsearch.shield.User;
-import org.elasticsearch.transport.TransportMessage;
 
 /**
  * An authentication mechanism to which the default authentication {@link org.elasticsearch.shield.authc.AuthenticationService service}
@@ -60,22 +59,13 @@ public abstract class Realm<T extends AuthenticationToken> implements Comparable
     public abstract boolean supports(AuthenticationToken token);
 
     /**
-     * Attempts to extract an authentication token from the given rest request. If an appropriate token
+     * Attempts to extract an authentication token from the given context. If an appropriate token
      * is found it's returned, otherwise {@code null} is returned.
      *
-     * @param request   The rest request
+     * @param context   The context that will provide information about the incoming request
      * @return          The authentication token or {@code null} if not found
      */
-    public abstract T token(RestRequest request);
-
-    /**
-     * Attempts to extract an authentication token from the given transport message. If an appropriate token
-     * is found it's returned, otherwise {@code null} is returned.
-     *
-     * @param message   The transport message
-     * @return          The authentication token or {@code null} if not found
-     */
-    public abstract T token(TransportMessage<?> message);
+    public abstract T token(ThreadContext context);
 
     /**
      * Authenticates the given token. A successful authentication will return the User associated

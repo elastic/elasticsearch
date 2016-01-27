@@ -19,6 +19,8 @@ import org.elasticsearch.watcher.trigger.schedule.IntervalSchedule;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.joda.time.DateTime;
 
+import java.util.Collections;
+
 import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.elasticsearch.watcher.client.WatchSourceBuilders.watchBuilder;
 import static org.elasticsearch.watcher.trigger.TriggerBuilders.schedule;
@@ -56,8 +58,7 @@ public class BasicShieldTests extends AbstractWatcherIntegrationTestCase {
         // stats and get watch apis require at least monitor role:
         String token = basicAuthHeaderValue("test", new SecuredString("changeme".toCharArray()));
         try {
-            watcherClient().prepareWatcherStats()
-                    .putHeader("Authorization", token)
+            watcherClient().filterWithHeader(Collections.singletonMap("Authorization", token)).prepareWatcherStats()
                     .get();
             fail("authentication failure should have occurred");
         } catch (Exception e) {
@@ -65,8 +66,7 @@ public class BasicShieldTests extends AbstractWatcherIntegrationTestCase {
         }
 
         try {
-            watcherClient().prepareGetWatch("_id")
-                    .putHeader("Authorization", token)
+            watcherClient().filterWithHeader(Collections.singletonMap("Authorization", token)).prepareGetWatch("_id")
                     .get();
             fail("authentication failure should have occurred");
         } catch (Exception e) {
@@ -75,20 +75,17 @@ public class BasicShieldTests extends AbstractWatcherIntegrationTestCase {
 
         // stats and get watch are allowed by role monitor:
         token = basicAuthHeaderValue("monitor", new SecuredString("changeme".toCharArray()));
-        WatcherStatsResponse statsResponse = watcherClient().prepareWatcherStats()
-                .putHeader("Authorization", token)
+        WatcherStatsResponse statsResponse = watcherClient().filterWithHeader(Collections.singletonMap("Authorization", token)).prepareWatcherStats()
                 .get();
         assertThat(statsResponse.getWatcherState(), equalTo(WatcherState.STARTED));
-        GetWatchResponse getWatchResponse = watcherClient().prepareGetWatch("_id")
-                .putHeader("Authorization", token)
+        GetWatchResponse getWatchResponse = watcherClient().filterWithHeader(Collections.singletonMap("Authorization", token)).prepareGetWatch("_id")
                 .get();
         assertThat(getWatchResponse.isFound(), is(false));
 
         // but put watch isn't allowed by monitor:
         try {
-            watcherClient().preparePutWatch("_id")
+            watcherClient().filterWithHeader(Collections.singletonMap("Authorization", token)).preparePutWatch("_id")
                     .setSource(watchBuilder().trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.SECONDS))))
-                    .putHeader("Authorization", token)
                     .get();
             fail("authentication failure should have occurred");
         } catch (Exception e) {
@@ -100,9 +97,8 @@ public class BasicShieldTests extends AbstractWatcherIntegrationTestCase {
         // put, execute and delete watch apis requires watcher admin role:
         String token = basicAuthHeaderValue("test", new SecuredString("changeme".toCharArray()));
         try {
-            watcherClient().preparePutWatch("_id")
+            watcherClient().filterWithHeader(Collections.singletonMap("Authorization", token)).preparePutWatch("_id")
                     .setSource(watchBuilder().trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.SECONDS))))
-                    .putHeader("Authorization", token)
                     .get();
             fail("authentication failure should have occurred");
         } catch (Exception e) {
@@ -111,9 +107,8 @@ public class BasicShieldTests extends AbstractWatcherIntegrationTestCase {
 
         TriggerEvent triggerEvent = new ScheduleTriggerEvent(new DateTime(UTC), new DateTime(UTC));
         try {
-            watcherClient().prepareExecuteWatch("_id")
+            watcherClient().filterWithHeader(Collections.singletonMap("Authorization", token)).prepareExecuteWatch("_id")
                     .setTriggerEvent(triggerEvent)
-                    .putHeader("Authorization", token)
                     .get();
             fail("authentication failure should have occurred");
         } catch (Exception e) {
@@ -121,8 +116,7 @@ public class BasicShieldTests extends AbstractWatcherIntegrationTestCase {
         }
 
         try {
-            watcherClient().prepareDeleteWatch("_id")
-                    .putHeader("Authorization", token)
+            watcherClient().filterWithHeader(Collections.singletonMap("Authorization", token)).prepareDeleteWatch("_id")
                     .get();
             fail("authentication failure should have occurred");
         } catch (Exception e) {
@@ -131,29 +125,29 @@ public class BasicShieldTests extends AbstractWatcherIntegrationTestCase {
 
         // put, execute and delete watch apis are allowed by role admin:
         token = basicAuthHeaderValue("admin", new SecuredString("changeme".toCharArray()));
-        PutWatchResponse putWatchResponse = watcherClient().preparePutWatch("_id")
+        PutWatchResponse putWatchResponse = watcherClient().filterWithHeader(Collections.singletonMap("Authorization", token))
+                .preparePutWatch("_id")
                 .setSource(watchBuilder().trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.SECONDS))))
-                .putHeader("Authorization", token)
                 .get();
         assertThat(putWatchResponse.getVersion(), equalTo(1l));
-        ExecuteWatchResponse executeWatchResponse = watcherClient().prepareExecuteWatch("_id")
+        ExecuteWatchResponse executeWatchResponse = watcherClient().filterWithHeader(Collections.singletonMap("Authorization", token))
+                .prepareExecuteWatch("_id")
                 .setTriggerEvent(triggerEvent)
-                .putHeader("Authorization", token)
                 .get();
-        DeleteWatchResponse deleteWatchResponse = watcherClient().prepareDeleteWatch("_id")
-                .putHeader("Authorization", token)
+        DeleteWatchResponse deleteWatchResponse = watcherClient().filterWithHeader(Collections.singletonMap("Authorization", token))
+                .prepareDeleteWatch("_id")
                 .get();
         assertThat(deleteWatchResponse.getVersion(), equalTo(2l));
         assertThat(deleteWatchResponse.isFound(), is(true));
 
         // stats and get watch are also allowed by role monitor:
         token = basicAuthHeaderValue("admin", new SecuredString("changeme".toCharArray()));
-        WatcherStatsResponse statsResponse = watcherClient().prepareWatcherStats()
-                .putHeader("Authorization", token)
+        WatcherStatsResponse statsResponse = watcherClient().filterWithHeader(Collections.singletonMap("Authorization", token))
+                .prepareWatcherStats()
                 .get();
         assertThat(statsResponse.getWatcherState(), equalTo(WatcherState.STARTED));
-        GetWatchResponse getWatchResponse = watcherClient().prepareGetWatch("_id")
-                .putHeader("Authorization", token)
+        GetWatchResponse getWatchResponse = watcherClient().filterWithHeader(Collections.singletonMap("Authorization", token))
+                .prepareGetWatch("_id")
                 .get();
         assertThat(getWatchResponse.isFound(), is(false));
     }

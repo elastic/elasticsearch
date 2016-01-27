@@ -33,7 +33,7 @@ public class RestShieldInfoAction extends BaseRestHandler {
 
     @Inject
     public RestShieldInfoAction(Settings settings, RestController controller, Client client, ClusterName clusterName, @Nullable ShieldLicenseState licenseState) {
-        super(settings, controller, client);
+        super(settings, client);
         this.clusterName = clusterName;
         this.shieldLicenseState = licenseState;
         this.shieldEnabled = ShieldPlugin.shieldEnabled(settings);

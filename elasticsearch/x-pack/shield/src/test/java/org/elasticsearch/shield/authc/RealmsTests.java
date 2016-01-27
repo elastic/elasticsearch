@@ -6,15 +6,14 @@
 package org.elasticsearch.shield.authc;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.shield.ShieldSettingsFilter;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.authc.esusers.ESUsersRealm;
 import org.elasticsearch.shield.authc.ldap.LdapRealm;
 import org.elasticsearch.shield.license.ShieldLicenseState;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.transport.TransportMessage;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -236,12 +235,7 @@ public class RealmsTests extends ESTestCase {
         }
 
         @Override
-        public AuthenticationToken token(RestRequest request) {
-            return null;
-        }
-
-        @Override
-        public AuthenticationToken token(TransportMessage message) {
+        public AuthenticationToken token(ThreadContext threadContext) {
             return null;
         }
 

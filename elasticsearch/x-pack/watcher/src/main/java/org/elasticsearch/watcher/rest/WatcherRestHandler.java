@@ -20,8 +20,8 @@ public abstract class WatcherRestHandler extends BaseRestHandler {
 
     protected static String URI_BASE = "_watcher";
 
-    public WatcherRestHandler(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+    public WatcherRestHandler(Settings settings, Client client) {
+        super(settings, client);
     }
 
     @Override

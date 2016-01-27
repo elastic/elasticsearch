@@ -26,6 +26,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.logging.support.LoggerMessageFormat;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.engine.EngineException;
@@ -56,7 +57,7 @@ import static org.apache.lucene.search.BooleanClause.Occur.FILTER;
 /**
  * An {@link IndexSearcherWrapper} implementation that is used for field and document level security.
  * <p>
- * Based on the {@link RequestContext} this class will enable field and/or document level security.
+ * Based on the {@link ThreadContext} this class will enable field and/or document level security.
  * <p>
  * Field level security is enabled by wrapping the original {@link DirectoryReader} in a {@link FieldSubsetReader}
  * in the {@link #wrap(DirectoryReader)} method.
@@ -71,14 +72,17 @@ public class ShieldIndexSearcherWrapper extends IndexSearcherWrapper {
     private final QueryShardContext queryShardContext;
     private final BitsetFilterCache bitsetFilterCache;
     private final ShieldLicenseState shieldLicenseState;
+    private final ThreadContext threadContext;
     private final ESLogger logger;
 
     public ShieldIndexSearcherWrapper(IndexSettings indexSettings, QueryShardContext queryShardContext,
-                                      MapperService mapperService, BitsetFilterCache bitsetFilterCache, ShieldLicenseState shieldLicenseState) {
+                                      MapperService mapperService, BitsetFilterCache bitsetFilterCache,
+                                      ThreadContext threadContext, ShieldLicenseState shieldLicenseState) {
         this.logger = Loggers.getLogger(getClass(), indexSettings.getSettings());
         this.mapperService = mapperService;
         this.queryShardContext = queryShardContext;
         this.bitsetFilterCache = bitsetFilterCache;
+        this.threadContext = threadContext;
         this.shieldLicenseState = shieldLicenseState;
 
         Set<String> allowedMetaFields = new HashSet<>();
@@ -98,15 +102,8 @@ public class ShieldIndexSearcherWrapper extends IndexSearcherWrapper {
 
         final Set<String> allowedMetaFields = this.allowedMetaFields;
         try {
-            RequestContext context = RequestContext.current();
-            if (context == null) {
-                throw new IllegalStateException("can't locate the origin of the current request");
-            }
+            final IndicesAccessControl indicesAccessControl = getIndicesAccessControl();
 
-            IndicesAccessControl indicesAccessControl = context.getRequest().getFromContext(InternalAuthorizationService.INDICES_PERMISSIONS_KEY);
-            if (indicesAccessControl == null) {
-                throw Exceptions.authorizationError("no indices permissions found");
-            }
             ShardId shardId = ShardUtils.extractShardId(reader);
             if (shardId == null) {
                 throw new IllegalStateException(LoggerMessageFormat.format("couldn't extract shardId from reader [{}]", reader));
@@ -245,4 +242,11 @@ public class ShieldIndexSearcherWrapper extends IndexSearcherWrapper {
         }
     }
 
+    protected IndicesAccessControl getIndicesAccessControl() {
+        IndicesAccessControl indicesAccessControl = threadContext.getTransient(InternalAuthorizationService.INDICES_PERMISSIONS_KEY);
+        if (indicesAccessControl == null) {
+            throw Exceptions.authorizationError("no indices permissions found");
+        }
+        return indicesAccessControl;
+    }
 }

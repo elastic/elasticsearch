@@ -23,10 +23,10 @@ public class RestWatchServiceAction extends WatcherRestHandler {
 
     @Inject
     public RestWatchServiceAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+        super(settings, client);
         controller.registerHandler(RestRequest.Method.PUT, URI_BASE + "/_restart", this);
-        controller.registerHandler(RestRequest.Method.PUT, URI_BASE + "/_start", new StartRestHandler(settings, controller, client));
-        controller.registerHandler(RestRequest.Method.PUT, URI_BASE + "/_stop", new StopRestHandler(settings, controller, client));
+        controller.registerHandler(RestRequest.Method.PUT, URI_BASE + "/_start", new StartRestHandler(settings, client));
+        controller.registerHandler(RestRequest.Method.PUT, URI_BASE + "/_stop", new StopRestHandler(settings, client));
     }
 
     @Override
@@ -36,8 +36,8 @@ public class RestWatchServiceAction extends WatcherRestHandler {
 
     static class StartRestHandler extends WatcherRestHandler {
 
-        public StartRestHandler(Settings settings, RestController controller, Client client) {
-            super(settings, controller, client);
+        public StartRestHandler(Settings settings, Client client) {
+            super(settings, client);
         }
 
         @Override
@@ -48,8 +48,8 @@ public class RestWatchServiceAction extends WatcherRestHandler {
 
     static class StopRestHandler extends WatcherRestHandler {
 
-        public StopRestHandler(Settings settings, RestController controller, Client client) {
-            super(settings, controller, client);
+        public StopRestHandler(Settings settings, Client client) {
+            super(settings, client);
         }
 
         @Override

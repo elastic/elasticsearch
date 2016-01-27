@@ -7,8 +7,8 @@ package org.elasticsearch.smoketest;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-import org.elasticsearch.client.support.Headers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.RestTestCandidate;
@@ -36,7 +36,7 @@ public class SmokeTestPluginsIT extends ESRestTestCase {
     protected Settings restClientSettings() {
         String token = basicAuthHeaderValue(USER, new SecuredString(PASS.toCharArray()));
         return Settings.builder()
-                .put(Headers.PREFIX + ".Authorization", token)
+                .put(ThreadContext.PREFIX + ".Authorization", token)
                 .build();
     }
 }

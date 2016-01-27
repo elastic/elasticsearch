@@ -13,8 +13,8 @@ import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ClusterAdminClient;
 import org.elasticsearch.client.IndicesAdminClient;
-import org.elasticsearch.client.support.Headers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
@@ -118,10 +118,10 @@ public class ESUsersRealmTests extends ESTestCase {
         when(userRolesStore.roles("user1")).thenReturn(new String[]{"role1", "role2"});
         ESUsersRealm realm = new ESUsersRealm(config, userPasswdStore, userRolesStore);
 
-        TransportRequest request = new TransportRequest() {};
-        UsernamePasswordToken.putTokenHeader(request, new UsernamePasswordToken("user1", SecuredStringTests.build("test123")));
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        UsernamePasswordToken.putTokenHeader(threadContext, new UsernamePasswordToken("user1", SecuredStringTests.build("test123")));
 
-        UsernamePasswordToken token = realm.token(request);
+        UsernamePasswordToken token = realm.token(threadContext);
         assertThat(token, notNullValue());
         assertThat(token.principal(), equalTo("user1"));
         assertThat(token.credentials(), notNullValue());
@@ -176,39 +176,6 @@ public class ESUsersRealmTests extends ESTestCase {
         assertThat(user4, not(sameInstance(user5)));
         User user6 = realm.lookupUser("user1");
         assertThat(user5, sameInstance(user6));
-    }
-
-    @SuppressWarnings("unchecked")
-    public void testAuthorizationHeaderIsNotCopied() throws Exception {
-        RestController restController = mock(RestController.class);
-        RealmConfig config = new RealmConfig("esusers-test", Settings.EMPTY, globalSettings);
-        new ESUsersRealm(config, new UserPasswdStore(config), new UserRolesStore(config));
-        when(restController.relevantHeaders()).thenReturn(emptySet());
-        when(client.admin()).thenReturn(adminClient);
-        when(client.settings()).thenReturn(Settings.EMPTY);
-        when(client.headers()).thenReturn(Headers.EMPTY);
-        when(adminClient.cluster()).thenReturn(mock(ClusterAdminClient.class));
-        when(adminClient.indices()).thenReturn(mock(IndicesAdminClient.class));
-        final ActionRequest request = new ActionRequest() {
-            @Override
-            public ActionRequestValidationException validate() {
-                return null;
-            }
-        };
-        RestRequest restRequest = mock(RestRequest.class);
-        final Action<ActionRequest, ?, ?> action = mock(Action.class);
-        final ActionListener listener = mock(ActionListener.class);
-        BaseRestHandler handler = new BaseRestHandler(Settings.EMPTY, restController, client) {
-            @Override
-            protected void handleRequest(RestRequest restRequest, RestChannel channel, Client client) throws Exception {
-                client.execute(action, request, listener);
-            }
-        };
-
-        when(restRequest.header(UsernamePasswordToken.BASIC_AUTH_HEADER)).thenReturn("foobar");
-        RestChannel channel = mock(RestChannel.class);
-        handler.handleRequest(restRequest, channel);
-        assertThat(request.getHeader(UsernamePasswordToken.BASIC_AUTH_HEADER), is(nullValue()));
     }
 
     static class UserPasswdStore extends FileUserPasswdStore {

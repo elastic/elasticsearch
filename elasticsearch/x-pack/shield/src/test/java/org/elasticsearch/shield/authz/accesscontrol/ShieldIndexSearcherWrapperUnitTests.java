@@ -30,6 +30,7 @@ import org.apache.lucene.util.SparseFixedBitSet;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -43,11 +44,9 @@ import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesWarmer;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
-import org.elasticsearch.shield.authz.InternalAuthorizationService;
 import org.elasticsearch.shield.license.ShieldLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
-import org.elasticsearch.transport.TransportRequest;
 import org.junit.After;
 import org.junit.Before;
 
@@ -68,16 +67,17 @@ import static org.mockito.Mockito.when;
 
 public class ShieldIndexSearcherWrapperUnitTests extends ESTestCase {
 
-    private TransportRequest request;
+    private ThreadContext threadContext;
     private MapperService mapperService;
     private ShieldIndexSearcherWrapper shieldIndexSearcherWrapper;
     private ElasticsearchDirectoryReader esIn;
     private ShieldLicenseState licenseState;
+    private IndexSettings indexSettings;
 
     @Before
     public void before() throws Exception {
         Index index = new Index("_index");
-        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(index, Settings.EMPTY);
+        indexSettings = IndexSettingsModule.newIndexSettings(index, Settings.EMPTY);
         AnalysisService analysisService = new AnalysisService(indexSettings, Collections.emptyMap(), Collections.emptyMap(),
                 Collections.emptyMap(), Collections.emptyMap());
         SimilarityService similarityService = new SimilarityService(indexSettings, Collections.emptyMap());
@@ -86,12 +86,9 @@ public class ShieldIndexSearcherWrapperUnitTests extends ESTestCase {
         ShardId shardId = new ShardId(index, 0);
         licenseState = mock(ShieldLicenseState.class);
         when(licenseState.documentAndFieldLevelSecurityEnabled()).thenReturn(true);
-        shieldIndexSearcherWrapper = new ShieldIndexSearcherWrapper(indexSettings, null, mapperService, null, licenseState);
+        threadContext = new ThreadContext(Settings.EMPTY);
         IndexShard indexShard = mock(IndexShard.class);
         when(indexShard.shardId()).thenReturn(shardId);
-
-        request = new TransportRequest.Empty();
-        RequestContext.setCurrent(new RequestContext(request));
 
         Directory directory = new RAMDirectory();
         IndexWriter writer = new IndexWriter(directory, newIndexWriterConfig());
@@ -106,16 +103,6 @@ public class ShieldIndexSearcherWrapperUnitTests extends ESTestCase {
         esIn.close();
     }
 
-    public void testUnkownOriginOfCurrentCall() {
-        RequestContext.setCurrent(null);
-        try {
-            shieldIndexSearcherWrapper.wrap(esIn);
-            fail("exception expected");
-        } catch (IllegalStateException e) {
-            assertThat(e.getMessage(), equalTo("can't locate the origin of the current request"));
-        }
-    }
-
     public void testDefaultMetaFields() throws Exception {
         XContentBuilder mappingSource = jsonBuilder().startObject().startObject("type")
                 .startObject("properties")
@@ -123,8 +110,13 @@ public class ShieldIndexSearcherWrapperUnitTests extends ESTestCase {
                 .endObject().endObject();
         mapperService.merge("type", new CompressedXContent(mappingSource.string()), MapperService.MergeReason.MAPPING_UPDATE, false);
 
-        IndicesAccessControl.IndexAccessControl indexAccessControl = new IndicesAccessControl.IndexAccessControl(true, emptySet(), null);
-        request.putInContext(InternalAuthorizationService.INDICES_PERMISSIONS_KEY, new IndicesAccessControl(true, singletonMap("_index", indexAccessControl)));
+        shieldIndexSearcherWrapper = new ShieldIndexSearcherWrapper(indexSettings, null, mapperService, null, threadContext, licenseState) {
+            @Override
+            protected IndicesAccessControl getIndicesAccessControl() {
+                IndicesAccessControl.IndexAccessControl indexAccessControl = new IndicesAccessControl.IndexAccessControl(true, emptySet(), null);
+                return new IndicesAccessControl(true, singletonMap("_index", indexAccessControl));
+            }
+        };
 
         FieldSubsetReader.FieldSubsetDirectoryReader result = (FieldSubsetReader.FieldSubsetDirectoryReader) shieldIndexSearcherWrapper.wrap(esIn);
         assertThat(result.getFieldNames().size(), equalTo(11));
@@ -144,12 +136,14 @@ public class ShieldIndexSearcherWrapperUnitTests extends ESTestCase {
 
     public void testWrapReaderWhenFeatureDisabled() throws Exception {
         when(licenseState.documentAndFieldLevelSecurityEnabled()).thenReturn(false);
+        shieldIndexSearcherWrapper = new ShieldIndexSearcherWrapper(indexSettings, null, mapperService, null, threadContext, licenseState);
         DirectoryReader reader = shieldIndexSearcherWrapper.wrap(esIn);
         assertThat(reader, sameInstance(esIn));
     }
 
     public void testWrapSearcherWhenFeatureDisabled() throws Exception {
         ShardId shardId = new ShardId("_index", 0);
+        shieldIndexSearcherWrapper = new ShieldIndexSearcherWrapper(indexSettings, null, mapperService, null, threadContext, licenseState);
         IndexSearcher indexSearcher = new IndexSearcher(esIn);
         IndexSearcher result = shieldIndexSearcherWrapper.wrap(indexSearcher);
         assertThat(result, sameInstance(indexSearcher));
@@ -262,6 +256,7 @@ public class ShieldIndexSearcherWrapperUnitTests extends ESTestCase {
         });
         DirectoryReader directoryReader = DocumentSubsetReader.wrap(esIn, bitsetFilterCache, new MatchAllDocsQuery());
         IndexSearcher indexSearcher = new IndexSearcher(directoryReader);
+        shieldIndexSearcherWrapper = new ShieldIndexSearcherWrapper(indexSettings, null, mapperService, null, threadContext, licenseState);
         IndexSearcher result = shieldIndexSearcherWrapper.wrap(indexSearcher);
         assertThat(result, not(sameInstance(indexSearcher)));
         assertThat(result.getSimilarity(true), sameInstance(indexSearcher.getSimilarity(true)));
@@ -269,6 +264,7 @@ public class ShieldIndexSearcherWrapperUnitTests extends ESTestCase {
     }
 
     public void testIntersectScorerAndRoleBits() throws Exception {
+        shieldIndexSearcherWrapper = new ShieldIndexSearcherWrapper(indexSettings, null, mapperService, null, threadContext, licenseState);
         final Directory directory = newDirectory();
         IndexWriter iw = new IndexWriter(
                 directory,
@@ -356,8 +352,13 @@ public class ShieldIndexSearcherWrapperUnitTests extends ESTestCase {
     }
 
     private void assertResolvedFields(String expression, String... expectedFields) {
-        IndicesAccessControl.IndexAccessControl indexAccessControl = new IndicesAccessControl.IndexAccessControl(true, singleton(expression), null);
-        request.putInContext(InternalAuthorizationService.INDICES_PERMISSIONS_KEY, new IndicesAccessControl(true, singletonMap("_index", indexAccessControl)));
+        shieldIndexSearcherWrapper = new ShieldIndexSearcherWrapper(indexSettings, null, mapperService, null, threadContext, licenseState) {
+            @Override
+            protected IndicesAccessControl getIndicesAccessControl() {
+                IndicesAccessControl.IndexAccessControl indexAccessControl = new IndicesAccessControl.IndexAccessControl(true, singleton(expression), null);
+                return new IndicesAccessControl(true, singletonMap("_index", indexAccessControl));
+            }
+        };
         FieldSubsetReader.FieldSubsetDirectoryReader result = (FieldSubsetReader.FieldSubsetDirectoryReader) shieldIndexSearcherWrapper.wrap(esIn);
         assertThat(result.getFieldNames().size() - shieldIndexSearcherWrapper.getAllowedMetaFields().size(), equalTo(expectedFields.length));
         for (String expectedField : expectedFields) {

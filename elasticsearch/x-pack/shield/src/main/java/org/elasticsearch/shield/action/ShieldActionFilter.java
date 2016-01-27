@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.plugin.core.LicenseUtils;
 import org.elasticsearch.shield.ShieldPlugin;
 import org.elasticsearch.shield.User;
@@ -26,7 +27,10 @@ import org.elasticsearch.shield.authz.AuthorizationService;
 import org.elasticsearch.shield.authz.privilege.HealthAndStatsPrivilege;
 import org.elasticsearch.shield.crypto.CryptoService;
 import org.elasticsearch.shield.license.ShieldLicenseState;
+import org.elasticsearch.shield.support.AutomatonPredicate;
+import org.elasticsearch.shield.support.Automatons;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -42,6 +46,8 @@ import static org.elasticsearch.shield.support.Exceptions.authorizationError;
 public class ShieldActionFilter extends AbstractComponent implements ActionFilter {
 
     private static final Predicate<String> LICENSE_EXPIRATION_ACTION_MATCHER = HealthAndStatsPrivilege.INSTANCE.predicate();
+    // FIXME clean up this hack
+    static final Predicate<String> INTERNAL_PREDICATE = new AutomatonPredicate(Automatons.patterns("internal:*"));
 
     private final AuthenticationService authcService;
     private final AuthorizationService authzService;
@@ -50,10 +56,12 @@ public class ShieldActionFilter extends AbstractComponent implements ActionFilte
     private final ShieldActionMapper actionMapper;
     private final Set<RequestInterceptor> requestInterceptors;
     private final ShieldLicenseState licenseState;
+    private final ThreadContext threadContext;
 
     @Inject
     public ShieldActionFilter(Settings settings, AuthenticationService authcService, AuthorizationService authzService, CryptoService cryptoService,
-                              AuditTrail auditTrail, ShieldLicenseState licenseState, ShieldActionMapper actionMapper, Set<RequestInterceptor> requestInterceptors) {
+                              AuditTrail auditTrail, ShieldLicenseState licenseState, ShieldActionMapper actionMapper, Set<RequestInterceptor> requestInterceptors,
+                              ThreadPool threadPool) {
         super(settings);
         this.authcService = authcService;
         this.authzService = authzService;
@@ -62,6 +70,7 @@ public class ShieldActionFilter extends AbstractComponent implements ActionFilte
         this.actionMapper = actionMapper;
         this.licenseState = licenseState;
         this.requestInterceptors = requestInterceptors;
+        this.threadContext = threadPool.getThreadContext();
     }
 
     @Override
@@ -78,8 +87,56 @@ public class ShieldActionFilter extends AbstractComponent implements ActionFilte
             throw LicenseUtils.newComplianceException(ShieldPlugin.NAME);
         }
 
-        try {
+        try (ThreadContext.StoredContext original = threadContext.newStoredContext()) {
             if (licenseState.securityEnabled()) {
+                // FIXME yet another hack. Needed to work around something like
+                /*
+                FailedNodeException[total failure in fetching]; nested: ElasticsearchSecurityException[action [internal:gateway/local/started_shards] is unauthorized for user [test_user]];
+                    at org.elasticsearch.gateway.AsyncShardFetch$1.onFailure(AsyncShardFetch.java:284)
+                    at org.elasticsearch.action.support.TransportAction$1.onFailure(TransportAction.java:84)
+                    at org.elasticsearch.shield.action.ShieldActionFilter.apply(ShieldActionFilter.java:121)
+                    at org.elasticsearch.action.support.TransportAction$RequestFilterChain.proceed(TransportAction.java:133)
+                    at org.elasticsearch.action.support.TransportAction.execute(TransportAction.java:107)
+                    at org.elasticsearch.action.support.TransportAction.execute(TransportAction.java:74)
+                    at org.elasticsearch.gateway.TransportNodesListGatewayStartedShards.list(TransportNodesListGatewayStartedShards.java:78)
+                    at org.elasticsearch.gateway.AsyncShardFetch.asyncFetch(AsyncShardFetch.java:274)
+                    at org.elasticsearch.gateway.AsyncShardFetch.fetchData(AsyncShardFetch.java:124)
+                    at org.elasticsearch.gateway.GatewayAllocator$InternalPrimaryShardAllocator.fetchData(GatewayAllocator.java:156)
+                    at org.elasticsearch.gateway.PrimaryShardAllocator.allocateUnassigned(PrimaryShardAllocator.java:83)
+                    at org.elasticsearch.gateway.GatewayAllocator.allocateUnassigned(GatewayAllocator.java:120)
+                    at org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocators.allocateUnassigned(ShardsAllocators.java:72)
+                    at org.elasticsearch.cluster.routing.allocation.AllocationService.reroute(AllocationService.java:309)
+                    at org.elasticsearch.cluster.routing.allocation.AllocationService.reroute(AllocationService.java:273)
+                    at org.elasticsearch.cluster.routing.allocation.AllocationService.reroute(AllocationService.java:259)
+                    at org.elasticsearch.cluster.routing.RoutingService$2.execute(RoutingService.java:158)
+                    at org.elasticsearch.cluster.ClusterStateUpdateTask.execute(ClusterStateUpdateTask.java:45)
+                    at org.elasticsearch.cluster.service.InternalClusterService.runTasksForExecutor(InternalClusterService.java:447)
+                    at org.elasticsearch.cluster.service.InternalClusterService$UpdateTask.run(InternalClusterService.java:757)
+                    at org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor$FilterRunnable.run(EsThreadPoolExecutor.java:211)
+                    at org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor$TieBreakingPrioritizedRunnable.runAndClean(PrioritizedEsThreadPoolExecutor.java:237)
+                    at org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor$TieBreakingPrioritizedRunnable.run(PrioritizedEsThreadPoolExecutor.java:200)
+                    at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1142)
+                    at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:617)
+                    at java.lang.Thread.run(Thread.java:745)
+                 */
+                if (INTERNAL_PREDICATE.test(action)) {
+                    try (ThreadContext.StoredContext ctx = threadContext.stashContext()) {
+                        String shieldAction = actionMapper.action(action, request);
+                        User user = authcService.authenticate(shieldAction, request, User.SYSTEM);
+                        authzService.authorize(user, shieldAction, request);
+                        request = unsign(user, shieldAction, request);
+
+                        for (RequestInterceptor interceptor : requestInterceptors) {
+                            if (interceptor.supports(request)) {
+                                interceptor.intercept(request, user);
+                            }
+                        }
+                        chain.proceed(task, action, request, new SigningListener(this, listener));
+                        return;
+                    }
+                }
+
+
                 /**
                  here we fallback on the system user. Internal system requests are requests that are triggered by
                  the system itself (e.g. pings, update mappings, share relocation, etc...) and were not originated

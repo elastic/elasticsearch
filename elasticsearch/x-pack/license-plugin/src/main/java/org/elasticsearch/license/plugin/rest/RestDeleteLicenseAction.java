@@ -23,7 +23,7 @@ public class RestDeleteLicenseAction extends BaseRestHandler {
 
     @Inject
     public RestDeleteLicenseAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+        super(settings, client);
         controller.registerHandler(DELETE, "/_license", this);
     }
 

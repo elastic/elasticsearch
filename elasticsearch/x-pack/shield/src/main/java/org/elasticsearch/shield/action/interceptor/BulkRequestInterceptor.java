@@ -12,10 +12,12 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.authz.InternalAuthorizationService;
 import org.elasticsearch.shield.authz.accesscontrol.IndicesAccessControl;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
 
 /**
@@ -23,13 +25,16 @@ import org.elasticsearch.transport.TransportRequest;
  */
 public class BulkRequestInterceptor extends AbstractComponent implements RequestInterceptor<BulkRequest> {
 
+    private final ThreadContext threadContext;
+
     @Inject
-    public BulkRequestInterceptor(Settings settings) {
+    public BulkRequestInterceptor(Settings settings, ThreadPool threadPool) {
         super(settings);
+        this.threadContext = threadPool.getThreadContext();
     }
 
     public void intercept(BulkRequest request, User user) {
-        IndicesAccessControl indicesAccessControl = ((TransportRequest) request).getFromContext(InternalAuthorizationService.INDICES_PERMISSIONS_KEY);
+        IndicesAccessControl indicesAccessControl= threadContext.getTransient(InternalAuthorizationService.INDICES_PERMISSIONS_KEY);
         for (IndicesRequest indicesRequest : request.subRequests()) {
             for (String index : indicesRequest.indices()) {
                 IndicesAccessControl.IndexAccessControl indexAccessControl = indicesAccessControl.getIndexPermissions(index);

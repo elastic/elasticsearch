@@ -688,7 +688,7 @@ public class TopHitsAggregator extends MetricsAggregator {
         }
 
         @Override
-        protected AggregatorFactory doReadFrom(String name, StreamInput in) throws IOException {
+        protected Factory doReadFrom(String name, StreamInput in) throws IOException {
             Factory factory = new Factory(name);
             factory.explain = in.readBoolean();
             factory.fetchSourceContext = FetchSourceContext.optionalReadFromStream(in);

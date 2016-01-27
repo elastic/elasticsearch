@@ -360,7 +360,7 @@ public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource, AF 
     protected abstract void innerWriteTo(StreamOutput out) throws IOException;
 
     @Override
-    protected final ValuesSourceAggregatorFactory<VS, AF> doReadFrom(String name, StreamInput in) throws IOException {
+    protected final AF doReadFrom(String name, StreamInput in) throws IOException {
         ValuesSourceType valuesSourceType = ValuesSourceType.ANY.readFrom(in);
         ValueType targetValueType = null;
         if (in.readBoolean()) {
@@ -379,7 +379,7 @@ public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource, AF 
         if (in.readBoolean()) {
             factory.timeZone = DateTimeZone.forID(in.readString());
         }
-        return factory;
+        return (AF) factory;
     }
 
     protected abstract ValuesSourceAggregatorFactory<VS, AF> innerReadFrom(String name, ValuesSourceType valuesSourceType,

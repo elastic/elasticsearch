@@ -291,7 +291,7 @@ public class ScriptedMetricAggregator extends MetricsAggregator {
         }
 
         @Override
-        protected AggregatorFactory doReadFrom(String name, StreamInput in) throws IOException {
+        protected Factory doReadFrom(String name, StreamInput in) throws IOException {
             Factory factory = new Factory(name);
             factory.initScript = in.readOptionalStreamable(Script.SUPPLIER);
             factory.mapScript = in.readOptionalStreamable(Script.SUPPLIER);

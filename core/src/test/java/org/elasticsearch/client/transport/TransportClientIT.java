@@ -86,17 +86,16 @@ public class TransportClientIT extends ESIntegTestCase {
     public void testThatTransportClientSettingIsSet() {
         TransportClient client = (TransportClient)  internalCluster().client();
         Settings settings = client.injector.getInstance(Settings.class);
-        assertThat(settings.get(Client.CLIENT_TYPE_SETTING), is("transport"));
+        assertThat(Client.CLIENT_TYPE_SETTING_S.get(settings), is("transport"));
     }
 
     public void testThatTransportClientSettingCannotBeChanged() {
         Settings baseSettings = settingsBuilder()
-            .put(Client.CLIENT_TYPE_SETTING, "anything")
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
              .build();
         try (TransportClient client = TransportClient.builder().settings(baseSettings).build()) {
             Settings settings = client.injector.getInstance(Settings.class);
-            assertThat(settings.get(Client.CLIENT_TYPE_SETTING), is("transport"));
+            assertThat(Client.CLIENT_TYPE_SETTING_S.get(settings), is("transport"));
         }
     }
 }

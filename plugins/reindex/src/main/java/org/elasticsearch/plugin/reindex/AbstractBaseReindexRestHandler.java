@@ -19,6 +19,8 @@
 
 package org.elasticsearch.plugin.reindex;
 
+import java.io.IOException;
+
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.NoopActionListener;
@@ -35,8 +37,6 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
-
-import java.io.IOException;
 
 public abstract class AbstractBaseReindexRestHandler<Request extends ActionRequest<Request>, Response extends BulkIndexByScrollResponse, TA extends TransportAction<Request, Response>>
         extends BaseRestHandler {
@@ -58,8 +58,9 @@ public abstract class AbstractBaseReindexRestHandler<Request extends ActionReque
             return;
         }
         /*
-         * Lets try and validate before forking launching the task so we can
-         * return errors even if we aren't waiting.
+         * Lets try and validate before forking so the user gets some error. The
+         * task can't totally validate until it starts but this is better than
+         * nothing.
          */
         ActionRequestValidationException validationException = internalRequest.validate();
         if (validationException != null) {

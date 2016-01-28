@@ -532,6 +532,9 @@ public class ESNativeUsersStore extends AbstractComponent implements ClusterStat
 
         @Override
         public void doRun() {
+            if (isStopped()) {
+                return;
+            }
             if (shieldIndexExists == false) {
                 logger.trace("cannot poll for user changes since shield admin index [{}] does not exist", ShieldTemplateService.SHIELD_ADMIN_INDEX_NAME);
                 return;
@@ -566,6 +569,11 @@ public class ESNativeUsersStore extends AbstractComponent implements ClusterStat
                 } else {
                     versionMap.put(username, version);
                 }
+            }
+
+            // exit before comparing with known users
+            if (isStopped()) {
+                return;
             }
 
             // we now have a list of users that were in our version map and have been deleted
@@ -619,6 +627,10 @@ public class ESNativeUsersStore extends AbstractComponent implements ClusterStat
 
                 boolean keepScrolling = response.getHits().getHits().length > 0;
                 while (keepScrolling) {
+                    if (isStopped()) {
+                        // instead of throwing an exception we return an empty map so nothing is processed and we exit early
+                        return new ObjectLongHashMap<>();
+                    }
                     for (SearchHit hit : response.getHits().getHits()) {
                         String username = hit.id();
                         long version = hit.version();
@@ -637,6 +649,11 @@ public class ESNativeUsersStore extends AbstractComponent implements ClusterStat
                 }
             }
             return map;
+        }
+
+        private boolean isStopped() {
+            State state = state();
+            return state == State.STOPPED || state == State.STOPPING;
         }
     }
 

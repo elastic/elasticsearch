@@ -151,6 +151,39 @@ public class ScriptServiceTests extends ESTestCase {
         }
     }
 
+    public void testHiddenFileSkipped() throws IOException {
+        ContextAndHeaderHolder contextAndHeaders = new ContextAndHeaderHolder();
+        buildScriptService(Settings.EMPTY);
+
+        logger.info("--> setup one hidden test file");
+        Path testFileHidden = scriptsFilePath.resolve(".hidden_file");
+        Path testRegularFile = scriptsFilePath.resolve("test_file.tst");
+        Streams.copy("test_hidden_file".getBytes("UTF-8"), Files.newOutputStream(testFileHidden));
+        Streams.copy("test_file".getBytes("UTF-8"), Files.newOutputStream(testRegularFile));
+        resourceWatcherService.notifyNow();
+
+        try {
+            logger.info("--> verify if hidden_file was skipped");
+            scriptService.compile(new Script("hidden_file", ScriptType.FILE, "test", null),
+                    ScriptContext.Standard.SEARCH, contextAndHeaders, Collections.emptyMap());
+            fail("the script hidden_file should not be processed");
+        } catch (IllegalArgumentException ex) {
+            assertThat(ex.getMessage(), containsString("Unable to find on disk file script [hidden_file] using lang [test]"));
+        }
+
+        logger.info("--> verify if test_file was correctly processed");
+        CompiledScript compiledScript = scriptService.compile(new Script("test_file", ScriptType.FILE, "test", null),
+                ScriptContext.Standard.SEARCH, contextAndHeaders, Collections.emptyMap());
+        assertThat(compiledScript.compiled(), equalTo((Object) "compiled_test_file"));
+
+        logger.info("--> delete hidden file");
+        Files.delete(testFileHidden);
+
+        logger.info("--> delete test file");
+        Files.delete(testRegularFile);
+        resourceWatcherService.notifyNow();
+    }
+
     public void testInlineScriptCompiledOnceCache() throws IOException {
         buildScriptService(Settings.EMPTY);
         CompiledScript compiledScript1 = scriptService.compile(new Script("1+1", ScriptType.INLINE, "test", null),

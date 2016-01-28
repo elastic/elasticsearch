@@ -42,6 +42,7 @@ import org.elasticsearch.common.cache.RemovalNotification;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -532,6 +533,10 @@ public class ScriptService extends AbstractComponent implements Closeable {
         public void onFileInit(Path file) {
             if (logger.isTraceEnabled()) {
                 logger.trace("Loading script file : [{}]", file);
+            }
+            if (FileSystemUtils.isHidden(file)) {
+                logger.warn("--- Hidden file skipped : [{}]", file);
+                return;
             }
             Tuple<String, String> scriptNameExt = scriptNameExt(file);
             if (scriptNameExt != null) {

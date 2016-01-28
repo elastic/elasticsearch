@@ -27,6 +27,7 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.NodeConfigurationSource;
+import org.elasticsearch.transport.TransportSettings;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -113,7 +114,7 @@ public class ClusterDiscoveryConfiguration extends NodeConfigurationSource {
                 throw new ElasticsearchException("nodeOrdinal [" + nodeOrdinal + "] is greater than the number unicast ports [" + unicastHostPorts.length + "]");
             } else {
                 // we need to pin the node port & host so we'd know where to point things
-                builder.put("transport.tcp.port", unicastHostPorts[nodeOrdinal]);
+                builder.put(TransportSettings.PORT.getKey(), unicastHostPorts[nodeOrdinal]);
                 builder.put("transport.host", IP_ADDR); // only bind on one IF we use v4 here by default
                 builder.put("transport.bind_host", IP_ADDR);
                 builder.put("transport.publish_host", IP_ADDR);

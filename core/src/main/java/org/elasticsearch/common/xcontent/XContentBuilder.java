@@ -83,6 +83,10 @@ public final class XContentBuilder implements BytesStream, Releasable {
         return new XContentBuilder(xContent, new BytesStreamOutput(), filters);
     }
 
+    public static XContentBuilder builder(XContent xContent, boolean inclusive, String[] filters) throws IOException {
+        return new XContentBuilder(xContent, new BytesStreamOutput(), inclusive, filters);
+    }
+
     private XContentGenerator generator;
 
     private final OutputStream bos;

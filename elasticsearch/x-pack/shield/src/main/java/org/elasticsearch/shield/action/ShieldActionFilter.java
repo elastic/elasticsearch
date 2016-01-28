@@ -24,6 +24,7 @@ import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.action.interceptor.RequestInterceptor;
 import org.elasticsearch.shield.audit.AuditTrail;
 import org.elasticsearch.shield.authc.AuthenticationService;
+import org.elasticsearch.shield.authc.InternalAuthenticationService;
 import org.elasticsearch.shield.authz.AuthorizationService;
 import org.elasticsearch.shield.authz.privilege.HealthAndStatsPrivilege;
 import org.elasticsearch.shield.crypto.CryptoService;
@@ -88,6 +89,11 @@ public class ShieldActionFilter extends AbstractComponent implements ActionFilte
             throw LicenseUtils.newComplianceException(ShieldPlugin.NAME);
         }
 
+        // only restore the context if it is not empty. This is needed because sometimes a response is sent to the user
+        // and then a cleanup action is executed (like for search without a scroll)
+        final ThreadContext.StoredContext original = threadContext.newStoredContext();
+        final boolean restoreOriginalContext = threadContext.getHeader(InternalAuthenticationService.USER_KEY) != null ||
+                threadContext.getTransient(InternalAuthenticationService.USER_KEY) != null;
         try {
             if (licenseState.securityEnabled()) {
                 // FIXME yet another hack. Needed to work around something like
@@ -121,7 +127,6 @@ public class ShieldActionFilter extends AbstractComponent implements ActionFilte
                     at java.lang.Thread.run(Thread.java:745)
                  */
                 if (INTERNAL_PREDICATE.test(action)) {
-                    final ThreadContext.StoredContext original = threadContext.newStoredContext();
                     try (ThreadContext.StoredContext ctx = threadContext.stashContext()) {
                         String shieldAction = actionMapper.action(action, request);
                         User user = authcService.authenticate(shieldAction, request, User.SYSTEM);
@@ -133,6 +138,7 @@ public class ShieldActionFilter extends AbstractComponent implements ActionFilte
                                 interceptor.intercept(request, user);
                             }
                         }
+                        // we should always restore the original here because we forcefully changed to the system user
                         chain.proceed(task, action, request, new SigningListener(this, listener, original));
                         return;
                     }
@@ -160,7 +166,7 @@ public class ShieldActionFilter extends AbstractComponent implements ActionFilte
                         interceptor.intercept(request, user);
                     }
                 }
-                chain.proceed(task, action, request, new SigningListener(this, listener, null));
+                chain.proceed(task, action, request, new SigningListener(this, listener, restoreOriginalContext ? original : null));
             } else {
                 chain.proceed(task, action, request, listener);
             }

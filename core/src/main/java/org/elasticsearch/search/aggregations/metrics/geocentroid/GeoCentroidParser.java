@@ -23,7 +23,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.GeoPointValuesSourceParser;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
@@ -52,13 +52,13 @@ public class GeoCentroidParser extends GeoPointValuesSourceParser {
     }
 
     @Override
-    protected GeoCentroidAggregator.Factory createFactory(String aggregationName, ValuesSourceType valuesSourceType,
+    protected GeoCentroidAggregator.GeoCentroidAggregatorBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
             ValueType targetValueType, Map<ParseField, Object> otherOptions) {
-        return new GeoCentroidAggregator.Factory(aggregationName);
+        return new GeoCentroidAggregator.GeoCentroidAggregatorBuilder(aggregationName);
     }
 
     @Override
-    public AggregatorFactory<?> getFactoryPrototypes() {
-        return new GeoCentroidAggregator.Factory(null);
+    public AggregatorBuilder<?> getFactoryPrototypes() {
+        return new GeoCentroidAggregator.GeoCentroidAggregatorBuilder(null);
     }
 }

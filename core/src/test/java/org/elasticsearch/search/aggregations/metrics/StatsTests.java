@@ -21,11 +21,11 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.search.aggregations.metrics.stats.StatsAggregator;
 
-public class StatsTests extends AbstractNumericMetricTestCase<StatsAggregator.Factory> {
+public class StatsTests extends AbstractNumericMetricTestCase<StatsAggregator.StatsAggregatorBuilder> {
 
     @Override
-    protected StatsAggregator.Factory doCreateTestAggregatorFactory() {
-        return new StatsAggregator.Factory("foo");
+    protected StatsAggregator.StatsAggregatorBuilder doCreateTestAggregatorFactory() {
+        return new StatsAggregator.StatsAggregatorBuilder("foo");
     }
 
 }

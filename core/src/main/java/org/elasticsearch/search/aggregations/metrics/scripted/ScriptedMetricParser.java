@@ -27,7 +27,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptParameterParser;
 import org.elasticsearch.script.ScriptParameterParser.ScriptParameterValue;
 import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.AggregatorBuilder;
 
 import java.io.IOException;
 import java.util.HashSet;
@@ -54,7 +54,7 @@ public class ScriptedMetricParser implements Aggregator.Parser {
     }
 
     @Override
-    public AggregatorFactory parse(String aggregationName, XContentParser parser, QueryParseContext context) throws IOException {
+    public AggregatorBuilder parse(String aggregationName, XContentParser parser, QueryParseContext context) throws IOException {
         Script initScript = null;
         Script mapScript = null;
         Script combineScript = null;
@@ -141,7 +141,7 @@ public class ScriptedMetricParser implements Aggregator.Parser {
             throw new ParsingException(parser.getTokenLocation(), "map_script field is required in [" + aggregationName + "].");
         }
 
-        ScriptedMetricAggregator.Factory factory = new ScriptedMetricAggregator.Factory(aggregationName);
+        ScriptedMetricAggregator.ScriptedMetricAggregatorBuilder factory = new ScriptedMetricAggregator.ScriptedMetricAggregatorBuilder(aggregationName);
         factory.initScript(initScript);
         factory.mapScript(mapScript);
         factory.combineScript(combineScript);
@@ -151,8 +151,8 @@ public class ScriptedMetricParser implements Aggregator.Parser {
     }
 
     @Override
-    public AggregatorFactory<?> getFactoryPrototypes() {
-        return new ScriptedMetricAggregator.Factory(null);
+    public AggregatorBuilder<?> getFactoryPrototypes() {
+        return new ScriptedMetricAggregator.ScriptedMetricAggregatorBuilder(null);
     }
 
 }

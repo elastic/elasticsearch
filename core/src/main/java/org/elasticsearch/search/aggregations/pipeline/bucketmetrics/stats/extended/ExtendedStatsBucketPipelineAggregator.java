@@ -22,7 +22,7 @@ package org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.exten
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
@@ -136,7 +136,7 @@ public class ExtendedStatsBucketPipelineAggregator extends BucketMetricsPipeline
         }
 
         @Override
-        public void doValidate(AggregatorFactory parent, AggregatorFactory[] aggFactories,
+        public void doValidate(AggregatorBuilder parent, AggregatorBuilder[] aggFactories,
                 List<PipelineAggregatorFactory> pipelineAggregatorFactories) {
             if (bucketsPaths.length != 1) {
                 throw new IllegalStateException(Parser.BUCKETS_PATH.getPreferredName()

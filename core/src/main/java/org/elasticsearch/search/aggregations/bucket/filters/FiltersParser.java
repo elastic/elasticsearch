@@ -28,7 +28,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.AggregatorBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -55,7 +55,7 @@ public class FiltersParser implements Aggregator.Parser {
     }
 
     @Override
-    public AggregatorFactory parse(String aggregationName, XContentParser parser, QueryParseContext context) throws IOException {
+    public AggregatorBuilder parse(String aggregationName, XContentParser parser, QueryParseContext context) throws IOException {
 
         List<FiltersAggregator.KeyedFilter> keyedFilters = null;
         List<QueryBuilder<?>> nonKeyedFilters = null;
@@ -125,11 +125,11 @@ public class FiltersParser implements Aggregator.Parser {
             otherBucketKey = "_other_";
         }
 
-        FiltersAggregator.Factory factory;
+        FiltersAggregator.FiltersAggregatorBuilder factory;
         if (keyedFilters != null) {
-            factory = new FiltersAggregator.Factory(aggregationName, keyedFilters.toArray(new FiltersAggregator.KeyedFilter[keyedFilters.size()]));
+            factory = new FiltersAggregator.FiltersAggregatorBuilder(aggregationName, keyedFilters.toArray(new FiltersAggregator.KeyedFilter[keyedFilters.size()]));
         } else {
-            factory = new FiltersAggregator.Factory(aggregationName, nonKeyedFilters.toArray(new QueryBuilder<?>[nonKeyedFilters.size()]));
+            factory = new FiltersAggregator.FiltersAggregatorBuilder(aggregationName, nonKeyedFilters.toArray(new QueryBuilder<?>[nonKeyedFilters.size()]));
         }
         if (otherBucket != null) {
             factory.otherBucket(otherBucket);
@@ -141,8 +141,8 @@ public class FiltersParser implements Aggregator.Parser {
     }
 
     @Override
-    public AggregatorFactory<?> getFactoryPrototypes() {
-        return new FiltersAggregator.Factory(null, new FiltersAggregator.KeyedFilter[0]);
+    public AggregatorBuilder<?> getFactoryPrototypes() {
+        return new FiltersAggregator.FiltersAggregatorBuilder(null, new FiltersAggregator.KeyedFilter[0]);
     }
 
 }

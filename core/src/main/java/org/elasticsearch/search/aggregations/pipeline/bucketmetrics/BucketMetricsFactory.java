@@ -22,7 +22,7 @@ package org.elasticsearch.search.aggregations.pipeline.bucketmetrics;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorFactory;
@@ -85,7 +85,7 @@ public abstract class BucketMetricsFactory<AF extends BucketMetricsFactory<AF>> 
     protected abstract PipelineAggregator createInternal(Map<String, Object> metaData) throws IOException;
 
     @Override
-    public void doValidate(AggregatorFactory parent, AggregatorFactory[] aggFactories,
+    public void doValidate(AggregatorBuilder parent, AggregatorBuilder[] aggFactories,
             List<PipelineAggregatorFactory> pipelineAggregatorFactories) {
         if (bucketsPaths.length != 1) {
             throw new IllegalStateException(PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName()

@@ -36,7 +36,7 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
+import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
@@ -159,9 +159,9 @@ public class StatsAggregator extends NumericMetricsAggregator.MultiValue {
         return new InternalStats(name, 0, 0, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, formatter, pipelineAggregators(), metaData());
     }
 
-    public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.Numeric, Factory> {
+    public static class StatsAggregatorBuilder extends ValuesSourceAggregatorBuilder.LeafOnly<ValuesSource.Numeric, StatsAggregatorBuilder> {
 
-        public Factory(String name) {
+        public StatsAggregatorBuilder(String name) {
             super(name, InternalStats.TYPE, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
         }
 
@@ -179,9 +179,9 @@ public class StatsAggregator extends NumericMetricsAggregator.MultiValue {
         }
 
         @Override
-        protected Factory innerReadFrom(String name, ValuesSourceType valuesSourceType,
+        protected StatsAggregatorBuilder innerReadFrom(String name, ValuesSourceType valuesSourceType,
                 ValueType targetValueType, StreamInput in) {
-            return new StatsAggregator.Factory(name);
+            return new StatsAggregator.StatsAggregatorBuilder(name);
         }
 
         @Override

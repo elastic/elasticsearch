@@ -21,15 +21,15 @@ package org.elasticsearch.search.aggregations.bucket.range.date;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator;
-import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.AbstractFactory;
+import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.AbstractBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Range;
 import org.joda.time.DateTime;
 
 import java.io.IOException;
 
-public class DateRangeAggregatorFactory extends AbstractFactory<DateRangeAggregatorFactory, RangeAggregator.Range> {
+public class DateRangeAggregatorBuilder extends AbstractBuilder<DateRangeAggregatorBuilder, RangeAggregator.Range> {
 
-    public DateRangeAggregatorFactory(String name) {
+    public DateRangeAggregatorBuilder(String name) {
         super(name, InternalDateRange.FACTORY);
     }
 
@@ -48,7 +48,7 @@ public class DateRangeAggregatorFactory extends AbstractFactory<DateRangeAggrega
      * @param to
      *            the upper bound on the dates, exclusive
      */
-    public DateRangeAggregatorFactory addRange(String key, String from, String to) {
+    public DateRangeAggregatorBuilder addRange(String key, String from, String to) {
         addRange(new Range(key, from, to));
         return this;
     }
@@ -57,7 +57,7 @@ public class DateRangeAggregatorFactory extends AbstractFactory<DateRangeAggrega
      * Same as {@link #addRange(String, String, String)} but the key will be
      * automatically generated based on <code>from</code> and <code>to</code>.
      */
-    public DateRangeAggregatorFactory addRange(String from, String to) {
+    public DateRangeAggregatorBuilder addRange(String from, String to) {
         return addRange(null, from, to);
     }
 
@@ -69,7 +69,7 @@ public class DateRangeAggregatorFactory extends AbstractFactory<DateRangeAggrega
      * @param to
      *            the upper bound on the dates, exclusive
      */
-    public DateRangeAggregatorFactory addUnboundedTo(String key, String to) {
+    public DateRangeAggregatorBuilder addUnboundedTo(String key, String to) {
         addRange(new Range(key, null, to));
         return this;
     }
@@ -78,7 +78,7 @@ public class DateRangeAggregatorFactory extends AbstractFactory<DateRangeAggrega
      * Same as {@link #addUnboundedTo(String, String)} but the key will be
      * computed automatically.
      */
-    public DateRangeAggregatorFactory addUnboundedTo(String to) {
+    public DateRangeAggregatorBuilder addUnboundedTo(String to) {
         return addUnboundedTo(null, to);
     }
 
@@ -90,7 +90,7 @@ public class DateRangeAggregatorFactory extends AbstractFactory<DateRangeAggrega
      * @param from
      *            the lower bound on the distances, inclusive
      */
-    public DateRangeAggregatorFactory addUnboundedFrom(String key, String from) {
+    public DateRangeAggregatorBuilder addUnboundedFrom(String key, String from) {
         addRange(new Range(key, from, null));
         return this;
     }
@@ -99,7 +99,7 @@ public class DateRangeAggregatorFactory extends AbstractFactory<DateRangeAggrega
      * Same as {@link #addUnboundedFrom(String, String)} but the key will be
      * computed automatically.
      */
-    public DateRangeAggregatorFactory addUnboundedFrom(String from) {
+    public DateRangeAggregatorBuilder addUnboundedFrom(String from) {
         return addUnboundedFrom(null, from);
     }
 
@@ -113,7 +113,7 @@ public class DateRangeAggregatorFactory extends AbstractFactory<DateRangeAggrega
      * @param to
      *            the upper bound on the dates, exclusive
      */
-    public DateRangeAggregatorFactory addRange(String key, double from, double to) {
+    public DateRangeAggregatorBuilder addRange(String key, double from, double to) {
         addRange(new Range(key, from, to));
         return this;
     }
@@ -122,7 +122,7 @@ public class DateRangeAggregatorFactory extends AbstractFactory<DateRangeAggrega
      * Same as {@link #addRange(String, double, double)} but the key will be
      * automatically generated based on <code>from</code> and <code>to</code>.
      */
-    public DateRangeAggregatorFactory addRange(double from, double to) {
+    public DateRangeAggregatorBuilder addRange(double from, double to) {
         return addRange(null, from, to);
     }
 
@@ -134,7 +134,7 @@ public class DateRangeAggregatorFactory extends AbstractFactory<DateRangeAggrega
      * @param to
      *            the upper bound on the dates, exclusive
      */
-    public DateRangeAggregatorFactory addUnboundedTo(String key, double to) {
+    public DateRangeAggregatorBuilder addUnboundedTo(String key, double to) {
         addRange(new Range(key, null, to));
         return this;
     }
@@ -143,7 +143,7 @@ public class DateRangeAggregatorFactory extends AbstractFactory<DateRangeAggrega
      * Same as {@link #addUnboundedTo(String, double)} but the key will be
      * computed automatically.
      */
-    public DateRangeAggregatorFactory addUnboundedTo(double to) {
+    public DateRangeAggregatorBuilder addUnboundedTo(double to) {
         return addUnboundedTo(null, to);
     }
 
@@ -155,7 +155,7 @@ public class DateRangeAggregatorFactory extends AbstractFactory<DateRangeAggrega
      * @param from
      *            the lower bound on the distances, inclusive
      */
-    public DateRangeAggregatorFactory addUnboundedFrom(String key, double from) {
+    public DateRangeAggregatorBuilder addUnboundedFrom(String key, double from) {
         addRange(new Range(key, from, null));
         return this;
     }
@@ -164,7 +164,7 @@ public class DateRangeAggregatorFactory extends AbstractFactory<DateRangeAggrega
      * Same as {@link #addUnboundedFrom(String, double)} but the key will be
      * computed automatically.
      */
-    public DateRangeAggregatorFactory addUnboundedFrom(double from) {
+    public DateRangeAggregatorBuilder addUnboundedFrom(double from) {
         return addUnboundedFrom(null, from);
     }
 
@@ -178,7 +178,7 @@ public class DateRangeAggregatorFactory extends AbstractFactory<DateRangeAggrega
      * @param to
      *            the upper bound on the dates, exclusive
      */
-    public DateRangeAggregatorFactory addRange(String key, DateTime from, DateTime to) {
+    public DateRangeAggregatorBuilder addRange(String key, DateTime from, DateTime to) {
         addRange(new Range(key, convertDateTime(from), convertDateTime(to)));
         return this;
     }
@@ -195,7 +195,7 @@ public class DateRangeAggregatorFactory extends AbstractFactory<DateRangeAggrega
      * Same as {@link #addRange(String, DateTime, DateTime)} but the key will be
      * automatically generated based on <code>from</code> and <code>to</code>.
      */
-    public DateRangeAggregatorFactory addRange(DateTime from, DateTime to) {
+    public DateRangeAggregatorBuilder addRange(DateTime from, DateTime to) {
         return addRange(null, from, to);
     }
 
@@ -207,7 +207,7 @@ public class DateRangeAggregatorFactory extends AbstractFactory<DateRangeAggrega
      * @param to
      *            the upper bound on the dates, exclusive
      */
-    public DateRangeAggregatorFactory addUnboundedTo(String key, DateTime to) {
+    public DateRangeAggregatorBuilder addUnboundedTo(String key, DateTime to) {
         addRange(new Range(key, null, convertDateTime(to)));
         return this;
     }
@@ -216,7 +216,7 @@ public class DateRangeAggregatorFactory extends AbstractFactory<DateRangeAggrega
      * Same as {@link #addUnboundedTo(String, DateTime)} but the key will be
      * computed automatically.
      */
-    public DateRangeAggregatorFactory addUnboundedTo(DateTime to) {
+    public DateRangeAggregatorBuilder addUnboundedTo(DateTime to) {
         return addUnboundedTo(null, to);
     }
 
@@ -228,7 +228,7 @@ public class DateRangeAggregatorFactory extends AbstractFactory<DateRangeAggrega
      * @param from
      *            the lower bound on the distances, inclusive
      */
-    public DateRangeAggregatorFactory addUnboundedFrom(String key, DateTime from) {
+    public DateRangeAggregatorBuilder addUnboundedFrom(String key, DateTime from) {
         addRange(new Range(key, convertDateTime(from), null));
         return this;
     }
@@ -237,14 +237,14 @@ public class DateRangeAggregatorFactory extends AbstractFactory<DateRangeAggrega
      * Same as {@link #addUnboundedFrom(String, DateTime)} but the key will be
      * computed automatically.
      */
-    public DateRangeAggregatorFactory addUnboundedFrom(DateTime from) {
+    public DateRangeAggregatorBuilder addUnboundedFrom(DateTime from) {
         return addUnboundedFrom(null, from);
     }
 
     @Override
-    protected DateRangeAggregatorFactory createFactoryFromStream(String name, StreamInput in) throws IOException {
+    protected DateRangeAggregatorBuilder createFactoryFromStream(String name, StreamInput in) throws IOException {
         int size = in.readVInt();
-        DateRangeAggregatorFactory factory = new DateRangeAggregatorFactory(name);
+        DateRangeAggregatorBuilder factory = new DateRangeAggregatorBuilder(name);
         for (int i = 0; i < size; i++) {
             factory.addRange(Range.PROTOTYPE.readFrom(in));
         }

@@ -22,7 +22,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Range;
 import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.NumericValuesSourceParser;
 import org.elasticsearch.search.aggregations.support.ValueType;
@@ -52,9 +52,9 @@ public class RangeParser extends NumericValuesSourceParser {
     }
 
     @Override
-    protected RangeAggregator.AbstractFactory<?, ?> createFactory(String aggregationName, ValuesSourceType valuesSourceType,
+    protected RangeAggregator.AbstractBuilder<?, ?> createFactory(String aggregationName, ValuesSourceType valuesSourceType,
             ValueType targetValueType, Map<ParseField, Object> otherOptions) {
-        RangeAggregator.Factory factory = new RangeAggregator.Factory(aggregationName);
+        RangeAggregator.RangeAggregatorBuilder factory = new RangeAggregator.RangeAggregatorBuilder(aggregationName);
         List<? extends Range> ranges = (List<? extends Range>) otherOptions.get(RangeAggregator.RANGES_FIELD);
         for (Range range : ranges) {
             factory.addRange(range);
@@ -94,7 +94,7 @@ public class RangeParser extends NumericValuesSourceParser {
     }
 
     @Override
-    public AggregatorFactory<?> getFactoryPrototypes() {
-        return new RangeAggregator.Factory(null);
+    public AggregatorBuilder<?> getFactoryPrototypes() {
+        return new RangeAggregator.RangeAggregatorBuilder(null);
     }
 }

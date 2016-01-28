@@ -21,11 +21,11 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.search.aggregations.metrics.max.MaxAggregator;
 
-public class MaxTests extends AbstractNumericMetricTestCase<MaxAggregator.Factory> {
+public class MaxTests extends AbstractNumericMetricTestCase<MaxAggregator.MaxAggregatorBuilder> {
 
     @Override
-    protected MaxAggregator.Factory doCreateTestAggregatorFactory() {
-        return new MaxAggregator.Factory("foo");
+    protected MaxAggregator.MaxAggregatorBuilder doCreateTestAggregatorFactory() {
+        return new MaxAggregator.MaxAggregatorBuilder("foo");
     }
 
 }

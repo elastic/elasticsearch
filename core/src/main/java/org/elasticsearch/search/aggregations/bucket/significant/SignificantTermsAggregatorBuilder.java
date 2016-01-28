@@ -45,13 +45,13 @@ import org.elasticsearch.search.aggregations.bucket.significant.heuristics.Signi
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicStreams;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator.BucketCountThresholds;
-import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorFactory;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
+import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -63,7 +63,7 @@ import java.util.Objects;
 /**
  *
  */
-public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource, SignificantTermsAggregatorFactory>
+public class SignificantTermsAggregatorBuilder extends ValuesSourceAggregatorBuilder<ValuesSource, SignificantTermsAggregatorBuilder>
         implements Releasable {
 
     static final ParseField BACKGROUND_FILTER = new ParseField("background_filter");
@@ -83,7 +83,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
             @Override
             Aggregator create(String name, AggregatorFactories factories, ValuesSource valuesSource,
                     TermsAggregator.BucketCountThresholds bucketCountThresholds, IncludeExclude includeExclude,
-                    AggregationContext aggregationContext, Aggregator parent, SignificantTermsAggregatorFactory termsAggregatorFactory,
+                    AggregationContext aggregationContext, Aggregator parent, SignificantTermsAggregatorBuilder termsAggregatorFactory,
                     List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
                 final IncludeExclude.StringFilter filter = includeExclude == null ? null : includeExclude.convertToStringFilter();
                 return new SignificantStringTermsAggregator(name, factories, valuesSource, bucketCountThresholds, filter,
@@ -96,7 +96,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
             @Override
             Aggregator create(String name, AggregatorFactories factories, ValuesSource valuesSource,
                               TermsAggregator.BucketCountThresholds bucketCountThresholds, IncludeExclude includeExclude,
-                    AggregationContext aggregationContext, Aggregator parent, SignificantTermsAggregatorFactory termsAggregatorFactory,
+                    AggregationContext aggregationContext, Aggregator parent, SignificantTermsAggregatorBuilder termsAggregatorFactory,
                     List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
                 ValuesSource.Bytes.WithOrdinals valueSourceWithOrdinals = (ValuesSource.Bytes.WithOrdinals) valuesSource;
                 IndexSearcher indexSearcher = aggregationContext.searchContext().searcher();
@@ -112,7 +112,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
             @Override
             Aggregator create(String name, AggregatorFactories factories, ValuesSource valuesSource,
                               TermsAggregator.BucketCountThresholds bucketCountThresholds, IncludeExclude includeExclude,
-                    AggregationContext aggregationContext, Aggregator parent, SignificantTermsAggregatorFactory termsAggregatorFactory,
+                    AggregationContext aggregationContext, Aggregator parent, SignificantTermsAggregatorBuilder termsAggregatorFactory,
                     List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
                 final IncludeExclude.OrdinalsFilter filter = includeExclude == null ? null : includeExclude.convertToOrdinalsFilter();
                 return new GlobalOrdinalsSignificantTermsAggregator.WithHash(name, factories,
@@ -138,7 +138,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
 
         abstract Aggregator create(String name, AggregatorFactories factories, ValuesSource valuesSource,
                                    TermsAggregator.BucketCountThresholds bucketCountThresholds, IncludeExclude includeExclude,
-                AggregationContext aggregationContext, Aggregator parent, SignificantTermsAggregatorFactory termsAggregatorFactory,
+                AggregationContext aggregationContext, Aggregator parent, SignificantTermsAggregatorBuilder termsAggregatorFactory,
                 List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException;
 
         @Override
@@ -161,7 +161,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
         return new TermsAggregator.BucketCountThresholds(bucketCountThresholds);
     }
 
-    public SignificantTermsAggregatorFactory(String name, ValueType valueType) {
+    public SignificantTermsAggregatorBuilder(String name, ValueType valueType) {
         super(name, SignificantStringTerms.TYPE, ValuesSourceType.ANY, valueType);
     }
 
@@ -169,7 +169,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
         return bucketCountThresholds;
     }
 
-    public SignificantTermsAggregatorFactory bucketCountThresholds(TermsAggregator.BucketCountThresholds bucketCountThresholds) {
+    public SignificantTermsAggregatorBuilder bucketCountThresholds(TermsAggregator.BucketCountThresholds bucketCountThresholds) {
         this.bucketCountThresholds = bucketCountThresholds;
         return this;
     }
@@ -178,7 +178,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
      * Sets the size - indicating how many term buckets should be returned
      * (defaults to 10)
      */
-    public SignificantTermsAggregatorFactory size(int size) {
+    public SignificantTermsAggregatorBuilder size(int size) {
         bucketCountThresholds.setRequiredSize(size);
         return this;
     }
@@ -189,7 +189,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
      * search execution). The higher the shard size is, the more accurate the
      * results are.
      */
-    public SignificantTermsAggregatorFactory shardSize(int shardSize) {
+    public SignificantTermsAggregatorBuilder shardSize(int shardSize) {
         bucketCountThresholds.setShardSize(shardSize);
         return this;
     }
@@ -198,7 +198,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
      * Set the minimum document count terms should have in order to appear in
      * the response.
      */
-    public SignificantTermsAggregatorFactory minDocCount(long minDocCount) {
+    public SignificantTermsAggregatorBuilder minDocCount(long minDocCount) {
         bucketCountThresholds.setMinDocCount(minDocCount);
         return this;
     }
@@ -207,7 +207,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
      * Set the minimum document count terms should have on the shard in order to
      * appear in the response.
      */
-    public SignificantTermsAggregatorFactory shardMinDocCount(long shardMinDocCount) {
+    public SignificantTermsAggregatorBuilder shardMinDocCount(long shardMinDocCount) {
         bucketCountThresholds.setShardMinDocCount(shardMinDocCount);
         return this;
     }
@@ -215,7 +215,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
     /**
      * Expert: sets an execution hint to the aggregation.
      */
-    public SignificantTermsAggregatorFactory executionHint(String executionHint) {
+    public SignificantTermsAggregatorBuilder executionHint(String executionHint) {
         this.executionHint = executionHint;
         return this;
     }
@@ -227,7 +227,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
         return executionHint;
     }
 
-    public SignificantTermsAggregatorFactory backgroundFilter(QueryBuilder<?> filterBuilder) {
+    public SignificantTermsAggregatorBuilder backgroundFilter(QueryBuilder<?> filterBuilder) {
         this.filterBuilder = filterBuilder;
         return this;
     }
@@ -239,7 +239,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
     /**
      * Set terms to include and exclude from the aggregation results
      */
-    public SignificantTermsAggregatorFactory includeExclude(IncludeExclude includeExclude) {
+    public SignificantTermsAggregatorBuilder includeExclude(IncludeExclude includeExclude) {
         this.includeExclude = includeExclude;
         return this;
     }
@@ -251,7 +251,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
         return includeExclude;
     }
 
-    public SignificantTermsAggregatorFactory significanceHeuristic(SignificanceHeuristic significanceHeuristic) {
+    public SignificantTermsAggregatorBuilder significanceHeuristic(SignificanceHeuristic significanceHeuristic) {
         this.significanceHeuristic = significanceHeuristic;
         return this;
     }
@@ -422,7 +422,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
     protected XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         bucketCountThresholds.toXContent(builder, params);
         if (executionHint != null) {
-            builder.field(TermsAggregatorFactory.EXECUTION_HINT_FIELD_NAME.getPreferredName(), executionHint);
+            builder.field(TermsAggregatorBuilder.EXECUTION_HINT_FIELD_NAME.getPreferredName(), executionHint);
         }
         if (filterBuilder != null) {
             builder.field(BACKGROUND_FILTER.getPreferredName(), filterBuilder);
@@ -435,9 +435,9 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
     }
 
     @Override
-    protected SignificantTermsAggregatorFactory innerReadFrom(String name, ValuesSourceType valuesSourceType,
+    protected SignificantTermsAggregatorBuilder innerReadFrom(String name, ValuesSourceType valuesSourceType,
             ValueType targetValueType, StreamInput in) throws IOException {
-        SignificantTermsAggregatorFactory factory = new SignificantTermsAggregatorFactory(name, targetValueType);
+        SignificantTermsAggregatorBuilder factory = new SignificantTermsAggregatorBuilder(name, targetValueType);
         factory.bucketCountThresholds = BucketCountThresholds.readFromStream(in);
         factory.executionHint = in.readOptionalString();
         if (in.readBoolean()) {
@@ -474,7 +474,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
 
     @Override
     protected boolean innerEquals(Object obj) {
-        SignificantTermsAggregatorFactory other = (SignificantTermsAggregatorFactory) obj;
+        SignificantTermsAggregatorBuilder other = (SignificantTermsAggregatorBuilder) obj;
         return Objects.equals(bucketCountThresholds, other.bucketCountThresholds)
                 && Objects.equals(executionHint, other.executionHint)
                 && Objects.equals(filterBuilder, other.filterBuilder)

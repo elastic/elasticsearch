@@ -28,7 +28,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
@@ -41,7 +41,7 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
+import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
@@ -190,20 +190,20 @@ public class SamplerAggregator extends SingleBucketAggregator {
         return new InternalSampler(name, 0, buildEmptySubAggregations(), pipelineAggregators(), metaData());
     }
 
-    public static class Factory extends AggregatorFactory<Factory> {
+    public static class SamplerAggregatorBuilder extends AggregatorBuilder<SamplerAggregatorBuilder> {
 
         public static final int DEFAULT_SHARD_SAMPLE_SIZE = 100;
 
         private int shardSize = DEFAULT_SHARD_SAMPLE_SIZE;
 
-        public Factory(String name) {
+        public SamplerAggregatorBuilder(String name) {
             super(name, InternalSampler.TYPE);
         }
 
         /**
          * Set the max num docs to be returned from each shard.
          */
-        public Factory shardSize(int shardSize) {
+        public SamplerAggregatorBuilder shardSize(int shardSize) {
             this.shardSize = shardSize;
             return this;
         }
@@ -230,8 +230,8 @@ public class SamplerAggregator extends SingleBucketAggregator {
         }
 
         @Override
-        protected Factory doReadFrom(String name, StreamInput in) throws IOException {
-            Factory factory = new Factory(name);
+        protected SamplerAggregatorBuilder doReadFrom(String name, StreamInput in) throws IOException {
+            SamplerAggregatorBuilder factory = new SamplerAggregatorBuilder(name);
             factory.shardSize = in.readVInt();
             return factory;
         }
@@ -248,30 +248,30 @@ public class SamplerAggregator extends SingleBucketAggregator {
 
         @Override
         protected boolean doEquals(Object obj) {
-            Factory other = (Factory) obj;
+            SamplerAggregatorBuilder other = (SamplerAggregatorBuilder) obj;
             return Objects.equals(shardSize, other.shardSize);
         }
 
     }
 
-    public static class DiversifiedFactory extends ValuesSourceAggregatorFactory<ValuesSource, DiversifiedFactory> {
+    public static class DiversifiedAggregatorBuilder extends ValuesSourceAggregatorBuilder<ValuesSource, DiversifiedAggregatorBuilder> {
 
         public static final Type TYPE = new Type("diversified_sampler");
 
         public static final int MAX_DOCS_PER_VALUE_DEFAULT = 1;
 
-        private int shardSize = Factory.DEFAULT_SHARD_SAMPLE_SIZE;
+        private int shardSize = SamplerAggregatorBuilder.DEFAULT_SHARD_SAMPLE_SIZE;
         private int maxDocsPerValue = MAX_DOCS_PER_VALUE_DEFAULT;
         private String executionHint = null;
 
-        public DiversifiedFactory(String name) {
+        public DiversifiedAggregatorBuilder(String name) {
             super(name, TYPE, ValuesSourceType.ANY, null);
         }
 
         /**
          * Set the max num docs to be returned from each shard.
          */
-        public DiversifiedFactory shardSize(int shardSize) {
+        public DiversifiedAggregatorBuilder shardSize(int shardSize) {
             this.shardSize = shardSize;
             return this;
         }
@@ -286,7 +286,7 @@ public class SamplerAggregator extends SingleBucketAggregator {
         /**
          * Set the max num docs to be returned per value.
          */
-        public DiversifiedFactory maxDocsPerValue(int maxDocsPerValue) {
+        public DiversifiedAggregatorBuilder maxDocsPerValue(int maxDocsPerValue) {
             this.maxDocsPerValue = maxDocsPerValue;
             return this;
         }
@@ -301,7 +301,7 @@ public class SamplerAggregator extends SingleBucketAggregator {
         /**
          * Set the execution hint.
          */
-        public DiversifiedFactory executionHint(String executionHint) {
+        public DiversifiedAggregatorBuilder executionHint(String executionHint) {
             this.executionHint = executionHint;
             return this;
         }
@@ -370,9 +370,9 @@ public class SamplerAggregator extends SingleBucketAggregator {
         }
 
         @Override
-        protected DiversifiedFactory innerReadFrom(String name, ValuesSourceType valuesSourceType,
+        protected DiversifiedAggregatorBuilder innerReadFrom(String name, ValuesSourceType valuesSourceType,
                 ValueType targetValueType, StreamInput in) throws IOException {
-            DiversifiedFactory factory = new DiversifiedFactory(name);
+            DiversifiedAggregatorBuilder factory = new DiversifiedAggregatorBuilder(name);
             factory.shardSize = in.readVInt();
             factory.maxDocsPerValue = in.readVInt();
             factory.executionHint = in.readOptionalString();
@@ -393,7 +393,7 @@ public class SamplerAggregator extends SingleBucketAggregator {
 
         @Override
         protected boolean innerEquals(Object obj) {
-            DiversifiedFactory other = (DiversifiedFactory) obj;
+            DiversifiedAggregatorBuilder other = (DiversifiedAggregatorBuilder) obj;
             return Objects.equals(shardSize, other.shardSize)
                     && Objects.equals(maxDocsPerValue, other.maxDocsPerValue)
                     && Objects.equals(executionHint, other.executionHint);

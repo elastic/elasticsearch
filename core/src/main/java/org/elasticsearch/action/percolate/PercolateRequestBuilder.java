@@ -26,7 +26,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorFactory;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
@@ -154,9 +154,9 @@ public class PercolateRequestBuilder extends BroadcastOperationRequestBuilder<Pe
 
     /**
      * Delegates to
-     * {@link PercolateSourceBuilder#addAggregation(AggregatorFactory)}
+     * {@link PercolateSourceBuilder#addAggregation(AggregatorBuilder)}
      */
-    public PercolateRequestBuilder addAggregation(AggregatorFactory<?> aggregationBuilder) {
+    public PercolateRequestBuilder addAggregation(AggregatorBuilder<?> aggregationBuilder) {
         sourceBuilder().addAggregation(aggregationBuilder);
         return this;
     }

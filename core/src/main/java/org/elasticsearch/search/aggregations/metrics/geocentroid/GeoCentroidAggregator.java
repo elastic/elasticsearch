@@ -38,7 +38,7 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
+import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
@@ -125,9 +125,9 @@ public final class GeoCentroidAggregator extends MetricsAggregator {
         Releasables.close(centroids, counts);
     }
 
-    public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.GeoPoint, Factory> {
+    public static class GeoCentroidAggregatorBuilder extends ValuesSourceAggregatorBuilder.LeafOnly<ValuesSource.GeoPoint, GeoCentroidAggregatorBuilder> {
 
-        public Factory(String name) {
+        public GeoCentroidAggregatorBuilder(String name) {
             super(name, InternalGeoCentroid.TYPE, ValuesSourceType.GEOPOINT, ValueType.GEOPOINT);
         }
 
@@ -145,9 +145,9 @@ public final class GeoCentroidAggregator extends MetricsAggregator {
         }
 
         @Override
-        protected Factory innerReadFrom(String name, ValuesSourceType valuesSourceType,
+        protected GeoCentroidAggregatorBuilder innerReadFrom(String name, ValuesSourceType valuesSourceType,
                 ValueType targetValueType, StreamInput in) throws IOException {
-            return new Factory(name);
+            return new GeoCentroidAggregatorBuilder(name);
         }
 
         @Override

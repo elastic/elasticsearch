@@ -23,7 +23,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms;
-import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsAggregatorFactory;
+import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsAggregatorBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -46,7 +46,7 @@ public class TermsShardMinDocCountIT extends ESIntegTestCase {
     private static final String index = "someindex";
     private static final String type = "testtype";
     public String randomExecutionHint() {
-        return randomBoolean() ? null : randomFrom(SignificantTermsAggregatorFactory.ExecutionMode.values()).toString();
+        return randomBoolean() ? null : randomFrom(SignificantTermsAggregatorBuilder.ExecutionMode.values()).toString();
     }
 
     // see https://github.com/elasticsearch/elasticsearch/issues/5998

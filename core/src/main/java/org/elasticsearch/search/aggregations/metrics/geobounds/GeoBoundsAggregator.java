@@ -38,7 +38,7 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
+import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
@@ -174,18 +174,18 @@ public final class GeoBoundsAggregator extends MetricsAggregator {
         Releasables.close(tops, bottoms, posLefts, posRights, negLefts, negRights);
     }
 
-    public static class Factory extends ValuesSourceAggregatorFactory<ValuesSource.GeoPoint, Factory> {
+    public static class GeoBoundsAggregatorBuilder extends ValuesSourceAggregatorBuilder<ValuesSource.GeoPoint, GeoBoundsAggregatorBuilder> {
 
         private boolean wrapLongitude = true;
 
-        public Factory(String name) {
+        public GeoBoundsAggregatorBuilder(String name) {
             super(name, InternalGeoBounds.TYPE, ValuesSourceType.GEOPOINT, ValueType.GEOPOINT);
         }
 
         /**
          * Set whether to wrap longitudes. Defaults to true.
          */
-        public Factory wrapLongitude(boolean wrapLongitude) {
+        public GeoBoundsAggregatorBuilder wrapLongitude(boolean wrapLongitude) {
             this.wrapLongitude = wrapLongitude;
             return this;
         }
@@ -211,9 +211,9 @@ public final class GeoBoundsAggregator extends MetricsAggregator {
         }
 
         @Override
-        protected Factory innerReadFrom(String name, ValuesSourceType valuesSourceType,
+        protected GeoBoundsAggregatorBuilder innerReadFrom(String name, ValuesSourceType valuesSourceType,
                 ValueType targetValueType, StreamInput in) throws IOException {
-            Factory factory = new Factory(name);
+            GeoBoundsAggregatorBuilder factory = new GeoBoundsAggregatorBuilder(name);
             factory.wrapLongitude = in.readBoolean();
             return factory;
         }
@@ -236,7 +236,7 @@ public final class GeoBoundsAggregator extends MetricsAggregator {
 
         @Override
         protected boolean innerEquals(Object obj) {
-            Factory other = (Factory) obj;
+            GeoBoundsAggregatorBuilder other = (GeoBoundsAggregatorBuilder) obj;
             return Objects.equals(wrapLongitude, other.wrapLongitude);
         }
 

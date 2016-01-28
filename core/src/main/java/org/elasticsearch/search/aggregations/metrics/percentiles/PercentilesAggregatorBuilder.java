@@ -31,7 +31,7 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory.LeafOnly;
+import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorBuilder.LeafOnly;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -39,7 +39,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public class PercentilesAggregatorFactory extends LeafOnly<ValuesSource.Numeric, PercentilesAggregatorFactory> {
+public class PercentilesAggregatorBuilder extends LeafOnly<ValuesSource.Numeric, PercentilesAggregatorBuilder> {
 
     private double[] percents = PercentilesParser.DEFAULT_PERCENTS;
     private PercentilesMethod method = PercentilesMethod.TDIGEST;
@@ -47,14 +47,14 @@ public class PercentilesAggregatorFactory extends LeafOnly<ValuesSource.Numeric,
     private double compression = 100.0;
     private boolean keyed = false;
 
-    public PercentilesAggregatorFactory(String name) {
+    public PercentilesAggregatorBuilder(String name) {
         super(name, InternalTDigestPercentiles.TYPE, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
     }
 
     /**
      * Set the values to compute percentiles from.
      */
-    public PercentilesAggregatorFactory percentiles(double... percents) {
+    public PercentilesAggregatorBuilder percentiles(double... percents) {
         double[] sortedPercents = Arrays.copyOf(percents, percents.length);
         Arrays.sort(sortedPercents);
         this.percents = sortedPercents;
@@ -71,7 +71,7 @@ public class PercentilesAggregatorFactory extends LeafOnly<ValuesSource.Numeric,
     /**
      * Set whether the XContent response should be keyed
      */
-    public PercentilesAggregatorFactory keyed(boolean keyed) {
+    public PercentilesAggregatorBuilder keyed(boolean keyed) {
         this.keyed = keyed;
         return this;
     }
@@ -87,7 +87,7 @@ public class PercentilesAggregatorFactory extends LeafOnly<ValuesSource.Numeric,
      * Expert: set the number of significant digits in the values. Only relevant
      * when using {@link PercentilesMethod#HDR}.
      */
-    public PercentilesAggregatorFactory numberOfSignificantValueDigits(int numberOfSignificantValueDigits) {
+    public PercentilesAggregatorBuilder numberOfSignificantValueDigits(int numberOfSignificantValueDigits) {
         this.numberOfSignificantValueDigits = numberOfSignificantValueDigits;
         return this;
     }
@@ -104,7 +104,7 @@ public class PercentilesAggregatorFactory extends LeafOnly<ValuesSource.Numeric,
      * Expert: set the compression. Higher values improve accuracy but also
      * memory usage. Only relevant when using {@link PercentilesMethod#TDIGEST}.
      */
-    public PercentilesAggregatorFactory compression(double compression) {
+    public PercentilesAggregatorBuilder compression(double compression) {
         this.compression = compression;
         return this;
     }
@@ -117,7 +117,7 @@ public class PercentilesAggregatorFactory extends LeafOnly<ValuesSource.Numeric,
         return compression;
     }
 
-    public PercentilesAggregatorFactory method(PercentilesMethod method) {
+    public PercentilesAggregatorBuilder method(PercentilesMethod method) {
         this.method = method;
         return this;
     }
@@ -159,9 +159,9 @@ public class PercentilesAggregatorFactory extends LeafOnly<ValuesSource.Numeric,
     }
 
     @Override
-    protected PercentilesAggregatorFactory innerReadFrom(String name, ValuesSourceType valuesSourceType,
+    protected PercentilesAggregatorBuilder innerReadFrom(String name, ValuesSourceType valuesSourceType,
             ValueType targetValueType, StreamInput in) throws IOException {
-        PercentilesAggregatorFactory factory = new PercentilesAggregatorFactory(name);
+        PercentilesAggregatorBuilder factory = new PercentilesAggregatorBuilder(name);
         factory.percents = in.readDoubleArray();
         factory.keyed = in.readBoolean();
         factory.numberOfSignificantValueDigits = in.readVInt();
@@ -195,7 +195,7 @@ public class PercentilesAggregatorFactory extends LeafOnly<ValuesSource.Numeric,
 
     @Override
     protected boolean innerEquals(Object obj) {
-        PercentilesAggregatorFactory other = (PercentilesAggregatorFactory) obj;
+        PercentilesAggregatorBuilder other = (PercentilesAggregatorBuilder) obj;
         if (!Objects.equals(method, other.method)) {
             return false;
         }

@@ -18,16 +18,21 @@
  */
 package org.elasticsearch.common.blobstore;
 
-import java.io.Closeable;
+import org.apache.lucene.util.LuceneTestCase;
+import org.elasticsearch.common.blobstore.fs.FsBlobStore;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.test.ESBlobStoreContainerTestCase;
+
 import java.io.IOException;
+import java.nio.file.Path;
 
-/**
- *
- */
-public interface BlobStore extends Closeable {
-
-    BlobContainer blobContainer(BlobPath path);
-
-    void delete(BlobPath path) throws IOException;
-
+@LuceneTestCase.SuppressFileSystems("ExtrasFS")
+public class FsBlobStoreContainerTests extends ESBlobStoreContainerTestCase {
+    protected BlobStore newBlobStore() throws IOException {
+        Path tempDir = createTempDir();
+        Settings settings = randomBoolean() ? Settings.EMPTY : Settings.builder().put("buffer_size", new ByteSizeValue(randomIntBetween(1, 100), ByteSizeUnit.KB)).build();
+        return new FsBlobStore(settings, tempDir);
+    }
 }

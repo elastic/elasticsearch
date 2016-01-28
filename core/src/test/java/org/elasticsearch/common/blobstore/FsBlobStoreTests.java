@@ -16,42 +16,23 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.snapshots.mockstore;
+package org.elasticsearch.common.blobstore;
 
-import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.blobstore.BlobPath;
-import org.elasticsearch.common.blobstore.BlobStore;
+import org.apache.lucene.util.LuceneTestCase;
+import org.elasticsearch.common.blobstore.fs.FsBlobStore;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.test.ESBlobStoreTestCase;
 
 import java.io.IOException;
+import java.nio.file.Path;
 
-/**
- *
- */
-public class BlobStoreWrapper implements BlobStore {
-
-    private BlobStore delegate;
-
-    public BlobStoreWrapper(BlobStore delegate) {
-        this.delegate = delegate;
+@LuceneTestCase.SuppressFileSystems("ExtrasFS")
+public class FsBlobStoreTests extends ESBlobStoreTestCase {
+    protected BlobStore newBlobStore() throws IOException {
+        Path tempDir = createTempDir();
+        Settings settings = randomBoolean() ? Settings.EMPTY : Settings.builder().put("buffer_size", new ByteSizeValue(randomIntBetween(1, 100), ByteSizeUnit.KB)).build();
+        return new FsBlobStore(settings, tempDir);
     }
-
-    @Override
-    public BlobContainer blobContainer(BlobPath path) {
-        return delegate.blobContainer(path);
-    }
-
-    @Override
-    public void delete(BlobPath path) throws IOException {
-        delegate.delete(path);
-    }
-
-    @Override
-    public void close() throws IOException {
-        delegate.close();
-    }
-
-    protected BlobStore delegate() {
-        return delegate;
-    }
-
 }

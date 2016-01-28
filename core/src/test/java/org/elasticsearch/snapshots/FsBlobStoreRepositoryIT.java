@@ -16,42 +16,22 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.snapshots.mockstore;
+package org.elasticsearch.snapshots;
 
-import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.blobstore.BlobPath;
-import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.test.ESBlobStoreRepositoryIntegTestCase;
 
-import java.io.IOException;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
-/**
- *
- */
-public class BlobStoreWrapper implements BlobStore {
-
-    private BlobStore delegate;
-
-    public BlobStoreWrapper(BlobStore delegate) {
-        this.delegate = delegate;
-    }
-
+public class FsBlobStoreRepositoryIT extends ESBlobStoreRepositoryIntegTestCase {
     @Override
-    public BlobContainer blobContainer(BlobPath path) {
-        return delegate.blobContainer(path);
-    }
+    protected void createTestRepository(String name) {
+        assertAcked(client().admin().cluster().preparePutRepository(name)
+            .setType("fs").setSettings(Settings.settingsBuilder()
+                .put("location", randomRepoPath())
+                .put("compress", randomBoolean())
+                .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
 
-    @Override
-    public void delete(BlobPath path) throws IOException {
-        delegate.delete(path);
     }
-
-    @Override
-    public void close() throws IOException {
-        delegate.close();
-    }
-
-    protected BlobStore delegate() {
-        return delegate;
-    }
-
 }

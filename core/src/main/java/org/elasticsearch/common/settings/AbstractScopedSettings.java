@@ -166,7 +166,11 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
         if (setting != get(setting.getKey())) {
             throw new IllegalArgumentException("Setting is not registered for key [" + setting.getKey() + "]");
         }
-        this.settingUpdaters.add(setting.newUpdater(consumer, logger, validator));
+        addSettingsUpdater(setting.newUpdater(consumer, logger, validator));
+    }
+
+    synchronized void addSettingsUpdater(SettingUpdater<?> updater) {
+        this.settingUpdaters.add(updater);
     }
 
     /**
@@ -184,7 +188,7 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
         if (b != get(b.getKey())) {
             throw new IllegalArgumentException("Setting is not registered for key [" + b.getKey() + "]");
         }
-        this.settingUpdaters.add(Setting.compoundUpdater(consumer, a, b, logger));
+        addSettingsUpdater(Setting.compoundUpdater(consumer, a, b, logger));
     }
 
     /**
@@ -288,7 +292,7 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
         }
         for (Map.Entry<String, Setting<?>> entry : complexMatchers.entrySet()) {
             if (entry.getValue().match(key)) {
-                return entry.getValue();
+                return entry.getValue().getConcreteSetting(key);
             }
         }
         return null;

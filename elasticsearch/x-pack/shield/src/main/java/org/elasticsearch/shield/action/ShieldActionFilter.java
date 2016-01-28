@@ -13,6 +13,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilterChain;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -87,7 +88,6 @@ public class ShieldActionFilter extends AbstractComponent implements ActionFilte
             throw LicenseUtils.newComplianceException(ShieldPlugin.NAME);
         }
 
-        final ThreadContext.StoredContext original = threadContext.newStoredContext();
         try {
             if (licenseState.securityEnabled()) {
                 // FIXME yet another hack. Needed to work around something like
@@ -121,6 +121,7 @@ public class ShieldActionFilter extends AbstractComponent implements ActionFilte
                     at java.lang.Thread.run(Thread.java:745)
                  */
                 if (INTERNAL_PREDICATE.test(action)) {
+                    final ThreadContext.StoredContext original = threadContext.newStoredContext();
                     try (ThreadContext.StoredContext ctx = threadContext.stashContext()) {
                         String shieldAction = actionMapper.action(action, request);
                         User user = authcService.authenticate(shieldAction, request, User.SYSTEM);
@@ -159,12 +160,11 @@ public class ShieldActionFilter extends AbstractComponent implements ActionFilte
                         interceptor.intercept(request, user);
                     }
                 }
-                chain.proceed(task, action, request, new SigningListener(this, listener, original));
+                chain.proceed(task, action, request, new SigningListener(this, listener, null));
             } else {
                 chain.proceed(task, action, request, listener);
             }
         } catch (Throwable t) {
-            original.restore();
             listener.onFailure(t);
         }
     }
@@ -232,7 +232,7 @@ public class ShieldActionFilter extends AbstractComponent implements ActionFilte
         private final ActionListener innerListener;
         private final ThreadContext.StoredContext threadContext;
 
-        private SigningListener(ShieldActionFilter filter, ActionListener innerListener, ThreadContext.StoredContext threadContext) {
+        private SigningListener(ShieldActionFilter filter, ActionListener innerListener, @Nullable ThreadContext.StoredContext threadContext) {
             this.filter = filter;
             this.innerListener = innerListener;
             this.threadContext = threadContext;
@@ -240,7 +240,9 @@ public class ShieldActionFilter extends AbstractComponent implements ActionFilte
 
         @Override @SuppressWarnings("unchecked")
         public void onResponse(Response response) {
-            threadContext.restore();
+            if (threadContext != null) {
+                threadContext.restore();
+            }
             try {
                 response = this.filter.sign(response);
                 innerListener.onResponse(response);
@@ -251,7 +253,9 @@ public class ShieldActionFilter extends AbstractComponent implements ActionFilte
 
         @Override
         public void onFailure(Throwable e) {
-            threadContext.restore();
+            if (threadContext != null) {
+                threadContext.restore();
+            }
             innerListener.onFailure(e);
         }
     }

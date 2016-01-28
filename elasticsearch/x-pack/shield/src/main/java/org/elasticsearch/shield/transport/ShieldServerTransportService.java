@@ -78,11 +78,11 @@ public class ShieldServerTransportService extends TransportService {
 
     @Override
     public <T extends TransportResponse> void sendRequest(DiscoveryNode node, String action, TransportRequest request, TransportRequestOptions options, TransportResponseHandler<T> handler) {
-        final ThreadContext.StoredContext original = threadPool.getThreadContext().newStoredContext();
         // FIXME this is really just a hack. What happens is that we send a request and we always copy headers over
         // Sometimes a system action gets executed like a internal create index request or update mappings request
         // which means that the user is copied over to system actions and these really fail for internal things...
         if ((clientFilter instanceof ClientTransportFilter.Node) && INTERNAL_PREDICATE.test(action)) {
+            final ThreadContext.StoredContext original = threadPool.getThreadContext().newStoredContext();
             try (ThreadContext.StoredContext ctx = threadPool.getThreadContext().stashContext()) {
                 try {
                     clientFilter.outbound(action, request);
@@ -94,7 +94,7 @@ public class ShieldServerTransportService extends TransportService {
         } else {
             try {
                 clientFilter.outbound(action, request);
-                super.sendRequest(node, action, request, options, new ContextRestoreResponseHandler<>(original, handler));
+                super.sendRequest(node, action, request, options, handler);
             } catch (Throwable t) {
                 handler.handleException(new TransportException("failed sending request", t));
             }

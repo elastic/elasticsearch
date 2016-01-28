@@ -87,7 +87,8 @@ public class ShieldActionFilter extends AbstractComponent implements ActionFilte
             throw LicenseUtils.newComplianceException(ShieldPlugin.NAME);
         }
 
-        try (ThreadContext.StoredContext original = threadContext.newStoredContext()) {
+        final ThreadContext.StoredContext original = threadContext.newStoredContext();
+        try {
             if (licenseState.securityEnabled()) {
                 // FIXME yet another hack. Needed to work around something like
                 /*
@@ -131,7 +132,7 @@ public class ShieldActionFilter extends AbstractComponent implements ActionFilte
                                 interceptor.intercept(request, user);
                             }
                         }
-                        chain.proceed(task, action, request, new SigningListener(this, listener));
+                        chain.proceed(task, action, request, new SigningListener(this, listener, original));
                         return;
                     }
                 }
@@ -158,11 +159,12 @@ public class ShieldActionFilter extends AbstractComponent implements ActionFilte
                         interceptor.intercept(request, user);
                     }
                 }
-                chain.proceed(task, action, request, new SigningListener(this, listener));
+                chain.proceed(task, action, request, new SigningListener(this, listener, original));
             } else {
                 chain.proceed(task, action, request, listener);
             }
         } catch (Throwable t) {
+            original.restore();
             listener.onFailure(t);
         }
     }
@@ -228,14 +230,17 @@ public class ShieldActionFilter extends AbstractComponent implements ActionFilte
 
         private final ShieldActionFilter filter;
         private final ActionListener innerListener;
+        private final ThreadContext.StoredContext threadContext;
 
-        private SigningListener(ShieldActionFilter filter, ActionListener innerListener) {
+        private SigningListener(ShieldActionFilter filter, ActionListener innerListener, ThreadContext.StoredContext threadContext) {
             this.filter = filter;
             this.innerListener = innerListener;
+            this.threadContext = threadContext;
         }
 
         @Override @SuppressWarnings("unchecked")
         public void onResponse(Response response) {
+            threadContext.restore();
             try {
                 response = this.filter.sign(response);
                 innerListener.onResponse(response);
@@ -246,6 +251,7 @@ public class ShieldActionFilter extends AbstractComponent implements ActionFilte
 
         @Override
         public void onFailure(Throwable e) {
+            threadContext.restore();
             innerListener.onFailure(e);
         }
     }

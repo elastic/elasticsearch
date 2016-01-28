@@ -27,6 +27,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class SettingTests extends ESTestCase {
@@ -363,5 +364,25 @@ public class SettingTests extends ESTestCase {
         } catch (IllegalArgumentException ex) {
             assertEquals("key must match setting but didn't [foo]", ex.getMessage());
         }
+    }
+
+    public void testMinMaxInt() {
+        Setting<Integer> integerSetting = Setting.intSetting("foo.bar", 1, 0, 10, false, Setting.Scope.CLUSTER);
+        try {
+            integerSetting.get(Settings.builder().put("foo.bar", 11).build());
+            fail();
+        } catch (IllegalArgumentException ex) {
+            assertEquals("Failed to parse value [11] for setting [foo.bar] must be =< 10", ex.getMessage());
+        }
+
+        try {
+            integerSetting.get(Settings.builder().put("foo.bar", -1).build());
+            fail();
+        } catch (IllegalArgumentException ex) {
+            assertEquals("Failed to parse value [-1] for setting [foo.bar] must be >= 0", ex.getMessage());
+        }
+
+        assertEquals(5, integerSetting.get(Settings.builder().put("foo.bar", 5).build()).intValue());
+        assertEquals(1, integerSetting.get(Settings.EMPTY).intValue());
     }
 }

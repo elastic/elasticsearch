@@ -328,6 +328,10 @@ public class Setting<T> extends ToXContentToBytes {
         }, dynamic, scope);
     }
 
+    public static Setting<Integer> intSetting(String key, int defaultValue, int minValue, int maxValue, boolean dynamic, Scope scope) {
+        return new Setting<>(key, (s) -> Integer.toString(defaultValue), (s) -> parseInt(s, minValue, maxValue, key), dynamic, scope);
+    }
+
     public static Setting<Integer> intSetting(String key, int defaultValue, int minValue, boolean dynamic, Scope scope) {
         return new Setting<>(key, (s) -> Integer.toString(defaultValue), (s) -> parseInt(s, minValue, key), dynamic, scope);
     }
@@ -341,9 +345,16 @@ public class Setting<T> extends ToXContentToBytes {
     }
 
     public static int parseInt(String s, int minValue, String key) {
+        return parseInt(s, minValue, Integer.MAX_VALUE, key);
+    }
+
+    public static int parseInt(String s, int minValue, int maxValue, String key) {
         int value = Integer.parseInt(s);
         if (value < minValue) {
             throw new IllegalArgumentException("Failed to parse value [" + s + "] for setting [" + key + "] must be >= " + minValue);
+        }
+        if (value > maxValue) {
+            throw new IllegalArgumentException("Failed to parse value [" + s + "] for setting [" + key + "] must be =< " + maxValue);
         }
         return value;
     }

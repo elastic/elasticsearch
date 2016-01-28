@@ -53,6 +53,7 @@ import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.discovery.zen.fd.FaultDetection;
 import org.elasticsearch.discovery.zen.ping.unicast.UnicastZenPing;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.gateway.PrimaryShardAllocator;
 import org.elasticsearch.http.netty.NettyHttpServerTransport;
@@ -313,5 +314,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     EsExecutors.PROCESSORS_SETTING,
                     ThreadContext.DEFAULT_HEADERS_SETTING,
                     ESLoggerFactory.LOG_DEFAULT_LEVEL_SETTING,
-                    ESLoggerFactory.LOG_LEVEL_SETTING)));
+                    ESLoggerFactory.LOG_LEVEL_SETTING,
+                    NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING,
+                    NodeEnvironment.ENABLE_LUCENE_SEGMENT_INFOS_TRACE_SETTING,
+                    NodeEnvironment.ADD_NODE_ID_TO_CUSTOM_PATH)));
 }

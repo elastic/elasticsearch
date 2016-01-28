@@ -35,6 +35,8 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FileSystemUtils;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Scope;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -74,7 +76,6 @@ import static java.util.Collections.unmodifiableSet;
  * A component that holds all data paths for a single node.
  */
 public class NodeEnvironment extends AbstractComponent implements Closeable {
-
     public static class NodePath {
         /* ${data.paths}/nodes/{node.id} */
         public final Path path;
@@ -130,22 +131,33 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final Map<ShardLockKey, InternalShardLock> shardLocks = new HashMap<>();
 
-    // Setting to automatically append node id to custom data paths
-    public static final String ADD_NODE_ID_TO_CUSTOM_PATH = "node.add_id_to_custom_path";
+    /**
+     * Maximum number of data nodes that should run in an environment.
+     */
+    public static final Setting<Integer> MAX_LOCAL_STORAGE_NODES_SETTING = Setting.intSetting("node.max_local_storage_nodes", 50, 1, false,
+            Scope.CLUSTER);
 
-    // If enabled, the [verbose] SegmentInfos.infoStream logging is sent to System.out:
-    public static final String SETTING_ENABLE_LUCENE_SEGMENT_INFOS_TRACE = "node.enable_lucene_segment_infos_trace";
+    /**
+     * If true automatically append node id to custom data paths.
+     */
+    public static final Setting<Boolean> ADD_NODE_ID_TO_CUSTOM_PATH = Setting.boolSetting("node.add_id_to_custom_path", true, false,
+            Scope.CLUSTER);
+
+    /**
+     * If true the [verbose] SegmentInfos.infoStream logging is sent to System.out.
+     */
+    public static final Setting<Boolean> ENABLE_LUCENE_SEGMENT_INFOS_TRACE_SETTING = Setting
+            .boolSetting("node.enable_lucene_segment_infos_trace", false, false, Scope.CLUSTER);
 
     public static final String NODES_FOLDER = "nodes";
     public static final String INDICES_FOLDER = "indices";
     public static final String NODE_LOCK_FILENAME = "node.lock";
 
     @Inject
-    @SuppressForbidden(reason = "System.out.*")
     public NodeEnvironment(Settings settings, Environment environment) throws IOException {
         super(settings);
 
-        this.addNodeId = settings.getAsBoolean(ADD_NODE_ID_TO_CUSTOM_PATH, true);
+        this.addNodeId = ADD_NODE_ID_TO_CUSTOM_PATH.get(settings);
 
         if (!DiscoveryNode.nodeRequiresLocalStorage(settings)) {
             nodePaths = null;
@@ -161,7 +173,7 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
 
         int localNodeId = -1;
         IOException lastException = null;
-        int maxLocalStorageNodes = settings.getAsInt("node.max_local_storage_nodes", 50);
+        int maxLocalStorageNodes = MAX_LOCAL_STORAGE_NODES_SETTING.get(settings);
         for (int possibleLockId = 0; possibleLockId < maxLocalStorageNodes; possibleLockId++) {
             for (int dirIndex = 0; dirIndex < environment.dataWithClusterFiles().length; dirIndex++) {
                 Path dir = environment.dataWithClusterFiles()[dirIndex].resolve(NODES_FOLDER).resolve(Integer.toString(possibleLockId));
@@ -210,9 +222,7 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
         maybeLogPathDetails();
         maybeLogHeapDetails();
 
-        if (settings.getAsBoolean(SETTING_ENABLE_LUCENE_SEGMENT_INFOS_TRACE, false)) {
-            SegmentInfos.setInfoStream(System.out);
-        }
+        applySegmentInfosTrace(settings);
     }
 
     private static void releaseAndNullLocks(Lock[] locks) {
@@ -301,6 +311,13 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
         ByteSizeValue maxHeapSize = jvmInfo.getMem().getHeapMax();
         String useCompressedOops = jvmInfo.useCompressedOops();
         logger.info("heap size [{}], compressed ordinary object pointers [{}]", maxHeapSize, useCompressedOops);
+    }
+
+    @SuppressForbidden(reason = "System.out.*")
+    static void applySegmentInfosTrace(Settings settings) {
+        if (ENABLE_LUCENE_SEGMENT_INFOS_TRACE_SETTING.get(settings)) {
+            SegmentInfos.setInfoStream(System.out);
+        }
     }
 
     private static String toString(Collection<String> items) {

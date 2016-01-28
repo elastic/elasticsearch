@@ -39,6 +39,7 @@ public class IndexStatsTests extends MarvelIntegTestCase {
         wipeMarvelIndices();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/1396")
     public void testIndexStats() throws Exception {
         logger.debug("--> creating some indices for future index stats");
         final int nbIndices = randomIntBetween(1, 5);

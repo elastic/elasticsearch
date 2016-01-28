@@ -1087,4 +1087,65 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         newShard.performBatchRecovery(operations);
         assertFalse(newShard.getTranslog().syncNeeded());
     }
+
+    public void testIndexingBufferDuringInternalRecovery() throws IOException {
+        createIndex("index");
+        client().admin().indices().preparePutMapping("index").setType("testtype").setSource(jsonBuilder().startObject()
+                .startObject("testtype")
+                .startObject("properties")
+                .startObject("foo")
+                .field("type", "string")
+                .endObject()
+                .endObject().endObject().endObject()).get();
+        ensureGreen();
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexService test = indicesService.indexService("index");
+        IndexShard shard = test.getShardOrNull(0);
+        ShardRouting routing = new ShardRouting(shard.routingEntry());
+        test.removeShard(0, "b/c britta says so");
+        IndexShard newShard = test.createShard(routing);
+        newShard.shardRouting = routing;
+        DiscoveryNode localNode = new DiscoveryNode("foo", DummyTransportAddress.INSTANCE, Version.CURRENT);
+        newShard.markAsRecovering("for testing", new RecoveryState(newShard.shardId(), routing.primary(), RecoveryState.Type.REPLICA, localNode, localNode));
+        // Shard is still inactive since we haven't started recovering yet
+        assertFalse(newShard.isActive());
+        newShard.prepareForIndexRecovery();
+        // Shard is still inactive since we haven't started recovering yet
+        assertFalse(newShard.isActive());
+        newShard.performTranslogRecovery(true);
+        // Shard should now be active since we did recover:
+        assertTrue(newShard.isActive());
+    }
+
+    public void testIndexingBufferDuringPeerRecovery() throws IOException {
+        createIndex("index");
+        client().admin().indices().preparePutMapping("index").setType("testtype").setSource(jsonBuilder().startObject()
+                .startObject("testtype")
+                .startObject("properties")
+                .startObject("foo")
+                .field("type", "string")
+                .endObject()
+                .endObject().endObject().endObject()).get();
+        ensureGreen();
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexService test = indicesService.indexService("index");
+        IndexShard shard = test.getShardOrNull(0);
+        ShardRouting routing = new ShardRouting(shard.routingEntry());
+        test.removeShard(0, "b/c britta says so");
+        IndexShard newShard = test.createShard(routing);
+        newShard.shardRouting = routing;
+        DiscoveryNode localNode = new DiscoveryNode("foo", DummyTransportAddress.INSTANCE, Version.CURRENT);
+        newShard.markAsRecovering("for testing", new RecoveryState(newShard.shardId(), routing.primary(), RecoveryState.Type.REPLICA, localNode, localNode));
+        // Shard is still inactive since we haven't started recovering yet
+        assertFalse(newShard.isActive());
+        List<Translog.Operation> operations = new ArrayList<>();
+        operations.add(new Translog.Index("testtype", "1", jsonBuilder().startObject().field("foo", "bar").endObject().bytes().toBytes()));
+        newShard.prepareForIndexRecovery();
+        newShard.skipTranslogRecovery();
+        // Shard is still inactive since we haven't started recovering yet
+        assertFalse(newShard.isActive());
+        newShard.performBatchRecovery(operations);
+        // Shard should now be active since we did recover:
+        assertTrue(newShard.isActive());
+    }
 }

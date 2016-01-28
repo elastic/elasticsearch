@@ -27,7 +27,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.netty.NettyHttpServerTransport;
 import org.elasticsearch.plugins.PluginInfo;
-import org.elasticsearch.transport.netty.NettyTransport;
+import org.elasticsearch.transport.TransportSettings;
 
 import java.io.FilePermission;
 import java.io.IOException;
@@ -277,10 +277,10 @@ final class Security {
         // see SocketPermission implies() code
         policy.add(new SocketPermission("*:" + httpRange, "listen,resolve"));
         // transport is waaaay overengineered
-        Map<String, Settings> profiles = settings.getGroups("transport.profiles", true);
-        if (!profiles.containsKey(NettyTransport.DEFAULT_PROFILE)) {
+        Map<String, Settings> profiles = TransportSettings.TRANSPORT_PROFILES_SETTING.get(settings).getAsGroups();
+        if (!profiles.containsKey(TransportSettings.DEFAULT_PROFILE)) {
             profiles = new HashMap<>(profiles);
-            profiles.put(NettyTransport.DEFAULT_PROFILE, Settings.EMPTY);
+            profiles.put(TransportSettings.DEFAULT_PROFILE, Settings.EMPTY);
         }
 
         // loop through all profiles and add permissions for each one, if its valid.
@@ -288,12 +288,10 @@ final class Security {
         for (Map.Entry<String, Settings> entry : profiles.entrySet()) {
             Settings profileSettings = entry.getValue();
             String name = entry.getKey();
-            String transportRange = profileSettings.get("port",
-                                        settings.get("transport.tcp.port",
-                                                NettyTransport.DEFAULT_PORT_RANGE));
+            String transportRange = profileSettings.get("port", TransportSettings.PORT.get(settings));
 
             // a profile is only valid if its the default profile, or if it has an actual name and specifies a port
-            boolean valid = NettyTransport.DEFAULT_PROFILE.equals(name) || (Strings.hasLength(name) && profileSettings.get("port") != null);
+            boolean valid = TransportSettings.DEFAULT_PROFILE.equals(name) || (Strings.hasLength(name) && profileSettings.get("port") != null);
             if (valid) {
                 // listen is always called with 'localhost' but use wildcard to be sure, no name service is consulted.
                 // see SocketPermission implies() code

@@ -110,11 +110,11 @@ public class TransportClient extends AbstractClient {
 
         private PluginsService newPluginService(final Settings settings) {
             final Settings.Builder settingsBuilder = settingsBuilder()
-                .put(NettyTransport.PING_SCHEDULE, "5s") // enable by default the transport schedule ping interval
-                .put( InternalSettingsPreparer.prepareSettings(settings))
-                .put("network.server", false)
-                .put(Node.NODE_CLIENT_SETTING.getKey(), true)
-                .put(CLIENT_TYPE_SETTING_S.getKey(), CLIENT_TYPE);
+                    .put(NettyTransport.PING_SCHEDULE.getKey(), "5s") // enable by default the transport schedule ping interval
+                    .put(InternalSettingsPreparer.prepareSettings(settings))
+                    .put(NettyTransport.NETWORK_SERVER.getKey(), false)
+                    .put(Node.NODE_CLIENT_SETTING.getKey(), true)
+                    .put(CLIENT_TYPE_SETTING_S.getKey(), CLIENT_TYPE);
             return new PluginsService(settingsBuilder.build(), null, null, pluginClasses);
         }
 
@@ -140,7 +140,7 @@ public class TransportClient extends AbstractClient {
                     modules.add(pluginModule);
                 }
                 modules.add(new PluginsModule(pluginsService));
-                modules.add(new SettingsModule(settings, settingsFilter ));
+                modules.add(new SettingsModule(settings, settingsFilter));
                 modules.add(new NetworkModule(networkService, settings, true, namedWriteableRegistry));
                 modules.add(new ClusterNameModule(settings));
                 modules.add(new ThreadPoolModule(threadPool));

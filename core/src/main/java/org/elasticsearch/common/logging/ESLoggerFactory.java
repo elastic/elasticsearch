@@ -37,28 +37,7 @@ import java.util.regex.Pattern;
 public abstract class ESLoggerFactory {
 
     public static final Setting<LogLevel> LOG_DEFAULT_LEVEL_SETTING = new Setting<>("logger.level", LogLevel.INFO.name(), LogLevel::parse, false, Setting.Scope.CLUSTER);
-    public static final Setting<LogLevel> LOG_LEVEL_SETTING = new Setting<LogLevel>("logger.", LogLevel.INFO.name(), LogLevel::parse, true, Setting.Scope.CLUSTER) {
-        private final Pattern KEY_PATTERN = Pattern.compile("^logger[.](?:[-\\w]+[.])*[-\\w]+$$");
-
-        @Override
-        protected boolean isGroupSetting() {
-            return true;
-        }
-
-        @Override
-        public boolean match(String toTest) {
-            return KEY_PATTERN.matcher(toTest).matches();
-        }
-
-        @Override
-        public Setting<LogLevel> getConcreteSetting(String key) {
-            if (match(key)) {
-                return new Setting<>(key, LogLevel.WARN.name(), LogLevel::parse, true, Setting.Scope.CLUSTER);
-            } else {
-                throw new IllegalArgumentException("key must match setting but didn't ["+key +"]");
-            }
-        }
-    };
+    public static final Setting<LogLevel> LOG_LEVEL_SETTING = Setting.dynamicKeySetting("logger.", LogLevel.INFO.name(), LogLevel::parse, true, Setting.Scope.CLUSTER);
 
     private static volatile ESLoggerFactory defaultFactory = new JdkESLoggerFactory();
 

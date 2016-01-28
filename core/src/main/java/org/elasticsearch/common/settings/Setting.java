@@ -111,7 +111,7 @@ public class Setting<T> extends ToXContentToBytes {
      * rather than a single value. The key, see {@link #getKey()}, in contrast to non-group settings is a prefix like <tt>cluster.store.</tt>
      * that matches all settings with this prefix.
      */
-    protected boolean isGroupSetting() {
+    boolean isGroupSetting() {
         return false;
     }
 
@@ -201,6 +201,7 @@ public class Setting<T> extends ToXContentToBytes {
     }
 
     public Setting<T> getConcreteSetting(String key) {
+        assert key.startsWith(this.getKey()) : "was " + key + " expected: " + getKey(); // we use startsWith here since the key might be foo.bar.0 if it's an array
         return this;
     }
 
@@ -453,8 +454,6 @@ public class Setting<T> extends ToXContentToBytes {
         }
     }
 
-
-
     public static Setting<Settings> groupSetting(String key, boolean dynamic, Scope scope) {
         if (key.endsWith(".") == false) {
             throw new IllegalArgumentException("key must end with a '.'");
@@ -561,5 +560,39 @@ public class Setting<T> extends ToXContentToBytes {
     @Override
     public int hashCode() {
         return Objects.hash(key);
+    }
+
+    /**
+     * This setting type allows to validate settings that have the same type and a common prefix. For instance feature.${type}=[true|false]
+     * can easily be added with this setting. Yet, dynamic key settings don't support updaters our of the box unless {@link #getConcreteSetting(String)}
+     * is used to pull the updater.
+     */
+    public static <T> Setting<T> dynamicKeySetting(String key, String defaultValue, Function<String, T> parser, boolean dynamic, Scope scope) {
+        return new Setting<T>(key, defaultValue, parser, dynamic, scope) {
+
+            @Override
+            boolean isGroupSetting() {
+                return true;
+            }
+
+            @Override
+            public boolean match(String toTest) {
+                return toTest.startsWith(getKey());
+            }
+
+            @Override
+            AbstractScopedSettings.SettingUpdater<T> newUpdater(Consumer<T> consumer, ESLogger logger, Consumer<T> validator) {
+                throw new UnsupportedOperationException("dynamic settings can't be updated use #getConcreteSetting for updating");
+            }
+
+            @Override
+            public Setting<T> getConcreteSetting(String key) {
+                if (match(key)) {
+                    return new Setting<>(key, defaultValue, parser, dynamic, scope);
+                } else {
+                    throw new IllegalArgumentException("key must match setting but didn't ["+key +"]");
+                }
+            }
+        };
     }
 }

@@ -251,10 +251,11 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         if (!fieldType().stored()) {
             return;
         }
-        if (context.flyweight()) {
+        BytesReference source = context.source();
+        // Percolate and tv APIs may not set the source and that is ok, because these APIs will not index any data
+        if (source == null) {
             return;
         }
-        BytesReference source = context.source();
 
         boolean filtered = (includes != null && includes.length > 0) || (excludes != null && excludes.length > 0);
         if (filtered) {

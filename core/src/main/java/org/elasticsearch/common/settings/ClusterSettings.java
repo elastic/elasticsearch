@@ -44,6 +44,7 @@ import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.discovery.DiscoverySettings;
@@ -298,5 +299,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     Client.CLIENT_TYPE_SETTING_S,
                     InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING,
                     ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING,
-                    EsExecutors.PROCESSORS_SETTING)));
+                    EsExecutors.PROCESSORS_SETTING,
+                    ThreadContext.DEFAULT_HEADERS_SETTING)));
 }

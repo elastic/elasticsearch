@@ -23,6 +23,7 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 
 import java.io.Closeable;
@@ -62,6 +63,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public final class ThreadContext implements Closeable, Writeable<ThreadContext.ThreadContextStruct>{
 
     public static final String PREFIX = "request.headers";
+    public static final Setting<Settings> DEFAULT_HEADERS_SETTING = Setting.groupSetting(PREFIX + ".", false, Setting.Scope.CLUSTER);
     private final Map<String, String> defaultHeader;
     private static final ThreadContextStruct DEFAULT_CONTEXT = new ThreadContextStruct(Collections.emptyMap());
     private final ContextThreadLocal threadLocal;
@@ -71,7 +73,7 @@ public final class ThreadContext implements Closeable, Writeable<ThreadContext.T
      * @param settings the settings to read the default request headers from
      */
     public ThreadContext(Settings settings) {
-        Settings headers = settings.getAsSettings(PREFIX);
+        Settings headers = DEFAULT_HEADERS_SETTING.get(settings);
         if (headers == null) {
             this.defaultHeader = Collections.emptyMap();
         } else {

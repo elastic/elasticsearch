@@ -37,7 +37,7 @@ public class RestCreateIndexAction extends BaseRestHandler {
 
     @Inject
     public RestCreateIndexAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+        super(settings, client);
         controller.registerHandler(RestRequest.Method.PUT, "/{index}", this);
         controller.registerHandler(RestRequest.Method.POST, "/{index}", this);
     }

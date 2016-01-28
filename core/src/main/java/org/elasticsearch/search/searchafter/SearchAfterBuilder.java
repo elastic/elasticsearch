@@ -82,7 +82,11 @@ public class SearchAfterBuilder implements ToXContent, FromXContentBuilder<Searc
         Object[] fieldValues = new Object[sortFields.length];
         for (int i = 0; i < sortFields.length; i++) {
             SortField sortField = sortFields[i];
-            fieldValues[i] = convertValueFromSortField(values[i], sortField);
+            if (values[i] != null) {
+                fieldValues[i] = convertValueFromSortField(values[i], sortField);
+            } else {
+                fieldValues[i] = null;
+            }
         }
         // We set the doc id to Integer.MAX_VALUE in order to make sure that the search starts "after" the first document that is equal to the field values.
         return new FieldDoc(Integer.MAX_VALUE, 0, fieldValues);
@@ -191,8 +195,10 @@ public class SearchAfterBuilder implements ToXContent, FromXContentBuilder<Searc
                     values.add(parser.text());
                 } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
                     values.add(parser.booleanValue());
+                } else if (token == XContentParser.Token.VALUE_NULL) {
+                    values.add(null);
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(), "Expected [" + XContentParser.Token.VALUE_STRING + "] or [" + XContentParser.Token.VALUE_NUMBER + "] or [" + XContentParser.Token.VALUE_BOOLEAN + "] but found [" + token + "] inside search_after.", parser.getTokenLocation());
+                    throw new ParsingException(parser.getTokenLocation(), "Expected [" + XContentParser.Token.VALUE_STRING + "] or [" + XContentParser.Token.VALUE_NUMBER + "] or [" + XContentParser.Token.VALUE_BOOLEAN + "] or [" + XContentParser.Token.VALUE_NULL + "] but found [" + token + "] inside search_after.", parser.getTokenLocation());
                 }
             }
         } else {
@@ -207,38 +213,39 @@ public class SearchAfterBuilder implements ToXContent, FromXContentBuilder<Searc
         out.writeVInt(sortValues.length);
         for (Object fieldValue : sortValues) {
             if (fieldValue == null) {
-                throw new IOException("Can't handle " + SEARCH_AFTER.getPreferredName() + " field value of type [null]");
-            }
-            Class type = fieldValue.getClass();
-            if (type == String.class) {
-                out.writeByte((byte) 1);
-                out.writeString((String) fieldValue);
-            } else if (type == Integer.class) {
-                out.writeByte((byte) 2);
-                out.writeInt((Integer) fieldValue);
-            } else if (type == Long.class) {
-                out.writeByte((byte) 3);
-                out.writeLong((Long) fieldValue);
-            } else if (type == Float.class) {
-                out.writeByte((byte) 4);
-                out.writeFloat((Float) fieldValue);
-            } else if (type == Double.class) {
-                out.writeByte((byte) 5);
-                out.writeDouble((Double) fieldValue);
-            } else if (type == Byte.class) {
-                out.writeByte((byte) 6);
-                out.writeByte((Byte) fieldValue);
-            } else if (type == Short.class) {
-                out.writeByte((byte) 7);
-                out.writeShort((Short) fieldValue);
-            } else if (type == Boolean.class) {
-                out.writeByte((byte) 8);
-                out.writeBoolean((Boolean) fieldValue);
-            } else if (fieldValue instanceof Text) {
-                out.writeByte((byte) 9);
-                out.writeText((Text) fieldValue);
+                out.writeByte((byte) 0);
             } else {
-                throw new IOException("Can't handle " + SEARCH_AFTER.getPreferredName() + " field value of type [" + type + "]");
+                Class<?> type = fieldValue.getClass();
+                if (type == String.class) {
+                    out.writeByte((byte) 1);
+                    out.writeString((String) fieldValue);
+                } else if (type == Integer.class) {
+                    out.writeByte((byte) 2);
+                    out.writeInt((Integer) fieldValue);
+                } else if (type == Long.class) {
+                    out.writeByte((byte) 3);
+                    out.writeLong((Long) fieldValue);
+                } else if (type == Float.class) {
+                    out.writeByte((byte) 4);
+                    out.writeFloat((Float) fieldValue);
+                } else if (type == Double.class) {
+                    out.writeByte((byte) 5);
+                    out.writeDouble((Double) fieldValue);
+                } else if (type == Byte.class) {
+                    out.writeByte((byte) 6);
+                    out.writeByte((Byte) fieldValue);
+                } else if (type == Short.class) {
+                    out.writeByte((byte) 7);
+                    out.writeShort((Short) fieldValue);
+                } else if (type == Boolean.class) {
+                    out.writeByte((byte) 8);
+                    out.writeBoolean((Boolean) fieldValue);
+                } else if (fieldValue instanceof Text) {
+                    out.writeByte((byte) 9);
+                    out.writeText((Text) fieldValue);
+                } else {
+                    throw new IOException("Can't handle " + SEARCH_AFTER.getPreferredName() + " field value of type [" + type + "]");
+                }
             }
         }
     }
@@ -250,7 +257,9 @@ public class SearchAfterBuilder implements ToXContent, FromXContentBuilder<Searc
         Object[] values = new Object[size];
         for (int i = 0; i < size; i++) {
             byte type = in.readByte();
-            if (type == 1) {
+            if (type == 0) {
+                values[i] = null;
+            } else if (type == 1) {
                 values[i] = in.readString();
             } else if (type == 2) {
                 values[i] = in.readInt();

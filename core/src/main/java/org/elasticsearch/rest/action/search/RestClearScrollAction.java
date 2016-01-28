@@ -47,7 +47,7 @@ public class RestClearScrollAction extends BaseRestHandler {
 
     @Inject
     public RestClearScrollAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+        super(settings, client);
 
         controller.registerHandler(DELETE, "/_search/scroll", this);
         controller.registerHandler(DELETE, "/_search/scroll/{scroll_id}", this);

@@ -74,7 +74,7 @@ public class ClusterStateCreationUtils {
             }
         }
         numberOfNodes = Math.max(2, numberOfNodes); // we need a non-local master to test shard failures
-        final ShardId shardId = new ShardId(index, 0);
+        final ShardId shardId = new ShardId(index, "_na_", 0);
         DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
         Set<String> unassignedNodes = new HashSet<>();
         for (int i = 0; i < numberOfNodes + 1; i++) {
@@ -131,7 +131,7 @@ public class ClusterStateCreationUtils {
         ClusterState.Builder state = ClusterState.builder(new ClusterName("test"));
         state.nodes(discoBuilder);
         state.metaData(MetaData.builder().put(indexMetaData, false).generateClusterUuidIfNeeded());
-        state.routingTable(RoutingTable.builder().add(IndexRoutingTable.builder(index).addIndexShard(indexShardRoutingBuilder.build())).build());
+        state.routingTable(RoutingTable.builder().add(IndexRoutingTable.builder(indexMetaData.getIndex()).addIndexShard(indexShardRoutingBuilder.build())).build());
         return state.build();
     }
 
@@ -155,11 +155,11 @@ public class ClusterStateCreationUtils {
         ClusterState.Builder state = ClusterState.builder(new ClusterName("test"));
         state.nodes(discoBuilder);
         state.metaData(MetaData.builder().put(indexMetaData, false).generateClusterUuidIfNeeded());
-        IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(index);
+        IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(indexMetaData.getIndex());
         for (int i = 0; i < numberOfShards; i++) {
             RoutingTable.Builder routing = new RoutingTable.Builder();
             routing.addAsNew(indexMetaData);
-            final ShardId shardId = new ShardId(index, i);
+            final ShardId shardId = new ShardId(index, "_na_", i);
             IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(shardId);
             indexShardRoutingBuilder.addShard(TestShardRouting.newShardRouting(index, i, newNode(0).id(), null, null, true, ShardRoutingState.STARTED, 0, null));
             indexShardRoutingBuilder.addShard(TestShardRouting.newShardRouting(index, i, newNode(1).id(), null, null, false, ShardRoutingState.STARTED, 0, null));

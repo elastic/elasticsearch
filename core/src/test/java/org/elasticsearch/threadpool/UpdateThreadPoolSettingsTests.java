@@ -325,7 +325,7 @@ public class UpdateThreadPoolSettingsTests extends ESTestCase {
         try {
             Settings nodeSettings = Settings.settingsBuilder()
                     .put("threadpool." + threadPoolName + ".queue_size", 1000)
-                    .put("name", "testCachedExecutorType").build();
+                    .put("name", "testShutdownNowInterrupts").build();
             threadPool = new ThreadPool(nodeSettings);
             ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
             threadPool.setClusterSettings(clusterSettings);

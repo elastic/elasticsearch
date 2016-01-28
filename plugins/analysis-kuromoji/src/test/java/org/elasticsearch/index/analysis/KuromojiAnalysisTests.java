@@ -205,7 +205,7 @@ public class KuromojiAnalysisTests extends ESTestCase {
                 .build();
         final SettingsModule settingsModule = new SettingsModule(settings, new SettingsFilter(settings));
         settingsModule.registerSetting(InternalSettingsPlugin.VERSION_CREATED);
-        Index index = new Index("test");
+        Index index = new Index("test", "_na_");
 
         AnalysisModule analysisModule = new AnalysisModule(new Environment(settings));
         new AnalysisKuromojiPlugin().onModule(analysisModule);

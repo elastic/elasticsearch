@@ -69,7 +69,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 indexNameExpressionResolver.concreteIndices(context, "bar");
                 fail();
             } catch (IndexNotFoundException e) {
-                assertThat(e.getIndex(), equalTo("bar"));
+                assertThat(e.getIndex().getName(), equalTo("bar"));
             }
 
             results = indexNameExpressionResolver.concreteIndices(context, "foofoo", "foobar");
@@ -84,14 +84,14 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 indexNameExpressionResolver.concreteIndices(context, "bar");
                 fail();
             } catch (IndexNotFoundException e) {
-                assertThat(e.getIndex(), equalTo("bar"));
+                assertThat(e.getIndex().getName(), equalTo("bar"));
             }
 
             try {
                 indexNameExpressionResolver.concreteIndices(context, "foo", "bar");
                 fail();
             } catch (IndexNotFoundException e) {
-                assertThat(e.getIndex(), equalTo("bar"));
+                assertThat(e.getIndex().getName(), equalTo("bar"));
             }
 
             results = indexNameExpressionResolver.concreteIndices(context, "barbaz", "foobar");
@@ -102,7 +102,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 indexNameExpressionResolver.concreteIndices(context, "barbaz", "bar");
                 fail();
             } catch (IndexNotFoundException e) {
-                assertThat(e.getIndex(), equalTo("bar"));
+                assertThat(e.getIndex().getName(), equalTo("bar"));
             }
 
             results = indexNameExpressionResolver.concreteIndices(context, "baz*");
@@ -227,21 +227,21 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 indexNameExpressionResolver.concreteIndices(context, "bar");
                 fail();
             } catch(IndexNotFoundException e) {
-                assertThat(e.getIndex(), equalTo("bar"));
+                assertThat(e.getIndex().getName(), equalTo("bar"));
             }
 
             try {
                 indexNameExpressionResolver.concreteIndices(context, "baz*");
                 fail();
             } catch (IndexNotFoundException e) {
-                assertThat(e.getIndex(), equalTo("baz*"));
+                assertThat(e.getIndex().getName(), equalTo("baz*"));
             }
 
             try {
                 indexNameExpressionResolver.concreteIndices(context, "foo", "baz*");
                 fail();
             } catch (IndexNotFoundException e) {
-                assertThat(e.getIndex(), equalTo("baz*"));
+                assertThat(e.getIndex().getName(), equalTo("baz*"));
             }
         }
 
@@ -362,7 +362,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 indexNameExpressionResolver.concreteIndices(context, "baz*");
                 fail();
             } catch (IndexNotFoundException e) {
-                assertThat(e.getIndex(), equalTo("baz*"));
+                assertThat(e.getIndex().getName(), equalTo("baz*"));
             }
 
             String[] results = indexNameExpressionResolver.concreteIndices(context, "foo", "baz*");
@@ -385,7 +385,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 indexNameExpressionResolver.concreteIndices(context, "foo", "baz*");
                 fail();
             } catch (IndexNotFoundException e) {
-                assertThat(e.getIndex(), equalTo("baz*"));
+                assertThat(e.getIndex().getName(), equalTo("baz*"));
             }
 
             results = indexNameExpressionResolver.concreteIndices(context, "foofoobar");
@@ -401,14 +401,14 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 indexNameExpressionResolver.concreteIndices(context, "baz*");
                 fail();
             } catch (IndexNotFoundException e) {
-                assertThat(e.getIndex(), equalTo("baz*"));
+                assertThat(e.getIndex().getName(), equalTo("baz*"));
             }
 
             try {
                 indexNameExpressionResolver.concreteIndices(context, "foo", "baz*");
                 fail();
             } catch (IndexNotFoundException e) {
-                assertThat(e.getIndex(), equalTo("baz*"));
+                assertThat(e.getIndex().getName(), equalTo("baz*"));
             }
 
             String[] results = indexNameExpressionResolver.concreteIndices(context, "foofoobar");
@@ -432,7 +432,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             indexNameExpressionResolver.concreteIndices(context, "baz*");
             fail();
         } catch (IndexNotFoundException e) {
-            assertThat(e.getIndex(), equalTo("baz*"));
+            assertThat(e.getIndex().getName(), equalTo("baz*"));
         }
 
         try {
@@ -440,7 +440,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             indexNameExpressionResolver.concreteIndices(context, "foo", "baz*");
             fail();
         } catch (IndexNotFoundException e) {
-            assertThat(e.getIndex(), equalTo("baz*"));
+            assertThat(e.getIndex().getName(), equalTo("baz*"));
         }
 
         try {
@@ -465,7 +465,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             fail();
         } catch(IndexClosedException e) {
             assertThat(e.getMessage(), equalTo("closed"));
-            assertEquals(e.getIndex(), "foofoo-closed");
+            assertEquals(e.getIndex().getName(), "foofoo-closed");
         }
 
         IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, IndicesOptions.strictSingleIndexNoExpandForbidClosed());
@@ -485,7 +485,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             indexNameExpressionResolver.concreteIndices(context, "foo");
             fail();
         } catch (IndexNotFoundException e) {
-            assertThat(e.getIndex(), equalTo("foo"));
+            assertThat(e.getIndex().getName(), equalTo("foo"));
         }
         results = indexNameExpressionResolver.concreteIndices(context, "foo*");
         assertThat(results, emptyArray());
@@ -493,7 +493,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             indexNameExpressionResolver.concreteIndices(context, "foo*", "bar");
             fail();
         } catch (IndexNotFoundException e) {
-            assertThat(e.getIndex(), equalTo("bar"));
+            assertThat(e.getIndex().getName(), equalTo("bar"));
         }
 
 

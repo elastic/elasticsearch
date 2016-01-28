@@ -19,6 +19,8 @@
 
 package org.elasticsearch.cluster.routing;
 
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
 
 /**
@@ -28,22 +30,44 @@ import org.elasticsearch.test.ESTestCase;
 public class TestShardRouting {
 
     public static ShardRouting newShardRouting(String index, int shardId, String currentNodeId, boolean primary, ShardRoutingState state, long version) {
+        return newShardRouting(new Index(index, IndexMetaData.INDEX_UUID_NA_VALUE), shardId, currentNodeId,primary, state, version);
+    }
+
+    public static ShardRouting newShardRouting(Index index, int shardId, String currentNodeId, boolean primary, ShardRoutingState state, long version) {
         return new ShardRouting(index, shardId, currentNodeId, null, null, primary, state, version, buildUnassignedInfo(state), buildAllocationId(state), true, -1);
     }
 
     public static ShardRouting newShardRouting(String index, int shardId, String currentNodeId, String relocatingNodeId, boolean primary, ShardRoutingState state, long version) {
+        return newShardRouting(new Index(index, IndexMetaData.INDEX_UUID_NA_VALUE), shardId, currentNodeId, relocatingNodeId, primary, state,version);
+    }
+
+    public static ShardRouting newShardRouting(Index index, int shardId, String currentNodeId, String relocatingNodeId, boolean primary, ShardRoutingState state, long version) {
         return new ShardRouting(index, shardId, currentNodeId, relocatingNodeId, null, primary, state, version, buildUnassignedInfo(state), buildAllocationId(state), true, -1);
     }
 
     public static ShardRouting newShardRouting(String index, int shardId, String currentNodeId, String relocatingNodeId, boolean primary, ShardRoutingState state, AllocationId allocationId, long version) {
+        return newShardRouting(new Index(index, IndexMetaData.INDEX_UUID_NA_VALUE), shardId, currentNodeId, relocatingNodeId, primary, state, allocationId, version);
+    }
+
+    public static ShardRouting newShardRouting(Index index, int shardId, String currentNodeId, String relocatingNodeId, boolean primary, ShardRoutingState state, AllocationId allocationId, long version) {
         return new ShardRouting(index, shardId, currentNodeId, relocatingNodeId, null, primary, state, version, buildUnassignedInfo(state), allocationId, true, -1);
     }
 
     public static ShardRouting newShardRouting(String index, int shardId, String currentNodeId, String relocatingNodeId, RestoreSource restoreSource, boolean primary, ShardRoutingState state, long version) {
+        return newShardRouting(new Index(index, IndexMetaData.INDEX_UUID_NA_VALUE), shardId, currentNodeId, relocatingNodeId, restoreSource, primary, state, version);
+    }
+
+    public static ShardRouting newShardRouting(Index index, int shardId, String currentNodeId, String relocatingNodeId, RestoreSource restoreSource, boolean primary, ShardRoutingState state, long version) {
         return new ShardRouting(index, shardId, currentNodeId, relocatingNodeId, restoreSource, primary, state, version, buildUnassignedInfo(state), buildAllocationId(state), true, -1);
     }
 
     public static ShardRouting newShardRouting(String index, int shardId, String currentNodeId,
+                                               String relocatingNodeId, RestoreSource restoreSource, boolean primary, ShardRoutingState state, long version,
+                                               UnassignedInfo unassignedInfo) {
+        return newShardRouting(new Index(index, IndexMetaData.INDEX_UUID_NA_VALUE), shardId, currentNodeId, relocatingNodeId, restoreSource, primary, state,version, unassignedInfo);
+    }
+
+    public static ShardRouting newShardRouting(Index index, int shardId, String currentNodeId,
                                                String relocatingNodeId, RestoreSource restoreSource, boolean primary, ShardRoutingState state, long version,
                                                UnassignedInfo unassignedInfo) {
         return new ShardRouting(index, shardId, currentNodeId, relocatingNodeId, restoreSource, primary, state, version, unassignedInfo, buildAllocationId(state), true, -1);

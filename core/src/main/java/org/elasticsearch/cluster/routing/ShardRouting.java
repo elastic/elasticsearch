@@ -27,6 +27,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
@@ -44,7 +45,7 @@ public final class ShardRouting implements Streamable, ToXContent {
      */
     public static final long UNAVAILABLE_EXPECTED_SHARD_SIZE = -1;
 
-    private String index;
+    private Index index;
     private int shardId;
     private String currentNodeId;
     private String relocatingNodeId;
@@ -75,7 +76,7 @@ public final class ShardRouting implements Streamable, ToXContent {
      * A constructor to internally create shard routing instances, note, the internal flag should only be set to true
      * by either this class or tests. Visible for testing.
      */
-    ShardRouting(String index, int shardId, String currentNodeId,
+    ShardRouting(Index index, int shardId, String currentNodeId,
                  String relocatingNodeId, RestoreSource restoreSource, boolean primary, ShardRoutingState state, long version,
                  UnassignedInfo unassignedInfo, AllocationId allocationId, boolean internal, long expectedShardSize) {
         this.index = index;
@@ -105,22 +106,19 @@ public final class ShardRouting implements Streamable, ToXContent {
     /**
      * Creates a new unassigned shard.
      */
-    public static ShardRouting newUnassigned(String index, int shardId, RestoreSource restoreSource, boolean primary, UnassignedInfo unassignedInfo) {
+    public static ShardRouting newUnassigned(Index index, int shardId, RestoreSource restoreSource, boolean primary, UnassignedInfo unassignedInfo) {
         return new ShardRouting(index, shardId, null, null, restoreSource, primary, ShardRoutingState.UNASSIGNED, 0, unassignedInfo, null, true, UNAVAILABLE_EXPECTED_SHARD_SIZE);
     }
 
-    /**
-     * The index name.
-     */
-    public String index() {
+    public Index index() {
         return this.index;
     }
 
     /**
      * The index name.
      */
-    public String getIndex() {
-        return index();
+    public String getIndexName() {
+        return index().getName();
     }
 
     /**
@@ -302,13 +300,13 @@ public final class ShardRouting implements Streamable, ToXContent {
         return entry;
     }
 
-    public static ShardRouting readShardRoutingEntry(StreamInput in, String index, int shardId) throws IOException {
+    public static ShardRouting readShardRoutingEntry(StreamInput in, Index index, int shardId) throws IOException {
         ShardRouting entry = new ShardRouting();
         entry.readFrom(in, index, shardId);
         return entry;
     }
 
-    public void readFrom(StreamInput in, String index, int shardId) throws IOException {
+    public void readFrom(StreamInput in, Index index, int shardId) throws IOException {
         this.index = index;
         this.shardId = shardId;
         readFromThin(in);
@@ -344,7 +342,7 @@ public final class ShardRouting implements Streamable, ToXContent {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        readFrom(in, in.readString(), in.readVInt());
+        readFrom(in, Index.readIndex(in), in.readVInt());
     }
 
     /**
@@ -398,7 +396,7 @@ public final class ShardRouting implements Streamable, ToXContent {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(index);
+        index.writeTo(out);
         out.writeVInt(shardId);
         writeToThin(out);
     }
@@ -720,7 +718,7 @@ public final class ShardRouting implements Streamable, ToXContent {
             .field("node", currentNodeId())
             .field("relocating_node", relocatingNodeId())
             .field("shard", shardId().id())
-            .field("index", shardId().index().name())
+            .field("index", shardId().getIndex().getName())
             .field("version", version);
         if (expectedShardSize != UNAVAILABLE_EXPECTED_SHARD_SIZE) {
             builder.field("expected_shard_size_in_bytes", expectedShardSize);

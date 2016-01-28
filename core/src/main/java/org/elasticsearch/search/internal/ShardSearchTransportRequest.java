@@ -51,7 +51,6 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
 
     public ShardSearchTransportRequest(SearchRequest searchRequest, ShardRouting shardRouting, int numberOfShards,
                                        String[] filteringAliases, long nowInMillis) {
-        super(searchRequest);
         this.shardSearchLocalRequest = new ShardSearchLocalRequest(searchRequest, shardRouting, numberOfShards, filteringAliases, nowInMillis);
         this.originalIndices = new OriginalIndices(searchRequest);
     }

@@ -172,7 +172,7 @@ public class NodeIndicesStats implements Streamable, ToXContent {
             int entries = in.readVInt();
             statsByShard = new HashMap<>();
             for (int i = 0; i < entries; i++) {
-                Index index = Index.readIndexName(in);
+                Index index = Index.readIndex(in);
                 int indexShardListSize = in.readVInt();
                 List<IndexShardStats> indexShardStats = new ArrayList<>(indexShardListSize);
                 for (int j = 0; j < indexShardListSize; j++) {
@@ -215,7 +215,7 @@ public class NodeIndicesStats implements Streamable, ToXContent {
             Map<Index, CommonStats> indexStats = createStatsByIndex();
             builder.startObject(Fields.INDICES);
             for (Map.Entry<Index, CommonStats> entry : indexStats.entrySet()) {
-                builder.startObject(entry.getKey().name());
+                builder.startObject(entry.getKey().getName());
                 entry.getValue().toXContent(builder, params);
                 builder.endObject();
             }
@@ -223,7 +223,7 @@ public class NodeIndicesStats implements Streamable, ToXContent {
         } else if ("shards".equals(level)) {
             builder.startObject("shards");
             for (Map.Entry<Index, List<IndexShardStats>> entry : statsByShard.entrySet()) {
-                builder.startArray(entry.getKey().name());
+                builder.startArray(entry.getKey().getName());
                 for (IndexShardStats indexShardStats : entry.getValue()) {
                     builder.startObject().startObject(String.valueOf(indexShardStats.getShardId().getId()));
                     for (ShardStats shardStats : indexShardStats.getShards()) {

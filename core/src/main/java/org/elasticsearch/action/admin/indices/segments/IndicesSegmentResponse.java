@@ -62,17 +62,17 @@ public class IndicesSegmentResponse extends BroadcastResponse implements ToXCont
 
         Set<String> indices = new HashSet<>();
         for (ShardSegments shard : shards) {
-            indices.add(shard.getShardRouting().getIndex());
+            indices.add(shard.getShardRouting().getIndexName());
         }
 
-        for (String index : indices) {
+        for (String indexName : indices) {
             List<ShardSegments> shards = new ArrayList<>();
             for (ShardSegments shard : this.shards) {
-                if (shard.getShardRouting().index().equals(index)) {
+                if (shard.getShardRouting().getIndexName().equals(indexName)) {
                     shards.add(shard);
                 }
             }
-            indicesSegments.put(index, new IndexSegments(index, shards.toArray(new ShardSegments[shards.size()])));
+            indicesSegments.put(indexName, new IndexSegments(indexName, shards.toArray(new ShardSegments[shards.size()])));
         }
         this.indicesSegments = indicesSegments;
         return indicesSegments;

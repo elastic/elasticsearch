@@ -357,7 +357,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
         ImmutableOpenMap<String,IndexMetaData> indices = loadedMetaData.indices();
         assertThat(indices.size(), equalTo(latestMetaData.indices().size()));
         for (IndexMetaData original : latestMetaData) {
-            IndexMetaData deserialized = indices.get(original.getIndex());
+            IndexMetaData deserialized = indices.get(original.getIndex().getName());
             assertThat(deserialized, notNullValue());
             assertThat(deserialized.getVersion(), equalTo(original.getVersion()));
             assertThat(deserialized.getNumberOfReplicas(), equalTo(original.getNumberOfReplicas()));

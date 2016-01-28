@@ -105,7 +105,7 @@ public class TribeUnitTests extends ESTestCase {
         Path pathConf = getDataPath("elasticsearch.yml").getParent();
         Settings settings = Settings
             .builder()
-            .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING, true)
+            .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING.getKey(), true)
             .put(Environment.PATH_CONF_SETTING.getKey(), pathConf)
             .build();
         assertTribeNodeSuccessfullyCreated(settings);

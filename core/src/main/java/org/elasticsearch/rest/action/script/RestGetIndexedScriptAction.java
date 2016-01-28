@@ -48,7 +48,7 @@ public class RestGetIndexedScriptAction extends BaseRestHandler {
     }
 
     protected RestGetIndexedScriptAction(Settings settings, RestController controller, boolean registerDefaultHandlers, Client client) {
-        super(settings, controller, client);
+        super(settings, client);
         if (registerDefaultHandlers) {
             controller.registerHandler(GET, "/_scripts/{lang}/{id}", this);
         }

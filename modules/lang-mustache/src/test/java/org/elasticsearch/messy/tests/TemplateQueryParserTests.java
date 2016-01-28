@@ -99,8 +99,8 @@ public class TemplateQueryParserTests extends ESTestCase {
                 new Class<?>[]{Client.class}, (proxy1, method, args) -> {
                     throw new UnsupportedOperationException("client is just a dummy");
                 });
-        Index index = new Index("test");
-        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index, settings);
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("test", settings);
+        Index index = idxSettings.getIndex();
         SettingsModule settingsModule = new SettingsModule(settings, new SettingsFilter(settings));
         ScriptModule scriptModule = new ScriptModule(settingsModule);
         // TODO: make this use a mock engine instead of mustache and it will no longer be messy!

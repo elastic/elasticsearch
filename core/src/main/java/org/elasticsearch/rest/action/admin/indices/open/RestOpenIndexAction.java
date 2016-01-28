@@ -39,7 +39,7 @@ public class RestOpenIndexAction extends BaseRestHandler {
 
     @Inject
     public RestOpenIndexAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+        super(settings, client);
         controller.registerHandler(RestRequest.Method.POST, "/_open", this);
         controller.registerHandler(RestRequest.Method.POST, "/{index}/_open", this);
     }

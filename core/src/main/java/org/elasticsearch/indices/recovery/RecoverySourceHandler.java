@@ -111,7 +111,7 @@ public class RecoverySourceHandler {
         this.recoverySettings = recoverySettings;
         this.logger = logger;
         this.transportService = transportService;
-        this.indexName = this.request.shardId().index().name();
+        this.indexName = this.request.shardId().getIndex().getName();
         this.shardId = this.request.shardId().id();
         this.chunkSizeInBytes = recoverySettings.getChunkSize().bytesAsInt();
         this.response = new RecoveryResponse();

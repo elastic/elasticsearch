@@ -159,7 +159,7 @@ public class TransportTasksActionTests extends ESTestCase {
         }
 
         public NodeRequest(NodesRequest request, String nodeId) {
-            super(request, nodeId);
+            super(nodeId);
             requestName = request.requestName;
             enableTaskManager = request.enableTaskManager;
         }

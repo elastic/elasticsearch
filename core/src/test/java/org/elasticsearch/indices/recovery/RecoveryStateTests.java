@@ -346,7 +346,7 @@ public class RecoveryStateTests extends ESTestCase {
         stages[i] = stages[j];
         stages[j] = t;
         try {
-            RecoveryState state = new RecoveryState(new ShardId("bla", 0), randomBoolean(), randomFrom(Type.values()), discoveryNode, discoveryNode);
+            RecoveryState state = new RecoveryState(new ShardId("bla", "_na_", 0), randomBoolean(), randomFrom(Type.values()), discoveryNode, discoveryNode);
             for (Stage stage : stages) {
                 state.setStage(stage);
             }
@@ -360,7 +360,7 @@ public class RecoveryStateTests extends ESTestCase {
         i = randomIntBetween(1, stages.length - 1);
         ArrayList<Stage> list = new ArrayList<>(Arrays.asList(Arrays.copyOfRange(stages, 0, i)));
         list.addAll(Arrays.asList(stages));
-        RecoveryState state = new RecoveryState(new ShardId("bla", 0), randomBoolean(), randomFrom(Type.values()), discoveryNode, discoveryNode);
+        RecoveryState state = new RecoveryState(new ShardId("bla", "_na_", 0), randomBoolean(), randomFrom(Type.values()), discoveryNode, discoveryNode);
         for (Stage stage : list) {
             state.setStage(stage);
         }

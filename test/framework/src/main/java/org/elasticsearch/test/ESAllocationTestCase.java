@@ -235,7 +235,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
             boolean changed = false;
             while (unassignedIterator.hasNext()) {
                 ShardRouting shard = unassignedIterator.next();
-                IndexMetaData indexMetaData = allocation.metaData().index(shard.getIndex());
+                IndexMetaData indexMetaData = allocation.metaData().index(shard.getIndexName());
                 if (shard.primary() || shard.allocatedPostIndexCreate(indexMetaData) == false) {
                     continue;
                 }

@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.Index;
 
 import java.io.IOException;
 
@@ -32,7 +33,7 @@ import java.io.IOException;
  */
 public class ClusterSearchShardsGroup implements Streamable, ToXContent {
 
-    private String index;
+    private Index index;
     private int shardId;
     ShardRouting[] shards;
 
@@ -40,7 +41,7 @@ public class ClusterSearchShardsGroup implements Streamable, ToXContent {
 
     }
 
-    public ClusterSearchShardsGroup(String index, int shardId, ShardRouting[] shards) {
+    public ClusterSearchShardsGroup(Index index, int shardId, ShardRouting[] shards) {
         this.index = index;
         this.shardId = shardId;
         this.shards = shards;
@@ -53,7 +54,7 @@ public class ClusterSearchShardsGroup implements Streamable, ToXContent {
     }
 
     public String getIndex() {
-        return index;
+        return index.getName();
     }
 
     public int getShardId() {
@@ -66,7 +67,7 @@ public class ClusterSearchShardsGroup implements Streamable, ToXContent {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        index = in.readString();
+        index = Index.readIndex(in);
         shardId = in.readVInt();
         shards = new ShardRouting[in.readVInt()];
         for (int i = 0; i < shards.length; i++) {
@@ -76,7 +77,7 @@ public class ClusterSearchShardsGroup implements Streamable, ToXContent {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(index);
+        index.writeTo(out);
         out.writeVInt(shardId);
         out.writeVInt(shards.length);
         for (ShardRouting shardRouting : shards) {

@@ -107,7 +107,7 @@ public class DanglingIndicesStateTests extends ESTestCase {
             IndexMetaData dangledIndex = IndexMetaData.builder("test1").settings(indexSettings).build();
             metaStateService.writeIndex("test_write", dangledIndex, null);
 
-            for (Path path : env.indexPaths(new Index("test1"))) {
+            for (Path path : env.indexPaths("test1")) {
                 Files.move(path, path.getParent().resolve("test1_renamed"));
             }
 

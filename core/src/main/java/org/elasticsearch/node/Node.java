@@ -149,7 +149,7 @@ public class Node implements Releasable {
 
     protected Node(Environment tmpEnv, Version version, Collection<Class<? extends Plugin>> classpathPlugins) {
         Settings tmpSettings = settingsBuilder().put(tmpEnv.settings())
-            .put(Client.CLIENT_TYPE_SETTING, CLIENT_TYPE).build();
+            .put(Client.CLIENT_TYPE_SETTING_S.getKey(), CLIENT_TYPE).build();
         tmpSettings = TribeService.processSettings(tmpSettings);
 
         ESLogger logger = Loggers.getLogger(Node.class, tmpSettings.get("name"));

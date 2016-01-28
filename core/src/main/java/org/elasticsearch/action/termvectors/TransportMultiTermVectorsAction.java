@@ -82,7 +82,7 @@ public class TransportMultiTermVectorsAction extends HandledTransportAction<Mult
                     termVectorsRequest.id(), termVectorsRequest.routing());
             MultiTermVectorsShardRequest shardRequest = shardRequests.get(shardId);
             if (shardRequest == null) {
-                shardRequest = new MultiTermVectorsShardRequest(request, shardId.index().name(), shardId.id());
+                shardRequest = new MultiTermVectorsShardRequest(shardId.getIndexName(), shardId.id());
                 shardRequest.preference(request.preference);
                 shardRequests.put(shardId, shardRequest);
             }

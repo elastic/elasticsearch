@@ -45,8 +45,8 @@ public final class ShardPath {
     public ShardPath(boolean isCustomDataPath, Path dataPath, Path shardStatePath, String indexUUID, ShardId shardId) {
         assert dataPath.getFileName().toString().equals(Integer.toString(shardId.id())) : "dataPath must end with the shard ID but didn't: " + dataPath.toString();
         assert shardStatePath.getFileName().toString().equals(Integer.toString(shardId.id())) : "shardStatePath must end with the shard ID but didn't: " + dataPath.toString();
-        assert dataPath.getParent().getFileName().toString().equals(shardId.getIndex()) : "dataPath must end with index/shardID but didn't: " + dataPath.toString();
-        assert shardStatePath.getParent().getFileName().toString().equals(shardId.getIndex()) : "shardStatePath must end with index/shardID but didn't: " + dataPath.toString();
+        assert dataPath.getParent().getFileName().toString().equals(shardId.getIndexName()) : "dataPath must end with index/shardID but didn't: " + dataPath.toString();
+        assert shardStatePath.getParent().getFileName().toString().equals(shardId.getIndexName()) : "shardStatePath must end with index/shardID but didn't: " + dataPath.toString();
         if (isCustomDataPath && dataPath.equals(shardStatePath)) {
             throw new IllegalArgumentException("shard state path must be different to the data path when using custom data paths");
         }

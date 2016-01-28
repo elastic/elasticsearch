@@ -22,8 +22,10 @@ import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClientNodesService;
 import org.elasticsearch.cluster.ClusterModule;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -64,8 +66,10 @@ import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.indices.ttl.IndicesTTLService;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.repositories.uri.URLRepository;
+import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -268,6 +272,10 @@ public final class ClusterSettings extends AbstractScopedSettings {
         URLRepository.SUPPORTED_PROTOCOLS_SETTING,
         TransportMasterNodeReadAction.FORCE_LOCAL_SETTING,
         AutoCreateIndex.AUTO_CREATE_INDEX_SETTING,
+        BaseRestHandler.MULTI_ALLOW_EXPLICIT_INDEX,
+        ClusterName.CLUSTER_NAME_SETTING,
+        Client.CLIENT_TYPE_SETTING_S,
+        InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING,
         ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING,
         EsExecutors.PROCESSORS_SETTING)));
 }

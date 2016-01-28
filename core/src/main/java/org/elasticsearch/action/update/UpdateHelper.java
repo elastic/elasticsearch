@@ -44,6 +44,7 @@ import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
@@ -75,16 +76,15 @@ public class UpdateHelper extends AbstractComponent {
         final GetResult getResult = indexShard.getService().get(request.type(), request.id(),
                 new String[]{RoutingFieldMapper.NAME, ParentFieldMapper.NAME, TTLFieldMapper.NAME, TimestampFieldMapper.NAME},
                 true, request.version(), request.versionType(), FetchSourceContext.FETCH_SOURCE, false);
-        return prepare(request, getResult);
+        return prepare(indexShard.shardId(), request, getResult);
     }
 
     /**
      * Prepares an update request by converting it into an index or delete request or an update response (no action).
      */
     @SuppressWarnings("unchecked")
-    protected Result prepare(UpdateRequest request, final GetResult getResult) {
+    protected Result prepare(ShardId shardId, UpdateRequest request, final GetResult getResult) {
         long getDateNS = System.nanoTime();
-        final ShardId shardId = new ShardId(getResult.getIndex(), request.shardId());
         if (!getResult.isExists()) {
             if (request.upsertRequest() == null && !request.docAsUpsert()) {
                 throw new DocumentMissingException(shardId, request.type(), request.id());
@@ -99,7 +99,7 @@ public class UpdateHelper extends AbstractComponent {
                 // Tell the script that this is a create and not an update
                 ctx.put("op", "create");
                 ctx.put("_source", upsertDoc);
-                ctx = executeScript(request, ctx);
+                ctx = executeScript(request.script, ctx);
                 //Allow the script to set TTL using ctx._ttl
                 if (ttl == null) {
                     ttl = getTTLFromScriptContext(ctx);
@@ -193,7 +193,7 @@ public class UpdateHelper extends AbstractComponent {
             ctx.put("_ttl", originalTtl);
             ctx.put("_source", sourceAndContent.v2());
 
-            ctx = executeScript(request, ctx);
+            ctx = executeScript(request.script, ctx);
 
             operation = (String) ctx.get("op");
 
@@ -243,14 +243,14 @@ public class UpdateHelper extends AbstractComponent {
         }
     }
 
-    private Map<String, Object> executeScript(UpdateRequest request, Map<String, Object> ctx) {
+    private Map<String, Object> executeScript(Script script, Map<String, Object> ctx) {
         try {
             if (scriptService != null) {
-                ExecutableScript script = scriptService.executable(request.script, ScriptContext.Standard.UPDATE, request, Collections.emptyMap());
-                script.setNextVar("ctx", ctx);
-                script.run();
+                ExecutableScript executableScript = scriptService.executable(script, ScriptContext.Standard.UPDATE, Collections.emptyMap());
+                executableScript.setNextVar("ctx", ctx);
+                executableScript.run();
                 // we need to unwrap the ctx...
-                ctx = (Map<String, Object>) script.unwrap(ctx);
+                ctx = (Map<String, Object>) executableScript.unwrap(ctx);
             }
         } catch (Exception e) {
             throw new IllegalArgumentException("failed to execute script", e);

@@ -78,7 +78,7 @@ public abstract class ESSmokeClientTestCase extends LuceneTestCase {
     private static Client startClient(Path tempDir, TransportAddress... transportAddresses) {
         Settings clientSettings = Settings.settingsBuilder()
                 .put("name", "qa_smoke_client_" + counter.getAndIncrement())
-                .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING, true) // prevents any settings to be replaced by system properties.
+                .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING.getKey(), true) // prevents any settings to be replaced by system properties.
                 .put("client.transport.ignore_cluster_name", true)
                 .put(Environment.PATH_HOME_SETTING.getKey(), tempDir)
                 .put(Node.NODE_MODE_SETTING.getKey(), "network").build(); // we require network here!

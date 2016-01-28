@@ -71,7 +71,7 @@ public class InternalTestClusterTests extends ESTestCase {
     final static Set<String> clusterUniqueSettings = new HashSet<>();
 
     static {
-        clusterUniqueSettings.add(ClusterName.SETTING);
+        clusterUniqueSettings.add(ClusterName.CLUSTER_NAME_SETTING.getKey());
         clusterUniqueSettings.add("transport.tcp.port");
         clusterUniqueSettings.add("http.port");
         clusterUniqueSettings.add("http.port");

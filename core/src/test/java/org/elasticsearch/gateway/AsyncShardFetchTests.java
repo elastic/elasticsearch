@@ -243,7 +243,7 @@ public class AsyncShardFetchTests extends ESTestCase {
         private AtomicInteger reroute = new AtomicInteger();
 
         public TestFetch(ThreadPool threadPool) {
-            super(Loggers.getLogger(TestFetch.class), "test", new ShardId("test", 1), null);
+            super(Loggers.getLogger(TestFetch.class), "test", new ShardId("test", "_na_", 1), null);
             this.threadPool = threadPool;
         }
 

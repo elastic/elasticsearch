@@ -57,7 +57,7 @@ public class TransportAnalyzeActionTests extends ESTestCase {
                 .putArray("index.analysis.analyzer.custom_analyzer.filter", "lowercase", "wordDelimiter")
                 .put("index.analysis.analyzer.custom_analyzer.tokenizer", "whitespace")
                 .putArray("index.analysis.analyzer.custom_analyzer.filter", "lowercase", "wordDelimiter").build();
-        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(new Index("index"), indexSettings);
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", indexSettings);
         environment = new Environment(settings);
         registry = new AnalysisRegistry(null, environment);
         analysisService = registry.build(idxSettings);

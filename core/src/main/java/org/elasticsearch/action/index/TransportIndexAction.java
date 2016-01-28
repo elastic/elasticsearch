@@ -88,7 +88,7 @@ public class TransportIndexAction extends TransportReplicationAction<IndexReques
         // if we don't have a master, we don't have metadata, that's fine, let it find a master using create index API
         ClusterState state = clusterService.state();
         if (autoCreateIndex.shouldAutoCreate(request.index(), state)) {
-            CreateIndexRequest createIndexRequest = new CreateIndexRequest(request);
+            CreateIndexRequest createIndexRequest = new CreateIndexRequest();
             createIndexRequest.index(request.index());
             createIndexRequest.mapping(request.type());
             createIndexRequest.cause("auto(index api)");
@@ -146,7 +146,7 @@ public class TransportIndexAction extends TransportReplicationAction<IndexReques
         MappingMetaData mappingMd = indexMetaData.mappingOrDefault(request.type());
         if (mappingMd != null && mappingMd.routing().required()) {
             if (request.routing() == null) {
-                throw new RoutingMissingException(request.shardId().getIndex(), request.type(), request.id());
+                throw new RoutingMissingException(request.shardId().getIndex().getName(), request.type(), request.id());
             }
         }
 
@@ -176,7 +176,7 @@ public class TransportIndexAction extends TransportReplicationAction<IndexReques
      */
     public static Engine.Index executeIndexRequestOnReplica(IndexRequest request, IndexShard indexShard) {
         final ShardId shardId = indexShard.shardId();
-        SourceToParse sourceToParse = SourceToParse.source(SourceToParse.Origin.REPLICA, request.source()).index(shardId.getIndex()).type(request.type()).id(request.id())
+        SourceToParse sourceToParse = SourceToParse.source(SourceToParse.Origin.REPLICA, request.source()).index(shardId.getIndexName()).type(request.type()).id(request.id())
                 .routing(request.routing()).parent(request.parent()).timestamp(request.timestamp()).ttl(request.ttl());
 
         final Engine.Index operation = indexShard.prepareIndexOnReplica(sourceToParse, request.version(), request.versionType());
@@ -204,7 +204,7 @@ public class TransportIndexAction extends TransportReplicationAction<IndexReques
         Mapping update = operation.parsedDoc().dynamicMappingsUpdate();
         final ShardId shardId = indexShard.shardId();
         if (update != null) {
-            final String indexName = shardId.getIndex();
+            final String indexName = shardId.getIndexName();
             mappingUpdatedAction.updateMappingOnMasterSynchronously(indexName, request.type(), update);
             operation = prepareIndexOperationOnPrimary(request, indexShard);
             update = operation.parsedDoc().dynamicMappingsUpdate();

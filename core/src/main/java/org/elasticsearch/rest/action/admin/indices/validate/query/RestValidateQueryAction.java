@@ -57,7 +57,7 @@ public class RestValidateQueryAction extends BaseRestHandler {
 
     @Inject
     public RestValidateQueryAction(Settings settings, RestController controller, Client client, IndicesQueriesRegistry indicesQueriesRegistry) {
-        super(settings, controller, client);
+        super(settings, client);
         controller.registerHandler(GET, "/_validate/query", this);
         controller.registerHandler(POST, "/_validate/query", this);
         controller.registerHandler(GET, "/{index}/_validate/query", this);

@@ -206,10 +206,10 @@ public class ShardsLimitAllocationTests extends ESAllocationTestCase {
         assertThat(numberOfShardsOfType(clusterState.getRoutingNodes(), STARTED), equalTo(10));
 
         for (ShardRouting shardRouting : clusterState.getRoutingNodes().node("node1")) {
-            assertThat(shardRouting.index(), equalTo("test"));
+            assertThat(shardRouting.getIndexName(), equalTo("test"));
         }
         for (ShardRouting shardRouting : clusterState.getRoutingNodes().node("node2")) {
-            assertThat(shardRouting.index(), equalTo("test1"));
+            assertThat(shardRouting.getIndexName(), equalTo("test1"));
         }
 
         logger.info("update " + ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey() + " for test, see that things move");

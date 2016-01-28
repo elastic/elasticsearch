@@ -364,8 +364,8 @@ public class QueryShardContext {
     /*
     * Executes the given template, and returns the response.
     */
-    public BytesReference executeQueryTemplate(Template template, SearchContext searchContext) {
-        ExecutableScript executable = getScriptService().executable(template, ScriptContext.Standard.SEARCH, searchContext, Collections.emptyMap());
+    public BytesReference executeQueryTemplate(Template template) {
+        ExecutableScript executable = getScriptService().executable(template, ScriptContext.Standard.SEARCH, Collections.emptyMap());
         return (BytesReference) executable.run();
     }
 

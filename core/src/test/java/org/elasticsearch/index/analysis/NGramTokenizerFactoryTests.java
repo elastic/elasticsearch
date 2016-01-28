@@ -48,7 +48,7 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public class NGramTokenizerFactoryTests extends ESTokenStreamTestCase {
     public void testParseTokenChars() {
-        final Index index = new Index("test");
+        final Index index = new Index("test", "_na_");
         final String name = "ngr";
         final Settings indexSettings = newAnalysisSettingsBuilder().build();
         IndexSettings indexProperties = IndexSettingsModule.newIndexSettings(index, indexSettings);
@@ -71,7 +71,7 @@ public class NGramTokenizerFactoryTests extends ESTokenStreamTestCase {
     }
 
     public void testNoTokenChars() throws IOException {
-        final Index index = new Index("test");
+        final Index index = new Index("test", "_na_");
         final String name = "ngr";
         final Settings indexSettings = newAnalysisSettingsBuilder().build();
         final Settings settings = newAnalysisSettingsBuilder().put("min_gram", 2).put("max_gram", 4).putArray("token_chars", new String[0]).build();
@@ -82,7 +82,7 @@ public class NGramTokenizerFactoryTests extends ESTokenStreamTestCase {
 
     public void testPreTokenization() throws IOException {
         // Make sure that pretokenization works well and that it can be used even with token chars which are supplementary characters
-        final Index index = new Index("test");
+        final Index index = new Index("test", "_na_");
         final String name = "ngr";
         final Settings indexSettings = newAnalysisSettingsBuilder().build();
         Settings settings = newAnalysisSettingsBuilder().put("min_gram", 2).put("max_gram", 3).put("token_chars", "letter,digit").build();
@@ -99,7 +99,7 @@ public class NGramTokenizerFactoryTests extends ESTokenStreamTestCase {
 
     public void testPreTokenizationEdge() throws IOException {
         // Make sure that pretokenization works well and that it can be used even with token chars which are supplementary characters
-        final Index index = new Index("test");
+        final Index index = new Index("test", "_na_");
         final String name = "ngr";
         final Settings indexSettings = newAnalysisSettingsBuilder().build();
         Settings settings = newAnalysisSettingsBuilder().put("min_gram", 2).put("max_gram", 3).put("token_chars", "letter,digit").build();
@@ -117,7 +117,7 @@ public class NGramTokenizerFactoryTests extends ESTokenStreamTestCase {
     public void testBackwardsCompatibilityEdgeNgramTokenFilter() throws Exception {
         int iters = scaledRandomIntBetween(20, 100);
         for (int i = 0; i < iters; i++) {
-            final Index index = new Index("test");
+            final Index index = new Index("test", "_na_");
             final String name = "ngr";
             Version v = randomVersion(random());
             if (v.onOrAfter(Version.V_0_90_2)) {

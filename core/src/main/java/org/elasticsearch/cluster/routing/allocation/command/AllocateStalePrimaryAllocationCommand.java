@@ -47,12 +47,13 @@ public class AllocateStalePrimaryAllocationCommand extends BasePrimaryAllocation
     /**
      * Creates a new {@link AllocateStalePrimaryAllocationCommand}
      *
-     * @param shardId        {@link ShardId} of the shard to assign
+     * @param index          index of the shard to assign
+     * @param shardId        id of the shard to assign
      * @param node           node id of the node to assign the shard to
      * @param acceptDataLoss whether the user agrees to data loss
      */
-    public AllocateStalePrimaryAllocationCommand(ShardId shardId, String node, boolean acceptDataLoss) {
-        super(shardId, node, acceptDataLoss);
+    public AllocateStalePrimaryAllocationCommand(String index, int shardId, String node, boolean acceptDataLoss) {
+        super(index, shardId, node, acceptDataLoss);
     }
 
     @Override
@@ -70,7 +71,7 @@ public class AllocateStalePrimaryAllocationCommand extends BasePrimaryAllocation
         @Override
         public AllocateStalePrimaryAllocationCommand build() {
             validate();
-            return new AllocateStalePrimaryAllocationCommand(new ShardId(index, shard), node, acceptDataLoss);
+            return new AllocateStalePrimaryAllocationCommand(index, shard, node, acceptDataLoss);
         }
     }
 
@@ -98,23 +99,23 @@ public class AllocateStalePrimaryAllocationCommand extends BasePrimaryAllocation
 
         final ShardRouting shardRouting;
         try {
-            shardRouting = allocation.routingTable().shardRoutingTable(shardId).primaryShard();
+            shardRouting = allocation.routingTable().shardRoutingTable(index, shardId).primaryShard();
         } catch (IndexNotFoundException | ShardNotFoundException e) {
             return explainOrThrowRejectedCommand(explain, allocation, e);
         }
         if (shardRouting.unassigned() == false) {
-            return explainOrThrowRejectedCommand(explain, allocation, "primary " + shardId + " is already assigned");
+            return explainOrThrowRejectedCommand(explain, allocation, "primary [" + index + "][" + shardId + "] is already assigned");
         }
 
         if (acceptDataLoss == false) {
             return explainOrThrowRejectedCommand(explain, allocation,
-                "allocating an empty primary for " + shardId + " can result in data loss. Please confirm by setting the accept_data_loss parameter to true");
+                "allocating an empty primary for [" + index + "][" + shardId + "] can result in data loss. Please confirm by setting the accept_data_loss parameter to true");
         }
 
-        final IndexMetaData indexMetaData = allocation.metaData().index(shardRouting.getIndex());
+        final IndexMetaData indexMetaData = allocation.metaData().index(shardRouting.getIndexName());
         if (shardRouting.allocatedPostIndexCreate(indexMetaData) == false) {
             return explainOrThrowRejectedCommand(explain, allocation,
-                "trying to allocate an existing primary shard " + shardId + ", while no such shard has ever been active");
+                "trying to allocate an existing primary shard [" + index + "][" + shardId + "], while no such shard has ever been active");
         }
 
         initializeUnassignedShard(allocation, routingNodes, routingNode, shardRouting);

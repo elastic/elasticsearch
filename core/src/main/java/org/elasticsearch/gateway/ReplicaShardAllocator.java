@@ -74,7 +74,7 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
                 }
 
                 // if we are allocating a replica because of index creation, no need to go and find a copy, there isn't one...
-                IndexMetaData indexMetaData = metaData.index(shard.getIndex());
+                IndexMetaData indexMetaData = metaData.index(shard.getIndexName());
                 if (shard.allocatedPostIndexCreate(indexMetaData) == false) {
                     continue;
                 }
@@ -127,7 +127,7 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
             }
 
             // if we are allocating a replica because of index creation, no need to go and find a copy, there isn't one...
-            IndexMetaData indexMetaData = metaData.index(shard.getIndex());
+            IndexMetaData indexMetaData = metaData.index(shard.getIndexName());
             if (shard.allocatedPostIndexCreate(indexMetaData) == false) {
                 continue;
             }

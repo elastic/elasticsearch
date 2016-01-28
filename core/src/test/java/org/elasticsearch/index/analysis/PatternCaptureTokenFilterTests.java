@@ -40,7 +40,7 @@ public class PatternCaptureTokenFilterTests extends ESTokenStreamTestCase {
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .build();
 
-        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(new Index("index"), settings);
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
         AnalysisService analysisService = new AnalysisRegistry(null, new Environment(settings)).build(idxSettings);
 
         NamedAnalyzer analyzer1 = analysisService.analyzer("single");
@@ -58,7 +58,7 @@ public class PatternCaptureTokenFilterTests extends ESTokenStreamTestCase {
 
     public void testNoPatterns() {
         try {
-            new PatternCaptureGroupTokenFilterFactory(IndexSettingsModule.newIndexSettings(new Index("test"), Settings.EMPTY), null, "pattern_capture", settingsBuilder().put("pattern", "foobar").build());
+            new PatternCaptureGroupTokenFilterFactory(IndexSettingsModule.newIndexSettings("test", Settings.EMPTY), null, "pattern_capture", settingsBuilder().put("pattern", "foobar").build());
             fail ("Expected IllegalArgumentException");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("required setting 'patterns' is missing"));

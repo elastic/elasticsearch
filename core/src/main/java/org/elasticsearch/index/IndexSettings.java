@@ -92,7 +92,6 @@ public final class IndexSettings {
     public static final TimeValue DEFAULT_GC_DELETES = TimeValue.timeValueSeconds(60);
     public static final Setting<TimeValue> INDEX_GC_DELETES_SETTING = Setting.timeSetting("index.gc_deletes", DEFAULT_GC_DELETES, new TimeValue(-1, TimeUnit.MILLISECONDS), true, Setting.Scope.INDEX);
 
-    private final String uuid;
     private final Index index;
     private final Version version;
     private final ESLogger logger;
@@ -165,7 +164,7 @@ public final class IndexSettings {
      * @param nodeSettings the nodes settings this index is allocated on.
      */
     public IndexSettings(final IndexMetaData indexMetaData, final Settings nodeSettings) {
-        this(indexMetaData, nodeSettings, (index) -> Regex.simpleMatch(index, indexMetaData.getIndex()), IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
+        this(indexMetaData, nodeSettings, (index) -> Regex.simpleMatch(index, indexMetaData.getIndex().getName()), IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
     }
 
     /**
@@ -180,9 +179,8 @@ public final class IndexSettings {
         scopedSettings = indexScopedSettings.copy(nodeSettings, indexMetaData);
         this.nodeSettings = nodeSettings;
         this.settings = Settings.builder().put(nodeSettings).put(indexMetaData.getSettings()).build();
-        this.index = new Index(indexMetaData.getIndex());
+        this.index = indexMetaData.getIndex();
         version = Version.indexCreated(settings);
-        uuid = settings.get(IndexMetaData.SETTING_INDEX_UUID, IndexMetaData.INDEX_UUID_NA_VALUE);
         logger = Loggers.getLogger(getClass(), settings, index);
         nodeName = settings.get("name", "");
         this.indexMetaData = indexMetaData;
@@ -206,7 +204,7 @@ public final class IndexSettings {
         maxResultWindow = scopedSettings.get(MAX_RESULT_WINDOW_SETTING);
         TTLPurgeDisabled = scopedSettings.get(INDEX_TTL_DISABLE_PURGE_SETTING);
         this.mergePolicyConfig = new MergePolicyConfig(logger, this);
-        assert indexNameMatcher.test(indexMetaData.getIndex());
+        assert indexNameMatcher.test(indexMetaData.getIndex().getName());
 
         scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING, mergePolicyConfig::setNoCFSRatio);
         scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_MERGE_POLICY_EXPUNGE_DELETES_ALLOWED_SETTING, mergePolicyConfig::setExpungeDeletesAllowed);
@@ -257,7 +255,7 @@ public final class IndexSettings {
      * Returns the indexes UUID
      */
     public String getUUID() {
-        return uuid;
+        return getIndex().getUUID();
     }
 
     /**
@@ -362,7 +360,7 @@ public final class IndexSettings {
         }
         final String newUUID = newSettings.get(IndexMetaData.SETTING_INDEX_UUID, IndexMetaData.INDEX_UUID_NA_VALUE);
         if (newUUID.equals(getUUID()) == false) {
-            throw new IllegalArgumentException("uuid mismatch on settings update expected: " + uuid + " but was: " + newUUID);
+            throw new IllegalArgumentException("uuid mismatch on settings update expected: " + getUUID() + " but was: " + newUUID);
         }
         this.indexMetaData = indexMetaData;
         final Settings existingSettings = this.settings;

@@ -28,7 +28,6 @@ import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.client.support.AbstractClient;
-import org.elasticsearch.client.support.Headers;
 import org.elasticsearch.client.transport.support.TransportProxyClient;
 import org.elasticsearch.cluster.ClusterNameModule;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -115,7 +114,7 @@ public class TransportClient extends AbstractClient {
                 .put( InternalSettingsPreparer.prepareSettings(settings))
                 .put("network.server", false)
                 .put(Node.NODE_CLIENT_SETTING.getKey(), true)
-                .put(CLIENT_TYPE_SETTING, CLIENT_TYPE);
+                .put(CLIENT_TYPE_SETTING_S.getKey(), CLIENT_TYPE);
             return new PluginsService(settingsBuilder.build(), null, null, pluginClasses);
         }
 
@@ -177,7 +176,7 @@ public class TransportClient extends AbstractClient {
     private final TransportProxyClient proxy;
 
     private TransportClient(Injector injector) {
-        super(injector.getInstance(Settings.class), injector.getInstance(ThreadPool.class), injector.getInstance(Headers.class));
+        super(injector.getInstance(Settings.class), injector.getInstance(ThreadPool.class));
         this.injector = injector;
         nodesService = injector.getInstance(TransportClientNodesService.class);
         proxy = injector.getInstance(TransportProxyClient.class);

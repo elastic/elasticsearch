@@ -21,7 +21,6 @@ package org.elasticsearch.client.transport;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.support.Headers;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
@@ -74,7 +73,7 @@ public class TransportClientNodesServiceTests extends ESTestCase {
             };
             transportService = new TransportService(Settings.EMPTY, transport, threadPool);
             transportService.start();
-            transportClientNodesService = new TransportClientNodesService(Settings.EMPTY, ClusterName.DEFAULT, transportService, threadPool, Headers.EMPTY, Version.CURRENT);
+            transportClientNodesService = new TransportClientNodesService(Settings.EMPTY, ClusterName.DEFAULT, transportService, threadPool, Version.CURRENT);
 
             nodesCount = randomIntBetween(1, 10);
             for (int i = 0; i < nodesCount; i++) {

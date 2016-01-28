@@ -70,7 +70,7 @@ public class SearchAfterBuilderTests extends ESTestCase {
         SearchAfterBuilder searchAfterBuilder = new SearchAfterBuilder();
         Object[] values = new Object[numSearchFrom];
         for (int i = 0; i < numSearchFrom; i++) {
-            int branch = randomInt(8);
+            int branch = randomInt(9);
             switch (branch) {
                 case 0:
                     values[i] = randomInt();
@@ -99,6 +99,9 @@ public class SearchAfterBuilderTests extends ESTestCase {
                 case 8:
                     values[i] = new Text(randomAsciiOfLengthBetween(5, 20));
                     break;
+                case 9:
+                    values[i] = null;
+                    break;
             }
         }
         searchAfterBuilder.setSortValues(values);
@@ -115,7 +118,7 @@ public class SearchAfterBuilderTests extends ESTestCase {
         jsonBuilder.startObject();
         jsonBuilder.startArray("search_after");
         for (int i = 0; i < numSearchAfter; i++) {
-            int branch = randomInt(8);
+            int branch = randomInt(9);
             switch (branch) {
                 case 0:
                     jsonBuilder.value(randomInt());
@@ -143,6 +146,9 @@ public class SearchAfterBuilderTests extends ESTestCase {
                     break;
                 case 8:
                     jsonBuilder.value(new Text(randomAsciiOfLengthBetween(5, 20)));
+                    break;
+                case 9:
+                    jsonBuilder.nullValue();
                     break;
             }
         }
@@ -223,18 +229,7 @@ public class SearchAfterBuilderTests extends ESTestCase {
             assertEquals(searchAfterBuilder.hashCode(), secondSearchAfterBuilder.hashCode());
         }
     }
-
-    public void testWithNullValue() throws Exception {
-        SearchAfterBuilder builder = new SearchAfterBuilder();
-        builder.setSortValues(new Object[] {1, "1", null});
-        try {
-            serializedCopy(builder);
-            fail("Should fail on null values");
-        } catch (IOException e) {
-            assertThat(e.getMessage(), Matchers.equalTo("Can't handle search_after field value of type [null]"));
-        }
-    }
-
+    
     public void testWithNullArray() throws Exception {
         SearchAfterBuilder builder = new SearchAfterBuilder();
         try {

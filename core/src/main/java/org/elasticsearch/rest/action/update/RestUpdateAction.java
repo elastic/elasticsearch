@@ -48,7 +48,7 @@ public class RestUpdateAction extends BaseRestHandler {
 
     @Inject
     public RestUpdateAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+        super(settings, client);
         controller.registerHandler(POST, "/{index}/{type}/{id}/_update", this);
     }
 

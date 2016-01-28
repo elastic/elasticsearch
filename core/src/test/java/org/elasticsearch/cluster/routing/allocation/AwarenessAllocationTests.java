@@ -872,10 +872,10 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
             if (routing.primary()) {
                 primaryNode = routing.currentNodeId();
             } else if (routing.initializing()) {
-                commands.add(new CancelAllocationCommand(routing.shardId(), routing.currentNodeId(), false));
+                commands.add(new CancelAllocationCommand(routing.shardId().getIndexName(), routing.id(), routing.currentNodeId(), false));
             }
         }
-        commands.add(new MoveAllocationCommand(new ShardId("test", 0), primaryNode, "A-4"));
+        commands.add(new MoveAllocationCommand("test", 0, primaryNode, "A-4"));
 
         routingTable = strategy.reroute(clusterState, commands).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();

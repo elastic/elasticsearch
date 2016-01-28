@@ -82,7 +82,7 @@ public class NetworkModuleTests extends ModuleTestCase {
 
     static class FakeRestHandler extends BaseRestHandler {
         public FakeRestHandler() {
-            super(null, null, null);
+            super(null, null);
         }
         @Override
         protected void handleRequest(RestRequest request, RestChannel channel, Client client) throws Exception {}

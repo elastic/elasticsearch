@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESAllocationTestCase;
 
 import java.util.Arrays;
@@ -47,14 +48,15 @@ public class StartedShardsRoutingTests extends ESAllocationTestCase {
                 .settings(settings(Version.CURRENT))
                 .numberOfShards(3).numberOfReplicas(0)
                 .build();
+        final Index index = indexMetaData.getIndex();
         ClusterState.Builder stateBuilder = ClusterState.builder(ClusterName.DEFAULT)
                 .nodes(DiscoveryNodes.builder().put(newNode("node1")).put(newNode("node2")))
                 .metaData(MetaData.builder().put(indexMetaData, false));
 
-        final ShardRouting initShard = TestShardRouting.newShardRouting("test", 0, "node1", true, ShardRoutingState.INITIALIZING, 1);
-        final ShardRouting startedShard = TestShardRouting.newShardRouting("test", 1, "node2", true, ShardRoutingState.STARTED, 1);
-        final ShardRouting relocatingShard = TestShardRouting.newShardRouting("test", 2, "node1", "node2", true, ShardRoutingState.RELOCATING, 1);
-        stateBuilder.routingTable(RoutingTable.builder().add(IndexRoutingTable.builder("test")
+        final ShardRouting initShard = TestShardRouting.newShardRouting(index, 0, "node1", true, ShardRoutingState.INITIALIZING, 1);
+        final ShardRouting startedShard = TestShardRouting.newShardRouting(index, 1, "node2", true, ShardRoutingState.STARTED, 1);
+        final ShardRouting relocatingShard = TestShardRouting.newShardRouting(index, 2, "node1", "node2", true, ShardRoutingState.RELOCATING, 1);
+        stateBuilder.routingTable(RoutingTable.builder().add(IndexRoutingTable.builder(index)
                 .addIndexShard(new IndexShardRoutingTable.Builder(initShard.shardId()).addShard(initShard).build())
                 .addIndexShard(new IndexShardRoutingTable.Builder(startedShard.shardId()).addShard(startedShard).build())
                 .addIndexShard(new IndexShardRoutingTable.Builder(relocatingShard.shardId()).addShard(relocatingShard).build())).build());

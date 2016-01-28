@@ -110,7 +110,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                 snapshotIds[i] = currentSnapshots.get(i).snapshotId();
             }
 
-            TransportNodesSnapshotsStatus.Request nodesRequest = new TransportNodesSnapshotsStatus.Request(request, nodesIds.toArray(new String[nodesIds.size()]))
+            TransportNodesSnapshotsStatus.Request nodesRequest = new TransportNodesSnapshotsStatus.Request(nodesIds.toArray(new String[nodesIds.size()]))
                     .snapshotIds(snapshotIds).timeout(request.masterNodeTimeout());
             transportNodesSnapshotsStatus.execute(nodesRequest, new ActionListener<TransportNodesSnapshotsStatus.NodesSnapshotStatus>() {
                         @Override

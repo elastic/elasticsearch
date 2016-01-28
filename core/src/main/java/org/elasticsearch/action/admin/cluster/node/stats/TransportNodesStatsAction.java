@@ -96,7 +96,7 @@ public class TransportNodesStatsAction extends TransportNodesAction<NodesStatsRe
         }
 
         NodeStatsRequest(String nodeId, NodesStatsRequest request) {
-            super(request, nodeId);
+            super(nodeId);
             this.request = request;
         }
 

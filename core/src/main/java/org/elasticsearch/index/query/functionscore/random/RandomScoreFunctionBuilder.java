@@ -125,7 +125,7 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScore
         //TODO find a way to not get the shard_id from the current search context? make it available in QueryShardContext?
         //this currently causes NPE in FunctionScoreQueryBuilderTests#testToQuery
         final ShardId shardId = SearchContext.current().indexShard().shardId();
-        final int salt = (context.index().name().hashCode() << 10) | shardId.id();
+        final int salt = (context.index().getName().hashCode() << 10) | shardId.id();
         final IndexFieldData<?> uidFieldData = context.getForField(fieldType);
         return new RandomScoreFunction(this.seed == null ? hash(context.nowInMillis()) : seed, salt, uidFieldData);
     }

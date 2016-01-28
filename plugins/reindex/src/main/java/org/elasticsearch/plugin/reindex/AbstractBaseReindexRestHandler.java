@@ -53,7 +53,7 @@ public abstract class AbstractBaseReindexRestHandler<Request extends ActionReque
     }
 
     protected void execute(RestRequest request, Request internalRequest, RestChannel channel) throws IOException {
-        if (request.paramAsBoolean("wait_for_completion", false)) {
+        if (request.paramAsBoolean("wait_for_completion", true)) {
             action.execute(internalRequest, new BulkIndexByScrollResponseContentListener<Response>(channel));
             return;
         }

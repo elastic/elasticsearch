@@ -18,7 +18,6 @@
   - do:
       reindex:
         refresh: true
-        wait_for_completion: true
         body:
           source:
             index: test
@@ -53,7 +52,6 @@
   - do:
       reindex:
         refresh: true
-        wait_for_completion: true
         body:
           size: 1
           source:

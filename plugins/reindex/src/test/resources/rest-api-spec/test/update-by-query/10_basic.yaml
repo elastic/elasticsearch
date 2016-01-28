@@ -12,7 +12,6 @@
   - do:
       update-by-query:
         index: test
-        wait_for_completion: true
   - match: {updated: 1}
   - match: {version_conflicts: 0}
   - match: {batches: 1}
@@ -34,6 +33,7 @@
 
   - do:
       update-by-query:
+        wait_for_completion: false
         index: test
   - is_true: task.node
   - is_true: task.id
@@ -72,7 +72,6 @@
       catch: conflict
       update-by-query:
         index: test
-        wait_for_completion: true
   - match: {updated: 0}
   - match: {version_conflicts: 1}
   - match: {batches: 1}
@@ -113,7 +112,6 @@
       update-by-query:
         index: test
         conflicts: proceed
-        wait_for_completion: true
   - match: {updated: 0}
   - match: {version_conflicts: 1}
   - match: {batches: 1}
@@ -141,7 +139,6 @@
   - do:
       update-by-query:
         index: twitter
-        wait_for_completion: true
         body:
           query:
             match:
@@ -172,7 +169,6 @@
   - do:
       update-by-query:
         index: twitter
-        wait_for_completion: true
         size: 1
   - match: {updated: 1}
   - match: {version_conflicts: 0}
@@ -213,5 +209,4 @@
       update-by-query:
         index: test
         scroll_size: 1
-        wait_for_completion: true
   - match: {batches: 3}

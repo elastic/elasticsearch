@@ -11,7 +11,6 @@
 
   - do:
       reindex:
-        wait_for_completion: true
         body:
           source:
             index: source
@@ -43,7 +42,6 @@
 
   - do:
       reindex:
-        wait_for_completion: true
         body:
           source:
             index:   source
@@ -57,7 +55,7 @@
   - is_true: took
 
 ---
-"wait_for_completion=true":
+"wait_for_completion=false":
   - do:
       index:
         index:   source
@@ -69,6 +67,7 @@
 
   - do:
       reindex:
+        wait_for_completion: false
         body:
           source:
             index: source
@@ -104,7 +103,6 @@
   - do:
       catch: conflict
       reindex:
-        wait_for_completion: true
         body:
           source:
             index:   source
@@ -144,7 +142,6 @@
 
   - do:
       reindex:
-        wait_for_completion: true
         body:
           conflicts: proceed
           source:
@@ -172,7 +169,6 @@
 
   - do:
       reindex:
-        wait_for_completion: true
         refresh: true
         body:
           source:
@@ -205,7 +201,6 @@
   - do:
       reindex:
         refresh: true
-        wait_for_completion: true
         body:
           source:
             index: twitter
@@ -238,7 +233,6 @@
   - do:
       reindex:
         refresh: true
-        wait_for_completion: true
         body:
           source:
             index: twitter
@@ -273,7 +267,6 @@
   - do:
       reindex:
         refresh: true
-        wait_for_completion: true
         body:
           source:
             index: twitter
@@ -308,7 +301,6 @@
   - do:
       reindex:
         refresh: true
-        wait_for_completion: true
         body:
           source:
             index: [twitter, blog]
@@ -356,7 +348,6 @@
   - do:
       reindex:
         refresh: true
-        wait_for_completion: true
         body:
           size: 1
           source:

@@ -13,7 +13,6 @@
       update-by-query:
         index:   twitter
         refresh: true
-        wait_for_completion: true
         body:
           script:
             inline: ctx._source.user = "not" + ctx._source.user
@@ -50,7 +49,6 @@
       update-by-query:
         refresh: true
         index:   twitter
-        wait_for_completion: true
         body:
           script:
             inline: if (ctx._source.user == "kimchy") {ctx._source.user = "not" + ctx._source.user} else {ctx.op = "noop"}
@@ -96,7 +94,6 @@
       update-by-query:
         refresh: true
         index:   twitter
-        wait_for_completion: true
         body:
           script:
             inline: ctx.op = "noop"
@@ -119,7 +116,6 @@
       catch: /Invalid fields added to ctx \[junk\]/
       update-by-query:
         index: twitter
-        wait_for_completion: true
         body:
           script:
             inline: ctx.junk = "stuff"
@@ -139,7 +135,6 @@
       catch: /Modifying \[_id\] not allowed/
       update-by-query:
         index: twitter
-        wait_for_completion: true
         body:
           script:
             inline: ctx._id = "stuff"

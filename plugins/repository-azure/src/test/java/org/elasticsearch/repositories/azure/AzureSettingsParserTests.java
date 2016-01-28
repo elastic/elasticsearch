@@ -31,7 +31,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class AzureSettingsParserTest extends LuceneTestCase {
+public class AzureSettingsParserTests extends LuceneTestCase {
 
     public void testParseTwoSettingsExplicitDefault() {
         Settings settings = Settings.builder()

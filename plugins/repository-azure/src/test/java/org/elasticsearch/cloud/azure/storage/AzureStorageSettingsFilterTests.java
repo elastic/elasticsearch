@@ -31,7 +31,7 @@ import java.io.IOException;
 
 import static org.hamcrest.Matchers.contains;
 
-public class AzureStorageSettingsFilterTest extends ESTestCase {
+public class AzureStorageSettingsFilterTests extends ESTestCase {
     final static Settings settings = Settings.builder()
             .put("cloud.azure.storage.azure1.account", "myaccount1")
             .put("cloud.azure.storage.azure1.key", "mykey1")

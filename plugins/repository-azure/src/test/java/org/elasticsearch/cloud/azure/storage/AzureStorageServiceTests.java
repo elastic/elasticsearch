@@ -28,7 +28,7 @@ import java.net.URI;
 
 import static org.hamcrest.Matchers.is;
 
-public class AzureStorageServiceTest extends ESTestCase {
+public class AzureStorageServiceTests extends ESTestCase {
     final static Settings settings = Settings.builder()
             .put("cloud.azure.storage.azure1.account", "myaccount1")
             .put("cloud.azure.storage.azure1.key", "mykey1")
@@ -120,24 +120,24 @@ public class AzureStorageServiceTest extends ESTestCase {
     public void testGetSelectedClientGlobalTimeout() {
         Settings timeoutSettings = Settings.builder()
                 .put(settings)
-                .put("cloud.azure.storage.timeout", "10s")
+                .put(AzureStorageService.Storage.TIMEOUT_SETTING.getKey(), "10s")
                 .build();
 
         AzureStorageServiceImpl azureStorageService = new AzureStorageServiceMock(timeoutSettings);
         azureStorageService.doStart();
         CloudBlobClient client1 = azureStorageService.getSelectedClient("azure1", LocationMode.PRIMARY_ONLY);
-        assertThat(client1.getDefaultRequestOptions().getTimeoutIntervalInMs(), is(10 * 1000));
+        assertThat(client1.getDefaultRequestOptions().getMaximumExecutionTimeInMs(), is(10 * 1000));
         CloudBlobClient client3 = azureStorageService.getSelectedClient("azure3", LocationMode.PRIMARY_ONLY);
-        assertThat(client3.getDefaultRequestOptions().getTimeoutIntervalInMs(), is(30 * 1000));
+        assertThat(client3.getDefaultRequestOptions().getMaximumExecutionTimeInMs(), is(30 * 1000));
     }
 
     public void testGetSelectedClientDefaultTimeout() {
         AzureStorageServiceImpl azureStorageService = new AzureStorageServiceMock(settings);
         azureStorageService.doStart();
         CloudBlobClient client1 = azureStorageService.getSelectedClient("azure1", LocationMode.PRIMARY_ONLY);
-        assertThat(client1.getDefaultRequestOptions().getTimeoutIntervalInMs(), is(5 * 60 * 1000));
+        assertThat(client1.getDefaultRequestOptions().getMaximumExecutionTimeInMs(), is(5 * 60 * 1000));
         CloudBlobClient client3 = azureStorageService.getSelectedClient("azure3", LocationMode.PRIMARY_ONLY);
-        assertThat(client3.getDefaultRequestOptions().getTimeoutIntervalInMs(), is(30 * 1000));
+        assertThat(client3.getDefaultRequestOptions().getMaximumExecutionTimeInMs(), is(30 * 1000));
     }
 
     /**

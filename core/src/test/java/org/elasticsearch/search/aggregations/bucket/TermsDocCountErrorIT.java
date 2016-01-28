@@ -27,7 +27,7 @@ import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms.Bucket;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms.Order;
-import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorFactory.ExecutionMode;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorBuilder.ExecutionMode;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.ArrayList;

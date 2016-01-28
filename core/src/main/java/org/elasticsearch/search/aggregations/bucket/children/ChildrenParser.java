@@ -22,7 +22,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.AggregatorBuilder;
 
 import java.io.IOException;
 
@@ -37,7 +37,7 @@ public class ChildrenParser implements Aggregator.Parser {
     }
 
     @Override
-    public AggregatorFactory parse(String aggregationName, XContentParser parser, QueryParseContext context) throws IOException {
+    public AggregatorBuilder parse(String aggregationName, XContentParser parser, QueryParseContext context) throws IOException {
         String childType = null;
 
         XContentParser.Token token;
@@ -63,11 +63,11 @@ public class ChildrenParser implements Aggregator.Parser {
         }
 
 
-        return new ParentToChildrenAggregator.Factory(aggregationName, childType);
+        return new ParentToChildrenAggregator.ChildrenAggregatorBuilder(aggregationName, childType);
             }
 
     @Override
-    public AggregatorFactory<?> getFactoryPrototypes() {
-        return new ParentToChildrenAggregator.Factory(null, null);
+    public AggregatorBuilder<?> getFactoryPrototypes() {
+        return new ParentToChildrenAggregator.ChildrenAggregatorBuilder(null, null);
     }
 }

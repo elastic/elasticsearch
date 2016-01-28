@@ -34,7 +34,7 @@ import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
@@ -125,11 +125,11 @@ public class ReverseNestedAggregator extends SingleBucketAggregator {
         return parentFilter;
     }
 
-    public static class Factory extends AggregatorFactory<Factory> {
+    public static class ReverseNestedAggregatorBuilder extends AggregatorBuilder<ReverseNestedAggregatorBuilder> {
 
         private String path;
 
-        public Factory(String name) {
+        public ReverseNestedAggregatorBuilder(String name) {
             super(name, InternalReverseNested.TYPE);
         }
 
@@ -138,7 +138,7 @@ public class ReverseNestedAggregator extends SingleBucketAggregator {
          * the path to a nested object in the mappings. If it is not specified
          * then this aggregation will go back to the root document.
          */
-        public Factory path(String path) {
+        public ReverseNestedAggregatorBuilder path(String path) {
             this.path = path;
             return this;
         }
@@ -186,8 +186,8 @@ public class ReverseNestedAggregator extends SingleBucketAggregator {
         }
 
         @Override
-        protected Factory doReadFrom(String name, StreamInput in) throws IOException {
-            Factory factory = new Factory(name);
+        protected ReverseNestedAggregatorBuilder doReadFrom(String name, StreamInput in) throws IOException {
+            ReverseNestedAggregatorBuilder factory = new ReverseNestedAggregatorBuilder(name);
             factory.path = in.readOptionalString();
             return factory;
         }
@@ -204,7 +204,7 @@ public class ReverseNestedAggregator extends SingleBucketAggregator {
 
         @Override
         protected boolean doEquals(Object obj) {
-            Factory other = (Factory) obj;
+            ReverseNestedAggregatorBuilder other = (ReverseNestedAggregatorBuilder) obj;
             return Objects.equals(path, other.path);
         }
 

@@ -27,7 +27,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicParser;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicParserMapper;
@@ -61,10 +61,10 @@ public class SignificantTermsParser extends AbstractTermsParser {
     }
 
     @Override
-    protected SignificantTermsAggregatorFactory doCreateFactory(String aggregationName, ValuesSourceType valuesSourceType,
+    protected SignificantTermsAggregatorBuilder doCreateFactory(String aggregationName, ValuesSourceType valuesSourceType,
             ValueType targetValueType, BucketCountThresholds bucketCountThresholds, SubAggCollectionMode collectMode, String executionHint,
             IncludeExclude incExc, Map<ParseField, Object> otherOptions) {
-        SignificantTermsAggregatorFactory factory = new SignificantTermsAggregatorFactory(aggregationName, targetValueType);
+        SignificantTermsAggregatorBuilder factory = new SignificantTermsAggregatorBuilder(aggregationName, targetValueType);
         if (bucketCountThresholds != null) {
             factory.bucketCountThresholds(bucketCountThresholds);
         }
@@ -74,11 +74,11 @@ public class SignificantTermsParser extends AbstractTermsParser {
         if (incExc != null) {
             factory.includeExclude(incExc);
         }
-        QueryBuilder<?> backgroundFilter = (QueryBuilder<?>) otherOptions.get(SignificantTermsAggregatorFactory.BACKGROUND_FILTER);
+        QueryBuilder<?> backgroundFilter = (QueryBuilder<?>) otherOptions.get(SignificantTermsAggregatorBuilder.BACKGROUND_FILTER);
         if (backgroundFilter != null) {
             factory.backgroundFilter(backgroundFilter);
         }
-        SignificanceHeuristic significanceHeuristic = (SignificanceHeuristic) otherOptions.get(SignificantTermsAggregatorFactory.HEURISTIC);
+        SignificanceHeuristic significanceHeuristic = (SignificanceHeuristic) otherOptions.get(SignificantTermsAggregatorBuilder.HEURISTIC);
         if (significanceHeuristic != null) {
             factory.significanceHeuristic(significanceHeuristic);
         }
@@ -92,14 +92,14 @@ public class SignificantTermsParser extends AbstractTermsParser {
             SignificanceHeuristicParser significanceHeuristicParser = significanceHeuristicParserMapper.get(currentFieldName);
             if (significanceHeuristicParser != null) {
                 SignificanceHeuristic significanceHeuristic = significanceHeuristicParser.parse(parser, parseFieldMatcher);
-                otherOptions.put(SignificantTermsAggregatorFactory.HEURISTIC, significanceHeuristic);
+                otherOptions.put(SignificantTermsAggregatorBuilder.HEURISTIC, significanceHeuristic);
                 return true;
-            } else if (parseFieldMatcher.match(currentFieldName, SignificantTermsAggregatorFactory.BACKGROUND_FILTER)) {
+            } else if (parseFieldMatcher.match(currentFieldName, SignificantTermsAggregatorBuilder.BACKGROUND_FILTER)) {
                 QueryParseContext queryParseContext = new QueryParseContext(queriesRegistry);
                 queryParseContext.reset(parser);
                 queryParseContext.parseFieldMatcher(parseFieldMatcher);
                 QueryBuilder<?> filter = queryParseContext.parseInnerQueryBuilder();
-                otherOptions.put(SignificantTermsAggregatorFactory.BACKGROUND_FILTER, filter);
+                otherOptions.put(SignificantTermsAggregatorBuilder.BACKGROUND_FILTER, filter);
                 return true;
             }
         }
@@ -107,12 +107,12 @@ public class SignificantTermsParser extends AbstractTermsParser {
     }
 
     @Override
-    public AggregatorFactory<?> getFactoryPrototypes() {
-        return new SignificantTermsAggregatorFactory(null, null);
+    public AggregatorBuilder<?> getFactoryPrototypes() {
+        return new SignificantTermsAggregatorBuilder(null, null);
     }
 
     @Override
     protected BucketCountThresholds getDefaultBucketCountThresholds() {
-        return new TermsAggregator.BucketCountThresholds(SignificantTermsAggregatorFactory.DEFAULT_BUCKET_COUNT_THRESHOLDS);
+        return new TermsAggregator.BucketCountThresholds(SignificantTermsAggregatorBuilder.DEFAULT_BUCKET_COUNT_THRESHOLDS);
     }
 }

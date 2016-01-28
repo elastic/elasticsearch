@@ -80,7 +80,7 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public abstract class BaseAggregationTestCase<AF extends AggregatorFactory> extends ESTestCase {
+public abstract class BaseAggregationTestCase<AF extends AggregatorBuilder> extends ESTestCase {
 
     protected static final String STRING_FIELD_NAME = "mapped_string";
     protected static final String INT_FIELD_NAME = "mapped_int";
@@ -246,7 +246,7 @@ public abstract class BaseAggregationTestCase<AF extends AggregatorFactory> exte
         assertSame(XContentParser.Token.FIELD_NAME, parser.nextToken());
         assertEquals(testAgg.type.name(), parser.currentName());
         assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
-        AggregatorFactory newAgg = aggParsers.parser(testAgg.getType()).parse(testAgg.name, parser, parseContext);
+        AggregatorBuilder newAgg = aggParsers.parser(testAgg.getType()).parse(testAgg.name, parser, parseContext);
         assertSame(XContentParser.Token.END_OBJECT, parser.currentToken());
         assertSame(XContentParser.Token.END_OBJECT, parser.nextToken());
         assertSame(XContentParser.Token.END_OBJECT, parser.nextToken());
@@ -266,8 +266,8 @@ public abstract class BaseAggregationTestCase<AF extends AggregatorFactory> exte
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             testAgg.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
-                AggregatorFactory prototype = (AggregatorFactory) namedWriteableRegistry.getPrototype(AggregatorFactory.class, testAgg.getWriteableName());
-                AggregatorFactory deserializedQuery = prototype.readFrom(in);
+                AggregatorBuilder prototype = (AggregatorBuilder) namedWriteableRegistry.getPrototype(AggregatorBuilder.class, testAgg.getWriteableName());
+                AggregatorBuilder deserializedQuery = prototype.readFrom(in);
                 assertEquals(deserializedQuery, testAgg);
                 assertEquals(deserializedQuery.hashCode(), testAgg.hashCode());
                 assertNotSame(deserializedQuery, testAgg);
@@ -307,7 +307,7 @@ public abstract class BaseAggregationTestCase<AF extends AggregatorFactory> exte
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             agg.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
-                AggregatorFactory prototype = (AggregatorFactory) namedWriteableRegistry.getPrototype(AggregatorFactory.class, agg.getWriteableName());
+                AggregatorBuilder prototype = (AggregatorBuilder) namedWriteableRegistry.getPrototype(AggregatorBuilder.class, agg.getWriteableName());
                 @SuppressWarnings("unchecked")
                 AF secondAgg = (AF) prototype.readFrom(in);
                 return secondAgg;

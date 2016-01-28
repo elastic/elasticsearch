@@ -43,7 +43,7 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
     /**
      * Parses the aggregation request and creates the appropriate aggregator factory for it.
      *
-     * @see AggregatorFactory
+     * @see AggregatorBuilder
     */
     public interface Parser {
 
@@ -62,13 +62,13 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
          * @return                  The resolved aggregator factory or {@code null} in case the aggregation should be skipped
          * @throws java.io.IOException      When parsing fails
          */
-        AggregatorFactory parse(String aggregationName, XContentParser parser, QueryParseContext context) throws IOException;
+        AggregatorBuilder parse(String aggregationName, XContentParser parser, QueryParseContext context) throws IOException;
 
         /**
-         * @return an empty {@link AggregatorFactory} instance for this parser
+         * @return an empty {@link AggregatorBuilder} instance for this parser
          *         that can be used for deserialization
          */
-        AggregatorFactory<?> getFactoryPrototypes();
+        AggregatorBuilder<?> getFactoryPrototypes();
     }
 
     /**

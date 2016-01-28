@@ -24,7 +24,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.AggregatorBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -69,7 +69,7 @@ public abstract class PipelineAggregatorFactory extends ToXContentToBytes implem
      * Validates the state of this factory (makes sure the factory is properly
      * configured)
      */
-    public final void validate(AggregatorFactory parent, AggregatorFactory[] factories,
+    public final void validate(AggregatorBuilder parent, AggregatorBuilder[] factories,
             List<PipelineAggregatorFactory> pipelineAggregatorFactories) {
         doValidate(parent, factories, pipelineAggregatorFactories);
     }
@@ -86,7 +86,7 @@ public abstract class PipelineAggregatorFactory extends ToXContentToBytes implem
         return aggregator;
     }
 
-    public void doValidate(AggregatorFactory parent, AggregatorFactory[] factories,
+    public void doValidate(AggregatorBuilder parent, AggregatorBuilder[] factories,
             List<PipelineAggregatorFactory> pipelineAggregatorFactories) {
     }
 

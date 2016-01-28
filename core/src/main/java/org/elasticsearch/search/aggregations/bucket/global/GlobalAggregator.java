@@ -25,7 +25,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
@@ -71,9 +71,9 @@ public class GlobalAggregator extends SingleBucketAggregator {
         throw new UnsupportedOperationException("global aggregations cannot serve as sub-aggregations, hence should never be called on #buildEmptyAggregations");
     }
 
-    public static class Factory extends AggregatorFactory<Factory> {
+    public static class GlobalAggregatorBuilder extends AggregatorBuilder<GlobalAggregatorBuilder> {
 
-        public Factory(String name) {
+        public GlobalAggregatorBuilder(String name) {
             super(name, InternalGlobal.TYPE);
         }
 
@@ -91,8 +91,8 @@ public class GlobalAggregator extends SingleBucketAggregator {
         }
 
         @Override
-        protected Factory doReadFrom(String name, StreamInput in) throws IOException {
-            return new Factory(name);
+        protected GlobalAggregatorBuilder doReadFrom(String name, StreamInput in) throws IOException {
+            return new GlobalAggregatorBuilder(name);
         }
 
         @Override

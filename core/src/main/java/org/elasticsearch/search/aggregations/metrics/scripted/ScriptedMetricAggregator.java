@@ -31,7 +31,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
@@ -110,7 +110,7 @@ public class ScriptedMetricAggregator extends MetricsAggregator {
         return new InternalScriptedMetric(name, null, reduceScript, pipelineAggregators(), metaData());
     }
 
-    public static class Factory extends AggregatorFactory<Factory> {
+    public static class ScriptedMetricAggregatorBuilder extends AggregatorBuilder<ScriptedMetricAggregatorBuilder> {
 
         private Script initScript;
         private Script mapScript;
@@ -118,14 +118,14 @@ public class ScriptedMetricAggregator extends MetricsAggregator {
         private Script reduceScript;
         private Map<String, Object> params;
 
-        public Factory(String name) {
+        public ScriptedMetricAggregatorBuilder(String name) {
             super(name, InternalScriptedMetric.TYPE);
         }
 
         /**
          * Set the <tt>init</tt> script.
          */
-        public Factory initScript(Script initScript) {
+        public ScriptedMetricAggregatorBuilder initScript(Script initScript) {
             this.initScript = initScript;
             return this;
         }
@@ -140,7 +140,7 @@ public class ScriptedMetricAggregator extends MetricsAggregator {
         /**
          * Set the <tt>map</tt> script.
          */
-        public Factory mapScript(Script mapScript) {
+        public ScriptedMetricAggregatorBuilder mapScript(Script mapScript) {
             this.mapScript = mapScript;
             return this;
         }
@@ -155,7 +155,7 @@ public class ScriptedMetricAggregator extends MetricsAggregator {
         /**
          * Set the <tt>combine</tt> script.
          */
-        public Factory combineScript(Script combineScript) {
+        public ScriptedMetricAggregatorBuilder combineScript(Script combineScript) {
             this.combineScript = combineScript;
             return this;
         }
@@ -170,7 +170,7 @@ public class ScriptedMetricAggregator extends MetricsAggregator {
         /**
          * Set the <tt>reduce</tt> script.
          */
-        public Factory reduceScript(Script reduceScript) {
+        public ScriptedMetricAggregatorBuilder reduceScript(Script reduceScript) {
             this.reduceScript = reduceScript;
             return this;
         }
@@ -186,7 +186,7 @@ public class ScriptedMetricAggregator extends MetricsAggregator {
          * Set parameters that will be available in the <tt>init</tt>,
          * <tt>map</tt> and <tt>combine</tt> phases.
          */
-        public Factory params(Map<String, Object> params) {
+        public ScriptedMetricAggregatorBuilder params(Map<String, Object> params) {
             this.params = params;
             return this;
         }
@@ -291,8 +291,8 @@ public class ScriptedMetricAggregator extends MetricsAggregator {
         }
 
         @Override
-        protected Factory doReadFrom(String name, StreamInput in) throws IOException {
-            Factory factory = new Factory(name);
+        protected ScriptedMetricAggregatorBuilder doReadFrom(String name, StreamInput in) throws IOException {
+            ScriptedMetricAggregatorBuilder factory = new ScriptedMetricAggregatorBuilder(name);
             factory.initScript = in.readOptionalStreamable(Script.SUPPLIER);
             factory.mapScript = in.readOptionalStreamable(Script.SUPPLIER);
             factory.combineScript = in.readOptionalStreamable(Script.SUPPLIER);
@@ -323,7 +323,7 @@ public class ScriptedMetricAggregator extends MetricsAggregator {
 
         @Override
         protected boolean doEquals(Object obj) {
-            Factory other = (Factory) obj;
+            ScriptedMetricAggregatorBuilder other = (ScriptedMetricAggregatorBuilder) obj;
             return Objects.equals(initScript, other.initScript)
                     && Objects.equals(mapScript, other.mapScript)
                     && Objects.equals(combineScript, other.combineScript)

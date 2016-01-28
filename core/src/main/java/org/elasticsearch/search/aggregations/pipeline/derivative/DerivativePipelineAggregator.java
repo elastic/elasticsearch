@@ -25,7 +25,7 @@ import org.elasticsearch.common.rounding.DateTimeUnit;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
@@ -214,7 +214,7 @@ public class DerivativePipelineAggregator extends PipelineAggregator {
             }
             Long xAxisUnits = null;
             if (units != null) {
-                DateTimeUnit dateTimeUnit = HistogramAggregator.DateHistogramFactory.DATE_FIELD_UNITS.get(units);
+                DateTimeUnit dateTimeUnit = HistogramAggregator.DateHistogramAggregatorBuilder.DATE_FIELD_UNITS.get(units);
                 if (dateTimeUnit != null) {
                     xAxisUnits = dateTimeUnit.field().getDurationField().getUnitMillis();
                 } else {
@@ -228,16 +228,16 @@ public class DerivativePipelineAggregator extends PipelineAggregator {
         }
 
         @Override
-        public void doValidate(AggregatorFactory parent, AggregatorFactory[] aggFactories, List<PipelineAggregatorFactory> pipelineAggregatorFactories) {
+        public void doValidate(AggregatorBuilder parent, AggregatorBuilder[] aggFactories, List<PipelineAggregatorFactory> pipelineAggregatorFactories) {
             if (bucketsPaths.length != 1) {
                 throw new IllegalStateException(PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName()
                         + " must contain a single entry for aggregation [" + name + "]");
             }
-            if (!(parent instanceof HistogramAggregator.Factory)) {
+            if (!(parent instanceof HistogramAggregator.HistogramAggregatorBuilder)) {
                 throw new IllegalStateException("derivative aggregation [" + name
                         + "] must have a histogram or date_histogram as parent");
             } else {
-                HistogramAggregator.Factory histoParent = (HistogramAggregator.Factory) parent;
+                HistogramAggregator.HistogramAggregatorBuilder histoParent = (HistogramAggregator.HistogramAggregatorBuilder) parent;
                 if (histoParent.minDocCount() != 0) {
                     throw new IllegalStateException("parent histogram of derivative aggregation [" + name
                             + "] must have min_doc_count of 0");

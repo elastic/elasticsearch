@@ -60,8 +60,8 @@ public class AggregatorParsers {
         Map<String, Aggregator.Parser> aggParsersBuilder = new HashMap<>(aggParsers.size());
         for (Aggregator.Parser parser : aggParsers) {
             aggParsersBuilder.put(parser.type(), parser);
-            AggregatorFactory<?> factoryPrototype = parser.getFactoryPrototypes();
-            namedWriteableRegistry.registerPrototype(AggregatorFactory.class, factoryPrototype);
+            AggregatorBuilder<?> factoryPrototype = parser.getFactoryPrototypes();
+            namedWriteableRegistry.registerPrototype(AggregatorBuilder.class, factoryPrototype);
         }
         this.aggParsers = unmodifiableMap(aggParsersBuilder);
         Map<String, PipelineAggregator.Parser> pipelineAggregatorParsersBuilder = new HashMap<>(pipelineAggregatorParsers.size());
@@ -132,7 +132,7 @@ public class AggregatorParsers {
                         + token + "], expected a [" + XContentParser.Token.START_OBJECT + "].");
             }
 
-            AggregatorFactory aggFactory = null;
+            AggregatorBuilder aggFactory = null;
             PipelineAggregatorFactory pipelineAggregatorFactory = null;
             AggregatorFactories subFactories = null;
 

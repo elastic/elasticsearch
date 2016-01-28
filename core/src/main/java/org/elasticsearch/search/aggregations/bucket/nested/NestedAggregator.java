@@ -37,7 +37,7 @@ import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
@@ -150,7 +150,7 @@ public class NestedAggregator extends SingleBucketAggregator {
         return null;
     }
 
-    public static class Factory extends AggregatorFactory<Factory> {
+    public static class NestedAggregatorBuilder extends AggregatorBuilder<NestedAggregatorBuilder> {
 
         private final String path;
 
@@ -161,7 +161,7 @@ public class NestedAggregator extends SingleBucketAggregator {
          *            the path to use for this nested aggregation. The path must
          *            match the path to a nested object in the mappings.
          */
-        public Factory(String name, String path) {
+        public NestedAggregatorBuilder(String name, String path) {
             super(name, InternalNested.TYPE);
             this.path = path;
         }
@@ -198,9 +198,9 @@ public class NestedAggregator extends SingleBucketAggregator {
         }
 
         @Override
-        protected Factory doReadFrom(String name, StreamInput in) throws IOException {
+        protected NestedAggregatorBuilder doReadFrom(String name, StreamInput in) throws IOException {
             String path = in.readString();
-            Factory factory = new Factory(name, path);
+            NestedAggregatorBuilder factory = new NestedAggregatorBuilder(name, path);
             return factory;
         }
 
@@ -216,7 +216,7 @@ public class NestedAggregator extends SingleBucketAggregator {
 
         @Override
         protected boolean doEquals(Object obj) {
-            Factory other = (Factory) obj;
+            NestedAggregatorBuilder other = (NestedAggregatorBuilder) obj;
             return Objects.equals(path, other.path);
         }
 

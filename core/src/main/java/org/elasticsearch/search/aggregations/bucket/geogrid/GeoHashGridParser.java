@@ -35,7 +35,7 @@ import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortingNumericDocValues;
 import org.elasticsearch.index.query.GeoBoundingBoxQueryBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.NonCollectingAggregator;
 import org.elasticsearch.search.aggregations.bucket.BucketUtils;
@@ -44,7 +44,7 @@ import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
+import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
@@ -72,15 +72,15 @@ public class GeoHashGridParser extends GeoPointValuesSourceParser {
         return InternalGeoHashGrid.TYPE.name();
     }
     @Override
-    public AggregatorFactory<?> getFactoryPrototypes() {
-        return new GeoGridFactory(null);
+    public AggregatorBuilder<?> getFactoryPrototypes() {
+        return new GeoGridAggregatorFactory(null);
     }
 
     @Override
-    protected GeoGridFactory createFactory(
+    protected GeoGridAggregatorFactory createFactory(
             String aggregationName, ValuesSourceType valuesSourceType,
             ValueType targetValueType, Map<ParseField, Object> otherOptions) {
-        GeoGridFactory factory = new GeoGridFactory(aggregationName);
+        GeoGridAggregatorFactory factory = new GeoGridAggregatorFactory(aggregationName);
         Integer precision = (Integer) otherOptions.get(GeoHashGridParams.FIELD_PRECISION);
         if (precision != null) {
             factory.precision(precision);
@@ -114,17 +114,17 @@ public class GeoHashGridParser extends GeoPointValuesSourceParser {
         return false;
         }
 
-    public static class GeoGridFactory extends ValuesSourceAggregatorFactory<ValuesSource.GeoPoint, GeoGridFactory> {
+    public static class GeoGridAggregatorFactory extends ValuesSourceAggregatorBuilder<ValuesSource.GeoPoint, GeoGridAggregatorFactory> {
 
         private int precision = DEFAULT_PRECISION;
         private int requiredSize = DEFAULT_MAX_NUM_CELLS;
         private int shardSize = -1;
 
-        public GeoGridFactory(String name) {
+        public GeoGridAggregatorFactory(String name) {
             super(name, InternalGeoHashGrid.TYPE, ValuesSourceType.GEOPOINT, ValueType.GEOPOINT);
     }
 
-        public GeoGridFactory precision(int precision) {
+        public GeoGridAggregatorFactory precision(int precision) {
             this.precision = GeoHashGridParams.checkPrecision(precision);
             return this;
         }
@@ -133,7 +133,7 @@ public class GeoHashGridParser extends GeoPointValuesSourceParser {
             return precision;
         }
 
-        public GeoGridFactory size(int size) {
+        public GeoGridAggregatorFactory size(int size) {
             this.requiredSize = size;
             return this;
         }
@@ -142,7 +142,7 @@ public class GeoHashGridParser extends GeoPointValuesSourceParser {
             return requiredSize;
         }
 
-        public GeoGridFactory shardSize(int shardSize) {
+        public GeoGridAggregatorFactory shardSize(int shardSize) {
             this.shardSize = shardSize;
             return this;
         }
@@ -195,10 +195,10 @@ public class GeoHashGridParser extends GeoPointValuesSourceParser {
         }
 
         @Override
-        protected GeoGridFactory innerReadFrom(
+        protected GeoGridAggregatorFactory innerReadFrom(
                 String name, ValuesSourceType valuesSourceType,
                 ValueType targetValueType, StreamInput in) throws IOException {
-            GeoGridFactory factory = new GeoGridFactory(name);
+            GeoGridAggregatorFactory factory = new GeoGridAggregatorFactory(name);
             factory.precision = in.readVInt();
             factory.requiredSize = in.readVInt();
             factory.shardSize = in.readVInt();
@@ -222,7 +222,7 @@ public class GeoHashGridParser extends GeoPointValuesSourceParser {
 
         @Override
         protected boolean innerEquals(Object obj) {
-            GeoGridFactory other = (GeoGridFactory) obj;
+            GeoGridAggregatorFactory other = (GeoGridAggregatorFactory) obj;
             if (precision != other.precision) {
                 return false;
             }

@@ -38,7 +38,7 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
+import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
@@ -52,7 +52,7 @@ import java.util.Objects;
 /**
  *
  */
-public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource, TermsAggregatorFactory> {
+public class TermsAggregatorBuilder extends ValuesSourceAggregatorBuilder<ValuesSource, TermsAggregatorBuilder> {
 
     public static final ParseField EXECUTION_HINT_FIELD_NAME = new ParseField("execution_hint");
     public static final ParseField SHARD_SIZE_FIELD_NAME = new ParseField("shard_size");
@@ -188,7 +188,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
             DEFAULT_BUCKET_COUNT_THRESHOLDS);
     private boolean showTermDocCountError = false;
 
-    public TermsAggregatorFactory(String name, ValueType valueType) {
+    public TermsAggregatorBuilder(String name, ValueType valueType) {
         super(name, StringTerms.TYPE, ValuesSourceType.ANY, valueType);
     }
 
@@ -196,7 +196,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
         return bucketCountThresholds;
     }
 
-    public TermsAggregatorFactory bucketCountThresholds(TermsAggregator.BucketCountThresholds bucketCountThresholds) {
+    public TermsAggregatorBuilder bucketCountThresholds(TermsAggregator.BucketCountThresholds bucketCountThresholds) {
         this.bucketCountThresholds = bucketCountThresholds;
         return this;
     }
@@ -205,7 +205,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
      * Sets the size - indicating how many term buckets should be returned
      * (defaults to 10)
      */
-    public TermsAggregatorFactory size(int size) {
+    public TermsAggregatorBuilder size(int size) {
         bucketCountThresholds.setRequiredSize(size);
         return this;
     }
@@ -216,7 +216,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
      * search execution). The higher the shard size is, the more accurate the
      * results are.
      */
-    public TermsAggregatorFactory shardSize(int shardSize) {
+    public TermsAggregatorBuilder shardSize(int shardSize) {
         bucketCountThresholds.setShardSize(shardSize);
         return this;
     }
@@ -225,7 +225,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
      * Set the minimum document count terms should have in order to appear in
      * the response.
      */
-    public TermsAggregatorFactory minDocCount(long minDocCount) {
+    public TermsAggregatorBuilder minDocCount(long minDocCount) {
         bucketCountThresholds.setMinDocCount(minDocCount);
         return this;
     }
@@ -234,7 +234,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
      * Set the minimum document count terms should have on the shard in order to
      * appear in the response.
      */
-    public TermsAggregatorFactory shardMinDocCount(long shardMinDocCount) {
+    public TermsAggregatorBuilder shardMinDocCount(long shardMinDocCount) {
         bucketCountThresholds.setShardMinDocCount(shardMinDocCount);
         return this;
     }
@@ -242,7 +242,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
     /**
      * Sets the order in which the buckets will be returned.
      */
-    public TermsAggregatorFactory order(Terms.Order order) {
+    public TermsAggregatorBuilder order(Terms.Order order) {
         this.order = order;
         return this;
     }
@@ -250,7 +250,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
     /**
      * Sets the order in which the buckets will be returned.
      */
-    public TermsAggregatorFactory order(List<Terms.Order> orders) {
+    public TermsAggregatorBuilder order(List<Terms.Order> orders) {
         order(Terms.Order.compound(orders));
         return this;
     }
@@ -265,7 +265,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
     /**
      * Expert: sets an execution hint to the aggregation.
      */
-    public TermsAggregatorFactory executionHint(String executionHint) {
+    public TermsAggregatorBuilder executionHint(String executionHint) {
         this.executionHint = executionHint;
         return this;
     }
@@ -280,7 +280,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
     /**
      * Expert: set the collection mode.
      */
-    public TermsAggregatorFactory collectMode(SubAggCollectionMode mode) {
+    public TermsAggregatorBuilder collectMode(SubAggCollectionMode mode) {
         this.collectMode = mode;
         return this;
     }
@@ -295,7 +295,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
     /**
      * Set terms to include and exclude from the aggregation results
      */
-    public TermsAggregatorFactory includeExclude(IncludeExclude includeExclude) {
+    public TermsAggregatorBuilder includeExclude(IncludeExclude includeExclude) {
         this.includeExclude = includeExclude;
         return this;
     }
@@ -317,7 +317,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
     /**
      * Set whether doc count error will be return for individual terms
      */
-    public TermsAggregatorFactory showTermDocCountError(boolean showTermDocCountError) {
+    public TermsAggregatorBuilder showTermDocCountError(boolean showTermDocCountError) {
         this.showTermDocCountError = showTermDocCountError;
         return this;
     }
@@ -455,7 +455,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
         bucketCountThresholds.toXContent(builder, params);
         builder.field(SHOW_TERM_DOC_COUNT_ERROR.getPreferredName(), showTermDocCountError);
         if (executionHint != null) {
-            builder.field(TermsAggregatorFactory.EXECUTION_HINT_FIELD_NAME.getPreferredName(), executionHint);
+            builder.field(TermsAggregatorBuilder.EXECUTION_HINT_FIELD_NAME.getPreferredName(), executionHint);
         }
         builder.field(ORDER_FIELD.getPreferredName());
         order.toXContent(builder, params);
@@ -467,9 +467,9 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
     }
 
     @Override
-    protected TermsAggregatorFactory innerReadFrom(String name, ValuesSourceType valuesSourceType,
+    protected TermsAggregatorBuilder innerReadFrom(String name, ValuesSourceType valuesSourceType,
             ValueType targetValueType, StreamInput in) throws IOException {
-        TermsAggregatorFactory factory = new TermsAggregatorFactory(name, targetValueType);
+        TermsAggregatorBuilder factory = new TermsAggregatorBuilder(name, targetValueType);
         factory.bucketCountThresholds = BucketCountThresholds.readFromStream(in);
         factory.collectMode = SubAggCollectionMode.BREADTH_FIRST.readFrom(in);
         factory.executionHint = in.readOptionalString();
@@ -502,7 +502,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
 
     @Override
     protected boolean innerEquals(Object obj) {
-        TermsAggregatorFactory other = (TermsAggregatorFactory) obj;
+        TermsAggregatorBuilder other = (TermsAggregatorBuilder) obj;
         return Objects.equals(bucketCountThresholds, other.bucketCountThresholds)
                 && Objects.equals(collectMode, other.collectMode)
                 && Objects.equals(executionHint, other.executionHint)

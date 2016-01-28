@@ -24,7 +24,7 @@ import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
-import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsAggregatorFactory;
+import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsAggregatorBuilder;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.ChiSquare;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.GND;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.JLHScore;
@@ -32,12 +32,12 @@ import org.elasticsearch.search.aggregations.bucket.significant.heuristics.Mutua
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.PercentageScore;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.ScriptHeuristic;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
-import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorFactory.ExecutionMode;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorBuilder.ExecutionMode;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import java.util.SortedSet;
 import java.util.TreeSet;
 
-public class SignificantTermsTests extends BaseAggregationTestCase<SignificantTermsAggregatorFactory> {
+public class SignificantTermsTests extends BaseAggregationTestCase<SignificantTermsAggregatorBuilder> {
 
     private static final String[] executionHints;
 
@@ -50,9 +50,9 @@ public class SignificantTermsTests extends BaseAggregationTestCase<SignificantTe
     }
 
     @Override
-    protected SignificantTermsAggregatorFactory createTestAggregatorFactory() {
+    protected SignificantTermsAggregatorBuilder createTestAggregatorFactory() {
         String name = randomAsciiOfLengthBetween(3, 20);
-        SignificantTermsAggregatorFactory factory = new SignificantTermsAggregatorFactory(name, null);
+        SignificantTermsAggregatorBuilder factory = new SignificantTermsAggregatorBuilder(name, null);
         String field = randomAsciiOfLengthBetween(3, 20);
         int randomFieldBranch = randomInt(2);
         switch (randomFieldBranch) {

@@ -33,7 +33,7 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
+import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
@@ -85,9 +85,9 @@ public class MissingAggregator extends SingleBucketAggregator {
         return new InternalMissing(name, 0, buildEmptySubAggregations(), pipelineAggregators(), metaData());
     }
 
-    public static class Factory extends ValuesSourceAggregatorFactory<ValuesSource, Factory> {
+    public static class MissingAggregatorBuilder extends ValuesSourceAggregatorBuilder<ValuesSource, MissingAggregatorBuilder> {
 
-        public Factory(String name, ValueType targetValueType) {
+        public MissingAggregatorBuilder(String name, ValueType targetValueType) {
             super(name, InternalMissing.TYPE, ValuesSourceType.ANY, targetValueType);
         }
 
@@ -104,9 +104,9 @@ public class MissingAggregator extends SingleBucketAggregator {
         }
 
         @Override
-        protected Factory innerReadFrom(String name, ValuesSourceType valuesSourceType,
+        protected MissingAggregatorBuilder innerReadFrom(String name, ValuesSourceType valuesSourceType,
                 ValueType targetValueType, StreamInput in) {
-            return new Factory(name, targetValueType);
+            return new MissingAggregatorBuilder(name, targetValueType);
         }
 
         @Override

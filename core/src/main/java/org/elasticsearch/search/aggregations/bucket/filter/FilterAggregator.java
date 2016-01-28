@@ -30,7 +30,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
@@ -86,7 +86,7 @@ public class FilterAggregator extends SingleBucketAggregator {
         return new InternalFilter(name, 0, buildEmptySubAggregations(), pipelineAggregators(), metaData());
     }
 
-    public static class Factory extends AggregatorFactory<Factory> {
+    public static class FilterAggregatorBuilder extends AggregatorBuilder<FilterAggregatorBuilder> {
 
         private QueryBuilder<?> filter;
 
@@ -98,7 +98,7 @@ public class FilterAggregator extends SingleBucketAggregator {
          *            filter will fall into the bucket defined by this
          *            {@link Filter} aggregation.
          */
-        public Factory(String name, QueryBuilder<?> filter) {
+        public FilterAggregatorBuilder(String name, QueryBuilder<?> filter) {
             super(name, InternalFilter.TYPE);
             this.filter = filter;
         }
@@ -131,8 +131,8 @@ public class FilterAggregator extends SingleBucketAggregator {
         }
 
         @Override
-        protected Factory doReadFrom(String name, StreamInput in) throws IOException {
-            Factory factory = new Factory(name, in.readQuery());
+        protected FilterAggregatorBuilder doReadFrom(String name, StreamInput in) throws IOException {
+            FilterAggregatorBuilder factory = new FilterAggregatorBuilder(name, in.readQuery());
             return factory;
         }
 
@@ -148,7 +148,7 @@ public class FilterAggregator extends SingleBucketAggregator {
 
         @Override
         protected boolean doEquals(Object obj) {
-            Factory other = (Factory) obj;
+            FilterAggregatorBuilder other = (FilterAggregatorBuilder) obj;
             return Objects.equals(filter, other.filter);
         }
 

@@ -21,7 +21,7 @@ package org.elasticsearch.search.aggregations.bucket.range.ipv4;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Range;
 import org.elasticsearch.search.aggregations.bucket.range.RangeParser;
@@ -48,16 +48,16 @@ public class IpRangeParser extends RangeParser {
 
     @Override
     protected Range parseRange(XContentParser parser, ParseFieldMatcher parseFieldMatcher) throws IOException {
-        return IPv4RangeAggregatorFactory.Range.PROTOTYPE.fromXContent(parser, parseFieldMatcher);
+        return IPv4RangeAggregatorBuilder.Range.PROTOTYPE.fromXContent(parser, parseFieldMatcher);
             }
 
     @Override
-    protected IPv4RangeAggregatorFactory createFactory(String aggregationName, ValuesSourceType valuesSourceType,
+    protected IPv4RangeAggregatorBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
             ValueType targetValueType, Map<ParseField, Object> otherOptions) {
-        IPv4RangeAggregatorFactory factory = new IPv4RangeAggregatorFactory(aggregationName);
-        List<IPv4RangeAggregatorFactory.Range> ranges = (List<IPv4RangeAggregatorFactory.Range>) otherOptions
+        IPv4RangeAggregatorBuilder factory = new IPv4RangeAggregatorBuilder(aggregationName);
+        List<IPv4RangeAggregatorBuilder.Range> ranges = (List<IPv4RangeAggregatorBuilder.Range>) otherOptions
                 .get(RangeAggregator.RANGES_FIELD);
-        for (IPv4RangeAggregatorFactory.Range range : ranges) {
+        for (IPv4RangeAggregatorBuilder.Range range : ranges) {
             factory.addRange(range);
         }
         Boolean keyed = (Boolean) otherOptions.get(RangeAggregator.KEYED_FIELD);
@@ -68,8 +68,8 @@ public class IpRangeParser extends RangeParser {
         }
 
     @Override
-    public AggregatorFactory<?> getFactoryPrototypes() {
-        return new IPv4RangeAggregatorFactory(null);
+    public AggregatorBuilder<?> getFactoryPrototypes() {
+        return new IPv4RangeAggregatorBuilder(null);
     }
 
 }

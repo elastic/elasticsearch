@@ -45,12 +45,12 @@ import java.util.Map;
 public class SignificantStringTermsAggregator extends StringTermsAggregator {
 
     protected long numCollectedDocs;
-    protected final SignificantTermsAggregatorFactory termsAggFactory;
+    protected final SignificantTermsAggregatorBuilder termsAggFactory;
 
     public SignificantStringTermsAggregator(String name, AggregatorFactories factories, ValuesSource valuesSource,
             BucketCountThresholds bucketCountThresholds,
             IncludeExclude.StringFilter includeExclude, AggregationContext aggregationContext, Aggregator parent,
- SignificantTermsAggregatorFactory termsAggFactory, List<PipelineAggregator> pipelineAggregators,
+ SignificantTermsAggregatorBuilder termsAggFactory, List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData)
             throws IOException {
 

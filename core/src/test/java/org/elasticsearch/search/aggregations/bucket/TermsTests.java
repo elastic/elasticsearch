@@ -25,15 +25,15 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
-import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorFactory;
-import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorFactory.ExecutionMode;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorBuilder;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorBuilder.ExecutionMode;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.SortedSet;
 import java.util.TreeSet;
 
-public class TermsTests extends BaseAggregationTestCase<TermsAggregatorFactory> {
+public class TermsTests extends BaseAggregationTestCase<TermsAggregatorBuilder> {
 
     private static final String[] executionHints;
 
@@ -46,9 +46,9 @@ public class TermsTests extends BaseAggregationTestCase<TermsAggregatorFactory> 
     }
 
     @Override
-    protected TermsAggregatorFactory createTestAggregatorFactory() {
+    protected TermsAggregatorBuilder createTestAggregatorFactory() {
         String name = randomAsciiOfLengthBetween(3, 20);
-        TermsAggregatorFactory factory = new TermsAggregatorFactory(name, null);
+        TermsAggregatorBuilder factory = new TermsAggregatorBuilder(name, null);
         String field = randomAsciiOfLengthBetween(3, 20);
         int randomFieldBranch = randomInt(2);
         switch (randomFieldBranch) {

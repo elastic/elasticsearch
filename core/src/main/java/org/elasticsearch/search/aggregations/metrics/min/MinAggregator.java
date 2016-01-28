@@ -37,7 +37,7 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
+import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
@@ -117,9 +117,9 @@ public class MinAggregator extends NumericMetricsAggregator.SingleValue {
         return new InternalMin(name, Double.POSITIVE_INFINITY, formatter, pipelineAggregators(), metaData());
     }
 
-    public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.Numeric, Factory> {
+    public static class MinAggregatorBuilder extends ValuesSourceAggregatorBuilder.LeafOnly<ValuesSource.Numeric, MinAggregatorBuilder> {
 
-        public Factory(String name) {
+        public MinAggregatorBuilder(String name) {
             super(name, InternalMin.TYPE, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
         }
 
@@ -137,9 +137,9 @@ public class MinAggregator extends NumericMetricsAggregator.SingleValue {
         }
 
         @Override
-        protected Factory innerReadFrom(String name, ValuesSourceType valuesSourceType,
+        protected MinAggregatorBuilder innerReadFrom(String name, ValuesSourceType valuesSourceType,
                 ValueType targetValueType, StreamInput in) {
-            return new MinAggregator.Factory(name);
+            return new MinAggregator.MinAggregatorBuilder(name);
         }
 
         @Override

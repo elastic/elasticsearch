@@ -21,7 +21,7 @@ package org.elasticsearch.search.aggregations.metrics.avg;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.NumericValuesSourceParser;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
@@ -50,14 +50,14 @@ public class AvgParser extends NumericValuesSourceParser {
     }
 
     @Override
-    protected AvgAggregator.Factory createFactory(String aggregationName, ValuesSourceType valuesSourceType,
+    protected AvgAggregator.AvgAggregatorBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
             ValueType targetValueType, Map<ParseField, Object> otherOptions) {
-        return new AvgAggregator.Factory(aggregationName);
+        return new AvgAggregator.AvgAggregatorBuilder(aggregationName);
     }
 
     @Override
-    public AggregatorFactory<?> getFactoryPrototypes() {
-        return new AvgAggregator.Factory(null);
+    public AggregatorBuilder<?> getFactoryPrototypes() {
+        return new AvgAggregator.AvgAggregatorBuilder(null);
     }
 
 }

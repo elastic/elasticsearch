@@ -31,7 +31,7 @@ import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Order;
 import org.elasticsearch.search.aggregations.metrics.AbstractNumericTestCase;
 import org.elasticsearch.search.aggregations.metrics.percentiles.Percentile;
 import org.elasticsearch.search.aggregations.metrics.percentiles.PercentileRanks;
-import org.elasticsearch.search.aggregations.metrics.percentiles.PercentileRanksAggregatorFactory;
+import org.elasticsearch.search.aggregations.metrics.percentiles.PercentileRanksAggregatorBuilder;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -82,7 +82,7 @@ public class TDigestPercentileRanksTests extends AbstractNumericTestCase {
         return percents;
     }
 
-    private static PercentileRanksAggregatorFactory randomCompression(PercentileRanksAggregatorFactory builder) {
+    private static PercentileRanksAggregatorBuilder randomCompression(PercentileRanksAggregatorBuilder builder) {
         if (randomBoolean()) {
             builder.compression(randomIntBetween(20, 120) + randomDouble());
         }

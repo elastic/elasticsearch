@@ -22,7 +22,7 @@ package org.elasticsearch.search.aggregations.bucket;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
-import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorFactory.ExecutionMode;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorBuilder.ExecutionMode;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;

@@ -23,7 +23,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.GeoPointValuesSourceParser;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
@@ -43,9 +43,9 @@ public class GeoBoundsParser extends GeoPointValuesSourceParser {
     }
 
     @Override
-    protected GeoBoundsAggregator.Factory createFactory(String aggregationName, ValuesSourceType valuesSourceType,
+    protected GeoBoundsAggregator.GeoBoundsAggregatorBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
             ValueType targetValueType, Map<ParseField, Object> otherOptions) {
-        GeoBoundsAggregator.Factory factory = new GeoBoundsAggregator.Factory(aggregationName);
+        GeoBoundsAggregator.GeoBoundsAggregatorBuilder factory = new GeoBoundsAggregator.GeoBoundsAggregatorBuilder(aggregationName);
         Boolean wrapLongitude = (Boolean) otherOptions.get(GeoBoundsAggregator.WRAP_LONGITUDE_FIELD);
         if (wrapLongitude != null) {
             factory.wrapLongitude(wrapLongitude);
@@ -66,8 +66,8 @@ public class GeoBoundsParser extends GeoPointValuesSourceParser {
     }
 
     @Override
-    public AggregatorFactory<?> getFactoryPrototypes() {
-        return new GeoBoundsAggregator.Factory(null);
+    public AggregatorBuilder<?> getFactoryPrototypes() {
+        return new GeoBoundsAggregator.GeoBoundsAggregatorBuilder(null);
     }
 
 }

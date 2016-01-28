@@ -36,7 +36,7 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
+import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
@@ -110,9 +110,9 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue {
         return new InternalSum(name, 0.0, formatter, pipelineAggregators(), metaData());
     }
 
-    public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.Numeric, Factory> {
+    public static class SumAggregatorBuilder extends ValuesSourceAggregatorBuilder.LeafOnly<ValuesSource.Numeric, SumAggregatorBuilder> {
 
-        public Factory(String name) {
+        public SumAggregatorBuilder(String name) {
             super(name, InternalSum.TYPE, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
         }
 
@@ -130,9 +130,9 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue {
         }
 
         @Override
-        protected ValuesSourceAggregatorFactory<Numeric, Factory> innerReadFrom(String name, ValuesSourceType valuesSourceType,
+        protected ValuesSourceAggregatorBuilder<Numeric, SumAggregatorBuilder> innerReadFrom(String name, ValuesSourceType valuesSourceType,
                 ValueType targetValueType, StreamInput in) {
-            return new SumAggregator.Factory(name);
+            return new SumAggregator.SumAggregatorBuilder(name);
         }
 
         @Override

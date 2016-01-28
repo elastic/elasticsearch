@@ -46,12 +46,12 @@ import java.util.Map;
 public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStringTermsAggregator {
 
     protected long numCollectedDocs;
-    protected final SignificantTermsAggregatorFactory termsAggFactory;
+    protected final SignificantTermsAggregatorBuilder termsAggFactory;
 
     public GlobalOrdinalsSignificantTermsAggregator(String name, AggregatorFactories factories,
             ValuesSource.Bytes.WithOrdinals.FieldData valuesSource, BucketCountThresholds bucketCountThresholds,
             IncludeExclude.OrdinalsFilter includeExclude, AggregationContext aggregationContext, Aggregator parent,
-            SignificantTermsAggregatorFactory termsAggFactory, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
+            SignificantTermsAggregatorBuilder termsAggFactory, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
             throws IOException {
 
         super(name, factories, valuesSource, null, bucketCountThresholds, includeExclude, aggregationContext, parent,
@@ -157,7 +157,7 @@ public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStri
 
         public WithHash(String name, AggregatorFactories factories, ValuesSource.Bytes.WithOrdinals.FieldData valuesSource,
                 BucketCountThresholds bucketCountThresholds, IncludeExclude.OrdinalsFilter includeExclude,
-                AggregationContext aggregationContext, Aggregator parent, SignificantTermsAggregatorFactory termsAggFactory,
+                AggregationContext aggregationContext, Aggregator parent, SignificantTermsAggregatorBuilder termsAggFactory,
                 List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
             super(name, factories, valuesSource, bucketCountThresholds, includeExclude, aggregationContext, parent, termsAggFactory,
                     pipelineAggregators, metaData);

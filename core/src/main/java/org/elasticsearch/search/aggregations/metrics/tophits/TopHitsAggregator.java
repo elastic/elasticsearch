@@ -50,7 +50,7 @@ import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
@@ -209,7 +209,7 @@ public class TopHitsAggregator extends MetricsAggregator {
         Releasables.close(topDocsCollectors);
     }
 
-    public static class Factory extends AggregatorFactory<Factory> {
+    public static class TopHitsAggregatorBuilder extends AggregatorBuilder<TopHitsAggregatorBuilder> {
 
         private static final SortParseElement sortParseElement = new SortParseElement();
         private int from = 0;
@@ -224,14 +224,14 @@ public class TopHitsAggregator extends MetricsAggregator {
         private List<ScriptField> scriptFields;
         private FetchSourceContext fetchSourceContext;
 
-        public Factory(String name) {
+        public TopHitsAggregatorBuilder(String name) {
             super(name, InternalTopHits.TYPE);
         }
 
         /**
          * From index to start the search from. Defaults to <tt>0</tt>.
          */
-        public Factory from(int from) {
+        public TopHitsAggregatorBuilder from(int from) {
             this.from = from;
             return this;
         }
@@ -246,7 +246,7 @@ public class TopHitsAggregator extends MetricsAggregator {
         /**
          * The number of search hits to return. Defaults to <tt>10</tt>.
          */
-        public Factory size(int size) {
+        public TopHitsAggregatorBuilder size(int size) {
             this.size = size;
             return this;
         }
@@ -266,7 +266,7 @@ public class TopHitsAggregator extends MetricsAggregator {
          * @param order
          *            The sort ordering
          */
-        public Factory sort(String name, SortOrder order) {
+        public TopHitsAggregatorBuilder sort(String name, SortOrder order) {
             sort(SortBuilders.fieldSort(name).order(order));
             return this;
         }
@@ -277,7 +277,7 @@ public class TopHitsAggregator extends MetricsAggregator {
          * @param name
          *            The name of the field to sort by
          */
-        public Factory sort(String name) {
+        public TopHitsAggregatorBuilder sort(String name) {
             sort(SortBuilders.fieldSort(name));
             return this;
         }
@@ -285,7 +285,7 @@ public class TopHitsAggregator extends MetricsAggregator {
         /**
          * Adds a sort builder.
          */
-        public Factory sort(SortBuilder sort) {
+        public TopHitsAggregatorBuilder sort(SortBuilder sort) {
             try {
                 if (sorts == null) {
                     sorts = new ArrayList<>();
@@ -307,7 +307,7 @@ public class TopHitsAggregator extends MetricsAggregator {
         /**
          * Adds a sort builder.
          */
-        public Factory sorts(List<BytesReference> sorts) {
+        public TopHitsAggregatorBuilder sorts(List<BytesReference> sorts) {
             if (this.sorts == null) {
                 this.sorts = new ArrayList<>();
             }
@@ -327,7 +327,7 @@ public class TopHitsAggregator extends MetricsAggregator {
         /**
          * Adds highlight to perform as part of the search.
          */
-        public Factory highlighter(HighlightBuilder highlightBuilder) {
+        public TopHitsAggregatorBuilder highlighter(HighlightBuilder highlightBuilder) {
             this.highlightBuilder = highlightBuilder;
             return this;
         }
@@ -343,7 +343,7 @@ public class TopHitsAggregator extends MetricsAggregator {
          * Indicates whether the response should contain the stored _source for
          * every hit
          */
-        public Factory fetchSource(boolean fetch) {
+        public TopHitsAggregatorBuilder fetchSource(boolean fetch) {
             if (this.fetchSourceContext == null) {
                 this.fetchSourceContext = new FetchSourceContext(fetch);
             } else {
@@ -364,7 +364,7 @@ public class TopHitsAggregator extends MetricsAggregator {
          *            An optional exclude (optionally wildcarded) pattern to
          *            filter the returned _source
          */
-        public Factory fetchSource(@Nullable String include, @Nullable String exclude) {
+        public TopHitsAggregatorBuilder fetchSource(@Nullable String include, @Nullable String exclude) {
             fetchSource(include == null ? Strings.EMPTY_ARRAY : new String[] { include },
                     exclude == null ? Strings.EMPTY_ARRAY : new String[] { exclude });
             return this;
@@ -382,7 +382,7 @@ public class TopHitsAggregator extends MetricsAggregator {
          *            An optional list of exclude (optionally wildcarded)
          *            pattern to filter the returned _source
          */
-        public Factory fetchSource(@Nullable String[] includes, @Nullable String[] excludes) {
+        public TopHitsAggregatorBuilder fetchSource(@Nullable String[] includes, @Nullable String[] excludes) {
             fetchSourceContext = new FetchSourceContext(includes, excludes);
             return this;
         }
@@ -390,7 +390,7 @@ public class TopHitsAggregator extends MetricsAggregator {
         /**
          * Indicate how the _source should be fetched.
          */
-        public Factory fetchSource(@Nullable FetchSourceContext fetchSourceContext) {
+        public TopHitsAggregatorBuilder fetchSource(@Nullable FetchSourceContext fetchSourceContext) {
             this.fetchSourceContext = fetchSourceContext;
             return this;
         }
@@ -408,7 +408,7 @@ public class TopHitsAggregator extends MetricsAggregator {
          * the search request. If none are specified, the source of the document
          * will be return.
          */
-        public Factory field(String name) {
+        public TopHitsAggregatorBuilder field(String name) {
             if (fieldNames == null) {
                 fieldNames = new ArrayList<>();
             }
@@ -420,7 +420,7 @@ public class TopHitsAggregator extends MetricsAggregator {
          * Sets the fields to load and return as part of the search request. If
          * none are specified, the source of the document will be returned.
          */
-        public Factory fields(List<String> fields) {
+        public TopHitsAggregatorBuilder fields(List<String> fields) {
             this.fieldNames = fields;
             return this;
         }
@@ -429,7 +429,7 @@ public class TopHitsAggregator extends MetricsAggregator {
          * Sets no fields to be loaded, resulting in only id and type to be
          * returned per field.
          */
-        public Factory noFields() {
+        public TopHitsAggregatorBuilder noFields() {
             this.fieldNames = Collections.emptyList();
             return this;
         }
@@ -445,7 +445,7 @@ public class TopHitsAggregator extends MetricsAggregator {
          * Adds a field to load from the field data cache and return as part of
          * the search request.
          */
-        public Factory fieldDataField(String name) {
+        public TopHitsAggregatorBuilder fieldDataField(String name) {
             if (fieldDataFields == null) {
                 fieldDataFields = new ArrayList<>();
             }
@@ -457,7 +457,7 @@ public class TopHitsAggregator extends MetricsAggregator {
          * Adds fields to load from the field data cache and return as part of
          * the search request.
          */
-        public Factory fieldDataFields(List<String> names) {
+        public TopHitsAggregatorBuilder fieldDataFields(List<String> names) {
             if (fieldDataFields == null) {
                 fieldDataFields = new ArrayList<>();
             }
@@ -480,7 +480,7 @@ public class TopHitsAggregator extends MetricsAggregator {
          * @param script
          *            The script
          */
-        public Factory scriptField(String name, Script script) {
+        public TopHitsAggregatorBuilder scriptField(String name, Script script) {
             scriptField(name, script, false);
             return this;
         }
@@ -493,7 +493,7 @@ public class TopHitsAggregator extends MetricsAggregator {
          * @param script
          *            The script
          */
-        public Factory scriptField(String name, Script script, boolean ignoreFailure) {
+        public TopHitsAggregatorBuilder scriptField(String name, Script script, boolean ignoreFailure) {
             if (scriptFields == null) {
                 scriptFields = new ArrayList<>();
             }
@@ -501,7 +501,7 @@ public class TopHitsAggregator extends MetricsAggregator {
             return this;
         }
 
-        public Factory scriptFields(List<ScriptField> scriptFields) {
+        public TopHitsAggregatorBuilder scriptFields(List<ScriptField> scriptFields) {
             if (this.scriptFields == null) {
                 this.scriptFields = new ArrayList<>();
             }
@@ -520,7 +520,7 @@ public class TopHitsAggregator extends MetricsAggregator {
          * Should each {@link org.elasticsearch.search.SearchHit} be returned
          * with an explanation of the hit (ranking).
          */
-        public Factory explain(boolean explain) {
+        public TopHitsAggregatorBuilder explain(boolean explain) {
             this.explain = explain;
             return this;
         }
@@ -537,7 +537,7 @@ public class TopHitsAggregator extends MetricsAggregator {
          * Should each {@link org.elasticsearch.search.SearchHit} be returned
          * with a version associated with it.
          */
-        public Factory version(boolean version) {
+        public TopHitsAggregatorBuilder version(boolean version) {
             this.version = version;
             return this;
         }
@@ -554,7 +554,7 @@ public class TopHitsAggregator extends MetricsAggregator {
          * Applies when sorting, and controls if scores will be tracked as well.
          * Defaults to <tt>false</tt>.
          */
-        public Factory trackScores(boolean trackScores) {
+        public TopHitsAggregatorBuilder trackScores(boolean trackScores) {
             this.trackScores = trackScores;
             return this;
         }
@@ -629,7 +629,7 @@ public class TopHitsAggregator extends MetricsAggregator {
         }
 
         @Override
-        public Factory subFactories(AggregatorFactories subFactories) {
+        public TopHitsAggregatorBuilder subFactories(AggregatorFactories subFactories) {
             throw new AggregationInitializationException("Aggregator [" + name + "] of type [" + type + "] cannot accept sub-aggregations");
         }
 
@@ -688,8 +688,8 @@ public class TopHitsAggregator extends MetricsAggregator {
         }
 
         @Override
-        protected Factory doReadFrom(String name, StreamInput in) throws IOException {
-            Factory factory = new Factory(name);
+        protected TopHitsAggregatorBuilder doReadFrom(String name, StreamInput in) throws IOException {
+            TopHitsAggregatorBuilder factory = new TopHitsAggregatorBuilder(name);
             factory.explain = in.readBoolean();
             factory.fetchSourceContext = FetchSourceContext.optionalReadFromStream(in);
             if (in.readBoolean()) {
@@ -789,7 +789,7 @@ public class TopHitsAggregator extends MetricsAggregator {
 
         @Override
         protected boolean doEquals(Object obj) {
-            Factory other = (Factory) obj;
+            TopHitsAggregatorBuilder other = (TopHitsAggregatorBuilder) obj;
             return Objects.equals(explain, other.explain)
                     && Objects.equals(fetchSourceContext, other.fetchSourceContext)
                     && Objects.equals(fieldDataFields, other.fieldDataFields)

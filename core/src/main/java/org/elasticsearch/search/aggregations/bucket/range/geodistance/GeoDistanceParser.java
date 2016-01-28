@@ -35,7 +35,7 @@ import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.InternalRange;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Unmapped;
@@ -45,7 +45,7 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.GeoPointParser;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
+import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
@@ -111,10 +111,10 @@ public class GeoDistanceParser extends GeoPointValuesSourceParser {
     }
 
     @Override
-    protected GeoDistanceFactory createFactory(
+    protected GeoDistanceAggregatorBuilder createFactory(
             String aggregationName, ValuesSourceType valuesSourceType, ValueType targetValueType, Map<ParseField, Object> otherOptions) {
         GeoPoint origin = (GeoPoint) otherOptions.get(ORIGIN_FIELD);
-        GeoDistanceFactory factory = new GeoDistanceFactory(aggregationName, origin);
+        GeoDistanceAggregatorBuilder factory = new GeoDistanceAggregatorBuilder(aggregationName, origin);
         List<Range> ranges = (List<Range>) otherOptions.get(RangeAggregator.RANGES_FIELD);
         for (Range range : ranges) {
             factory.addRange(range);
@@ -197,7 +197,7 @@ public class GeoDistanceParser extends GeoPointValuesSourceParser {
         return false;
     }
 
-    public static class GeoDistanceFactory extends ValuesSourceAggregatorFactory<ValuesSource.GeoPoint, GeoDistanceFactory> {
+    public static class GeoDistanceAggregatorBuilder extends ValuesSourceAggregatorBuilder<ValuesSource.GeoPoint, GeoDistanceAggregatorBuilder> {
 
         private final GeoPoint origin;
         private final InternalRange.Factory rangeFactory;
@@ -206,17 +206,17 @@ public class GeoDistanceParser extends GeoPointValuesSourceParser {
         private GeoDistance distanceType = GeoDistance.DEFAULT;
         private boolean keyed = false;
 
-        public GeoDistanceFactory(String name, GeoPoint origin) {
+        public GeoDistanceAggregatorBuilder(String name, GeoPoint origin) {
             this(name, origin, InternalGeoDistance.FACTORY);
         }
 
-        private GeoDistanceFactory(String name, GeoPoint origin, InternalRange.Factory rangeFactory) {
+        private GeoDistanceAggregatorBuilder(String name, GeoPoint origin, InternalRange.Factory rangeFactory) {
             super(name, rangeFactory.type(), rangeFactory.getValueSourceType(), rangeFactory.getValueType());
             this.origin = origin;
             this.rangeFactory = rangeFactory;
         }
 
-        public GeoDistanceFactory addRange(Range range) {
+        public GeoDistanceAggregatorBuilder addRange(Range range) {
             ranges.add(range);
             return this;
         }
@@ -231,7 +231,7 @@ public class GeoDistanceParser extends GeoPointValuesSourceParser {
          * @param to
          *            the upper bound on the distances, exclusive
          */
-        public GeoDistanceFactory addRange(String key, double from, double to) {
+        public GeoDistanceAggregatorBuilder addRange(String key, double from, double to) {
             ranges.add(new Range(key, from, to));
             return this;
         }
@@ -241,7 +241,7 @@ public class GeoDistanceParser extends GeoPointValuesSourceParser {
          * automatically generated based on <code>from</code> and
          * <code>to</code>.
          */
-        public GeoDistanceFactory addRange(double from, double to) {
+        public GeoDistanceAggregatorBuilder addRange(double from, double to) {
             return addRange(null, from, to);
         }
 
@@ -253,7 +253,7 @@ public class GeoDistanceParser extends GeoPointValuesSourceParser {
          * @param to
          *            the upper bound on the distances, exclusive
          */
-        public GeoDistanceFactory addUnboundedTo(String key, double to) {
+        public GeoDistanceAggregatorBuilder addUnboundedTo(String key, double to) {
             ranges.add(new Range(key, null, to));
             return this;
         }
@@ -262,7 +262,7 @@ public class GeoDistanceParser extends GeoPointValuesSourceParser {
          * Same as {@link #addUnboundedTo(String, double)} but the key will be
          * computed automatically.
          */
-        public GeoDistanceFactory addUnboundedTo(double to) {
+        public GeoDistanceAggregatorBuilder addUnboundedTo(double to) {
             return addUnboundedTo(null, to);
         }
 
@@ -274,7 +274,7 @@ public class GeoDistanceParser extends GeoPointValuesSourceParser {
          * @param from
          *            the lower bound on the distances, inclusive
          */
-        public GeoDistanceFactory addUnboundedFrom(String key, double from) {
+        public GeoDistanceAggregatorBuilder addUnboundedFrom(String key, double from) {
             addRange(new Range(key, from, null));
             return this;
         }
@@ -283,7 +283,7 @@ public class GeoDistanceParser extends GeoPointValuesSourceParser {
          * Same as {@link #addUnboundedFrom(String, double)} but the key will be
          * computed automatically.
          */
-        public GeoDistanceFactory addUnboundedFrom(double from) {
+        public GeoDistanceAggregatorBuilder addUnboundedFrom(double from) {
             return addUnboundedFrom(null, from);
         }
 
@@ -296,7 +296,7 @@ public class GeoDistanceParser extends GeoPointValuesSourceParser {
             return InternalGeoDistance.TYPE.name();
         }
 
-        public GeoDistanceFactory unit(DistanceUnit unit) {
+        public GeoDistanceAggregatorBuilder unit(DistanceUnit unit) {
             this.unit = unit;
             return this;
         }
@@ -305,7 +305,7 @@ public class GeoDistanceParser extends GeoPointValuesSourceParser {
             return unit;
         }
 
-        public GeoDistanceFactory distanceType(GeoDistance distanceType) {
+        public GeoDistanceAggregatorBuilder distanceType(GeoDistance distanceType) {
             this.distanceType = distanceType;
             return this;
         }
@@ -314,7 +314,7 @@ public class GeoDistanceParser extends GeoPointValuesSourceParser {
             return distanceType;
         }
 
-        public GeoDistanceFactory keyed(boolean keyed) {
+        public GeoDistanceAggregatorBuilder keyed(boolean keyed) {
             this.keyed = keyed;
             return this;
         }
@@ -352,11 +352,11 @@ public class GeoDistanceParser extends GeoPointValuesSourceParser {
         }
 
         @Override
-        protected GeoDistanceFactory innerReadFrom(
+        protected GeoDistanceAggregatorBuilder innerReadFrom(
                 String name, ValuesSourceType valuesSourceType, ValueType targetValueType, StreamInput in) throws IOException {
             GeoPoint origin = new GeoPoint(in.readDouble(), in.readDouble());
             int size = in.readVInt();
-            GeoDistanceFactory factory = new GeoDistanceFactory(name, origin);
+            GeoDistanceAggregatorBuilder factory = new GeoDistanceAggregatorBuilder(name, origin);
             for (int i = 0; i < size; i++) {
                 factory.addRange(Range.PROTOTYPE.readFrom(in));
             }
@@ -386,7 +386,7 @@ public class GeoDistanceParser extends GeoPointValuesSourceParser {
 
         @Override
         protected boolean innerEquals(Object obj) {
-            GeoDistanceFactory other = (GeoDistanceFactory) obj;
+            GeoDistanceAggregatorBuilder other = (GeoDistanceAggregatorBuilder) obj;
             return Objects.equals(origin, other.origin)
                     && Objects.equals(ranges, other.ranges)
                     && Objects.equals(keyed, other.keyed)
@@ -436,8 +436,8 @@ public class GeoDistanceParser extends GeoPointValuesSourceParser {
     }
 
     @Override
-    public AggregatorFactory<?> getFactoryPrototypes() {
-        return new GeoDistanceFactory(null, null);
+    public AggregatorBuilder<?> getFactoryPrototypes() {
+        return new GeoDistanceAggregatorBuilder(null, null);
     }
 
 }

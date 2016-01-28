@@ -43,11 +43,11 @@ import java.util.Objects;
 /**
  * A factory that knows how to create an {@link Aggregator} of a specific type.
  */
-public abstract class AggregatorFactory<AF extends AggregatorFactory<AF>> extends ToXContentToBytes implements NamedWriteable<AF> {
+public abstract class AggregatorBuilder<AB extends AggregatorBuilder<AB>> extends ToXContentToBytes implements NamedWriteable<AB> {
 
     protected String name;
     protected Type type;
-    protected AggregatorFactory<?> parent;
+    protected AggregatorBuilder<?> parent;
     protected AggregatorFactories factories = AggregatorFactories.EMPTY;
     protected Map<String, Object> metaData;
     private AggregationContext context;
@@ -58,7 +58,7 @@ public abstract class AggregatorFactory<AF extends AggregatorFactory<AF>> extend
      * @param name  The aggregation name
      * @param type  The aggregation type
      */
-    public AggregatorFactory(String name, Type type) {
+    public AggregatorBuilder(String name, Type type) {
         this.name = name;
         this.type = type;
     }
@@ -74,7 +74,7 @@ public abstract class AggregatorFactory<AF extends AggregatorFactory<AF>> extend
     }
 
     /**
-     * Allows the {@link AggregatorFactory} to initialize any state prior to
+     * Allows the {@link AggregatorBuilder} to initialize any state prior to
      * using it to create {@link Aggregator}s.
      *
      * @param context
@@ -90,34 +90,34 @@ public abstract class AggregatorFactory<AF extends AggregatorFactory<AF>> extend
      * @param subFactories  The sub-factories
      * @return  this factory (fluent interface)
      */
-    public AF subFactories(AggregatorFactories subFactories) {
+    public AB subFactories(AggregatorFactories subFactories) {
         this.factories = subFactories;
         this.factories.setParent(this);
-        return (AF) this;
+        return (AB) this;
     }
 
     /**
      * Add a sub aggregation to this aggregation.
      */
     @SuppressWarnings("unchecked")
-    public AF subAggregation(AggregatorFactory<?> aggregation) {
+    public AB subAggregation(AggregatorBuilder<?> aggregation) {
         AggregatorFactories.Builder builder = AggregatorFactories.builder();
         builder.addAggregators(factories);
         builder.addAggregator(aggregation);
         factories = builder.build();
-        return (AF) this;
+        return (AB) this;
     }
 
     /**
      * Add a sub aggregation to this aggregation.
      */
     @SuppressWarnings("unchecked")
-    public AF subAggregation(PipelineAggregatorFactory aggregation) {
+    public AB subAggregation(PipelineAggregatorFactory aggregation) {
         AggregatorFactories.Builder builder = AggregatorFactories.builder();
         builder.addAggregators(factories);
         builder.addPipelineAggregator(aggregation);
         factories = builder.build();
-        return (AF) this;
+        return (AB) this;
     }
 
     public String name() {
@@ -135,7 +135,7 @@ public abstract class AggregatorFactory<AF extends AggregatorFactory<AF>> extend
     /**
      * @return  The parent factory if one exists (will always return {@code null} for top level aggregator factories).
      */
-    public AggregatorFactory<?> parent() {
+    public AggregatorBuilder<?> parent() {
         return parent;
     }
 
@@ -158,22 +158,22 @@ public abstract class AggregatorFactory<AF extends AggregatorFactory<AF>> extend
     public void doValidate() {
     }
 
-    public AF setMetaData(Map<String, Object> metaData) {
+    public AB setMetaData(Map<String, Object> metaData) {
         this.metaData = metaData;
-        return (AF) this;
+        return (AB) this;
     }
 
     @Override
-    public final AF readFrom(StreamInput in) throws IOException {
+    public final AB readFrom(StreamInput in) throws IOException {
         String name = in.readString();
-        AF factory = doReadFrom(name, in);
+        AB factory = doReadFrom(name, in);
         factory.factories = AggregatorFactories.EMPTY.readFrom(in);
         factory.factories.setParent(this);
         factory.metaData = in.readMap();
         return factory;
     }
 
-    protected abstract AF doReadFrom(String name, StreamInput in) throws IOException;
+    protected abstract AB doReadFrom(String name, StreamInput in) throws IOException;
 
     @Override
     public final void writeTo(StreamOutput out) throws IOException {
@@ -216,10 +216,10 @@ public abstract class AggregatorFactory<AF extends AggregatorFactory<AF>> extend
     }
 
     /**
-     * Utility method. Given an {@link AggregatorFactory} that creates {@link Aggregator}s that only know how
+     * Utility method. Given an {@link AggregatorBuilder} that creates {@link Aggregator}s that only know how
      * to collect bucket <tt>0</tt>, this returns an aggregator that can collect any bucket.
      */
-    protected static Aggregator asMultiBucketAggregator(final AggregatorFactory factory,
+    protected static Aggregator asMultiBucketAggregator(final AggregatorBuilder factory,
             final AggregationContext context, final Aggregator parent) throws IOException {
         final Aggregator first = factory.create(parent, true);
         final BigArrays bigArrays = context.bigArrays();
@@ -352,7 +352,7 @@ public abstract class AggregatorFactory<AF extends AggregatorFactory<AF>> extend
             return false;
         if (getClass() != obj.getClass())
             return false;
-        AggregatorFactory<AF> other = (AggregatorFactory<AF>) obj;
+        AggregatorBuilder<AB> other = (AggregatorBuilder<AB>) obj;
         if (!Objects.equals(name, other.name))
             return false;
         if (!Objects.equals(type, other.type))

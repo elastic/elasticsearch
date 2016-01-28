@@ -46,7 +46,7 @@ public class SignificantLongTermsAggregator extends LongTermsAggregator {
 
     public SignificantLongTermsAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource,
             ValueFormat format, BucketCountThresholds bucketCountThresholds, AggregationContext aggregationContext, Aggregator parent,
-            SignificantTermsAggregatorFactory termsAggFactory, IncludeExclude.LongFilter includeExclude,
+            SignificantTermsAggregatorBuilder termsAggFactory, IncludeExclude.LongFilter includeExclude,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
 
         super(name, factories, valuesSource, format, null, bucketCountThresholds, aggregationContext, parent,
@@ -55,7 +55,7 @@ public class SignificantLongTermsAggregator extends LongTermsAggregator {
     }
 
     protected long numCollectedDocs;
-    private final SignificantTermsAggregatorFactory termsAggFactory;
+    private final SignificantTermsAggregatorBuilder termsAggFactory;
 
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,

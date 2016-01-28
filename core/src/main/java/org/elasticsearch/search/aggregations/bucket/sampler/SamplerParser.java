@@ -23,7 +23,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.AggregatorBuilder;
 
 import java.io.IOException;
 
@@ -38,7 +38,7 @@ public class SamplerParser implements Aggregator.Parser {
     }
 
     @Override
-    public AggregatorFactory parse(String aggregationName, XContentParser parser, QueryParseContext context) throws IOException {
+    public AggregatorBuilder parse(String aggregationName, XContentParser parser, QueryParseContext context) throws IOException {
 
         XContentParser.Token token;
         String currentFieldName = null;
@@ -60,7 +60,7 @@ public class SamplerParser implements Aggregator.Parser {
             }
         }
 
-        SamplerAggregator.Factory factory = new SamplerAggregator.Factory(aggregationName);
+        SamplerAggregator.SamplerAggregatorBuilder factory = new SamplerAggregator.SamplerAggregatorBuilder(aggregationName);
         if (shardSize != null) {
             factory.shardSize(shardSize);
         }
@@ -68,8 +68,8 @@ public class SamplerParser implements Aggregator.Parser {
     }
 
     @Override
-    public AggregatorFactory<?> getFactoryPrototypes() {
-        return new SamplerAggregator.Factory(null);
+    public AggregatorBuilder<?> getFactoryPrototypes() {
+        return new SamplerAggregator.SamplerAggregatorBuilder(null);
     }
 
 }

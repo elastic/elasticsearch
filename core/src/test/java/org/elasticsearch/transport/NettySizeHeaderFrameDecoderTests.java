@@ -53,7 +53,7 @@ public class NettySizeHeaderFrameDecoderTests extends ESTestCase {
     private final Settings settings = settingsBuilder()
             .put("name", "foo")
             .put("transport.host", "127.0.0.1")
-            .put(NettyTransport.PORT.getKey(), "0")
+            .put(TransportSettings.PORT.getKey(), "0")
             .build();
 
     private ThreadPool threadPool;

@@ -64,6 +64,7 @@ import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportServiceAdapter;
+import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.transport.support.TransportStatus;
 import org.jboss.netty.bootstrap.ClientBootstrap;
 import org.jboss.netty.bootstrap.ServerBootstrap;
@@ -180,9 +181,6 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
 
     public static final Setting<Boolean> NETWORK_SERVER = Setting.boolSetting("network.server", true, false, Setting.Scope.CLUSTER);
 
-    public static final Setting<String> PORT = new Setting<>("transport.tcp.port", "9300-9400", s -> s, false, Setting.Scope.CLUSTER);
-    public static final String DEFAULT_PROFILE = "default";
-
     protected final NetworkService networkService;
     protected final Version version;
 
@@ -291,14 +289,14 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
                 this.serverOpenChannels = openChannels;
 
                 // extract default profile first and create standard bootstrap
-                Map<String, Settings> profiles = TRANSPORT_PROFILES_SETTING.get(settings()).getAsGroups(true);
-                if (!profiles.containsKey(DEFAULT_PROFILE)) {
+                Map<String, Settings> profiles = TransportSettings.TRANSPORT_PROFILES_SETTING.get(settings()).getAsGroups(true);
+                if (!profiles.containsKey(TransportSettings.DEFAULT_PROFILE)) {
                     profiles = new HashMap<>(profiles);
-                    profiles.put(DEFAULT_PROFILE, Settings.EMPTY);
+                    profiles.put(TransportSettings.DEFAULT_PROFILE, Settings.EMPTY);
                 }
 
                 Settings fallbackSettings = createFallbackSettings();
-                Settings defaultSettings = profiles.get(DEFAULT_PROFILE);
+                Settings defaultSettings = profiles.get(TransportSettings.DEFAULT_PROFILE);
 
                 // loop through all profiles and start them up, special handling for default one
                 for (Map.Entry<String, Settings> entry : profiles.entrySet()) {
@@ -308,10 +306,10 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
                     if (!Strings.hasLength(name)) {
                         logger.info("transport profile configured without a name. skipping profile with settings [{}]", profileSettings.toDelimitedString(','));
                         continue;
-                    } else if (DEFAULT_PROFILE.equals(name)) {
+                    } else if (TransportSettings.DEFAULT_PROFILE.equals(name)) {
                         profileSettings = settingsBuilder()
                                 .put(profileSettings)
-                                .put("port", profileSettings.get("port", PORT.get(this.settings)))
+                                .put("port", profileSettings.get("port", TransportSettings.PORT.get(this.settings)))
                                 .build();
                     } else if (profileSettings.get("port") == null) {
                         // if profile does not have a port, skip it
@@ -443,7 +441,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
 
         final BoundTransportAddress boundTransportAddress = createBoundTransportAddress(name, settings, boundAddresses);
 
-        if (DEFAULT_PROFILE.equals(name)) {
+        if (TransportSettings.DEFAULT_PROFILE.equals(name)) {
             this.boundAddress = boundTransportAddress;
         } else {
             profileBoundAddresses.put(name, boundTransportAddress);
@@ -496,7 +494,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         }
 
         final String[] publishHosts;
-        if (DEFAULT_PROFILE.equals(name)) {
+        if (TransportSettings.DEFAULT_PROFILE.equals(name)) {
             publishHosts = settings.getAsArray("transport.netty.publish_host", settings.getAsArray("transport.publish_host", settings.getAsArray("transport.host", null)));
         } else {
             publishHosts = profileSettings.getAsArray("publish_host", boundAddressesHostStrings);
@@ -510,7 +508,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         }
 
         Integer publishPort;
-        if (DEFAULT_PROFILE.equals(name)) {
+        if (TransportSettings.DEFAULT_PROFILE.equals(name)) {
             publishPort = settings.getAsInt("transport.netty.publish_port", settings.getAsInt("transport.publish_port", null));
         } else {
             publishPort = profileSettings.getAsInt("publish_port", null);
@@ -667,7 +665,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
 
     @Override
     public TransportAddress[] addressesFromString(String address, int perAddressLimit) throws Exception {
-        return parse(address, settings.get("transport.profiles.default.port", PORT.get(settings)), perAddressLimit);
+        return parse(address, settings.get("transport.profiles.default.port", TransportSettings.PORT.get(settings)), perAddressLimit);
     }
 
     // this code is a take on guava's HostAndPort, like a HostAndPortRange

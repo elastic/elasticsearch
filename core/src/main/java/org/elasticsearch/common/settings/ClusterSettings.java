@@ -75,6 +75,7 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.transport.netty.NettyTransport;
 
 import java.util.Arrays;
@@ -200,7 +201,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
             NettyTransport.NETTY_RECEIVE_PREDICTOR_MAX,
             NettyTransport.NETWORK_SERVER,
             NettyTransport.NETTY_BOSS_COUNT,
-            NettyTransport.PORT,
+            TransportSettings.PORT,
             NettyHttpServerTransport.SETTING_CORS_ALLOW_CREDENTIALS,
             NettyHttpServerTransport.SETTING_CORS_ENABLED,
             NettyHttpServerTransport.SETTING_CORS_MAX_AGE,
@@ -221,7 +222,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
             InternalClusterService.CLUSTER_SERVICE_RECONNECT_INTERVAL_SETTING,
             HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_TYPE_SETTING,
             HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_TYPE_SETTING,
-            Transport.TRANSPORT_PROFILES_SETTING,
+            TransportSettings.TRANSPORT_PROFILES_SETTING,
             Transport.TRANSPORT_TCP_COMPRESS,
             NetworkService.GLOBAL_NETWORK_HOST_SETTING,
             NetworkService.GLOBAL_NETWORK_BINDHOST_SETTING,

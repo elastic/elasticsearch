@@ -346,6 +346,22 @@ public class SettingTests extends ESTestCase {
         assertFalse(listSetting.match("foo_bar.1"));
         assertTrue(listSetting.match("foo.bar"));
         assertTrue(listSetting.match("foo.bar." + randomIntBetween(0,10000)));
+    }
 
+    public void testDynamicKeySetting() {
+        Setting<Boolean> setting = Setting.dynamicKeySetting("foo.", "false", Boolean::parseBoolean, false, Setting.Scope.CLUSTER);
+        assertTrue(setting.hasComplexMatcher());
+        assertTrue(setting.match("foo.bar"));
+        assertFalse(setting.match("foo"));
+        Setting<Boolean> concreteSetting = setting.getConcreteSetting("foo.bar");
+        assertTrue(concreteSetting.get(Settings.builder().put("foo.bar", "true").build()));
+        assertFalse(concreteSetting.get(Settings.builder().put("foo.baz", "true").build()));
+
+        try {
+            setting.getConcreteSetting("foo");
+            fail();
+        } catch (IllegalArgumentException ex) {
+            assertEquals("key must match setting but didn't [foo]", ex.getMessage());
+        }
     }
 }

@@ -82,50 +82,61 @@ import org.elasticsearch.transport.netty.NettyTransport;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 
 /**
  * Encapsulates all valid cluster level settings.
  */
 public final class ClusterSettings extends AbstractScopedSettings {
-
-    public ClusterSettings(Settings settings, Set<Setting<?>> settingsSet) {
-        super(settings, settingsSet, Setting.Scope.CLUSTER);
+    public ClusterSettings(Settings nodeSettings, Set<Setting<?>> settingsSet) {
+        super(nodeSettings, settingsSet, Setting.Scope.CLUSTER);
+        addSettingsUpdater(new LoggingSettingUpdater(nodeSettings));
     }
 
-    @Override
-    public synchronized Settings applySettings(Settings newSettings) {
-        Settings settings = super.applySettings(newSettings);
-        try {
-            for (Map.Entry<String, String> entry : settings.getAsMap().entrySet()) {
-                if (entry.getKey().startsWith("logger.")) {
-                    String component = entry.getKey().substring("logger.".length());
-                    if ("_root".equals(component)) {
-                        ESLoggerFactory.getRootLogger().setLevel(entry.getValue());
+    private static final class LoggingSettingUpdater implements SettingUpdater<Settings> {
+        final Predicate<String> loggerPredicate = ESLoggerFactory.LOG_LEVEL_SETTING::match;
+        private final Settings settings;
+
+        LoggingSettingUpdater(Settings settings) {
+            this.settings = settings;
+        }
+
+        @Override
+        public boolean hasChanged(Settings current, Settings previous) {
+            return current.filter(loggerPredicate).getAsMap().equals(previous.filter(loggerPredicate).getAsMap()) == false;
+        }
+
+        @Override
+        public Settings getValue(Settings current, Settings previous) {
+            Settings.Builder builder = Settings.builder();
+            builder.put(current.filter(loggerPredicate).getAsMap());
+            for (String key : previous.getAsMap().keySet()) {
+                if (loggerPredicate.test(key) && builder.internalMap().containsKey(key) == false) {
+                    if (ESLoggerFactory.LOG_LEVEL_SETTING.getConcreteSetting(key).exists(settings) == false) {
+                        builder.putNull(key);
                     } else {
-                        ESLoggerFactory.getLogger(component).setLevel(entry.getValue());
+                        builder.put(key, ESLoggerFactory.LOG_LEVEL_SETTING.getConcreteSetting(key).get(settings).name());
                     }
                 }
             }
-        } catch (Exception e) {
-            logger.warn("failed to refresh settings for [{}]", e, "logger");
+            return builder.build();
         }
-        return settings;
-    }
 
-    @Override
-    public boolean hasDynamicSetting(String key) {
-        return isLoggerSetting(key) || super.hasDynamicSetting(key);
-    }
-
-    /**
-     * Returns <code>true</code> if the settings is a logger setting.
-     */
-    public boolean isLoggerSetting(String key) {
-        return key.startsWith("logger.");
-    }
-
+        @Override
+        public void apply(Settings value, Settings current, Settings previous) {
+            for (String key : value.getAsMap().keySet()) {
+                assert loggerPredicate.test(key);
+                String component = key.substring("logger.".length());
+                if ("_root".equals(component)) {
+                    final String rootLevel = value.get(key);
+                    ESLoggerFactory.getRootLogger().setLevel(rootLevel == null ? ESLoggerFactory.LOG_DEFAULT_LEVEL_SETTING.get(settings).name() : rootLevel);
+                } else {
+                    ESLoggerFactory.getLogger(component).setLevel(value.get(key));
+                }
+            }
+        }
+    };
 
     public static Set<Setting<?>> BUILT_IN_CLUSTER_SETTINGS = Collections.unmodifiableSet(new HashSet<>(
             Arrays.asList(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING,
@@ -300,5 +311,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING,
                     ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING,
                     EsExecutors.PROCESSORS_SETTING,
-                    ThreadContext.DEFAULT_HEADERS_SETTING)));
+                    ThreadContext.DEFAULT_HEADERS_SETTING,
+                    ESLoggerFactory.LOG_DEFAULT_LEVEL_SETTING,
+                    ESLoggerFactory.LOG_LEVEL_SETTING)));
 }

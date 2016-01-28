@@ -73,10 +73,7 @@ public abstract class AbstractBaseReindexRestHandler<Request extends ActionReque
     private void sendTask(RestChannel channel, Task task) throws IOException {
         XContentBuilder builder = channel.newBuilder();
         builder.startObject();
-        builder.startObject("task");
-        builder.field("node", clusterService.localNode().getId());
-        builder.field("id", task.getId());
-        builder.endObject();
+        builder.field("task", clusterService.localNode().getId() + ":" + task.getId());
         builder.endObject();
         channel.sendResponse(new BytesRestResponse(RestStatus.OK, builder));
     }

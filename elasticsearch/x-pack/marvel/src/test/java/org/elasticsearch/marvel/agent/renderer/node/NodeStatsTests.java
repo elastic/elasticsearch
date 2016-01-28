@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.marvel.agent.renderer.node;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.marvel.agent.collector.node.NodeStatsCollector;
@@ -66,6 +67,12 @@ public class NodeStatsTests extends MarvelIntegTestCase {
             Map<String, Object> fields = searchHit.sourceAsMap();
 
             for (String filter : filters) {
+                if (Constants.WINDOWS) {
+                    // load average is unavailable on Windows
+                    if ("node_stats.os.cpu.load_average.1m".equals(filter)) {
+                        continue;
+                    }
+                }
                 assertContains(filter, fields);
             }
         }

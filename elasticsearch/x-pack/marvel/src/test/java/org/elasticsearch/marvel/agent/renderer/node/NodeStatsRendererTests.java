@@ -5,16 +5,19 @@
  */
 package org.elasticsearch.marvel.agent.renderer.node;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.marvel.agent.collector.node.NodeStatsMarvelDoc;
-import org.elasticsearch.marvel.agent.renderer.Renderer;
-import org.elasticsearch.marvel.agent.renderer.RendererTestUtils;
 import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.test.StreamsUtils;
+
+import java.util.Map;
 
 public class NodeStatsRendererTests extends ESSingleNodeTestCase {
-    private static final String SAMPLE_FILE = "/samples/node_stats.json";
 
     public void testNodeStatsRenderer() throws Exception {
         createIndex("index-0");
@@ -27,13 +30,19 @@ public class NodeStatsRendererTests extends ESSingleNodeTestCase {
                 "node-0", true, nodeStats, false, 90.0, true);
 
         logger.debug("--> rendering the document");
-        Renderer renderer = new NodeStatsRenderer();
-        String result = RendererTestUtils.renderAsJSON(marvelDoc, renderer);
+        try (BytesStreamOutput os = new BytesStreamOutput()) {
+            new NodeStatsRenderer().render(marvelDoc, XContentType.JSON, os);
+            Map<String, Object> result =  XContentHelper.convertToMap(os.bytes(), false).v2();
 
-        logger.debug("--> loading sample document from file {}", SAMPLE_FILE);
-        String expected = StreamsUtils.copyToStringFromClasspath(SAMPLE_FILE);
-
-        logger.debug("--> comparing both documents, they must have the same structure");
-        RendererTestUtils.assertJSONStructure(result, expected);
+            for (String field : NodeStatsRenderer.FILTERS) {
+                if (Constants.WINDOWS) {
+                    // load average is unavailable on Windows
+                    if ("node_stats.os.cpu.load_average.1m".equals(field)) {
+                        continue;
+                    }
+                }
+                assertNotNull("expecting field to be present:" + field, XContentMapValues.extractValue(field, result));
+            }
+        }
     }
 }

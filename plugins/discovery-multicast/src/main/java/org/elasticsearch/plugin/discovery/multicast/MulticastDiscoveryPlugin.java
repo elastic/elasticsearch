@@ -20,6 +20,7 @@
 package org.elasticsearch.plugin.discovery.multicast;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.plugins.Plugin;
 
@@ -45,5 +46,17 @@ public class MulticastDiscoveryPlugin extends Plugin {
         if (settings.getAsBoolean("discovery.zen.ping.multicast.enabled", false)) {
             module.addZenPing(MulticastZenPing.class);
         }
+    }
+
+    public void onModule(SettingsModule module) {
+        module.registerSetting(MulticastZenPing.ADDRESS_SETTING);
+        module.registerSetting(MulticastZenPing.GROUP_SETTING);
+        module.registerSetting(MulticastZenPing.PORT_SETTING);
+        module.registerSetting(MulticastZenPing.SHARED_SETTING);
+        module.registerSetting(MulticastZenPing.TTL_SETTING);
+        module.registerSetting(MulticastZenPing.BUFFER_SIZE_SETTING);
+        module.registerSetting(MulticastZenPing.PING_ENABLED_SETTING);
+        module.registerSetting(MulticastZenPing.DEFERE_TO_INTERFACE_SETTING);
+
     }
 }

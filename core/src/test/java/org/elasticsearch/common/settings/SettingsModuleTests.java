@@ -78,4 +78,24 @@ public class SettingsModuleTests extends ModuleTestCase {
             }
         }
     }
+
+    public void testLoggerSettings() {
+        {
+            Settings settings = Settings.builder().put("logger._root", "TRACE").put("logger.transport", "INFO").build();
+            SettingsModule module = new SettingsModule(settings, new SettingsFilter(Settings.EMPTY));
+            assertInstanceBinding(module, Settings.class, (s) -> s == settings);
+        }
+
+        {
+            Settings settings = Settings.builder().put("logger._root", "BOOM").put("logger.transport", "WOW").build();
+            SettingsModule module = new SettingsModule(settings, new SettingsFilter(Settings.EMPTY));
+            try {
+                assertInstanceBinding(module, Settings.class, (s) -> s == settings);
+                fail();
+            } catch (IllegalArgumentException ex) {
+                assertEquals("No enum constant org.elasticsearch.common.logging.ESLoggerFactory.LogLevel.BOOM", ex.getMessage());
+            }
+        }
+
+    }
 }

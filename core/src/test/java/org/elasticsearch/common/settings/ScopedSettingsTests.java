@@ -22,6 +22,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
+import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportService;
@@ -254,4 +255,48 @@ public class ScopedSettingsTests extends ESTestCase {
             Settings.EMPTY, Collections.singleton(Setting.boolSetting("boo", true, false, Setting.Scope.INDEX)));
     }
 
+    public void testLoggingUpdates() {
+        final String level = ESLoggerFactory.getRootLogger().getLevel();
+        final String testLevel = ESLoggerFactory.getLogger("test").getLevel();
+        String property = System.getProperty("es.logger.level");
+        Settings.Builder builder = Settings.builder();
+        if (property != null) {
+            builder.put("logger.level", property);
+        }
+        try {
+            ClusterSettings settings = new ClusterSettings(builder.build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+            try {
+                settings.validate(Settings.builder().put("logger._root", "boom").build());
+                fail();
+            } catch (IllegalArgumentException ex) {
+                assertEquals("No enum constant org.elasticsearch.common.logging.ESLoggerFactory.LogLevel.BOOM", ex.getMessage());
+            }
+            assertEquals(level, ESLoggerFactory.getRootLogger().getLevel());
+            settings.applySettings(Settings.builder().put("logger._root", "TRACE").build());
+            assertEquals("TRACE", ESLoggerFactory.getRootLogger().getLevel());
+            settings.applySettings(Settings.builder().build());
+            assertEquals(level, ESLoggerFactory.getRootLogger().getLevel());
+            settings.applySettings(Settings.builder().put("logger.test", "TRACE").build());
+            assertEquals("TRACE", ESLoggerFactory.getLogger("test").getLevel());
+            settings.applySettings(Settings.builder().build());
+            assertEquals(testLevel, ESLoggerFactory.getLogger("test").getLevel());
+        } finally {
+            ESLoggerFactory.getRootLogger().setLevel(level);
+            ESLoggerFactory.getLogger("test").setLevel(testLevel);
+        }
+    }
+
+    public void testFallbackToLoggerLevel() {
+        final String level = ESLoggerFactory.getRootLogger().getLevel();
+        try {
+            ClusterSettings settings = new ClusterSettings(Settings.builder().put("logger.level", "ERROR").build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+            assertEquals(level, ESLoggerFactory.getRootLogger().getLevel());
+            settings.applySettings(Settings.builder().put("logger._root", "TRACE").build());
+            assertEquals("TRACE", ESLoggerFactory.getRootLogger().getLevel());
+            settings.applySettings(Settings.builder().build()); // here we fall back to 'logger.level' which is our default.
+            assertEquals("ERROR", ESLoggerFactory.getRootLogger().getLevel());
+        } finally {
+            ESLoggerFactory.getRootLogger().setLevel(level);
+        }
+    }
 }

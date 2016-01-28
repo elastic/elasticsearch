@@ -27,6 +27,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class SettingTests extends ESTestCase {
@@ -346,6 +347,42 @@ public class SettingTests extends ESTestCase {
         assertFalse(listSetting.match("foo_bar.1"));
         assertTrue(listSetting.match("foo.bar"));
         assertTrue(listSetting.match("foo.bar." + randomIntBetween(0,10000)));
+    }
 
+    public void testDynamicKeySetting() {
+        Setting<Boolean> setting = Setting.dynamicKeySetting("foo.", "false", Boolean::parseBoolean, false, Setting.Scope.CLUSTER);
+        assertTrue(setting.hasComplexMatcher());
+        assertTrue(setting.match("foo.bar"));
+        assertFalse(setting.match("foo"));
+        Setting<Boolean> concreteSetting = setting.getConcreteSetting("foo.bar");
+        assertTrue(concreteSetting.get(Settings.builder().put("foo.bar", "true").build()));
+        assertFalse(concreteSetting.get(Settings.builder().put("foo.baz", "true").build()));
+
+        try {
+            setting.getConcreteSetting("foo");
+            fail();
+        } catch (IllegalArgumentException ex) {
+            assertEquals("key must match setting but didn't [foo]", ex.getMessage());
+        }
+    }
+
+    public void testMinMaxInt() {
+        Setting<Integer> integerSetting = Setting.intSetting("foo.bar", 1, 0, 10, false, Setting.Scope.CLUSTER);
+        try {
+            integerSetting.get(Settings.builder().put("foo.bar", 11).build());
+            fail();
+        } catch (IllegalArgumentException ex) {
+            assertEquals("Failed to parse value [11] for setting [foo.bar] must be =< 10", ex.getMessage());
+        }
+
+        try {
+            integerSetting.get(Settings.builder().put("foo.bar", -1).build());
+            fail();
+        } catch (IllegalArgumentException ex) {
+            assertEquals("Failed to parse value [-1] for setting [foo.bar] must be >= 0", ex.getMessage());
+        }
+
+        assertEquals(5, integerSetting.get(Settings.builder().put("foo.bar", 5).build()).intValue());
+        assertEquals(1, integerSetting.get(Settings.EMPTY).intValue());
     }
 }

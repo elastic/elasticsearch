@@ -225,7 +225,7 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
             transportServiceAdapter.sent(data.length);
             transportServiceAdapter.onRequestSent(node, requestId, action, request, options);
             targetTransport.workers().execute(() -> {
-                ThreadContext threadContext = threadPool.getThreadContext();
+                ThreadContext threadContext = targetTransport.threadPool.getThreadContext();
                 try (ThreadContext.StoredContext context = threadContext.stashContext()) {
                     targetTransport.messageReceived(data, action, LocalTransport.this, version, requestId);
                 }

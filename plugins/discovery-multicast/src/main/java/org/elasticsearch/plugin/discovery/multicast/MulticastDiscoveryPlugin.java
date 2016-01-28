@@ -57,6 +57,5 @@ public class MulticastDiscoveryPlugin extends Plugin {
         module.registerSetting(MulticastZenPing.BUFFER_SIZE_SETTING);
         module.registerSetting(MulticastZenPing.PING_ENABLED_SETTING);
         module.registerSetting(MulticastZenPing.DEFERE_TO_INTERFACE_SETTING);
-
     }
 }

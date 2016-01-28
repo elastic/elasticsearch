@@ -49,6 +49,7 @@ A number of analysis plugins have been contributed by our community:
 * https://github.com/imotov/elasticsearch-analysis-morphology[Russian and English Morphological Analysis Plugin] (by Igor Motov)
 * https://github.com/medcl/elasticsearch-analysis-pinyin[Pinyin Analysis Plugin] (by Medcl)
 * https://github.com/duydo/elasticsearch-analysis-vietnamese[Vietnamese Analysis Plugin] (by Duy Do)
+* https://github.com/ofir123/elasticsearch-network-analysis[Network Addresses Analysis Plugin] (by Ofir123)
 
 These community plugins appear to have been abandoned:
 

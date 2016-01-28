@@ -71,12 +71,10 @@ import static org.elasticsearch.index.mapper.SourceToParse.source;
 
 public class TermVectorsService  {
 
-    private final MappingUpdatedAction mappingUpdatedAction;
     private final TransportDfsOnlyAction dfsAction;
 
     @Inject
-    public TermVectorsService(MappingUpdatedAction mappingUpdatedAction, TransportDfsOnlyAction dfsAction) {
-        this.mappingUpdatedAction = mappingUpdatedAction;
+    public TermVectorsService(TransportDfsOnlyAction dfsAction) {
         this.dfsAction = dfsAction;
     }
 
@@ -293,15 +291,10 @@ public class TermVectorsService  {
 
     private ParsedDocument parseDocument(IndexShard indexShard, String index, String type, BytesReference doc) throws Throwable {
         MapperService mapperService = indexShard.mapperService();
-
-        // TODO: make parsing not dynamically create fields not in the original mapping
         DocumentMapperForType docMapper = mapperService.documentMapperWithAutoCreate(type);
         ParsedDocument parsedDocument = docMapper.getDocumentMapper().parse(source(doc).index(index).type(type).flyweight(true));
         if (docMapper.getMapping() != null) {
             parsedDocument.addDynamicMappingsUpdate(docMapper.getMapping());
-        }
-        if (parsedDocument.dynamicMappingsUpdate() != null) {
-            mappingUpdatedAction.updateMappingOnMasterSynchronously(index, type, parsedDocument.dynamicMappingsUpdate());
         }
         return parsedDocument;
     }

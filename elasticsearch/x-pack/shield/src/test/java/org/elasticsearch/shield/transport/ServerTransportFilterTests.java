@@ -14,7 +14,7 @@ import org.elasticsearch.shield.authc.AuthenticationService;
 import org.elasticsearch.shield.authz.AuthorizationService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.transport.netty.NettyTransport;
+import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.transport.netty.NettyTransportChannel;
 import org.junit.Before;
 
@@ -41,7 +41,7 @@ public class ServerTransportFilterTests extends ESTestCase {
         authcService = mock(AuthenticationService.class);
         authzService = mock(AuthorizationService.class);
         channel = mock(NettyTransportChannel.class);
-        when(channel.getProfileName()).thenReturn(NettyTransport.DEFAULT_PROFILE);
+        when(channel.getProfileName()).thenReturn(TransportSettings.DEFAULT_PROFILE);
         filter = new ServerTransportFilter.NodeProfile(authcService, authzService, new ShieldActionMapper(), new ThreadContext(Settings.EMPTY), false);
     }
 

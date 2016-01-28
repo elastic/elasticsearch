@@ -18,7 +18,7 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.shield.audit.AuditTrail;
 import org.elasticsearch.shield.license.ShieldLicenseState;
-import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportSettings;
 
 import java.net.InetAddress;
 import java.util.ArrayList;
@@ -103,14 +103,14 @@ public class IPFilter {
         isHttpFilterEnabled = IP_FILTER_ENABLED_HTTP_SETTING.get(settings);
         isIpFilterEnabled = IP_FILTER_ENABLED_SETTING.get(settings);
 
-        this.transportGroups = Transport.TRANSPORT_PROFILES_SETTING.get(settings).getAsGroups(); // this is pretty crazy that we allow this to be updateable!!! - we have to fix this very soon
+        this.transportGroups = TransportSettings.TRANSPORT_PROFILES_SETTING.get(settings).getAsGroups(); // this is pretty crazy that we allow this to be updateable!!! - we have to fix this very soon
         clusterSettings.addSettingsUpdateConsumer(IP_FILTER_ENABLED_HTTP_SETTING, this::setHttpFiltering);
         clusterSettings.addSettingsUpdateConsumer(IP_FILTER_ENABLED_SETTING, this::setTransportFiltering);
         clusterSettings.addSettingsUpdateConsumer(TRANSPORT_FILTER_ALLOW_SETTING, this::setTransportAllowFilter);
         clusterSettings.addSettingsUpdateConsumer(TRANSPORT_FILTER_DENY_SETTING, this::setTransportDenyFilter);
         clusterSettings.addSettingsUpdateConsumer(HTTP_FILTER_ALLOW_SETTING, this::setHttpAllowFilter);
         clusterSettings.addSettingsUpdateConsumer(HTTP_FILTER_DENY_SETTING, this::setHttpDenyFilter);
-        clusterSettings.addSettingsUpdateConsumer(Transport.TRANSPORT_PROFILES_SETTING, this::setTransportProfiles);
+        clusterSettings.addSettingsUpdateConsumer(TransportSettings.TRANSPORT_PROFILES_SETTING, this::setTransportProfiles);
         updateRules();
     }
 

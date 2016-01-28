@@ -19,6 +19,7 @@ import org.elasticsearch.shield.license.ShieldLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.Network;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportSettings;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
@@ -62,7 +63,7 @@ public class IPFilterTests extends ESTestCase {
                 IPFilter.IP_FILTER_ENABLED_SETTING,
                 IPFilter.TRANSPORT_FILTER_ALLOW_SETTING,
                 IPFilter.TRANSPORT_FILTER_DENY_SETTING,
-                Transport.TRANSPORT_PROFILES_SETTING)));
+                TransportSettings.TRANSPORT_PROFILES_SETTING)));
 
         httpTransport = mock(HttpServerTransport.class);
         InetSocketTransportAddress httpAddress = new InetSocketTransportAddress(InetAddress.getLoopbackAddress(), 9200);

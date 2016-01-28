@@ -18,6 +18,7 @@ import org.elasticsearch.shield.license.ShieldLicenseState;
 import org.elasticsearch.shield.transport.filter.IPFilter;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportSettings;
 import org.jboss.netty.channel.Channel;
 import org.jboss.netty.channel.ChannelConfig;
 import org.jboss.netty.channel.ChannelEvent;
@@ -66,7 +67,7 @@ public class IPFilterNettyUpstreamHandlerTests extends ESTestCase {
                 IPFilter.IP_FILTER_ENABLED_SETTING,
                 IPFilter.TRANSPORT_FILTER_ALLOW_SETTING,
                 IPFilter.TRANSPORT_FILTER_DENY_SETTING,
-                Transport.TRANSPORT_PROFILES_SETTING)));
+                TransportSettings.TRANSPORT_PROFILES_SETTING)));
         ShieldLicenseState licenseState = mock(ShieldLicenseState.class);
         when(licenseState.securityEnabled()).thenReturn(true);
         IPFilter ipFilter = new IPFilter(settings, AuditTrail.NOOP, clusterSettings, licenseState);

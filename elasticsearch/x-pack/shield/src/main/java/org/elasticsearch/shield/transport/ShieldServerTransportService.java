@@ -28,7 +28,7 @@ import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.transport.netty.NettyTransport;
+import org.elasticsearch.transport.TransportSettings;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -116,7 +116,7 @@ public class ShieldServerTransportService extends TransportService {
 
     protected Map<String, ServerTransportFilter> initializeProfileFilters() {
         if (!(transport instanceof ShieldNettyTransport)) {
-            return Collections.<String, ServerTransportFilter>singletonMap(NettyTransport.DEFAULT_PROFILE,
+            return Collections.<String, ServerTransportFilter>singletonMap(TransportSettings.DEFAULT_PROFILE,
                     new ServerTransportFilter.NodeProfile(authcService, authzService, actionMapper, threadPool.getThreadContext(), false));
         }
 
@@ -138,11 +138,11 @@ public class ShieldServerTransportService extends TransportService {
             }
         }
 
-        if (!profileFilters.containsKey(NettyTransport.DEFAULT_PROFILE)) {
+        if (!profileFilters.containsKey(TransportSettings.DEFAULT_PROFILE)) {
             final boolean profileSsl = settings.getAsBoolean(TRANSPORT_SSL_SETTING, TRANSPORT_SSL_DEFAULT);
             final boolean clientAuth = SSLClientAuth.parse(settings.get(TRANSPORT_CLIENT_AUTH_SETTING), TRANSPORT_CLIENT_AUTH_DEFAULT).enabled();
             final boolean extractClientCert = profileSsl && clientAuth;
-            profileFilters.put(NettyTransport.DEFAULT_PROFILE, new ServerTransportFilter.NodeProfile(authcService, authzService, actionMapper, threadPool.getThreadContext(), extractClientCert));
+            profileFilters.put(TransportSettings.DEFAULT_PROFILE, new ServerTransportFilter.NodeProfile(authcService, authzService, actionMapper, threadPool.getThreadContext(), extractClientCert));
         }
 
         return Collections.unmodifiableMap(profileFilters);

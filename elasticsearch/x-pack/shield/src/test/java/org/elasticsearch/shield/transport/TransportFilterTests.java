@@ -30,7 +30,7 @@ import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.transport.netty.NettyTransport;
+import org.elasticsearch.transport.TransportSettings;
 import org.mockito.InOrder;
 
 import java.io.IOException;
@@ -95,8 +95,8 @@ public class TransportFilterTests extends ESIntegTestCase {
         targetService.sendRequest(sourceNode, "_action", new Request("trgt_to_src"), new ResponseHandler(new Response("src_to_trgt"), latch));
         await(latch);
 
-        ServerTransportFilter sourceServerFilter = ((InternalPluginServerTransportService)sourceService).transportFilter(NettyTransport.DEFAULT_PROFILE);
-        ServerTransportFilter targetServerFilter = ((InternalPluginServerTransportService)targetService).transportFilter(NettyTransport.DEFAULT_PROFILE);
+        ServerTransportFilter sourceServerFilter = ((InternalPluginServerTransportService) sourceService).transportFilter(TransportSettings.DEFAULT_PROFILE);
+        ServerTransportFilter targetServerFilter = ((InternalPluginServerTransportService) targetService).transportFilter(TransportSettings.DEFAULT_PROFILE);
 
         ClientTransportFilter sourceClientFilter = internalCluster().getInstance(ClientTransportFilter.class, source);
         ClientTransportFilter targetClientFilter = internalCluster().getInstance(ClientTransportFilter.class, target);
@@ -307,7 +307,7 @@ public class TransportFilterTests extends ESIntegTestCase {
 
         @Override
         protected Map<String, ServerTransportFilter> initializeProfileFilters() {
-            return Collections.<String, ServerTransportFilter>singletonMap(NettyTransport.DEFAULT_PROFILE, mock(ServerTransportFilter.NodeProfile.class));
+            return Collections.<String, ServerTransportFilter>singletonMap(TransportSettings.DEFAULT_PROFILE, mock(ServerTransportFilter.NodeProfile.class));
         }
     }
 }

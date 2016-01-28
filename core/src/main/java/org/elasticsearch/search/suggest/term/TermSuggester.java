@@ -31,6 +31,7 @@ import org.elasticsearch.common.text.Text;
 import org.elasticsearch.search.suggest.SuggestContextParser;
 import org.elasticsearch.search.suggest.SuggestUtils;
 import org.elasticsearch.search.suggest.Suggester;
+import org.elasticsearch.search.suggest.SuggestionBuilder;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 
 import java.io.IOException;
@@ -40,7 +41,8 @@ import java.util.List;
 public final class TermSuggester extends Suggester<TermSuggestionContext> {
 
     @Override
-    public TermSuggestion innerExecute(String name, TermSuggestionContext suggestion, IndexSearcher searcher, CharsRefBuilder spare) throws IOException {
+    public TermSuggestion innerExecute(String name, TermSuggestionContext suggestion, IndexSearcher searcher, CharsRefBuilder spare)
+            throws IOException {
         DirectSpellChecker directSpellChecker = SuggestUtils.getDirectSpellChecker(suggestion.getDirectSpellCheckerSettings());
         final IndexReader indexReader = searcher.getIndexReader();
         TermSuggestion response = new TermSuggestion(
@@ -76,7 +78,7 @@ public final class TermSuggester extends Suggester<TermSuggestionContext> {
             @Override
             public void nextToken() {
                 Term term = new Term(field, BytesRef.deepCopyOf(fillBytesRef(new BytesRefBuilder())));
-                result.add(new Token(term, offsetAttr.startOffset(), offsetAttr.endOffset())); 
+                result.add(new Token(term, offsetAttr.startOffset(), offsetAttr.endOffset()));
             }
         }, spare);
        return result;
@@ -94,6 +96,11 @@ public final class TermSuggester extends Suggester<TermSuggestionContext> {
             this.endOffset = endOffset;
         }
 
+    }
+
+    @Override
+    public SuggestionBuilder<?> getBuilderPrototype() {
+        return TermSuggestionBuilder.PROTOTYPE;
     }
 
 }

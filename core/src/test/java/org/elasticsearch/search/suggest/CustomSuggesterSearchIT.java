@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -77,7 +78,9 @@ public class CustomSuggesterSearchIT extends ESIntegTestCase {
         assertThat(suggestions.get(1).getText().string(), is(String.format(Locale.ROOT, "%s-%s-%s-123", randomText, randomField, randomSuffix)));
     }
 
-    class CustomSuggestionBuilder extends SuggestionBuilder<CustomSuggestionBuilder> {
+    static class CustomSuggestionBuilder extends SuggestionBuilder<CustomSuggestionBuilder> {
+
+        public final static CustomSuggestionBuilder PROTOTYPE = new CustomSuggestionBuilder("_na_", "_na_", "_na_");
 
         private String randomField;
         private String randomSuffix;
@@ -120,6 +123,13 @@ public class CustomSuggesterSearchIT extends ESIntegTestCase {
         @Override
         protected int doHashCode() {
             return Objects.hash(randomField, randomSuffix);
+        }
+
+        @Override
+        protected CustomSuggestionBuilder innerFromXContent(QueryParseContext parseContext, String name)
+                throws IOException {
+            // TODO some parsing
+            return new CustomSuggestionBuilder(name, randomField, randomSuffix);
         }
 
     }

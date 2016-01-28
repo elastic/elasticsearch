@@ -71,4 +71,9 @@ public class CustomSuggester extends Suggester<CustomSuggester.CustomSuggestions
             this.options = options;
         }
     }
+
+    @Override
+    public SuggestionBuilder<?> getBuilderPrototype() {
+        return CustomSuggesterSearchIT.CustomSuggestionBuilder.PROTOTYPE;
+    }
 }

@@ -23,6 +23,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.suggest.SuggestionBuilder;
 
 import java.io.IOException;
@@ -45,7 +46,7 @@ import static org.elasticsearch.search.suggest.DirectSpellcheckerSettings.DEFAUL
 public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuilder> {
 
     public static final TermSuggestionBuilder PROTOTYPE = new TermSuggestionBuilder("_na_"); // name doesn't matter
-    static final String SUGGESTION_NAME = "term";
+    private static final String SUGGESTION_NAME = "term";
 
     private SuggestMode suggestMode = SuggestMode.MISSING;
     private Float accuracy = DEFAULT_ACCURACY;
@@ -339,6 +340,11 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
             builder.field("min_doc_freq", minDocFreq);
         }
         return builder;
+    }
+
+    @Override
+    protected TermSuggestionBuilder innerFromXContent(QueryParseContext parseContext, String name) throws IOException {
+        return null;
     }
 
     @Override

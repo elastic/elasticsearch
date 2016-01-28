@@ -97,7 +97,8 @@ public abstract class SmoothingModelTestCase extends ESTestCase {
      * Test that creates new smoothing model from a random test smoothing model and checks both for equality
      */
     public void testFromXContent() throws IOException {
-        QueryParseContext context = new QueryParseContext(new IndicesQueriesRegistry(Settings.settingsBuilder().build(), Collections.emptyMap()));
+        QueryParseContext context = new QueryParseContext(
+                new IndicesQueriesRegistry(Settings.settingsBuilder().build(), Collections.emptyMap()));
         context.parseFieldMatcher(new ParseFieldMatcher(Settings.EMPTY));
 
         SmoothingModel testModel = createTestModel();
@@ -113,7 +114,7 @@ public abstract class SmoothingModelTestCase extends ESTestCase {
         parser.nextToken();  // go to start token, real parsing would do that in the outer element parser
         SmoothingModel prototype = (SmoothingModel) namedWriteableRegistry.getPrototype(SmoothingModel.class,
                 testModel.getWriteableName());
-        SmoothingModel parsedModel = prototype.fromXContent(context);
+        SmoothingModel parsedModel = prototype.innerFromXContent(context);
         assertNotSame(testModel, parsedModel);
         assertEquals(testModel, parsedModel);
         assertEquals(testModel.hashCode(), parsedModel.hashCode());
@@ -134,7 +135,8 @@ public abstract class SmoothingModelTestCase extends ESTestCase {
         writer.addDocument(doc);
         DirectoryReader ir = DirectoryReader.open(writer, false);
 
-        WordScorer wordScorer = testModel.buildWordScorerFactory().newScorer(ir, MultiFields.getTerms(ir , "field"), "field", 0.9d, BytesRefs.toBytesRef(" "));
+        WordScorer wordScorer = testModel.buildWordScorerFactory().newScorer(ir, MultiFields.getTerms(ir, "field"), "field", 0.9d,
+                BytesRefs.toBytesRef(" "));
         assertWordScorer(wordScorer, testModel);
     }
 
@@ -159,35 +161,39 @@ public abstract class SmoothingModelTestCase extends ESTestCase {
      */
     @SuppressWarnings("unchecked")
     public void testEqualsAndHashcode() throws IOException {
-            SmoothingModel firstModel = createTestModel();
-            assertFalse("smoothing model is equal to null", firstModel.equals(null));
-            assertFalse("smoothing model is equal to incompatible type", firstModel.equals(""));
-            assertTrue("smoothing model is not equal to self", firstModel.equals(firstModel));
-            assertThat("same smoothing model's hashcode returns different values if called multiple times", firstModel.hashCode(),
-                    equalTo(firstModel.hashCode()));
-            assertThat("different smoothing models should not be equal", createMutation(firstModel), not(equalTo(firstModel)));
+        SmoothingModel firstModel = createTestModel();
+        assertFalse("smoothing model is equal to null", firstModel.equals(null));
+        assertFalse("smoothing model is equal to incompatible type", firstModel.equals(""));
+        assertTrue("smoothing model is not equal to self", firstModel.equals(firstModel));
+        assertThat("same smoothing model's hashcode returns different values if called multiple times", firstModel.hashCode(),
+                equalTo(firstModel.hashCode()));
+        assertThat("different smoothing models should not be equal", createMutation(firstModel), not(equalTo(firstModel)));
 
-            SmoothingModel secondModel = copyModel(firstModel);
-            assertTrue("smoothing model is not equal to self", secondModel.equals(secondModel));
-            assertTrue("smoothing model is not equal to its copy", firstModel.equals(secondModel));
-            assertTrue("equals is not symmetric", secondModel.equals(firstModel));
-            assertThat("smoothing model copy's hashcode is different from original hashcode", secondModel.hashCode(), equalTo(firstModel.hashCode()));
+        SmoothingModel secondModel = copyModel(firstModel);
+        assertTrue("smoothing model is not equal to self", secondModel.equals(secondModel));
+        assertTrue("smoothing model is not equal to its copy", firstModel.equals(secondModel));
+        assertTrue("equals is not symmetric", secondModel.equals(firstModel));
+        assertThat("smoothing model copy's hashcode is different from original hashcode", secondModel.hashCode(),
+                equalTo(firstModel.hashCode()));
 
-            SmoothingModel thirdModel = copyModel(secondModel);
-            assertTrue("smoothing model is not equal to self", thirdModel.equals(thirdModel));
-            assertTrue("smoothing model is not equal to its copy", secondModel.equals(thirdModel));
-            assertThat("smoothing model copy's hashcode is different from original hashcode", secondModel.hashCode(), equalTo(thirdModel.hashCode()));
-            assertTrue("equals is not transitive", firstModel.equals(thirdModel));
-            assertThat("smoothing model copy's hashcode is different from original hashcode", firstModel.hashCode(), equalTo(thirdModel.hashCode()));
-            assertTrue("equals is not symmetric", thirdModel.equals(secondModel));
-            assertTrue("equals is not symmetric", thirdModel.equals(firstModel));
+        SmoothingModel thirdModel = copyModel(secondModel);
+        assertTrue("smoothing model is not equal to self", thirdModel.equals(thirdModel));
+        assertTrue("smoothing model is not equal to its copy", secondModel.equals(thirdModel));
+        assertThat("smoothing model copy's hashcode is different from original hashcode", secondModel.hashCode(),
+                equalTo(thirdModel.hashCode()));
+        assertTrue("equals is not transitive", firstModel.equals(thirdModel));
+        assertThat("smoothing model copy's hashcode is different from original hashcode", firstModel.hashCode(),
+                equalTo(thirdModel.hashCode()));
+        assertTrue("equals is not symmetric", thirdModel.equals(secondModel));
+        assertTrue("equals is not symmetric", thirdModel.equals(firstModel));
     }
 
     static SmoothingModel copyModel(SmoothingModel original) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             original.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
-                SmoothingModel prototype = (SmoothingModel) namedWriteableRegistry.getPrototype(SmoothingModel.class, original.getWriteableName());
+                SmoothingModel prototype = (SmoothingModel) namedWriteableRegistry.getPrototype(SmoothingModel.class,
+                        original.getWriteableName());
                 return prototype.readFrom(in);
             }
         }

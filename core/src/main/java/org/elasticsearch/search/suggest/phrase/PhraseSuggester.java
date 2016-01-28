@@ -44,6 +44,7 @@ import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option;
 import org.elasticsearch.search.suggest.SuggestContextParser;
 import org.elasticsearch.search.suggest.SuggestUtils;
 import org.elasticsearch.search.suggest.Suggester;
+import org.elasticsearch.search.suggest.SuggestionBuilder;
 import org.elasticsearch.search.suggest.phrase.NoisyChannelSpellChecker.Result;
 
 import java.io.IOException;
@@ -65,14 +66,14 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
     /*
      * More Ideas:
      *   - add ability to find whitespace problems -> we can build a poor mans decompounder with our index based on a automaton?
-     *   - add ability to build different error models maybe based on a confusion matrix?   
+     *   - add ability to build different error models maybe based on a confusion matrix?
      *   - try to combine a token with its subsequent token to find / detect word splits (optional)
      *      - for this to work we need some way to defined the position length of a candidate
      *   - phonetic filters could be interesting here too for candidate selection
      */
     @Override
-    public Suggestion<? extends Entry<? extends Option>> innerExecute(String name, PhraseSuggestionContext suggestion, IndexSearcher searcher,
-            CharsRefBuilder spare) throws IOException {
+    public Suggestion<? extends Entry<? extends Option>> innerExecute(String name, PhraseSuggestionContext suggestion,
+            IndexSearcher searcher, CharsRefBuilder spare) throws IOException {
         double realWordErrorLikelihood = suggestion.realworldErrorLikelyhood();
         final PhraseSuggestion response = new PhraseSuggestion(name, suggestion.getSize());
         final IndexReader indexReader = searcher.getIndexReader();
@@ -84,21 +85,23 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
             DirectSpellChecker directSpellChecker = SuggestUtils.getDirectSpellChecker(generator);
             Terms terms = MultiFields.getTerms(indexReader, generator.field());
             if (terms !=  null) {
-                gens.add(new DirectCandidateGenerator(directSpellChecker, generator.field(), generator.suggestMode(), 
-                        indexReader, realWordErrorLikelihood, generator.size(), generator.preFilter(), generator.postFilter(), terms));    
+                gens.add(new DirectCandidateGenerator(directSpellChecker, generator.field(), generator.suggestMode(),
+                        indexReader, realWordErrorLikelihood, generator.size(), generator.preFilter(), generator.postFilter(), terms));
             }
         }
         final String suggestField = suggestion.getField();
         final Terms suggestTerms = MultiFields.getTerms(indexReader, suggestField);
         if (gens.size() > 0 && suggestTerms != null) {
-            final NoisyChannelSpellChecker checker = new NoisyChannelSpellChecker(realWordErrorLikelihood, suggestion.getRequireUnigram(), suggestion.getTokenLimit());
+            final NoisyChannelSpellChecker checker = new NoisyChannelSpellChecker(realWordErrorLikelihood, suggestion.getRequireUnigram(),
+                    suggestion.getTokenLimit());
             final BytesRef separator = suggestion.separator();
-            WordScorer wordScorer = suggestion.model().newScorer(indexReader, suggestTerms, suggestField, realWordErrorLikelihood, separator);
+            WordScorer wordScorer = suggestion.model().newScorer(indexReader, suggestTerms, suggestField, realWordErrorLikelihood,
+                    separator);
             Result checkerResult;
             try (TokenStream stream = checker.tokenStream(suggestion.getAnalyzer(), suggestion.getText(), spare, suggestion.getField())) {
-                checkerResult = checker.getCorrections(stream, new MultiCandidateGeneratorWrapper(suggestion.getShardSize(),
-                                                                                                         gens.toArray(new CandidateGenerator[gens.size()])), suggestion.maxErrors(),
-                                                              suggestion.getShardSize(), wordScorer, suggestion.confidence(), suggestion.gramSize());
+                checkerResult = checker.getCorrections(stream,
+                        new MultiCandidateGeneratorWrapper(suggestion.getShardSize(), gens.toArray(new CandidateGenerator[gens.size()])),
+                        suggestion.maxErrors(), suggestion.getShardSize(), wordScorer, suggestion.confidence(), suggestion.gramSize());
                 }
 
             PhraseSuggestion.Entry resultEntry = buildResultEntry(suggestion, spare, checkerResult.cutoffScore);
@@ -152,10 +155,15 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
     ScriptService scriptService() {
         return scriptService;
     }
-    
+
     @Override
     public SuggestContextParser getContextParser() {
         return new PhraseSuggestParser(this);
+    }
+
+    @Override
+    public SuggestionBuilder<?> getBuilderPrototype() {
+        return PhraseSuggestionBuilder.PROTOTYPE;
     }
 
 }

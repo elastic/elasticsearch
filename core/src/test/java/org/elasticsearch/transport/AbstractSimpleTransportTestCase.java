@@ -375,7 +375,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
                     @Override
                     public void handleException(TransportException exp) {
-                        assertThat("bad message !!!", equalTo(exp.getCause().getMessage()));
+                        assertThat("runtime_exception: bad message !!!", equalTo(exp.getCause().getMessage()));
                     }
                 });
 
@@ -383,7 +383,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             res.txGet();
             fail("exception should be thrown");
         } catch (Exception e) {
-            assertThat(e.getCause().getMessage(), equalTo("bad message !!!"));
+            assertThat(e.getCause().getMessage(), equalTo("runtime_exception: bad message !!!"));
         }
 
         serviceA.removeHandler("sayHelloException");

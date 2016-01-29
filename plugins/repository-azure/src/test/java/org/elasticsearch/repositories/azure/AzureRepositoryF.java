@@ -119,8 +119,9 @@ public class AzureRepositoryF {
                     IOUtils.close(node);
                 } catch (IOException e) {
                     throw new ElasticsearchException(e);
+                } finally {
+                    latch.countDown();
                 }
-                latch.countDown();
             }
         });
         node.start();

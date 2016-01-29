@@ -50,7 +50,9 @@ public class JvmGcMonitorService extends AbstractLifecycleComponent<JvmGcMonitor
     public final static Setting<Boolean> ENABLED_SETTING = Setting.boolSetting("monitor.jvm.gc.enabled", true, false, Scope.CLUSTER);
     public final static Setting<TimeValue> REFRESH_INTERVAL_SETTING =
         Setting.timeSetting("monitor.jvm.gc.refresh_interval", TimeValue.timeValueSeconds(1), TimeValue.timeValueSeconds(1), false, Scope.CLUSTER);
-    public final static Setting<Settings> GC_SETTING = Setting.groupSetting("monitor.jvm.gc.collector.", false, Scope.CLUSTER);
+
+    private static String GC_COLLECTOR_PREFIX = "monitor.jvm.gc.collector.";
+    public final static Setting<Settings> GC_SETTING = Setting.groupSetting(GC_COLLECTOR_PREFIX, false, Scope.CLUSTER);
 
     static class GcThreshold {
         public final String name;
@@ -87,14 +89,10 @@ public class JvmGcMonitorService extends AbstractLifecycleComponent<JvmGcMonitor
         Map<String, Settings> gcThresholdGroups = GC_SETTING.get(settings).getAsGroups();
         for (Map.Entry<String, Settings> entry : gcThresholdGroups.entrySet()) {
             String name = entry.getKey();
-            TimeValue warn = entry.getValue().getAsTime("warn", null);
-            TimeValue info = entry.getValue().getAsTime("info", null);
-            TimeValue debug = entry.getValue().getAsTime("debug", null);
-            if (warn == null || info == null || debug == null) {
-                logger.warn("ignoring gc_threshold for [{}], missing warn/info/debug values", name);
-            } else {
-                gcThresholds.put(name, new GcThreshold(name, warn.millis(), info.millis(), debug.millis()));
-            }
+            TimeValue warn = getValidThreshold(entry.getValue(), entry.getKey(), "warn");
+            TimeValue info = getValidThreshold(entry.getValue(), entry.getKey(), "info");
+            TimeValue debug = getValidThreshold(entry.getValue(), entry.getKey(), "debug");
+            gcThresholds.put(name, new GcThreshold(name, warn.millis(), info.millis(), debug.millis()));
         }
         gcThresholds.putIfAbsent(GcNames.YOUNG, new GcThreshold(GcNames.YOUNG, 1000, 700, 400));
         gcThresholds.putIfAbsent(GcNames.OLD, new GcThreshold(GcNames.OLD, 10000, 5000, 2000));
@@ -102,6 +100,21 @@ public class JvmGcMonitorService extends AbstractLifecycleComponent<JvmGcMonitor
         this.gcThresholds = unmodifiableMap(gcThresholds);
 
         logger.debug("enabled [{}], interval [{}], gc_threshold [{}]", enabled, interval, this.gcThresholds);
+    }
+
+    private static TimeValue getValidThreshold(Settings settings, String key, String level) {
+        TimeValue threshold = settings.getAsTime(level, null);
+        if (threshold == null) {
+            throw new IllegalArgumentException("missing gc_threshold for [" + getThresholdName(key, level) + "]");
+        }
+        if (threshold.nanos() <= 0) {
+            throw new IllegalArgumentException("invalid gc_threshold [" + threshold + "] for [" + getThresholdName(key, level) + "]");
+        }
+        return threshold;
+    }
+
+    private static String getThresholdName(String key, String level) {
+        return GC_COLLECTOR_PREFIX + key + "." + level;
     }
 
     @Override

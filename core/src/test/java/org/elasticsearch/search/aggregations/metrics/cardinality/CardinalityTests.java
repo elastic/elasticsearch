@@ -25,7 +25,7 @@ import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 public class CardinalityTests extends BaseAggregationTestCase<CardinalityAggregatorBuilder> {
 
     @Override
-    protected final CardinalityAggregatorBuilder createTestAggregatorFactory() {
+    protected final CardinalityAggregatorBuilder createTestAggregatorBuilder() {
         CardinalityAggregatorBuilder factory = new CardinalityAggregatorBuilder("foo", null);
         String field = randomNumericField();
         int randomFieldBranch = randomInt(3);

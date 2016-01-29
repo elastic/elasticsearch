@@ -26,7 +26,7 @@ import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCountAggreg
 public class ValueCountTests extends BaseAggregationTestCase<ValueCountAggregator.ValueCountAggregatorBuilder> {
 
     @Override
-    protected final ValueCountAggregator.ValueCountAggregatorBuilder createTestAggregatorFactory() {
+    protected final ValueCountAggregator.ValueCountAggregatorBuilder createTestAggregatorBuilder() {
         ValueCountAggregator.ValueCountAggregatorBuilder factory = new ValueCountAggregator.ValueCountAggregatorBuilder("foo", null);
         String field = randomNumericField();
         int randomFieldBranch = randomInt(3);

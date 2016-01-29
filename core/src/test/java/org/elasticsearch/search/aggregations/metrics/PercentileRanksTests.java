@@ -26,7 +26,7 @@ import org.elasticsearch.search.aggregations.metrics.percentiles.PercentileRanks
 public class PercentileRanksTests extends BaseAggregationTestCase<PercentileRanksAggregatorBuilder> {
 
     @Override
-    protected PercentileRanksAggregatorBuilder createTestAggregatorFactory() {
+    protected PercentileRanksAggregatorBuilder createTestAggregatorBuilder() {
         PercentileRanksAggregatorBuilder factory = new PercentileRanksAggregatorBuilder(randomAsciiOfLengthBetween(1, 20));
         if (randomBoolean()) {
             factory.keyed(randomBoolean());

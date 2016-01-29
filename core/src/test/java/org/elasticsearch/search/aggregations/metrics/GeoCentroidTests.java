@@ -27,7 +27,7 @@ import org.elasticsearch.search.aggregations.metrics.geocentroid.GeoCentroidAggr
 public class GeoCentroidTests extends BaseAggregationTestCase<GeoCentroidAggregator.GeoCentroidAggregatorBuilder> {
 
     @Override
-    protected GeoCentroidAggregatorBuilder createTestAggregatorFactory() {
+    protected GeoCentroidAggregatorBuilder createTestAggregatorBuilder() {
         GeoCentroidAggregatorBuilder factory = new GeoCentroidAggregatorBuilder(randomAsciiOfLengthBetween(1, 20));
         String field = randomNumericField();
         int randomFieldBranch = randomInt(3);

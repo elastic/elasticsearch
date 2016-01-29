@@ -29,7 +29,7 @@ import org.elasticsearch.search.aggregations.bucket.filters.FiltersAggregator.Ke
 public class FiltersTests extends BaseAggregationTestCase<FiltersAggregator.FiltersAggregatorBuilder> {
 
     @Override
-    protected FiltersAggregatorBuilder createTestAggregatorFactory() {
+    protected FiltersAggregatorBuilder createTestAggregatorBuilder() {
 
         int size = randomIntBetween(1, 20);
         FiltersAggregatorBuilder factory;

@@ -27,7 +27,7 @@ import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Range;
 public class RangeTests extends BaseAggregationTestCase<RangeAggregator.RangeAggregatorBuilder> {
 
     @Override
-    protected RangeAggregatorBuilder createTestAggregatorFactory() {
+    protected RangeAggregatorBuilder createTestAggregatorBuilder() {
         int numRanges = randomIntBetween(1, 10);
         RangeAggregatorBuilder factory = new RangeAggregatorBuilder("foo");
         for (int i = 0; i < numRanges; i++) {

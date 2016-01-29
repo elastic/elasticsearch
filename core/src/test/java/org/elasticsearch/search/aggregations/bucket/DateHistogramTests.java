@@ -28,7 +28,7 @@ import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregato
 public class DateHistogramTests extends BaseAggregationTestCase<DateHistogramAggregatorBuilder> {
 
     @Override
-    protected DateHistogramAggregatorBuilder createTestAggregatorFactory() {
+    protected DateHistogramAggregatorBuilder createTestAggregatorBuilder() {
         DateHistogramAggregatorBuilder factory = new DateHistogramAggregatorBuilder("foo");
         factory.field(INT_FIELD_NAME);
         if (randomBoolean()) {

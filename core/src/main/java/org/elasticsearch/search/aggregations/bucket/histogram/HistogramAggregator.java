@@ -162,9 +162,22 @@ public class HistogramAggregator extends BucketsAggregator {
         Releasables.close(bucketOrds);
     }
 
-    public static class HistogramAggregatorBuilder<AB extends HistogramAggregatorBuilder<AB>> extends ValuesSourceAggregatorBuilder<ValuesSource.Numeric, AB> {
-
+    public static class HistogramAggregatorBuilder extends AbstractBuilder<HistogramAggregatorBuilder> {
         public static final HistogramAggregatorBuilder PROTOTYPE = new HistogramAggregatorBuilder("");
+
+        public HistogramAggregatorBuilder(String name) {
+            super(name, InternalHistogram.HISTOGRAM_FACTORY);
+        }
+
+        @Override
+        protected HistogramAggregatorBuilder createFactoryFromStream(String name, StreamInput in) throws IOException {
+            return new HistogramAggregatorBuilder(name);
+        }
+
+    }
+
+    public static abstract class AbstractBuilder<AB extends AbstractBuilder<AB>>
+            extends ValuesSourceAggregatorBuilder<ValuesSource.Numeric, AB> {
 
         private long interval;
         private long offset = 0;
@@ -174,11 +187,7 @@ public class HistogramAggregator extends BucketsAggregator {
         private ExtendedBounds extendedBounds;
         private final InternalHistogram.Factory<?> histogramFactory;
 
-        public HistogramAggregatorBuilder(String name) {
-            this(name, InternalHistogram.HISTOGRAM_FACTORY);
-        }
-
-        private HistogramAggregatorBuilder(String name, InternalHistogram.Factory<?> histogramFactory) {
+        private AbstractBuilder(String name, InternalHistogram.Factory<?> histogramFactory) {
             super(name, histogramFactory.type(), ValuesSourceType.NUMERIC, histogramFactory.valueType());
             this.histogramFactory = histogramFactory;
         }
@@ -319,7 +328,7 @@ public class HistogramAggregator extends BucketsAggregator {
         @Override
         protected AB innerReadFrom(String name, ValuesSourceType valuesSourceType, ValueType targetValueType, StreamInput in)
                 throws IOException {
-            HistogramAggregatorBuilder<AB> factory = createFactoryFromStream(name, in);
+            AbstractBuilder<AB> factory = createFactoryFromStream(name, in);
             factory.interval = in.readVLong();
             factory.offset = in.readVLong();
             if (in.readBoolean()) {
@@ -333,10 +342,7 @@ public class HistogramAggregator extends BucketsAggregator {
             return (AB) factory;
         }
 
-        protected HistogramAggregatorBuilder<AB> createFactoryFromStream(String name, StreamInput in)
-                throws IOException {
-            return new HistogramAggregatorBuilder<AB>(name);
-        }
+        protected abstract AB createFactoryFromStream(String name, StreamInput in) throws IOException;
 
         @Override
         protected void innerWriteTo(StreamOutput out) throws IOException {
@@ -368,7 +374,7 @@ public class HistogramAggregator extends BucketsAggregator {
 
         @Override
         protected boolean innerEquals(Object obj) {
-            HistogramAggregatorBuilder other = (HistogramAggregatorBuilder) obj;
+            AbstractBuilder other = (AbstractBuilder) obj;
             return Objects.equals(histogramFactory, other.histogramFactory)
                     && Objects.equals(interval, other.interval)
                     && Objects.equals(offset, other.offset)
@@ -379,7 +385,7 @@ public class HistogramAggregator extends BucketsAggregator {
         }
     }
 
-    public static class DateHistogramAggregatorBuilder extends HistogramAggregatorBuilder<DateHistogramAggregatorBuilder> {
+    public static class DateHistogramAggregatorBuilder extends AbstractBuilder<DateHistogramAggregatorBuilder> {
 
         public static final DateHistogramAggregatorBuilder PROTOTYPE = new DateHistogramAggregatorBuilder("");
         public static final Map<String, DateTimeUnit> DATE_FIELD_UNITS;

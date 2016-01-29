@@ -26,7 +26,7 @@ import org.elasticsearch.search.aggregations.bucket.missing.MissingAggregator;
 public class MissingTests extends BaseAggregationTestCase<MissingAggregator.MissingAggregatorBuilder> {
 
     @Override
-    protected final MissingAggregator.MissingAggregatorBuilder createTestAggregatorFactory() {
+    protected final MissingAggregator.MissingAggregatorBuilder createTestAggregatorBuilder() {
         MissingAggregator.MissingAggregatorBuilder factory = new MissingAggregator.MissingAggregatorBuilder("foo", null);
         String field = randomNumericField();
         int randomFieldBranch = randomInt(3);

@@ -31,7 +31,7 @@ import java.util.Map;
 public class ScriptedMetricTests extends BaseAggregationTestCase<ScriptedMetricAggregator.ScriptedMetricAggregatorBuilder> {
 
     @Override
-    protected ScriptedMetricAggregatorBuilder createTestAggregatorFactory() {
+    protected ScriptedMetricAggregatorBuilder createTestAggregatorBuilder() {
         ScriptedMetricAggregatorBuilder factory = new ScriptedMetricAggregatorBuilder(randomAsciiOfLengthBetween(1, 20));
         if (randomBoolean()) {
             factory.initScript(randomScript("initScript"));

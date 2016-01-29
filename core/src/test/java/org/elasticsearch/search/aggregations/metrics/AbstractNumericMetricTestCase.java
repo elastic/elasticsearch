@@ -28,7 +28,7 @@ public abstract class AbstractNumericMetricTestCase<AF extends ValuesSourceAggre
         extends BaseAggregationTestCase<AF> {
 
     @Override
-    protected final AF createTestAggregatorFactory() {
+    protected final AF createTestAggregatorBuilder() {
         AF factory = doCreateTestAggregatorFactory();
         String field = randomNumericField();
         int randomFieldBranch = randomInt(3);

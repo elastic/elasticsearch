@@ -27,7 +27,7 @@ import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregator.Filt
 public class FilterTests extends BaseAggregationTestCase<FilterAggregator.FilterAggregatorBuilder> {
 
     @Override
-    protected FilterAggregatorBuilder createTestAggregatorFactory() {
+    protected FilterAggregatorBuilder createTestAggregatorBuilder() {
         FilterAggregatorBuilder factory = new FilterAggregatorBuilder(randomAsciiOfLengthBetween(1, 20),
                 QueryBuilders.termQuery(randomAsciiOfLengthBetween(5, 20), randomAsciiOfLengthBetween(5, 20)));
         // NORELEASE make RandomQueryBuilder work outside of the

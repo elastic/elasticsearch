@@ -27,7 +27,7 @@ import org.elasticsearch.search.aggregations.bucket.sampler.SamplerAggregator.Ex
 public class DiversifiedSamplerTests extends BaseAggregationTestCase<SamplerAggregator.DiversifiedAggregatorBuilder> {
 
     @Override
-    protected final SamplerAggregator.DiversifiedAggregatorBuilder createTestAggregatorFactory() {
+    protected final SamplerAggregator.DiversifiedAggregatorBuilder createTestAggregatorBuilder() {
         SamplerAggregator.DiversifiedAggregatorBuilder factory = new SamplerAggregator.DiversifiedAggregatorBuilder("foo");
         String field = randomNumericField();
         int randomFieldBranch = randomInt(3);

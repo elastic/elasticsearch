@@ -23,6 +23,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.SearchParseElement;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.internal.SearchContext;
 
 /**
@@ -64,7 +65,8 @@ public class AggregationParseElement implements SearchParseElement {
         QueryParseContext parseContext = new QueryParseContext(queriesRegistry);
         parseContext.reset(parser);
         parseContext.parseFieldMatcher(context.parseFieldMatcher());
-        AggregatorFactories factories = aggregatorParsers.parseAggregators(parser, parseContext);
-        context.aggregations(new SearchContextAggregations(factories));
+        AggregatorFactories.Builder factories = aggregatorParsers.parseAggregators(parser, parseContext);
+        AggregationContext aggContext = new AggregationContext(context);
+        context.aggregations(new SearchContextAggregations(factories.build(aggContext)));
     }
 }

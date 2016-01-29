@@ -37,6 +37,7 @@ import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -302,7 +303,7 @@ public abstract class ValuesSourceAggregatorBuilder<VS extends ValuesSource, AB 
             boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
             throws IOException;
 
-    private void resolveValuesSourceConfigFromAncestors(String aggName, AggregatorFactory parent,
+    private void resolveValuesSourceConfigFromAncestors(String aggName, AggregatorFactory<?> parent,
             ValuesSourceType requiredValuesSourceType) {
         ValuesSourceConfig config;
         while (parent != null) {

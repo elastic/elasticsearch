@@ -234,8 +234,8 @@ public abstract class BasePipelineAggregationTestCase<AF extends PipelineAggrega
 
     public void testFromXContent() throws IOException {
         AF testAgg = createTestAggregatorFactory();
-        AggregatorFactories factories = AggregatorFactories.builder().skipResolveOrder().addPipelineAggregator(testAgg).build();
-        String contentString = factories.toString();
+        AggregatorFactories.Builder factoriesBuilder = AggregatorFactories.builder().skipResolveOrder().addPipelineAggregator(testAgg);
+        String contentString = factoriesBuilder.toString();
         System.out.println(contentString);
         XContentParser parser = XContentFactory.xContent(contentString).createParser(contentString);
         QueryParseContext parseContext = new QueryParseContext(queriesRegistry);

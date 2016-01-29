@@ -219,8 +219,8 @@ public class AggregationBuilders {
     /**
      * Create a new {@link Histogram} aggregation with the given name.
      */
-    public static HistogramAggregatorBuilder<?> histogram(String name) {
-        return new HistogramAggregatorBuilder<>(name);
+    public static HistogramAggregatorBuilder histogram(String name) {
+        return new HistogramAggregatorBuilder(name);
     }
 
     /**

@@ -23,8 +23,8 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 
 /**
- * An TaskListener that just logs the response. Used when we need a listener but
- * don't care to listen for the result.
+ * A TaskListener that just logs the response at the info level. Used when we
+ * need a listener but aren't returning the result to the user.
  */
 public final class LoggingTaskListener<Response> implements TaskListener<Response> {
     private final static ESLogger logger = Loggers.getLogger(LoggingTaskListener.class);

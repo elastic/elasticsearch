@@ -19,11 +19,23 @@
 
 package org.elasticsearch.index.engine;
 
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FilterLeafReader;
+import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SegmentCommitInfo;
+import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.index.SegmentReader;
+import org.apache.lucene.index.SnapshotDeletionPolicy;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SearcherManager;
 import org.apache.lucene.search.join.BitSetProducer;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Accountables;
 import org.elasticsearch.ExceptionsHelper;
@@ -39,6 +51,8 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.common.metrics.CounterMetric;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.ParseContext.Document;
@@ -51,7 +65,12 @@ import org.elasticsearch.index.translog.Translog;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Condition;
@@ -160,10 +179,10 @@ public abstract class Engine implements Closeable {
      * is enabled
      */
     protected static final class IndexThrottle {
-
+        private final CounterMetric throttleTimeMillisMetric = new CounterMetric();
+        private volatile long startOfThrottleNS;
         private static final ReleasableLock NOOP_LOCK = new ReleasableLock(new NoOpLock());
         private final ReleasableLock lockReference = new ReleasableLock(new ReentrantLock());
-
         private volatile ReleasableLock lock = NOOP_LOCK;
 
         public Releasable acquireThrottle() {
@@ -173,6 +192,7 @@ public abstract class Engine implements Closeable {
         /** Activate throttling, which switches the lock to be a real lock */
         public void activate() {
             assert lock == NOOP_LOCK : "throttling activated while already active";
+            startOfThrottleNS = System.nanoTime();
             lock = lockReference;
         }
 
@@ -180,7 +200,45 @@ public abstract class Engine implements Closeable {
         public void deactivate() {
             assert lock != NOOP_LOCK : "throttling deactivated but not active";
             lock = NOOP_LOCK;
+
+            assert startOfThrottleNS > 0 : "Bad state of startOfThrottleNS";
+            long throttleTimeNS = System.nanoTime() - startOfThrottleNS;
+            if (throttleTimeNS >= 0) {
+                // Paranoia (System.nanoTime() is supposed to be monotonic): time slip may have occurred but never want to add a negative number
+                throttleTimeMillisMetric.inc(TimeValue.nsecToMSec(throttleTimeNS));
+            }
         }
+
+        long getThrottleTimeInMillis() {
+            long currentThrottleNS = 0;
+            if (isThrottled() && startOfThrottleNS != 0) {
+                currentThrottleNS +=  System.nanoTime() - startOfThrottleNS;
+                if (currentThrottleNS < 0) {
+                    // Paranoia (System.nanoTime() is supposed to be monotonic): time slip must have happened, have to ignore this value
+                    currentThrottleNS = 0;
+                }
+            }
+            return throttleTimeMillisMetric.count() + TimeValue.nsecToMSec(currentThrottleNS);
+        }
+
+        boolean isThrottled() {
+            return lock != NOOP_LOCK;
+        }
+    }
+
+    /**
+     * Returns the number of milliseconds this engine was under index throttling.
+     */
+    public long getIndexThrottleTimeInMillis() {
+        return 0;
+    }
+
+    /**
+     * Returns the <code>true</code> iff this engine is currently under index throttling.
+     * @see #getIndexThrottleTimeInMillis()
+     */
+    public boolean isThrottled() {
+        return false;
     }
 
     /** A Lock implementation that always allows the lock to be acquired */
@@ -373,8 +431,8 @@ public abstract class Engine implements Closeable {
         stats.addIndexWriterMaxMemoryInBytes(0);
     }
 
-    /** How much heap Lucene's IndexWriter is using */
-    abstract public long indexWriterRAMBytesUsed();
+    /** How much heap is used that would be freed by a refresh.  Note that this may throw {@link AlreadyClosedException}. */
+    abstract public long getIndexBufferRAMBytesUsed();
 
     protected Segment[] getSegmentInfo(SegmentInfos lastCommittedSegmentInfos, boolean verbose) {
         ensureOpen();
@@ -472,10 +530,16 @@ public abstract class Engine implements Closeable {
     }
 
     /**
-     * Refreshes the engine for new search operations to reflect the latest
+     * Synchronously refreshes the engine for new search operations to reflect the latest
      * changes.
      */
     public abstract void refresh(String source) throws EngineException;
+
+    /**
+     * Called when our engine is using too much heap and should move buffered indexed/deleted documents to disk.
+     */
+    // NOTE: do NOT rename this to something containing flush or refresh!
+    public abstract void writeIndexingBuffer() throws EngineException;
 
     /**
      * Flushes the state of the engine including the transaction log, clearing memory.
@@ -900,7 +964,7 @@ public abstract class Engine implements Closeable {
         }
     }
 
-    public static class GetResult {
+    public static class GetResult implements Releasable {
         private final boolean exists;
         private final long version;
         private final Translog.Source source;
@@ -944,6 +1008,11 @@ public abstract class Engine implements Closeable {
 
         public Versions.DocIdAndVersion docIdAndVersion() {
             return docIdAndVersion;
+        }
+
+        @Override
+        public void close() {
+            release();
         }
 
         public void release() {
@@ -1080,4 +1149,14 @@ public abstract class Engine implements Closeable {
          */
         void warm(Engine.Searcher searcher, boolean isTopLevelReader);
     }
+
+    /**
+     * Request that this engine throttle incoming indexing requests to one thread.  Must be matched by a later call to {@link deactivateThrottling}.
+     */
+    public abstract void activateThrottling();
+
+    /**
+     * Reverses a previous {@link #activateThrottling} call.
+     */
+    public abstract void deactivateThrottling();
 }

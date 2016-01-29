@@ -21,7 +21,6 @@ package org.elasticsearch.common.xcontent;
 
 import com.fasterxml.jackson.dataformat.cbor.CBORConstants;
 import com.fasterxml.jackson.dataformat.smile.SmileConstants;
-
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -134,6 +133,9 @@ public class XContentFactory {
      * Returns the {@link org.elasticsearch.common.xcontent.XContent} for the provided content type.
      */
     public static XContent xContent(XContentType type) {
+        if (type == null) {
+            throw new IllegalArgumentException("Cannot get xcontent for unknown type");
+        }
         return type.xContent();
     }
 

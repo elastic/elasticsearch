@@ -45,6 +45,7 @@ org.apache.lucene.search.NumericRangeFilter
 org.apache.lucene.search.PrefixFilter
 org.apache.lucene.search.QueryWrapperFilter
 org.apache.lucene.search.join.BitDocIdSetCachingWrapperFilter
+org.apache.lucene.index.IndexWriter#isLocked(org.apache.lucene.store.Directory)
 
 java.nio.file.Paths @ Use org.elasticsearch.common.io.PathUtils.get() instead.
 java.nio.file.FileSystems#getDefault() @ use org.elasticsearch.common.io.PathUtils.getDefaultFileSystem() instead.
@@ -125,4 +126,6 @@ java.util.Collections#EMPTY_MAP
 java.util.Collections#EMPTY_SET
 
 java.util.Collections#shuffle(java.util.List) @ Use java.util.Collections#shuffle(java.util.List, java.util.Random) with a reproducible source of randomness
-java.util.Random#<init>() @ Use org.elasticsearch.common.random.Randomness#create for reproducible sources of randomness
+@defaultMessage Use org.elasticsearch.common.Randomness#get for reproducible sources of randomness
+java.util.Random#<init>()
+java.util.concurrent.ThreadLocalRandom

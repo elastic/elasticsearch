@@ -23,6 +23,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService.ScriptType;
@@ -123,7 +124,7 @@ public class ScriptedMetricTests extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         Settings settings = Settings.settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put("path.conf", getDataPath("/org/elasticsearch/messy/tests/conf"))
+                .put(Environment.PATH_CONF_SETTING.getKey(), getDataPath("/org/elasticsearch/messy/tests/conf"))
                 .build();
         return settings;
     }
@@ -147,15 +148,15 @@ public class ScriptedMetricTests extends ESIntegTestCase {
         for (Object object : aggregationList) {
             assertThat(object, notNullValue());
             assertThat(object, instanceOf(Map.class));
-            Map<String, Object> map = (Map<String, Object>) object;
+            Map<?, ?> map = (Map<?, ?>) object;
             assertThat(map.size(), lessThanOrEqualTo(1));
             if (map.size() == 1) {
-            assertThat(map.get("count"), notNullValue());
-            assertThat(map.get("count"), instanceOf(Number.class));
-            assertThat((Number) map.get("count"), equalTo((Number) 1));
+                assertThat(map.get("count"), notNullValue());
+                assertThat(map.get("count"), instanceOf(Number.class));
+                assertThat((Number) map.get("count"), equalTo((Number) 1));
                 numShardsRun++;
+            }
         }
-    }
         // We don't know how many shards will have documents but we need to make
         // sure that at least one shard ran the map script
         assertThat(numShardsRun, greaterThan(0));
@@ -740,6 +741,7 @@ public class ScriptedMetricTests extends ESIntegTestCase {
         assertThat(scriptedMetric.getName(), equalTo("scripted"));
         assertThat(scriptedMetric.aggregation(), notNullValue());
         assertThat(scriptedMetric.aggregation(), instanceOf(List.class));
+        @SuppressWarnings("unchecked") // We'll just get a ClassCastException a couple lines down if we're wrong, its ok.
         List<Integer> aggregationResult = (List<Integer>) scriptedMetric.aggregation();
         assertThat(aggregationResult.size(), equalTo(1));
         assertThat(aggregationResult.get(0), equalTo(0));

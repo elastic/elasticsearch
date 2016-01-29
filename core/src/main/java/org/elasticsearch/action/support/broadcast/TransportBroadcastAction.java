@@ -35,8 +35,13 @@ import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.*;
+import org.elasticsearch.transport.BaseTransportResponseHandler;
+import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportRequestHandler;
+import org.elasticsearch.transport.TransportService;
 
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
@@ -45,7 +50,7 @@ import java.util.function.Supplier;
 /**
  *
  */
-public abstract class TransportBroadcastAction<Request extends BroadcastRequest, Response extends BroadcastResponse, ShardRequest extends BroadcastShardRequest, ShardResponse extends BroadcastShardResponse>
+public abstract class TransportBroadcastAction<Request extends BroadcastRequest<Request>, Response extends BroadcastResponse, ShardRequest extends BroadcastShardRequest, ShardResponse extends BroadcastShardResponse>
         extends HandledTransportAction<Request, Response> {
 
     protected final ClusterService clusterService;
@@ -65,8 +70,13 @@ public abstract class TransportBroadcastAction<Request extends BroadcastRequest,
     }
 
     @Override
-    protected void doExecute(Request request, ActionListener<Response> listener) {
-        new AsyncBroadcastAction(request, listener).start();
+    protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
+        new AsyncBroadcastAction(task, request, listener).start();
+    }
+
+    @Override
+    protected final void doExecute(Request request, ActionListener<Response> listener) {
+        throw new UnsupportedOperationException("the task parameter is required for this operation");
     }
 
     protected abstract Response newResponse(Request request, AtomicReferenceArray shardsResponses, ClusterState clusterState);
@@ -89,6 +99,7 @@ public abstract class TransportBroadcastAction<Request extends BroadcastRequest,
 
     protected class AsyncBroadcastAction {
 
+        private final Task task;
         private final Request request;
         private final ActionListener<Response> listener;
         private final ClusterState clusterState;
@@ -98,7 +109,8 @@ public abstract class TransportBroadcastAction<Request extends BroadcastRequest,
         private final AtomicInteger counterOps = new AtomicInteger();
         private final AtomicReferenceArray shardsResponses;
 
-        protected AsyncBroadcastAction(Request request, ActionListener<Response> listener) {
+        protected AsyncBroadcastAction(Task task, Request request, ActionListener<Response> listener) {
+            this.task = task;
             this.request = request;
             this.listener = listener;
 
@@ -154,6 +166,7 @@ public abstract class TransportBroadcastAction<Request extends BroadcastRequest,
             } else {
                 try {
                     final ShardRequest shardRequest = newShardRequest(shardIt.size(), shard, request);
+                    shardRequest.setParentTask(clusterService.localNode().getId(), task.getId());
                     DiscoveryNode node = nodes.get(shard.currentNodeId());
                     if (node == null) {
                         // no node connected, act as failure

@@ -31,6 +31,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -45,8 +46,8 @@ import java.util.Map;
 
 import static org.apache.lucene.index.IndexOptions.NONE;
 import static org.elasticsearch.index.mapper.MapperBuilders.stringField;
-import static org.elasticsearch.index.mapper.core.TypeParsers.parseTextField;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseMultiField;
+import static org.elasticsearch.index.mapper.core.TypeParsers.parseTextField;
 
 public class StringFieldMapper extends FieldMapper implements AllFieldMapper.IncludeInAll {
 
@@ -69,19 +70,8 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
          * values.
          */
         public static final int POSITION_INCREMENT_GAP = 100;
-        public static final int POSITION_INCREMENT_GAP_PRE_2_0 = 0;
 
         public static final int IGNORE_ABOVE = -1;
-
-        /**
-         * The default position_increment_gap for a particular version of Elasticsearch.
-         */
-        public static int positionIncrementGap(Version version) {
-            if (version.before(Version.V_2_0_0_beta1)) {
-                return POSITION_INCREMENT_GAP_PRE_2_0;
-            }
-            return POSITION_INCREMENT_GAP;
-        }
     }
 
     public static class Builder extends FieldMapper.Builder<Builder, StringFieldMapper> {
@@ -157,6 +147,27 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             StringFieldMapper.Builder builder = stringField(name);
+            // hack for the fact that string can't just accept true/false for
+            // the index property and still accepts no/not_analyzed/analyzed
+            final Object index = node.remove("index");
+            if (index != null) {
+                final String normalizedIndex = Strings.toUnderscoreCase(index.toString());
+                switch (normalizedIndex) {
+                case "analyzed":
+                    builder.tokenized(true);
+                    node.put("index", true);
+                    break;
+                case "not_analyzed":
+                    builder.tokenized(false);
+                    node.put("index", true);
+                    break;
+                case "no":
+                    node.put("index", false);
+                    break;
+                default:
+                    throw new IllegalArgumentException("Can't parse [index] value [" + index + "], expected [true], [false], [no], [not_analyzed] or [analyzed]");
+                }
+            }
             parseTextField(builder, name, node, parserContext);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
@@ -175,8 +186,7 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
                     }
                     builder.searchQuotedAnalyzer(analyzer);
                     iterator.remove();
-                } else if (propName.equals("position_increment_gap") ||
-                        parserContext.indexVersionCreated().before(Version.V_2_0_0) && propName.equals("position_offset_gap")) {
+                } else if (propName.equals("position_increment_gap")) {
                     int newPositionIncrementGap = XContentMapValues.nodeIntegerValue(propNode, -1);
                     if (newPositionIncrementGap < 0) {
                         throw new MapperParsingException("positions_increment_gap less than 0 aren't allowed.");
@@ -248,7 +258,7 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
                                 Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
         if (fieldType.tokenized() && fieldType.indexOptions() != NONE && fieldType().hasDocValues()) {
-            throw new MapperParsingException("Field [" + fieldType.names().fullName() + "] cannot be analyzed and have doc values");
+            throw new MapperParsingException("Field [" + fieldType.name() + "] cannot be analyzed and have doc values");
         }
         this.positionIncrementGap = positionIncrementGap;
         this.ignoreAbove = ignoreAbove;
@@ -315,19 +325,16 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
             return;
         }
         if (context.includeInAll(includeInAll, this)) {
-            context.allEntries().addText(fieldType().names().fullName(), valueAndBoost.value(), valueAndBoost.boost());
+            context.allEntries().addText(fieldType().name(), valueAndBoost.value(), valueAndBoost.boost());
         }
 
         if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
-            Field field = new Field(fieldType().names().indexName(), valueAndBoost.value(), fieldType());
+            Field field = new Field(fieldType().name(), valueAndBoost.value(), fieldType());
             field.setBoost(valueAndBoost.boost());
             fields.add(field);
         }
         if (fieldType().hasDocValues()) {
-            fields.add(new SortedSetDocValuesField(fieldType().names().indexName(), new BytesRef(valueAndBoost.value())));
-        }
-        if (fields.isEmpty()) {
-            context.ignoredValue(fieldType().names().indexName(), valueAndBoost.value());
+            fields.add(new SortedSetDocValuesField(fieldType().name(), new BytesRef(valueAndBoost.value())));
         }
     }
 
@@ -341,13 +348,14 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
      */
     public static ValueAndBoost parseCreateFieldForString(ParseContext context, String nullValue, float defaultBoost) throws IOException {
         if (context.externalValueSet()) {
-            return new ValueAndBoost((String) context.externalValue(), defaultBoost);
+            return new ValueAndBoost(context.externalValue().toString(), defaultBoost);
         }
         XContentParser parser = context.parser();
         if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
             return new ValueAndBoost(nullValue, defaultBoost);
         }
-        if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
+        if (parser.currentToken() == XContentParser.Token.START_OBJECT
+                && Version.indexCreated(context.indexSettings()).before(Version.V_3_0_0)) {
             XContentParser.Token token;
             String currentFieldName = null;
             String value = nullValue;
@@ -380,6 +388,17 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
         super.doMerge(mergeWith, updateAllTypes);
         this.includeInAll = ((StringFieldMapper) mergeWith).includeInAll;
         this.ignoreAbove = ((StringFieldMapper) mergeWith).ignoreAbove;
+    }
+
+    @Override
+    protected String indexTokenizeOption(boolean indexed, boolean tokenized) {
+        if (!indexed) {
+            return "no";
+        } else if (tokenized) {
+            return "analyzed";
+        } else {
+            return "not_analyzed";
+        }
     }
 
     @Override

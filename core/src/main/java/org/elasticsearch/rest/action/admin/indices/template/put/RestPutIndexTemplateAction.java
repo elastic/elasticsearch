@@ -23,7 +23,10 @@ import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRespo
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
 
 /**
@@ -33,7 +36,7 @@ public class RestPutIndexTemplateAction extends BaseRestHandler {
 
     @Inject
     public RestPutIndexTemplateAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+        super(settings, client);
         controller.registerHandler(RestRequest.Method.PUT, "/_template/{name}", this);
         controller.registerHandler(RestRequest.Method.POST, "/_template/{name}", this);
     }

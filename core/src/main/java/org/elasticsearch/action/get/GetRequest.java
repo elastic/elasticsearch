@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.get;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.RealtimeRequest;
 import org.elasticsearch.action.ValidateActions;
@@ -49,6 +48,7 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
     private String type;
     private String id;
     private String routing;
+    private String parent;
     private String preference;
 
     private String[] fields;
@@ -71,12 +71,12 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
      * Copy constructor that creates a new get request that is a copy of the one provided as an argument.
      * The new request will inherit though headers and context from the original request that caused it.
      */
-    public GetRequest(GetRequest getRequest, ActionRequest originalRequest) {
-        super(originalRequest);
+    public GetRequest(GetRequest getRequest) {
         this.index = getRequest.index;
         this.type = getRequest.type;
         this.id = getRequest.id;
         this.routing = getRequest.routing;
+        this.parent = getRequest.parent;
         this.preference = getRequest.preference;
         this.fields = getRequest.fields;
         this.fetchSourceContext = getRequest.fetchSourceContext;
@@ -94,14 +94,6 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
     public GetRequest(String index) {
         super(index);
         this.type = "_all";
-    }
-
-    /**
-     * Constructs a new get request starting from the provided request, meaning that it will
-     * inherit its headers and context, and against the specified index.
-     */
-    public GetRequest(ActionRequest request, String index) {
-        super(request, index);
     }
 
     /**
@@ -153,13 +145,17 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
     }
 
     /**
-     * Sets the parent id of this document. Will simply set the routing to this value, as it is only
-     * used for routing with delete requests.
+     * @return The parent for this request.
+     */
+    public String parent() {
+        return parent;
+    }
+
+    /**
+     * Sets the parent id of this document.
      */
     public GetRequest parent(String parent) {
-        if (routing == null) {
-            routing = parent;
-        }
+        this.parent = parent;
         return this;
     }
 
@@ -291,6 +287,7 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
         type = in.readString();
         id = in.readString();
         routing = in.readOptionalString();
+        parent = in.readOptionalString();
         preference = in.readOptionalString();
         refresh = in.readBoolean();
         int size = in.readInt();
@@ -320,6 +317,7 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
         out.writeString(type);
         out.writeString(id);
         out.writeOptionalString(routing);
+        out.writeOptionalString(parent);
         out.writeOptionalString(preference);
 
         out.writeBoolean(refresh);

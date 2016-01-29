@@ -65,8 +65,6 @@ import org.elasticsearch.snapshots.SnapshotShardFailure;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
-import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -350,12 +348,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
                 if (metaData != null) {
                     IndexMetaData indexMetaData = metaData.index(index);
                     if (indexMetaData != null) {
-                        for (int i = 0; i < indexMetaData.getNumberOfShards(); i++) {
-                            ShardId shardId = new ShardId(index, i);
+                        for (int shardId = 0; shardId < indexMetaData.getNumberOfShards(); shardId++) {
                             try {
-                                indexShardRepository.delete(snapshotId, snapshot.version(), shardId);
+                                indexShardRepository.delete(snapshotId, snapshot.version(), new ShardId(indexMetaData.getIndex(), shardId));
                             } catch (SnapshotException ex) {
-                                logger.warn("[{}] failed to delete shard data for shard [{}]", ex, snapshotId, shardId);
+                                logger.warn("[{}] failed to delete shard data for shard [{}][{}]", ex, snapshotId, index, shardId);
                             }
                         }
                     }

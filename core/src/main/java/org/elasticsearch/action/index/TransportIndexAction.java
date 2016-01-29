@@ -48,6 +48,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -84,19 +85,19 @@ public class TransportIndexAction extends TransportReplicationAction<IndexReques
     }
 
     @Override
-    protected void doExecute(final IndexRequest request, final ActionListener<IndexResponse> listener) {
+    protected void doExecute(Task task, final IndexRequest request, final ActionListener<IndexResponse> listener) {
         // if we don't have a master, we don't have metadata, that's fine, let it find a master using create index API
         ClusterState state = clusterService.state();
         if (autoCreateIndex.shouldAutoCreate(request.index(), state)) {
-            CreateIndexRequest createIndexRequest = new CreateIndexRequest(request);
+            CreateIndexRequest createIndexRequest = new CreateIndexRequest();
             createIndexRequest.index(request.index());
             createIndexRequest.mapping(request.type());
             createIndexRequest.cause("auto(index api)");
             createIndexRequest.masterNodeTimeout(request.timeout());
-            createIndexAction.execute(createIndexRequest, new ActionListener<CreateIndexResponse>() {
+            createIndexAction.execute(task, createIndexRequest, new ActionListener<CreateIndexResponse>() {
                 @Override
                 public void onResponse(CreateIndexResponse result) {
-                    innerExecute(request, listener);
+                    innerExecute(task, request, listener);
                 }
 
                 @Override
@@ -104,7 +105,7 @@ public class TransportIndexAction extends TransportReplicationAction<IndexReques
                     if (ExceptionsHelper.unwrapCause(e) instanceof IndexAlreadyExistsException) {
                         // we have the index, do it
                         try {
-                            innerExecute(request, listener);
+                            innerExecute(task, request, listener);
                         } catch (Throwable e1) {
                             listener.onFailure(e1);
                         }
@@ -114,7 +115,7 @@ public class TransportIndexAction extends TransportReplicationAction<IndexReques
                 }
             });
         } else {
-            innerExecute(request, listener);
+            innerExecute(task, request, listener);
         }
     }
 
@@ -129,8 +130,8 @@ public class TransportIndexAction extends TransportReplicationAction<IndexReques
         request.setShardId(shardId);
     }
 
-    private void innerExecute(final IndexRequest request, final ActionListener<IndexResponse> listener) {
-        super.doExecute(request, listener);
+    private void innerExecute(Task task, final IndexRequest request, final ActionListener<IndexResponse> listener) {
+        super.doExecute(task, request, listener);
     }
 
     @Override
@@ -146,7 +147,7 @@ public class TransportIndexAction extends TransportReplicationAction<IndexReques
         MappingMetaData mappingMd = indexMetaData.mappingOrDefault(request.type());
         if (mappingMd != null && mappingMd.routing().required()) {
             if (request.routing() == null) {
-                throw new RoutingMissingException(request.shardId().getIndex(), request.type(), request.id());
+                throw new RoutingMissingException(request.shardId().getIndex().getName(), request.type(), request.id());
             }
         }
 
@@ -176,7 +177,7 @@ public class TransportIndexAction extends TransportReplicationAction<IndexReques
      */
     public static Engine.Index executeIndexRequestOnReplica(IndexRequest request, IndexShard indexShard) {
         final ShardId shardId = indexShard.shardId();
-        SourceToParse sourceToParse = SourceToParse.source(SourceToParse.Origin.REPLICA, request.source()).index(shardId.getIndex()).type(request.type()).id(request.id())
+        SourceToParse sourceToParse = SourceToParse.source(SourceToParse.Origin.REPLICA, request.source()).index(shardId.getIndexName()).type(request.type()).id(request.id())
                 .routing(request.routing()).parent(request.parent()).timestamp(request.timestamp()).ttl(request.ttl());
 
         final Engine.Index operation = indexShard.prepareIndexOnReplica(sourceToParse, request.version(), request.versionType());
@@ -204,7 +205,7 @@ public class TransportIndexAction extends TransportReplicationAction<IndexReques
         Mapping update = operation.parsedDoc().dynamicMappingsUpdate();
         final ShardId shardId = indexShard.shardId();
         if (update != null) {
-            final String indexName = shardId.getIndex();
+            final String indexName = shardId.getIndexName();
             mappingUpdatedAction.updateMappingOnMasterSynchronously(indexName, request.type(), update);
             operation = prepareIndexOperationOnPrimary(request, indexShard);
             update = operation.parsedDoc().dynamicMappingsUpdate();

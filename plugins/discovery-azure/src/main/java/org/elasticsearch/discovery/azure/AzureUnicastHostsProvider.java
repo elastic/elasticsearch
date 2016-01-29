@@ -19,8 +19,11 @@
 
 package org.elasticsearch.discovery.azure;
 
-import com.microsoft.windowsazure.management.compute.models.*;
-
+import com.microsoft.windowsazure.management.compute.models.DeploymentSlot;
+import com.microsoft.windowsazure.management.compute.models.DeploymentStatus;
+import com.microsoft.windowsazure.management.compute.models.HostedServiceGetDetailedResponse;
+import com.microsoft.windowsazure.management.compute.models.InstanceEndpoint;
+import com.microsoft.windowsazure.management.compute.models.RoleInstance;
 import org.elasticsearch.Version;
 import org.elasticsearch.cloud.azure.AzureServiceDisableException;
 import org.elasticsearch.cloud.azure.AzureServiceRemoteException;
@@ -41,7 +44,6 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
-import java.util.Locale;
 import java.util.List;
 
 /**
@@ -65,7 +67,7 @@ public class AzureUnicastHostsProvider extends AbstractComponent implements Unic
                     return hostType;
                 }
             }
-            return null;
+            throw new IllegalArgumentException("invalid value for host type [" + type + "]");
         }
     }
 
@@ -115,16 +117,9 @@ public class AzureUnicastHostsProvider extends AbstractComponent implements Unic
         this.networkService = networkService;
         this.version = version;
 
-        this.refreshInterval = settings.getAsTime(Discovery.REFRESH, TimeValue.timeValueSeconds(0));
+        this.refreshInterval = Discovery.REFRESH_SETTING.get(settings);
 
-        String strHostType = settings.get(Discovery.HOST_TYPE, HostType.PRIVATE_IP.name()).toUpperCase(Locale.ROOT);
-        HostType tmpHostType = HostType.fromString(strHostType);
-        if (tmpHostType == null) {
-            logger.warn("wrong value for [{}]: [{}]. falling back to [{}]...", Discovery.HOST_TYPE,
-                    strHostType, HostType.PRIVATE_IP.name().toLowerCase(Locale.ROOT));
-            tmpHostType = HostType.PRIVATE_IP;
-        }
-        this.hostType = tmpHostType;
+        this.hostType = Discovery.HOST_TYPE_SETTING.get(settings);
         this.publicEndpointName = settings.get(Discovery.ENDPOINT_NAME, "elasticsearch");
 
         // Deployment name could be set with discovery.azure.deployment.name

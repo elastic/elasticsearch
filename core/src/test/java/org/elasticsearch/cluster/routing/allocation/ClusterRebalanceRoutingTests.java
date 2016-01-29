@@ -28,7 +28,6 @@ import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
-import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
@@ -37,7 +36,10 @@ import org.elasticsearch.test.gateway.NoopGatewayAllocator;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.elasticsearch.cluster.routing.ShardRoutingState.*;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
@@ -127,7 +129,7 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
         routingNodes = clusterState.getRoutingNodes();
 
         assertThat(routingNodes.node("node3").size(), equalTo(1));
-        assertThat(routingNodes.node("node3").get(0).shardId().index().name(), equalTo("test1"));
+        assertThat(routingNodes.node("node3").get(0).shardId().getIndex().getName(), equalTo("test1"));
     }
 
 
@@ -232,7 +234,7 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
         routingNodes = clusterState.getRoutingNodes();
 
         assertThat(routingNodes.node("node3").size(), equalTo(1));
-        assertThat(routingNodes.node("node3").get(0).shardId().index().name(), equalTo("test1"));
+        assertThat(routingNodes.node("node3").get(0).shardId().getIndex().getName(), equalTo("test1"));
     }
 
     public void testClusterPrimariesActive2() {
@@ -439,7 +441,7 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
         routingNodes = clusterState.getRoutingNodes();
 
         assertThat(routingNodes.node("node3").size(), equalTo(1));
-        assertThat(routingNodes.node("node3").get(0).shardId().index().name(), anyOf(equalTo("test1"), equalTo("test2")));
+        assertThat(routingNodes.node("node3").get(0).shardId().getIndex().getName(), anyOf(equalTo("test1"), equalTo("test2")));
     }
 
     public void testClusterAllActive2() {
@@ -640,7 +642,7 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
                     RoutingNodes.UnassignedShards.UnassignedIterator iterator = unassigned.iterator();
                     while (iterator.hasNext()) {
                         ShardRouting next = iterator.next();
-                        if ("test1".equals(next.index())) {
+                        if ("test1".equals(next.index().getName())) {
                             iterator.removeAndIgnore();
                         }
 
@@ -750,7 +752,7 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
 
         MetaData metaData = MetaData.builder()
                 .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(2).numberOfReplicas(0))
-                .put(IndexMetaData.builder("test1").settings(settings(Version.CURRENT).put(FilterAllocationDecider.INDEX_ROUTING_EXCLUDE_GROUP + "_id", "node1,node2")).numberOfShards(2).numberOfReplicas(0))
+                .put(IndexMetaData.builder("test1").settings(settings(Version.CURRENT).put(IndexMetaData.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + "_id", "node1,node2")).numberOfShards(2).numberOfReplicas(0))
                 .build();
 
         // we use a second index here (test1) that never gets assigned otherwise allocateUnassinged is never called if we don't have unassigned shards.

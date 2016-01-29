@@ -46,7 +46,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.lenientNodeBooleanValue;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeMapValue;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseTextField;
 
@@ -91,7 +91,7 @@ public class AllFieldMapper extends MetadataFieldMapper {
         static {
             FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
             FIELD_TYPE.setTokenized(true);
-            FIELD_TYPE.setNames(new MappedFieldType.Names(NAME));
+            FIELD_TYPE.setName(NAME);
             FIELD_TYPE.freeze();
         }
     }
@@ -133,7 +133,7 @@ public class AllFieldMapper extends MetadataFieldMapper {
             // the AllFieldMapper ctor in the builder since it is not valid. Here we validate
             // the doc values settings (old and new) are rejected
             Object docValues = node.get("doc_values");
-            if (docValues != null && nodeBooleanValue(docValues)) {
+            if (docValues != null && lenientNodeBooleanValue(docValues)) {
                 throw new MapperParsingException("Field [" + name + "] is always tokenized and cannot have doc values");
             }
             // convoluted way of specifying doc values
@@ -152,10 +152,7 @@ public class AllFieldMapper extends MetadataFieldMapper {
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());
                 Object fieldNode = entry.getValue();
                 if (fieldName.equals("enabled")) {
-                    builder.enabled(nodeBooleanValue(fieldNode) ? EnabledAttributeMapper.ENABLED : EnabledAttributeMapper.DISABLED);
-                    iterator.remove();
-                } else if (fieldName.equals("auto_boost") && parserContext.indexVersionCreated().before(Version.V_2_0_0_beta1)) {
-                    // Old 1.x setting which is now ignored
+                    builder.enabled(lenientNodeBooleanValue(fieldNode) ? EnabledAttributeMapper.ENABLED : EnabledAttributeMapper.DISABLED);
                     iterator.remove();
                 }
             }
@@ -246,7 +243,7 @@ public class AllFieldMapper extends MetadataFieldMapper {
         // reset the entries
         context.allEntries().reset();
         Analyzer analyzer = findAnalyzer(context);
-        fields.add(new AllField(fieldType().names().indexName(), context.allEntries(), analyzer, fieldType()));
+        fields.add(new AllField(fieldType().name(), context.allEntries(), analyzer, fieldType()));
     }
 
     private Analyzer findAnalyzer(ParseContext context) {
@@ -323,7 +320,7 @@ public class AllFieldMapper extends MetadataFieldMapper {
     @Override
     protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
         if (((AllFieldMapper)mergeWith).enabled() != this.enabled() && ((AllFieldMapper)mergeWith).enabledState != Defaults.ENABLED) {
-            throw new IllegalArgumentException("mapper [" + fieldType().names().fullName() + "] enabled is " + this.enabled() + " now encountering "+ ((AllFieldMapper)mergeWith).enabled());
+            throw new IllegalArgumentException("mapper [" + fieldType().name() + "] enabled is " + this.enabled() + " now encountering "+ ((AllFieldMapper)mergeWith).enabled());
         }
         super.doMerge(mergeWith, updateAllTypes);
     }

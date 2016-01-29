@@ -56,17 +56,25 @@ import org.elasticsearch.test.disruption.BlockClusterStateProcessing;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 
 /**
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0, transportClientRatio = 0)
 @ESIntegTestCase.SuppressLocalMode
+@TestLogging("_root:DEBUG")
 public class RareClusterStateIT extends ESIntegTestCase {
     @Override
     protected int numberOfShards() {
@@ -96,7 +104,6 @@ public class RareClusterStateIT extends ESIntegTestCase {
         allocator.allocateUnassigned(routingAllocation);
     }
 
-    @TestLogging("gateway:TRACE")
     public void testAssignmentWithJustAddedNodes() throws Exception {
         internalCluster().startNode();
         final String index = "index";
@@ -160,11 +167,10 @@ public class RareClusterStateIT extends ESIntegTestCase {
         });
     }
 
-    @TestLogging("cluster.service:TRACE")
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/14932")
     public void testDeleteCreateInOneBulk() throws Exception {
         internalCluster().startNodesAsync(2, Settings.builder()
-                .put(DiscoveryModule.DISCOVERY_TYPE_KEY, "zen")
+                .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "zen")
                 .build()).get();
         assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes("2").get().isTimedOut());
         prepareCreate("test").setSettings(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, true).addMapping("type").get();

@@ -37,7 +37,7 @@ import java.net.InetSocketAddress;
 import java.util.Random;
 import java.util.Set;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
 /**
  * Base test cluster that exposes the basis to run tests against any elasticsearch cluster, whose layout
@@ -147,7 +147,7 @@ public abstract class TestCluster implements Iterable<Client>, Closeable {
                     ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().execute().actionGet();
                     ObjectArrayList<String> concreteIndices = new ObjectArrayList<>();
                     for (IndexMetaData indexMetaData : clusterStateResponse.getState().metaData()) {
-                        concreteIndices.add(indexMetaData.getIndex());
+                        concreteIndices.add(indexMetaData.getIndex().getName());
                     }
                     if (!concreteIndices.isEmpty()) {
                         assertAcked(client().admin().indices().prepareDelete(concreteIndices.toArray(String.class)));

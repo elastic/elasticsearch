@@ -22,7 +22,6 @@ package org.elasticsearch.cluster;
 import com.carrotsearch.hppc.ObjectContainer;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.cluster.ClusterState.Custom;
 import org.elasticsearch.cluster.metadata.SnapshotId;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -163,7 +162,7 @@ public class SnapshotsInProgress extends AbstractDiffable<Custom> implements Cus
                     List<ShardId> waitingShards = waitingIndicesMap.get(entry.key.getIndex());
                     if (waitingShards == null) {
                         waitingShards = new ArrayList<>();
-                        waitingIndicesMap.put(entry.key.getIndex(), waitingShards);
+                        waitingIndicesMap.put(entry.key.getIndexName(), waitingShards);
                     }
                     waitingShards.add(entry.key);
                 }

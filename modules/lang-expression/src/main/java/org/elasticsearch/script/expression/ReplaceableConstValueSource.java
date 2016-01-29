@@ -19,12 +19,12 @@
 
 package org.elasticsearch.script.expression;
 
+import java.io.IOException;
+import java.util.Map;
+
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.queries.function.FunctionValues;
 import org.apache.lucene.queries.function.ValueSource;
-
-import java.io.IOException;
-import java.util.Map;
 
 /**
  * A {@link ValueSource} which has a stub {@link FunctionValues} that holds a dynamically replaceable constant double.
@@ -37,6 +37,7 @@ class ReplaceableConstValueSource extends ValueSource {
     }
 
     @Override
+    @SuppressWarnings("rawtypes") // ValueSource uses a rawtype
     public FunctionValues getValues(Map map, LeafReaderContext atomicReaderContext) throws IOException {
         return fv;
     }

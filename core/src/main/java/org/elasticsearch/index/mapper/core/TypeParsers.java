@@ -28,16 +28,17 @@ import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.loader.SettingsLoader;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType.Loading;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
+import org.elasticsearch.index.similarity.SimilarityProvider;
+import org.elasticsearch.index.similarity.SimilarityService;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -45,7 +46,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.isArray;
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.lenientNodeBooleanValue;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeFloatValue;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeIntegerValue;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeMapValue;
@@ -56,93 +57,19 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeSt
  */
 public class TypeParsers {
 
-    public static final String MULTI_FIELD_CONTENT_TYPE = "multi_field";
-    public static final Mapper.TypeParser multiFieldConverterTypeParser = new Mapper.TypeParser() {
-
-        @Override
-        public Mapper.Builder<?, ?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            FieldMapper.Builder mainFieldBuilder = null;
-            List<FieldMapper.Builder> fields = null;
-            String firstType = null;
-
-            for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
-                Map.Entry<String, Object> entry = iterator.next();
-                String fieldName = Strings.toUnderscoreCase(entry.getKey());
-                Object fieldNode = entry.getValue();
-                if (fieldName.equals("fields")) {
-                    Map<String, Object> fieldsNode = (Map<String, Object>) fieldNode;
-                    for (Iterator<Map.Entry<String, Object>> fieldsIterator = fieldsNode.entrySet().iterator(); fieldsIterator.hasNext();) {
-                        Map.Entry<String, Object> entry1 = fieldsIterator.next();
-                        String propName = entry1.getKey();
-                        Map<String, Object> propNode = (Map<String, Object>) entry1.getValue();
-
-                        String type;
-                        Object typeNode = propNode.get("type");
-                        if (typeNode != null) {
-                            type = typeNode.toString();
-                            if (firstType == null) {
-                                firstType = type;
-                            }
-                        } else {
-                            throw new MapperParsingException("no type specified for property [" + propName + "]");
-                        }
-
-                        Mapper.TypeParser typeParser = parserContext.typeParser(type);
-                        if (typeParser == null) {
-                            throw new MapperParsingException("no handler for type [" + type + "] declared on field [" + fieldName + "]");
-                        }
-                        if (propName.equals(name)) {
-                            mainFieldBuilder = (FieldMapper.Builder) typeParser.parse(propName, propNode, parserContext);
-                            fieldsIterator.remove();
-                        } else {
-                            if (fields == null) {
-                                fields = new ArrayList<>(2);
-                            }
-                            fields.add((FieldMapper.Builder) typeParser.parse(propName, propNode, parserContext));
-                            fieldsIterator.remove();
-                        }
-                    }
-                    fieldsNode.remove("type");
-                    DocumentMapperParser.checkNoRemainingFields(fieldName, fieldsNode, parserContext.indexVersionCreated());
-                    iterator.remove();
-                }
-            }
-
-            if (mainFieldBuilder == null) {
-                if (fields == null) {
-                    // No fields at all were specified in multi_field, so lets return a non indexed string field.
-                    return new StringFieldMapper.Builder(name).index(false);
-                }
-                Mapper.TypeParser typeParser = parserContext.typeParser(firstType);
-                if (typeParser == null) {
-                    // The first multi field's type is unknown
-                    mainFieldBuilder = new StringFieldMapper.Builder(name).index(false);
-                } else {
-                    Mapper.Builder substitute = typeParser.parse(name, Collections.<String, Object>emptyMap(), parserContext);
-                    if (substitute instanceof FieldMapper.Builder) {
-                        mainFieldBuilder = ((FieldMapper.Builder) substitute).index(false);
-                    } else {
-                        // The first multi isn't a core field type
-                        mainFieldBuilder =  new StringFieldMapper.Builder(name).index(false);
-                    }
-                }
-            }
-
-            if (fields != null) {
-                for (Mapper.Builder field : fields) {
-                    mainFieldBuilder.addMultiField(field);
-                }
-            }
-            return mainFieldBuilder;
-        }
-
-    };
-
     public static final String DOC_VALUES = "doc_values";
     public static final String INDEX_OPTIONS_DOCS = "docs";
     public static final String INDEX_OPTIONS_FREQS = "freqs";
     public static final String INDEX_OPTIONS_POSITIONS = "positions";
     public static final String INDEX_OPTIONS_OFFSETS = "offsets";
+
+    private static boolean nodeBooleanValue(Object node, Mapper.TypeParser.ParserContext parserContext) {
+        if (parserContext.indexVersionCreated().onOrAfter(Version.V_3_0_0)) {
+            return XContentMapValues.nodeBooleanValue(node);
+        } else {
+            return XContentMapValues.lenientNodeBooleanValue(node);
+        }
+    }
 
     public static void parseNumberField(NumberFieldMapper.Builder builder, String name, Map<String, Object> numberNode, Mapper.TypeParser.ParserContext parserContext) {
         parseField(builder, name, numberNode, parserContext);
@@ -154,16 +81,17 @@ public class TypeParsers {
                 builder.precisionStep(nodeIntegerValue(propNode));
                 iterator.remove();
             } else if (propName.equals("ignore_malformed")) {
-                builder.ignoreMalformed(nodeBooleanValue(propNode));
+                builder.ignoreMalformed(nodeBooleanValue(propNode, parserContext));
                 iterator.remove();
             } else if (propName.equals("coerce")) {
-                builder.coerce(nodeBooleanValue(propNode));
+                builder.coerce(nodeBooleanValue(propNode, parserContext));
                 iterator.remove();
             } else if (propName.equals("omit_norms")) {
-                builder.omitNorms(nodeBooleanValue(propNode));
+                builder.omitNorms(nodeBooleanValue(propNode, parserContext));
                 iterator.remove();
             } else if (propName.equals("similarity")) {
-                builder.similarity(parserContext.getSimilarity(propNode.toString()));
+                SimilarityProvider similarityProvider = resolveSimilarity(parserContext, name, propNode.toString());
+                builder.similarity(similarityProvider);
                 iterator.remove();
             } else if (parseMultiField(builder, name, parserContext, propName, propNode)) {
                 iterator.remove();
@@ -183,20 +111,18 @@ public class TypeParsers {
                 parseTermVector(name, propNode.toString(), builder);
                 iterator.remove();
             } else if (propName.equals("store_term_vectors")) {
-                builder.storeTermVectors(nodeBooleanValue(propNode));
+                builder.storeTermVectors(nodeBooleanValue(propNode, parserContext));
                 iterator.remove();
             } else if (propName.equals("store_term_vector_offsets")) {
-                builder.storeTermVectorOffsets(nodeBooleanValue(propNode));
+                builder.storeTermVectorOffsets(nodeBooleanValue(propNode, parserContext));
                 iterator.remove();
             } else if (propName.equals("store_term_vector_positions")) {
-                builder.storeTermVectorPositions(nodeBooleanValue(propNode));
+                builder.storeTermVectorPositions(nodeBooleanValue(propNode, parserContext));
                 iterator.remove();
             } else if (propName.equals("store_term_vector_payloads")) {
-                builder.storeTermVectorPayloads(nodeBooleanValue(propNode));
+                builder.storeTermVectorPayloads(nodeBooleanValue(propNode, parserContext));
                 iterator.remove();
-            } else if (propName.equals("analyzer") || // for backcompat, reading old indexes, remove for v3.0
-                    propName.equals("index_analyzer") && parserContext.indexVersionCreated().before(Version.V_2_0_0_beta1)) {
-
+            } else if (propName.equals("analyzer")) {
                 NamedAnalyzer analyzer = parserContext.analysisService().analyzer(propNode.toString());
                 if (analyzer == null) {
                     throw new MapperParsingException("analyzer [" + propNode.toString() + "] not found for field [" + name + "]");
@@ -242,23 +168,20 @@ public class TypeParsers {
             Map.Entry<String, Object> entry = iterator.next();
             final String propName = Strings.toUnderscoreCase(entry.getKey());
             final Object propNode = entry.getValue();
-            if (propName.equals("index_name") && indexVersionCreated.before(Version.V_2_0_0_beta1)) {
-                builder.indexName(propNode.toString());
-                iterator.remove();
-            } else if (propName.equals("store")) {
-                builder.store(parseStore(name, propNode.toString()));
+            if (propName.equals("store")) {
+                builder.store(parseStore(name, propNode.toString(), parserContext));
                 iterator.remove();
             } else if (propName.equals("index")) {
-                parseIndex(name, propNode.toString(), builder);
+                builder.index(parseIndex(name, propNode.toString(), parserContext));
                 iterator.remove();
             } else if (propName.equals(DOC_VALUES)) {
-                builder.docValues(nodeBooleanValue(propNode));
+                builder.docValues(nodeBooleanValue(propNode, parserContext));
                 iterator.remove();
             } else if (propName.equals("boost")) {
                 builder.boost(nodeFloatValue(propNode));
                 iterator.remove();
             } else if (propName.equals("omit_norms")) {
-                builder.omitNorms(nodeBooleanValue(propNode));
+                builder.omitNorms(nodeBooleanValue(propNode, parserContext));
                 iterator.remove();
             } else if (propName.equals("norms")) {
                 final Map<String, Object> properties = nodeMapValue(propNode, "norms");
@@ -267,7 +190,7 @@ public class TypeParsers {
                     final String propName2 = Strings.toUnderscoreCase(entry2.getKey());
                     final Object propNode2 = entry2.getValue();
                     if (propName2.equals("enabled")) {
-                        builder.omitNorms(!nodeBooleanValue(propNode2));
+                        builder.omitNorms(!lenientNodeBooleanValue(propNode2));
                         propsIterator.remove();
                     } else if (propName2.equals(Loading.KEY)) {
                         builder.normsLoading(Loading.parse(nodeStringValue(propNode2, null), null));
@@ -276,28 +199,15 @@ public class TypeParsers {
                 }
                 DocumentMapperParser.checkNoRemainingFields(propName, properties, parserContext.indexVersionCreated());
                 iterator.remove();
-            } else if (propName.equals("omit_term_freq_and_positions")) {
-                final IndexOptions op = nodeBooleanValue(propNode) ? IndexOptions.DOCS : IndexOptions.DOCS_AND_FREQS_AND_POSITIONS;
-                if (indexVersionCreated.onOrAfter(Version.V_1_0_0_RC2)) {
-                    throw new ElasticsearchParseException("'omit_term_freq_and_positions' is not supported anymore - use ['index_options' : 'docs']  instead");
-                }
-                // deprecated option for BW compat
-                builder.indexOptions(op);
-                iterator.remove();
             } else if (propName.equals("index_options")) {
                 builder.indexOptions(nodeIndexOptionValue(propNode));
                 iterator.remove();
             } else if (propName.equals("include_in_all")) {
-                builder.includeInAll(nodeBooleanValue(propNode));
-                iterator.remove();
-            } else if (propName.equals("postings_format") && indexVersionCreated.before(Version.V_2_0_0_beta1)) {
-                // ignore for old indexes
-                iterator.remove();
-            } else if (propName.equals("doc_values_format") && indexVersionCreated.before(Version.V_2_0_0_beta1)) {
-                // ignore for old indexes
+                builder.includeInAll(nodeBooleanValue(propNode, parserContext));
                 iterator.remove();
             } else if (propName.equals("similarity")) {
-                builder.similarity(parserContext.getSimilarity(propNode.toString()));
+                SimilarityProvider similarityProvider = resolveSimilarity(parserContext, name, propNode.toString());
+                builder.similarity(similarityProvider);
                 iterator.remove();
             } else if (propName.equals("fielddata")) {
                 final Settings settings = Settings.builder().put(SettingsLoader.Helper.loadNestedFromMap(nodeMapValue(propNode, "fielddata"))).build();
@@ -418,28 +328,43 @@ public class TypeParsers {
         }
     }
 
-    public static void parseIndex(String fieldName, String index, FieldMapper.Builder builder) throws MapperParsingException {
-        index = Strings.toUnderscoreCase(index);
-        if ("no".equals(index)) {
-            builder.index(false);
-        } else if ("not_analyzed".equals(index)) {
-            builder.index(true);
-            builder.tokenized(false);
-        } else if ("analyzed".equals(index)) {
-            builder.index(true);
-            builder.tokenized(true);
+    public static boolean parseIndex(String fieldName, String index, Mapper.TypeParser.ParserContext parserContext) throws MapperParsingException {
+        if (parserContext.indexVersionCreated().onOrAfter(Version.V_3_0_0)) {
+            switch (index) {
+            case "true":
+                return true;
+            case "false":
+                return false;
+            default:
+                throw new IllegalArgumentException("Can't parse [index] value [" + index + "], expected [true] or [false]");
+            }
         } else {
-            throw new MapperParsingException("wrong value for index [" + index + "] for field [" + fieldName + "]");
+            final String normalizedIndex = Strings.toUnderscoreCase(index);
+            switch (normalizedIndex) {
+            case "true":
+            case "not_analyzed":
+            case "analyzed":
+                return true;
+            case "false":
+            case "no":
+                return false;
+            default:
+                throw new IllegalArgumentException("Can't parse [index] value [" + index + "], expected [true], [false], [no], [not_analyzed] or [analyzed]");
+            }
         }
     }
 
-    public static boolean parseStore(String fieldName, String store) throws MapperParsingException {
-        if ("no".equals(store)) {
-            return false;
-        } else if ("yes".equals(store)) {
-            return true;
+    public static boolean parseStore(String fieldName, String store, Mapper.TypeParser.ParserContext parserContext) throws MapperParsingException {
+        if (parserContext.indexVersionCreated().onOrAfter(Version.V_3_0_0)) {
+            return XContentMapValues.nodeBooleanValue(store);
         } else {
-            return nodeBooleanValue(store);
+            if ("no".equals(store)) {
+                return false;
+            } else if ("yes".equals(store)) {
+                return true;
+            } else {
+                return lenientNodeBooleanValue(store);
+            }
         }
     }
 
@@ -456,4 +381,15 @@ public class TypeParsers {
         builder.copyTo(copyToBuilder.build());
     }
 
+    private static SimilarityProvider resolveSimilarity(Mapper.TypeParser.ParserContext parserContext, String name, String value) {
+        if (parserContext.indexVersionCreated().before(Version.V_3_0_0) && "default".equals(value)) {
+            // "default" similarity has been renamed into "classic" in 3.x.
+            value = SimilarityService.DEFAULT_SIMILARITY;
+        }
+        SimilarityProvider similarityProvider = parserContext.getSimilarity(value);
+        if (similarityProvider == null) {
+            throw new MapperParsingException("Unknown Similarity type [" + value + "] for [" + name + "]");
+        }
+        return similarityProvider;
+    }
 }

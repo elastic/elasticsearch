@@ -2,13 +2,10 @@
     person:{
         properties:{
             "name":{
-                type:"multi_field",
+                type:"string",
+                index:"analyzed",
+                store:true,
                 "fields":{
-                    "name":{
-                        type:"string",
-                        index:"analyzed",
-                        store:"yes"
-                    },
                     "indexed":{
                         type:"string",
                         index:"analyzed"
@@ -16,7 +13,7 @@
                     "not_indexed":{
                         type:"string",
                         index:"no",
-                        store:"yes"
+                        store:true
                     }
                 }
             }

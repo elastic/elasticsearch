@@ -33,10 +33,11 @@ import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptEngineRegistry;
 import org.elasticsearch.script.ScriptEngineService;
 import org.elasticsearch.script.ScriptModule;
-import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.script.ScriptService.ScriptType;
+import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Bucket;
@@ -55,6 +56,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -1243,7 +1245,7 @@ public class DateHistogramIT extends ESIntegTestCase {
         for (int i = 0; i < buckets.size(); i++) {
             Histogram.Bucket bucket = buckets.get(i);
             assertThat(bucket, notNullValue());
-            assertThat("Bucket " + i + " had wrong key", (DateTime) bucket.getKey(), equalTo(new DateTime(timeZoneStartToday.getMillis() + (i * 60 * 60 * 1000), DateTimeZone.UTC)));
+            assertThat("InternalBucket " + i + " had wrong key", (DateTime) bucket.getKey(), equalTo(new DateTime(timeZoneStartToday.getMillis() + (i * 60 * 60 * 1000), DateTimeZone.UTC)));
             if (i == 0 || i == 12) {
                 assertThat(bucket.getDocCount(), equalTo(1l));
             } else {
@@ -1397,7 +1399,7 @@ public class DateHistogramIT extends ESIntegTestCase {
         }
 
         public void onModule(ScriptModule module) {
-            module.addScriptEngine(ExtractFieldScriptEngine.class);
+            module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(ExtractFieldScriptEngine.class, ExtractFieldScriptEngine.TYPES));
         }
 
     }
@@ -1409,22 +1411,24 @@ public class DateHistogramIT extends ESIntegTestCase {
 
         public static final String NAME = "extract_field";
 
+        public static final List<String> TYPES = Collections.singletonList(NAME);
+
         @Override
         public void close() throws IOException {
         }
 
         @Override
-        public String[] types() {
-            return new String[] { NAME };
+        public List<String> getTypes() {
+            return TYPES;
         }
 
         @Override
-        public String[] extensions() {
-            return types();
+        public List<String> getExtensions() {
+            return TYPES;
         }
 
         @Override
-        public boolean sandboxed() {
+        public boolean isSandboxed() {
             return true;
         }
 
@@ -1447,12 +1451,6 @@ public class DateHistogramIT extends ESIntegTestCase {
                     final LeafSearchLookup leafLookup = lookup.getLeafSearchLookup(context);
 
                     return new LeafSearchScript() {
-
-                        @Override
-                        public Object unwrap(Object value) {
-                            return null;
-                        }
-
                         @Override
                         public void setNextVar(String name, Object value) {
                         }
@@ -1523,7 +1521,7 @@ public class DateHistogramIT extends ESIntegTestCase {
         }
 
         public void onModule(ScriptModule module) {
-            module.addScriptEngine(FieldValueScriptEngine.class);
+            module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(FieldValueScriptEngine.class, FieldValueScriptEngine.TYPES));
         }
 
     }
@@ -1535,22 +1533,24 @@ public class DateHistogramIT extends ESIntegTestCase {
 
         public static final String NAME = "field_value";
 
+        public static final List<String> TYPES = Collections.singletonList(NAME);
+
         @Override
         public void close() throws IOException {
         }
 
         @Override
-        public String[] types() {
-            return new String[] { NAME };
+        public List<String> getTypes() {
+            return TYPES;
         }
 
         @Override
-        public String[] extensions() {
-            return types();
+        public List<String> getExtensions() {
+            return TYPES;
         }
 
         @Override
-        public boolean sandboxed() {
+        public boolean isSandboxed() {
             return true;
         }
 

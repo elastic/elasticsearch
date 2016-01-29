@@ -22,6 +22,7 @@ package org.elasticsearch.client;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
@@ -43,14 +44,14 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
+import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequest;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
-import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresRequest;
-import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequest;
 import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -402,6 +403,27 @@ public class Requests {
      */
     public static ClusterStatsRequest clusterStatsRequest() {
         return new ClusterStatsRequest();
+    }
+
+    /**
+     * Creates a nodes tasks request against all the nodes.
+     *
+     * @return The nodes tasks request
+     * @see org.elasticsearch.client.ClusterAdminClient#listTasks(ListTasksRequest)
+     */
+    public static ListTasksRequest listTasksRequest() {
+        return new ListTasksRequest();
+    }
+
+    /**
+     * Creates a nodes tasks request against one or more nodes. Pass <tt>null</tt> or an empty array for all nodes.
+     *
+     * @param nodesIds The nodes ids to get the tasks for
+     * @return The nodes tasks request
+     * @see org.elasticsearch.client.ClusterAdminClient#nodesStats(org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest)
+     */
+    public static ListTasksRequest listTasksRequest(String... nodesIds) {
+        return new ListTasksRequest(nodesIds);
     }
 
     /**

@@ -21,8 +21,6 @@ package org.elasticsearch.common.transport;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.transport.local.LocalTransport;
 
 import java.io.IOException;
 

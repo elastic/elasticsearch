@@ -28,7 +28,7 @@ import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
-public class SimilarityIT  extends ESIntegTestCase {
+public class SimilarityIT extends ESIntegTestCase {
     public void testCustomBM25Similarity() throws Exception {
         try {
             client().admin().indices().prepareDelete("test").execute().actionGet();
@@ -45,7 +45,7 @@ public class SimilarityIT  extends ESIntegTestCase {
                                     .field("type", "string")
                                 .endObject()
                                 .startObject("field2")
-                                    .field("similarity", "default")
+                                    .field("similarity", "classic")
                                     .field("type", "string")
                             .endObject()
                         .endObject()
@@ -55,7 +55,7 @@ public class SimilarityIT  extends ESIntegTestCase {
                         .put("index.number_of_replicas", 0)
                         .put("similarity.custom.type", "BM25")
                         .put("similarity.custom.k1", 2.0f)
-                        .put("similarity.custom.b", 1.5f)
+                        .put("similarity.custom.b", 0.5f)
                 ).execute().actionGet();
 
         client().prepareIndex("test", "type1", "1").setSource("field1", "the quick brown fox jumped over the lazy dog",

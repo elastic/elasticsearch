@@ -37,8 +37,8 @@ final class InternalGlobalOrdinalsIndexFieldData extends GlobalOrdinalsIndexFiel
 
     private final Atomic[] atomicReaders;
 
-    InternalGlobalOrdinalsIndexFieldData(IndexSettings indexSettings, MappedFieldType.Names fieldNames, FieldDataType fieldDataType, AtomicOrdinalsFieldData[] segmentAfd, OrdinalMap ordinalMap, long memorySizeInBytes) {
-        super(indexSettings, fieldNames, fieldDataType, memorySizeInBytes);
+    InternalGlobalOrdinalsIndexFieldData(IndexSettings indexSettings, String fieldName, FieldDataType fieldDataType, AtomicOrdinalsFieldData[] segmentAfd, OrdinalMap ordinalMap, long memorySizeInBytes) {
+        super(indexSettings, fieldName, fieldDataType, memorySizeInBytes);
         this.atomicReaders = new Atomic[segmentAfd.length];
         for (int i = 0; i < segmentAfd.length; i++) {
             atomicReaders[i] = new Atomic(segmentAfd[i], ordinalMap, i);

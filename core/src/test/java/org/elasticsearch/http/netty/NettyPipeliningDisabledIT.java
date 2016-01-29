@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.http.netty;
 
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
@@ -45,7 +46,7 @@ import static org.hamcrest.Matchers.hasSize;
 public class NettyPipeliningDisabledIT extends ESIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return settingsBuilder().put(super.nodeSettings(nodeOrdinal)).put(Node.HTTP_ENABLED, true).put("http.pipelining", false).build();
+        return settingsBuilder().put(super.nodeSettings(nodeOrdinal)).put(NetworkModule.HTTP_ENABLED.getKey(), true).put("http.pipelining", false).build();
     }
 
     public void testThatNettyHttpServerDoesNotSupportPipelining() throws Exception {

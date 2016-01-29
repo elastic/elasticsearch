@@ -20,9 +20,31 @@
 package org.elasticsearch.index.store;
 
 import org.apache.lucene.codecs.CodecUtil;
-import org.apache.lucene.index.*;
-import org.apache.lucene.store.*;
-import org.apache.lucene.util.*;
+import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.IndexFileNames;
+import org.apache.lucene.index.IndexFormatTooNewException;
+import org.apache.lucene.index.IndexFormatTooOldException;
+import org.apache.lucene.index.IndexNotFoundException;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.SegmentCommitInfo;
+import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.store.BufferedChecksum;
+import org.apache.lucene.store.ByteArrayDataInput;
+import org.apache.lucene.store.ChecksumIndexInput;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FilterDirectory;
+import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.store.Lock;
+import org.apache.lucene.store.SimpleFSDirectory;
+import org.apache.lucene.util.ArrayUtil;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
+import org.apache.lucene.util.IOUtils;
+import org.apache.lucene.util.Version;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Strings;
@@ -39,6 +61,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.Callback;
@@ -47,15 +70,27 @@ import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.RefCounted;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.env.ShardLock;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
 
-import java.io.*;
+import java.io.Closeable;
+import java.io.EOFException;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
-import java.util.*;
+import java.sql.Time;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.zip.Adler32;
@@ -86,6 +121,7 @@ import static java.util.Collections.unmodifiableMap;
  * </pre>
  */
 public class Store extends AbstractIndexShardComponent implements Closeable, RefCounted {
+    private static final Version FIRST_LUCENE_CHECKSUM_VERSION = Version.LUCENE_4_8_0;
 
     static final String CODEC = "store";
     static final int VERSION_WRITE_THROWABLE= 2; // we write throwable since 2.0
@@ -93,7 +129,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     static final int VERSION_START = 0;
     static final int VERSION = VERSION_WRITE_THROWABLE;
     static final String CORRUPTED = "corrupted_";
-    public static final String INDEX_STORE_STATS_REFRESH_INTERVAL = "index.store.stats_refresh_interval";
+    public static final Setting<TimeValue> INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING = Setting.timeSetting("index.store.stats_refresh_interval", TimeValue.timeValueSeconds(10), false, Setting.Scope.INDEX);
 
     private final AtomicBoolean isClosed = new AtomicBoolean(false);
     private final StoreDirectory directory;
@@ -121,7 +157,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         this.directory = new StoreDirectory(directoryService.newDirectory(), Loggers.getLogger("index.store.deletes", settings, shardId));
         this.shardLock = shardLock;
         this.onClose = onClose;
-        final TimeValue refreshInterval = settings.getAsTime(INDEX_STORE_STATS_REFRESH_INTERVAL, TimeValue.timeValueSeconds(10));
+        final TimeValue refreshInterval = indexSettings.getValue(INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING);
         this.statsCache = new StoreStatsCache(refreshInterval, directory, directoryService);
         logger.debug("store stats are refreshed with refresh_interval [{}]", refreshInterval);
 
@@ -373,9 +409,9 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      *
      * @throws IOException if the index we try to read is corrupted
      */
-    public static MetadataSnapshot readMetadataSnapshot(Path indexLocation, ESLogger logger) throws IOException {
+    public static MetadataSnapshot readMetadataSnapshot(Path indexLocation, ShardId shardId, ESLogger logger) throws IOException {
         try (Directory dir = new SimpleFSDirectory(indexLocation)) {
-            failIfCorrupted(dir, new ShardId("", 1));
+            failIfCorrupted(dir, shardId);
             return new MetadataSnapshot(null, dir, logger);
         } catch (IndexNotFoundException ex) {
             // that's fine - happens all the time no need to log
@@ -390,9 +426,9 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * can be successfully opened. This includes reading the segment infos and possible
      * corruption markers.
      */
-    public static boolean canOpenIndex(ESLogger logger, Path indexLocation) throws IOException {
+    public static boolean canOpenIndex(ESLogger logger, Path indexLocation, ShardId shardId) throws IOException {
         try {
-            tryOpenIndex(indexLocation);
+            tryOpenIndex(indexLocation, shardId);
         } catch (Exception ex) {
             logger.trace("Can't open index for path [{}]", ex, indexLocation);
             return false;
@@ -405,9 +441,9 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * segment infos and possible corruption markers. If the index can not
      * be opened, an exception is thrown
      */
-    public static void tryOpenIndex(Path indexLocation) throws IOException {
+    public static void tryOpenIndex(Path indexLocation, ShardId shardId) throws IOException {
         try (Directory dir = new SimpleFSDirectory(indexLocation)) {
-            failIfCorrupted(dir, new ShardId("", 1));
+            failIfCorrupted(dir, shardId);
             Lucene.readSegmentInfos(dir);
         }
     }
@@ -434,7 +470,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                 output = new LegacyVerification.LengthVerifyingIndexOutput(output, metadata.length());
             } else {
                 assert metadata.writtenBy() != null;
-                assert metadata.writtenBy().onOrAfter(Version.LUCENE_4_8);
+                assert metadata.writtenBy().onOrAfter(FIRST_LUCENE_CHECKSUM_VERSION);
                 output = new LuceneVerifyingIndexOutput(metadata, output);
             }
             success = true;
@@ -458,7 +494,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             return directory().openInput(filename, context);
         }
         assert metadata.writtenBy() != null;
-        assert metadata.writtenBy().onOrAfter(Version.LUCENE_4_8_0);
+        assert metadata.writtenBy().onOrAfter(FIRST_LUCENE_CHECKSUM_VERSION);
         return new VerifyingIndexInput(directory().openInput(filename, context));
     }
 
@@ -486,7 +522,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             if (input.length() != md.length()) { // first check the length no matter how old this file is
                 throw new CorruptIndexException("expected length=" + md.length() + " != actual length: " + input.length() + " : file truncated?", input);
             }
-            if (md.writtenBy() != null && md.writtenBy().onOrAfter(Version.LUCENE_4_8_0)) {
+            if (md.writtenBy() != null && md.writtenBy().onOrAfter(FIRST_LUCENE_CHECKSUM_VERSION)) {
                 // throw exception if the file is corrupt
                 String checksum = Store.digestToString(CodecUtil.checksumEntireFile(input));
                 // throw exception if metadata is inconsistent
@@ -734,7 +770,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      */
     public final static class MetadataSnapshot implements Iterable<StoreFileMetaData>, Writeable<MetadataSnapshot> {
         private static final ESLogger logger = Loggers.getLogger(MetadataSnapshot.class);
-        private static final Version FIRST_LUCENE_CHECKSUM_VERSION = Version.LUCENE_4_8;
 
         private final Map<String, StoreFileMetaData> metadata;
 
@@ -811,6 +846,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                 final SegmentInfos segmentCommitInfos = Store.readSegmentsInfo(commit, directory);
                 numDocs = Lucene.getNumDocs(segmentCommitInfos);
                 commitUserDataBuilder.putAll(segmentCommitInfos.getUserData());
+                @SuppressWarnings("deprecation")
                 Version maxVersion = Version.LUCENE_4_0; // we don't know which version was used to write so we take the max version.
                 for (SegmentCommitInfo info : segmentCommitInfos) {
                     final Version version = info.info.getVersion();
@@ -875,6 +911,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
          * @param directory the directory to read checksums from
          * @return a map of file checksums and the checksum file version
          */
+        @SuppressWarnings("deprecation") // Legacy checksum needs legacy methods
         static Tuple<Map<String, String>, Long> readLegacyChecksums(Directory directory) throws IOException {
             synchronized (directory) {
                 long lastFound = -1;
@@ -890,10 +927,10 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                 if (lastFound > -1) {
                     try (IndexInput indexInput = directory.openInput(CHECKSUMS_PREFIX + lastFound, IOContext.READONCE)) {
                         indexInput.readInt(); // version
-                        return new Tuple(indexInput.readStringStringMap(), lastFound);
+                        return new Tuple<>(indexInput.readStringStringMap(), lastFound);
                     }
                 }
-                return new Tuple(new HashMap<>(), -1l);
+                return new Tuple<>(new HashMap<>(), -1l);
             }
         }
 
@@ -1211,6 +1248,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             }
         }
 
+        @SuppressWarnings("deprecation") // Legacy checksum uses legacy methods
         synchronized void writeChecksums(Directory directory, Map<String, String> checksums, long lastVersion) throws IOException {
             // Make sure if clock goes backwards we still move version forwards:
             long nextVersion = Math.max(lastVersion+1, System.currentTimeMillis());

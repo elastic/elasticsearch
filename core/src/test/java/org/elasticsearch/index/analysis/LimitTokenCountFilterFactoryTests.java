@@ -22,6 +22,7 @@ package org.elasticsearch.index.analysis;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTokenStreamTestCase;
 
 import java.io.IOException;
@@ -31,7 +32,7 @@ public class LimitTokenCountFilterFactoryTests extends ESTokenStreamTestCase {
     public void testDefault() throws IOException {
         Settings settings = Settings.settingsBuilder()
                 .put("index.analysis.filter.limit_default.type", "limit")
-                .put("path.home", createTempDir().toString())
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .build();
         AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(settings);
         {
@@ -58,7 +59,7 @@ public class LimitTokenCountFilterFactoryTests extends ESTokenStreamTestCase {
                     .put("index.analysis.filter.limit_1.type", "limit")
                     .put("index.analysis.filter.limit_1.max_token_count", 3)
                     .put("index.analysis.filter.limit_1.consume_all_tokens", true)
-                    .put("path.home", createTempDir().toString())
+                    .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                     .build();
             AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(settings);
             TokenFilterFactory tokenFilter = analysisService.tokenFilter("limit_1");
@@ -73,7 +74,7 @@ public class LimitTokenCountFilterFactoryTests extends ESTokenStreamTestCase {
                     .put("index.analysis.filter.limit_1.type", "limit")
                     .put("index.analysis.filter.limit_1.max_token_count", 3)
                     .put("index.analysis.filter.limit_1.consume_all_tokens", false)
-                    .put("path.home", createTempDir().toString())
+                    .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                     .build();
             AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(settings);
             TokenFilterFactory tokenFilter = analysisService.tokenFilter("limit_1");
@@ -89,7 +90,7 @@ public class LimitTokenCountFilterFactoryTests extends ESTokenStreamTestCase {
                     .put("index.analysis.filter.limit_1.type", "limit")
                     .put("index.analysis.filter.limit_1.max_token_count", 17)
                     .put("index.analysis.filter.limit_1.consume_all_tokens", true)
-                    .put("path.home", createTempDir().toString())
+                    .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                     .build();
             AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(settings);
             TokenFilterFactory tokenFilter = analysisService.tokenFilter("limit_1");

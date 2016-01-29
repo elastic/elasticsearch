@@ -22,7 +22,7 @@ package org.elasticsearch.action.admin.indices.refresh;
 import org.elasticsearch.action.ReplicationResponse;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.replication.ReplicationRequest;
+import org.elasticsearch.action.support.replication.BasicReplicationRequest;
 import org.elasticsearch.action.support.replication.TransportBroadcastReplicationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -37,7 +37,7 @@ import java.util.List;
 /**
  * Refresh action.
  */
-public class TransportRefreshAction extends TransportBroadcastReplicationAction<RefreshRequest, RefreshResponse, ReplicationRequest, ReplicationResponse> {
+public class TransportRefreshAction extends TransportBroadcastReplicationAction<RefreshRequest, RefreshResponse, BasicReplicationRequest, ReplicationResponse> {
 
     @Inject
     public TransportRefreshAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
@@ -53,8 +53,8 @@ public class TransportRefreshAction extends TransportBroadcastReplicationAction<
     }
 
     @Override
-    protected ReplicationRequest newShardRequest(RefreshRequest request, ShardId shardId) {
-        return new ReplicationRequest(request, shardId);
+    protected BasicReplicationRequest newShardRequest(RefreshRequest request, ShardId shardId) {
+        return new BasicReplicationRequest(shardId);
     }
 
     @Override

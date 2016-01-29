@@ -39,10 +39,16 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
+import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -62,6 +68,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
     private final AtomicBoolean started = new AtomicBoolean(false);
     protected final Transport transport;
     protected final ThreadPool threadPool;
+    protected final TaskManager taskManager;
 
     volatile Map<String, RequestHandlerRegistry> requestHandlers = Collections.emptyMap();
     final Object requestHandlerMutex = new Object();
@@ -110,6 +117,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
         setTracerLogExclude(TRACE_LOG_EXCLUDE_SETTING.get(settings));
         tracerLog = Loggers.getLogger(logger, ".tracer");
         adapter = createAdapter();
+        taskManager = createTaskManager();
     }
 
     /**
@@ -125,8 +133,16 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
         return localNode;
     }
 
+    public TaskManager getTaskManager() {
+        return taskManager;
+    }
+
     protected Adapter createAdapter() {
         return new Adapter();
+    }
+
+    protected TaskManager createTaskManager() {
+        return new TaskManager(settings);
     }
 
     // These need to be optional as they don't exist in the context of a transport client
@@ -277,7 +293,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
             } else {
                 timeoutHandler = new TimeoutHandler(requestId);
             }
-            clientHandlers.put(requestId, new RequestHolder<>(handler, node, action, timeoutHandler));
+            clientHandlers.put(requestId, new RequestHolder<>(new ContextRestoreResponseHandler<T>(threadPool.getThreadContext().newStoredContext(), handler), node, action, timeoutHandler));
             if (started.get() == false) {
                 // if we are not started the exception handling will remove the RequestHolder again and calls the handler to notify the caller.
                 // it will only notify if the toStop code hasn't done the work yet.
@@ -322,13 +338,13 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
             final String executor = reg.getExecutor();
             if (ThreadPool.Names.SAME.equals(executor)) {
                 //noinspection unchecked
-                reg.getHandler().messageReceived(request, channel);
+                reg.processMessageReceived(request, channel);
             } else {
                 threadPool.executor(executor).execute(new AbstractRunnable() {
                     @Override
                     protected void doRun() throws Exception {
                         //noinspection unchecked
-                        reg.getHandler().messageReceived(request, channel);
+                        reg.processMessageReceived(request, channel);
                     }
 
                     @Override
@@ -387,7 +403,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
      * @param handler The handler itself that implements the request handling
      */
     public <Request extends TransportRequest> void registerRequestHandler(String action, Supplier<Request> requestFactory, String executor, TransportRequestHandler<Request> handler) {
-        RequestHandlerRegistry<Request> reg = new RequestHandlerRegistry<>(action, requestFactory, handler, executor, false);
+        RequestHandlerRegistry<Request> reg = new RequestHandlerRegistry<>(action, requestFactory, taskManager, handler, executor, false);
         registerRequestHandler(reg);
     }
 
@@ -400,7 +416,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
      * @param handler The handler itself that implements the request handling
      */
     public <Request extends TransportRequest> void registerRequestHandler(String action, Supplier<Request> request, String executor, boolean forceExecution, TransportRequestHandler<Request> handler) {
-        RequestHandlerRegistry<Request> reg = new RequestHandlerRegistry<>(action, request, handler, executor, forceExecution);
+        RequestHandlerRegistry<Request> reg = new RequestHandlerRegistry<>(action, request, taskManager, handler, executor, forceExecution);
         registerRequestHandler(reg);
     }
 
@@ -409,7 +425,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
             RequestHandlerRegistry replaced = requestHandlers.get(reg.getAction());
             requestHandlers = MapBuilder.newMapBuilder(requestHandlers).put(reg.getAction(), reg).immutableMap();
             if (replaced != null) {
-                logger.warn("registered two transport handlers for action {}, handlers: {}, {}", reg.getAction(), reg.getHandler(), replaced.getHandler());
+                logger.warn("registered two transport handlers for action {}, handlers: {}, {}", reg.getAction(), reg, replaced);
             }
         }
     }
@@ -483,6 +499,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
         @Override
         public TransportResponseHandler onResponseReceived(final long requestId) {
             RequestHolder holder = clientHandlers.remove(requestId);
+
             if (holder == null) {
                 checkForTimeout(requestId);
                 return null;
@@ -697,6 +714,41 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
         }
     }
 
+    /**
+     * This handler wrapper ensures that the response thread executes with the correct thread context. Before any of the4 handle methods
+     * are invoked we restore the context.
+     */
+    private final static class ContextRestoreResponseHandler<T extends TransportResponse> implements TransportResponseHandler<T> {
+        private final TransportResponseHandler<T> delegate;
+        private final ThreadContext.StoredContext threadContext;
+        private ContextRestoreResponseHandler(ThreadContext.StoredContext threadContext, TransportResponseHandler<T> delegate) {
+            this.delegate = delegate;
+            this.threadContext = threadContext;
+        }
+
+        @Override
+        public T newInstance() {
+            return delegate.newInstance();
+        }
+
+        @Override
+        public void handleResponse(T response) {
+            threadContext.restore();
+            delegate.handleResponse(response);
+        }
+
+        @Override
+        public void handleException(TransportException exp) {
+            threadContext.restore();
+            delegate.handleException(exp);
+        }
+
+        @Override
+        public String executor() {
+            return delegate.executor();
+        }
+    }
+
     static class DirectResponseChannel implements TransportChannel {
         final ESLogger logger;
         final DiscoveryNode localNode;
@@ -793,6 +845,17 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
                 logger.error("failed to handle exception for action [{}], handler [{}]", e, action, handler);
             }
         }
+
+        @Override
+        public long getRequestId() {
+            return requestId;
+        }
+
+        @Override
+        public String getChannelType() {
+            return "direct";
+        }
+
     }
 
 }

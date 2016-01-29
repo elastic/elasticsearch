@@ -36,9 +36,19 @@ import org.elasticsearch.test.junit.annotations.Network;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
 import org.jboss.netty.bootstrap.ServerBootstrap;
-import org.jboss.netty.channel.*;
+import org.jboss.netty.channel.Channel;
+import org.jboss.netty.channel.ChannelHandlerContext;
+import org.jboss.netty.channel.ChannelPipeline;
+import org.jboss.netty.channel.ChannelPipelineFactory;
+import org.jboss.netty.channel.Channels;
+import org.jboss.netty.channel.MessageEvent;
+import org.jboss.netty.channel.SimpleChannelUpstreamHandler;
 import org.jboss.netty.channel.socket.nio.NioServerSocketChannelFactory;
-import org.jboss.netty.handler.codec.http.*;
+import org.jboss.netty.handler.codec.http.DefaultHttpResponse;
+import org.jboss.netty.handler.codec.http.HttpRequest;
+import org.jboss.netty.handler.codec.http.HttpRequestDecoder;
+import org.jboss.netty.handler.codec.http.HttpResponseEncoder;
+import org.jboss.netty.handler.codec.http.HttpResponseStatus;
 import org.jboss.netty.handler.ssl.SslContext;
 import org.jboss.netty.handler.ssl.SslHandler;
 import org.jboss.netty.handler.ssl.util.InsecureTrustManagerFactory;
@@ -75,8 +85,14 @@ import static org.elasticsearch.common.cli.CliToolTestCase.args;
 import static org.elasticsearch.common.io.FileTestUtils.assertFileContent;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.ESIntegTestCase.Scope;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertDirectoryExists;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileExists;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileNotExists;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.jboss.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, transportClientRatio = 0.0)
@@ -92,7 +108,7 @@ public class PluginManagerTests extends ESIntegTestCase {
     @Before
     public void setup() throws Exception {
         environment = buildInitialSettings();
-        System.setProperty("es.default.path.home", environment.settings().get("path.home"));
+        System.setProperty("es.default.path.home", Environment.PATH_HOME_SETTING.get(environment.settings()));
         Path binDir = environment.binFile();
         if (!Files.exists(binDir)) {
             Files.createDirectories(binDir);
@@ -180,7 +196,6 @@ public class PluginManagerTests extends ESIntegTestCase {
             "version", "1.0",
             "elasticsearch.version", Version.CURRENT.toString(),
             "java.version", System.getProperty("java.specification.version"),
-            "jvm", "true",
             "classname", "FakePlugin");
         assertStatus("install", USAGE);
     }
@@ -200,7 +215,6 @@ public class PluginManagerTests extends ESIntegTestCase {
             "version", "1.0",
             "elasticsearch.version", Version.CURRENT.toString(),
             "java.version", System.getProperty("java.specification.version"),
-            "jvm", "true",
             "classname", "FakePlugin");
 
         Path binDir = environment.binFile();
@@ -244,7 +258,6 @@ public class PluginManagerTests extends ESIntegTestCase {
             "version", "1.0",
             "elasticsearch.version", Version.CURRENT.toString(),
             "java.version", System.getProperty("java.specification.version"),
-            "jvm", "true",
             "classname", "FakePlugin");
 
         Path pluginConfigDir = environment.configFile().resolve(pluginName);
@@ -280,7 +293,6 @@ public class PluginManagerTests extends ESIntegTestCase {
                 "version", "2.0",
                 "elasticsearch.version", Version.CURRENT.toString(),
                 "java.version", System.getProperty("java.specification.version"),
-                "jvm", "true",
                 "classname", "FakePlugin");
 
         assertStatusOk(String.format(Locale.ROOT, "install %s --verbose", pluginUrl));
@@ -345,7 +357,6 @@ public class PluginManagerTests extends ESIntegTestCase {
             "version", "1.0",
             "elasticsearch.version", Version.CURRENT.toString(),
             "java.version", System.getProperty("java.specification.version"),
-            "jvm", "true",
             "classname", "FakePlugin");
 
         Path binDir = environment.binFile();
@@ -376,16 +387,13 @@ public class PluginManagerTests extends ESIntegTestCase {
             "version", "1.0",
             "elasticsearch.version", Version.CURRENT.toString(),
             "java.version", System.getProperty("java.specification.version"),
-            "jvm", "true",
             "classname", "FakePlugin");
         System.err.println("install " + pluginUrl + " --verbose");
         ExitStatus status = new PluginManagerCliParser(terminal).execute(args("install " + pluginUrl + " --verbose"));
         assertThat("Terminal output was: " + terminal.getTerminalOutput(), status, is(ExitStatus.OK));
         assertThat(terminal.getTerminalOutput(), hasItem(containsString("Name: fake-plugin")));
         assertThat(terminal.getTerminalOutput(), hasItem(containsString("Description: fake desc")));
-        assertThat(terminal.getTerminalOutput(), hasItem(containsString("Site: false")));
         assertThat(terminal.getTerminalOutput(), hasItem(containsString("Version: 1.0")));
-        assertThat(terminal.getTerminalOutput(), hasItem(containsString("JVM: true")));
         assertThatPluginIsListed(pluginName);
     }
 
@@ -398,7 +406,6 @@ public class PluginManagerTests extends ESIntegTestCase {
             "version", "1.0",
             "elasticsearch.version", Version.CURRENT.toString(),
             "java.version", System.getProperty("java.specification.version"),
-            "jvm", "true",
             "classname", "FakePlugin");
         ExitStatus status = new PluginManagerCliParser(terminal).execute(args("install " + pluginUrl));
         assertThat("Terminal output was: " + terminal.getTerminalOutput(), status, is(ExitStatus.OK));
@@ -431,7 +438,6 @@ public class PluginManagerTests extends ESIntegTestCase {
             "elasticsearch.version", Version.CURRENT.toString(),
             "java.version", System.getProperty("java.specification.version"),
             "isolated", "false",
-            "jvm", "true",
             "classname", "FakePlugin");
 
         // install
@@ -449,63 +455,20 @@ public class PluginManagerTests extends ESIntegTestCase {
         assertTrue(foundExpectedMessage);
     }
 
-    public void testInstallSitePluginVerbose() throws IOException {
-        String pluginName = "fake-plugin";
-        Path pluginDir = createTempDir().resolve(pluginName);
-        Files.createDirectories(pluginDir.resolve("_site"));
-        Files.createFile(pluginDir.resolve("_site").resolve("somefile"));
-        String pluginUrl = createPlugin(pluginDir,
-                "description", "fake desc",
-                "name", pluginName,
-                "version", "1.0",
-                "site", "true");
-        ExitStatus status = new PluginManagerCliParser(terminal).execute(args("install " + pluginUrl + " --verbose"));
-        assertThat("Terminal output was: " + terminal.getTerminalOutput(), status, is(ExitStatus.OK));
-        assertThat(terminal.getTerminalOutput(), hasItem(containsString("Name: fake-plugin")));
-        assertThat(terminal.getTerminalOutput(), hasItem(containsString("Description: fake desc")));
-        assertThat(terminal.getTerminalOutput(), hasItem(containsString("Site: true")));
-        assertThat(terminal.getTerminalOutput(), hasItem(containsString("Version: 1.0")));
-        assertThat(terminal.getTerminalOutput(), hasItem(containsString("JVM: false")));
-        assertThatPluginIsListed(pluginName);
-        // We want to check that Plugin Manager moves content to _site
-        assertFileExists(environment.pluginsFile().resolve(pluginName).resolve("_site"));
-    }
-
-    public void testInstallSitePlugin() throws IOException {
-        String pluginName = "fake-plugin";
-        Path pluginDir = createTempDir().resolve(pluginName);
-        Files.createDirectories(pluginDir.resolve("_site"));
-        Files.createFile(pluginDir.resolve("_site").resolve("somefile"));
-        String pluginUrl = createPlugin(pluginDir,
-            "description", "fake desc",
-            "name", pluginName,
-            "version", "1.0",
-            "site", "true");
-        ExitStatus status = new PluginManagerCliParser(terminal).execute(args("install " + pluginUrl));
-        assertThat("Terminal output was: " + terminal.getTerminalOutput(), status, is(ExitStatus.OK));
-        assertThat(terminal.getTerminalOutput(), not(hasItem(containsString("Name: fake-plugin"))));
-        assertThat(terminal.getTerminalOutput(), not(hasItem(containsString("Description:"))));
-        assertThat(terminal.getTerminalOutput(), not(hasItem(containsString("Site:"))));
-        assertThat(terminal.getTerminalOutput(), not(hasItem(containsString("Version:"))));
-        assertThat(terminal.getTerminalOutput(), not(hasItem(containsString("JVM:"))));
-        assertThatPluginIsListed(pluginName);
-        // We want to check that Plugin Manager moves content to _site
-        assertFileExists(environment.pluginsFile().resolve(pluginName).resolve("_site"));
-    }
-
     public void testInstallPluginWithBadChecksum() throws IOException {
         String pluginName = "fake-plugin";
         Path pluginDir = createTempDir().resolve(pluginName);
-        Files.createDirectories(pluginDir.resolve("_site"));
-        Files.createFile(pluginDir.resolve("_site").resolve("somefile"));
         String pluginUrl = createPluginWithBadChecksum(pluginDir,
-                "description", "fake desc",
-                "version", "1.0",
-                "site", "true");
+            "description", "fake desc",
+            "name", pluginName,
+            "version", "1.0",
+            "elasticsearch.version", Version.CURRENT.toString(),
+            "java.version", System.getProperty("java.specification.version"),
+            "classname", "FakePlugin");
         assertStatus(String.format(Locale.ROOT, "install %s --verbose", pluginUrl),
                 ExitStatus.IO_ERROR);
         assertThatPluginIsNotListed(pluginName);
-        assertFileNotExists(environment.pluginsFile().resolve(pluginName).resolve("_site"));
+        assertFileNotExists(environment.pluginsFile().resolve(pluginName));
     }
 
     private void singlePluginInstallAndRemove(String pluginDescriptor, String pluginName, String pluginCoordinates) throws IOException {
@@ -590,7 +553,6 @@ public class PluginManagerTests extends ESIntegTestCase {
             "version", "1.0.0",
             "elasticsearch.version", Version.CURRENT.toString(),
             "java.version", System.getProperty("java.specification.version"),
-            "jvm", "true",
             "classname", "FakePlugin");
 
         // We want to remove plugin with plugin short name
@@ -631,7 +593,7 @@ public class PluginManagerTests extends ESIntegTestCase {
         PluginManager.checkForOfficialPlugins("analysis-stempel");
         PluginManager.checkForOfficialPlugins("delete-by-query");
         PluginManager.checkForOfficialPlugins("lang-javascript");
-        PluginManager.checkForOfficialPlugins("lang-plan-a");
+        PluginManager.checkForOfficialPlugins("lang-painless");
         PluginManager.checkForOfficialPlugins("lang-python");
         PluginManager.checkForOfficialPlugins("mapper-attachments");
         PluginManager.checkForOfficialPlugins("mapper-murmur3");
@@ -694,7 +656,7 @@ public class PluginManagerTests extends ESIntegTestCase {
             Channel channel = serverBootstrap.bind(new InetSocketAddress(InetAddress.getByName("localhost"), 0));
             int port = ((InetSocketAddress) channel.getLocalAddress()).getPort();
             // IO_ERROR because there is no real file delivered...
-            assertStatus(String.format(Locale.ROOT, "install https://user:pass@localhost:%s/foo.zip --verbose --timeout 1s", port), ExitStatus.IO_ERROR);
+            assertStatus(String.format(Locale.ROOT, "install https://user:pass@localhost:%s/foo.zip --verbose --timeout 10s", port), ExitStatus.IO_ERROR);
 
             // ensure that we did not try any other data source like download.elastic.co, in case we specified our own local URL
             assertThat(terminal.getTerminalOutput(), not(hasItem(containsString("download.elastic.co"))));
@@ -734,7 +696,7 @@ public class PluginManagerTests extends ESIntegTestCase {
     private Environment buildInitialSettings() throws IOException {
         Settings settings = settingsBuilder()
                 .put("http.enabled", true)
-                .put("path.home", createTempDir()).build();
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
         return InternalSettingsPreparer.prepareEnvironment(settings, null);
     }
 

@@ -28,7 +28,6 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.engine.CommitStats;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -90,17 +89,17 @@ public class IndicesStatsResponse extends BroadcastResponse implements ToXConten
 
         Set<String> indices = new HashSet<>();
         for (ShardStats shard : shards) {
-            indices.add(shard.getShardRouting().getIndex());
+            indices.add(shard.getShardRouting().getIndexName());
         }
 
-        for (String index : indices) {
+        for (String indexName : indices) {
             List<ShardStats> shards = new ArrayList<>();
             for (ShardStats shard : this.shards) {
-                if (shard.getShardRouting().index().equals(index)) {
+                if (shard.getShardRouting().getIndexName().equals(indexName)) {
                     shards.add(shard);
                 }
             }
-            indicesStats.put(index, new IndexStats(index, shards.toArray(new ShardStats[shards.size()])));
+            indicesStats.put(indexName, new IndexStats(indexName, shards.toArray(new ShardStats[shards.size()])));
         }
         this.indicesStats = indicesStats;
         return indicesStats;

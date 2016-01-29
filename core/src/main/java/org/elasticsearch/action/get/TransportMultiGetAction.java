@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.get;
 
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -69,7 +68,7 @@ public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequ
                 responses.set(i, new MultiGetItemResponse(null, new MultiGetResponse.Failure(item.index(), item.type(), item.id(), new IndexNotFoundException(item.index()))));
                 continue;
             }
-            item.routing(clusterState.metaData().resolveIndexRouting(item.routing(), item.index()));
+            item.routing(clusterState.metaData().resolveIndexRouting(item.parent(), item.routing(), item.index()));
             String concreteSingleIndex = indexNameExpressionResolver.concreteSingleIndex(clusterState, item);
             if (item.routing() == null && clusterState.getMetaData().routingRequired(concreteSingleIndex, item.type())) {
                 responses.set(i, new MultiGetItemResponse(null, new MultiGetResponse.Failure(concreteSingleIndex, item.type(), item.id(),
@@ -80,7 +79,7 @@ public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequ
                     .getShards(clusterState, concreteSingleIndex, item.type(), item.id(), item.routing(), null).shardId();
             MultiGetShardRequest shardRequest = shardRequests.get(shardId);
             if (shardRequest == null) {
-                shardRequest = new MultiGetShardRequest(request, shardId.index().name(), shardId.id());
+                shardRequest = new MultiGetShardRequest(request, shardId.getIndexName(), shardId.id());
                 shardRequests.put(shardId, shardRequest);
             }
             shardRequest.add(i, item);

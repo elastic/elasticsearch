@@ -21,7 +21,6 @@ package org.elasticsearch.search.nested;
 
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.join.ScoreMode;
-import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
@@ -29,6 +28,7 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -235,7 +235,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
     // This IncludeNestedDocsQuery also needs to be aware of the filter from alias
     public void testDeleteNestedDocsWithAlias() throws Exception {
         assertAcked(prepareCreate("test")
-                .setSettings(settingsBuilder().put(indexSettings()).put("index.referesh_interval", -1).build())
+                .setSettings(settingsBuilder().put(indexSettings()).put("index.refresh_interval", -1).build())
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("field1")
                         .field("type", "string")
@@ -337,7 +337,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
                         .startObject("properties")
                         .startObject("field1")
                         .field("type", "long")
-                        .field("store", "yes")
+                        .field("store", true)
                         .endObject()
                         .endObject()
                         .endObject()
@@ -412,7 +412,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test")
                 .setSettings(settingsBuilder()
                         .put(indexSettings())
-                        .put("index.referesh_interval", -1))
+                        .put("index.refresh_interval", -1))
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("nested1")
                         .field("type", "nested")

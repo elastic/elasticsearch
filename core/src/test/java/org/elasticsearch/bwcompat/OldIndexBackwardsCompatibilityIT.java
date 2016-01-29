@@ -32,25 +32,34 @@ import org.elasticsearch.action.admin.indices.upgrade.UpgradeIT;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.MultiDataPathUpgrader;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.index.engine.EngineConfig;
+import org.elasticsearch.gateway.MetaDataStateFormat;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.mapper.string.StringFieldMapperPositionIncrementGapTests;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.shard.MergePolicyConfig;
-import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.node.Node;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
@@ -60,9 +69,20 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.file.*;
+import java.nio.file.DirectoryStream;
+import java.nio.file.FileVisitResult;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.SortedSet;
+import java.util.TreeSet;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -74,6 +94,12 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
     // TODO: test for proper exception on unsupported indexes (maybe via separate test?)
     // We have a 0.20.6.zip etc for this.
+
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return pluginList(InternalSettingsPlugin.class);
+    }
 
     List<String> indexes;
     List<String> unsupportedIndexes;
@@ -107,7 +133,8 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
     public Settings nodeSettings(int ord) {
         return Settings.builder()
                 .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false) // disable merging so no segments will be upgraded
-                .put(RecoverySettings.INDICES_RECOVERY_CONCURRENT_SMALL_FILE_STREAMS_SETTING.getKey(), 30) // increase recovery speed for small files
+                .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 30) // speed up recoveries
+                .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 30)
                 .build();
     }
 
@@ -117,14 +144,14 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
         Path baseTempDir = createTempDir();
         // start single data path node
         Settings.Builder nodeSettings = Settings.builder()
-            .put("path.data", baseTempDir.resolve("single-path").toAbsolutePath())
-            .put("node.master", false); // workaround for dangling index loading issue when node is master
+            .put(Environment.PATH_DATA_SETTING.getKey(), baseTempDir.resolve("single-path").toAbsolutePath())
+            .put(Node.NODE_MASTER_SETTING.getKey(), false); // workaround for dangling index loading issue when node is master
         InternalTestCluster.Async<String> singleDataPathNode = internalCluster().startNodeAsync(nodeSettings.build());
 
         // start multi data path node
         nodeSettings = Settings.builder()
-            .put("path.data", baseTempDir.resolve("multi-path1").toAbsolutePath() + "," + baseTempDir.resolve("multi-path2").toAbsolutePath())
-            .put("node.master", false); // workaround for dangling index loading issue when node is master
+            .put(Environment.PATH_DATA_SETTING.getKey(), baseTempDir.resolve("multi-path1").toAbsolutePath() + "," + baseTempDir.resolve("multi-path2").toAbsolutePath())
+            .put(Node.NODE_MASTER_SETTING.getKey(), false); // workaround for dangling index loading issue when node is master
         InternalTestCluster.Async<String> multiDataPathNode = internalCluster().startNodeAsync(nodeSettings.build());
 
         // find single data path dir
@@ -182,10 +209,6 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
     }
 
     void importIndex(String indexName) throws IOException {
-        final Iterable<NodeEnvironment> instances = internalCluster().getInstances(NodeEnvironment.class);
-        for (NodeEnvironment nodeEnv : instances) { // upgrade multidata path
-            MultiDataPathUpgrader.upgradeMultiDataPath(nodeEnv, logger);
-        }
         // force reloading dangling indices with a cluster state republish
         client().admin().cluster().prepareReroute().get();
         ensureGreen(indexName);
@@ -193,6 +216,7 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
 
     // randomly distribute the files from src over dests paths
     public static void copyIndex(final ESLogger logger, final Path src, final String indexName, final Path... dests) throws IOException {
+        Path destinationDataPath = dests[randomInt(dests.length - 1)];
         for (Path dest : dests) {
             Path indexDir = dest.resolve(indexName);
             assertFalse(Files.exists(indexDir));
@@ -218,7 +242,7 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
                 }
 
                 Path relativeFile = src.relativize(file);
-                Path destFile = dests[randomInt(dests.length - 1)].resolve(indexName).resolve(relativeFile);
+                Path destFile = destinationDataPath.resolve(indexName).resolve(relativeFile);
                 logger.trace("--> Moving " + relativeFile.toString() + " to " + destFile.toString());
                 Files.move(file, destFile);
                 assertFalse(Files.exists(file));
@@ -366,7 +390,7 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
         assertThat(source, Matchers.hasKey("foo"));
 
         assertAcked(client().admin().indices().prepareUpdateSettings(indexName).setSettings(Settings.builder()
-                .put("refresh_interval", EngineConfig.DEFAULT_REFRESH_INTERVAL)
+                .put("refresh_interval", IndexSettings.DEFAULT_REFRESH_INTERVAL)
                 .build()));
     }
 
@@ -411,4 +435,62 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
         UpgradeIT.assertUpgraded(client(), indexName);
     }
 
+    private Path getNodeDir(String indexFile) throws IOException {
+        Path unzipDir = createTempDir();
+        Path unzipDataDir = unzipDir.resolve("data");
+
+        // decompress the index
+        Path backwardsIndex = getBwcIndicesPath().resolve(indexFile);
+        try (InputStream stream = Files.newInputStream(backwardsIndex)) {
+            TestUtil.unzip(stream, unzipDir);
+        }
+
+        // check it is unique
+        assertTrue(Files.exists(unzipDataDir));
+        Path[] list = FileSystemUtils.files(unzipDataDir);
+        if (list.length != 1) {
+            throw new IllegalStateException("Backwards index must contain exactly one cluster");
+        }
+
+        // the bwc scripts packs the indices under this path
+        return list[0].resolve("nodes/0/");
+    }
+
+    public void testOldClusterStates() throws Exception {
+        // dangling indices do not load the global state, only the per-index states
+        // so we make sure we can read them separately
+        MetaDataStateFormat<MetaData> globalFormat = new MetaDataStateFormat<MetaData>(XContentType.JSON, "global-") {
+
+            @Override
+            public void toXContent(XContentBuilder builder, MetaData state) throws IOException {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public MetaData fromXContent(XContentParser parser) throws IOException {
+                return MetaData.Builder.fromXContent(parser);
+            }
+        };
+        MetaDataStateFormat<IndexMetaData> indexFormat = new MetaDataStateFormat<IndexMetaData>(XContentType.JSON, "state-") {
+
+            @Override
+            public void toXContent(XContentBuilder builder, IndexMetaData state) throws IOException {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public IndexMetaData fromXContent(XContentParser parser) throws IOException {
+                return IndexMetaData.Builder.fromXContent(parser);
+            }
+        };
+        Collections.shuffle(indexes, random());
+        for (String indexFile : indexes) {
+            String indexName = indexFile.replace(".zip", "").toLowerCase(Locale.ROOT).replace("unsupported-", "index-");
+            Path nodeDir = getNodeDir(indexFile);
+            logger.info("Parsing cluster state files from index [" + indexName + "]");
+            assertNotNull(globalFormat.loadLatestState(logger, nodeDir)); // no exception
+            Path indexDir = nodeDir.resolve("indices").resolve(indexName);
+            assertNotNull(indexFormat.loadLatestState(logger, indexDir)); // no exception
+        }
+    }
 }

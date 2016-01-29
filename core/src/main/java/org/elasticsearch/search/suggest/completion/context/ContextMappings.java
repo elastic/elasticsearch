@@ -32,9 +32,19 @@ import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 
-import static org.elasticsearch.search.suggest.completion.context.ContextMapping.*;
+import static org.elasticsearch.search.suggest.completion.context.ContextMapping.FIELD_NAME;
+import static org.elasticsearch.search.suggest.completion.context.ContextMapping.FIELD_TYPE;
+import static org.elasticsearch.search.suggest.completion.context.ContextMapping.QueryContext;
+import static org.elasticsearch.search.suggest.completion.context.ContextMapping.Type;
 
 /**
  * ContextMappings indexes context-enabled suggestion fields

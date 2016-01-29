@@ -4,12 +4,12 @@
             "name":{
                 type:"string",
                 index:"analyzed",
-                store:"yes",
+                store:true,
                 "fields":{
                     "not_indexed3":{
                         type:"string",
                         index:"no",
-                        store:"yes"
+                        store:true
                     }
                 }
             }

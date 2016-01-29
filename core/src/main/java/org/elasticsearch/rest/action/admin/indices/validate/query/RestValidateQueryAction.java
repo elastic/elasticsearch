@@ -32,7 +32,12 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BytesRestResponse;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
 
@@ -52,7 +57,7 @@ public class RestValidateQueryAction extends BaseRestHandler {
 
     @Inject
     public RestValidateQueryAction(Settings settings, RestController controller, Client client, IndicesQueriesRegistry indicesQueriesRegistry) {
-        super(settings, controller, client);
+        super(settings, client);
         controller.registerHandler(GET, "/_validate/query", this);
         controller.registerHandler(POST, "/_validate/query", this);
         controller.registerHandler(GET, "/{index}/_validate/query", this);

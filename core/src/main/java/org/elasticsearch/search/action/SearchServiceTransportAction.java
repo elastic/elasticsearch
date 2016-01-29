@@ -34,7 +34,11 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.dfs.DfsSearchResult;
-import org.elasticsearch.search.fetch.*;
+import org.elasticsearch.search.fetch.FetchSearchResult;
+import org.elasticsearch.search.fetch.QueryFetchSearchResult;
+import org.elasticsearch.search.fetch.ScrollQueryFetchSearchResult;
+import org.elasticsearch.search.fetch.ShardFetchRequest;
+import org.elasticsearch.search.fetch.ShardFetchSearchRequest;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.internal.ShardSearchTransportRequest;
 import org.elasticsearch.search.query.QuerySearchRequest;
@@ -42,7 +46,11 @@ import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.QuerySearchResultProvider;
 import org.elasticsearch.search.query.ScrollQuerySearchResult;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.*;
+import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestHandler;
+import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 
@@ -117,7 +125,7 @@ public class SearchServiceTransportAction extends AbstractComponent {
     }
 
     public void sendClearAllScrollContexts(DiscoveryNode node, ClearScrollRequest request, final ActionListener<TransportResponse> listener) {
-        transportService.sendRequest(node, CLEAR_SCROLL_CONTEXTS_ACTION_NAME, new ClearScrollContextsRequest(request), new ActionListenerResponseHandler<TransportResponse>(listener) {
+        transportService.sendRequest(node, CLEAR_SCROLL_CONTEXTS_ACTION_NAME, new ClearScrollContextsRequest(), new ActionListenerResponseHandler<TransportResponse>(listener) {
             @Override
             public TransportResponse newInstance() {
                 return TransportResponse.Empty.INSTANCE;
@@ -212,11 +220,10 @@ public class SearchServiceTransportAction extends AbstractComponent {
         }
 
         ScrollFreeContextRequest(ClearScrollRequest request, long id) {
-            this((TransportRequest) request, id);
+            this(id);
         }
 
-        private ScrollFreeContextRequest(TransportRequest request, long id) {
-            super(request);
+        private ScrollFreeContextRequest(long id) {
             this.id = id;
         }
 
@@ -244,7 +251,7 @@ public class SearchServiceTransportAction extends AbstractComponent {
         }
 
         SearchFreeContextRequest(SearchRequest request, long id) {
-            super(request, id);
+            super(id);
             this.originalIndices = new OriginalIndices(request);
         }
 
@@ -314,14 +321,6 @@ public class SearchServiceTransportAction extends AbstractComponent {
     }
 
     public static class ClearScrollContextsRequest extends TransportRequest {
-
-        public ClearScrollContextsRequest() {
-        }
-
-        ClearScrollContextsRequest(TransportRequest request) {
-            super(request);
-        }
-
     }
 
     class ClearScrollContextsTransportHandler implements TransportRequestHandler<ClearScrollContextsRequest> {

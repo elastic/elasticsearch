@@ -21,7 +21,6 @@ package org.elasticsearch.bootstrap;
 
 import com.sun.jna.Native;
 import com.sun.jna.Pointer;
-
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -56,18 +55,18 @@ class JNANatives {
         boolean rlimitSuccess = false;
         long softLimit = 0;
         long hardLimit = 0;
-        
+
         try {
             int result = JNACLibrary.mlockall(JNACLibrary.MCL_CURRENT);
             if (result == 0) {
                 LOCAL_MLOCKALL = true;
                 return;
             }
-            
+
             errno = Native.getLastError();
             errMsg = JNACLibrary.strerror(errno);
             if (Constants.LINUX || Constants.MAC_OS_X) {
-                // we only know RLIMIT_MEMLOCK for these two at the moment. 
+                // we only know RLIMIT_MEMLOCK for these two at the moment.
                 JNACLibrary.Rlimit rlimit = new JNACLibrary.Rlimit();
                 if (JNACLibrary.getrlimit(JNACLibrary.RLIMIT_MEMLOCK, rlimit) == 0) {
                     rlimitSuccess = true;
@@ -103,7 +102,7 @@ class JNANatives {
             }
         }
     }
-    
+
     static String rlimitToString(long value) {
         assert Constants.LINUX || Constants.MAC_OS_X;
         if (value == JNACLibrary.RLIM_INFINITY) {

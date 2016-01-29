@@ -29,6 +29,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Numbers;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
@@ -53,14 +54,14 @@ public class StoredNumericValuesTests extends ESSingleNodeTestCase {
                 .startObject()
                     .startObject("type")
                         .startObject("properties")
-                            .startObject("field1").field("type", "integer").field("store", "yes").endObject()
-                            .startObject("field2").field("type", "float").field("store", "yes").endObject()
-                            .startObject("field3").field("type", "long").field("store", "yes").endObject()
+                            .startObject("field1").field("type", "integer").field("store", true).endObject()
+                            .startObject("field2").field("type", "float").field("store", true).endObject()
+                            .startObject("field3").field("type", "long").field("store", true).endObject()
                         .endObject()
                     .endObject()
                 .endObject()
                 .string();
-        DocumentMapper mapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper mapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
         ParsedDocument doc = mapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()

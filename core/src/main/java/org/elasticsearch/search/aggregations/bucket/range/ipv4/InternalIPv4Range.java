@@ -32,8 +32,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.index.mapper.ip.IpFieldMapper.MAX_IP;
-
 /**
  *
  */

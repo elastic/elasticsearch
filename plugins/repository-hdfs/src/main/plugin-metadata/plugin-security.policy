@@ -18,50 +18,21 @@
  */
 
 grant {
-  // used by the plugin to get the TCCL to properly initialize all of Hadoop components
+  // Hadoop UserGroupInformation, HdfsConstants, PipelineAck clinit
   permission java.lang.RuntimePermission "getClassLoader";
 
-  // used for DomainCombiner
-  permission java.security.SecurityPermission "createAccessControlContext";
-  
-  // set TCCL used for bootstrapping Hadoop Configuration and JAAS
-  permission java.lang.RuntimePermission "setContextClassLoader";
-
-  //
-  // Hadoop 1
-  //
-    
-  // UserGroupInformation (UGI)
+  // UserGroupInformation (UGI) Metrics clinit
+  permission java.lang.RuntimePermission "accessDeclaredMembers";
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
 
-  // UGI triggers JAAS
-  permission javax.security.auth.AuthPermission "getSubject";
-  
-  // JAAS libraries are not loaded with the proper context in Hadoop, hence why the permission is needed here
-  permission java.lang.RuntimePermission "loadLibrary.jaas_nt";
-  
-  // which triggers the use of the Kerberos library
-  permission java.lang.RuntimePermission "accessClassInPackage.sun.security.krb5";
-
-  // plus LoginContext
-  permission javax.security.auth.AuthPermission "modifyPrincipals";
-  
-  permission javax.security.auth.AuthPermission "modifyPublicCredentials";
-  
-  permission javax.security.auth.AuthPermission "modifyPrivateCredentials";
-
-  //
-  // Hadoop 2
-  //
-  
-  // UGI (Ugi Metrics)
-  permission java.lang.RuntimePermission "accessDeclaredMembers";
-
-  // Shell initialization - reading system props
+  // org.apache.hadoop.util.StringUtils clinit
   permission java.util.PropertyPermission "*", "read,write";
+
+  // org.apache.hadoop.util.ShutdownHookManager clinit
+  permission java.lang.RuntimePermission "shutdownHooks";
   
-  permission javax.security.auth.PrivateCredentialPermission "org.apache.hadoop.security.Credentials   \"*\"", "read";
-  
-  // HftpFileSystem (all present FS are loaded and initialized at startup ...)
-  permission java.lang.RuntimePermission "setFactory";
+  // JAAS is used always, we use a fake subject, hurts nobody
+  permission javax.security.auth.AuthPermission "getSubject";
+  permission javax.security.auth.AuthPermission "doAs";
+  permission javax.security.auth.AuthPermission "modifyPrivateCredentials";
 };

@@ -41,15 +41,15 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.TTLFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
-import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.indices.IndicesService;
 
 import java.io.IOException;
@@ -68,7 +68,6 @@ import java.util.concurrent.locks.ReentrantLock;
 public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLService> {
 
     public static final Setting<TimeValue> INDICES_TTL_INTERVAL_SETTING = Setting.positiveTimeSetting("indices.ttl.interval", TimeValue.timeValueSeconds(60), true, Setting.Scope.CLUSTER);
-    public static final String INDEX_TTL_DISABLE_PURGE = "index.ttl.disable_purge";
 
     private final ClusterService clusterService;
     private final IndicesService indicesService;
@@ -160,12 +159,11 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
             MetaData metaData = clusterService.state().metaData();
             for (IndexService indexService : indicesService) {
                 // check the value of disable_purge for this index
-                IndexMetaData indexMetaData = metaData.index(indexService.index().name());
+                IndexMetaData indexMetaData = metaData.index(indexService.index().getName());
                 if (indexMetaData == null) {
                     continue;
                 }
-                boolean disablePurge = indexMetaData.getSettings().getAsBoolean(INDEX_TTL_DISABLE_PURGE, false);
-                if (disablePurge) {
+                if (indexService.getIndexSettings().isTTLPurgeDisabled()) {
                     continue;
                 }
 
@@ -196,7 +194,7 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
 
     private void purgeShards(List<IndexShard> shardsToPurge) {
         for (IndexShard shardToPurge : shardsToPurge) {
-            Query query = shardToPurge.mapperService().smartNameFieldType(TTLFieldMapper.NAME).rangeQuery(null, System.currentTimeMillis(), false, true);
+            Query query = shardToPurge.mapperService().fullName(TTLFieldMapper.NAME).rangeQuery(null, System.currentTimeMillis(), false, true);
             Engine.Searcher searcher = shardToPurge.acquireSearcher("indices_ttl");
             try {
                 logger.debug("[{}][{}] purging shard", shardToPurge.routingEntry().index(), shardToPurge.routingEntry().id());
@@ -207,7 +205,7 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
                 BulkRequest bulkRequest = new BulkRequest();
                 for (DocToPurge docToPurge : docsToPurge) {
 
-                    bulkRequest.add(new DeleteRequest().index(shardToPurge.routingEntry().index()).type(docToPurge.type).id(docToPurge.id).version(docToPurge.version).routing(docToPurge.routing));
+                    bulkRequest.add(new DeleteRequest().index(shardToPurge.routingEntry().getIndexName()).type(docToPurge.type).id(docToPurge.id).version(docToPurge.version).routing(docToPurge.routing));
                     bulkRequest = processBulkIfNeeded(bulkRequest, false);
                 }
                 processBulkIfNeeded(bulkRequest, true);

@@ -31,11 +31,13 @@ import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllo
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
-import org.elasticsearch.cluster.settings.DynamicSettings;
-import org.elasticsearch.cluster.settings.Validator;
 import org.elasticsearch.common.inject.ModuleTestCase;
-import org.elasticsearch.common.settings.*;
-import org.elasticsearch.index.settings.IndexDynamicSettings;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.IndexScopedSettings;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.settings.SettingsModule;
 
 public class ClusterModuleTests extends ModuleTestCase {
 
@@ -89,18 +91,19 @@ public class ClusterModuleTests extends ModuleTestCase {
     }
 
     public void testRegisterIndexDynamicSettingDuplicate() {
-        ClusterModule module = new ClusterModule(Settings.EMPTY);
+        SettingsModule module = new SettingsModule(Settings.EMPTY, new SettingsFilter(Settings.EMPTY));
         try {
-            module.registerIndexDynamicSetting(EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE, Validator.EMPTY);
+            module.registerSetting(EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING);
         } catch (IllegalArgumentException e) {
-            assertEquals(e.getMessage(), "Cannot register setting [" + EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE + "] twice");
+            assertEquals(e.getMessage(), "Cannot register setting [" + EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey() + "] twice");
         }
     }
 
     public void testRegisterIndexDynamicSetting() {
-        ClusterModule module = new ClusterModule(Settings.EMPTY);
-        module.registerIndexDynamicSetting("foo.bar", Validator.EMPTY);
-        assertInstanceBindingWithAnnotation(module, DynamicSettings.class, dynamicSettings -> dynamicSettings.hasDynamicSetting("foo.bar"), IndexDynamicSettings.class);
+        final SettingsFilter settingsFilter = new SettingsFilter(Settings.EMPTY);
+        SettingsModule module = new SettingsModule(Settings.EMPTY, settingsFilter);
+        module.registerSetting(Setting.boolSetting("foo.bar", false, true, Setting.Scope.INDEX));
+        assertInstanceBinding(module, IndexScopedSettings.class, service -> service.hasDynamicSetting("foo.bar"));
     }
 
     public void testRegisterAllocationDeciderDuplicate() {
@@ -119,7 +122,7 @@ public class ClusterModuleTests extends ModuleTestCase {
     }
 
     public void testRegisterShardsAllocator() {
-        Settings settings = Settings.builder().put(ClusterModule.SHARDS_ALLOCATOR_TYPE_KEY, "custom").build();
+        Settings settings = Settings.builder().put(ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING.getKey(), "custom").build();
         ClusterModule module = new ClusterModule(settings);
         module.registerShardsAllocator("custom", FakeShardsAllocator.class);
         assertBinding(module, ShardsAllocator.class, FakeShardsAllocator.class);
@@ -135,14 +138,14 @@ public class ClusterModuleTests extends ModuleTestCase {
     }
 
     public void testUnknownShardsAllocator() {
-        Settings settings = Settings.builder().put(ClusterModule.SHARDS_ALLOCATOR_TYPE_KEY, "dne").build();
+        Settings settings = Settings.builder().put(ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING.getKey(), "dne").build();
         ClusterModule module = new ClusterModule(settings);
         assertBindingFailure(module, "Unknown [shards_allocator]");
     }
 
     public void testEvenShardsAllocatorBackcompat() {
         Settings settings = Settings.builder()
-            .put(ClusterModule.SHARDS_ALLOCATOR_TYPE_KEY, ClusterModule.EVEN_SHARD_COUNT_ALLOCATOR).build();
+            .put(ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING.getKey(), ClusterModule.EVEN_SHARD_COUNT_ALLOCATOR).build();
         ClusterModule module = new ClusterModule(settings);
         assertBinding(module, ShardsAllocator.class, BalancedShardsAllocator.class);
     }

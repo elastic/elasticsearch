@@ -23,11 +23,17 @@ import com.amazonaws.AmazonClientException;
 import com.amazonaws.AmazonWebServiceRequest;
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.Protocol;
-import com.amazonaws.auth.*;
+import com.amazonaws.auth.AWSCredentialsProvider;
+import com.amazonaws.auth.AWSCredentialsProviderChain;
+import com.amazonaws.auth.BasicAWSCredentials;
+import com.amazonaws.auth.EnvironmentVariableCredentialsProvider;
+import com.amazonaws.auth.InstanceProfileCredentialsProvider;
+import com.amazonaws.auth.SystemPropertiesCredentialsProvider;
 import com.amazonaws.internal.StaticCredentialsProvider;
 import com.amazonaws.retry.RetryPolicy;
 import com.amazonaws.services.ec2.AmazonEC2;
 import com.amazonaws.services.ec2.AmazonEC2Client;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cloud.aws.network.Ec2NameResolver;
 import org.elasticsearch.cloud.aws.node.Ec2CustomNodeAttributes;
@@ -66,6 +72,7 @@ public class AwsEc2ServiceImpl extends AbstractLifecycleComponent<AwsEc2Service>
         discoveryNodeService.addCustomAttributeProvider(new Ec2CustomNodeAttributes(settings));
     }
 
+    @Override
     public synchronized AmazonEC2 client() {
         if (client != null) {
             return client;
@@ -86,11 +93,11 @@ public class AwsEc2ServiceImpl extends AbstractLifecycleComponent<AwsEc2Service>
         String account = settings.get(CLOUD_EC2.KEY, settings.get(CLOUD_AWS.KEY));
         String key = settings.get(CLOUD_EC2.SECRET, settings.get(CLOUD_AWS.SECRET));
 
-        String proxyHost = settings.get(CLOUD_AWS.PROXY_HOST, settings.get(CLOUD_AWS.DEPRECATED_PROXY_HOST));
-        proxyHost = settings.get(CLOUD_EC2.PROXY_HOST, settings.get(CLOUD_EC2.DEPRECATED_PROXY_HOST, proxyHost));
+        String proxyHost = settings.get(CLOUD_AWS.PROXY_HOST);
+        proxyHost = settings.get(CLOUD_EC2.PROXY_HOST, proxyHost);
         if (proxyHost != null) {
-            String portString = settings.get(CLOUD_AWS.PROXY_PORT, settings.get(CLOUD_AWS.DEPRECATED_PROXY_PORT, "80"));
-            portString = settings.get(CLOUD_EC2.PROXY_PORT, settings.get(CLOUD_EC2.DEPRECATED_PROXY_PORT, portString));
+            String portString = settings.get(CLOUD_AWS.PROXY_PORT, "80");
+            portString = settings.get(CLOUD_EC2.PROXY_PORT, portString);
             Integer proxyPort;
             try {
                 proxyPort = Integer.parseInt(portString, 10);
@@ -130,7 +137,7 @@ public class AwsEc2ServiceImpl extends AbstractLifecycleComponent<AwsEc2Service>
                                                      int retriesAttempted) {
                         // with 10 retries the max delay time is 320s/320000ms (10 * 2^5 * 1 * 1000)
                         logger.warn("EC2 API request failed, retry again. Reason was:", exception);
-                        return 1000L * (long) (10d * Math.pow(2, ((double) retriesAttempted) / 2.0d) * (1.0d + rand.nextDouble()));
+                        return 1000L * (long) (10d * Math.pow(2, retriesAttempted / 2.0d) * (1.0d + rand.nextDouble()));
                     }
                 },
                 10,
@@ -174,6 +181,8 @@ public class AwsEc2ServiceImpl extends AbstractLifecycleComponent<AwsEc2Service>
                 endpoint = "ec2.ap-southeast-2.amazonaws.com";
             } else if (region.equals("ap-northeast") || region.equals("ap-northeast-1")) {
                 endpoint = "ec2.ap-northeast-1.amazonaws.com";
+            } else if (region.equals("ap-northeast-2")) {
+                endpoint = "ec2.ap-northeast-2.amazonaws.com";
             } else if (region.equals("eu-west") || region.equals("eu-west-1")) {
                 endpoint = "ec2.eu-west-1.amazonaws.com";
             } else if (region.equals("eu-central") || region.equals("eu-central-1")) {

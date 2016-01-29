@@ -26,7 +26,11 @@ import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 public class ElectMasterServiceTests extends ESTestCase {
 

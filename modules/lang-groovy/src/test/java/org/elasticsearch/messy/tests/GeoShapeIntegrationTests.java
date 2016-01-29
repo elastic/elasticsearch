@@ -77,7 +77,7 @@ public class GeoShapeIntegrationTests extends ESIntegTestCase {
         // left orientation test
         IndicesService indicesService = internalCluster().getInstance(IndicesService.class, findNodeName(idxName));
         IndexService indexService = indicesService.indexService(idxName);
-        MappedFieldType fieldType = indexService.mapperService().smartNameFieldType("location");
+        MappedFieldType fieldType = indexService.mapperService().fullName("location");
         assertThat(fieldType, instanceOf(GeoShapeFieldMapper.GeoShapeFieldType.class));
 
         GeoShapeFieldMapper.GeoShapeFieldType gsfm = (GeoShapeFieldMapper.GeoShapeFieldType)fieldType;
@@ -89,7 +89,7 @@ public class GeoShapeIntegrationTests extends ESIntegTestCase {
         // right orientation test
         indicesService = internalCluster().getInstance(IndicesService.class, findNodeName(idxName+"2"));
         indexService = indicesService.indexService(idxName+"2");
-        fieldType = indexService.mapperService().smartNameFieldType("location");
+        fieldType = indexService.mapperService().fullName("location");
         assertThat(fieldType, instanceOf(GeoShapeFieldMapper.GeoShapeFieldType.class));
 
         gsfm = (GeoShapeFieldMapper.GeoShapeFieldType)fieldType;

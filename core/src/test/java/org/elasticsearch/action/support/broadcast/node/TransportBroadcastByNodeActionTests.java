@@ -47,6 +47,7 @@ import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.DummyTransportAddress;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
@@ -198,7 +199,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
     void setClusterState(TestClusterService clusterService, String index) {
         int numberOfNodes = randomIntBetween(3, 5);
         DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
-        IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index);
+        IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(new Index(index,"_na_"));
 
         int shardIndex = -1;
         for (int i = 0; i < numberOfNodes; i++) {
@@ -206,7 +207,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
             discoBuilder = discoBuilder.put(node);
             int numberOfShards = randomIntBetween(1, 10);
             for (int j = 0; j < numberOfShards; j++) {
-                final ShardId shardId = new ShardId(index, ++shardIndex);
+                final ShardId shardId = new ShardId(index, "_na_", ++shardIndex);
                 ShardRouting shard = TestShardRouting.newShardRouting(index, shardId.getId(), node.id(), true, ShardRoutingState.STARTED, 1);
                 IndexShardRoutingTable.Builder indexShard = new IndexShardRoutingTable.Builder(shardId);
                 indexShard.addShard(shard);
@@ -241,7 +242,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
                 .addGlobalBlock(new ClusterBlock(1, "test-block", false, true, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL));
         clusterService.setState(ClusterState.builder(clusterService.state()).blocks(block));
         try {
-            action.new AsyncAction(request, listener).start();
+            action.new AsyncAction(null, request, listener).start();
             fail("expected ClusterBlockException");
         } catch (ClusterBlockException expected) {
             assertEquals("blocked by: [SERVICE_UNAVAILABLE/1/test-block];", expected.getMessage());
@@ -256,7 +257,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
                 .addIndexBlock(TEST_INDEX, new ClusterBlock(1, "test-block", false, true, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL));
         clusterService.setState(ClusterState.builder(clusterService.state()).blocks(block));
         try {
-            action.new AsyncAction(request, listener).start();
+            action.new AsyncAction(null, request, listener).start();
             fail("expected ClusterBlockException");
         } catch (ClusterBlockException expected) {
             assertEquals("blocked by: [SERVICE_UNAVAILABLE/1/test-block];", expected.getMessage());
@@ -267,8 +268,8 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         Request request = new Request(new String[]{TEST_INDEX});
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
 
-        action.new AsyncAction(request, listener).start();
-        Map<String, List<CapturingTransport.CapturedRequest>> capturedRequests = transport.capturedRequestsByTargetNode();
+        action.new AsyncAction(null, request, listener).start();
+        Map<String, List<CapturingTransport.CapturedRequest>> capturedRequests = transport.getCapturedRequestsByTargetNodeAndClear();
 
         ShardsIterator shardIt = clusterService.state().routingTable().allShards(new String[]{TEST_INDEX});
         Set<String> set = new HashSet<>();
@@ -301,9 +302,9 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
 
         clusterService.setState(ClusterState.builder(clusterService.state()).nodes(builder));
 
-        action.new AsyncAction(request, listener).start();
+        action.new AsyncAction(null, request, listener).start();
 
-        Map<String, List<CapturingTransport.CapturedRequest>> capturedRequests = transport.capturedRequestsByTargetNode();
+        Map<String, List<CapturingTransport.CapturedRequest>> capturedRequests = transport.getCapturedRequestsByTargetNodeAndClear();
 
         // the master should not be in the list of nodes that requests were sent to
         ShardsIterator shardIt = clusterService.state().routingTable().allShards(new String[]{TEST_INDEX});
@@ -388,9 +389,8 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
             clusterService.setState(ClusterState.builder(clusterService.state()).nodes(builder));
         }
 
-        action.new AsyncAction(request, listener).start();
-        Map<String, List<CapturingTransport.CapturedRequest>> capturedRequests = transport.capturedRequestsByTargetNode();
-        transport.clear();
+        action.new AsyncAction(null, request, listener).start();
+        Map<String, List<CapturingTransport.CapturedRequest>> capturedRequests = transport.getCapturedRequestsByTargetNodeAndClear();
 
         ShardsIterator shardIt = clusterService.state().getRoutingTable().allShards(new String[]{TEST_INDEX});
         Map<String, List<ShardRouting>> map = new HashMap<>();
@@ -411,7 +411,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
                 // simulate node failure
                 totalShards += map.get(entry.getKey()).size();
                 totalFailedShards += map.get(entry.getKey()).size();
-                transport.handleResponse(requestId, new Exception());
+                transport.handleRemoteError(requestId, new Exception());
             } else {
                 List<ShardRouting> shards = map.get(entry.getKey());
                 List<TransportBroadcastByNodeAction.EmptyResult> shardResults = new ArrayList<>();
@@ -470,5 +470,16 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         @Override
         public void sendResponse(Throwable error) throws IOException {
         }
+
+        @Override
+        public long getRequestId() {
+            return 0;
+        }
+
+        @Override
+        public String getChannelType() {
+            return "test";
+        }
+
     }
 }

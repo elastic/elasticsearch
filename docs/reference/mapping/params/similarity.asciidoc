@@ -8,14 +8,14 @@ algorithm other than the default TF/IDF, such as `BM25`.
 Similarities are mostly useful for <<string,`string`>> fields, especially
 `analyzed` string fields, but can also apply to other field types.
 
-Custom similarites can be configured by tuning the parameters of the built-in
+Custom similarities can be configured by tuning the parameters of the built-in
 similarities. For more details about this expert options, see the
 <<index-modules-similarity,similarity module>>.
 
 The only similarities which can be used out of the box, without any further
 configuration are:
 
-`default`::
+`classic`::
         The Default TF/IDF algorithm used by Elasticsearch and
         Lucene. See {defguide}/practical-scoring-function.html[Lucene’s Practical Scoring Function]
         for more information.
@@ -49,6 +49,6 @@ PUT my_index
 }
 --------------------------------------------------
 // AUTOSENSE
-<1> The `default_field` uses the `default` similarity (ie TF/IDF).
+<1> The `default_field` uses the `classic` similarity (ie TF/IDF).
 <2> The `bm25_field` uses the `BM25` similarity.
 

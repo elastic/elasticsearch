@@ -23,7 +23,11 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StringField;
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
@@ -63,7 +67,7 @@ public class FieldDataCacheTests extends ESTestCase {
             }
         }
         iw.close();
-        DirectoryReader ir = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(dir), new ShardId("_index", 0));
+        DirectoryReader ir = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(dir), new ShardId("_index", "_na_", 0));
 
         DummyAccountingFieldDataCache fieldDataCache = new DummyAccountingFieldDataCache();
         // Testing SortedSetDVOrdinalsIndexFieldData:
@@ -86,14 +90,12 @@ public class FieldDataCacheTests extends ESTestCase {
 
     private SortedSetDVOrdinalsIndexFieldData createSortedDV(String fieldName, IndexFieldDataCache indexFieldDataCache) {
         FieldDataType fieldDataType = new StringFieldMapper.StringFieldType().fieldDataType();
-        MappedFieldType.Names names = new MappedFieldType.Names(fieldName);
-        return new SortedSetDVOrdinalsIndexFieldData(createIndexSettings(), indexFieldDataCache, names, new NoneCircuitBreakerService(), fieldDataType);
+        return new SortedSetDVOrdinalsIndexFieldData(createIndexSettings(), indexFieldDataCache, fieldName, new NoneCircuitBreakerService(), fieldDataType);
     }
 
     private PagedBytesIndexFieldData createPagedBytes(String fieldName, IndexFieldDataCache indexFieldDataCache) {
         FieldDataType fieldDataType = new StringFieldMapper.StringFieldType().fieldDataType();
-        MappedFieldType.Names names = new MappedFieldType.Names(fieldName);
-        return new PagedBytesIndexFieldData(createIndexSettings(), names, fieldDataType, indexFieldDataCache, new NoneCircuitBreakerService());
+        return new PagedBytesIndexFieldData(createIndexSettings(), fieldName, fieldDataType, indexFieldDataCache, new NoneCircuitBreakerService());
     }
 
     private IndexSettings createIndexSettings() {
@@ -104,7 +106,7 @@ public class FieldDataCacheTests extends ESTestCase {
                 .numberOfReplicas(0)
                 .creationDate(System.currentTimeMillis())
                 .build();
-        return new IndexSettings(indexMetaData, settings, Collections.emptyList());
+        return new IndexSettings(indexMetaData, settings);
     }
 
     private class DummyAccountingFieldDataCache implements IndexFieldDataCache {

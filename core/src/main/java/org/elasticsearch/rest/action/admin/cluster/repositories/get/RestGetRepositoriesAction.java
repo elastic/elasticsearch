@@ -29,7 +29,12 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BytesRestResponse;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
 
 import static org.elasticsearch.client.Requests.getRepositoryRequest;
@@ -45,7 +50,7 @@ public class RestGetRepositoriesAction extends BaseRestHandler {
 
     @Inject
     public RestGetRepositoriesAction(Settings settings, RestController controller, Client client, SettingsFilter settingsFilter) {
-        super(settings, controller, client);
+        super(settings, client);
         controller.registerHandler(GET, "/_snapshot", this);
         controller.registerHandler(GET, "/_snapshot/{repository}", this);
         this.settingsFilter = settingsFilter;

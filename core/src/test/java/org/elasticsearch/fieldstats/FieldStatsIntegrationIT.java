@@ -30,12 +30,16 @@ import org.elasticsearch.test.ESIntegTestCase;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.action.fieldstats.IndexConstraint.Comparison.*;
+import static org.elasticsearch.action.fieldstats.IndexConstraint.Comparison.GTE;
+import static org.elasticsearch.action.fieldstats.IndexConstraint.Comparison.LT;
+import static org.elasticsearch.action.fieldstats.IndexConstraint.Comparison.LTE;
 import static org.elasticsearch.action.fieldstats.IndexConstraint.Property.MAX;
 import static org.elasticsearch.action.fieldstats.IndexConstraint.Property.MIN;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  */

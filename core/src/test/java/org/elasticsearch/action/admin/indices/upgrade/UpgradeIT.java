@@ -42,7 +42,6 @@ import org.junit.BeforeClass;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.function.Predicate;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -62,6 +61,11 @@ public class UpgradeIT extends ESBackcompatTestCase {
         return 2;
     }
 
+    @Override
+    protected int maximumNumberOfReplicas() {
+        return Math.max(0, Math.min(backwardsCluster().numBackwardsDataNodes(), backwardsCluster().numNewDataNodes()) - 1);
+    }
+
     public void testUpgrade() throws Exception {
         // allow the cluster to rebalance quickly - 2 concurrent rebalance are default we can do higher
         Settings.Builder builder = Settings.builder();
@@ -73,7 +77,7 @@ public class UpgradeIT extends ESBackcompatTestCase {
         for (int i = 0; i < numIndexes; ++i) {
             final String indexName = "test" + i;
             indexNames[i] = indexName;
-            
+
             Settings settings = Settings.builder()
                 .put("index.routing.allocation.exclude._name", backwardsCluster().newNodePattern())
                 // don't allow any merges so that we can check segments are upgraded
@@ -101,7 +105,7 @@ public class UpgradeIT extends ESBackcompatTestCase {
             } else {
                 assertEquals(0, flush(indexName).getFailedShards());
             }
-            
+
             // index more docs that won't be flushed
             numDocs = scaledRandomIntBetween(100, 1000);
             docs = new ArrayList<>();
@@ -128,14 +132,14 @@ public class UpgradeIT extends ESBackcompatTestCase {
         ensureGreen();
         logger.info("--> Nodes upgrade complete");
         logSegmentsState();
-        
+
         assertNotUpgraded(client());
         final String indexToUpgrade = "test" + randomInt(numIndexes - 1);
 
         // This test fires up another node running an older version of ES, but because wire protocol changes across major ES versions, it
         // means we can never generate ancient segments in this test (unless Lucene major version bumps but ES major version does not):
         assertFalse(hasAncientSegments(client(), indexToUpgrade));
-        
+
         logger.info("--> Running upgrade on index " + indexToUpgrade);
         assertNoFailures(client().admin().indices().prepareUpgrade(indexToUpgrade).get());
         awaitBusy(() -> {
@@ -204,7 +208,7 @@ public class UpgradeIT extends ESBackcompatTestCase {
             assertEquals("index " + status.getIndex() + " should be upgraded",
                 0, status.getToUpgradeBytes());
         }
-        
+
         // double check using the segments api that all segments are actually upgraded
         IndicesSegmentResponse segsRsp;
         if (index == null) {

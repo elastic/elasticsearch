@@ -34,10 +34,8 @@ import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.mapper.object.RootObjectMapper;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 
 /**
  *
@@ -184,11 +182,6 @@ public abstract class ParseContext {
         }
 
         @Override
-        public boolean flyweight() {
-            return in.flyweight();
-        }
-
-        @Override
         public DocumentMapperParser docMapperParser() {
             return in.docMapperParser();
         }
@@ -289,16 +282,6 @@ public abstract class ParseContext {
         }
 
         @Override
-        public void ignoredValue(String indexName, String value) {
-            in.ignoredValue(indexName, value);
-        }
-
-        @Override
-        public String ignoredValue(String indexName) {
-            return in.ignoredValue(indexName);
-        }
-
-        @Override
         public void id(String id) {
             in.id(id);
         }
@@ -390,8 +373,6 @@ public abstract class ParseContext {
 
         private StringBuilder stringBuilder = new StringBuilder();
 
-        private Map<String, String> ignoredValues = new HashMap<>();
-
         private AllEntries allEntries = new AllEntries();
 
         private float docBoost = 1.0f;
@@ -421,14 +402,8 @@ public abstract class ParseContext {
             this.source = source == null ? null : sourceToParse.source();
             this.path.reset();
             this.allEntries = new AllEntries();
-            this.ignoredValues.clear();
             this.docBoost = 1.0f;
             this.dynamicMappingsUpdate = null;
-        }
-
-        @Override
-        public boolean flyweight() {
-            return sourceToParse.flyweight();
         }
 
         @Override
@@ -523,16 +498,6 @@ public abstract class ParseContext {
             return id;
         }
 
-        @Override
-        public void ignoredValue(String indexName, String value) {
-            ignoredValues.put(indexName, value);
-        }
-
-        @Override
-        public String ignoredValue(String indexName) {
-            return ignoredValues.get(indexName);
-        }
-
         /**
          * Really, just the id mapper should set this.
          */
@@ -604,8 +569,6 @@ public abstract class ParseContext {
             return dynamicMappingsUpdate;
         }
     }
-
-    public abstract boolean flyweight();
 
     public abstract DocumentMapperParser docMapperParser();
 
@@ -683,6 +646,7 @@ public abstract class ParseContext {
 
     public abstract SourceToParse sourceToParse();
 
+    @Nullable
     public abstract BytesReference source();
 
     // only should be used by SourceFieldMapper to update with a compressed source
@@ -709,10 +673,6 @@ public abstract class ParseContext {
     public abstract MapperService mapperService();
 
     public abstract String id();
-
-    public abstract void ignoredValue(String indexName, String value);
-
-    public abstract String ignoredValue(String indexName);
 
     /**
      * Really, just the id mapper should set this.

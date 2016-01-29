@@ -28,6 +28,8 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
@@ -61,7 +63,7 @@ public class NettyTransportMultiPortIntegrationIT extends ESIntegTestCase {
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("network.host", "127.0.0.1")
                 .put(NetworkModule.TRANSPORT_TYPE_KEY, "netty")
-                .put("node.mode", "network")
+                .put(Node.NODE_MODE_SETTING.getKey(), "network")
                 .put("transport.profiles.client1.port", randomPortRange)
                 .put("transport.profiles.client1.publish_host", "127.0.0.7")
                 .put("transport.profiles.client1.publish_port", "4321")
@@ -73,7 +75,7 @@ public class NettyTransportMultiPortIntegrationIT extends ESIntegTestCase {
         Settings settings = settingsBuilder()
                 .put("cluster.name", internalCluster().getClusterName())
                 .put(NetworkModule.TRANSPORT_TYPE_KEY, "netty")
-                .put("path.home", createTempDir().toString())
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .build();
         try (TransportClient transportClient = TransportClient.builder().settings(settings).build()) {
             transportClient.addTransportAddress(new InetSocketTransportAddress(InetAddress.getByName("127.0.0.1"), randomPort));

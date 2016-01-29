@@ -29,6 +29,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -47,7 +48,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.index.mapper.MapperBuilders.doubleField;
@@ -60,7 +60,6 @@ import static org.elasticsearch.index.mapper.core.TypeParsers.parseMultiField;
  */
 public abstract class BaseGeoPointFieldMapper extends FieldMapper implements ArrayValueMapperParser {
     public static final String CONTENT_TYPE = "geo_point";
-
     public static class Names {
         public static final String LAT = "lat";
         public static final String LAT_SUFFIX = "." + LAT;
@@ -143,7 +142,7 @@ public abstract class BaseGeoPointFieldMapper extends FieldMapper implements Arr
                 return new Explicit<>(ignoreMalformed, true);
             }
             if (context.indexSettings() != null) {
-                return new Explicit<>(context.indexSettings().getAsBoolean("index.mapping.ignore_malformed", Defaults.IGNORE_MALFORMED.value()), false);
+                return new Explicit<>(IGNORE_MALFORMED_SETTING.get(context.indexSettings()), false);
             }
             return Defaults.IGNORE_MALFORMED;
         }
@@ -200,17 +199,17 @@ public abstract class BaseGeoPointFieldMapper extends FieldMapper implements Arr
                 String propName = Strings.toUnderscoreCase(entry.getKey());
                 Object propNode = entry.getValue();
                 if (propName.equals("lat_lon")) {
-                    builder.enableLatLon(XContentMapValues.nodeBooleanValue(propNode));
+                    builder.enableLatLon(XContentMapValues.lenientNodeBooleanValue(propNode));
                     iterator.remove();
                 } else if (propName.equals("precision_step")) {
                     builder.precisionStep(XContentMapValues.nodeIntegerValue(propNode));
                     iterator.remove();
                 } else if (propName.equals("geohash")) {
-                    builder.enableGeoHash(XContentMapValues.nodeBooleanValue(propNode));
+                    builder.enableGeoHash(XContentMapValues.lenientNodeBooleanValue(propNode));
                     iterator.remove();
                 } else if (propName.equals("geohash_prefix")) {
-                    builder.geoHashPrefix(XContentMapValues.nodeBooleanValue(propNode));
-                    if (XContentMapValues.nodeBooleanValue(propNode)) {
+                    builder.geoHashPrefix(XContentMapValues.lenientNodeBooleanValue(propNode));
+                    if (XContentMapValues.lenientNodeBooleanValue(propNode)) {
                         builder.enableGeoHash(true);
                     }
                     iterator.remove();
@@ -222,7 +221,7 @@ public abstract class BaseGeoPointFieldMapper extends FieldMapper implements Arr
                     }
                     iterator.remove();
                 } else if (propName.equals(Names.IGNORE_MALFORMED)) {
-                    builder.ignoreMalformed(XContentMapValues.nodeBooleanValue(propNode));
+                    builder.ignoreMalformed(XContentMapValues.lenientNodeBooleanValue(propNode));
                     iterator.remove();
                 } else if (parseMultiField(builder, name, parserContext, propName, propNode)) {
                     iterator.remove();
@@ -288,20 +287,20 @@ public abstract class BaseGeoPointFieldMapper extends FieldMapper implements Arr
             super.checkCompatibility(fieldType, conflicts, strict);
             GeoPointFieldType other = (GeoPointFieldType)fieldType;
             if (isLatLonEnabled() != other.isLatLonEnabled()) {
-                conflicts.add("mapper [" + names().fullName() + "] has different [lat_lon]");
+                conflicts.add("mapper [" + name() + "] has different [lat_lon]");
             }
             if (isLatLonEnabled() && other.isLatLonEnabled() &&
                     latFieldType().numericPrecisionStep() != other.latFieldType().numericPrecisionStep()) {
-                conflicts.add("mapper [" + names().fullName() + "] has different [precision_step]");
+                conflicts.add("mapper [" + name() + "] has different [precision_step]");
             }
             if (isGeoHashEnabled() != other.isGeoHashEnabled()) {
-                conflicts.add("mapper [" + names().fullName() + "] has different [geohash]");
+                conflicts.add("mapper [" + name() + "] has different [geohash]");
             }
             if (geoHashPrecision() != other.geoHashPrecision()) {
-                conflicts.add("mapper [" + names().fullName() + "] has different [geohash_precision]");
+                conflicts.add("mapper [" + name() + "] has different [geohash_precision]");
             }
             if (isGeoHashPrefixEnabled() != other.isGeoHashPrefixEnabled()) {
-                conflicts.add("mapper [" + names().fullName() + "] has different [geohash_prefix]");
+                conflicts.add("mapper [" + name() + "] has different [geohash_prefix]");
             }
         }
 
@@ -347,11 +346,11 @@ public abstract class BaseGeoPointFieldMapper extends FieldMapper implements Arr
         }
     }
 
-    protected final DoubleFieldMapper latMapper;
+    protected DoubleFieldMapper latMapper;
 
-    protected final DoubleFieldMapper lonMapper;
+    protected DoubleFieldMapper lonMapper;
 
-    protected final StringFieldMapper geoHashMapper;
+    protected StringFieldMapper geoHashMapper;
 
     protected Explicit<Boolean> ignoreMalformed;
 
@@ -413,7 +412,7 @@ public abstract class BaseGeoPointFieldMapper extends FieldMapper implements Arr
             latMapper.parse(context.createExternalValueContext(point.lat()));
             lonMapper.parse(context.createExternalValueContext(point.lon()));
         }
-        multiFields.parse(this, context);
+        multiFields.parse(this, context.createExternalValueContext(point));
     }
 
     @Override
@@ -504,5 +503,26 @@ public abstract class BaseGeoPointFieldMapper extends FieldMapper implements Arr
         if (includeDefaults || ignoreMalformed.explicit()) {
             builder.field(Names.IGNORE_MALFORMED, ignoreMalformed.value());
         }
+    }
+
+    @Override
+    public FieldMapper updateFieldType(Map<String, MappedFieldType> fullNameToFieldType) {
+        BaseGeoPointFieldMapper updated = (BaseGeoPointFieldMapper) super.updateFieldType(fullNameToFieldType);
+        StringFieldMapper geoUpdated = geoHashMapper == null ? null : (StringFieldMapper) geoHashMapper.updateFieldType(fullNameToFieldType);
+        DoubleFieldMapper latUpdated = latMapper == null ? null : (DoubleFieldMapper) latMapper.updateFieldType(fullNameToFieldType);
+        DoubleFieldMapper lonUpdated = lonMapper == null ? null : (DoubleFieldMapper) lonMapper.updateFieldType(fullNameToFieldType);
+        if (updated == this
+                && geoUpdated == geoHashMapper
+                && latUpdated == latMapper
+                && lonUpdated == lonMapper) {
+            return this;
+        }
+        if (updated == this) {
+            updated = (BaseGeoPointFieldMapper) updated.clone();
+        }
+        updated.geoHashMapper = geoUpdated;
+        updated.latMapper = latUpdated;
+        updated.lonMapper = lonUpdated;
+        return updated;
     }
 }

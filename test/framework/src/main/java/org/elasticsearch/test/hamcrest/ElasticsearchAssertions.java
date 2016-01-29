@@ -513,9 +513,9 @@ public class ElasticsearchAssertions {
     public static <T extends Query> T assertBooleanSubQuery(Query query, Class<T> subqueryType, int i) {
         assertThat(query, instanceOf(BooleanQuery.class));
         BooleanQuery q = (BooleanQuery) query;
-        assertThat(q.getClauses().length, greaterThan(i));
-        assertThat(q.getClauses()[i].getQuery(), instanceOf(subqueryType));
-        return (T) q.getClauses()[i].getQuery();
+        assertThat(q.clauses().size(), greaterThan(i));
+        assertThat(q.clauses().get(i).getQuery(), instanceOf(subqueryType));
+        return subqueryType.cast(q.clauses().get(i).getQuery());
     }
 
     /**
@@ -730,82 +730,6 @@ public class ElasticsearchAssertions {
         assertNoFailures(response);
         return response;
     }
-
-    public static void assertNodeContainsPlugins(NodesInfoResponse response, String nodeId,
-                                                 List<String> expectedJvmPluginNames,
-                                                 List<String> expectedJvmPluginDescriptions,
-                                                 List<String> expectedJvmVersions,
-                                                 List<String> expectedSitePluginNames,
-                                                 List<String> expectedSitePluginDescriptions,
-                                                 List<String> expectedSiteVersions) {
-
-        Assert.assertThat(response.getNodesMap().get(nodeId), notNullValue());
-
-        PluginsAndModules plugins = response.getNodesMap().get(nodeId).getPlugins();
-        Assert.assertThat(plugins, notNullValue());
-
-        List<String> pluginNames = filterAndMap(plugins, jvmPluginPredicate, nameFunction);
-        for (String expectedJvmPluginName : expectedJvmPluginNames) {
-            Assert.assertThat(pluginNames, hasItem(expectedJvmPluginName));
-        }
-
-        List<String> pluginDescriptions = filterAndMap(plugins, jvmPluginPredicate, descriptionFunction);
-        for (String expectedJvmPluginDescription : expectedJvmPluginDescriptions) {
-            Assert.assertThat(pluginDescriptions, hasItem(expectedJvmPluginDescription));
-        }
-
-        List<String> jvmPluginVersions = filterAndMap(plugins, jvmPluginPredicate, versionFunction);
-        for (String pluginVersion : expectedJvmVersions) {
-            Assert.assertThat(jvmPluginVersions, hasItem(pluginVersion));
-        }
-
-        boolean anyHaveUrls =
-                plugins
-                        .getPluginInfos()
-                        .stream()
-                        .filter(jvmPluginPredicate.and(sitePluginPredicate.negate()))
-                        .map(urlFunction)
-                        .anyMatch(p -> p != null);
-        assertFalse(anyHaveUrls);
-
-        List<String> sitePluginNames = filterAndMap(plugins, sitePluginPredicate, nameFunction);
-
-        Assert.assertThat(sitePluginNames.isEmpty(), is(expectedSitePluginNames.isEmpty()));
-        for (String expectedSitePluginName : expectedSitePluginNames) {
-            Assert.assertThat(sitePluginNames, hasItem(expectedSitePluginName));
-        }
-
-        List<String> sitePluginDescriptions = filterAndMap(plugins, sitePluginPredicate, descriptionFunction);
-        Assert.assertThat(sitePluginDescriptions.isEmpty(), is(expectedSitePluginDescriptions.isEmpty()));
-        for (String sitePluginDescription : expectedSitePluginDescriptions) {
-            Assert.assertThat(sitePluginDescriptions, hasItem(sitePluginDescription));
-        }
-
-        List<String> sitePluginUrls = filterAndMap(plugins, sitePluginPredicate, urlFunction);
-        Assert.assertThat(sitePluginUrls, not(contains(nullValue())));
-
-        List<String> sitePluginVersions = filterAndMap(plugins, sitePluginPredicate, versionFunction);
-        Assert.assertThat(sitePluginVersions.isEmpty(), is(expectedSiteVersions.isEmpty()));
-        for (String pluginVersion : expectedSiteVersions) {
-            Assert.assertThat(sitePluginVersions, hasItem(pluginVersion));
-        }
-    }
-
-    private static List<String> filterAndMap(PluginsAndModules pluginsInfo, Predicate<PluginInfo> predicate, Function<PluginInfo, String> function) {
-        return pluginsInfo.getPluginInfos().stream().filter(predicate).map(function).collect(Collectors.toList());
-    }
-
-    private static Predicate<PluginInfo> jvmPluginPredicate = p -> p.isJvm();
-
-    private static Predicate<PluginInfo> sitePluginPredicate = p -> p.isSite();
-
-    private static Function<PluginInfo, String> nameFunction = p -> p.getName();
-
-    private static Function<PluginInfo, String> descriptionFunction = p -> p.getDescription();
-
-    private static Function<PluginInfo, String> urlFunction = p -> p.getUrl();
-
-    private static Function<PluginInfo, String> versionFunction = p -> p.getVersion();
 
     /**
      * Check if a file exists

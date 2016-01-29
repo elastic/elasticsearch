@@ -19,18 +19,6 @@
 
 package org.elasticsearch.script.python;
 
-import java.io.IOException;
-import java.security.AccessControlContext;
-import java.security.AccessController;
-import java.security.Permissions;
-import java.security.PrivilegedAction;
-import java.security.ProtectionDomain;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
-
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.SpecialPermission;
@@ -53,11 +41,24 @@ import org.python.core.PyObject;
 import org.python.core.PyStringMap;
 import org.python.util.PythonInterpreter;
 
+import java.io.IOException;
+import java.security.AccessControlContext;
+import java.security.AccessController;
+import java.security.Permissions;
+import java.security.PrivilegedAction;
+import java.security.ProtectionDomain;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+
 /**
  *
  */
 //TODO we can optimize the case for Map<String, Object> similar to PyStringMap
 public class PythonScriptEngineService extends AbstractComponent implements ScriptEngineService {
+
+    public static final List<String> TYPES = Collections.unmodifiableList(Arrays.asList("py", "python"));
 
     private final PythonInterpreter interp;
 
@@ -95,17 +96,17 @@ public class PythonScriptEngineService extends AbstractComponent implements Scri
     }
 
     @Override
-    public String[] types() {
-        return new String[]{"python", "py"};
+    public List<String> getTypes() {
+        return TYPES;
     }
 
     @Override
-    public String[] extensions() {
-        return new String[]{"py"};
+    public List<String> getExtensions() {
+        return Collections.unmodifiableList(Arrays.asList("py"));
     }
 
     @Override
-    public boolean sandboxed() {
+    public boolean isSandboxed() {
         return false;
     }
 

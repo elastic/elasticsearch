@@ -23,11 +23,18 @@ import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.plugin.PluginBuildPlugin
-import org.gradle.api.*
+import org.gradle.api.AntBuilder
+import org.gradle.api.DefaultTask
+import org.gradle.api.GradleException
+import org.gradle.api.InvalidUserDataException
+import org.gradle.api.Project
+import org.gradle.api.Task
 import org.gradle.api.artifacts.Configuration
 import org.gradle.api.file.FileCollection
 import org.gradle.api.logging.Logger
-import org.gradle.api.tasks.*
+import org.gradle.api.tasks.Copy
+import org.gradle.api.tasks.Delete
+import org.gradle.api.tasks.Exec
 
 import java.nio.file.Paths
 
@@ -39,9 +46,9 @@ class ClusterFormationTasks {
     /**
      * Adds dependent tasks to the given task to start and stop a cluster with the given configuration.
      *
-     * Returns an object that will resolve at execution time of the given task to a uri for the cluster.
+     * Returns a NodeInfo object for the first node in the cluster.
      */
-    static Object setup(Project project, Task task, ClusterConfiguration config) {
+    static NodeInfo setup(Project project, Task task, ClusterConfiguration config) {
         if (task.getEnabled() == false) {
             // no need to add cluster formation tasks if the task won't run!
             return
@@ -59,7 +66,7 @@ class ClusterFormationTasks {
         task.dependsOn(wait)
 
         // delay the resolution of the uri by wrapping in a closure, so it is not used until read for tests
-        return "${-> nodes[0].transportUri()}"
+        return nodes[0]
     }
 
     /** Adds a dependency on the given distribution */

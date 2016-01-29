@@ -19,21 +19,25 @@
 
 package org.elasticsearch.index.query.functionscore;
 
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.*;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.search.function.CombineFunction;
-import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery;
-import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.*;
-import org.elasticsearch.index.query.functionscore.weight.WeightBuilder;
-
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.lucene.search.function.CombineFunction;
+import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery;
+import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
+import org.elasticsearch.common.xcontent.XContentLocation;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.EmptyQueryBuilder;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.QueryParser;
+import org.elasticsearch.index.query.functionscore.weight.WeightBuilder;
 
 /**
  * Parser for function_score query
@@ -49,7 +53,6 @@ public class FunctionScoreQueryParser implements QueryParser<FunctionScoreQueryB
 
     private final ScoreFunctionParserMapper functionParserMapper;
 
-    @Inject
     public FunctionScoreQueryParser(ScoreFunctionParserMapper functionParserMapper) {
         this.functionParserMapper = functionParserMapper;
     }

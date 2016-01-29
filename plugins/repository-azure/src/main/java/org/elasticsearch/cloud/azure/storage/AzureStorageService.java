@@ -19,8 +19,9 @@
 
 package org.elasticsearch.cloud.azure.storage;
 
-import com.microsoft.azure.storage.StorageException;
 import com.microsoft.azure.storage.LocationMode;
+import com.microsoft.azure.storage.StorageException;
+
 import org.elasticsearch.common.blobstore.BlobMetaData;
 
 import java.io.InputStream;
@@ -36,10 +37,11 @@ public interface AzureStorageService {
 
     final class Storage {
         public static final String PREFIX = "cloud.azure.storage.";
-        @Deprecated
-        public static final String ACCOUNT = "cloud.azure.storage.account";
-        @Deprecated
-        public static final String KEY = "cloud.azure.storage.key";
+
+        public static final String TIMEOUT = "cloud.azure.storage.timeout";
+
+        public static final String ACCOUNT = "repositories.azure.account";
+        public static final String LOCATION_MODE = "repositories.azure.location_mode";
         public static final String CONTAINER = "repositories.azure.container";
         public static final String BASE_PATH = "repositories.azure.base_path";
         public static final String CHUNK_SIZE = "repositories.azure.chunk_size";

@@ -35,10 +35,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class InternalSettingsPreparerTests extends ESTestCase {
 
@@ -47,7 +48,7 @@ public class InternalSettingsPreparerTests extends ESTestCase {
     @Before
     public void createBaseEnvSettings() {
         baseEnvSettings = settingsBuilder()
-            .put("path.home", createTempDir())
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
             .build();
     }
 
@@ -59,24 +60,24 @@ public class InternalSettingsPreparerTests extends ESTestCase {
     public void testEmptySettings() {
         Settings settings = InternalSettingsPreparer.prepareSettings(Settings.EMPTY);
         assertNotNull(settings.get("name")); // a name was set
-        assertNotNull(settings.get(ClusterName.SETTING)); // a cluster name was set
+        assertNotNull(settings.get(ClusterName.CLUSTER_NAME_SETTING.getKey())); // a cluster name was set
         int size = settings.names().size();
 
         Environment env = InternalSettingsPreparer.prepareEnvironment(baseEnvSettings, null);
         settings = env.settings();
         assertNotNull(settings.get("name")); // a name was set
-        assertNotNull(settings.get(ClusterName.SETTING)); // a cluster name was set
+        assertNotNull(settings.get(ClusterName.CLUSTER_NAME_SETTING.getKey())); // a cluster name was set
         assertEquals(settings.toString(), size + 1 /* path.home is in the base settings */, settings.names().size());
-        String home = baseEnvSettings.get("path.home");
+        String home = Environment.PATH_HOME_SETTING.get(baseEnvSettings);
         String configDir = env.configFile().toString();
         assertTrue(configDir, configDir.startsWith(home));
     }
 
     public void testClusterNameDefault() {
         Settings settings = InternalSettingsPreparer.prepareSettings(Settings.EMPTY);
-        assertEquals(ClusterName.DEFAULT.value(), settings.get(ClusterName.SETTING));
+        assertEquals(ClusterName.DEFAULT.value(), settings.get(ClusterName.CLUSTER_NAME_SETTING.getKey()));
         settings = InternalSettingsPreparer.prepareEnvironment(baseEnvSettings, null).settings();
-        assertEquals(ClusterName.DEFAULT.value(), settings.get(ClusterName.SETTING));
+        assertEquals(ClusterName.DEFAULT.value(), settings.get(ClusterName.CLUSTER_NAME_SETTING.getKey()));
     }
 
     public void testReplacePromptPlaceholders() {

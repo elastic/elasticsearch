@@ -136,7 +136,7 @@ public class RestTestSuiteParseContext {
             token = parser.nextToken();
         }
         if (token != XContentParser.Token.FIELD_NAME) {
-            throw new RestTestParseException("malformed test section: field name expected but found " + token);
+            throw new RestTestParseException("malformed test section: field name expected but found " + token + " at " + parser.getTokenLocation());
         }
     }
 

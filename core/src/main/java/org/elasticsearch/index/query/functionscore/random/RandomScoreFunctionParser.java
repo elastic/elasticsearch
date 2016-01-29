@@ -21,10 +21,10 @@
 package org.elasticsearch.index.query.functionscore.random;
 
 
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionParser;
 
 import java.io.IOException;

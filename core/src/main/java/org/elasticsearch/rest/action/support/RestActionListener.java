@@ -25,8 +25,6 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 
-import java.io.IOException;
-
 /**
  * An action listener that requires {@link #processResponse(Object)} to be implemented
  * and will automatically handle failures.

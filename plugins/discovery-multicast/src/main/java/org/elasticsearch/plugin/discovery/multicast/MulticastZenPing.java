@@ -19,7 +19,18 @@
 
 package org.elasticsearch.plugin.discovery.multicast;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import java.io.IOException;
+import java.net.InetAddress;
+import java.net.SocketAddress;
+import java.security.AccessController;
+import java.security.PrivilegedExceptionAction;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.ExceptionsHelper;
@@ -37,7 +48,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.network.NetworkUtils;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -56,17 +70,7 @@ import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
-import java.net.InetAddress;
-import java.net.SocketAddress;
-import java.security.AccessController;
-import java.security.PrivilegedExceptionAction;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 
 import static org.elasticsearch.cluster.node.DiscoveryNode.readNode;
 import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
@@ -102,6 +106,14 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
 
     private final AtomicInteger pingIdGenerator = new AtomicInteger();
     private final Map<Integer, PingCollection> receivedResponses = newConcurrentMap();
+    public static final Setting<String> ADDRESS_SETTING = Setting.simpleString("discovery.zen.ping.multicast.address", false, Setting.Scope.CLUSTER);
+    public static final Setting<Integer> PORT_SETTING = Setting.intSetting("discovery.zen.ping.multicast.port", 54328, 0, (1<<16)-1, false, Setting.Scope.CLUSTER);
+    public static final Setting<String> GROUP_SETTING = new Setting<>("discovery.zen.ping.multicast.group", "224.2.2.4", Function.identity(), false, Setting.Scope.CLUSTER);
+    public static final Setting<ByteSizeValue> BUFFER_SIZE_SETTING = Setting.byteSizeSetting("discovery.zen.ping.multicast.buffer_size", new ByteSizeValue(2048, ByteSizeUnit.BYTES), false, Setting.Scope.CLUSTER);
+    public static final Setting<Integer> TTL_SETTING = Setting.intSetting("discovery.zen.ping.multicast.ttl", 3, 0, 255, false, Setting.Scope.CLUSTER);
+    public static final Setting<Boolean> PING_ENABLED_SETTING = Setting.boolSetting("discovery.zen.ping.multicast.ping.enabled", true, false, Setting.Scope.CLUSTER);
+    public static final Setting<Boolean> SHARED_SETTING = Setting.boolSetting("discovery.zen.ping.multicast.shared", Constants.MAC_OS_X, false, Setting.Scope.CLUSTER);
+    public static final Setting<Boolean> DEFERE_TO_INTERFACE_SETTING = Setting.boolSetting("discovery.zen.ping.multicast.defer_group_to_set_interface", Constants.MAC_OS_X, false, Setting.Scope.CLUSTER);
 
     public MulticastZenPing(ThreadPool threadPool, TransportService transportService, ClusterName clusterName, Version version) {
         this(EMPTY_SETTINGS, threadPool, transportService, clusterName, new NetworkService(EMPTY_SETTINGS), version);
@@ -116,13 +128,12 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
         this.networkService = networkService;
         this.version = version;
 
-        this.address = this.settings.get("discovery.zen.ping.multicast.address");
-        this.port = this.settings.getAsInt("discovery.zen.ping.multicast.port", 54328);
-        this.group = this.settings.get("discovery.zen.ping.multicast.group", "224.2.2.4");
-        this.bufferSize = this.settings.getAsInt("discovery.zen.ping.multicast.buffer_size", 2048);
-        this.ttl = this.settings.getAsInt("discovery.zen.ping.multicast.ttl", 3);
-
-        this.pingEnabled = this.settings.getAsBoolean("discovery.zen.ping.multicast.ping.enabled", true);
+        this.address = ADDRESS_SETTING.exists(settings) ? ADDRESS_SETTING.get(settings) : null;
+        this.port = PORT_SETTING.get(settings);
+        this.group = GROUP_SETTING.get(settings);
+        this.bufferSize = BUFFER_SIZE_SETTING.get(settings).bytesAsInt();
+        this.ttl = TTL_SETTING.get(settings);
+        this.pingEnabled = PING_ENABLED_SETTING.get(settings);
 
         logger.debug("using group [{}], with port [{}], ttl [{}], and address [{}]", group, port, ttl, address);
 
@@ -142,16 +153,12 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
         try {
             // we know OSX has bugs in the JVM when creating multiple instances of multicast sockets
             // causing for "socket close" exceptions when receive and/or crashes
-            boolean shared = settings.getAsBoolean("discovery.zen.ping.multicast.shared", Constants.MAC_OS_X);
+            boolean shared = SHARED_SETTING.get(settings);
             // OSX does not correctly send multicasts FROM the right interface
-            boolean deferToInterface = settings.getAsBoolean("discovery.zen.ping.multicast.defer_group_to_set_interface", Constants.MAC_OS_X);
-            // don't use publish address, the use case for that is e.g. a firewall or proxy and
-            // may not even be bound to an interface on this machine! use the first bound address.
-            List<InetAddress> addresses = Arrays.asList(networkService.resolveBindHostAddresses(address == null ? null : new String[] { address }));
-            NetworkUtils.sortAddresses(addresses);
-            
-            final MulticastChannel.Config config = new MulticastChannel.Config(port, group, bufferSize, ttl, 
-                                                                               addresses.get(0), deferToInterface);
+            boolean deferToInterface = DEFERE_TO_INTERFACE_SETTING.get(settings);
+
+            final MulticastChannel.Config config = new MulticastChannel.Config(port, group, bufferSize, ttl,
+                    getMulticastInterface(), deferToInterface);
             SecurityManager sm = System.getSecurityManager();
             if (sm != null) {
                 sm.checkPermission(new SpecialPermission());
@@ -166,6 +173,16 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
             String msg = "multicast failed to start [{}], disabling. Consider using IPv4 only (by defining env. variable `ES_USE_IPV4`)";
             logger.info(msg, t, ExceptionsHelper.detailedMessage(t));
         }
+    }
+
+
+    @SuppressWarnings("deprecation") // Used to support funky configuration options
+    private InetAddress getMulticastInterface() throws IOException {
+        // don't use publish address, the use case for that is e.g. a firewall or proxy and
+        // may not even be bound to an interface on this machine! use the first bound address.
+        List<InetAddress> addresses = Arrays.asList(networkService.resolveBindHostAddresses(address == null ? null : new String[] { address }));
+        NetworkUtils.sortAddresses(addresses);
+        return addresses.get(0);
     }
 
     @Override

@@ -24,9 +24,9 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
-import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.ArrayList;
@@ -120,18 +120,6 @@ final class CompositeIndexEventListener implements IndexEventListener {
                 listener.onShardInactive(indexShard);
             } catch (Throwable t) {
                 logger.warn("[{}] failed to invoke on shard inactive callback", t, indexShard.shardId().getId());
-                throw t;
-            }
-        }
-    }
-
-    @Override
-    public void onShardActive(IndexShard indexShard) {
-        for (IndexEventListener listener : listeners) {
-            try {
-                listener.onShardActive(indexShard);
-            } catch (Throwable t) {
-                logger.warn("[{}] failed to invoke on shard active callback", t, indexShard.shardId().getId());
                 throw t;
             }
         }

@@ -123,16 +123,6 @@ subprojects {
       }
     }
   }
-  // For reasons we don't fully understand yet, external dependencies are not picked up by Ant's optional tasks.
-  // But you can easily do it in another way.
-  // Only if your buildscript and Ant's optional task need the same library would you have to define it twice.
-  // https://docs.gradle.org/current/userguide/organizing_build_logic.html
-  configurations {
-    forbiddenApis
-  }
-  dependencies {
-    forbiddenApis 'de.thetaphi:forbiddenapis:2.0'
-  }
 }
 
 // Ensure similar tasks in dependent projects run first. The projectsEvaluated here is
@@ -179,6 +169,30 @@ gradle.projectsEvaluated {
 // intellij configuration
 allprojects {
   apply plugin: 'idea'
+
+  idea {
+    module {
+      // same as for the IntelliJ Gradle tooling integration
+      inheritOutputDirs = false
+      outputDir = file('build/classes/main')
+      testOutputDir = file('build/classes/test')
+
+      iml {
+        // fix so that Gradle idea plugin properly generates support for resource folders
+        // see also https://issues.gradle.org/browse/GRADLE-2975
+        withXml {
+          it.asNode().component.content.sourceFolder.findAll { it.@url == 'file://$MODULE_DIR$/src/main/resources' }.each {
+            it.attributes().remove('isTestSource')
+            it.attributes().put('type', 'java-resource')
+          }
+          it.asNode().component.content.sourceFolder.findAll { it.@url == 'file://$MODULE_DIR$/src/test/resources' }.each {
+            it.attributes().remove('isTestSource')
+            it.attributes().put('type', 'java-test-resource')
+          }
+        }
+      }
+    }
+  }
 }
 
 idea {

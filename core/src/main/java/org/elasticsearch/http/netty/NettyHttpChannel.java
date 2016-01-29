@@ -32,16 +32,36 @@ import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.support.RestUtils;
 import org.jboss.netty.buffer.ChannelBuffer;
-import org.jboss.netty.channel.*;
-import org.jboss.netty.handler.codec.http.*;
+import org.jboss.netty.channel.Channel;
+import org.jboss.netty.channel.ChannelFuture;
+import org.jboss.netty.channel.ChannelFutureListener;
+import org.jboss.netty.handler.codec.http.Cookie;
+import org.jboss.netty.handler.codec.http.CookieDecoder;
+import org.jboss.netty.handler.codec.http.CookieEncoder;
+import org.jboss.netty.handler.codec.http.DefaultHttpResponse;
+import org.jboss.netty.handler.codec.http.HttpHeaders;
+import org.jboss.netty.handler.codec.http.HttpMethod;
+import org.jboss.netty.handler.codec.http.HttpResponseStatus;
+import org.jboss.netty.handler.codec.http.HttpVersion;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
 
-import static org.elasticsearch.http.netty.NettyHttpServerTransport.*;
-import static org.jboss.netty.handler.codec.http.HttpHeaders.Names.*;
+import static org.elasticsearch.http.netty.NettyHttpServerTransport.SETTING_CORS_ALLOW_CREDENTIALS;
+import static org.elasticsearch.http.netty.NettyHttpServerTransport.SETTING_CORS_ALLOW_HEADERS;
+import static org.elasticsearch.http.netty.NettyHttpServerTransport.SETTING_CORS_ALLOW_METHODS;
+import static org.elasticsearch.http.netty.NettyHttpServerTransport.SETTING_CORS_ALLOW_ORIGIN;
+import static org.elasticsearch.http.netty.NettyHttpServerTransport.SETTING_CORS_ENABLED;
+import static org.elasticsearch.http.netty.NettyHttpServerTransport.SETTING_CORS_MAX_AGE;
+import static org.jboss.netty.handler.codec.http.HttpHeaders.Names.ACCESS_CONTROL_ALLOW_CREDENTIALS;
+import static org.jboss.netty.handler.codec.http.HttpHeaders.Names.ACCESS_CONTROL_ALLOW_HEADERS;
+import static org.jboss.netty.handler.codec.http.HttpHeaders.Names.ACCESS_CONTROL_ALLOW_METHODS;
+import static org.jboss.netty.handler.codec.http.HttpHeaders.Names.ACCESS_CONTROL_ALLOW_ORIGIN;
+import static org.jboss.netty.handler.codec.http.HttpHeaders.Names.ACCESS_CONTROL_MAX_AGE;
+import static org.jboss.netty.handler.codec.http.HttpHeaders.Names.ORIGIN;
+import static org.jboss.netty.handler.codec.http.HttpHeaders.Names.USER_AGENT;
 
 /**
  *
@@ -93,7 +113,7 @@ public class NettyHttpChannel extends HttpChannel {
             resp = new DefaultHttpResponse(HttpVersion.HTTP_1_1, status);
         }
         if (RestUtils.isBrowser(nettyRequest.headers().get(USER_AGENT))) {
-            if (transport.settings().getAsBoolean(SETTING_CORS_ENABLED, false)) {
+            if (SETTING_CORS_ENABLED.get(transport.settings())) {
                 String originHeader = request.header(ORIGIN);
                 if (!Strings.isNullOrEmpty(originHeader)) {
                     if (corsPattern == null) {
@@ -107,12 +127,12 @@ public class NettyHttpChannel extends HttpChannel {
                 }
                 if (nettyRequest.getMethod() == HttpMethod.OPTIONS) {
                     // Allow Ajax requests based on the CORS "preflight" request
-                    resp.headers().add(ACCESS_CONTROL_MAX_AGE, transport.settings().getAsInt(SETTING_CORS_MAX_AGE, 1728000));
+                    resp.headers().add(ACCESS_CONTROL_MAX_AGE, SETTING_CORS_MAX_AGE.get(transport.settings()));
                     resp.headers().add(ACCESS_CONTROL_ALLOW_METHODS, transport.settings().get(SETTING_CORS_ALLOW_METHODS, "OPTIONS, HEAD, GET, POST, PUT, DELETE"));
                     resp.headers().add(ACCESS_CONTROL_ALLOW_HEADERS, transport.settings().get(SETTING_CORS_ALLOW_HEADERS, "X-Requested-With, Content-Type, Content-Length"));
                 }
 
-                if (transport.settings().getAsBoolean(SETTING_CORS_ALLOW_CREDENTIALS, false)) {
+                if (SETTING_CORS_ALLOW_CREDENTIALS.get(transport.settings())) {
                     resp.headers().add(ACCESS_CONTROL_ALLOW_CREDENTIALS, "true");
                 }
             }

@@ -21,7 +21,6 @@ package org.elasticsearch.action.admin.indices.flush;
 
 import com.carrotsearch.hppc.ObjectIntHashMap;
 import com.carrotsearch.hppc.ObjectIntMap;
-import org.elasticsearch.action.admin.indices.flush.SyncedFlushResponse;
 import org.elasticsearch.action.admin.indices.flush.SyncedFlushResponse.ShardCounts;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -149,7 +148,7 @@ public class SyncedFlushUnitTests extends ESTestCase {
             int failures = 0;
             List<ShardsSyncedFlushResult> shardsResults = new ArrayList<>();
             for (int shard = 0; shard < shards; shard++) {
-                final ShardId shardId = new ShardId(index, shard);
+                final ShardId shardId = new ShardId(index, "_na_", shard);
                 if (randomInt(5) < 2) {
                     // total shard failure
                     failed += replicas + 1;

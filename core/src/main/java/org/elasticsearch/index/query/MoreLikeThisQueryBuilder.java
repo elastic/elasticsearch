@@ -810,7 +810,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         } else {
             for (String field : fields) {
                 MappedFieldType fieldType = context.fieldMapper(field);
-                moreLikeFields.add(fieldType == null ? field : fieldType.names().indexName());
+                moreLikeFields.add(fieldType == null ? field : fieldType.name());
             }
         }
 
@@ -875,20 +875,20 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             }
         }
 
-        BooleanQuery boolQuery = new BooleanQuery();
+        BooleanQuery.Builder boolQuery = new BooleanQuery.Builder();
         boolQuery.add(mltQuery, BooleanClause.Occur.SHOULD);
 
         // exclude the items from the search
         if (!include) {
             handleExclude(boolQuery, likeItems);
         }
-        return boolQuery;
+        return boolQuery.build();
     }
 
     private static void setDefaultIndexTypeFields(QueryShardContext context, Item item, List<String> moreLikeFields,
                                                   boolean useDefaultField) {
         if (item.index() == null) {
-            item.index(context.index().name());
+            item.index(context.index().getName());
         }
         if (item.type() == null) {
             if (context.queryTypes().size() > 1) {
@@ -917,7 +917,6 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         for (Item item : unlikeItems) {
             request.add(item.toTermVectorsRequest());
         }
-        request.copyContextAndHeadersFrom(searchContext);
         return client.multiTermVectors(request).actionGet();
     }
 
@@ -949,7 +948,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         return selectedItems.contains(new Item(response.getIndex(), response.getType(), response.getId()));
     }
 
-    private static void handleExclude(BooleanQuery boolQuery, Item[] likeItems) {
+    private static void handleExclude(BooleanQuery.Builder boolQuery, Item[] likeItems) {
         // artificial docs get assigned a random id and should be disregarded
         List<BytesRef> uids = new ArrayList<>();
         for (Item item : likeItems) {

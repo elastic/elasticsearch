@@ -44,6 +44,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -69,33 +70,33 @@ public class TransportDeleteAction extends TransportReplicationAction<DeleteRequ
     }
 
     @Override
-    protected void doExecute(final DeleteRequest request, final ActionListener<DeleteResponse> listener) {
+    protected void doExecute(Task task, final DeleteRequest request, final ActionListener<DeleteResponse> listener) {
         ClusterState state = clusterService.state();
         if (autoCreateIndex.shouldAutoCreate(request.index(), state)) {
-            createIndexAction.execute(new CreateIndexRequest(request).index(request.index()).cause("auto(delete api)").masterNodeTimeout(request.timeout()), new ActionListener<CreateIndexResponse>() {
+            createIndexAction.execute(task, new CreateIndexRequest().index(request.index()).cause("auto(delete api)").masterNodeTimeout(request.timeout()), new ActionListener<CreateIndexResponse>() {
                 @Override
                 public void onResponse(CreateIndexResponse result) {
-                    innerExecute(request, listener);
+                    innerExecute(task, request, listener);
                 }
 
                 @Override
                 public void onFailure(Throwable e) {
                     if (ExceptionsHelper.unwrapCause(e) instanceof IndexAlreadyExistsException) {
                         // we have the index, do it
-                        innerExecute(request, listener);
+                        innerExecute(task, request, listener);
                     } else {
                         listener.onFailure(e);
                     }
                 }
             });
         } else {
-            innerExecute(request, listener);
+            innerExecute(task, request, listener);
         }
     }
 
     @Override
     protected void resolveRequest(final MetaData metaData, String concreteIndex, DeleteRequest request) {
-        request.routing(metaData.resolveIndexRouting(request.routing(), request.index()));
+        request.routing(metaData.resolveIndexRouting(request.parent(), request.routing(), request.index()));
         if (metaData.hasIndex(concreteIndex)) {
             // check if routing is required, if so, do a broadcast delete
             MappingMetaData mappingMd = metaData.index(concreteIndex).mappingOrDefault(request.type());
@@ -114,8 +115,8 @@ public class TransportDeleteAction extends TransportReplicationAction<DeleteRequ
         request.setShardId(shardId);
     }
 
-    private void innerExecute(final DeleteRequest request, final ActionListener<DeleteResponse> listener) {
-        super.doExecute(request, listener);
+    private void innerExecute(Task task, final DeleteRequest request, final ActionListener<DeleteResponse> listener) {
+        super.doExecute(task, request, listener);
     }
 
     @Override

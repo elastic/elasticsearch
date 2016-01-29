@@ -19,25 +19,32 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.Term;
+import org.apache.lucene.queries.TermsQuery;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Rule;
 import org.junit.rules.ExpectedException;
-
-import static org.elasticsearch.test.VersionUtils.getFirstVersion;
-import static org.elasticsearch.test.VersionUtils.getPreviousVersion;
-import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
-import static org.hamcrest.CoreMatchers.containsString;
-import static org.hamcrest.Matchers.hasToString;
 
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.concurrent.ExecutionException;
+
+import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.CoreMatchers.nullValue;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasToString;
 
 public class MapperServiceTests extends ESSingleNodeTestCase {
     @Rule
@@ -56,23 +63,6 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
                 .addMapping(type, field, "type=string")
                 .execute()
                 .actionGet();
-    }
-
-    public void testThatLongTypeNameIsNotRejectedOnPreElasticsearchVersionTwo() {
-        String index = "text-index";
-        String field = "field";
-        String type = new String(new char[256]).replace("\0", "a");
-
-        CreateIndexResponse response =
-                client()
-                        .admin()
-                        .indices()
-                        .prepareCreate(index)
-                        .setSettings(settings(randomVersionBetween(random(), getFirstVersion(), getPreviousVersion(Version.V_2_0_0_beta1))))
-                        .addMapping(type, field, "type=string")
-                        .execute()
-                        .actionGet();
-        assertNotNull(response);
     }
 
     public void testTypeNameTooLong() {
@@ -96,15 +86,15 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
         MapperService mapperService = indexService1.mapperService();
         assertEquals(Collections.emptySet(), mapperService.types());
 
-        mapperService.merge("type1", new CompressedXContent("{\"type1\":{}}"), true, false);
+        mapperService.merge("type1", new CompressedXContent("{\"type1\":{}}"), MapperService.MergeReason.MAPPING_UPDATE, false);
         assertNull(mapperService.documentMapper(MapperService.DEFAULT_MAPPING));
         assertEquals(Collections.singleton("type1"), mapperService.types());
 
-        mapperService.merge(MapperService.DEFAULT_MAPPING, new CompressedXContent("{\"_default_\":{}}"), true, false);
+        mapperService.merge(MapperService.DEFAULT_MAPPING, new CompressedXContent("{\"_default_\":{}}"), MapperService.MergeReason.MAPPING_UPDATE, false);
         assertNotNull(mapperService.documentMapper(MapperService.DEFAULT_MAPPING));
         assertEquals(Collections.singleton("type1"), mapperService.types());
 
-        mapperService.merge("type2", new CompressedXContent("{\"type2\":{}}"), true, false);
+        mapperService.merge("type2", new CompressedXContent("{\"type2\":{}}"), MapperService.MergeReason.MAPPING_UPDATE, false);
         assertNotNull(mapperService.documentMapper(MapperService.DEFAULT_MAPPING));
         assertEquals(new HashSet<>(Arrays.asList("type1", "type2")), mapperService.types());
     }
@@ -116,7 +106,7 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
             fail();
         } catch (Throwable t) {
             if (t instanceof ExecutionException) {
-                t = ((ExecutionException) t).getCause();
+                t = t.getCause();
             }
             final Throwable throwable = ExceptionsHelper.unwrapCause(t);
             if (throwable instanceof IllegalArgumentException) {
@@ -133,7 +123,7 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
             fail();
         } catch (Throwable t) {
             if (t instanceof ExecutionException) {
-                t = ((ExecutionException) t).getCause();
+                t = t.getCause();
             }
             final Throwable throwable = ExceptionsHelper.unwrapCause(t);
             if (throwable instanceof IllegalArgumentException) {
@@ -144,4 +134,5 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
         }
         assertFalse(indexService.mapperService().hasMapping(MapperService.DEFAULT_MAPPING));
     }
+
 }

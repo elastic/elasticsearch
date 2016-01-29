@@ -36,6 +36,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
@@ -60,10 +61,10 @@ public class ParentChildFieldDataTests extends AbstractFieldDataTestCase {
     @Before
     public void before() throws Exception {
         mapperService.merge(
-                childType, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(childType, "_parent", "type=" + parentType).string()), true, false
+                childType, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(childType, "_parent", "type=" + parentType).string()), MapperService.MergeReason.MAPPING_UPDATE, false
         );
         mapperService.merge(
-                grandChildType, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(grandChildType, "_parent", "type=" + childType).string()), true, false
+                grandChildType, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(grandChildType, "_parent", "type=" + childType).string()), MapperService.MergeReason.MAPPING_UPDATE, false
         );
 
         Document d = new Document();
@@ -163,11 +164,11 @@ public class ParentChildFieldDataTests extends AbstractFieldDataTestCase {
     }
 
     public void testSorting() throws Exception {
-        IndexFieldData indexFieldData = getForField(childType);
+        IndexFieldData indexFieldData = getForField(parentType);
         IndexSearcher searcher = new IndexSearcher(DirectoryReader.open(writer, true));
         IndexFieldData.XFieldComparatorSource comparator = indexFieldData.comparatorSource("_last", MultiValueMode.MIN, null);
 
-        TopFieldDocs topDocs = searcher.search(new MatchAllDocsQuery(), 10, new Sort(new SortField(ParentFieldMapper.NAME, comparator, false)));
+        TopFieldDocs topDocs = searcher.search(new MatchAllDocsQuery(), 10, new Sort(new SortField(ParentFieldMapper.joinField(parentType), comparator, false)));
         assertThat(topDocs.totalHits, equalTo(8));
         assertThat(topDocs.scoreDocs.length, equalTo(8));
         assertThat(topDocs.scoreDocs[0].doc, equalTo(0));
@@ -187,7 +188,7 @@ public class ParentChildFieldDataTests extends AbstractFieldDataTestCase {
         assertThat(topDocs.scoreDocs[7].doc, equalTo(7));
         assertThat(((BytesRef) ((FieldDoc) topDocs.scoreDocs[7]).fields[0]), equalTo(null));
 
-        topDocs = searcher.search(new MatchAllDocsQuery(), 10, new Sort(new SortField(ParentFieldMapper.NAME, comparator, true)));
+        topDocs = searcher.search(new MatchAllDocsQuery(), 10, new Sort(new SortField(ParentFieldMapper.joinField(parentType), comparator, true)));
         assertThat(topDocs.totalHits, equalTo(8));
         assertThat(topDocs.scoreDocs.length, equalTo(8));
         assertThat(topDocs.scoreDocs[0].doc, equalTo(3));

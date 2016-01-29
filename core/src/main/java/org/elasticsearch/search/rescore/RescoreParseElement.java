@@ -21,8 +21,11 @@ package org.elasticsearch.search.rescore;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.internal.SearchContext;
+
+import java.io.IOException;
 
 /**
  *
@@ -33,14 +36,14 @@ public class RescoreParseElement implements SearchParseElement {
     public void parse(XContentParser parser, SearchContext context) throws Exception {
         if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
             while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                parseSingleRescoreContext(parser, context);
+                context.addRescore(parseSingleRescoreContext(parser, context.indexShard().getQueryShardContext()));
             }
         } else {
-            parseSingleRescoreContext(parser, context);
+            context.addRescore(parseSingleRescoreContext(parser, context.indexShard().getQueryShardContext()));
         }
     }
 
-    public void parseSingleRescoreContext(XContentParser parser, SearchContext context) throws Exception {
+    public RescoreSearchContext parseSingleRescoreContext(XContentParser parser, QueryShardContext context) throws ElasticsearchParseException, IOException {
         String fieldName = null;
         RescoreSearchContext rescoreContext = null;
         Integer windowSize = null;
@@ -71,7 +74,7 @@ public class RescoreParseElement implements SearchParseElement {
         if (windowSize != null) {
             rescoreContext.setWindowSize(windowSize.intValue());
         }
-        context.addRescore(rescoreContext);
+        return rescoreContext;
     }
 
 }

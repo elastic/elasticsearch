@@ -32,7 +32,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import java.util.concurrent.*;
+import java.util.concurrent.ScheduledFuture;
 import java.util.function.Predicate;
 
 /**

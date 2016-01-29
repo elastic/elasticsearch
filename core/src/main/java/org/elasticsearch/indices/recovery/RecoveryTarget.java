@@ -45,10 +45,21 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.RecoveryEngineException;
 import org.elasticsearch.index.mapper.MapperException;
-import org.elasticsearch.index.shard.*;
+import org.elasticsearch.index.shard.IllegalIndexShardStateException;
+import org.elasticsearch.index.shard.IndexEventListener;
+import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardClosedException;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardNotFoundException;
+import org.elasticsearch.index.shard.TranslogRecoveryPerformer;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.*;
+import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.FutureTransportResponseHandler;
+import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportRequestHandler;
+import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -171,7 +182,7 @@ public class RecoveryTarget extends AbstractComponent implements IndexEventListe
 
         final AtomicReference<RecoveryResponse> responseHolder = new AtomicReference<>();
         try {
-            logger.trace("[{}][{}] starting recovery from {}", request.shardId().index().name(), request.shardId().id(), request.sourceNode());
+            logger.trace("[{}][{}] starting recovery from {}", request.shardId().getIndex().getName(), request.shardId().id(), request.sourceNode());
             recoveryStatus.indexShard().prepareForIndexRecovery();
             recoveryStatus.CancellableThreads().execute(new CancellableThreads.Interruptable() {
                 @Override
@@ -191,7 +202,7 @@ public class RecoveryTarget extends AbstractComponent implements IndexEventListe
             onGoingRecoveries.markRecoveryAsDone(recoveryStatus.recoveryId());
             if (logger.isTraceEnabled()) {
                 StringBuilder sb = new StringBuilder();
-                sb.append('[').append(request.shardId().index().name()).append(']').append('[').append(request.shardId().id()).append("] ");
+                sb.append('[').append(request.shardId().getIndex().getName()).append(']').append('[').append(request.shardId().id()).append("] ");
                 sb.append("recovery completed from ").append(request.sourceNode()).append(", took[").append(recoveryTime).append("]\n");
                 sb.append("   phase1: recovered_files [").append(recoveryResponse.phase1FileNames.size()).append("]").append(" with total_size of [").append(new ByteSizeValue(recoveryResponse.phase1TotalSize)).append("]")
                         .append(", took [").append(timeValueMillis(recoveryResponse.phase1Time)).append("], throttling_wait [").append(timeValueMillis(recoveryResponse.phase1ThrottlingWaitTime)).append(']')
@@ -209,7 +220,7 @@ public class RecoveryTarget extends AbstractComponent implements IndexEventListe
             logger.trace("recovery cancelled", e);
         } catch (Throwable e) {
             if (logger.isTraceEnabled()) {
-                logger.trace("[{}][{}] Got exception on recovery", e, request.shardId().index().name(), request.shardId().id());
+                logger.trace("[{}][{}] Got exception on recovery", e, request.shardId().getIndex().getName(), request.shardId().id());
             }
             Throwable cause = ExceptionsHelper.unwrapCause(e);
             if (cause instanceof CancellableThreads.ExecutionCancelledException) {
@@ -297,7 +308,7 @@ public class RecoveryTarget extends AbstractComponent implements IndexEventListe
         @Override
         public void messageReceived(final RecoveryTranslogOperationsRequest request, final TransportChannel channel) throws Exception {
             try (RecoveriesCollection.StatusRef statusRef = onGoingRecoveries.getStatusSafe(request.recoveryId(), request.shardId())) {
-                final ClusterStateObserver observer = new ClusterStateObserver(clusterService, null, logger);
+                final ClusterStateObserver observer = new ClusterStateObserver(clusterService, null, logger, threadPool.getThreadContext());
                 final RecoveryStatus recoveryStatus = statusRef.status();
                 final RecoveryState.Translog translog = recoveryStatus.state().getTranslog();
                 translog.totalOperations(request.totalTranslogOps());

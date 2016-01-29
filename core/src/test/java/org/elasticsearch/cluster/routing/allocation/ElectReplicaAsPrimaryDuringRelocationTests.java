@@ -43,7 +43,7 @@ public class ElectReplicaAsPrimaryDuringRelocationTests extends ESAllocationTest
     private final ESLogger logger = Loggers.getLogger(ElectReplicaAsPrimaryDuringRelocationTests.class);
 
     public void testElectReplicaAsPrimaryDuringRelocation() {
-        AllocationService strategy = createAllocationService(settingsBuilder().put("cluster.routing.allocation.concurrent_recoveries", 10).build());
+        AllocationService strategy = createAllocationService(settingsBuilder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build());
 
         logger.info("Building initial routing table");
 

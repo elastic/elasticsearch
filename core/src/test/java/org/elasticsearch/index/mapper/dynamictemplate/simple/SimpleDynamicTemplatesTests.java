@@ -55,6 +55,7 @@ public class SimpleDynamicTemplatesTests extends ESSingleNodeTestCase {
         ParsedDocument parsedDoc = docMapper.parse("test", "person", "1", builder.bytes());
         client().admin().indices().preparePutMapping("test").setType("person").setSource(parsedDoc.dynamicMappingsUpdate().toString()).get();
 
+        docMapper = index.mapperService().documentMapper("person");
         DocumentFieldMappers mappers = docMapper.mappers();
 
         assertThat(mappers.smartNameFieldMapper("s"), Matchers.notNullValue());
@@ -74,6 +75,7 @@ public class SimpleDynamicTemplatesTests extends ESSingleNodeTestCase {
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/dynamictemplate/simple/test-data.json");
         ParsedDocument parsedDoc = docMapper.parse("test", "person", "1", new BytesArray(json));
         client().admin().indices().preparePutMapping("test").setType("person").setSource(parsedDoc.dynamicMappingsUpdate().toString()).get();
+        docMapper = index.mapperService().documentMapper("person");
         Document doc = parsedDoc.rootDoc();
 
         IndexableField f = doc.getField("name");
@@ -130,6 +132,7 @@ public class SimpleDynamicTemplatesTests extends ESSingleNodeTestCase {
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/dynamictemplate/simple/test-data.json");
         ParsedDocument parsedDoc = docMapper.parse("test", "person", "1", new BytesArray(json));
         client().admin().indices().preparePutMapping("test").setType("person").setSource(parsedDoc.dynamicMappingsUpdate().toString()).get();
+        docMapper = index.mapperService().documentMapper("person");
         Document doc = parsedDoc.rootDoc();
 
         IndexableField f = doc.getField("name");

@@ -21,12 +21,13 @@ package org.elasticsearch.action.admin.cluster.stats;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
@@ -60,17 +61,17 @@ public class ClusterStatsIT extends ESIntegTestCase {
         ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
         assertCounts(response.getNodesStats().getCounts(), 1, 0, 0, 1, 0);
 
-        internalCluster().startNode(Settings.builder().put("node.data", false));
+        internalCluster().startNode(Settings.builder().put(Node.NODE_DATA_SETTING.getKey(), false));
         waitForNodes(2);
         response = client().admin().cluster().prepareClusterStats().get();
         assertCounts(response.getNodesStats().getCounts(), 2, 1, 0, 1, 0);
 
-        internalCluster().startNode(Settings.builder().put("node.master", false));
+        internalCluster().startNode(Settings.builder().put(Node.NODE_MASTER_SETTING.getKey(), false));
         waitForNodes(3);
         response = client().admin().cluster().prepareClusterStats().get();
         assertCounts(response.getNodesStats().getCounts(), 3, 1, 1, 1, 0);
 
-        internalCluster().startNode(Settings.builder().put("node.client", true));
+        internalCluster().startNode(Settings.builder().put(Node.NODE_CLIENT_SETTING.getKey(), true));
         waitForNodes(4);
         response = client().admin().cluster().prepareClusterStats().get();
         assertCounts(response.getNodesStats().getCounts(), 4, 1, 1, 1, 1);
@@ -130,7 +131,7 @@ public class ClusterStatsIT extends ESIntegTestCase {
     public void testValuesSmokeScreen() throws IOException {
         internalCluster().ensureAtMostNumDataNodes(5);
         internalCluster().ensureAtLeastNumDataNodes(1);
-        assertAcked(prepareCreate("test1").setSettings(settingsBuilder().put(Store.INDEX_STORE_STATS_REFRESH_INTERVAL, 0).build()));
+        assertAcked(prepareCreate("test1").setSettings(settingsBuilder().put(Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), 0).build()));
         index("test1", "type", "1", "f", "f");
         /*
          * Ensure at least one shard is allocated otherwise the FS stats might
@@ -164,7 +165,7 @@ public class ClusterStatsIT extends ESIntegTestCase {
         internalCluster().ensureAtMostNumDataNodes(0);
 
         // start one node with 7 processors.
-        internalCluster().startNodesAsync(Settings.builder().put(EsExecutors.PROCESSORS, 7).build()).get();
+        internalCluster().startNodesAsync(Settings.builder().put(EsExecutors.PROCESSORS_SETTING.getKey(), 7).build()).get();
         waitForNodes(1);
 
         ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();

@@ -32,14 +32,11 @@ public class FakeRestRequest extends RestRequest {
     private final Map<String, String> params;
 
     public FakeRestRequest() {
-        this(new HashMap<String, String>(), new HashMap<String, String>());
+        this(new HashMap<>());
     }
 
-    public FakeRestRequest(Map<String, String> headers, Map<String, String> context) {
+    public FakeRestRequest(Map<String, String> headers) {
         this.headers = headers;
-        for (Map.Entry<String, String> entry : context.entrySet()) {
-            putInContext(entry.getKey(), entry.getValue());
-        }
         this.params = new HashMap<>();
     }
 

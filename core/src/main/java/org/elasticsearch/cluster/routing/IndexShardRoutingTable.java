@@ -21,10 +21,12 @@ package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
@@ -36,7 +38,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ThreadLocalRandom;
 
 import static java.util.Collections.emptyMap;
 
@@ -73,7 +74,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
 
     IndexShardRoutingTable(ShardId shardId, List<ShardRouting> shards) {
         this.shardId = shardId;
-        this.shuffler = new RotationShardShuffler(ThreadLocalRandom.current().nextInt());
+        this.shuffler = new RotationShardShuffler(Randomness.get().nextInt());
         this.shards = Collections.unmodifiableList(shards);
 
         ShardRouting primary = null;
@@ -106,7 +107,6 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
             }
         }
         this.allShardsStarted = allShardsStarted;
-
         this.primary = primary;
         if (primary != null) {
             this.primaryAsList = Collections.singletonList(primary);
@@ -618,11 +618,11 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         }
 
         public static IndexShardRoutingTable readFrom(StreamInput in) throws IOException {
-            String index = in.readString();
+            Index index = Index.readIndex(in);
             return readFromThin(in, index);
         }
 
-        public static IndexShardRoutingTable readFromThin(StreamInput in, String index) throws IOException {
+        public static IndexShardRoutingTable readFromThin(StreamInput in, Index index) throws IOException {
             int iShardId = in.readVInt();
             Builder builder = new Builder(new ShardId(index, iShardId));
 
@@ -636,7 +636,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         }
 
         public static void writeTo(IndexShardRoutingTable indexShard, StreamOutput out) throws IOException {
-            out.writeString(indexShard.shardId().index().name());
+            out.writeString(indexShard.shardId().getIndex().getName());
             writeToThin(indexShard, out);
         }
 

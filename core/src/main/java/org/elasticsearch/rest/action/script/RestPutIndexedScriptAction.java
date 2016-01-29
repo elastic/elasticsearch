@@ -27,14 +27,22 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BytesRestResponse;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
 
 import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
-import static org.elasticsearch.rest.RestStatus.*;
+import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
+import static org.elasticsearch.rest.RestStatus.CREATED;
+import static org.elasticsearch.rest.RestStatus.OK;
 
 /**
  *
@@ -47,7 +55,7 @@ public class RestPutIndexedScriptAction extends BaseRestHandler {
     }
 
     protected RestPutIndexedScriptAction(Settings settings, RestController controller, boolean registerDefaultHandlers, Client client) {
-        super(settings, controller, client);
+        super(settings, client);
         if (registerDefaultHandlers) {
             controller.registerHandler(POST, "/_scripts/{lang}/{id}", this);
             controller.registerHandler(PUT, "/_scripts/{lang}/{id}", this);
@@ -59,7 +67,7 @@ public class RestPutIndexedScriptAction extends BaseRestHandler {
 
     final class CreateHandler extends BaseRestHandler {
         protected CreateHandler(Settings settings, RestController controller, Client client) {
-            super(settings, controller, client);
+            super(settings, client);
         }
 
         @Override

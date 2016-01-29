@@ -51,7 +51,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.lenientNodeBooleanValue;
 
 /**
  *
@@ -74,7 +74,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             FIELD_TYPE.setOmitNorms(true);
             FIELD_TYPE.setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
             FIELD_TYPE.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
-            FIELD_TYPE.setNames(new MappedFieldType.Names(NAME));
+            FIELD_TYPE.setName(NAME);
             FIELD_TYPE.freeze();
         }
 
@@ -122,7 +122,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());
                 Object fieldNode = entry.getValue();
                 if (fieldName.equals("enabled")) {
-                    builder.enabled(nodeBooleanValue(fieldNode));
+                    builder.enabled(lenientNodeBooleanValue(fieldNode));
                     iterator.remove();
                 } else if ("format".equals(fieldName) && parserContext.indexVersionCreated().before(Version.V_3_0_0)) {
                     // ignore on old indices, reject on and after 3.0
@@ -251,10 +251,11 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         if (!fieldType().stored()) {
             return;
         }
-        if (context.flyweight()) {
+        BytesReference source = context.source();
+        // Percolate and tv APIs may not set the source and that is ok, because these APIs will not index any data
+        if (source == null) {
             return;
         }
-        BytesReference source = context.source();
 
         boolean filtered = (includes != null && includes.length > 0) || (excludes != null && excludes.length > 0);
         if (filtered) {
@@ -272,7 +273,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         if (!source.hasArray()) {
             source = source.toBytesArray();
         }
-        fields.add(new StoredField(fieldType().names().indexName(), source.array(), source.arrayOffset(), source.length()));
+        fields.add(new StoredField(fieldType().name(), source.array(), source.arrayOffset(), source.length()));
     }
 
     @Override

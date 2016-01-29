@@ -19,6 +19,7 @@
 package org.elasticsearch.index.analysis;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTokenStreamTestCase;
 
 import java.io.IOException;
@@ -41,7 +42,7 @@ public class AnalyzerBackwardsCompatTests extends ESTokenStreamTestCase {
                 builder.put(SETTING_VERSION_CREATED, version);
             }
             builder.put("index.analysis.analyzer.foo.type", type);
-            builder.put("path.home", createTempDir().toString());
+            builder.put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString());
             AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(builder.build());
             NamedAnalyzer analyzer = analysisService.analyzer("foo");
             assertNotNull(analyzer);

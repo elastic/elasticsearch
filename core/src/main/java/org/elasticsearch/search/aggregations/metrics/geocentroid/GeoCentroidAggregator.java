@@ -20,7 +20,6 @@
 package org.elasticsearch.search.aggregations.metrics.geocentroid;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.util.GeoHashUtils;
 import org.apache.lucene.util.GeoUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lease.Releasables;

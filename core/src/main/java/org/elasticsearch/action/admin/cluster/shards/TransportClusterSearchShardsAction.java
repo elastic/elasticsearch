@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -77,7 +78,7 @@ public class TransportClusterSearchShardsAction extends TransportMasterNodeReadA
         ClusterSearchShardsGroup[] groupResponses = new ClusterSearchShardsGroup[groupShardsIterator.size()];
         int currentGroup = 0;
         for (ShardIterator shardIt : groupShardsIterator) {
-            String index = shardIt.shardId().getIndex();
+            Index index = shardIt.shardId().getIndex();
             int shardId = shardIt.shardId().getId();
             ShardRouting[] shardRoutings = new ShardRouting[shardIt.size()];
             int currentShard = 0;

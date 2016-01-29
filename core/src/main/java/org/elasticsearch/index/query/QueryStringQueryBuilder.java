@@ -37,7 +37,12 @@ import org.elasticsearch.index.query.support.QueryParsers;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.TreeMap;
 
 /**
  * A query that parses a query string and runs it. There are two modes that this operates. The first,
@@ -730,7 +735,10 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         }
 
         query = Queries.fixNegativeQueryIfNeeded(query);
-        if (query instanceof BooleanQuery) {
+        // If the coordination factor is disabled on a boolean query we don't apply the minimum should match.
+        // This is done to make sure that the minimum_should_match doesn't get applied when there is only one word
+        // and multiple variations of the same word in the query (synonyms for instance).
+        if (query instanceof BooleanQuery && !((BooleanQuery) query).isCoordDisabled()) {
             query = Queries.applyMinimumShouldMatch((BooleanQuery) query, this.minimumShouldMatch());
         }
 

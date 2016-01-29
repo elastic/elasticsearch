@@ -30,7 +30,9 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 
 @SuppressForbidden(reason = "modifies system properties intentionally")
 public class EvilInternalSettingsPreparerTests extends ESTestCase {
@@ -70,7 +72,7 @@ public class EvilInternalSettingsPreparerTests extends ESTestCase {
     @Before
     public void createBaseEnvSettings() {
         baseEnvSettings = settingsBuilder()
-            .put("path.home", createTempDir())
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
             .build();
     }
 
@@ -91,7 +93,7 @@ public class EvilInternalSettingsPreparerTests extends ESTestCase {
             assertThat(env.settings().get("node.zone"), equalTo("foo"));
 
             settings = settingsBuilder()
-                .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING, true)
+                .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING.getKey(), true)
                 .put("node.zone", "bar")
                 .put(baseEnvSettings)
                 .build();

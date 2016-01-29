@@ -22,7 +22,12 @@ package org.elasticsearch.action.percolate;
 import com.carrotsearch.hppc.IntArrayList;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.UnavailableShardsException;
-import org.elasticsearch.action.get.*;
+import org.elasticsearch.action.get.GetRequest;
+import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.get.MultiGetItemResponse;
+import org.elasticsearch.action.get.MultiGetRequest;
+import org.elasticsearch.action.get.MultiGetResponse;
+import org.elasticsearch.action.get.TransportMultiGetAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
@@ -42,7 +47,11 @@ import org.elasticsearch.percolator.PercolatorService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
@@ -88,7 +97,7 @@ public class TransportMultiPercolateAction extends HandledTransportAction<MultiP
         }
 
         if (!existingDocsRequests.isEmpty()) {
-            final MultiGetRequest multiGetRequest = new MultiGetRequest(request);
+            final MultiGetRequest multiGetRequest = new MultiGetRequest();
             for (GetRequest getRequest : existingDocsRequests) {
                 multiGetRequest.add(
                         new MultiGetRequest.Item(getRequest.index(), getRequest.type(), getRequest.id())
@@ -191,7 +200,7 @@ public class TransportMultiPercolateAction extends HandledTransportAction<MultiP
                         ShardId shardId = shard.shardId();
                         TransportShardMultiPercolateAction.Request requests = requestsByShard.get(shardId);
                         if (requests == null) {
-                            requestsByShard.put(shardId, requests = new TransportShardMultiPercolateAction.Request(multiPercolateRequest, shardId.getIndex(), shardId.getId(), percolateRequest.preference()));
+                            requestsByShard.put(shardId, requests = new TransportShardMultiPercolateAction.Request(shardId.getIndexName(), shardId.getId(), percolateRequest.preference()));
                         }
                         logger.trace("Adding shard[{}] percolate request for item[{}]", shardId, slot);
                         requests.add(new TransportShardMultiPercolateAction.Request.Item(slot, new PercolateShardRequest(shardId, percolateRequest)));

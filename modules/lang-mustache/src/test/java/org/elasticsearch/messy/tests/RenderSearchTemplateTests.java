@@ -22,17 +22,16 @@ package org.elasticsearch.messy.tests;
 import org.elasticsearch.action.admin.cluster.validate.template.RenderSearchTemplateResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.script.Template;
 import org.elasticsearch.script.mustache.MustachePlugin;
 import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.rest.support.FileUtils;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -70,7 +69,7 @@ public class RenderSearchTemplateTests extends ESIntegTestCase {
             throw new RuntimeException(e);
         }
         return settingsBuilder().put(super.nodeSettings(nodeOrdinal))
-                .put("path.conf", configDir).build();
+                .put(Environment.PATH_CONF_SETTING.getKey(), configDir).build();
     }
 
     public void testInlineTemplate() {

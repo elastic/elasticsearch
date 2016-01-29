@@ -50,6 +50,8 @@ public class DeleteRequest extends ReplicationRequest<DeleteRequest> implements 
     private String id;
     @Nullable
     private String routing;
+    @Nullable
+    private String parent;
     private boolean refresh;
     private long version = Versions.MATCH_ANY;
     private VersionType versionType = VersionType.INTERNAL;
@@ -90,21 +92,14 @@ public class DeleteRequest extends ReplicationRequest<DeleteRequest> implements 
      * The new request will inherit though headers and context from the original request that caused it.
      */
     public DeleteRequest(DeleteRequest request, ActionRequest originalRequest) {
-        super(request, originalRequest);
+        super(request);
         this.type = request.type();
         this.id = request.id();
         this.routing = request.routing();
+        this.parent = request.parent();
         this.refresh = request.refresh();
         this.version = request.version();
         this.versionType = request.versionType();
-    }
-
-    /**
-     * Creates a delete request caused by some other request, which is provided as an
-     * argument so that its headers and context can be copied to the new request
-     */
-    public DeleteRequest(ActionRequest request) {
-        super(request);
     }
 
     @Override
@@ -155,13 +150,18 @@ public class DeleteRequest extends ReplicationRequest<DeleteRequest> implements 
     }
 
     /**
-     * Sets the parent id of this document. Will simply set the routing to this value, as it is only
-     * used for routing with delete requests.
+     * @return The parent for this request.
+     */
+    @Override
+    public String parent() {
+        return parent;
+    }
+
+    /**
+     * Sets the parent id of this document.
      */
     public DeleteRequest parent(String parent) {
-        if (routing == null) {
-            routing = parent;
-        }
+        this.parent = parent;
         return this;
     }
 
@@ -230,6 +230,7 @@ public class DeleteRequest extends ReplicationRequest<DeleteRequest> implements 
         type = in.readString();
         id = in.readString();
         routing = in.readOptionalString();
+        parent = in.readOptionalString();
         refresh = in.readBoolean();
         version = in.readLong();
         versionType = VersionType.fromValue(in.readByte());
@@ -241,6 +242,7 @@ public class DeleteRequest extends ReplicationRequest<DeleteRequest> implements 
         out.writeString(type);
         out.writeString(id);
         out.writeOptionalString(routing());
+        out.writeOptionalString(parent());
         out.writeBoolean(refresh);
         out.writeLong(version);
         out.writeByte(versionType.getValue());

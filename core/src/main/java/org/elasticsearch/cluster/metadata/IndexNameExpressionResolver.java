@@ -159,7 +159,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
                 String[] indexNames = new String[resolvedIndices.size()];
                 int i = 0;
                 for (IndexMetaData indexMetaData : resolvedIndices) {
-                    indexNames[i++] = indexMetaData.getIndex();
+                    indexNames[i++] = indexMetaData.getIndex().getName();
                 }
                 throw new IllegalArgumentException("Alias [" + expression + "] has more than one indices associated with it [" + Arrays.toString(indexNames) + "], can't execute a single index op");
             }
@@ -167,14 +167,14 @@ public class IndexNameExpressionResolver extends AbstractComponent {
             for (IndexMetaData index : resolvedIndices) {
                 if (index.getState() == IndexMetaData.State.CLOSE) {
                     if (failClosed) {
-                        throw new IndexClosedException(new Index(index.getIndex()));
+                        throw new IndexClosedException(index.getIndex());
                     } else {
                         if (options.forbidClosedIndices() == false) {
-                            concreteIndices.add(index.getIndex());
+                            concreteIndices.add(index.getIndex().getName());
                         }
                     }
                 } else if (index.getState() == IndexMetaData.State.OPEN) {
-                    concreteIndices.add(index.getIndex());
+                    concreteIndices.add(index.getIndex().getName());
                 } else {
                     throw new IllegalStateException("index state [" + index.getState() + "] not supported");
                 }
@@ -237,7 +237,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
     public String[] filteringAliases(ClusterState state, String index, String... expressions) {
         // expand the aliases wildcard
         List<String> resolvedExpressions = expressions != null ? Arrays.asList(expressions) : Collections.<String>emptyList();
-        Context context = new Context(state, IndicesOptions.lenientExpandOpen());
+        Context context = new Context(state, IndicesOptions.lenientExpandOpen(), true);
         for (ExpressionResolver expressionResolver : expressionResolvers) {
             resolvedExpressions = expressionResolver.resolve(context, resolvedExpressions);
         }
@@ -459,17 +459,25 @@ public class IndexNameExpressionResolver extends AbstractComponent {
         private final ClusterState state;
         private final IndicesOptions options;
         private final long startTime;
+        private final boolean preserveAliases;
 
         Context(ClusterState state, IndicesOptions options) {
-            this.state = state;
-            this.options = options;
-            startTime = System.currentTimeMillis();
+            this(state, options, System.currentTimeMillis());
+        }
+
+        Context(ClusterState state, IndicesOptions options, boolean preserveAliases) {
+            this(state, options, System.currentTimeMillis(), preserveAliases);
         }
 
         public Context(ClusterState state, IndicesOptions options, long startTime) {
+           this(state, options, startTime, false);
+        }
+
+        public Context(ClusterState state, IndicesOptions options, long startTime, boolean preserveAliases) {
             this.state = state;
             this.options = options;
             this.startTime = startTime;
+            this.preserveAliases = preserveAliases;
         }
 
         public ClusterState getState() {
@@ -482,6 +490,15 @@ public class IndexNameExpressionResolver extends AbstractComponent {
 
         public long getStartTime() {
             return startTime;
+        }
+
+        /**
+         * This is used to prevent resolving aliases to concrete indices but this also means
+         * that we might return aliases that point to a closed index. This is currently only used
+         * by {@link #filteringAliases(ClusterState, String, String...)} since it's the only one that needs aliases
+         */
+        boolean isPreserveAliases() {
+            return preserveAliases;
         }
     }
 
@@ -530,6 +547,9 @@ public class IndexNameExpressionResolver extends AbstractComponent {
                         result.add(expression);
                     }
                     continue;
+                }
+                if (Strings.isEmpty(expression)) {
+                    throw new IndexNotFoundException(expression);
                 }
                 boolean add = true;
                 if (expression.charAt(0) == '+') {
@@ -612,20 +632,23 @@ public class IndexNameExpressionResolver extends AbstractComponent {
                             .filter(e -> Regex.simpleMatch(pattern, e.getKey()))
                             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
                 }
+                Set<String> expand = new HashSet<>();
                 for (Map.Entry<String, AliasOrIndex> entry : matches.entrySet()) {
                     AliasOrIndex aliasOrIndex = entry.getValue();
-                    if (aliasOrIndex.isAlias() == false) {
-                        AliasOrIndex.Index index = (AliasOrIndex.Index) aliasOrIndex;
-                        if (excludeState != null && index.getIndex().getState() == excludeState) {
-                            continue;
+                    if (context.isPreserveAliases() && aliasOrIndex.isAlias()) {
+                        expand.add(entry.getKey());
+                    } else {
+                        for (IndexMetaData meta : aliasOrIndex.getIndices()) {
+                            if (excludeState == null || meta.getState() != excludeState) {
+                                expand.add(meta.getIndex().getName());
+                            }
                         }
                     }
-
-                    if (add) {
-                        result.add(entry.getKey());
-                    } else {
-                        result.remove(entry.getKey());
-                    }
+                }
+                if (add) {
+                    result.addAll(expand);
+                } else {
+                    result.removeAll(expand);
                 }
 
                 if (matches.isEmpty() && options.allowNoIndices() == false) {

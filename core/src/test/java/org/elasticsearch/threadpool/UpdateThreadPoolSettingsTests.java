@@ -21,6 +21,7 @@ package org.elasticsearch.threadpool;
 
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool.Names;
@@ -28,6 +29,7 @@ import org.elasticsearch.threadpool.ThreadPool.Names;
 import java.lang.reflect.Field;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
@@ -36,11 +38,17 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 /**
  */
 public class UpdateThreadPoolSettingsTests extends ESTestCase {
+
     public void testCorrectThreadPoolTypePermittedInSettings() throws InterruptedException {
         String threadPoolName = randomThreadPoolName();
         ThreadPool.ThreadPoolType correctThreadPoolType = ThreadPool.THREAD_POOL_TYPES.get(threadPoolName);
@@ -81,6 +89,51 @@ public class UpdateThreadPoolSettingsTests extends ESTestCase {
                     is("setting threadpool." + threadPoolName + ".type to " + incorrectThreadPoolType.getType() + " is not permitted; must be " + correctThreadPoolType.getType()));
         } finally {
             terminateThreadPoolIfNeeded(threadPool);
+        }
+    }
+
+    public void testIndexingThreadPoolsMaxSize() throws InterruptedException {
+        String threadPoolName = randomThreadPoolName();
+        for (String name : new String[] {ThreadPool.Names.BULK, ThreadPool.Names.INDEX}) {
+            ThreadPool threadPool = null;
+            try {
+
+                int maxSize = EsExecutors.boundedNumberOfProcessors(Settings.EMPTY);
+
+                // try to create a too-big (maxSize+1) thread pool
+                threadPool = new ThreadPool(settingsBuilder()
+                                               .put("name", "testIndexingThreadPoolsMaxSize")
+                                               .put("threadpool." + name + ".size", maxSize+1)
+                                               .build());
+
+                // confirm it clipped us at the maxSize:
+                assertEquals(maxSize, ((ThreadPoolExecutor) threadPool.executor(name)).getMaximumPoolSize());
+
+                ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+                threadPool.setClusterSettings(clusterSettings);
+
+                // update it to a tiny size:
+                clusterSettings.applySettings(
+                        settingsBuilder()
+                        .put("threadpool." + name + ".size", 1)
+                        .build()
+                );
+
+                // confirm it worked:
+                assertEquals(1, ((ThreadPoolExecutor) threadPool.executor(name)).getMaximumPoolSize());
+
+                // try to update to too-big size:
+                clusterSettings.applySettings(
+                        settingsBuilder()
+                        .put("threadpool." + name + ".size", maxSize+1)
+                        .build()
+                );
+
+                // confirm it clipped us at the maxSize:
+                assertEquals(maxSize, ((ThreadPoolExecutor) threadPool.executor(name)).getMaximumPoolSize());
+            } finally {
+                terminateThreadPoolIfNeeded(threadPool);
+            }
         }
     }
 
@@ -160,6 +213,14 @@ public class UpdateThreadPoolSettingsTests extends ESTestCase {
         }
     }
 
+    private static int getExpectedThreadPoolSize(Settings settings, String name, int size) {
+        if (name.equals(ThreadPool.Names.BULK) || name.equals(ThreadPool.Names.INDEX)) {
+            return Math.min(size, EsExecutors.boundedNumberOfProcessors(settings));
+        } else {
+            return size;
+        }
+    }
+
     public void testFixedExecutorType() throws InterruptedException {
         String threadPoolName = randomThreadPool(ThreadPool.ThreadPoolType.FIXED);
         ThreadPool threadPool = null;
@@ -174,12 +235,14 @@ public class UpdateThreadPoolSettingsTests extends ESTestCase {
             Settings settings = clusterSettings.applySettings(settingsBuilder()
                     .put("threadpool." + threadPoolName + ".size", "15")
                     .build());
+
+            int expectedSize = getExpectedThreadPoolSize(nodeSettings, threadPoolName, 15);
             assertEquals(info(threadPool, threadPoolName).getThreadPoolType(), ThreadPool.ThreadPoolType.FIXED);
             assertThat(threadPool.executor(threadPoolName), instanceOf(EsThreadPoolExecutor.class));
-            assertThat(((EsThreadPoolExecutor) threadPool.executor(threadPoolName)).getCorePoolSize(), equalTo(15));
-            assertThat(((EsThreadPoolExecutor) threadPool.executor(threadPoolName)).getMaximumPoolSize(), equalTo(15));
-            assertThat(info(threadPool, threadPoolName).getMin(), equalTo(15));
-            assertThat(info(threadPool, threadPoolName).getMax(), equalTo(15));
+            assertThat(((EsThreadPoolExecutor) threadPool.executor(threadPoolName)).getCorePoolSize(), equalTo(expectedSize));
+            assertThat(((EsThreadPoolExecutor) threadPool.executor(threadPoolName)).getMaximumPoolSize(), equalTo(expectedSize));
+            assertThat(info(threadPool, threadPoolName).getMin(), equalTo(expectedSize));
+            assertThat(info(threadPool, threadPoolName).getMax(), equalTo(expectedSize));
             // keep alive does not apply to fixed thread pools
             assertThat(((EsThreadPoolExecutor) threadPool.executor(threadPoolName)).getKeepAliveTime(TimeUnit.MINUTES), equalTo(0L));
 
@@ -189,20 +252,23 @@ public class UpdateThreadPoolSettingsTests extends ESTestCase {
             // Make sure keep alive value is not used
             assertThat(info(threadPool, threadPoolName).getKeepAlive(), nullValue());
             // Make sure keep pool size value were reused
-            assertThat(info(threadPool, threadPoolName).getMin(), equalTo(15));
-            assertThat(info(threadPool, threadPoolName).getMax(), equalTo(15));
+            assertThat(info(threadPool, threadPoolName).getMin(), equalTo(expectedSize));
+            assertThat(info(threadPool, threadPoolName).getMax(), equalTo(expectedSize));
             assertThat(threadPool.executor(threadPoolName), instanceOf(EsThreadPoolExecutor.class));
-            assertThat(((EsThreadPoolExecutor) threadPool.executor(threadPoolName)).getCorePoolSize(), equalTo(15));
-            assertThat(((EsThreadPoolExecutor) threadPool.executor(threadPoolName)).getMaximumPoolSize(), equalTo(15));
+            assertThat(((EsThreadPoolExecutor) threadPool.executor(threadPoolName)).getCorePoolSize(), equalTo(expectedSize));
+            assertThat(((EsThreadPoolExecutor) threadPool.executor(threadPoolName)).getMaximumPoolSize(), equalTo(expectedSize));
 
             // Change size
             Executor oldExecutor = threadPool.executor(threadPoolName);
             settings = clusterSettings.applySettings(settingsBuilder().put(settings).put("threadpool." + threadPoolName + ".size", "10").build());
+
+            expectedSize = getExpectedThreadPoolSize(nodeSettings, threadPoolName, 10);
+
             // Make sure size values changed
-            assertThat(info(threadPool, threadPoolName).getMax(), equalTo(10));
-            assertThat(info(threadPool, threadPoolName).getMin(), equalTo(10));
-            assertThat(((EsThreadPoolExecutor) threadPool.executor(threadPoolName)).getMaximumPoolSize(), equalTo(10));
-            assertThat(((EsThreadPoolExecutor) threadPool.executor(threadPoolName)).getCorePoolSize(), equalTo(10));
+            assertThat(info(threadPool, threadPoolName).getMax(), equalTo(expectedSize));
+            assertThat(info(threadPool, threadPoolName).getMin(), equalTo(expectedSize));
+            assertThat(((EsThreadPoolExecutor) threadPool.executor(threadPoolName)).getMaximumPoolSize(), equalTo(expectedSize));
+            assertThat(((EsThreadPoolExecutor) threadPool.executor(threadPoolName)).getCorePoolSize(), equalTo(expectedSize));
             // Make sure executor didn't change
             assertEquals(info(threadPool, threadPoolName).getThreadPoolType(), ThreadPool.ThreadPoolType.FIXED);
             assertThat(threadPool.executor(threadPoolName), sameInstance(oldExecutor));
@@ -259,7 +325,7 @@ public class UpdateThreadPoolSettingsTests extends ESTestCase {
         try {
             Settings nodeSettings = Settings.settingsBuilder()
                     .put("threadpool." + threadPoolName + ".queue_size", 1000)
-                    .put("name", "testCachedExecutorType").build();
+                    .put("name", "testShutdownNowInterrupts").build();
             threadPool = new ThreadPool(nodeSettings);
             ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
             threadPool.setClusterSettings(clusterSettings);
@@ -388,11 +454,10 @@ public class UpdateThreadPoolSettingsTests extends ESTestCase {
         Set<ThreadPool.ThreadPoolType> set = new HashSet<>();
         set.addAll(Arrays.asList(ThreadPool.ThreadPoolType.values()));
         set.remove(ThreadPool.THREAD_POOL_TYPES.get(threadPoolName));
-        ThreadPool.ThreadPoolType invalidThreadPoolType = randomFrom(set.toArray(new ThreadPool.ThreadPoolType[set.size()]));
-        return invalidThreadPoolType;
+        return randomFrom(set.toArray(new ThreadPool.ThreadPoolType[set.size()]));
     }
 
     private String randomThreadPool(ThreadPool.ThreadPoolType type) {
-        return randomFrom(ThreadPool.THREAD_POOL_TYPES.entrySet().stream().filter(t -> t.getValue().equals(type)).map(t -> t.getKey()).collect(Collectors.toList()));
+        return randomFrom(ThreadPool.THREAD_POOL_TYPES.entrySet().stream().filter(t -> t.getValue().equals(type)).map(Map.Entry::getKey).collect(Collectors.toList()));
     }
 }

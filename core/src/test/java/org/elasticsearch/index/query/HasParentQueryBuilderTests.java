@@ -21,7 +21,6 @@ package org.elasticsearch.index.query;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.fasterxml.jackson.core.JsonParseException;
-
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.ElasticsearchParseException;
@@ -41,22 +40,21 @@ import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.TestSearchContext;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Arrays;
 
-import static org.hamcrest.Matchers.containsString;
-
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.Matchers.containsString;
 
 public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQueryBuilder> {
     protected static final String PARENT_TYPE = "parent";
     protected static final String CHILD_TYPE = "child";
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @BeforeClass
+    public static void beforeClass() throws Exception {
         MapperService mapperService = queryShardContext().getMapperService();
         mapperService.merge(PARENT_TYPE, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(PARENT_TYPE,
                 STRING_FIELD_NAME, "type=string",
@@ -65,7 +63,7 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
                 BOOLEAN_FIELD_NAME, "type=boolean",
                 DATE_FIELD_NAME, "type=date",
                 OBJECT_FIELD_NAME, "type=object"
-        ).string()), false, false);
+        ).string()), MapperService.MergeReason.MAPPING_UPDATE, false);
         mapperService.merge(CHILD_TYPE, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(CHILD_TYPE,
                 "_parent", "type=" + PARENT_TYPE,
                 STRING_FIELD_NAME, "type=string",
@@ -74,7 +72,7 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
                 BOOLEAN_FIELD_NAME, "type=boolean",
                 DATE_FIELD_NAME, "type=date",
                 OBJECT_FIELD_NAME, "type=object"
-        ).string()), false, false);
+        ).string()), MapperService.MergeReason.MAPPING_UPDATE, false);
     }
 
     @Override
@@ -82,18 +80,6 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
         final MapperService mapperService = queryShardContext().getMapperService();
         final IndexFieldDataService fieldData = indexFieldDataService();
         TestSearchContext testSearchContext = new TestSearchContext() {
-            private InnerHitsContext context;
-
-
-            @Override
-            public void innerHits(InnerHitsContext innerHitsContext) {
-                context = innerHitsContext;
-            }
-
-            @Override
-            public InnerHitsContext innerHits() {
-                return context;
-            }
 
             @Override
             public MapperService mapperService() {
@@ -141,7 +127,7 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
                 assertEquals(innerHits.sort().getSort().length, 1);
                 assertEquals(innerHits.sort().getSort()[0].getField(), STRING_FIELD_NAME);
             } else {
-                assertNull(SearchContext.current().innerHits());
+                assertThat(SearchContext.current().innerHits().getInnerHits().size(), equalTo(0));
             }
         }
     }
@@ -245,20 +231,20 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
 
     public void testFromJson() throws IOException {
         String json =
-                "{\n" + 
-                "  \"has_parent\" : {\n" + 
-                "    \"query\" : {\n" + 
-                "      \"term\" : {\n" + 
-                "        \"tag\" : {\n" + 
-                "          \"value\" : \"something\",\n" + 
-                "          \"boost\" : 1.0\n" + 
-                "        }\n" + 
-                "      }\n" + 
-                "    },\n" + 
-                "    \"parent_type\" : \"blog\",\n" + 
-                "    \"score\" : true,\n" + 
-                "    \"boost\" : 1.0\n" + 
-                "  }\n" + 
+                "{\n" +
+                "  \"has_parent\" : {\n" +
+                "    \"query\" : {\n" +
+                "      \"term\" : {\n" +
+                "        \"tag\" : {\n" +
+                "          \"value\" : \"something\",\n" +
+                "          \"boost\" : 1.0\n" +
+                "        }\n" +
+                "      }\n" +
+                "    },\n" +
+                "    \"parent_type\" : \"blog\",\n" +
+                "    \"score\" : true,\n" +
+                "    \"boost\" : 1.0\n" +
+                "  }\n" +
                 "}";
         HasParentQueryBuilder parsed = (HasParentQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);

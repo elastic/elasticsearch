@@ -20,7 +20,6 @@ package org.elasticsearch.common.util;
 
 import org.elasticsearch.common.unit.TimeValue;
 
-import java.io.IOException;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 

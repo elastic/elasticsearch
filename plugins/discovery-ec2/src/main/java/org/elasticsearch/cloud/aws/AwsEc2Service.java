@@ -20,6 +20,7 @@
 package org.elasticsearch.cloud.aws;
 
 import com.amazonaws.services.ec2.AmazonEC2;
+
 import org.elasticsearch.common.component.LifecycleComponent;
 
 public interface AwsEc2Service extends LifecycleComponent<AwsEc2Service> {
@@ -33,10 +34,6 @@ public interface AwsEc2Service extends LifecycleComponent<AwsEc2Service> {
         public static final String PROXY_PASSWORD = "cloud.aws.proxy.password";
         public static final String SIGNER = "cloud.aws.signer";
         public static final String REGION = "cloud.aws.region";
-        @Deprecated
-        public static final String DEPRECATED_PROXY_HOST = "cloud.aws.proxy_host";
-        @Deprecated
-        public static final String DEPRECATED_PROXY_PORT = "cloud.aws.proxy_port";
     }
 
     final class CLOUD_EC2 {
@@ -49,10 +46,6 @@ public interface AwsEc2Service extends LifecycleComponent<AwsEc2Service> {
         public static final String PROXY_PASSWORD = "cloud.aws.ec2.proxy.password";
         public static final String SIGNER = "cloud.aws.ec2.signer";
         public static final String ENDPOINT = "cloud.aws.ec2.endpoint";
-        @Deprecated
-        public static final String DEPRECATED_PROXY_HOST = "cloud.aws.ec2.proxy_host";
-        @Deprecated
-        public static final String DEPRECATED_PROXY_PORT = "cloud.aws.ec2.proxy_port";
     }
 
     final class DISCOVERY_EC2 {

@@ -24,6 +24,7 @@ import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.SearchSlowLog;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.util.HashMap;
@@ -41,8 +42,8 @@ public final class ShardSearchStats {
     private final CounterMetric openContexts = new CounterMetric();
     private volatile Map<String, StatsHolder> groupsStats = emptyMap();
 
-    public ShardSearchStats(Settings indexSettings) {
-        this.slowLogSearchService = new SearchSlowLog(indexSettings);
+    public ShardSearchStats(SearchSlowLog searchSlowLog) {
+        this.slowLogSearchService = searchSlowLog;
     }
 
     /**
@@ -177,10 +178,6 @@ public final class ShardSearchStats {
     public void onFreeScrollContext(SearchContext context) {
         totalStats.scrollCurrent.dec();
         totalStats.scrollMetric.inc(System.nanoTime() - context.getOriginNanoTime());
-    }
-
-    public void onRefreshSettings(Settings settings) {
-        slowLogSearchService.onRefreshSettings(settings);
     }
 
     final static class StatsHolder {

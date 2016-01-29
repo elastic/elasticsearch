@@ -21,7 +21,9 @@ package org.elasticsearch.search.profile;
 
 import org.apache.lucene.search.Query;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
 
 /**
  * This class acts as a thread-local storage for profiling a query.  It also

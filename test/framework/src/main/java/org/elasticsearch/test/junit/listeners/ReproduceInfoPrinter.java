@@ -18,15 +18,13 @@
  */
 package org.elasticsearch.test.junit.listeners;
 
-import com.carrotsearch.randomizedtesting.RandomizedContext;
 import com.carrotsearch.randomizedtesting.ReproduceErrorMessageBuilder;
-import com.carrotsearch.randomizedtesting.TraceFormatting;
-
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.internal.AssumptionViolatedException;
 import org.junit.runner.Description;
 import org.junit.runner.notification.Failure;
@@ -42,7 +40,6 @@ import static org.elasticsearch.test.ESIntegTestCase.TESTS_CLUSTER;
 import static org.elasticsearch.test.rest.ESRestTestCase.REST_TESTS_BLACKLIST;
 import static org.elasticsearch.test.rest.ESRestTestCase.REST_TESTS_SPEC;
 import static org.elasticsearch.test.rest.ESRestTestCase.REST_TESTS_SUITE;
-import static org.elasticsearch.test.rest.ESRestTestCase.Rest;
 
 /**
  * A {@link RunListener} that emits to {@link System#err} a string with command
@@ -85,7 +82,7 @@ public class ReproduceInfoPrinter extends RunListener {
         gradleMessageBuilder.appendAllOpts(failure.getDescription());
 
         //Rest tests are a special case as they allow for additional parameters
-        if (failure.getDescription().getTestClass().isAnnotationPresent(Rest.class)) {
+        if (ESRestTestCase.class.isAssignableFrom(failure.getDescription().getTestClass())) {
             gradleMessageBuilder.appendRestTestsProperties();
         }
 
@@ -145,12 +142,12 @@ public class ReproduceInfoPrinter extends RunListener {
                 // these properties only make sense for integration tests
                 appendProperties("es.node.mode", "es.node.local", TESTS_CLUSTER, ESIntegTestCase.TESTS_ENABLE_MOCK_MODULES);
             }
-            appendProperties("tests.assertion.disabled", "tests.security.manager", "tests.nightly", "tests.jvms", 
+            appendProperties("tests.assertion.disabled", "tests.security.manager", "tests.nightly", "tests.jvms",
                              "tests.client.ratio", "tests.heap.size", "tests.bwc", "tests.bwc.version");
             if (System.getProperty("tests.jvm.argline") != null && !System.getProperty("tests.jvm.argline").isEmpty()) {
                 appendOpt("tests.jvm.argline", "\"" + System.getProperty("tests.jvm.argline") + "\"");
             }
-            appendOpt("tests.locale", Locale.getDefault().toString());
+            appendOpt("tests.locale", Locale.getDefault().toLanguageTag());
             appendOpt("tests.timezone", TimeZone.getDefault().getID());
             return this;
         }

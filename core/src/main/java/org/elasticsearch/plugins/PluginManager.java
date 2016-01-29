@@ -20,7 +20,11 @@
 package org.elasticsearch.plugins;
 
 import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.*;
+import org.elasticsearch.Build;
+import org.elasticsearch.ElasticsearchCorruptionException;
+import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.JarHell;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
@@ -36,9 +40,23 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.nio.file.*;
-import java.nio.file.attribute.*;
-import java.util.*;
+import java.nio.file.DirectoryStream;
+import java.nio.file.FileVisitResult;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.nio.file.attribute.GroupPrincipal;
+import java.nio.file.attribute.PosixFileAttributeView;
+import java.nio.file.attribute.PosixFileAttributes;
+import java.nio.file.attribute.PosixFilePermission;
+import java.nio.file.attribute.UserPrincipal;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 import java.util.stream.StreamSupport;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
@@ -83,8 +101,9 @@ public class PluginManager {
             "discovery-ec2",
             "discovery-gce",
             "discovery-multicast",
+            "ingest-geoip",
             "lang-javascript",
-            "lang-plan-a",
+            "lang-painless",
             "lang-python",
             "mapper-attachments",
             "mapper-murmur3",
@@ -240,9 +259,7 @@ public class PluginManager {
         }
 
         // check for jar hell before any copying
-        if (info.isJvm()) {
-            jarHellCheck(root, info.isIsolated());
-        }
+        jarHellCheck(root, info.isIsolated());
 
         // read optional security policy (extra permissions)
         // if it exists, confirm or warn the user

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.mapper.attachments;
 
+import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.plugins.Plugin;
 
@@ -32,6 +33,12 @@ public class MapperAttachmentsPlugin extends Plugin {
     @Override
     public String description() {
         return "Adds the attachment type allowing to parse difference attachment formats";
+    }
+
+    public void onModule(SettingsModule settingsModule) {
+        settingsModule.registerSetting(AttachmentMapper.INDEX_ATTACHMENT_DETECT_LANGUAGE_SETTING);
+        settingsModule.registerSetting(AttachmentMapper.INDEX_ATTACHMENT_IGNORE_ERRORS_SETTING);
+        settingsModule.registerSetting(AttachmentMapper.INDEX_ATTACHMENT_INDEXED_CHARS_SETTING);
     }
 
     public void onModule(IndicesModule indicesModule) {

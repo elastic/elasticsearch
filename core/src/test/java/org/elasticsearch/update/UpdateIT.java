@@ -33,20 +33,22 @@ import org.elasticsearch.client.transport.NoNodeAvailableException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
-import org.elasticsearch.index.shard.MergePolicyConfig;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptEngineRegistry;
 import org.elasticsearch.script.ScriptEngineService;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.InternalSettingsPlugin;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -91,7 +93,7 @@ public class UpdateIT extends ESIntegTestCase {
         }
 
         public void onModule(ScriptModule module) {
-            module.addScriptEngine(PutFieldValuesScriptEngine.class);
+            module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(PutFieldValuesScriptEngine.class, PutFieldValuesScriptEngine.TYPES));
         }
 
     }
@@ -100,22 +102,24 @@ public class UpdateIT extends ESIntegTestCase {
 
         public static final String NAME = "put_values";
 
+        public static final List<String> TYPES = Collections.singletonList(NAME);
+
         @Override
         public void close() throws IOException {
         }
 
         @Override
-        public String[] types() {
-            return new String[] { NAME };
+        public List<String> getTypes() {
+            return TYPES;
         }
 
         @Override
-        public String[] extensions() {
-            return types();
+        public List<String> getExtensions() {
+            return TYPES;
         }
 
         @Override
-        public boolean sandboxed() {
+        public boolean isSandboxed() {
             return true;
         }
 
@@ -153,12 +157,6 @@ public class UpdateIT extends ESIntegTestCase {
 
                     return ctx;
                 }
-
-                @Override
-                public Object unwrap(Object value) {
-                    return value;
-                }
-
             };
         }
 
@@ -189,7 +187,7 @@ public class UpdateIT extends ESIntegTestCase {
         }
 
         public void onModule(ScriptModule module) {
-            module.addScriptEngine(FieldIncrementScriptEngine.class);
+            module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(FieldIncrementScriptEngine.class, FieldIncrementScriptEngine.TYPES));
         }
 
     }
@@ -198,22 +196,24 @@ public class UpdateIT extends ESIntegTestCase {
 
         public static final String NAME = "field_inc";
 
+        public static final List<String> TYPES = Collections.singletonList(NAME);
+
         @Override
         public void close() throws IOException {
         }
 
         @Override
-        public String[] types() {
-            return new String[] { NAME };
+        public List<String> getTypes() {
+            return TYPES;
         }
 
         @Override
-        public String[] extensions() {
-            return types();
+        public List<String> getExtensions() {
+            return TYPES;
         }
 
         @Override
-        public boolean sandboxed() {
+        public boolean isSandboxed() {
             return true;
         }
 
@@ -244,12 +244,6 @@ public class UpdateIT extends ESIntegTestCase {
                     source.put(field, currentValue.longValue() + inc.longValue());
                     return ctx;
                 }
-
-                @Override
-                public Object unwrap(Object value) {
-                    return value;
-                }
-
             };
         }
 
@@ -280,7 +274,7 @@ public class UpdateIT extends ESIntegTestCase {
         }
 
         public void onModule(ScriptModule module) {
-            module.addScriptEngine(ScriptedUpsertScriptEngine.class);
+            module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(ScriptedUpsertScriptEngine.class, ScriptedUpsertScriptEngine.TYPES));
         }
 
     }
@@ -289,22 +283,24 @@ public class UpdateIT extends ESIntegTestCase {
 
         public static final String NAME = "scripted_upsert";
 
+        public static final List<String> TYPES = Collections.singletonList(NAME);
+
         @Override
         public void close() throws IOException {
         }
 
         @Override
-        public String[] types() {
-            return new String[] { NAME };
+        public List<String> getTypes() {
+            return TYPES;
         }
 
         @Override
-        public String[] extensions() {
-            return types();
+        public List<String> getExtensions() {
+            return TYPES;
         }
 
         @Override
-        public boolean sandboxed() {
+        public boolean isSandboxed() {
             return true;
         }
 
@@ -335,12 +331,6 @@ public class UpdateIT extends ESIntegTestCase {
                     source.put("balance", oldBalance.intValue() - deduction);
                     return ctx;
                 }
-
-                @Override
-                public Object unwrap(Object value) {
-                    return value;
-                }
-
             };
         }
 
@@ -371,7 +361,7 @@ public class UpdateIT extends ESIntegTestCase {
         }
 
         public void onModule(ScriptModule module) {
-            module.addScriptEngine(ExtractContextInSourceScriptEngine.class);
+            module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(ExtractContextInSourceScriptEngine.class, ExtractContextInSourceScriptEngine.TYPES));
         }
 
     }
@@ -380,22 +370,24 @@ public class UpdateIT extends ESIntegTestCase {
 
         public static final String NAME = "extract_ctx";
 
+        public static final List<String> TYPES = Collections.singletonList(NAME);
+
         @Override
         public void close() throws IOException {
         }
 
         @Override
-        public String[] types() {
-            return new String[] { NAME };
+        public List<String> getTypes() {
+            return TYPES;
         }
 
         @Override
-        public String[] extensions() {
-            return types();
+        public List<String> getExtensions() {
+            return TYPES;
         }
 
         @Override
-        public boolean sandboxed() {
+        public boolean isSandboxed() {
             return true;
         }
 
@@ -427,12 +419,6 @@ public class UpdateIT extends ESIntegTestCase {
 
                     return ctx;
                 }
-
-                @Override
-                public Object unwrap(Object value) {
-                    return value;
-                }
-
             };
         }
 
@@ -453,7 +439,9 @@ public class UpdateIT extends ESIntegTestCase {
                 PutFieldValuesScriptPlugin.class,
                 FieldIncrementScriptPlugin.class,
                 ScriptedUpsertScriptPlugin.class,
-                ExtractContextInSourceScriptPlugin.class);
+                ExtractContextInSourceScriptPlugin.class,
+                InternalSettingsPlugin.class // uses index.merge.enabled
+        );
     }
 
     private void createTestIndex() throws Exception {

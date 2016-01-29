@@ -38,7 +38,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.lenientNodeBooleanValue;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseStore;
 
 public class SizeFieldMapper extends MetadataFieldMapper {
@@ -54,7 +54,7 @@ public class SizeFieldMapper extends MetadataFieldMapper {
         static {
             SIZE_FIELD_TYPE.setStored(true);
             SIZE_FIELD_TYPE.setNumericPrecisionStep(Defaults.PRECISION_STEP_32_BIT);
-            SIZE_FIELD_TYPE.setNames(new MappedFieldType.Names(NAME));
+            SIZE_FIELD_TYPE.setName(NAME);
             SIZE_FIELD_TYPE.setIndexAnalyzer(NumericIntegerAnalyzer.buildNamedAnalyzer(Defaults.PRECISION_STEP_32_BIT));
             SIZE_FIELD_TYPE.setSearchAnalyzer(NumericIntegerAnalyzer.buildNamedAnalyzer(Integer.MAX_VALUE));
             SIZE_FIELD_TYPE.freeze();
@@ -92,10 +92,10 @@ public class SizeFieldMapper extends MetadataFieldMapper {
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());
                 Object fieldNode = entry.getValue();
                 if (fieldName.equals("enabled")) {
-                    builder.enabled(nodeBooleanValue(fieldNode) ? EnabledAttributeMapper.ENABLED : EnabledAttributeMapper.DISABLED);
+                    builder.enabled(lenientNodeBooleanValue(fieldNode) ? EnabledAttributeMapper.ENABLED : EnabledAttributeMapper.DISABLED);
                     iterator.remove();
                 } else if (fieldName.equals("store") && parserContext.indexVersionCreated().before(Version.V_2_0_0_beta1)) {
-                    builder.store(parseStore(fieldName, fieldNode.toString()));
+                    builder.store(parseStore(fieldName, fieldNode.toString(), parserContext));
                     iterator.remove();
                 }
             }
@@ -150,7 +150,7 @@ public class SizeFieldMapper extends MetadataFieldMapper {
         if (!enabledState.enabled) {
             return;
         }
-        if (context.flyweight()) {
+        if (context.source() == null) {
             return;
         }
         fields.add(new IntegerFieldMapper.CustomIntegerNumericField(context.source().length(), fieldType()));
@@ -161,15 +161,12 @@ public class SizeFieldMapper extends MetadataFieldMapper {
         boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
 
         // all are defaults, no need to write it at all
-        if (!includeDefaults && enabledState == Defaults.ENABLED_STATE && (indexCreatedBefore2x == false || fieldType().stored() == false)) {
+        if (!includeDefaults && enabledState == Defaults.ENABLED_STATE) {
             return builder;
         }
         builder.startObject(contentType());
         if (includeDefaults || enabledState != Defaults.ENABLED_STATE) {
             builder.field("enabled", enabledState.enabled);
-        }
-        if (indexCreatedBefore2x && (includeDefaults || fieldType().stored() == true)) {
-            builder.field("store", fieldType().stored());
         }
         builder.endObject();
         return builder;

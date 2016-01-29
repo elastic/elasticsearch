@@ -30,7 +30,6 @@ import org.elasticsearch.repositories.s3.S3Repository;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;
-import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -78,6 +77,7 @@ public class S3RepositoryPlugin extends Plugin {
     }
 
     @Override
+    @SuppressWarnings("rawtypes") // Supertype declaration has raw types
     public Collection<Class<? extends LifecycleComponent>> nodeServices() {
         return Collections.<Class<? extends LifecycleComponent>>singleton(S3Module.getS3ServiceImpl());
     }

@@ -20,7 +20,6 @@ package org.elasticsearch.search.aggregations.bucket.terms.support;
 
 import com.carrotsearch.hppc.LongHashSet;
 import com.carrotsearch.hppc.LongSet;
-
 import org.apache.lucene.index.RandomAccessOrds;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.Terms;
@@ -124,7 +123,7 @@ public class IncludeExclude {
 
     public static abstract class OrdinalsFilter {
         public abstract LongBitSet acceptedGlobalOrdinals(RandomAccessOrds globalOrdinals, ValuesSource.Bytes.WithOrdinals valueSource) throws IOException;
-        
+
     }
 
     static class AutomatonBackedOrdinalsFilter extends OrdinalsFilter {
@@ -137,7 +136,7 @@ public class IncludeExclude {
 
         /**
          * Computes which global ordinals are accepted by this IncludeExclude instance.
-         * 
+         *
          */
         @Override
         public LongBitSet acceptedGlobalOrdinals(RandomAccessOrds globalOrdinals, ValuesSource.Bytes.WithOrdinals valueSource) throws IOException {
@@ -153,7 +152,7 @@ public class IncludeExclude {
         }
 
     }
-    
+
     static class TermListBackedOrdinalsFilter extends OrdinalsFilter {
 
         private final SortedSet<BytesRef> includeValues;
@@ -173,7 +172,7 @@ public class IncludeExclude {
                     if (ord >= 0) {
                         acceptedGlobalOrdinals.set(ord);
                     }
-                }                
+                }
             } else {
                 // default to all terms being acceptable
                 acceptedGlobalOrdinals.set(0, acceptedGlobalOrdinals.length());

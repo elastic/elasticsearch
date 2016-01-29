@@ -21,7 +21,6 @@ package org.elasticsearch.action.admin.indices.shards;
 
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-
 import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.client.Requests;
@@ -36,10 +35,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.store.MockFSIndexStore;
 
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -57,14 +58,20 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
+@TestLogging("_root:DEBUG,action.admin.indices.shards:TRACE,cluster.service:TRACE")
 public class IndicesShardStoreRequestIT extends ESIntegTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return pluginList( MockFSIndexStore.TestPlugin.class);
+    }
+
     public void testEmpty() {
         ensureGreen();
         IndicesShardStoresResponse rsp = client().admin().indices().prepareShardStores().get();
         assertThat(rsp.getStoreStatuses().size(), equalTo(0));
     }
 
-    @TestLogging("action.admin.indices.shards:TRACE,cluster.service:TRACE")
     public void testBasic() throws Exception {
         String index = "test";
         internalCluster().ensureAtLeastNumDataNodes(2);
@@ -149,7 +156,7 @@ public class IndicesShardStoreRequestIT extends ESIntegTestCase {
         internalCluster().ensureAtLeastNumDataNodes(2);
         assertAcked(prepareCreate(index).setSettings(Settings.builder()
                         .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "5")
-                        .put(MockFSIndexStore.CHECK_INDEX_ON_CLOSE, false)
+                        .put(MockFSIndexStore.INDEX_CHECK_INDEX_ON_CLOSE_SETTING.getKey(), false)
         ));
         indexRandomData(index);
         ensureGreen(index);

@@ -17,12 +17,12 @@
  * under the License.
  */
 package org.elasticsearch.search.suggest.phrase;
-import java.io.IOException;
-import java.util.Arrays;
 
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.search.suggest.phrase.DirectCandidateGenerator.Candidate;
 import org.elasticsearch.search.suggest.phrase.DirectCandidateGenerator.CandidateSet;
+
+import java.io.IOException;
 
 final class CandidateScorer {
     private final WordScorer scorer;
@@ -34,8 +34,8 @@ final class CandidateScorer {
         this.maxNumCorrections = maxNumCorrections;
         this.gramSize = gramSize;
     }
-    
-    
+
+
     public Correction[] findBestCandiates(CandidateSet[] sets, float errorFraction, double cutoffScore) throws IOException {
         if (sets.length == 0) {
             return Correction.EMPTY;
@@ -107,7 +107,7 @@ final class CandidateScorer {
             }
         }
     }
-    
+
     public double score(Candidate[] path, CandidateSet[] candidates) throws IOException {
         double score = 0.0d;
         for (int i = 0; i < candidates.length; i++) {

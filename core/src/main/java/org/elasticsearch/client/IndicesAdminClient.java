@@ -53,13 +53,21 @@ import org.elasticsearch.action.admin.indices.exists.types.TypesExistsResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushRequestBuilder;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
+import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequest;
+import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequestBuilder;
+import org.elasticsearch.action.admin.indices.flush.SyncedFlushResponse;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequestBuilder;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
-import org.elasticsearch.action.admin.indices.mapping.get.*;
+import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest;
+import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequestBuilder;
+import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
+import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
+import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequestBuilder;
+import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequestBuilder;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
@@ -87,9 +95,6 @@ import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
-import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequest;
-import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequestBuilder;
-import org.elasticsearch.action.admin.indices.flush.SyncedFlushResponse;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequestBuilder;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateResponse;
@@ -108,15 +113,6 @@ import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeResponse;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequestBuilder;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
-import org.elasticsearch.action.admin.indices.warmer.delete.DeleteWarmerRequest;
-import org.elasticsearch.action.admin.indices.warmer.delete.DeleteWarmerRequestBuilder;
-import org.elasticsearch.action.admin.indices.warmer.delete.DeleteWarmerResponse;
-import org.elasticsearch.action.admin.indices.warmer.get.GetWarmersRequest;
-import org.elasticsearch.action.admin.indices.warmer.get.GetWarmersRequestBuilder;
-import org.elasticsearch.action.admin.indices.warmer.get.GetWarmersResponse;
-import org.elasticsearch.action.admin.indices.warmer.put.PutWarmerRequest;
-import org.elasticsearch.action.admin.indices.warmer.put.PutWarmerRequestBuilder;
-import org.elasticsearch.action.admin.indices.warmer.put.PutWarmerResponse;
 import org.elasticsearch.common.Nullable;
 
 /**
@@ -765,51 +761,6 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      * Validate a query for correctness.
      */
     ValidateQueryRequestBuilder prepareValidateQuery(String... indices);
-
-    /**
-     * Puts an index search warmer to be applies when applicable.
-     */
-    ActionFuture<PutWarmerResponse> putWarmer(PutWarmerRequest request);
-
-    /**
-     * Puts an index search warmer to be applies when applicable.
-     */
-    void putWarmer(PutWarmerRequest request, ActionListener<PutWarmerResponse> listener);
-
-    /**
-     * Puts an index search warmer to be applies when applicable.
-     */
-    PutWarmerRequestBuilder preparePutWarmer(String name);
-
-    /**
-     * Deletes an index warmer.
-     */
-    ActionFuture<DeleteWarmerResponse> deleteWarmer(DeleteWarmerRequest request);
-
-    /**
-     * Deletes an index warmer.
-     */
-    void deleteWarmer(DeleteWarmerRequest request, ActionListener<DeleteWarmerResponse> listener);
-
-    /**
-     * Deletes an index warmer.
-     */
-    DeleteWarmerRequestBuilder prepareDeleteWarmer();
-
-    /**
-     * Returns a map of index warmers for the given get request.
-     */
-    void getWarmers(GetWarmersRequest request, ActionListener<GetWarmersResponse> listener);
-
-    /**
-     * Returns a map of index warmers for the given get request.
-     */
-    ActionFuture<GetWarmersResponse> getWarmers(GetWarmersRequest request);
-
-    /**
-     * Returns a new builder to fetch index warmer metadata for the given indices.
-     */
-    GetWarmersRequestBuilder prepareGetWarmers(String... indices);
 
     /**
      * Executed a per index settings get request and returns the settings for the indices specified.

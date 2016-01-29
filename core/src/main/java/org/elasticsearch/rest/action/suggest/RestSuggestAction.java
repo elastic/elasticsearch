@@ -19,9 +19,6 @@
 
 package org.elasticsearch.rest.action.suggest;
 
-import static org.elasticsearch.rest.RestRequest.Method.GET;
-import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.rest.action.support.RestActions.buildBroadcastShardsHeader;
 import org.elasticsearch.action.suggest.SuggestRequest;
 import org.elasticsearch.action.suggest.SuggestResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -41,6 +38,10 @@ import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
 import org.elasticsearch.search.suggest.Suggest;
 
+import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.action.support.RestActions.buildBroadcastShardsHeader;
+
 /**
  *
  */
@@ -48,7 +49,7 @@ public class RestSuggestAction extends BaseRestHandler {
 
     @Inject
     public RestSuggestAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+        super(settings, client);
         controller.registerHandler(POST, "/_suggest", this);
         controller.registerHandler(GET, "/_suggest", this);
         controller.registerHandler(POST, "/{index}/_suggest", this);

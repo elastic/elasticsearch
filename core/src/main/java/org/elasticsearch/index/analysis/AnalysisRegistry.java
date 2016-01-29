@@ -29,7 +29,12 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.compound.DictionaryCompoundWordTokenFilterFactory;
 import org.elasticsearch.index.analysis.compound.HyphenationCompoundWordTokenFilterFactory;
-import org.elasticsearch.indices.analysis.*;
+import org.elasticsearch.indices.analysis.AnalysisModule;
+import org.elasticsearch.indices.analysis.HunspellService;
+import org.elasticsearch.indices.analysis.PreBuiltAnalyzers;
+import org.elasticsearch.indices.analysis.PreBuiltCharFilters;
+import org.elasticsearch.indices.analysis.PreBuiltTokenFilters;
+import org.elasticsearch.indices.analysis.PreBuiltTokenizers;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -176,6 +181,7 @@ public final class AnalysisRegistry implements Closeable {
         tokenizers.put("standard", StandardTokenizerFactory::new);
         tokenizers.put("uax_url_email", UAX29URLEmailTokenizerFactory::new);
         tokenizers.put("path_hierarchy", PathHierarchyTokenizerFactory::new);
+        tokenizers.put("PathHierarchy", PathHierarchyTokenizerFactory::new);
         tokenizers.put("keyword", KeywordTokenizerFactory::new);
         tokenizers.put("letter", LetterTokenizerFactory::new);
         tokenizers.put("lowercase", LowerCaseTokenizerFactory::new);
@@ -404,6 +410,7 @@ public final class AnalysisRegistry implements Closeable {
             // Tokenizer aliases
             tokenizerFactories.put("nGram", new PreBuiltTokenizerFactoryFactory(PreBuiltTokenizers.NGRAM.getTokenizerFactory(Version.CURRENT)));
             tokenizerFactories.put("edgeNGram", new PreBuiltTokenizerFactoryFactory(PreBuiltTokenizers.EDGE_NGRAM.getTokenizerFactory(Version.CURRENT)));
+            tokenizerFactories.put("PathHierarchy", new PreBuiltTokenizerFactoryFactory(PreBuiltTokenizers.PATH_HIERARCHY.getTokenizerFactory(Version.CURRENT)));
 
 
             // Token filters

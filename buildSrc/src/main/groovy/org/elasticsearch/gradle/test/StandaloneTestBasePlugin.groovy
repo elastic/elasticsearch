@@ -27,7 +27,6 @@ import org.elasticsearch.gradle.precommit.PrecommitTasks
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.plugins.JavaBasePlugin
-import org.gradle.plugins.ide.eclipse.model.EclipseClasspath
 
 /** Configures the build to have a rest integration test.  */
 public class StandaloneTestBasePlugin implements Plugin<Project> {

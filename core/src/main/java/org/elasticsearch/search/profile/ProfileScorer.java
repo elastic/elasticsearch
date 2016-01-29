@@ -50,26 +50,6 @@ final class ProfileScorer extends Scorer {
     }
 
     @Override
-    public int advance(int target) throws IOException {
-        profile.startTime(ProfileBreakdown.TimingType.ADVANCE);
-        try {
-            return scorer.advance(target);
-        } finally {
-            profile.stopAndRecordTime();
-        }
-    }
-
-    @Override
-    public int nextDoc() throws IOException {
-        profile.startTime(ProfileBreakdown.TimingType.NEXT_DOC);
-        try {
-            return scorer.nextDoc();
-        } finally {
-            profile.stopAndRecordTime();
-        }
-    }
-
-    @Override
     public float score() throws IOException {
         profile.startTime(ProfileBreakdown.TimingType.SCORE);
         try {
@@ -85,11 +65,6 @@ final class ProfileScorer extends Scorer {
     }
 
     @Override
-    public long cost() {
-        return scorer.cost();
-    }
-
-    @Override
     public Weight getWeight() {
         return profileWeight;
     }
@@ -100,8 +75,45 @@ final class ProfileScorer extends Scorer {
     }
 
     @Override
-    public TwoPhaseIterator asTwoPhaseIterator() {
-        final TwoPhaseIterator in = scorer.asTwoPhaseIterator();
+    public DocIdSetIterator iterator() {
+        final DocIdSetIterator in = scorer.iterator();
+        return new DocIdSetIterator() {
+            
+            @Override
+            public int advance(int target) throws IOException {
+                profile.startTime(ProfileBreakdown.TimingType.ADVANCE);
+                try {
+                    return in.advance(target);
+                } finally {
+                    profile.stopAndRecordTime();
+                }
+            }
+
+            @Override
+            public int nextDoc() throws IOException {
+                profile.startTime(ProfileBreakdown.TimingType.NEXT_DOC);
+                try {
+                    return in.nextDoc();
+                } finally {
+                    profile.stopAndRecordTime();
+                }
+            }
+
+            @Override
+            public int docID() {
+                return in.docID();
+            }
+
+            @Override
+            public long cost() {
+                return in.cost();
+            }
+        };
+    }
+
+    @Override
+    public TwoPhaseIterator twoPhaseIterator() {
+        final TwoPhaseIterator in = scorer.twoPhaseIterator();
         if (in == null) {
             return null;
         }

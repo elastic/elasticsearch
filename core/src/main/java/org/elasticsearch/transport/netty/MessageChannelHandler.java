@@ -30,11 +30,26 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.*;
+import org.elasticsearch.transport.ActionNotFoundTransportException;
+import org.elasticsearch.transport.RemoteTransportException;
+import org.elasticsearch.transport.RequestHandlerRegistry;
+import org.elasticsearch.transport.ResponseHandlerFailureTransportException;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportResponseHandler;
+import org.elasticsearch.transport.TransportSerializationException;
+import org.elasticsearch.transport.TransportServiceAdapter;
+import org.elasticsearch.transport.Transports;
 import org.elasticsearch.transport.support.TransportStatus;
 import org.jboss.netty.buffer.ChannelBuffer;
-import org.jboss.netty.channel.*;
+import org.jboss.netty.channel.Channel;
+import org.jboss.netty.channel.ChannelHandlerContext;
+import org.jboss.netty.channel.ExceptionEvent;
+import org.jboss.netty.channel.MessageEvent;
+import org.jboss.netty.channel.SimpleChannelUpstreamHandler;
+import org.jboss.netty.channel.WriteCompletionEvent;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -50,9 +65,11 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
     protected final TransportServiceAdapter transportServiceAdapter;
     protected final NettyTransport transport;
     protected final String profileName;
+    private final ThreadContext threadContext;
 
     public MessageChannelHandler(NettyTransport transport, ESLogger logger, String profileName) {
         this.threadPool = transport.threadPool();
+        this.threadContext = threadPool.getThreadContext();
         this.transportServiceAdapter = transport.transportServiceAdapter();
         this.transport = transport;
         this.logger = logger;
@@ -87,7 +104,7 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
         // buffer, or in the cumlation buffer, which is cleaned each time
         StreamInput streamIn = ChannelBufferStreamInputFactory.create(buffer, size);
         boolean success = false;
-        try {
+        try (ThreadContext.StoredContext tCtx = threadContext.stashContext()) {
             long requestId = streamIn.readLong();
             byte status = streamIn.readByte();
             Version version = Version.fromId(streamIn.readInt());
@@ -109,8 +126,8 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
                 streamIn = compressor.streamInput(streamIn);
             }
             streamIn.setVersion(version);
-
             if (TransportStatus.isRequest(status)) {
+                threadContext.readHeaders(streamIn);
                 String action = handleRequest(ctx.getChannel(), streamIn, requestId, version);
 
                 // Chek the entire message has been read
@@ -241,7 +258,7 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
             request.readFrom(buffer);
             if (ThreadPool.Names.SAME.equals(reg.getExecutor())) {
                 //noinspection unchecked
-                reg.getHandler().messageReceived(request, transportChannel);
+                reg.processMessageReceived(request, transportChannel);
             } else {
                 threadPool.executor(reg.getExecutor()).execute(new RequestHandler(reg, request, transportChannel));
             }
@@ -296,7 +313,7 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
         @SuppressWarnings({"unchecked"})
         @Override
         protected void doRun() throws Exception {
-            reg.getHandler().messageReceived(request, transportChannel);
+            reg.processMessageReceived(request, transportChannel);
         }
 
         @Override

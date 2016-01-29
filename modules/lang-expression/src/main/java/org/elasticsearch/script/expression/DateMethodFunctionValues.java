@@ -19,13 +19,13 @@
 
 package org.elasticsearch.script.expression;
 
-import java.util.Calendar;
-import java.util.Locale;
-import java.util.TimeZone;
-
 import org.apache.lucene.queries.function.ValueSource;
 import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
 import org.elasticsearch.search.MultiValueMode;
+
+import java.util.Calendar;
+import java.util.Locale;
+import java.util.TimeZone;
 
 class DateMethodFunctionValues extends FieldDataFunctionValues {
     private final int calendarType;

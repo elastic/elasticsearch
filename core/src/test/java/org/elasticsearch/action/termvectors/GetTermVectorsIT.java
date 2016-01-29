@@ -20,7 +20,6 @@
 package org.elasticsearch.action.termvectors;
 
 import com.carrotsearch.hppc.ObjectIntHashMap;
-
 import org.apache.lucene.analysis.payloads.PayloadHelper;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.DirectoryReader;
@@ -153,7 +152,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
                 .addMapping("type1",
                         "field0", "type=integer,", // no tvs
                         "field1", "type=string,index=no", // no tvs
-                        "field2", "type=string,index=no,store=yes",  // no tvs
+                        "field2", "type=string,index=no,store=true",  // no tvs
                         "field3", "type=string,index=no,term_vector=yes", // no tvs
                         "field4", "type=string,index=not_analyzed", // yes tvs
                         "field5", "type=string,index=analyzed")); // yes tvs
@@ -869,53 +868,6 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
                 .get();
         assertThat(resp.isExists(), equalTo(true));
         checkBrownFoxTermVector(resp.getFields(), "field1", false);
-    }
-
-    public void testArtificialNonExistingField() throws Exception {
-        // setup indices
-        Settings.Builder settings = settingsBuilder()
-                .put(indexSettings())
-                .put("index.analysis.analyzer", "standard");
-        assertAcked(prepareCreate("test")
-                .setSettings(settings)
-                .addMapping("type1", "field1", "type=string"));
-        ensureGreen();
-
-        // index just one doc
-        List<IndexRequestBuilder> indexBuilders = new ArrayList<>();
-            indexBuilders.add(client().prepareIndex()
-                    .setIndex("test")
-                    .setType("type1")
-                    .setId("1")
-                    .setRouting("1")
-                    .setSource("field1", "some text"));
-        indexRandom(true, indexBuilders);
-
-        // request tvs from artificial document
-        XContentBuilder doc = jsonBuilder()
-                .startObject()
-                    .field("field1", "the quick brown fox jumps over the lazy dog")
-                    .field("non_existing", "the quick brown fox jumps over the lazy dog")
-                .endObject();
-
-        for (int i = 0; i < 2; i++) {
-            TermVectorsResponse resp = client().prepareTermVectors()
-                    .setIndex("test")
-                    .setType("type1")
-                    .setDoc(doc)
-                    .setRouting("" + i)
-                    .setOffsets(true)
-                    .setPositions(true)
-                    .setFieldStatistics(true)
-                    .setTermStatistics(true)
-                    .get();
-            assertThat(resp.isExists(), equalTo(true));
-            checkBrownFoxTermVector(resp.getFields(), "field1", false);
-            // we should have created a mapping for this field
-            assertMappingOnMaster("test", "type1", "non_existing");
-            // and return the generated term vectors
-            checkBrownFoxTermVector(resp.getFields(), "non_existing", false);
-        }
     }
 
     public void testPerFieldAnalyzer() throws IOException {

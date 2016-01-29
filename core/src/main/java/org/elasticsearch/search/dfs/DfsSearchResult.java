@@ -21,7 +21,6 @@ package org.elasticsearch.search.dfs;
 
 import com.carrotsearch.hppc.ObjectObjectHashMap;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.TermStatistics;
@@ -127,12 +126,12 @@ public class DfsSearchResult extends TransportResponse implements SearchPhaseRes
         }
         this.termStatistics = readTermStats(in, terms);
         readFieldStats(in, fieldStatistics);
-        
+
 
         maxDoc = in.readVInt();
     }
 
- 
+
   @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -146,7 +145,7 @@ public class DfsSearchResult extends TransportResponse implements SearchPhaseRes
         writeFieldStats(out, fieldStatistics);
         out.writeVInt(maxDoc);
     }
-    
+
     public static void writeFieldStats(StreamOutput out, ObjectObjectHashMap<String, CollectionStatistics> fieldStatistics) throws IOException {
         out.writeVInt(fieldStatistics.size());
 
@@ -160,20 +159,20 @@ public class DfsSearchResult extends TransportResponse implements SearchPhaseRes
             out.writeVLong(addOne(statistics.sumDocFreq()));
         }
     }
-    
+
     public static void writeTermStats(StreamOutput out, TermStatistics[] termStatistics) throws IOException {
         out.writeVInt(termStatistics.length);
         for (TermStatistics termStatistic : termStatistics) {
             writeSingleTermStats(out, termStatistic);
         }
     }
-    
+
     public  static void writeSingleTermStats(StreamOutput out, TermStatistics termStatistic) throws IOException {
         assert termStatistic.docFreq() >= 0;
         out.writeVLong(termStatistic.docFreq());
-        out.writeVLong(addOne(termStatistic.totalTermFreq()));        
+        out.writeVLong(addOne(termStatistic.totalTermFreq()));
     }
-    
+
     public static ObjectObjectHashMap<String, CollectionStatistics> readFieldStats(StreamInput in) throws IOException {
         return readFieldStats(in, null);
     }
@@ -215,7 +214,7 @@ public class DfsSearchResult extends TransportResponse implements SearchPhaseRes
         return termStatistics;
     }
 
-    
+
     /*
      * optional statistics are set to -1 in lucene by default.
      * Since we are using var longs to encode values we add one to each value
@@ -225,8 +224,8 @@ public class DfsSearchResult extends TransportResponse implements SearchPhaseRes
         assert value + 1 >= 0;
         return value + 1;
     }
-    
-    
+
+
     /*
      * See #addOne this just subtracting one and asserts that the actual value
      * is positive.

@@ -19,7 +19,6 @@
 package org.elasticsearch.percolator;
 
 import com.carrotsearch.hppc.ObjectObjectAssociativeContainer;
-
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
@@ -27,14 +26,11 @@ import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
-import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.percolate.PercolateShardRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
-import org.elasticsearch.common.HasContext;
-import org.elasticsearch.common.HasContextAndHeaders;
-import org.elasticsearch.common.HasHeaders;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.lease.Releasables;
@@ -49,7 +45,6 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
-import org.elasticsearch.index.percolator.PercolatorQueriesRegistry;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
@@ -73,7 +68,6 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.search.profile.Profiler;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
@@ -84,17 +78,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentMap;
 
 /**
  */
 public class PercolateContext extends SearchContext {
 
-    private final PercolatorQueriesRegistry percolateQueryRegistry;
-    public boolean limit;
-    private int size;
-    public boolean doSort;
-    public byte percolatorTypeId;
+    private int size = 10;
     private boolean trackScores;
 
     private final SearchShardTarget searchShardTarget;
@@ -104,10 +93,12 @@ public class PercolateContext extends SearchContext {
     private final PageCacheRecycler pageCacheRecycler;
     private final BigArrays bigArrays;
     private final ScriptService scriptService;
+    private final MapperService mapperService;
     private final int numberOfShards;
     private final Query aliasFilter;
     private final long originNanoTime = System.nanoTime();
     private final long startTime;
+    private final boolean onlyCount;
     private String[] types;
 
     private Engine.Searcher docSearcher;
@@ -129,12 +120,12 @@ public class PercolateContext extends SearchContext {
     public PercolateContext(PercolateShardRequest request, SearchShardTarget searchShardTarget, IndexShard indexShard,
                             IndexService indexService, PageCacheRecycler pageCacheRecycler,
                             BigArrays bigArrays, ScriptService scriptService, Query aliasFilter, ParseFieldMatcher parseFieldMatcher) {
-        super(parseFieldMatcher, request);
+        super(parseFieldMatcher);
         this.indexShard = indexShard;
         this.indexService = indexService;
         this.fieldDataService = indexService.fieldData();
+        this.mapperService = indexService.mapperService();
         this.searchShardTarget = searchShardTarget;
-        this.percolateQueryRegistry = indexShard.percolateRegistry();
         this.types = new String[]{request.documentType()};
         this.pageCacheRecycler = pageCacheRecycler;
         this.bigArrays = bigArrays.withCircuitBreaking();
@@ -145,6 +136,24 @@ public class PercolateContext extends SearchContext {
         this.numberOfShards = request.getNumberOfShards();
         this.aliasFilter = aliasFilter;
         this.startTime = request.getStartTime();
+        this.onlyCount = request.onlyCount();
+    }
+
+    // for testing:
+    PercolateContext(PercolateShardRequest request, SearchShardTarget searchShardTarget, MapperService mapperService) {
+        super(null);
+        this.searchShardTarget = searchShardTarget;
+        this.mapperService = mapperService;
+        this.indexService = null;
+        this.indexShard = null;
+        this.fieldDataService = null;
+        this.pageCacheRecycler = null;
+        this.bigArrays = null;
+        this.scriptService = null;
+        this.aliasFilter = null;
+        this.startTime = 0;
+        this.numberOfShards = 0;
+        this.onlyCount = true;
     }
 
     public IndexSearcher docSearcher() {
@@ -179,10 +188,6 @@ public class PercolateContext extends SearchContext {
         return indexService;
     }
 
-    public ConcurrentMap<BytesRef, Query> percolateQueries() {
-        return percolateQueryRegistry.percolateQueries();
-    }
-
     public Query percolateQuery() {
         return percolateQuery;
     }
@@ -196,6 +201,14 @@ public class PercolateContext extends SearchContext {
             hitContext = new FetchSubPhase.HitContext();
         }
         return hitContext;
+    }
+
+    public boolean isOnlyCount() {
+        return onlyCount;
+    }
+
+    public Query percolatorTypeFilter(){
+        return indexService().mapperService().documentMapper(PercolatorService.TYPE_NAME).typeFilter();
     }
 
     @Override
@@ -232,7 +245,7 @@ public class PercolateContext extends SearchContext {
 
     @Override
     public MapperService mapperService() {
-        return indexService.mapperService();
+        return mapperService;
     }
 
     @Override
@@ -501,6 +514,16 @@ public class PercolateContext extends SearchContext {
     }
 
     @Override
+    public SearchContext searchAfter(FieldDoc searchAfter) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public FieldDoc searchAfter() {
+        return null;
+    }
+
+    @Override
     public SearchContext parsedPostFilter(ParsedQuery postFilter) {
         throw new UnsupportedOperationException();
     }
@@ -533,7 +556,6 @@ public class PercolateContext extends SearchContext {
     @Override
     public SearchContext size(int size) {
         this.size = size;
-        this.limit = true;
         return this;
     }
 
@@ -639,12 +661,7 @@ public class PercolateContext extends SearchContext {
 
     @Override
     public MappedFieldType smartNameFieldType(String name) {
-        return mapperService().smartNameFieldType(name, types);
-    }
-
-    @Override
-    public MappedFieldType smartNameFieldTypeFromAnyType(String name) {
-        return mapperService().smartNameFieldType(name);
+        return mapperService().fullName(name);
     }
 
     @Override
@@ -658,89 +675,8 @@ public class PercolateContext extends SearchContext {
     }
 
     @Override
-    public void innerHits(InnerHitsContext innerHitsContext) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
     public InnerHitsContext innerHits() {
         throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public <V> V putInContext(Object key, Object value) {
-        assert false : "percolatecontext does not support contexts & headers";
-        return null;
-    }
-
-    @Override
-    public void putAllInContext(ObjectObjectAssociativeContainer<Object, Object> map) {
-        assert false : "percolatocontext does not support contexts & headers";
-    }
-
-    @Override
-    public <V> V getFromContext(Object key) {
-        return null;
-    }
-
-    @Override
-    public <V> V getFromContext(Object key, V defaultValue) {
-        return defaultValue;
-    }
-
-    @Override
-    public boolean hasInContext(Object key) {
-        return false;
-    }
-
-    @Override
-    public int contextSize() {
-        return 0;
-    }
-
-    @Override
-    public boolean isContextEmpty() {
-        return true;
-    }
-
-    @Override
-    public ImmutableOpenMap<Object, Object> getContext() {
-        return ImmutableOpenMap.of();
-    }
-
-    @Override
-    public void copyContextFrom(HasContext other) {
-        assert false : "percolatecontext does not support contexts & headers";
-    }
-
-    @Override
-    public <V> void putHeader(String key, V value) {
-        assert false : "percolatecontext does not support contexts & headers";
-    }
-
-    @Override
-    public <V> V getHeader(String key) {
-        return null;
-    }
-
-    @Override
-    public boolean hasHeader(String key) {
-        return false;
-    }
-
-    @Override
-    public Set<String> getHeaders() {
-        return Collections.emptySet();
-    }
-
-    @Override
-    public void copyHeadersFrom(HasHeaders from) {
-        assert false : "percolatecontext does not support contexts & headers";
-    }
-
-    @Override
-    public void copyContextAndHeadersFrom(HasContextAndHeaders other) {
-        assert false : "percolatecontext does not support contexts & headers";
     }
 
     @Override

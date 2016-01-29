@@ -19,6 +19,7 @@
 
 package org.elasticsearch.script.python;
 
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
@@ -30,7 +31,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -55,8 +55,8 @@ public class PythonScriptMultiThreadedTests extends ESTestCase {
                 public void run() {
                     try {
                         barrier.await();
-                        long x = ThreadLocalRandom.current().nextInt();
-                        long y = ThreadLocalRandom.current().nextInt();
+                        long x = Randomness.get().nextInt();
+                        long y = Randomness.get().nextInt();
                         long addition = x + y;
                         Map<String, Object> vars = new HashMap<String, Object>();
                         vars.put("x", x);
@@ -97,13 +97,13 @@ public class PythonScriptMultiThreadedTests extends ESTestCase {
 //                @Override public void run() {
 //                    try {
 //                        barrier.await();
-//                        long x = ThreadLocalRandom.current().nextInt();
+//                        long x = Randomness.get().nextInt();
 //                        Map<String, Object> vars = new HashMap<String, Object>();
 //                        vars.put("x", x);
 //                        ExecutableScript script = se.executable(compiled, vars);
 //                        Map<String, Object> runtimeVars = new HashMap<String, Object>();
 //                        for (int i = 0; i < 100000; i++) {
-//                            long y = ThreadLocalRandom.current().nextInt();
+//                            long y = Randomness.get().nextInt();
 //                            long addition = x + y;
 //                            runtimeVars.put("y", y);
 //                            long result = ((Number) script.run(runtimeVars)).longValue();
@@ -143,8 +143,8 @@ public class PythonScriptMultiThreadedTests extends ESTestCase {
                         barrier.await();
                         Map<String, Object> runtimeVars = new HashMap<String, Object>();
                         for (int i = 0; i < 10000; i++) {
-                            long x = ThreadLocalRandom.current().nextInt();
-                            long y = ThreadLocalRandom.current().nextInt();
+                            long x = Randomness.get().nextInt();
+                            long y = Randomness.get().nextInt();
                             long addition = x + y;
                             runtimeVars.put("x", x);
                             runtimeVars.put("y", y);

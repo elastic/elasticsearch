@@ -20,7 +20,6 @@
 package org.elasticsearch.action.search.type;
 
 import com.carrotsearch.hppc.IntArrayList;
-
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.ReduceSearchPhaseException;
@@ -209,7 +208,7 @@ public class TransportSearchScrollQueryThenFetchAction extends AbstractComponent
                 IntArrayList docIds = entry.value;
                 final QuerySearchResult querySearchResult = queryResults.get(entry.index);
                 ScoreDoc lastEmittedDoc = lastEmittedDocPerShard[entry.index];
-                ShardFetchRequest shardFetchRequest = new ShardFetchRequest(request, querySearchResult.id(), docIds, lastEmittedDoc);
+                ShardFetchRequest shardFetchRequest = new ShardFetchRequest(querySearchResult.id(), docIds, lastEmittedDoc);
                 DiscoveryNode node = nodes.get(querySearchResult.shardTarget().nodeId());
                 searchService.sendExecuteFetchScroll(node, shardFetchRequest, new ActionListener<FetchSearchResult>() {
                     @Override
@@ -244,7 +243,7 @@ public class TransportSearchScrollQueryThenFetchAction extends AbstractComponent
         }
 
         private void innerFinishHim() {
-            InternalSearchResponse internalResponse = searchPhaseController.merge(sortedShardList, queryResults, fetchResults, request);
+            InternalSearchResponse internalResponse = searchPhaseController.merge(sortedShardList, queryResults, fetchResults);
             String scrollId = null;
             if (request.scroll() != null) {
                 scrollId = request.scrollId();

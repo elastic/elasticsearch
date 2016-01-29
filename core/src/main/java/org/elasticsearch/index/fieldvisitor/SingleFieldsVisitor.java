@@ -19,7 +19,6 @@
 package org.elasticsearch.index.fieldvisitor;
 
 import org.apache.lucene.index.FieldInfo;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.internal.IdFieldMapper;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
@@ -59,18 +58,23 @@ public class SingleFieldsVisitor extends FieldsVisitor {
 
     public void postProcess(MappedFieldType fieldType) {
         if (uid != null) {
-            // TODO: this switch seems very wrong...either each case should be breaking, or this should not be a switch
             switch (field) {
-                case UidFieldMapper.NAME: addValue(field, uid.toString());
-                case IdFieldMapper.NAME: addValue(field, uid.id());
-                case TypeFieldMapper.NAME: addValue(field, uid.type());
+            case UidFieldMapper.NAME:
+                addValue(field, uid.toString());
+                break;
+            case IdFieldMapper.NAME:
+                addValue(field, uid.id());
+                break;
+            case TypeFieldMapper.NAME:
+                addValue(field, uid.type());
+                break;
             }
         }
 
         if (fieldsValues == null) {
             return;
         }
-        List<Object> fieldValues = fieldsValues.get(fieldType.names().indexName());
+        List<Object> fieldValues = fieldsValues.get(fieldType.name());
         if (fieldValues == null) {
             return;
         }

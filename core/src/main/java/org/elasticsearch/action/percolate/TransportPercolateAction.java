@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.action.percolate;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.get.GetRequest;
@@ -40,9 +41,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.percolator.PercolateException;
 import org.elasticsearch.percolator.PercolatorService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -68,11 +71,11 @@ public class TransportPercolateAction extends TransportBroadcastAction<Percolate
     }
 
     @Override
-    protected void doExecute(final PercolateRequest request, final ActionListener<PercolateResponse> listener) {
+    protected void doExecute(Task task, final PercolateRequest request, final ActionListener<PercolateResponse> listener) {
         request.startTime = System.currentTimeMillis();
         if (request.getRequest() != null) {
             //create a new get request to make sure it has the same headers and context as the original percolate request
-            GetRequest getRequest = new GetRequest(request.getRequest(), request);
+            GetRequest getRequest = new GetRequest(request.getRequest());
             getAction.execute(getRequest, new ActionListener<GetResponse>() {
                 @Override
                 public void onResponse(GetResponse getResponse) {
@@ -82,7 +85,7 @@ public class TransportPercolateAction extends TransportBroadcastAction<Percolate
                     }
 
                     BytesReference docSource = getResponse.getSourceAsBytesRef();
-                    TransportPercolateAction.super.doExecute(new PercolateRequest(request, docSource), listener);
+                    TransportPercolateAction.super.doExecute(task, new PercolateRequest(request, docSource), listener);
                 }
 
                 @Override
@@ -91,7 +94,7 @@ public class TransportPercolateAction extends TransportBroadcastAction<Percolate
                 }
             });
         } else {
-            super.doExecute(request, listener);
+            super.doExecute(task, request, listener);
         }
     }
 
@@ -117,7 +120,7 @@ public class TransportPercolateAction extends TransportBroadcastAction<Percolate
         List<PercolateShardResponse> shardResults = null;
         List<ShardOperationFailedException> shardFailures = null;
 
-        byte percolatorTypeId = 0x00;
+        boolean onlyCount = false;
         for (int i = 0; i < shardsResponses.length(); i++) {
             Object shardResponse = shardsResponses.get(i);
             if (shardResponse == null) {
@@ -133,7 +136,7 @@ public class TransportPercolateAction extends TransportBroadcastAction<Percolate
                 successfulShards++;
                 if (!percolateShardResponse.isEmpty()) {
                     if (shardResults == null) {
-                        percolatorTypeId = percolateShardResponse.percolatorTypeId();
+                        onlyCount = percolateShardResponse.onlyCount();
                         shardResults = new ArrayList<>();
                     }
                     shardResults.add(percolateShardResponse);
@@ -146,7 +149,12 @@ public class TransportPercolateAction extends TransportBroadcastAction<Percolate
             PercolateResponse.Match[] matches = request.onlyCount() ? null : PercolateResponse.EMPTY;
             return new PercolateResponse(shardsResponses.length(), successfulShards, failedShards, shardFailures, tookInMillis, matches);
         } else {
-            PercolatorService.ReduceResult result = percolatorService.reduce(percolatorTypeId, shardResults, request);
+            PercolatorService.ReduceResult result = null;
+            try {
+                result = percolatorService.reduce(onlyCount, shardResults);
+            } catch (IOException e) {
+                throw new ElasticsearchException("error during reduce phase", e);
+            }
             long tookInMillis =  Math.max(1, System.currentTimeMillis() - request.startTime);
             return new PercolateResponse(
                     shardsResponses.length(), successfulShards, failedShards, shardFailures,

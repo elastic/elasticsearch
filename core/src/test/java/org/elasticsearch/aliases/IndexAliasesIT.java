@@ -443,7 +443,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
 
     public void testWaitForAliasCreationSingleShard() throws Exception {
         logger.info("--> creating index [test]");
-        assertAcked(admin().indices().create(createIndexRequest("test").settings(settingsBuilder().put("index.numberOfReplicas", 0).put("index.numberOfShards", 1))).get());
+        assertAcked(admin().indices().create(createIndexRequest("test").settings(settingsBuilder().put("index.number_of_replicas", 0).put("index.number_of_shards", 1))).get());
 
         ensureGreen();
 

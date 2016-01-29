@@ -34,7 +34,6 @@ import org.elasticsearch.common.lucene.search.function.WeightFactorFunction;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.AbstractQueryTestCase;
-import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -369,7 +368,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
             assertThat(functionScoreQueryBuilder.maxBoost(), equalTo(10f));
 
             if (i < XContentType.values().length) {
-                queryBuilder = parseQuery(((AbstractQueryBuilder)queryBuilder).buildAsBytes(XContentType.values()[i]));
+                queryBuilder = parseQuery(((AbstractQueryBuilder<?>)queryBuilder).buildAsBytes(XContentType.values()[i]));
             }
         }
     }
@@ -416,7 +415,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
             assertThat(functionScoreQueryBuilder.maxBoost(), equalTo(10f));
 
             if (i < XContentType.values().length) {
-                queryBuilder = parseQuery(((AbstractQueryBuilder)queryBuilder).buildAsBytes(XContentType.values()[i]));
+                queryBuilder = parseQuery(((AbstractQueryBuilder<?>)queryBuilder).buildAsBytes(XContentType.values()[i]));
             }
         }
     }
@@ -604,23 +603,23 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
 
     public void testFromJson() throws IOException {
         String json =
-                "{\n" + 
-                "  \"function_score\" : {\n" + 
-                "    \"query\" : { },\n" + 
-                "    \"functions\" : [ {\n" + 
-                "      \"filter\" : { },\n" + 
-                "      \"weight\" : 23.0,\n" + 
-                "      \"random_score\" : { }\n" + 
-                "    }, {\n" + 
-                "      \"filter\" : { },\n" + 
-                "      \"weight\" : 5.0\n" + 
-                "    } ],\n" + 
-                "    \"score_mode\" : \"multiply\",\n" + 
-                "    \"boost_mode\" : \"multiply\",\n" + 
-                "    \"max_boost\" : 100.0,\n" + 
-                "    \"min_score\" : 1.0,\n" + 
-                "    \"boost\" : 42.0\n" + 
-                "  }\n" + 
+                "{\n" +
+                "  \"function_score\" : {\n" +
+                "    \"query\" : { },\n" +
+                "    \"functions\" : [ {\n" +
+                "      \"filter\" : { },\n" +
+                "      \"weight\" : 23.0,\n" +
+                "      \"random_score\" : { }\n" +
+                "    }, {\n" +
+                "      \"filter\" : { },\n" +
+                "      \"weight\" : 5.0\n" +
+                "    } ],\n" +
+                "    \"score_mode\" : \"multiply\",\n" +
+                "    \"boost_mode\" : \"multiply\",\n" +
+                "    \"max_boost\" : 100.0,\n" +
+                "    \"min_score\" : 1.0,\n" +
+                "    \"boost\" : 42.0\n" +
+                "  }\n" +
                 "}";
 
         FunctionScoreQueryBuilder parsed = (FunctionScoreQueryBuilder) parseQuery(json);

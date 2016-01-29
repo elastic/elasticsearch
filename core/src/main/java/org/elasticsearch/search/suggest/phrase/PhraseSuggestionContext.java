@@ -18,17 +18,17 @@
  */
 package org.elasticsearch.search.suggest.phrase;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.search.suggest.DirectSpellcheckerSettings;
 import org.elasticsearch.search.suggest.Suggester;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 class PhraseSuggestionContext extends SuggestionContext {
     private final BytesRef SEPARATOR = new BytesRef(" ");
@@ -81,27 +81,27 @@ class PhraseSuggestionContext extends SuggestionContext {
     public void addGenerator(DirectCandidateGenerator generator) {
         this.generators.add(generator);
     }
-    
+
     public List<DirectCandidateGenerator> generators() {
         return this.generators ;
     }
-    
+
     public void setGramSize(int gramSize) {
         this.gramSize = gramSize;
     }
-    
+
     public int gramSize() {
         return gramSize;
     }
-    
+
     public float confidence() {
         return confidence;
     }
-    
+
     public void setConfidence(float confidence) {
         this.confidence = confidence;
     }
-    
+
     public void setModel(WordScorer.WordScorerFactory scorer) {
         this.scorer = scorer;
     }
@@ -134,7 +134,7 @@ class PhraseSuggestionContext extends SuggestionContext {
             }
             this.size = size;
         }
-        
+
         public Analyzer preFilter() {
             return preFilter;
         }
@@ -150,22 +150,22 @@ class PhraseSuggestionContext extends SuggestionContext {
         public void postFilter(Analyzer postFilter) {
             this.postFilter = postFilter;
         }
-        
-        
+
+
     }
 
     public void setRequireUnigram(boolean requireUnigram) {
         this.requireUnigram  = requireUnigram;
     }
-    
+
     public boolean getRequireUnigram() {
         return requireUnigram;
     }
-    
+
     public void setTokenLimit(int tokenLimit) {
         this.tokenLimit = tokenLimit;
     }
-   
+
     public int getTokenLimit() {
         return tokenLimit;
     }

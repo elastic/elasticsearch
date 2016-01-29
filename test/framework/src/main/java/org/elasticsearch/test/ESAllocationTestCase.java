@@ -37,8 +37,8 @@ import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocators;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -49,7 +49,11 @@ import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
 import org.elasticsearch.test.gateway.NoopGatewayAllocator;
 
 import java.lang.reflect.Constructor;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.common.util.CollectionUtils.arrayAsArrayList;
@@ -231,7 +235,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
             boolean changed = false;
             while (unassignedIterator.hasNext()) {
                 ShardRouting shard = unassignedIterator.next();
-                IndexMetaData indexMetaData = allocation.metaData().index(shard.getIndex());
+                IndexMetaData indexMetaData = allocation.metaData().index(shard.getIndexName());
                 if (shard.primary() || shard.allocatedPostIndexCreate(indexMetaData) == false) {
                     continue;
                 }

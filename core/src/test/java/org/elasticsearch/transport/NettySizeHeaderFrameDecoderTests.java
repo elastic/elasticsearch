@@ -21,9 +21,9 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cache.recycler.MockPageCacheRecycler;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.util.BigArrays;
@@ -51,10 +51,10 @@ import static org.hamcrest.Matchers.is;
 public class NettySizeHeaderFrameDecoderTests extends ESTestCase {
 
     private final Settings settings = settingsBuilder()
-                                        .put("name", "foo")
-                                        .put("transport.host", "127.0.0.1")
-                                        .put("transport.tcp.port", "0")
-                                        .build();
+            .put("name", "foo")
+            .put("transport.host", "127.0.0.1")
+            .put(TransportSettings.PORT.getKey(), "0")
+            .build();
 
     private ThreadPool threadPool;
     private NettyTransport nettyTransport;

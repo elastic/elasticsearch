@@ -39,7 +39,11 @@ import org.elasticsearch.test.disruption.NetworkDelaysPartition;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -47,11 +51,18 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.isOneOf;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 @ESIntegTestCase.SuppressLocalMode
+@TestLogging("_root:DEBUG,cluster.service:TRACE,discovery.zen:TRACE")
 public class MinimumMasterNodesIT extends ESIntegTestCase {
 
     @Override
@@ -61,13 +72,12 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         return classes;
     }
 
-    @TestLogging("cluster.service:TRACE,discovery.zen:TRACE,gateway:TRACE,transport.tracer:TRACE")
     public void testSimpleMinimumMasterNodes() throws Exception {
 
         Settings settings = settingsBuilder()
                 .put("discovery.type", "zen")
                 .put("discovery.zen.minimum_master_nodes", 2)
-                .put(ZenDiscovery.SETTING_PING_TIMEOUT, "200ms")
+                .put(ZenDiscovery.PING_TIMEOUT_SETTING.getKey(), "200ms")
                 .put("discovery.initial_state_timeout", "500ms")
                 .build();
 
@@ -179,7 +189,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         Settings settings = settingsBuilder()
                 .put("discovery.type", "zen")
                 .put("discovery.zen.minimum_master_nodes", 3)
-                .put(ZenDiscovery.SETTING_PING_TIMEOUT, "1s")
+                .put(ZenDiscovery.PING_TIMEOUT_SETTING.getKey(), "1s")
                 .put("discovery.initial_state_timeout", "500ms")
                 .build();
 
@@ -254,7 +264,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
     public void testDynamicUpdateMinimumMasterNodes() throws Exception {
         Settings settings = settingsBuilder()
                 .put("discovery.type", "zen")
-                .put(ZenDiscovery.SETTING_PING_TIMEOUT, "400ms")
+                .put(ZenDiscovery.PING_TIMEOUT_SETTING.getKey(), "400ms")
                 .put("discovery.initial_state_timeout", "500ms")
                 .build();
 
@@ -312,7 +322,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         int nodeCount = scaledRandomIntBetween(1, 5);
         Settings.Builder settings = settingsBuilder()
                 .put("discovery.type", "zen")
-                .put(ZenDiscovery.SETTING_PING_TIMEOUT, "200ms")
+                .put(ZenDiscovery.PING_TIMEOUT_SETTING.getKey(), "200ms")
                 .put("discovery.initial_state_timeout", "500ms");
 
         // set an initial value which is at least quorum to avoid split brains during initial startup
@@ -351,8 +361,8 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
     public void testCanNotPublishWithoutMinMastNodes() throws Exception {
         Settings settings = settingsBuilder()
                 .put("discovery.type", "zen")
-                .put(FaultDetection.SETTING_PING_TIMEOUT, "1h") // disable it
-                .put(ZenDiscovery.SETTING_PING_TIMEOUT, "200ms")
+                .put(FaultDetection.PING_TIMEOUT_SETTING.getKey(), "1h") // disable it
+                .put(ZenDiscovery.PING_TIMEOUT_SETTING.getKey(), "200ms")
                 .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), 2)
                 .put(DiscoverySettings.COMMIT_TIMEOUT_SETTING.getKey(), "100ms") // speed things up
                 .build();

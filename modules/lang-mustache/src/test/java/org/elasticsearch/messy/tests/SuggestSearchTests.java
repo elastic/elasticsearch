@@ -82,12 +82,12 @@ import static org.hamcrest.Matchers.nullValue;
  * request, modify again, request again, etc.  This makes it very obvious what changes between requests.
  */
 public class SuggestSearchTests extends ESIntegTestCase {
-    
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singleton(MustachePlugin.class);
     }
-    
+
     // see #3196
     public void testSuggestAcrossMultipleIndices() throws IOException {
         createIndex("test");
@@ -193,11 +193,8 @@ public class SuggestSearchTests extends ESIntegTestCase {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties")
                 .startObject("name")
-                    .field("type", "multi_field")
+                    .field("type", "string")
                     .startObject("fields")
-                        .startObject("name")
-                            .field("type", "string")
-                        .endObject()
                         .startObject("shingled")
                             .field("type", "string")
                             .field("analyzer", "biword")
@@ -267,11 +264,8 @@ public class SuggestSearchTests extends ESIntegTestCase {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties")
                 .startObject("name")
-                    .field("type", "multi_field")
+                    .field("type", "string")
                     .startObject("fields")
-                        .startObject("name")
-                            .field("type", "string")
-                        .endObject()
                         .startObject("shingled")
                             .field("type", "string")
                             .field("analyzer", "biword")
@@ -462,7 +456,7 @@ public class SuggestSearchTests extends ESIntegTestCase {
                 .put("index.analysis.filter.my_shingle.min_shingle_size", 2)
                 .put("index.analysis.filter.my_shingle.max_shingle_size", 2));
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
-                .startObject("_all").field("store", "yes").field("termVector", "with_positions_offsets").endObject()
+                .startObject("_all").field("store", true).field("termVector", "with_positions_offsets").endObject()
                 .startObject("properties")
                 .startObject("body").field("type", "string").field("analyzer", "body").endObject()
                 .startObject("body_reverse").field("type", "string").field("analyzer", "reverse").endObject()
@@ -506,7 +500,7 @@ public class SuggestSearchTests extends ESIntegTestCase {
                 .put("index.analysis.filter.my_shingle.max_shingle_size", 2));
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
                     .startObject("_all")
-                        .field("store", "yes")
+                        .field("store", true)
                         .field("termVector", "with_positions_offsets")
                     .endObject()
                     .startObject("properties")
@@ -618,7 +612,7 @@ public class SuggestSearchTests extends ESIntegTestCase {
         // Check the name this time because we're repeating it which is funky
         assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getText().string(), equalTo("Xor the Got-Jewel Xor the Got-Jewel Xor the Got-Jewel"));
     }
-    
+
     private List<String> readMarvelHeroNames() throws IOException, URISyntaxException {
         return Files.readAllLines(PathUtils.get(Suggest.class.getResource("/config/names.txt").toURI()), StandardCharsets.UTF_8);
     }
@@ -641,7 +635,7 @@ public class SuggestSearchTests extends ESIntegTestCase {
                 .startObject()
                     .startObject("type1")
                         .startObject("_all")
-                            .field("store", "yes")
+                            .field("store", true)
                             .field("termVector", "with_positions_offsets")
                         .endObject()
                         .startObject("properties")
@@ -711,7 +705,7 @@ public class SuggestSearchTests extends ESIntegTestCase {
 
         XContentBuilder mapping = XContentFactory.jsonBuilder()
                     .startObject().startObject("type1")
-                    .startObject("_all").field("store", "yes").field("termVector", "with_positions_offsets").endObject()
+                    .startObject("_all").field("store", true).field("termVector", "with_positions_offsets").endObject()
                 .startObject("properties")
                 .startObject("body").field("type", "string").field("analyzer", "body").endObject()
                 .startObject("bigram").field("type", "string").field("analyzer", "bigram").endObject()
@@ -808,13 +802,8 @@ public class SuggestSearchTests extends ESIntegTestCase {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type2")
                 .startObject("properties")
                     .startObject("name")
-                        .field("type", "multi_field")
-                        .startObject("fields")
-                            .startObject("name")
-                                .field("type", "string")
-                                .field("analyzer", "suggest")
-                            .endObject()
-                        .endObject()
+                        .field("type", "string")
+                        .field("analyzer", "suggest")
                     .endObject()
                 .endObject()
                 .endObject().endObject();
@@ -855,13 +844,8 @@ public class SuggestSearchTests extends ESIntegTestCase {
                     startObject("type1").
                         startObject("properties").
                             startObject("name").
-                                field("type", "multi_field").
-                                startObject("fields").
-                                    startObject("name").
-                                        field("type", "string").
-                                        field("analyzer", "suggest").
-                                    endObject().
-                                endObject().
+                                field("type", "string").
+                                field("analyzer", "suggest").
                             endObject().
                         endObject().
                     endObject().
@@ -914,7 +898,7 @@ public class SuggestSearchTests extends ESIntegTestCase {
                 .startObject()
                     .startObject("type1")
                         .startObject("_all")
-                            .field("store", "yes")
+                            .field("store", true)
                             .field("termVector", "with_positions_offsets")
                         .endObject()
                         .startObject("properties")
@@ -1166,11 +1150,12 @@ public class SuggestSearchTests extends ESIntegTestCase {
         String filterString = XContentFactory.jsonBuilder()
                     .startObject()
                         .startObject("match_phrase")
-                            .field("title", "{{suggestion}}")
+                            .field("{{field}}", "{{suggestion}}")
                         .endObject()
                     .endObject()
                 .string();
         PhraseSuggestionBuilder filteredQuerySuggest = suggest.collateQuery(filterString);
+        filteredQuerySuggest.collateParams(Collections.singletonMap("field", "title"));
         searchSuggest = searchSuggest("united states house of representatives elections in washington 2006", filteredQuerySuggest);
         assertSuggestionSize(searchSuggest, 0, 2, "title");
 

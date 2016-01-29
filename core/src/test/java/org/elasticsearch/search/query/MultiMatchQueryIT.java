@@ -231,6 +231,12 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
                 .setQuery(randomizeType(multiMatchQuery("15", "skill"))).get();
         assertNoFailures(searchResponse);
         assertFirstHit(searchResponse, hasId("theone"));
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(randomizeType(multiMatchQuery("15", "skill", "int-field")).analyzer("category")).get();
+        assertNoFailures(searchResponse);
+        assertFirstHit(searchResponse, hasId("theone"));
+
         String[] fields = {"full_name", "first_name", "last_name", "last_name_phrase", "first_name_phrase", "category_phrase", "category"};
 
         String[] query = {"marvel","hero", "captain",  "america", "15", "17", "1", "5", "ultimate", "Man",
@@ -461,13 +467,60 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
         assertFirstHit(searchResponse, hasId("theone"));
 
         searchResponse = client().prepareSearch("test")
+                .setQuery(randomizeType(multiMatchQuery("captain america 15", "full_name", "first_name", "last_name", "category", "skill", "int-field")
+                        .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)
+                        .analyzer("category")
+                        .operator(Operator.AND))).get();
+        assertHitCount(searchResponse, 1l);
+        assertFirstHit(searchResponse, hasId("theone"));
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(randomizeType(multiMatchQuery("captain america 15", "skill", "full_name", "first_name", "last_name", "category", "int-field")
+                        .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)
+                        .analyzer("category")
+                        .operator(Operator.AND))).get();
+        assertHitCount(searchResponse, 1l);
+        assertFirstHit(searchResponse, hasId("theone"));
+
+
+        searchResponse = client().prepareSearch("test")
                 .setQuery(randomizeType(multiMatchQuery("captain america 15", "first_name", "last_name", "skill")
                         .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)
                         .analyzer("category"))).get();
         assertFirstHit(searchResponse, hasId("theone"));
 
         searchResponse = client().prepareSearch("test")
+                .setQuery(randomizeType(multiMatchQuery("15", "skill")
+                        .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)
+                        .analyzer("category"))).get();
+        assertFirstHit(searchResponse, hasId("theone"));
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(randomizeType(multiMatchQuery("25 15", "skill")
+                        .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)
+                        .analyzer("category"))).get();
+        assertFirstHit(searchResponse, hasId("theone"));
+
+        searchResponse = client().prepareSearch("test")
                 .setQuery(randomizeType(multiMatchQuery("25 15", "int-field", "skill")
+                        .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)
+                        .analyzer("category"))).get();
+        assertFirstHit(searchResponse, hasId("theone"));
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(randomizeType(multiMatchQuery("25 15", "first_name", "int-field", "skill")
+                        .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)
+                        .analyzer("category"))).get();
+        assertFirstHit(searchResponse, hasId("theone"));
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(randomizeType(multiMatchQuery("25 15", "int-field", "skill", "first_name")
+                        .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)
+                        .analyzer("category"))).get();
+        assertFirstHit(searchResponse, hasId("theone"));
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(randomizeType(multiMatchQuery("25 15", "int-field", "first_name", "skill")
                         .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)
                         .analyzer("category"))).get();
         assertFirstHit(searchResponse, hasId("theone"));
@@ -530,6 +583,46 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
         assertFirstHit(searchResponse, hasId("ultimate2"));
         assertSecondHit(searchResponse, hasId("ultimate1"));
         assertThat(searchResponse.getHits().hits()[0].getScore(), greaterThan(searchResponse.getHits().hits()[1].getScore()));
+
+        // Test group based on numeric fields
+        searchResponse = client().prepareSearch("test")
+                .setQuery(randomizeType(multiMatchQuery("15", "skill")
+                        .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS))).get();
+        assertFirstHit(searchResponse, hasId("theone"));
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(randomizeType(multiMatchQuery("15", "skill", "first_name")
+                        .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS))).get();
+        assertFirstHit(searchResponse, hasId("theone"));
+
+        // Two numeric fields together caused trouble at one point!
+        searchResponse = client().prepareSearch("test")
+                .setQuery(randomizeType(multiMatchQuery("15", "int-field", "skill")
+                        .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS))).get();
+        assertFirstHit(searchResponse, hasId("theone"));
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(randomizeType(multiMatchQuery("15", "int-field", "first_name", "skill")
+                        .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS))).get();
+        assertFirstHit(searchResponse, hasId("theone"));
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(randomizeType(multiMatchQuery("alpha 15", "first_name", "skill")
+                        .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)
+                        .lenient(true))).get();
+        assertFirstHit(searchResponse, hasId("ultimate1"));
+        /*
+         * Doesn't find theone because "alpha 15" isn't a number and we don't
+         * break on spaces.
+         */
+        assertHitCount(searchResponse, 1);
+
+        // Lenient wasn't always properly lenient with two numeric fields
+        searchResponse = client().prepareSearch("test")
+                .setQuery(randomizeType(multiMatchQuery("alpha 15", "int-field", "first_name", "skill")
+                        .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)
+                        .lenient(true))).get();
+        assertFirstHit(searchResponse, hasId("ultimate1"));
     }
 
     private static final void assertEquivalent(String query, SearchResponse left, SearchResponse right) {

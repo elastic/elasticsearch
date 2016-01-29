@@ -22,7 +22,6 @@ package org.elasticsearch.cluster.routing;
 import com.carrotsearch.hppc.IntSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.Diffable;
 import org.elasticsearch.cluster.DiffableUtils;
@@ -32,6 +31,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.iterable.Iterables;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
@@ -89,6 +89,10 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
         return indicesRouting.get(index);
     }
 
+    public IndexRoutingTable index(Index index) {
+        return indicesRouting.get(index.getName());
+    }
+
     public ImmutableOpenMap<String, IndexRoutingTable> indicesRouting() {
         return indicesRouting;
     }
@@ -110,7 +114,25 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
         }
         IndexShardRoutingTable shard = indexRouting.shard(shardId);
         if (shard == null) {
-            throw new ShardNotFoundException(new ShardId(index, shardId));
+            throw new ShardNotFoundException(new ShardId(indexRouting.getIndex(), shardId));
+        }
+        return shard;
+    }
+
+    /**
+     * All shards for the provided {@link ShardId}
+     * @return All the shard routing entries for the given index and shard id
+     * @throws IndexNotFoundException if provided index does not exist
+     * @throws ShardNotFoundException if provided shard id is unknown
+     */
+    public IndexShardRoutingTable shardRoutingTable(ShardId shardId) {
+        IndexRoutingTable indexRouting = index(shardId.getIndexName());
+        if (indexRouting == null || indexRouting.getIndex().equals(shardId.getIndex()) == false) {
+            throw new IndexNotFoundException(shardId.getIndex());
+        }
+        IndexShardRoutingTable shard = indexRouting.shard(shardId.id());
+        if (shard == null) {
+            throw new ShardNotFoundException(shardId);
         }
         return shard;
     }
@@ -377,7 +399,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
         public Builder(RoutingTable routingTable) {
             version = routingTable.version;
             for (IndexRoutingTable indexRoutingTable : routingTable) {
-                indicesRouting.put(indexRoutingTable.index(), indexRoutingTable);
+                indicesRouting.put(indexRoutingTable.getIndex().getName(), indexRoutingTable);
             }
         }
 
@@ -392,14 +414,14 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
                     if (shardRoutingEntry.initializing() && shardRoutingEntry.relocatingNodeId() != null)
                         continue;
 
-                    String index = shardRoutingEntry.index();
-                    IndexRoutingTable.Builder indexBuilder = indexRoutingTableBuilders.get(index);
+                    Index index = shardRoutingEntry.index();
+                    IndexRoutingTable.Builder indexBuilder = indexRoutingTableBuilders.get(index.getName());
                     if (indexBuilder == null) {
                         indexBuilder = new IndexRoutingTable.Builder(index);
-                        indexRoutingTableBuilders.put(index, indexBuilder);
+                        indexRoutingTableBuilders.put(index.getName(), indexBuilder);
                     }
 
-                    IndexShardRoutingTable refData = routingNodes.routingTable().index(shardRoutingEntry.index()).shard(shardRoutingEntry.id());
+                    IndexShardRoutingTable refData = routingNodes.routingTable().index(shardRoutingEntry.index().getName()).shard(shardRoutingEntry.id());
                     indexBuilder.addShard(refData, shardRoutingEntry);
                 }
             }
@@ -407,13 +429,13 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
             Iterable<ShardRouting> shardRoutingEntries = Iterables.concat(routingNodes.unassigned(), routingNodes.unassigned().ignored());
 
             for (ShardRouting shardRoutingEntry : shardRoutingEntries) {
-                String index = shardRoutingEntry.index();
-                IndexRoutingTable.Builder indexBuilder = indexRoutingTableBuilders.get(index);
+                Index index = shardRoutingEntry.index();
+                IndexRoutingTable.Builder indexBuilder = indexRoutingTableBuilders.get(index.getName());
                 if (indexBuilder == null) {
                     indexBuilder = new IndexRoutingTable.Builder(index);
-                    indexRoutingTableBuilders.put(index, indexBuilder);
+                    indexRoutingTableBuilders.put(index.getName(), indexBuilder);
                 }
-                IndexShardRoutingTable refData = routingNodes.routingTable().index(shardRoutingEntry.index()).shard(shardRoutingEntry.id());
+                IndexShardRoutingTable refData = routingNodes.routingTable().index(shardRoutingEntry.index().getName()).shard(shardRoutingEntry.id());
                 indexBuilder.addShard(refData, shardRoutingEntry);
             }
 
@@ -437,7 +459,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
                     continue;
                 }
                 int currentNumberOfReplicas = indexRoutingTable.shards().get(0).size() - 1; // remove the required primary
-                IndexRoutingTable.Builder builder = new IndexRoutingTable.Builder(index);
+                IndexRoutingTable.Builder builder = new IndexRoutingTable.Builder(indexRoutingTable.getIndex());
                 // re-add all the shards
                 for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
                     builder.addIndexShard(indexShardRoutingTable);
@@ -517,7 +539,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
                 throw new IllegalStateException("once build is called the builder cannot be reused");
             }
             indexRoutingTable.validate();
-            indicesRouting.put(indexRoutingTable.index(), indexRoutingTable);
+            indicesRouting.put(indexRoutingTable.getIndex().getName(), indexRoutingTable);
             return this;
         }
 
@@ -558,7 +580,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
             }
             // normalize the versions right before we build it...
             for (ObjectCursor<IndexRoutingTable> indexRoutingTable : indicesRouting.values()) {
-                indicesRouting.put(indexRoutingTable.value.index(), indexRoutingTable.value.normalizeVersions());
+                indicesRouting.put(indexRoutingTable.value.getIndex().getName(), indexRoutingTable.value.normalizeVersions());
             }
             RoutingTable table = new RoutingTable(version, indicesRouting.build());
             indicesRouting = null;

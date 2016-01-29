@@ -27,8 +27,9 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.AbstractClientHeadersTestCase;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.support.Headers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collections;
@@ -44,9 +45,8 @@ public class NodeClientHeadersTests extends AbstractClientHeadersTestCase {
     @Override
     protected Client buildClient(Settings headersSettings, GenericAction[] testedActions) {
         Settings settings = HEADER_SETTINGS;
-        Headers headers = new Headers(settings);
         Actions actions = new Actions(settings, threadPool, testedActions);
-        return new NodeClient(settings, threadPool, headers, actions);
+        return new NodeClient(settings, threadPool, actions);
     }
 
     private static class Actions extends HashMap<GenericAction, TransportAction> {
@@ -61,12 +61,12 @@ public class NodeClientHeadersTests extends AbstractClientHeadersTestCase {
     private static class InternalTransportAction extends TransportAction {
 
         private InternalTransportAction(Settings settings, String actionName, ThreadPool threadPool) {
-            super(settings, actionName, threadPool, EMPTY_FILTERS, null);
+            super(settings, actionName, threadPool, EMPTY_FILTERS, null, new TaskManager(settings));
         }
 
         @Override
         protected void doExecute(ActionRequest request, ActionListener listener) {
-            listener.onFailure(new InternalException(actionName, request));
+            listener.onFailure(new InternalException(actionName));
         }
     }
 

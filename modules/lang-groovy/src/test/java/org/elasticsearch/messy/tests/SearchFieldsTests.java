@@ -87,9 +87,9 @@ public class SearchFieldsTests extends ESIntegTestCase {
                 // _timestamp is randomly enabled via templates but we don't want it here to test stored fields behaviour
                 .startObject("_timestamp").field("enabled", false).endObject()
                 .startObject("properties")
-                .startObject("field1").field("type", "string").field("store", "yes").endObject()
-                .startObject("field2").field("type", "string").field("store", "no").endObject()
-                .startObject("field3").field("type", "string").field("store", "yes").endObject()
+                .startObject("field1").field("type", "string").field("store", true).endObject()
+                .startObject("field2").field("type", "string").field("store", false).endObject()
+                .startObject("field3").field("type", "string").field("store", true).endObject()
                 .endObject().endObject().endObject().string();
 
         client().admin().indices().preparePutMapping().setType("type1").setSource(mapping).execute().actionGet();
@@ -171,7 +171,7 @@ public class SearchFieldsTests extends ESIntegTestCase {
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
 
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
-                .startObject("num1").field("type", "double").field("store", "yes").endObject()
+                .startObject("num1").field("type", "double").field("store", true).endObject()
                 .endObject().endObject().endObject().string();
 
         client().admin().indices().preparePutMapping().setType("type1").setSource(mapping).execute().actionGet();
@@ -339,9 +339,7 @@ public class SearchFieldsTests extends ESIntegTestCase {
                 .execute().actionGet();
         client().admin().indices().refresh(refreshRequest()).actionGet();
 
-        SearchResponse response = client().prepareSearch()
-                .setQuery(matchAllQuery())
-.addScriptField("s_obj1", new Script("_source.obj1"))
+        SearchResponse response = client().prepareSearch().setQuery(matchAllQuery()).addScriptField("s_obj1", new Script("_source.obj1"))
                 .addScriptField("s_obj1_test", new Script("_source.obj1.test")).addScriptField("s_obj2", new Script("_source.obj2"))
                 .addScriptField("s_obj2_arr2", new Script("_source.obj2.arr2")).addScriptField("s_arr3", new Script("_source.arr3"))
                 .execute().actionGet();
@@ -355,7 +353,7 @@ public class SearchFieldsTests extends ESIntegTestCase {
         assertThat(response.getHits().getAt(0).field("s_obj1_test").value().toString(), equalTo("something"));
 
         Map<String, Object> sObj2 = response.getHits().getAt(0).field("s_obj2").value();
-        List sObj2Arr2 = (List) sObj2.get("arr2");
+        List<?> sObj2Arr2 = (List<?>) sObj2.get("arr2");
         assertThat(sObj2Arr2.size(), equalTo(2));
         assertThat(sObj2Arr2.get(0).toString(), equalTo("arr_value1"));
         assertThat(sObj2Arr2.get(1).toString(), equalTo("arr_value2"));
@@ -365,8 +363,8 @@ public class SearchFieldsTests extends ESIntegTestCase {
         assertThat(sObj2Arr2.get(0).toString(), equalTo("arr_value1"));
         assertThat(sObj2Arr2.get(1).toString(), equalTo("arr_value2"));
 
-        List sObj2Arr3 = response.getHits().getAt(0).field("s_arr3").values();
-        assertThat(((Map) sObj2Arr3.get(0)).get("arr3_field1").toString(), equalTo("arr3_value1"));
+        List<?> sObj2Arr3 = response.getHits().getAt(0).field("s_arr3").values();
+        assertThat(((Map<?, ?>) sObj2Arr3.get(0)).get("arr3_field1").toString(), equalTo("arr3_value1"));
     }
 
     public void testPartialFields() throws Exception {
@@ -393,15 +391,15 @@ public class SearchFieldsTests extends ESIntegTestCase {
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
 
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("_source").field("enabled", false).endObject().startObject("properties")
-                .startObject("byte_field").field("type", "byte").field("store", "yes").endObject()
-                .startObject("short_field").field("type", "short").field("store", "yes").endObject()
-                .startObject("integer_field").field("type", "integer").field("store", "yes").endObject()
-                .startObject("long_field").field("type", "long").field("store", "yes").endObject()
-                .startObject("float_field").field("type", "float").field("store", "yes").endObject()
-                .startObject("double_field").field("type", "double").field("store", "yes").endObject()
-                .startObject("date_field").field("type", "date").field("store", "yes").endObject()
-                .startObject("boolean_field").field("type", "boolean").field("store", "yes").endObject()
-                .startObject("binary_field").field("type", "binary").field("store", "yes").endObject()
+                .startObject("byte_field").field("type", "byte").field("store", true).endObject()
+                .startObject("short_field").field("type", "short").field("store", true).endObject()
+                .startObject("integer_field").field("type", "integer").field("store", true).endObject()
+                .startObject("long_field").field("type", "long").field("store", true).endObject()
+                .startObject("float_field").field("type", "float").field("store", true).endObject()
+                .startObject("double_field").field("type", "double").field("store", true).endObject()
+                .startObject("date_field").field("type", "date").field("store", true).endObject()
+                .startObject("boolean_field").field("type", "boolean").field("store", true).endObject()
+                .startObject("binary_field").field("type", "binary").field("store", true).endObject()
                 .endObject().endObject().endObject().string();
 
         client().admin().indices().preparePutMapping().setType("type1").setSource(mapping).execute().actionGet();
@@ -489,7 +487,7 @@ public class SearchFieldsTests extends ESIntegTestCase {
                         .startObject("field1").field("type", "object").startObject("properties")
                         .startObject("field2").field("type", "object").startObject("properties")
                         .startObject("field3").field("type", "object").startObject("properties")
-                        .startObject("field4").field("type", "string").field("store", "yes")
+                        .startObject("field4").field("type", "string").field("store", true)
                         .endObject().endObject()
                         .endObject().endObject()
                         .endObject().endObject()

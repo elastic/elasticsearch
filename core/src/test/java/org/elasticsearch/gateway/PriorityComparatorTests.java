@@ -19,11 +19,20 @@
 package org.elasticsearch.gateway;
 
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.routing.*;
+import org.elasticsearch.cluster.routing.RoutingNodes;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 
 public class PriorityComparatorTests extends ESTestCase {
 
@@ -51,9 +60,9 @@ public class PriorityComparatorTests extends ESTestCase {
         });
         RoutingNodes.UnassignedShards.UnassignedIterator iterator = shards.iterator();
         ShardRouting next = iterator.next();
-        assertEquals("newest", next.index());
+        assertEquals("newest", next.getIndexName());
         next = iterator.next();
-        assertEquals("oldest", next.index());
+        assertEquals("oldest", next.getIndexName());
         assertFalse(iterator.hasNext());
     }
 
@@ -81,9 +90,9 @@ public class PriorityComparatorTests extends ESTestCase {
         });
         RoutingNodes.UnassignedShards.UnassignedIterator iterator = shards.iterator();
         ShardRouting next = iterator.next();
-        assertEquals("oldest", next.index());
+        assertEquals("oldest", next.getIndexName());
         next = iterator.next();
-        assertEquals("newest", next.index());
+        assertEquals("newest", next.getIndexName());
         assertFalse(iterator.hasNext());
     }
 
@@ -117,8 +126,8 @@ public class PriorityComparatorTests extends ESTestCase {
         ShardRouting previous = null;
         for (ShardRouting routing : shards) {
             if (previous != null) {
-                IndexMeta prevMeta = map.get(previous.getIndex());
-                IndexMeta currentMeta = map.get(routing.getIndex());
+                IndexMeta prevMeta = map.get(previous.getIndexName());
+                IndexMeta currentMeta = map.get(routing.getIndexName());
                 if (prevMeta.priority == currentMeta.priority) {
                     if (prevMeta.creationDate == currentMeta.creationDate) {
                         if (prevMeta.name.equals(currentMeta.name) == false) {

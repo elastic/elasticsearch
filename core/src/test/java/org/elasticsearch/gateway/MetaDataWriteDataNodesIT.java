@@ -64,7 +64,7 @@ public class MetaDataWriteDataNodesIT extends ESIntegTestCase {
         String node2 = nodeName2.get();
 
         String index = "index";
-        assertAcked(prepareCreate(index).setSettings(Settings.builder().put("index.number_of_replicas", 0).put(FilterAllocationDecider.INDEX_ROUTING_INCLUDE_GROUP + "_name", node1)));
+        assertAcked(prepareCreate(index).setSettings(Settings.builder().put("index.number_of_replicas", 0).put(IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "_name", node1)));
         index(index, "doc", "1", jsonBuilder().startObject().field("text", "some text").endObject());
         ensureGreen();
         assertIndexInMetaState(node1, index);
@@ -72,7 +72,7 @@ public class MetaDataWriteDataNodesIT extends ESIntegTestCase {
         assertIndexInMetaState(masterNode, index);
 
         logger.debug("relocating index...");
-        client().admin().indices().prepareUpdateSettings(index).setSettings(Settings.builder().put(FilterAllocationDecider.INDEX_ROUTING_INCLUDE_GROUP + "_name", node2)).get();
+        client().admin().indices().prepareUpdateSettings(index).setSettings(Settings.builder().put(IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "_name", node2)).get();
         client().admin().cluster().prepareHealth().setWaitForRelocatingShards(0).get();
         ensureGreen();
         assertIndexDirectoryDeleted(node1, index);
@@ -170,7 +170,7 @@ public class MetaDataWriteDataNodesIT extends ESIntegTestCase {
 
     private boolean indexDirectoryExists(String nodeName, String indexName) {
         NodeEnvironment nodeEnv = ((InternalTestCluster) cluster()).getInstance(NodeEnvironment.class, nodeName);
-        for (Path path : nodeEnv.indexPaths(new Index(indexName))) {
+        for (Path path : nodeEnv.indexPaths(indexName)) {
             if (Files.exists(path)) {
                 return true;
             }

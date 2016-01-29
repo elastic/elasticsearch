@@ -28,6 +28,7 @@ import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.util.CloseableThreadLocal;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 
@@ -49,11 +50,15 @@ class SingleDocumentPercolatorIndex implements PercolatorIndex {
     public void prepare(PercolateContext context, ParsedDocument parsedDocument) {
         MemoryIndex memoryIndex = cache.get();
         for (IndexableField field : parsedDocument.rootDoc().getFields()) {
+            Analyzer analyzer = context.analysisService().defaultIndexAnalyzer();
+            DocumentMapper documentMapper = context.mapperService().documentMapper(parsedDocument.type());
+            if (documentMapper != null && documentMapper.mappers().getMapper(field.name()) != null) {
+                analyzer =  documentMapper.mappers().indexAnalyzer();
+            }
             if (field.fieldType().indexOptions() == IndexOptions.NONE && field.name().equals(UidFieldMapper.NAME)) {
                 continue;
             }
             try {
-                Analyzer analyzer = context.mapperService().documentMapper(parsedDocument.type()).mappers().indexAnalyzer();
                 // TODO: instead of passing null here, we can have a CTL<Map<String,TokenStream>> and pass previous,
                 // like the indexer does
                 try (TokenStream tokenStream = field.tokenStream(analyzer, null)) {

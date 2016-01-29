@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.indices.create;
 
-import java.nio.charset.StandardCharsets;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequest;
@@ -43,6 +42,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -79,14 +79,6 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
     private boolean updateAllTypes = false;
 
     public CreateIndexRequest() {
-    }
-
-    /**
-     * Constructs a new request to create an index that was triggered by a different request,
-     * provided as an argument so that its headers and context can be copied to the new request.
-     */
-    public CreateIndexRequest(ActionRequest request) {
-        super(request);
     }
 
     /**

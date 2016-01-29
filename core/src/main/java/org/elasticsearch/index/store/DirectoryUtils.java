@@ -22,7 +22,6 @@ package org.elasticsearch.index.store;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FileSwitchDirectory;
 import org.apache.lucene.store.FilterDirectory;
-import org.elasticsearch.common.Nullable;
 
 /**
  * Utils for working with {@link Directory} classes.
@@ -79,6 +78,6 @@ public final class DirectoryUtils {
             return defaultValue;
         }
     }
-    
+
 
 }

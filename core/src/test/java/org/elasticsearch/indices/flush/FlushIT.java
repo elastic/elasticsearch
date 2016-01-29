@@ -20,18 +20,21 @@ package org.elasticsearch.indices.flush;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
+import org.elasticsearch.action.admin.indices.flush.SyncedFlushResponse;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
-import org.elasticsearch.action.admin.indices.flush.SyncedFlushResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -83,11 +86,12 @@ public class FlushIT extends ESIntegTestCase {
         }
     }
 
-    @TestLogging("indices:TRACE")
     public void testSyncedFlush() throws ExecutionException, InterruptedException, IOException {
         internalCluster().ensureAtLeastNumDataNodes(2);
         prepareCreate("test").setSettings(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).get();
         ensureGreen();
+
+        final Index index = client().admin().cluster().prepareState().get().getState().metaData().index("test").getIndex();
 
         IndexStats indexStats = client().admin().indices().prepareStats("test").get().getIndex("test");
         for (ShardStats shardStats : indexStats.getShards()) {
@@ -97,7 +101,7 @@ public class FlushIT extends ESIntegTestCase {
         ShardsSyncedFlushResult result;
         if (randomBoolean()) {
             logger.info("--> sync flushing shard 0");
-            result = SyncedFlushUtil.attemptSyncedFlush(internalCluster(), new ShardId("test", 0));
+            result = SyncedFlushUtil.attemptSyncedFlush(internalCluster(), new ShardId(index, 0));
         } else {
             logger.info("--> sync flushing index [test]");
             SyncedFlushResponse indicesResult = client().admin().indices().prepareSyncedFlush("test").get();
@@ -120,7 +124,7 @@ public class FlushIT extends ESIntegTestCase {
         ShardRouting shardRouting = clusterState.getRoutingTable().index("test").shard(0).iterator().next();
         String currentNodeName = clusterState.nodes().resolveNode(shardRouting.currentNodeId()).name();
         assertFalse(currentNodeName.equals(newNodeName));
-        internalCluster().client().admin().cluster().prepareReroute().add(new MoveAllocationCommand(new ShardId("test", 0), currentNodeName, newNodeName)).get();
+        internalCluster().client().admin().cluster().prepareReroute().add(new MoveAllocationCommand("test", 0, currentNodeName, newNodeName)).get();
 
         client().admin().cluster().prepareHealth()
                 .setWaitForRelocatingShards(0)
@@ -144,14 +148,13 @@ public class FlushIT extends ESIntegTestCase {
         }
     }
 
-    @TestLogging("indices:TRACE")
     public void testSyncedFlushWithConcurrentIndexing() throws Exception {
 
         internalCluster().ensureAtLeastNumDataNodes(3);
         createIndex("test");
 
         client().admin().indices().prepareUpdateSettings("test").setSettings(
-                Settings.builder().put("index.translog.disable_flush", true).put("index.refresh_interval", -1).put("index.number_of_replicas", internalCluster().numDataNodes() - 1))
+                Settings.builder().put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTTING.getKey(), new ByteSizeValue(1, ByteSizeUnit.PB)).put("index.refresh_interval", -1).put("index.number_of_replicas", internalCluster().numDataNodes() - 1))
                 .get();
         ensureGreen();
         final AtomicBoolean stop = new AtomicBoolean(false);

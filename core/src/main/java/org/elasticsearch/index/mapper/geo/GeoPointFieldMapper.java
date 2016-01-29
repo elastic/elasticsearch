@@ -63,7 +63,6 @@ public class GeoPointFieldMapper extends BaseGeoPointFieldMapper  {
             FIELD_TYPE.setNumericPrecisionStep(GeoPointField.PRECISION_STEP);
             FIELD_TYPE.setDocValuesType(DocValuesType.SORTED_NUMERIC);
             FIELD_TYPE.setHasDocValues(true);
-            FIELD_TYPE.setStored(true);
             FIELD_TYPE.freeze();
         }
     }
@@ -123,7 +122,7 @@ public class GeoPointFieldMapper extends BaseGeoPointFieldMapper  {
             GeoUtils.normalizePoint(point);
         }
         if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
-            context.doc().add(new GeoPointField(fieldType().names().indexName(), point.lon(), point.lat(), fieldType() ));
+            context.doc().add(new GeoPointField(fieldType().name(), point.lon(), point.lat(), fieldType() ));
         }
         super.parse(context, point, geoHash);
     }

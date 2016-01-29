@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterNameModule;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.component.Lifecycle;
@@ -37,6 +38,7 @@ import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.ModulesBuilder;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.logging.ESLogger;
@@ -45,6 +47,7 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
@@ -69,13 +72,12 @@ import org.elasticsearch.indices.breaker.CircuitBreakerModule;
 import org.elasticsearch.indices.cache.query.IndicesQueryCache;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
-import org.elasticsearch.indices.memory.IndexingMemoryController;
-import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.indices.ttl.IndicesTTLService;
 import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
+import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.percolator.PercolatorModule;
 import org.elasticsearch.percolator.PercolatorService;
 import org.elasticsearch.plugins.Plugin;
@@ -110,6 +112,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 
@@ -119,8 +122,15 @@ import static org.elasticsearch.common.settings.Settings.settingsBuilder;
  */
 public class Node implements Releasable {
 
+    public static final Setting<Boolean> WRITE_PORTS_FIELD_SETTING = Setting.boolSetting("node.portsfile", false, false, Setting.Scope.CLUSTER);
+    public static final Setting<Boolean> NODE_CLIENT_SETTING = Setting.boolSetting("node.client", false, false, Setting.Scope.CLUSTER);
+    public static final Setting<Boolean> NODE_DATA_SETTING = Setting.boolSetting("node.data", true, false, Setting.Scope.CLUSTER);
+    public static final Setting<Boolean> NODE_MASTER_SETTING = Setting.boolSetting("node.master", true, false, Setting.Scope.CLUSTER);
+    public static final Setting<Boolean> NODE_LOCAL_SETTING = Setting.boolSetting("node.local", false, false, Setting.Scope.CLUSTER);
+    public static final Setting<String> NODE_MODE_SETTING = new Setting<>("node.mode", "network", Function.identity(), false, Setting.Scope.CLUSTER);
+    public static final Setting<Boolean> NODE_INGEST_SETTING = Setting.boolSetting("node.ingest", true, false, Setting.Scope.CLUSTER);
+
     private static final String CLIENT_TYPE = "node";
-    public static final String HTTP_ENABLED = "http.enabled";
     private final Lifecycle lifecycle = new Lifecycle();
     private final Injector injector;
     private final Settings settings;
@@ -139,7 +149,7 @@ public class Node implements Releasable {
 
     protected Node(Environment tmpEnv, Version version, Collection<Class<? extends Plugin>> classpathPlugins) {
         Settings tmpSettings = settingsBuilder().put(tmpEnv.settings())
-            .put(Client.CLIENT_TYPE_SETTING, CLIENT_TYPE).build();
+            .put(Client.CLIENT_TYPE_SETTING_S.getKey(), CLIENT_TYPE).build();
         tmpSettings = TribeService.processSettings(tmpSettings);
 
         ESLogger logger = Loggers.getLogger(Node.class, tmpSettings.get("name"));
@@ -166,6 +176,7 @@ public class Node implements Releasable {
         final NetworkService networkService = new NetworkService(settings);
         final SettingsFilter settingsFilter = new SettingsFilter(settings);
         final ThreadPool threadPool = new ThreadPool(settings);
+        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
         boolean success = false;
         try {
             final MonitorService monitorService = new MonitorService(settings, nodeEnvironment, threadPool);
@@ -177,19 +188,20 @@ public class Node implements Releasable {
                 modules.add(pluginModule);
             }
             modules.add(new PluginsModule(pluginsService));
-            modules.add(new SettingsModule(this.settings, settingsFilter));
+            SettingsModule settingsModule = new SettingsModule(this.settings, settingsFilter);
+            modules.add(settingsModule);
             modules.add(new EnvironmentModule(environment));
             modules.add(new NodeModule(this, monitorService));
-            modules.add(new NetworkModule(networkService, settings, false));
-            modules.add(new ScriptModule(this.settings));
+            modules.add(new NetworkModule(networkService, settings, false, namedWriteableRegistry));
+            modules.add(new ScriptModule(settingsModule));
             modules.add(new NodeEnvironmentModule(nodeEnvironment));
             modules.add(new ClusterNameModule(this.settings));
             modules.add(new ThreadPoolModule(threadPool));
             modules.add(new DiscoveryModule(this.settings));
             modules.add(new ClusterModule(this.settings));
             modules.add(new IndicesModule());
-            modules.add(new SearchModule());
-            modules.add(new ActionModule(false));
+            modules.add(new SearchModule(settings, namedWriteableRegistry));
+            modules.add(new ActionModule(DiscoveryNode.ingestNode(settings), false));
             modules.add(new GatewayModule(settings));
             modules.add(new NodeClientModule());
             modules.add(new PercolatorModule());
@@ -232,6 +244,13 @@ public class Node implements Releasable {
     }
 
     /**
+     * Returns the environment of the node
+     */
+    public Environment getEnvironment() {
+        return environment;
+    }
+
+    /**
      * Start the node. If the node is already started, this method is no-op.
      */
     public Node start() {
@@ -249,7 +268,6 @@ public class Node implements Releasable {
 
         injector.getInstance(MappingUpdatedAction.class).setClient(client);
         injector.getInstance(IndicesService.class).start();
-        injector.getInstance(IndexingMemoryController.class).start();
         injector.getInstance(IndicesClusterStateService.class).start();
         injector.getInstance(IndicesTTLService.class).start();
         injector.getInstance(SnapshotsService.class).start();
@@ -276,7 +294,7 @@ public class Node implements Releasable {
         injector.getInstance(ResourceWatcherService.class).start();
         injector.getInstance(TribeService.class).start();
 
-        if (System.getProperty("es.tests.portsfile", "false").equals("true")) {
+        if (WRITE_PORTS_FIELD_SETTING.get(settings)) {
             if (settings.getAsBoolean("http.enabled", true)) {
                 HttpServerTransport http = injector.getInstance(HttpServerTransport.class);
                 writePortsFile("http", http.boundAddress());
@@ -308,7 +326,6 @@ public class Node implements Releasable {
         // stop any changes happening as a result of cluster state changes
         injector.getInstance(IndicesClusterStateService.class).stop();
         // we close indices first, so operations won't be allowed on it
-        injector.getInstance(IndexingMemoryController.class).stop();
         injector.getInstance(IndicesTTLService.class).stop();
         injector.getInstance(RoutingService.class).stop();
         injector.getInstance(ClusterService.class).stop();
@@ -322,7 +339,6 @@ public class Node implements Releasable {
         for (Class<? extends LifecycleComponent> plugin : pluginsService.nodeServices()) {
             injector.getInstance(plugin).stop();
         }
-        injector.getInstance(RecoverySettings.class).close();
         // we should stop this last since it waits for resources to get released
         // if we had scroll searchers etc or recovery going on we wait for to finish.
         injector.getInstance(IndicesService.class).stop();
@@ -349,6 +365,12 @@ public class Node implements Releasable {
         StopWatch stopWatch = new StopWatch("node_close");
         stopWatch.start("tribe");
         injector.getInstance(TribeService.class).close();
+        stopWatch.stop().start("node_service");
+        try {
+            injector.getInstance(NodeService.class).close();
+        } catch (IOException e) {
+            logger.warn("NodeService close failed", e);
+        }
         stopWatch.stop().start("http");
         if (settings.getAsBoolean("http.enabled", true)) {
             injector.getInstance(HttpServer.class).close();
@@ -361,7 +383,6 @@ public class Node implements Releasable {
         stopWatch.stop().start("indices_cluster");
         injector.getInstance(IndicesClusterStateService.class).close();
         stopWatch.stop().start("indices");
-        injector.getInstance(IndexingMemoryController.class).close();
         injector.getInstance(IndicesTTLService.class).close();
         injector.getInstance(IndicesService.class).close();
         // close filter/fielddata caches after indices

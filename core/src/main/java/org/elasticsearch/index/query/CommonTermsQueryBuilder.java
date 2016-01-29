@@ -235,7 +235,7 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
         String field;
         MappedFieldType fieldType = context.fieldMapper(fieldName);
         if (fieldType != null) {
-            field = fieldType.names().indexName();
+            field = fieldType.name();
         } else {
             field = fieldName;
         }

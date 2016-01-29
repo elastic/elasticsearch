@@ -19,18 +19,9 @@
 package org.elasticsearch.test.engine;
 
 import org.apache.lucene.index.FilterDirectoryReader;
-import org.elasticsearch.common.inject.BindingAnnotation;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineFactory;
-
-import java.lang.annotation.Retention;
-import java.lang.annotation.Target;
-
-import static java.lang.annotation.ElementType.FIELD;
-import static java.lang.annotation.ElementType.PARAMETER;
-import static java.lang.annotation.RetentionPolicy.RUNTIME;
 
 public final class MockEngineFactory implements EngineFactory {
 

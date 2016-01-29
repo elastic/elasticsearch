@@ -55,7 +55,6 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static org.elasticsearch.index.mapper.MapperBuilders.ipField;
@@ -214,11 +213,24 @@ public class IpFieldMapper extends NumberFieldMapper {
         @Override
         public Query termQuery(Object value, @Nullable QueryShardContext context) {
             if (value != null) {
-                long[] fromTo;
+                String term;
                 if (value instanceof BytesRef) {
-                    fromTo = Cidrs.cidrMaskToMinMax(((BytesRef) value).utf8ToString());
+                    term = ((BytesRef) value).utf8ToString();
                 } else {
-                    fromTo = Cidrs.cidrMaskToMinMax(value.toString());
+                    term = value.toString();
+                }
+                long[] fromTo;
+                // assume that the term is either a CIDR range or the
+                // term is a single IPv4 address; if either of these
+                // assumptions is wrong, the CIDR parsing will fail
+                // anyway, and that is okay
+                if (term.contains("/")) {
+                    // treat the term as if it is in CIDR notation
+                    fromTo = Cidrs.cidrMaskToMinMax(term);
+                } else {
+                    // treat the term as if it is a single IPv4, and
+                    // apply a CIDR mask equivalent to the host route
+                    fromTo = Cidrs.cidrMaskToMinMax(term + "/32");
                 }
                 if (fromTo != null) {
                     return rangeQuery(fromTo[0] == 0 ? null : fromTo[0],
@@ -230,7 +242,7 @@ public class IpFieldMapper extends NumberFieldMapper {
 
         @Override
         public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper) {
-            return NumericRangeQuery.newLongRange(names().indexName(), numericPrecisionStep(),
+            return NumericRangeQuery.newLongRange(name(), numericPrecisionStep(),
                 lowerTerm == null ? null : parseValue(lowerTerm),
                 upperTerm == null ? null : parseValue(upperTerm),
                 includeLower, includeUpper);
@@ -245,7 +257,7 @@ public class IpFieldMapper extends NumberFieldMapper {
             } catch (IllegalArgumentException e) {
                 iSim = fuzziness.asLong();
             }
-            return NumericRangeQuery.newLongRange(names().indexName(), numericPrecisionStep(),
+            return NumericRangeQuery.newLongRange(name(), numericPrecisionStep(),
                 iValue - iSim,
                 iValue + iSim,
                 true, true);
@@ -288,7 +300,7 @@ public class IpFieldMapper extends NumberFieldMapper {
             return;
         }
         if (context.includeInAll(includeInAll, this)) {
-            context.allEntries().addText(fieldType().names().fullName(), ipAsString, fieldType().boost());
+            context.allEntries().addText(fieldType().name(), ipAsString, fieldType().boost());
         }
 
         final long value = ipToLong(ipAsString);

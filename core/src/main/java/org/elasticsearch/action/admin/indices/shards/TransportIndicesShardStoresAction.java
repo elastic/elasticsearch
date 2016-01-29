@@ -21,14 +21,14 @@ package org.elasticsearch.action.admin.indices.shards;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
-import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.cluster.health.ClusterShardHealth;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.health.ClusterShardHealth;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -166,7 +166,7 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
                 ImmutableOpenMap.Builder<String, ImmutableOpenIntMap<java.util.List<IndicesShardStoresResponse.StoreStatus>>> indicesStoreStatusesBuilder = ImmutableOpenMap.builder();
                 java.util.List<IndicesShardStoresResponse.Failure> failureBuilder = new ArrayList<>();
                 for (Response fetchResponse : fetchResponses) {
-                    ImmutableOpenIntMap<java.util.List<IndicesShardStoresResponse.StoreStatus>> indexStoreStatuses = indicesStoreStatusesBuilder.get(fetchResponse.shardId.getIndex());
+                    ImmutableOpenIntMap<java.util.List<IndicesShardStoresResponse.StoreStatus>> indexStoreStatuses = indicesStoreStatusesBuilder.get(fetchResponse.shardId.getIndexName());
                     final ImmutableOpenIntMap.Builder<java.util.List<IndicesShardStoresResponse.StoreStatus>> indexShardsBuilder;
                     if (indexStoreStatuses == null) {
                         indexShardsBuilder = ImmutableOpenIntMap.builder();
@@ -179,15 +179,15 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
                     }
                     for (NodeGatewayStartedShards response : fetchResponse.responses) {
                         if (shardExistsInNode(response)) {
-                            IndicesShardStoresResponse.StoreStatus.AllocationStatus allocationStatus = getAllocationStatus(fetchResponse.shardId.getIndex(), fetchResponse.shardId.id(), response.getNode());
+                            IndicesShardStoresResponse.StoreStatus.AllocationStatus allocationStatus = getAllocationStatus(fetchResponse.shardId.getIndexName(), fetchResponse.shardId.id(), response.getNode());
                             storeStatuses.add(new IndicesShardStoresResponse.StoreStatus(response.getNode(), response.version(), response.allocationId(), allocationStatus, response.storeException()));
                         }
                     }
                     CollectionUtil.timSort(storeStatuses);
                     indexShardsBuilder.put(fetchResponse.shardId.id(), storeStatuses);
-                    indicesStoreStatusesBuilder.put(fetchResponse.shardId.getIndex(), indexShardsBuilder.build());
+                    indicesStoreStatusesBuilder.put(fetchResponse.shardId.getIndexName(), indexShardsBuilder.build());
                     for (FailedNodeException failure : fetchResponse.failures) {
-                        failureBuilder.add(new IndicesShardStoresResponse.Failure(failure.nodeId(), fetchResponse.shardId.getIndex(), fetchResponse.shardId.id(), failure.getCause()));
+                        failureBuilder.add(new IndicesShardStoresResponse.Failure(failure.nodeId(), fetchResponse.shardId.getIndexName(), fetchResponse.shardId.id(), failure.getCause()));
                     }
                 }
                 listener.onResponse(new IndicesShardStoresResponse(indicesStoreStatusesBuilder.build(), Collections.unmodifiableList(failureBuilder)));
@@ -196,7 +196,7 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
             private IndicesShardStoresResponse.StoreStatus.AllocationStatus getAllocationStatus(String index, int shardID, DiscoveryNode node) {
                 for (ShardRouting shardRouting : routingNodes.node(node.id())) {
                     ShardId shardId = shardRouting.shardId();
-                    if (shardId.id() == shardID && shardId.getIndex().equals(index)) {
+                    if (shardId.id() == shardID && shardId.getIndexName().equals(index)) {
                         if (shardRouting.primary()) {
                             return IndicesShardStoresResponse.StoreStatus.AllocationStatus.PRIMARY;
                         } else if (shardRouting.assignedToNode()) {

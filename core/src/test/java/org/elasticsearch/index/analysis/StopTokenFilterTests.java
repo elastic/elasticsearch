@@ -26,9 +26,9 @@ import org.apache.lucene.analysis.core.StopFilter;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.apache.lucene.search.suggest.analyzing.SuggestStopFilter;
 import org.apache.lucene.util.Version;
-import org.elasticsearch.common.inject.ProvisionException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTokenStreamTestCase;
 
 import java.io.IOException;
@@ -45,7 +45,7 @@ public class StopTokenFilterTests extends ESTokenStreamTestCase {
         if (random().nextBoolean()) {
             builder.put("index.analysis.filter.my_stop.version", "5.0");
         }
-        builder.put("path.home", createTempDir().toString());
+        builder.put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString());
         Settings settings = builder.build();
         try {
             AnalysisTestsHelper.createAnalysisServiceFromSettings(settings);
@@ -68,7 +68,7 @@ public class StopTokenFilterTests extends ESTokenStreamTestCase {
         } else {
             // don't specify
         }
-        builder.put("path.home", createTempDir().toString());
+        builder.put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString());
         AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(builder.build());
         TokenFilterFactory tokenFilter = analysisService.tokenFilter("my_stop");
         assertThat(tokenFilter, instanceOf(StopTokenFilterFactory.class));
@@ -87,7 +87,7 @@ public class StopTokenFilterTests extends ESTokenStreamTestCase {
                 .put("index.analysis.filter.my_stop.type", "stop")
                 .put("index.analysis.filter.my_stop.enable_position_increments", false)
                 .put("index.analysis.filter.my_stop.version", "4.3")
-                .put("path.home", createTempDir().toString())
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .build();
         AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(settings);
         TokenFilterFactory tokenFilter = analysisService.tokenFilter("my_stop");
@@ -102,7 +102,7 @@ public class StopTokenFilterTests extends ESTokenStreamTestCase {
         Settings settings = Settings.settingsBuilder()
                 .put("index.analysis.filter.my_stop.type", "stop")
                 .put("index.analysis.filter.my_stop.remove_trailing", false)
-                .put("path.home", createTempDir().toString())
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .build();
         AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(settings);
         TokenFilterFactory tokenFilter = analysisService.tokenFilter("my_stop");

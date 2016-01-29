@@ -22,7 +22,6 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.HasContextAndHeaders;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
@@ -36,6 +35,8 @@ import org.elasticsearch.script.Template;
 import org.elasticsearch.search.suggest.SuggestContextParser;
 import org.elasticsearch.search.suggest.SuggestUtils;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
+import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder.Laplace;
+import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder.StupidBackoff;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionContext.DirectCandidateGenerator;
 
 import java.io.IOException;
@@ -50,8 +51,7 @@ public final class PhraseSuggestParser implements SuggestContextParser {
     }
 
     @Override
-    public SuggestionSearchContext.SuggestionContext parse(XContentParser parser, MapperService mapperService, IndexFieldDataService fieldDataService,
-            HasContextAndHeaders headersContext) throws IOException {
+    public SuggestionSearchContext.SuggestionContext parse(XContentParser parser, MapperService mapperService, IndexFieldDataService fieldDataService) throws IOException {
         PhraseSuggestionContext suggestion = new PhraseSuggestionContext(suggester);
         ParseFieldMatcher parseFieldMatcher = mapperService.getIndexSettings().getParseFieldMatcher();
         XContentParser.Token token;
@@ -143,8 +143,7 @@ public final class PhraseSuggestParser implements SuggestContextParser {
                                 throw new IllegalArgumentException("suggester[phrase][collate] query already set, doesn't support additional [" + fieldName + "]");
                             }
                             Template template = Template.parse(parser, parseFieldMatcher);
-                            CompiledScript compiledScript = suggester.scriptService().compile(template, ScriptContext.Standard.SEARCH,
-                                    headersContext, Collections.emptyMap());
+                            CompiledScript compiledScript = suggester.scriptService().compile(template, ScriptContext.Standard.SEARCH, Collections.emptyMap());
                             suggestion.setCollateQueryScript(compiledScript);
                         } else if ("params".equals(fieldName)) {
                             suggestion.setCollateScriptParams(parser.map());
@@ -171,7 +170,7 @@ public final class PhraseSuggestParser implements SuggestContextParser {
             throw new IllegalArgumentException("The required field option is missing");
         }
 
-        MappedFieldType fieldType = mapperService.smartNameFieldType(suggestion.getField());
+        MappedFieldType fieldType = mapperService.fullName(suggestion.getField());
         if (fieldType == null) {
             throw new IllegalArgumentException("No mapping found for field [" + suggestion.getField() + "]");
         } else if (suggestion.getAnalyzer() == null) {
@@ -265,7 +264,7 @@ public final class PhraseSuggestParser implements SuggestContextParser {
                     });
                 } else if ("laplace".equals(fieldName)) {
                     ensureNoSmoothing(suggestion);
-                    double theAlpha = 0.5;
+                    double theAlpha = Laplace.DEFAULT_LAPLACE_ALPHA;
 
                     while ((token = parser.nextToken()) != Token.END_OBJECT) {
                         if (token == XContentParser.Token.FIELD_NAME) {
@@ -286,7 +285,7 @@ public final class PhraseSuggestParser implements SuggestContextParser {
 
                 } else if ("stupid_backoff".equals(fieldName) || "stupidBackoff".equals(fieldName)) {
                     ensureNoSmoothing(suggestion);
-                    double theDiscount = 0.4;
+                    double theDiscount = StupidBackoff.DEFAULT_BACKOFF_DISCOUNT;
                     while ((token = parser.nextToken()) != Token.END_OBJECT) {
                         if (token == XContentParser.Token.FIELD_NAME) {
                             fieldName = parser.currentName();
@@ -329,7 +328,7 @@ public final class PhraseSuggestParser implements SuggestContextParser {
         if (!SuggestUtils.parseDirectSpellcheckerSettings(parser, fieldName, generator, parseFieldMatcher)) {
             if ("field".equals(fieldName)) {
                 generator.setField(parser.text());
-                if (mapperService.smartNameFieldType(generator.field()) == null) {
+                if (mapperService.fullName(generator.field()) == null) {
                     throw new IllegalArgumentException("No mapping found for field [" + generator.field() + "]");
                 }
             } else if ("size".equals(fieldName)) {

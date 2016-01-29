@@ -19,6 +19,7 @@
 
 package org.elasticsearch.script.groovy;
 
+import groovy.lang.MissingPropertyException;
 import org.apache.lucene.util.Constants;
 import org.codehaus.groovy.control.MultipleCompilationErrorsException;
 import org.elasticsearch.common.settings.Settings;
@@ -26,8 +27,6 @@ import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
-
-import groovy.lang.MissingPropertyException;
 
 import java.nio.file.Path;
 import java.security.PrivilegedActionException;
@@ -84,12 +83,13 @@ public class GroovySecurityTests extends ESTestCase {
         assertSuccess("def range = 1..doc['foo'].value; def v = range.get(0)");
         // Maps
         assertSuccess("def v = doc['foo'].value; def m = [:]; m.put(\"value\", v)");
-        // serialization to json (this is best effort considering the unsafe etc at play)
-        assertSuccess("def x = 5; groovy.json.JsonOutput.toJson(x)");
         // Times
         assertSuccess("def t = Instant.now().getMillis()");
         // GroovyCollections
         assertSuccess("def n = [1,2,3]; GroovyCollections.max(n)");
+        // Groovy closures
+        assertSuccess("[1, 2, 3, 4].findAll { it % 2 == 0 }");
+        assertSuccess("def buckets=[ [2, 4, 6, 8], [10, 12, 16, 14], [18, 22, 20, 24] ]; buckets[-3..-1].every { it.every { i -> i % 2 == 0 } }");
 
         // Fail cases:
         assertFailure("pr = Runtime.getRuntime().exec(\"touch /tmp/gotcha\"); pr.waitFor()", MissingPropertyException.class);

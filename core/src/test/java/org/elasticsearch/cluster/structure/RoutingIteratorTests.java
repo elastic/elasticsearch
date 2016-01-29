@@ -59,28 +59,28 @@ import static org.hamcrest.Matchers.sameInstance;
 public class RoutingIteratorTests extends ESAllocationTestCase {
     public void testEmptyIterator() {
         ShardShuffler shuffler = new RotationShardShuffler(0);
-        ShardIterator shardIterator = new PlainShardIterator(new ShardId("test1", 0), shuffler.shuffle(Collections.<ShardRouting>emptyList()));
+        ShardIterator shardIterator = new PlainShardIterator(new ShardId("test1", "_na_", 0), shuffler.shuffle(Collections.<ShardRouting>emptyList()));
         assertThat(shardIterator.remaining(), equalTo(0));
         assertThat(shardIterator.nextOrNull(), nullValue());
         assertThat(shardIterator.remaining(), equalTo(0));
         assertThat(shardIterator.nextOrNull(), nullValue());
         assertThat(shardIterator.remaining(), equalTo(0));
 
-        shardIterator = new PlainShardIterator(new ShardId("test1", 0), shuffler.shuffle(Collections.<ShardRouting>emptyList()));
+        shardIterator = new PlainShardIterator(new ShardId("test1", "_na_", 0), shuffler.shuffle(Collections.<ShardRouting>emptyList()));
         assertThat(shardIterator.remaining(), equalTo(0));
         assertThat(shardIterator.nextOrNull(), nullValue());
         assertThat(shardIterator.remaining(), equalTo(0));
         assertThat(shardIterator.nextOrNull(), nullValue());
         assertThat(shardIterator.remaining(), equalTo(0));
 
-        shardIterator = new PlainShardIterator(new ShardId("test1", 0), shuffler.shuffle(Collections.<ShardRouting>emptyList()));
+        shardIterator = new PlainShardIterator(new ShardId("test1", "_na_", 0), shuffler.shuffle(Collections.<ShardRouting>emptyList()));
         assertThat(shardIterator.remaining(), equalTo(0));
         assertThat(shardIterator.nextOrNull(), nullValue());
         assertThat(shardIterator.remaining(), equalTo(0));
         assertThat(shardIterator.nextOrNull(), nullValue());
         assertThat(shardIterator.remaining(), equalTo(0));
 
-        shardIterator = new PlainShardIterator(new ShardId("test1", 0), shuffler.shuffle(Collections.<ShardRouting>emptyList()));
+        shardIterator = new PlainShardIterator(new ShardId("test1", "_na_", 0), shuffler.shuffle(Collections.<ShardRouting>emptyList()));
         assertThat(shardIterator.remaining(), equalTo(0));
         assertThat(shardIterator.nextOrNull(), nullValue());
         assertThat(shardIterator.remaining(), equalTo(0));
@@ -224,7 +224,7 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
 
     public void testAttributePreferenceRouting() {
         AllocationService strategy = createAllocationService(settingsBuilder()
-                .put("cluster.routing.allocation.concurrent_recoveries", 10)
+                .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
                 .put("cluster.routing.allocation.awareness.attributes", "rack_id,zone")
                 .build());
@@ -279,7 +279,7 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
 
     public void testNodeSelectorRouting(){
         AllocationService strategy = createAllocationService(settingsBuilder()
-                .put("cluster.routing.allocation.concurrent_recoveries", 10)
+                .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
                 .build());
 
@@ -336,7 +336,7 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
 
     public void testShardsAndPreferNodeRouting() {
         AllocationService strategy = createAllocationService(settingsBuilder()
-                .put("cluster.routing.allocation.concurrent_recoveries", 10)
+                .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
                 .build());
 
         MetaData metaData = MetaData.builder()
@@ -397,7 +397,7 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
 
     public void testReplicaShardPreferenceIters() throws Exception {
         AllocationService strategy = createAllocationService(settingsBuilder()
-                .put("cluster.routing.allocation.concurrent_recoveries", 10)
+                .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
                 .build());
 
         OperationRouting operationRouting = new OperationRouting(Settings.Builder.EMPTY_SETTINGS, new AwarenessAllocationDecider());

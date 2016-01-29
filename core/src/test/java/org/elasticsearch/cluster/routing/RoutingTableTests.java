@@ -50,8 +50,8 @@ public class RoutingTableTests extends ESAllocationTestCase {
     private int totalNumberOfShards;
     private final static Settings DEFAULT_SETTINGS = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
     private final AllocationService ALLOCATION_SERVICE = createAllocationService(settingsBuilder()
-            .put("cluster.routing.allocation.concurrent_recoveries", 10)
-            .put("cluster.routing.allocation.node_initial_primaries_recoveries", 10)
+            .put("cluster.routing.allocation.node_concurrent_recoveries", Integer.MAX_VALUE) // don't limit recoveries
+            .put("cluster.routing.allocation.node_initial_primaries_recoveries", Integer.MAX_VALUE)
             .build());
     private ClusterState clusterState;
 
@@ -71,8 +71,8 @@ public class RoutingTableTests extends ESAllocationTestCase {
                 .build();
 
         this.testRoutingTable = new RoutingTable.Builder()
-                .add(new IndexRoutingTable.Builder(TEST_INDEX_1).initializeAsNew(metaData.index(TEST_INDEX_1)).build())
-                .add(new IndexRoutingTable.Builder(TEST_INDEX_2).initializeAsNew(metaData.index(TEST_INDEX_2)).build())
+                .add(new IndexRoutingTable.Builder(metaData.index(TEST_INDEX_1).getIndex()).initializeAsNew(metaData.index(TEST_INDEX_1)).build())
+                .add(new IndexRoutingTable.Builder(metaData.index(TEST_INDEX_2).getIndex()).initializeAsNew(metaData.index(TEST_INDEX_2)).build())
                 .build();
         this.clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.DEFAULT).metaData(metaData).routingTable(testRoutingTable).build();
     }
@@ -127,7 +127,7 @@ public class RoutingTableTests extends ESAllocationTestCase {
     }
 
     public void testIndex() {
-        assertThat(this.testRoutingTable.index(TEST_INDEX_1).getIndex(), is(TEST_INDEX_1));
+        assertThat(this.testRoutingTable.index(TEST_INDEX_1).getIndex().getName(), is(TEST_INDEX_1));
         assertThat(this.testRoutingTable.index("foobar"), is(nullValue()));
     }
 

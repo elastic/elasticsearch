@@ -22,12 +22,25 @@ package org.elasticsearch.percolator;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.MultiReader;
+import org.apache.lucene.index.SlowCompositeReaderWrapper;
 import org.apache.lucene.index.memory.MemoryIndex;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.CloseableThreadLocal;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
@@ -65,13 +78,22 @@ class MultiDocumentPercolatorIndex implements PercolatorIndex {
             } else {
                 memoryIndex = new MemoryIndex(true);
             }
-            Analyzer analyzer = context.mapperService().documentMapper(parsedDocument.type()).mappers().indexAnalyzer();
-            memoryIndices[i] = indexDoc(d, analyzer, memoryIndex).createSearcher().getIndexReader();
+            memoryIndices[i] = indexDoc(d, memoryIndex, context, parsedDocument).createSearcher().getIndexReader();
         }
         try {
             MultiReader mReader = new MultiReader(memoryIndices, true);
             LeafReader slowReader = SlowCompositeReaderWrapper.wrap(mReader);
-            final IndexSearcher slowSearcher = new IndexSearcher(slowReader);
+            final IndexSearcher slowSearcher = new IndexSearcher(slowReader) {
+
+                @Override
+                public Weight createNormalizedWeight(Query query, boolean needsScores) throws IOException {
+                    BooleanQuery.Builder bq = new BooleanQuery.Builder();
+                    bq.add(query, BooleanClause.Occur.MUST);
+                    bq.add(Queries.newNestedFilter(), BooleanClause.Occur.MUST_NOT);
+                    return super.createNormalizedWeight(bq.build(), needsScores);
+                }
+
+            };
             slowSearcher.setQueryCache(null);
             DocSearcher docSearcher = new DocSearcher(slowSearcher, rootDocMemoryIndex);
             context.initialize(docSearcher, parsedDocument);
@@ -80,8 +102,13 @@ class MultiDocumentPercolatorIndex implements PercolatorIndex {
         }
     }
 
-    MemoryIndex indexDoc(ParseContext.Document d, Analyzer analyzer, MemoryIndex memoryIndex) {
+    MemoryIndex indexDoc(ParseContext.Document d, MemoryIndex memoryIndex, PercolateContext context, ParsedDocument parsedDocument) {
         for (IndexableField field : d.getFields()) {
+            Analyzer analyzer = context.analysisService().defaultIndexAnalyzer();
+            DocumentMapper documentMapper = context.mapperService().documentMapper(parsedDocument.type());
+            if (documentMapper != null && documentMapper.mappers().getMapper(field.name()) != null) {
+                analyzer =  documentMapper.mappers().indexAnalyzer();
+            }
             if (field.fieldType().indexOptions() == IndexOptions.NONE && field.name().equals(UidFieldMapper.NAME)) {
                 continue;
             }

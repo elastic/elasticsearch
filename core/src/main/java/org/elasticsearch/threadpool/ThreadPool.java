@@ -20,6 +20,7 @@
 package org.elasticsearch.threadpool;
 
 import org.apache.lucene.util.Counter;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -34,14 +35,31 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsAbortPolicy;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.XRejectedExecutionHandler;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 
+import java.io.Closeable;
 import java.io.IOException;
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.RejectedExecutionHandler;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.util.Collections.unmodifiableMap;
@@ -52,7 +70,7 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
 /**
  *
  */
-public class ThreadPool extends AbstractComponent {
+public class ThreadPool extends AbstractComponent implements Closeable {
 
     public static class Names {
         public static final String SAME = "same";
@@ -185,6 +203,8 @@ public class ThreadPool extends AbstractComponent {
 
     static final Executor DIRECT_EXECUTOR = command -> command.run();
 
+    private final ThreadContext threadContext;
+
     public ThreadPool(String name) {
         this(Settings.builder().put("name", name).build());
     }
@@ -193,7 +213,7 @@ public class ThreadPool extends AbstractComponent {
         super(settings);
 
         assert settings.get("name") != null : "ThreadPool's settings should contain a name";
-
+        threadContext = new ThreadContext(settings);
         Map<String, Settings> groupSettings = THREADPOOL_GROUP_SETTING.get(settings).getAsGroups();
         validate(groupSettings);
 
@@ -342,7 +362,7 @@ public class ThreadPool extends AbstractComponent {
         if (!Names.SAME.equals(name)) {
             command = new ThreadedRunnable(command, executor(name));
         }
-        return scheduler.schedule(command, delay.millis(), TimeUnit.MILLISECONDS);
+        return scheduler.schedule(new LoggingRunnable(command), delay.millis(), TimeUnit.MILLISECONDS);
     }
 
     public void shutdown() {
@@ -433,7 +453,7 @@ public class ThreadPool extends AbstractComponent {
             } else {
                 logger.debug("creating thread_pool [{}], type [{}], keep_alive [{}]", name, type, keepAlive);
             }
-            Executor executor = EsExecutors.newCached(name, keepAlive.millis(), TimeUnit.MILLISECONDS, threadFactory);
+            Executor executor = EsExecutors.newCached(name, keepAlive.millis(), TimeUnit.MILLISECONDS, threadFactory, threadContext);
             return new ExecutorHolder(executor, new Info(name, threadPoolType, -1, -1, keepAlive, null));
         } else if (ThreadPoolType.FIXED == threadPoolType) {
             int defaultSize = defaultSettings.getAsInt("size", EsExecutors.boundedNumberOfProcessors(settings));
@@ -443,7 +463,7 @@ public class ThreadPool extends AbstractComponent {
                 if (ThreadPoolType.FIXED == previousInfo.getThreadPoolType()) {
                     SizeValue updatedQueueSize = getAsSizeOrUnbounded(settings, "capacity", getAsSizeOrUnbounded(settings, "queue", getAsSizeOrUnbounded(settings, "queue_size", previousInfo.getQueueSize())));
                     if (Objects.equals(previousInfo.getQueueSize(), updatedQueueSize)) {
-                        int updatedSize = settings.getAsInt("size", previousInfo.getMax());
+                        int updatedSize = applyHardSizeLimit(name, settings.getAsInt("size", previousInfo.getMax()));
                         if (previousInfo.getMax() != updatedSize) {
                             logger.debug("updating thread_pool [{}], type [{}], size [{}], queue_size [{}]", name, type, updatedSize, updatedQueueSize);
                             // if you think this code is crazy: that's because it is!
@@ -465,10 +485,10 @@ public class ThreadPool extends AbstractComponent {
                 defaultQueueSize = previousInfo.getQueueSize();
             }
 
-            int size = settings.getAsInt("size", defaultSize);
+            int size = applyHardSizeLimit(name, settings.getAsInt("size", defaultSize));
             SizeValue queueSize = getAsSizeOrUnbounded(settings, "capacity", getAsSizeOrUnbounded(settings, "queue", getAsSizeOrUnbounded(settings, "queue_size", defaultQueueSize)));
             logger.debug("creating thread_pool [{}], type [{}], size [{}], queue_size [{}]", name, type, size, queueSize);
-            Executor executor = EsExecutors.newFixed(name, size, queueSize == null ? -1 : (int) queueSize.singles(), threadFactory);
+            Executor executor = EsExecutors.newFixed(name, size, queueSize == null ? -1 : (int) queueSize.singles(), threadFactory, threadContext);
             return new ExecutorHolder(executor, new Info(name, threadPoolType, size, size, null, queueSize));
         } else if (ThreadPoolType.SCALING == threadPoolType) {
             TimeValue defaultKeepAlive = defaultSettings.getAsTime("keep_alive", timeValueMinutes(5));
@@ -512,10 +532,25 @@ public class ThreadPool extends AbstractComponent {
             } else {
                 logger.debug("creating thread_pool [{}], type [{}], min [{}], size [{}], keep_alive [{}]", name, type, min, size, keepAlive);
             }
-            Executor executor = EsExecutors.newScaling(name, min, size, keepAlive.millis(), TimeUnit.MILLISECONDS, threadFactory);
+            Executor executor = EsExecutors.newScaling(name, min, size, keepAlive.millis(), TimeUnit.MILLISECONDS, threadFactory, threadContext);
             return new ExecutorHolder(executor, new Info(name, threadPoolType, min, size, keepAlive, null));
         }
         throw new IllegalArgumentException("No type found [" + type + "], for [" + name + "]");
+    }
+
+    private int applyHardSizeLimit(String name, int size) {
+        int availableProcessors = EsExecutors.boundedNumberOfProcessors(settings);
+        if ((name.equals(Names.BULK) || name.equals(Names.INDEX)) && size > availableProcessors) {
+            // We use a hard max size for the indexing pools, because if too many threads enter Lucene's IndexWriter, it means
+            // too many segments written, too frequently, too much merging, etc:
+            // TODO: I would love to be loud here (throw an exception if you ask for a too-big size), but I think this is dangerous
+            // because on upgrade this setting could be in cluster state and hard for the user to correct?
+            logger.warn("requested thread pool size [{}] for [{}] is too large; setting to maximum [{}] instead",
+                        size, name, availableProcessors);
+            size = availableProcessors;
+        }
+
+        return size;
     }
 
     private void updateSettings(Settings settings) {
@@ -618,6 +653,7 @@ public class ThreadPool extends AbstractComponent {
                 runnable.run();
             } catch (Throwable t) {
                 logger.warn("failed to run {}", t, runnable.toString());
+                throw t;
             }
         }
 
@@ -883,17 +919,30 @@ public class ThreadPool extends AbstractComponent {
      */
     public static boolean terminate(ThreadPool pool, long timeout, TimeUnit timeUnit) {
         if (pool != null) {
-            pool.shutdown();
             try {
-                if (pool.awaitTermination(timeout, timeUnit)) {
-                    return true;
+                pool.shutdown();
+                try {
+                    if (pool.awaitTermination(timeout, timeUnit)) {
+                        return true;
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
                 }
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
+                // last resort
+                pool.shutdownNow();
+            } finally {
+                IOUtils.closeWhileHandlingException(pool);
             }
-            // last resort
-            pool.shutdownNow();
         }
         return false;
+    }
+
+    @Override
+    public void close() throws IOException {
+        threadContext.close();
+    }
+
+    public ThreadContext getThreadContext() {
+        return threadContext;
     }
 }

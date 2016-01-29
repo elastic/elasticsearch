@@ -114,7 +114,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             for (Map.Entry<String, Set<String>> entry : indicesAndTypes.entrySet()) {
                 final String index = entry.getKey();
                 if (autoCreateIndex.shouldAutoCreate(index, state)) {
-                    CreateIndexRequest createIndexRequest = new CreateIndexRequest(bulkRequest);
+                    CreateIndexRequest createIndexRequest = new CreateIndexRequest();
                     createIndexRequest.index(index);
                     for (String type : entry.getValue()) {
                         createIndexRequest.mapping(type);
@@ -239,7 +239,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     }
                 } else {
                     concreteIndices.resolveIfAbsent(req);
-                    req.routing(clusterState.metaData().resolveIndexRouting(req.routing(), req.index()));
+                    req.routing(clusterState.metaData().resolveIndexRouting(req.parent(), req.routing(), req.index()));
                 }
             }
         }
@@ -377,7 +377,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         if (unavailableException == null) {
             IndexMetaData indexMetaData = metaData.index(concreteIndex);
             if (indexMetaData.getState() == IndexMetaData.State.CLOSE) {
-                unavailableException = new IndexClosedException(new Index(metaData.index(request.index()).getIndex()));
+                unavailableException = new IndexClosedException(metaData.index(request.index()).getIndex());
             }
         }
         if (unavailableException != null) {

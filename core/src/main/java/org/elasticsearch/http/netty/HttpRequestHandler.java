@@ -19,9 +19,14 @@
 
 package org.elasticsearch.http.netty;
 
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.netty.pipelining.OrderedUpstreamMessageEvent;
 import org.elasticsearch.rest.support.RestUtils;
-import org.jboss.netty.channel.*;
+import org.jboss.netty.channel.ChannelHandler;
+import org.jboss.netty.channel.ChannelHandlerContext;
+import org.jboss.netty.channel.ExceptionEvent;
+import org.jboss.netty.channel.MessageEvent;
+import org.jboss.netty.channel.SimpleChannelUpstreamHandler;
 import org.jboss.netty.handler.codec.http.HttpRequest;
 
 import java.util.regex.Pattern;
@@ -37,12 +42,14 @@ public class HttpRequestHandler extends SimpleChannelUpstreamHandler {
     private final Pattern corsPattern;
     private final boolean httpPipeliningEnabled;
     private final boolean detailedErrorsEnabled;
+    private final ThreadContext threadContext;
 
-    public HttpRequestHandler(NettyHttpServerTransport serverTransport, boolean detailedErrorsEnabled) {
+    public HttpRequestHandler(NettyHttpServerTransport serverTransport, boolean detailedErrorsEnabled, ThreadContext threadContext) {
         this.serverTransport = serverTransport;
         this.corsPattern = RestUtils.checkCorsSettingForRegex(serverTransport.settings().get(NettyHttpServerTransport.SETTING_CORS_ALLOW_ORIGIN));
         this.httpPipeliningEnabled = serverTransport.pipelining;
         this.detailedErrorsEnabled = detailedErrorsEnabled;
+        this.threadContext = threadContext;
     }
 
     @Override
@@ -56,6 +63,7 @@ public class HttpRequestHandler extends SimpleChannelUpstreamHandler {
             request = (HttpRequest) e.getMessage();
         }
 
+        threadContext.copyHeaders(request.headers());
         // the netty HTTP handling always copy over the buffer to its own buffer, either in NioWorker internally
         // when reading, or using a cumalation buffer
         NettyHttpRequest httpRequest = new NettyHttpRequest(request, e.getChannel());

@@ -40,7 +40,7 @@ import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 public class AnalysisTestUtils {
 
     public static AnalysisService createAnalysisService(Settings settings) throws IOException {
-        Index index = new Index("test");
+        Index index = new Index("test", "_na_");
         Settings indexSettings = settingsBuilder().put(settings)
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .build();

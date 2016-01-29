@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper.externalvalues;
 import org.apache.lucene.util.GeoUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexService;
@@ -31,9 +32,12 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.indices.mapper.MapperRegistry;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.VersionUtils;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -45,6 +49,11 @@ import static org.hamcrest.Matchers.notNullValue;
  */
 public class SimpleExternalMappingTests extends ESSingleNodeTestCase {
 
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return pluginList(InternalSettingsPlugin.class);
+    }
+
     public void testExternalValues() throws Exception {
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.CURRENT);
         Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
@@ -54,8 +63,8 @@ public class SimpleExternalMappingTests extends ESSingleNodeTestCase {
                 Collections.singletonMap(ExternalMetadataMapper.CONTENT_TYPE, new ExternalMetadataMapper.TypeParser()));
 
         DocumentMapperParser parser = new DocumentMapperParser(indexService.getIndexSettings(), indexService.mapperService(),
-                indexService.analysisService(), indexService.similarityService(), mapperRegistry);
-        DocumentMapper documentMapper = parser.parse(
+                indexService.analysisService(), indexService.similarityService(), mapperRegistry, indexService::getQueryShardContext);
+        DocumentMapper documentMapper = parser.parse("type", new CompressedXContent(
                 XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject(ExternalMetadataMapper.CONTENT_TYPE)
                 .endObject()
@@ -63,7 +72,7 @@ public class SimpleExternalMappingTests extends ESSingleNodeTestCase {
                     .startObject("field").field("type", "external").endObject()
                 .endObject()
             .endObject().endObject().string()
-        );
+        ));
 
         ParsedDocument doc = documentMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -100,28 +109,28 @@ public class SimpleExternalMappingTests extends ESSingleNodeTestCase {
         MapperRegistry mapperRegistry = new MapperRegistry(mapperParsers, Collections.emptyMap());
 
         DocumentMapperParser parser = new DocumentMapperParser(indexService.getIndexSettings(), indexService.mapperService(),
-                indexService.analysisService(), indexService.similarityService(), mapperRegistry);
+                indexService.analysisService(), indexService.similarityService(), mapperRegistry, indexService::getQueryShardContext);
 
-        DocumentMapper documentMapper = parser.parse(
+        DocumentMapper documentMapper = parser.parse("type", new CompressedXContent(
                 XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
                 .startObject("field")
                     .field("type", ExternalMapperPlugin.EXTERNAL)
                     .startObject("fields")
                         .startObject("field")
                             .field("type", "string")
-                            .field("store", "yes")
+                            .field("store", true)
                             .startObject("fields")
                                 .startObject("raw")
                                     .field("type", "string")
                                     .field("index", "not_analyzed")
-                                    .field("store", "yes")
+                                    .field("store", true)
                                 .endObject()
                             .endObject()
                         .endObject()
                     .endObject()
                 .endObject()
                 .endObject().endObject().endObject()
-                .string());
+                .string()));
 
         ParsedDocument doc = documentMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -159,9 +168,9 @@ public class SimpleExternalMappingTests extends ESSingleNodeTestCase {
         MapperRegistry mapperRegistry = new MapperRegistry(mapperParsers, Collections.emptyMap());
 
         DocumentMapperParser parser = new DocumentMapperParser(indexService.getIndexSettings(), indexService.mapperService(),
-                indexService.analysisService(), indexService.similarityService(), mapperRegistry);
+                indexService.analysisService(), indexService.similarityService(), mapperRegistry, indexService::getQueryShardContext);
 
-        DocumentMapper documentMapper = parser.parse(
+        DocumentMapper documentMapper = parser.parse("type", new CompressedXContent(
                 XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
                 .startObject("field")
                     .field("type", ExternalMapperPlugin.EXTERNAL)
@@ -183,7 +192,7 @@ public class SimpleExternalMappingTests extends ESSingleNodeTestCase {
                     .endObject()
                 .endObject()
                 .endObject().endObject().endObject()
-                .string());
+                .string()));
 
         ParsedDocument doc = documentMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()

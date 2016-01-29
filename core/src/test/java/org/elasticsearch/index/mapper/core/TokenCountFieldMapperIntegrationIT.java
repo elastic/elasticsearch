@@ -21,7 +21,6 @@ package org.elasticsearch.index.mapper.core;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -113,13 +112,10 @@ public class TokenCountFieldMapperIntegrationIT extends ESIntegTestCase {
                 .startObject("test")
                     .startObject("properties")
                         .startObject("foo")
-                            .field("type", "multi_field")
+                            .field("type", "string")
+                            .field("store", storeCountedFields)
+                            .field("analyzer", "simple")
                             .startObject("fields")
-                                .startObject("foo")
-                                    .field("type", "string")
-                                    .field("store", storeCountedFields)
-                                    .field("analyzer", "simple")
-                                .endObject()
                                 .startObject("token_count")
                                     .field("type", "token_count")
                                     .field("analyzer", "standard")

@@ -188,6 +188,25 @@ public class ObjectParserTests extends ESTestCase {
         }
     }
 
+    enum TestEnum {
+        FOO, BAR
+    };
+
+    public void testParseEnumFromString() throws IOException {
+        class TestStruct {
+            public TestEnum test;
+
+            public void set(TestEnum value) {
+                test = value;
+            }
+        }
+        XContentParser parser = XContentType.JSON.xContent().createParser("{ \"test\" : \"FOO\" }");
+        ObjectParser<TestStruct, Void> objectParser = new ObjectParser("foo");
+        objectParser.declareString((struct, value) -> struct.set(TestEnum.valueOf(value)), new ParseField("test"));
+        TestStruct s = objectParser.parse(parser, new TestStruct());
+        assertEquals(s.test, TestEnum.FOO);
+    }
+
     public void testAllVariants() throws IOException {
         XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent());
         builder.startObject();

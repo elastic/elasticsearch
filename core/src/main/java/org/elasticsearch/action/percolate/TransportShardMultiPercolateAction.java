@@ -23,7 +23,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
@@ -109,7 +108,7 @@ public class TransportShardMultiPercolateAction extends TransportSingleShardActi
     }
 
 
-    public static class Request extends SingleShardRequest implements IndicesRequest {
+    public static class Request extends SingleShardRequest<Request> implements IndicesRequest {
 
         private int shardId;
         private String preference;
@@ -118,8 +117,8 @@ public class TransportShardMultiPercolateAction extends TransportSingleShardActi
         public Request() {
         }
 
-        Request(MultiPercolateRequest multiPercolateRequest, String concreteIndex, int shardId, String preference) {
-            super(multiPercolateRequest, concreteIndex);
+        Request(String concreteIndex, int shardId, String preference) {
+            super(concreteIndex);
             this.shardId = shardId;
             this.preference = preference;
             this.items = new ArrayList<>();
@@ -160,12 +159,8 @@ public class TransportShardMultiPercolateAction extends TransportSingleShardActi
             items = new ArrayList<>(size);
             for (int i = 0; i < size; i++) {
                 int slot = in.readVInt();
-                OriginalIndices originalIndices = OriginalIndices.readOriginalIndices(in);
-                PercolateShardRequest shardRequest = new PercolateShardRequest(new ShardId(index, shardId), originalIndices);
-                shardRequest.documentType(in.readString());
-                shardRequest.source(in.readBytesReference());
-                shardRequest.docSource(in.readBytesReference());
-                shardRequest.onlyCount(in.readBoolean());
+                PercolateShardRequest shardRequest = new PercolateShardRequest();
+                shardRequest.readFrom(in);
                 Item item = new Item(slot, shardRequest);
                 items.add(item);
             }
@@ -179,11 +174,7 @@ public class TransportShardMultiPercolateAction extends TransportSingleShardActi
             out.writeVInt(items.size());
             for (Item item : items) {
                 out.writeVInt(item.slot);
-                OriginalIndices.writeOriginalIndices(item.request.originalIndices(), out);
-                out.writeString(item.request.documentType());
-                out.writeBytesReference(item.request.source());
-                out.writeBytesReference(item.request.docSource());
-                out.writeBoolean(item.request.onlyCount());
+                item.request.writeTo(out);
             }
         }
 
@@ -245,7 +236,7 @@ public class TransportShardMultiPercolateAction extends TransportSingleShardActi
                     shardResponse.readFrom(in);
                     items.add(new Item(slot, shardResponse));
                 } else {
-                    items.add(new Item(slot, (Throwable)in.readThrowable()));
+                    items.add(new Item(slot, in.readThrowable()));
                 }
             }
         }

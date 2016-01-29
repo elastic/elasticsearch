@@ -20,7 +20,12 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.MetaData;
 
@@ -283,7 +288,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
                 Map.Entry<String, Float> field = fieldsIterator.next();
                 assertTermOrBoostQuery(booleanClause.getQuery(), field.getKey(), queryBuilder.value(), field.getValue());
             }
-            if (queryBuilder.minimumShouldMatch() != null) {
+            if (queryBuilder.minimumShouldMatch() != null && !boolQuery.isCoordDisabled()) {
                 assertThat(boolQuery.getMinimumNumberShouldMatch(), greaterThan(0));
             }
         } else if (queryBuilder.fields().size() == 1) {
@@ -341,19 +346,19 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
 
     public void testFromJson() throws IOException {
         String json =
-                "{\n" + 
-                "  \"simple_query_string\" : {\n" + 
-                "    \"query\" : \"\\\"fried eggs\\\" +(eggplant | potato) -frittata\",\n" + 
-                "    \"fields\" : [ \"_all^1.0\", \"body^5.0\" ],\n" + 
-                "    \"analyzer\" : \"snowball\",\n" + 
-                "    \"flags\" : -1,\n" + 
-                "    \"default_operator\" : \"and\",\n" + 
-                "    \"lowercase_expanded_terms\" : true,\n" + 
-                "    \"lenient\" : false,\n" + 
-                "    \"analyze_wildcard\" : false,\n" + 
-                "    \"locale\" : \"und\",\n" + 
-                "    \"boost\" : 1.0\n" + 
-                "  }\n" + 
+                "{\n" +
+                "  \"simple_query_string\" : {\n" +
+                "    \"query\" : \"\\\"fried eggs\\\" +(eggplant | potato) -frittata\",\n" +
+                "    \"fields\" : [ \"_all^1.0\", \"body^5.0\" ],\n" +
+                "    \"analyzer\" : \"snowball\",\n" +
+                "    \"flags\" : -1,\n" +
+                "    \"default_operator\" : \"and\",\n" +
+                "    \"lowercase_expanded_terms\" : true,\n" +
+                "    \"lenient\" : false,\n" +
+                "    \"analyze_wildcard\" : false,\n" +
+                "    \"locale\" : \"und\",\n" +
+                "    \"boost\" : 1.0\n" +
+                "  }\n" +
                 "}";
 
         SimpleQueryStringBuilder parsed = (SimpleQueryStringBuilder) parseQuery(json);

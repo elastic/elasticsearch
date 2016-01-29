@@ -14,7 +14,7 @@ setup:
                       "fields":
                         "content" :
                           "type": "string"
-                          "store" : "yes"
+                          "store" : true
                           "term_vector": "with_positions_offsets"
 
     - do:

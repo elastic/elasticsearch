@@ -288,6 +288,9 @@ final class Bootstrap {
             // fail if using broken version
             JVMCheck.check();
 
+            // fail if somebody replaced the lucene jars
+            checkLucene();
+
             INSTANCE.setup(true, settings, environment);
 
             INSTANCE.start();
@@ -363,5 +366,12 @@ final class Bootstrap {
     @SuppressForbidden(reason = "Allowed to exit explicitly in bootstrap phase")
     private static void exit(int status) {
         System.exit(status);
+    }
+
+    private static void checkLucene() {
+        if (Version.CURRENT.luceneVersion.equals(org.apache.lucene.util.Version.LATEST) == false) {
+            throw new AssertionError("Lucene version mismatch this version of Elasticsearch requires lucene version ["
+                + Version.CURRENT.luceneVersion + "]  but the current lucene version is [" + org.apache.lucene.util.Version.LATEST + "]");
+        }
     }
 }

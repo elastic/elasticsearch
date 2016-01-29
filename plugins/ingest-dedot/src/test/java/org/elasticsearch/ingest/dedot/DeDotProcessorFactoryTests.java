@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.ingest.processor;
+package org.elasticsearch.ingest.dedot;
 
 import org.elasticsearch.ingest.core.AbstractProcessorFactory;
 import org.elasticsearch.test.ESTestCase;

@@ -25,6 +25,7 @@ List projects = [
   'plugins:discovery-ec2',
   'plugins:discovery-gce',
   'plugins:discovery-multicast',
+  'plugins:ingest-dedot',
   'plugins:ingest-geoip',
   'plugins:lang-javascript',
   'plugins:lang-painless',

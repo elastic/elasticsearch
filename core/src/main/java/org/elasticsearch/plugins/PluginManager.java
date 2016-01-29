@@ -101,6 +101,7 @@ public class PluginManager {
             "discovery-ec2",
             "discovery-gce",
             "discovery-multicast",
+            "ingest-dedot",
             "ingest-geoip",
             "lang-javascript",
             "lang-painless",

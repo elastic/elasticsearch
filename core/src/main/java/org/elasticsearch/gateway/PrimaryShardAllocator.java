@@ -32,7 +32,6 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexSettings;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -90,7 +89,7 @@ public abstract class PrimaryShardAllocator extends AbstractComponent {
                 continue;
             }
 
-            final IndexMetaData indexMetaData = metaData.index(shard.getIndex());
+            final IndexMetaData indexMetaData = metaData.index(shard.getIndexName());
             // don't go wild here and create a new IndexSetting object for every shard this could cause a lot of garbage
             // on cluster restart if we allocate a boat load of shards
             if (shard.allocatedPostIndexCreate(indexMetaData) == false) {

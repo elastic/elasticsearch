@@ -62,7 +62,7 @@ public class ShardCoreKeyMapTests extends ESTestCase {
         try (Directory dir = newDirectory();
                 RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
             writer.addDocument(new Document());
-            try (DirectoryReader dirReader = ElasticsearchDirectoryReader.wrap(writer.getReader(), new ShardId("index1", 1))) {
+            try (DirectoryReader dirReader = ElasticsearchDirectoryReader.wrap(writer.getReader(), new ShardId("index1", "_na_", 1))) {
                 reader = dirReader.leaves().get(0).reader();
             }
         }
@@ -89,9 +89,9 @@ public class ShardCoreKeyMapTests extends ESTestCase {
         RandomIndexWriter w3 = new RandomIndexWriter(random(), dir3);
         w3.addDocument(new Document());
 
-        ShardId shardId1 = new ShardId("index1", 1);
-        ShardId shardId2 = new ShardId("index1", 3);
-        ShardId shardId3 = new ShardId("index2", 2);
+        ShardId shardId1 = new ShardId("index1", "_na_", 1);
+        ShardId shardId2 = new ShardId("index1", "_na_", 3);
+        ShardId shardId3 = new ShardId("index2", "_na_", 2);
 
         ElasticsearchDirectoryReader reader1 = ElasticsearchDirectoryReader.wrap(w1.getReader(), shardId1);
         ElasticsearchDirectoryReader reader2 = ElasticsearchDirectoryReader.wrap(w2.getReader(), shardId2);

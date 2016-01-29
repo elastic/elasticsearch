@@ -86,13 +86,13 @@ public class IndicesQueryCacheTests extends ESTestCase {
         w.addDocument(new Document());
         DirectoryReader r = DirectoryReader.open(w, false);
         w.close();
-        ShardId shard = new ShardId(new Index("index"), 0);
+        ShardId shard = new ShardId("index", "_na_", 0);
         r = ElasticsearchDirectoryReader.wrap(r, shard);
         IndexSearcher s = new IndexSearcher(r);
         s.setQueryCachingPolicy(QueryCachingPolicy.ALWAYS_CACHE);
 
         Settings settings = Settings.builder()
-                .put(IndicesQueryCache.INDICES_CACHE_QUERY_COUNT, 10)
+                .put(IndicesQueryCache.INDICES_CACHE_QUERY_COUNT_SETTING.getKey(), 10)
                 .build();
         IndicesQueryCache cache = new IndicesQueryCache(settings);
         s.setQueryCache(cache);
@@ -156,7 +156,7 @@ public class IndicesQueryCacheTests extends ESTestCase {
         w1.addDocument(new Document());
         DirectoryReader r1 = DirectoryReader.open(w1, false);
         w1.close();
-        ShardId shard1 = new ShardId(new Index("index"), 0);
+        ShardId shard1 = new ShardId("index", "_na_", 0);
         r1 = ElasticsearchDirectoryReader.wrap(r1, shard1);
         IndexSearcher s1 = new IndexSearcher(r1);
         s1.setQueryCachingPolicy(QueryCachingPolicy.ALWAYS_CACHE);
@@ -166,13 +166,13 @@ public class IndicesQueryCacheTests extends ESTestCase {
         w2.addDocument(new Document());
         DirectoryReader r2 = DirectoryReader.open(w2, false);
         w2.close();
-        ShardId shard2 = new ShardId(new Index("index"), 1);
+        ShardId shard2 = new ShardId("index", "_na_", 1);
         r2 = ElasticsearchDirectoryReader.wrap(r2, shard2);
         IndexSearcher s2 = new IndexSearcher(r2);
         s2.setQueryCachingPolicy(QueryCachingPolicy.ALWAYS_CACHE);
 
         Settings settings = Settings.builder()
-                .put(IndicesQueryCache.INDICES_CACHE_QUERY_COUNT, 10)
+                .put(IndicesQueryCache.INDICES_CACHE_QUERY_COUNT_SETTING.getKey(), 10)
                 .build();
         IndicesQueryCache cache = new IndicesQueryCache(settings);
         s1.setQueryCache(cache);
@@ -281,7 +281,7 @@ public class IndicesQueryCacheTests extends ESTestCase {
         w1.addDocument(new Document());
         DirectoryReader r1 = DirectoryReader.open(w1, false);
         w1.close();
-        ShardId shard1 = new ShardId(new Index("index"), 0);
+        ShardId shard1 = new ShardId("index", "_na_", 0);
         r1 = ElasticsearchDirectoryReader.wrap(r1, shard1);
         IndexSearcher s1 = new IndexSearcher(r1);
         s1.setQueryCachingPolicy(QueryCachingPolicy.ALWAYS_CACHE);
@@ -291,13 +291,13 @@ public class IndicesQueryCacheTests extends ESTestCase {
         w2.addDocument(new Document());
         DirectoryReader r2 = DirectoryReader.open(w2, false);
         w2.close();
-        ShardId shard2 = new ShardId(new Index("index"), 1);
+        ShardId shard2 = new ShardId("index", "_na_", 1);
         r2 = ElasticsearchDirectoryReader.wrap(r2, shard2);
         IndexSearcher s2 = new IndexSearcher(r2);
         s2.setQueryCachingPolicy(QueryCachingPolicy.ALWAYS_CACHE);
 
         Settings settings = Settings.builder()
-                .put(IndicesQueryCache.INDICES_CACHE_QUERY_COUNT, 10)
+                .put(IndicesQueryCache.INDICES_CACHE_QUERY_COUNT_SETTING.getKey(), 10)
                 .build();
         IndicesQueryCache cache = new IndicesQueryCache(settings);
         s1.setQueryCache(cache);

@@ -28,6 +28,8 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.HasChildQueryBuilder;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.support.QueryInnerHits;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptEngine;
@@ -1217,6 +1219,27 @@ public class InnerHitsIT extends ESIntegTestCase {
                 .get();
         assertNoFailures(response);
         assertHitCount(response, 1);
+    }
+
+    public void testTopLevelInnerHitsWithQueryInnerHits() throws Exception {
+        // top level inner hits shouldn't overwrite query inner hits definitions
+
+        assertAcked(prepareCreate("index1").addMapping("child", "_parent", "type=parent"));
+        List<IndexRequestBuilder> requests = new ArrayList<>();
+        requests.add(client().prepareIndex("index1", "parent", "1").setSource("{}"));
+        requests.add(client().prepareIndex("index1", "child", "2").setParent("1").setSource("{}"));
+        indexRandom(true, requests);
+
+        InnerHitsBuilder innerHitsBuilder = new InnerHitsBuilder();
+        innerHitsBuilder.addParentChildInnerHits("my-inner-hit", "child", new InnerHitsBuilder.InnerHit());
+        SearchResponse response = client().prepareSearch("index1")
+            .setQuery(hasChildQuery("child", new MatchAllQueryBuilder()).innerHit(new QueryInnerHits()))
+            .innerHits(innerHitsBuilder)
+            .get();
+        assertHitCount(response, 1);
+        assertThat(response.getHits().getAt(0).getInnerHits().size(), equalTo(2));
+        assertThat(response.getHits().getAt(0).getInnerHits().get("child").getAt(0).getId(), equalTo("2"));
+        assertThat(response.getHits().getAt(0).getInnerHits().get("my-inner-hit").getAt(0).getId(), equalTo("2"));
     }
 
 }

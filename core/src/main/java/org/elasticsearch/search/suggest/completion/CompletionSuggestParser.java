@@ -20,7 +20,7 @@ package org.elasticsearch.search.suggest.completion;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.HasContextAndHeaders;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -135,8 +135,7 @@ public class CompletionSuggestParser implements SuggestContextParser {
     }
 
     @Override
-    public SuggestionSearchContext.SuggestionContext parse(XContentParser parser, MapperService mapperService, IndexFieldDataService fieldDataService,
-                                                           HasContextAndHeaders headersContext) throws IOException {
+    public SuggestionSearchContext.SuggestionContext parse(XContentParser parser, MapperService mapperService, IndexFieldDataService fieldDataService) throws IOException {
         final CompletionSuggestionContext suggestion = new CompletionSuggestionContext(completionSuggester, mapperService, fieldDataService);
         final ContextAndSuggest contextAndSuggest = new ContextAndSuggest(mapperService);
         TLP_PARSER.parse(parser, suggestion, contextAndSuggest);

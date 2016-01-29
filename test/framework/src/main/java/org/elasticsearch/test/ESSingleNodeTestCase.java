@@ -158,7 +158,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
 
     private Node newNode() {
         Settings settings = Settings.builder()
-            .put(ClusterName.SETTING, InternalTestCluster.clusterName("single-node-cluster", randomLong()))
+            .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), InternalTestCluster.clusterName("single-node-cluster", randomLong()))
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
             // TODO: use a consistent data path for custom paths
             // This needs to tie into the ESIntegTestCase#indexSettings() method
@@ -172,7 +172,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             .put("http.enabled", false)
             .put(Node.NODE_LOCAL_SETTING.getKey(), true)
             .put(Node.NODE_DATA_SETTING.getKey(), true)
-            .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING, true) // make sure we get what we set :)
+            .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING.getKey(), true) // make sure we get what we set :)
             .build();
         Node build = new MockNode(settings, getVersion(), getPlugins());
         build.start();

@@ -39,6 +39,7 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -264,7 +265,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testFsyncTaskIsRunning() throws IOException {
-        IndexService indexService = createIndex("test", Settings.EMPTY);
+        IndexService indexService = createIndex("test", Settings.builder().put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.ASYNC).build());
         IndexService.AsyncTranslogFSync fsyncTask = indexService.getFsyncTask();
         assertNotNull(fsyncTask);
         assertEquals(5000, fsyncTask.getInterval().millis());
@@ -274,6 +275,9 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         indexService.close("simon says", false);
         assertFalse(fsyncTask.isScheduled());
         assertTrue(fsyncTask.isClosed());
+
+        indexService = createIndex("test1", Settings.EMPTY);
+        assertNull(indexService.getFsyncTask());
     }
 
     public void testRefreshActuallyWorks() throws Exception {
@@ -307,7 +311,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
 
     public void testAsyncFsyncActuallyWorks() throws Exception {
         Settings settings = Settings.builder()
-            .put(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey(), "10ms") // very often :)
+            .put(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey(), "100ms") // very often :)
             .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.ASYNC)
             .build();
         IndexService indexService = createIndex("test", settings);
@@ -320,11 +324,43 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         });
     }
 
-    public void testNoFsyncTaskIfDisabled() {
+    public void testRescheduleAsyncFsync() throws Exception {
+        Settings settings = Settings.builder()
+            .put(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey(), "100ms") // very often :)
+            .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)
+            .build();
+        IndexService indexService = createIndex("test", settings);
+        ensureGreen("test");
+        assertNull(indexService.getFsyncTask());
+        IndexMetaData metaData = IndexMetaData.builder(indexService.getMetaData()).settings(Settings.builder().put(indexService.getMetaData().getSettings()).put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.ASYNC)).build();
+        indexService.updateMetaData(metaData);
+        assertNotNull(indexService.getFsyncTask());
+        assertTrue(indexService.getRefreshTask().mustReschedule());
+        client().prepareIndex("test", "test", "1").setSource("{\"foo\": \"bar\"}").get();
+        IndexShard shard = indexService.getShard(0);
+        assertBusy(() -> {
+            assertFalse(shard.getTranslog().syncNeeded());
+        });
+
+        metaData = IndexMetaData.builder(indexService.getMetaData()).settings(Settings.builder().put(indexService.getMetaData().getSettings()).put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)).build();
+        indexService.updateMetaData(metaData);
+        assertNull(indexService.getFsyncTask());
+
+        metaData = IndexMetaData.builder(indexService.getMetaData()).settings(Settings.builder().put(indexService.getMetaData().getSettings()).put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.ASYNC)).build();
+        indexService.updateMetaData(metaData);
+        assertNotNull(indexService.getFsyncTask());
+
+    }
+
+    public void testIllegalFsyncInterval() {
         Settings settings = Settings.builder()
             .put(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey(), "0ms") // disable
             .build();
-        IndexService indexService = createIndex("test", settings);
-        assertNull(indexService.getFsyncTask());
+        try {
+            createIndex("test", settings);
+            fail();
+        } catch (IllegalArgumentException ex) {
+            assertEquals("Failed to parse value [0ms] for setting [index.translog.sync_interval] must be >= 100ms", ex.getMessage());
+        }
     }
 }

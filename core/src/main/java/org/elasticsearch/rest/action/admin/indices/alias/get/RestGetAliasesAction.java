@@ -52,7 +52,7 @@ public class RestGetAliasesAction extends BaseRestHandler {
 
     @Inject
     public RestGetAliasesAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+        super(settings, client);
         controller.registerHandler(GET, "/_alias/{name}", this);
         controller.registerHandler(GET, "/{index}/_alias/{name}", this);
     }

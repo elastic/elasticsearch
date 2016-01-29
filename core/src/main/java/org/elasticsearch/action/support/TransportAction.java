@@ -66,6 +66,11 @@ public abstract class TransportAction<Request extends ActionRequest<Request>, Re
         return future;
     }
 
+    /**
+     * Use this method when the transport action call should result in creation of a new task associated with the call.
+     *
+     * This is a typical behavior.
+     */
     public final Task execute(Request request, ActionListener<Response> listener) {
         Task task = taskManager.register("transport", actionName, request);
         if (task == null) {
@@ -88,7 +93,10 @@ public abstract class TransportAction<Request extends ActionRequest<Request>, Re
         return task;
     }
 
-    private final void execute(Task task, Request request, ActionListener<Response> listener) {
+    /**
+     * Use this method when the transport action should continue to run in the context of the current task
+     */
+    public final void execute(Task task, Request request, ActionListener<Response> listener) {
 
         ActionRequestValidationException validationException = request.validate();
         if (validationException != null) {

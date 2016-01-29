@@ -162,7 +162,7 @@ public class SnapshotsInProgress extends AbstractDiffable<Custom> implements Cus
                     List<ShardId> waitingShards = waitingIndicesMap.get(entry.key.getIndex());
                     if (waitingShards == null) {
                         waitingShards = new ArrayList<>();
-                        waitingIndicesMap.put(entry.key.getIndex(), waitingShards);
+                        waitingIndicesMap.put(entry.key.getIndexName(), waitingShards);
                     }
                     waitingShards.add(entry.key);
                 }

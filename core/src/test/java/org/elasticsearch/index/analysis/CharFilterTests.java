@@ -33,7 +33,6 @@ import static org.elasticsearch.common.settings.Settings.settingsBuilder;
  */
 public class CharFilterTests extends ESTokenStreamTestCase {
     public void testMappingCharFilter() throws Exception {
-        Index index = new Index("test");
         Settings settings = settingsBuilder()
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put("index.analysis.char_filter.my_mapping.type", "mapping")
@@ -42,7 +41,7 @@ public class CharFilterTests extends ESTokenStreamTestCase {
                 .putArray("index.analysis.analyzer.custom_with_char_filter.char_filter", "my_mapping")
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .build();
-        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index, settings);
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("test", settings);
         AnalysisService analysisService = new AnalysisRegistry(null, new Environment(settings)).build(idxSettings);
         NamedAnalyzer analyzer1 = analysisService.analyzer("custom_with_char_filter");
 
@@ -53,14 +52,13 @@ public class CharFilterTests extends ESTokenStreamTestCase {
     }
 
     public void testHtmlStripCharFilter() throws Exception {
-        Index index = new Index("test");
         Settings settings = settingsBuilder()
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put("index.analysis.analyzer.custom_with_char_filter.tokenizer", "standard")
                 .putArray("index.analysis.analyzer.custom_with_char_filter.char_filter", "html_strip")
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .build();
-        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index, settings);
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("test", settings);
         AnalysisService analysisService = new AnalysisRegistry(null, new Environment(settings)).build(idxSettings);
 
         NamedAnalyzer analyzer1 = analysisService.analyzer("custom_with_char_filter");

@@ -45,7 +45,7 @@ public class RestNodesStatsAction extends BaseRestHandler {
 
     @Inject
     public RestNodesStatsAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+        super(settings, client);
         controller.registerHandler(GET, "/_nodes/stats", this);
         controller.registerHandler(GET, "/_nodes/{nodeId}/stats", this);
 

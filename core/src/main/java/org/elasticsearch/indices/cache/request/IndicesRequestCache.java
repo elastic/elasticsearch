@@ -80,7 +80,7 @@ public class IndicesRequestCache extends AbstractComponent implements RemovalLis
      * A setting to enable or disable request caching on an index level. Its dynamic by default
      * since we are checking on the cluster state IndexMetaData always.
      */
-    public static final Setting<Boolean> INDEX_CACHE_REQUEST_ENABLED_SETTING = Setting.boolSetting("index.requests.cache.enable", true, true, Setting.Scope.INDEX);
+    public static final Setting<Boolean> INDEX_CACHE_REQUEST_ENABLED_SETTING = Setting.boolSetting("index.requests.cache.enable", false, true, Setting.Scope.INDEX);
     public static final Setting<TimeValue> INDICES_CACHE_REQUEST_CLEAN_INTERVAL = Setting.positiveTimeSetting("indices.requests.cache.clean_interval", TimeValue.timeValueSeconds(60), false, Setting.Scope.CLUSTER);
 
     public static final Setting<ByteSizeValue> INDICES_CACHE_QUERY_SIZE = Setting.byteSizeSetting("indices.requests.cache.size", "1%", false, Setting.Scope.CLUSTER);

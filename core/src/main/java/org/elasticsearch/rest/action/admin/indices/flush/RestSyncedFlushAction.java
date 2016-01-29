@@ -45,7 +45,7 @@ public class RestSyncedFlushAction extends BaseRestHandler {
 
     @Inject
     public RestSyncedFlushAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+        super(settings, client);
         controller.registerHandler(POST, "/_flush/synced", this);
         controller.registerHandler(POST, "/{index}/_flush/synced", this);
 

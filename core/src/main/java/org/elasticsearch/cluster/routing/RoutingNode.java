@@ -87,7 +87,7 @@ public class RoutingNode implements Iterable<ShardRouting> {
         // TODO use Set with ShardIds for faster lookup.
         for (ShardRouting shardRouting : shards) {
             if (shardRouting.isSameShard(shard)) {
-                throw new IllegalStateException("Trying to add a shard [" + shard.shardId().index().name() + "][" + shard.shardId().id() + "] to a node [" + nodeId + "] where it already exists");
+                throw new IllegalStateException("Trying to add a shard [" + shard.shardId().getIndex().getName() + "][" + shard.shardId().id() + "] to a node [" + nodeId + "] where it already exists");
             }
         }
         shards.add(shard);
@@ -137,7 +137,7 @@ public class RoutingNode implements Iterable<ShardRouting> {
         List<ShardRouting> shards = new ArrayList<>();
 
         for (ShardRouting shardEntry : this) {
-            if (!shardEntry.index().equals(index)) {
+            if (!shardEntry.getIndexName().equals(index)) {
                 continue;
             }
             for (ShardRoutingState state : states) {

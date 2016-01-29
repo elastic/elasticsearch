@@ -21,13 +21,11 @@ package org.elasticsearch.cluster.settings;
 
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
+import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.index.store.IndexStoreConfig;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -329,16 +327,30 @@ public class ClusterSettingsIT extends ESIntegTestCase {
         }
     }
 
-    private void createNode(Settings settings) {
-        internalCluster().startNode(Settings.builder()
-                        .put(ClusterName.SETTING, "ClusterSettingsIT")
-                        .put("node.name", "ClusterSettingsIT")
-                        .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                        .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-                        .put(EsExecutors.PROCESSORS_SETTING.getKey(), 1) // limit the number of threads created
-                        .put("http.enabled", false)
-                        .put("config.ignore_system_properties", true) // make sure we get what we set :)
-                        .put(settings)
-        );
+    public void testLoggerLevelUpdate() {
+        assertAcked(prepareCreate("test"));
+        final String rootLevel = ESLoggerFactory.getRootLogger().getLevel();
+        final String testLevel = ESLoggerFactory.getLogger("test").getLevel();
+        try {
+            client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put("logger._root", "BOOM")).execute().actionGet();
+            fail("Expected IllegalArgumentException");
+        } catch (IllegalArgumentException e) {
+            assertEquals("No enum constant org.elasticsearch.common.logging.ESLoggerFactory.LogLevel.BOOM", e.getMessage());
+        }
+
+        try {
+            client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put("logger.test", "TRACE").put("logger._root", "trace")).execute().actionGet();
+            assertEquals("TRACE", ESLoggerFactory.getLogger("test").getLevel());
+            assertEquals("TRACE", ESLoggerFactory.getRootLogger().getLevel());
+        } finally {
+            if (randomBoolean()) {
+                client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().putNull("logger.test").putNull("logger._root")).execute().actionGet();
+            } else {
+                client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().putNull("logger.*")).execute().actionGet();
+            }
+            assertEquals(testLevel, ESLoggerFactory.getLogger("test").getLevel());
+            assertEquals(rootLevel, ESLoggerFactory.getRootLogger().getLevel());
+        }
     }
+
 }

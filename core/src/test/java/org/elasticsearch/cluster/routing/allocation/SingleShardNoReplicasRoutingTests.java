@@ -274,8 +274,8 @@ public class SingleShardNoReplicasRoutingTests extends ESAllocationTestCase {
             assertThat(nodeIndex, lessThan(25));
             // check that we don't have a shard associated with a node with the same index name (we have a single shard)
             for (ShardRouting shardRoutingEntry : routingNode) {
-                assertThat(encounteredIndices, not(hasItem(shardRoutingEntry.index())));
-                encounteredIndices.add(shardRoutingEntry.index());
+                assertThat(encounteredIndices, not(hasItem(shardRoutingEntry.getIndexName())));
+                encounteredIndices.add(shardRoutingEntry.getIndexName());
             }
         }
 

@@ -26,8 +26,6 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
-import org.elasticsearch.common.DelegatingHasContextAndHeaders;
-import org.elasticsearch.common.HasContextAndHeaders;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.lease.Releasable;
@@ -68,7 +66,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public abstract class SearchContext extends DelegatingHasContextAndHeaders implements Releasable {
+public abstract class SearchContext implements Releasable {
 
     private static ThreadLocal<SearchContext> current = new ThreadLocal<>();
     public final static int DEFAULT_TERMINATE_AFTER = 0;
@@ -89,11 +87,11 @@ public abstract class SearchContext extends DelegatingHasContextAndHeaders imple
 
     private Map<Lifetime, List<Releasable>> clearables = null;
     private final AtomicBoolean closed = new AtomicBoolean(false);
+    private InnerHitsContext innerHitsContext;
 
     protected final ParseFieldMatcher parseFieldMatcher;
 
-    protected SearchContext(ParseFieldMatcher parseFieldMatcher, HasContextAndHeaders contextHeaders) {
-        super(contextHeaders);
+    protected SearchContext(ParseFieldMatcher parseFieldMatcher) {
         this.parseFieldMatcher = parseFieldMatcher;
     }
 
@@ -172,9 +170,12 @@ public abstract class SearchContext extends DelegatingHasContextAndHeaders imple
 
     public abstract void highlight(SearchContextHighlight highlight);
 
-    public abstract void innerHits(InnerHitsContext innerHitsContext);
-
-    public abstract InnerHitsContext innerHits();
+    public InnerHitsContext innerHits() {
+        if (innerHitsContext == null) {
+            innerHitsContext = new InnerHitsContext();
+        }
+        return innerHitsContext;
+    }
 
     public abstract SuggestionSearchContext suggest();
 

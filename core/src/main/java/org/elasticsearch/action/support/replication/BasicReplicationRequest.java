@@ -30,22 +30,13 @@ import org.elasticsearch.index.shard.ShardId;
  */
 public class BasicReplicationRequest extends ReplicationRequest<BasicReplicationRequest> {
     public BasicReplicationRequest() {
-
-    }
-
-    /**
-     * Creates a new request that inherits headers and context from the request
-     * provided as argument.
-     */
-    public BasicReplicationRequest(ActionRequest<?> request) {
-        super(request);
     }
 
     /**
      * Creates a new request with resolved shard id
      */
-    public BasicReplicationRequest(ActionRequest<?> request, ShardId shardId) {
-        super(request, shardId);
+    public BasicReplicationRequest(ShardId shardId) {
+        super(shardId);
     }
 
     /**

@@ -26,24 +26,12 @@ import org.elasticsearch.tasks.Task;
 public abstract class TransportRequest extends TransportMessage<TransportRequest> {
 
     public static class Empty extends TransportRequest {
-
         public static final Empty INSTANCE = new Empty();
-
-        public Empty() {
-            super();
-        }
-
-        public Empty(TransportRequest request) {
-            super(request);
-        }
     }
 
     public TransportRequest() {
     }
 
-    protected TransportRequest(TransportRequest request) {
-        super(request);
-    }
 
     public Task createTask(long id, String type, String action) {
         return new Task(id, type, action, this::getDescription);

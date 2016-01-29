@@ -88,7 +88,7 @@ import static org.hamcrest.Matchers.nullValue;
  */
 public class ShadowEngineTests extends ESTestCase {
 
-    protected final ShardId shardId = new ShardId(new Index("index"), 1);
+    protected final ShardId shardId = new ShardId("index", "_na_", 1);
 
     protected ThreadPool threadPool;
 
@@ -181,7 +181,7 @@ public class ShadowEngineTests extends ESTestCase {
 
 
     protected Store createStore(final Directory directory) throws IOException {
-        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(shardId.index(), Settings.EMPTY);
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(shardId.getIndex(), Settings.EMPTY);
         final DirectoryService directoryService = new DirectoryService(shardId, indexSettings) {
             @Override
             public Directory newDirectory() throws IOException {

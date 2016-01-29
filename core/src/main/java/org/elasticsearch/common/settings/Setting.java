@@ -200,6 +200,11 @@ public class Setting<T> extends ToXContentToBytes {
         return get(secondary);
     }
 
+    public Setting<T> getConcreteSetting(String key) {
+        assert key.startsWith(this.getKey()) : "was " + key + " expected: " + getKey(); // we use startsWith here since the key might be foo.bar.0 if it's an array
+        return this;
+    }
+
     /**
      * The settings scope - settings can either be cluster settings or per index settings.
      */
@@ -323,6 +328,10 @@ public class Setting<T> extends ToXContentToBytes {
         }, dynamic, scope);
     }
 
+    public static Setting<Integer> intSetting(String key, int defaultValue, int minValue, int maxValue, boolean dynamic, Scope scope) {
+        return new Setting<>(key, (s) -> Integer.toString(defaultValue), (s) -> parseInt(s, minValue, maxValue, key), dynamic, scope);
+    }
+
     public static Setting<Integer> intSetting(String key, int defaultValue, int minValue, boolean dynamic, Scope scope) {
         return new Setting<>(key, (s) -> Integer.toString(defaultValue), (s) -> parseInt(s, minValue, key), dynamic, scope);
     }
@@ -336,9 +345,16 @@ public class Setting<T> extends ToXContentToBytes {
     }
 
     public static int parseInt(String s, int minValue, String key) {
+        return parseInt(s, minValue, Integer.MAX_VALUE, key);
+    }
+
+    public static int parseInt(String s, int minValue, int maxValue, String key) {
         int value = Integer.parseInt(s);
         if (value < minValue) {
             throw new IllegalArgumentException("Failed to parse value [" + s + "] for setting [" + key + "] must be >= " + minValue);
+        }
+        if (value > maxValue) {
+            throw new IllegalArgumentException("Failed to parse value [" + s + "] for setting [" + key + "] must be =< " + maxValue);
         }
         return value;
     }
@@ -368,7 +384,15 @@ public class Setting<T> extends ToXContentToBytes {
     }
 
     public static Setting<ByteSizeValue> byteSizeSetting(String key, ByteSizeValue value, boolean dynamic, Scope scope) {
-        return new Setting<>(key, (s) -> value.toString(), (s) -> ByteSizeValue.parseBytesSizeValue(s, key), dynamic, scope);
+        return byteSizeSetting(key, (s) -> value.toString(), dynamic, scope);
+    }
+
+    public static Setting<ByteSizeValue> byteSizeSetting(String key, Setting<ByteSizeValue> fallbackSettings, boolean dynamic, Scope scope) {
+        return byteSizeSetting(key, fallbackSettings::getRaw, dynamic, scope);
+    }
+
+    public static Setting<ByteSizeValue> byteSizeSetting(String key, Function<Settings, String> defaultValue, boolean dynamic, Scope scope) {
+        return new Setting<>(key, defaultValue, (s) -> ByteSizeValue.parseBytesSizeValue(s, key), dynamic, scope);
     }
 
     public static Setting<TimeValue> positiveTimeSetting(String key, TimeValue defaultValue, boolean dynamic, Scope scope) {
@@ -440,8 +464,6 @@ public class Setting<T> extends ToXContentToBytes {
             throw new ElasticsearchException(ex);
         }
     }
-
-
 
     public static Setting<Settings> groupSetting(String key, boolean dynamic, Scope scope) {
         if (key.endsWith(".") == false) {
@@ -521,7 +543,11 @@ public class Setting<T> extends ToXContentToBytes {
     }
 
     public static Setting<TimeValue> timeSetting(String key, TimeValue defaultValue, boolean dynamic, Scope scope) {
-        return new Setting<>(key, (s) -> defaultValue.toString(), (s) -> TimeValue.parseTimeValue(s, defaultValue, key), dynamic, scope);
+        return new Setting<>(key, (s) -> defaultValue.toString(), (s) -> TimeValue.parseTimeValue(s, key), dynamic, scope);
+    }
+
+    public static Setting<TimeValue> timeSetting(String key, Setting<TimeValue> fallbackSetting, boolean dynamic, Scope scope) {
+        return new Setting<>(key, fallbackSetting::getRaw, (s) -> TimeValue.parseTimeValue(s, key), dynamic, scope);
     }
 
     public static Setting<Double> doubleSetting(String key, double defaultValue, double minValue, boolean dynamic, Scope scope) {
@@ -545,5 +571,39 @@ public class Setting<T> extends ToXContentToBytes {
     @Override
     public int hashCode() {
         return Objects.hash(key);
+    }
+
+    /**
+     * This setting type allows to validate settings that have the same type and a common prefix. For instance feature.${type}=[true|false]
+     * can easily be added with this setting. Yet, dynamic key settings don't support updaters our of the box unless {@link #getConcreteSetting(String)}
+     * is used to pull the updater.
+     */
+    public static <T> Setting<T> dynamicKeySetting(String key, String defaultValue, Function<String, T> parser, boolean dynamic, Scope scope) {
+        return new Setting<T>(key, defaultValue, parser, dynamic, scope) {
+
+            @Override
+            boolean isGroupSetting() {
+                return true;
+            }
+
+            @Override
+            public boolean match(String toTest) {
+                return toTest.startsWith(getKey());
+            }
+
+            @Override
+            AbstractScopedSettings.SettingUpdater<T> newUpdater(Consumer<T> consumer, ESLogger logger, Consumer<T> validator) {
+                throw new UnsupportedOperationException("dynamic settings can't be updated use #getConcreteSetting for updating");
+            }
+
+            @Override
+            public Setting<T> getConcreteSetting(String key) {
+                if (match(key)) {
+                    return new Setting<>(key, defaultValue, parser, dynamic, scope);
+                } else {
+                    throw new IllegalArgumentException("key must match setting but didn't ["+key +"]");
+                }
+            }
+        };
     }
 }

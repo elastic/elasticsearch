@@ -144,7 +144,7 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
             CountDownLatch beginRelocationLatch = new CountDownLatch(1);
             CountDownLatch endRelocationLatch = new CountDownLatch(1);
             transportServiceNode3.addTracer(new ReclocationStartEndTracer(logger, beginRelocationLatch, endRelocationLatch));
-            internalCluster().client().admin().cluster().prepareReroute().add(new MoveAllocationCommand(new ShardId("test", 0), node_1, node_3)).get();
+            internalCluster().client().admin().cluster().prepareReroute().add(new MoveAllocationCommand("test", 0, node_1, node_3)).get();
             // wait for relocation to start
             beginRelocationLatch.await();
             disruption.startDisrupting();
@@ -154,7 +154,7 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
             sleep(50);
             disruption.stopDisrupting();
         } else {
-            internalCluster().client().admin().cluster().prepareReroute().add(new MoveAllocationCommand(new ShardId("test", 0), node_1, node_3)).get();
+            internalCluster().client().admin().cluster().prepareReroute().add(new MoveAllocationCommand("test", 0, node_1, node_3)).get();
         }
         clusterHealth = client().admin().cluster().prepareHealth()
                 .setWaitForRelocatingShards(0)
@@ -209,7 +209,7 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         });
 
         logger.info("--> move shard from {} to {}, and wait for relocation to finish", node_1, node_2);
-        internalCluster().client().admin().cluster().prepareReroute().add(new MoveAllocationCommand(new ShardId("test", 0), node_1, node_2)).get();
+        internalCluster().client().admin().cluster().prepareReroute().add(new MoveAllocationCommand("test", 0, node_1, node_2)).get();
         shardActiveRequestSent.await();
         ClusterHealthResponse clusterHealth = client().admin().cluster().prepareHealth()
                 .setWaitForRelocatingShards(0)
@@ -384,7 +384,7 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
 
         waitNoPendingTasksOnAll();
         ClusterStateResponse stateResponse = client().admin().cluster().prepareState().get();
-
+        final Index index = stateResponse.getState().metaData().index("test").getIndex();
         RoutingNode routingNode = stateResponse.getState().getRoutingNodes().node(nonMasterId);
         final int[] node2Shards = new int[routingNode.numberOfOwningShards()];
         int i = 0;
@@ -408,10 +408,10 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         internalCluster().getInstance(ClusterService.class, nonMasterNode).submitStateUpdateTask("test", new ClusterStateUpdateTask(Priority.IMMEDIATE) {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
-                IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder("test");
+                IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(index);
                 for (int i = 0; i < numShards; i++) {
                     indexRoutingTableBuilder.addIndexShard(
-                            new IndexShardRoutingTable.Builder(new ShardId("test", i))
+                            new IndexShardRoutingTable.Builder(new ShardId(index, i))
                                     .addShard(TestShardRouting.newShardRouting("test", i, masterId, true, ShardRoutingState.STARTED, shardVersions[shardIds[i]]))
                                     .build()
                     );
@@ -439,14 +439,14 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
 
     private Path indexDirectory(String server, String index) {
         NodeEnvironment env = internalCluster().getInstance(NodeEnvironment.class, server);
-        final Path[] paths = env.indexPaths(new Index(index));
+        final Path[] paths = env.indexPaths(index);
         assert paths.length == 1;
         return paths[0];
     }
 
     private Path shardDirectory(String server, String index, int shard) {
         NodeEnvironment env = internalCluster().getInstance(NodeEnvironment.class, server);
-        final Path[] paths = env.availableShardPaths(new ShardId(index, shard));
+        final Path[] paths = env.availableShardPaths(new ShardId(index, "_na_", shard));
         assert paths.length == 1;
         return paths[0];
     }

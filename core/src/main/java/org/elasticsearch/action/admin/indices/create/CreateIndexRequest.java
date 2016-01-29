@@ -82,14 +82,6 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
     }
 
     /**
-     * Constructs a new request to create an index that was triggered by a different request,
-     * provided as an argument so that its headers and context can be copied to the new request.
-     */
-    public CreateIndexRequest(ActionRequest request) {
-        super(request);
-    }
-
-    /**
      * Constructs a new request to create an index with the specified name.
      */
     public CreateIndexRequest(String index) {

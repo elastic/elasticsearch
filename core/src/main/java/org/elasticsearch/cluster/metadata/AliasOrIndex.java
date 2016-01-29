@@ -117,7 +117,7 @@ public interface AliasOrIndex {
                         @Override
                         public Tuple<String, AliasMetaData> next() {
                             IndexMetaData indexMetaData = referenceIndexMetaDatas.get(index++);
-                            return new Tuple<>(indexMetaData.getIndex(), indexMetaData.getAliases().get(aliasName));
+                            return new Tuple<>(indexMetaData.getIndex().getName(), indexMetaData.getAliases().get(aliasName));
                         }
 
                         @Override

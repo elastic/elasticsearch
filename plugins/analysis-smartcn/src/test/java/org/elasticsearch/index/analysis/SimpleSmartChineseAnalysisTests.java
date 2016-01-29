@@ -45,7 +45,7 @@ import static org.hamcrest.Matchers.instanceOf;
  */
 public class SimpleSmartChineseAnalysisTests extends ESTestCase {
     public void testDefaultsIcuAnalysis() throws IOException {
-        Index index = new Index("test");
+        Index index = new Index("test", "_na_");
         Settings settings = settingsBuilder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)

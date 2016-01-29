@@ -149,7 +149,7 @@ public class UidFieldMapper extends MetadataFieldMapper {
 
     @Override
     public void postParse(ParseContext context) throws IOException {
-        if (context.id() == null && !context.sourceToParse().flyweight()) {
+        if (context.id() == null) {
             throw new MapperParsingException("No id found while parsing the content source");
         }
         // if we did not have the id as part of the sourceToParse, then we need to parse it here

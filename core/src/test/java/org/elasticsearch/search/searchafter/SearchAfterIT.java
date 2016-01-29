@@ -34,12 +34,12 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.hamcrest.Matchers;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Collections;
 import java.util.Arrays;
+import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -52,15 +52,15 @@ public class SearchAfterIT extends ESIntegTestCase {
 
     public void testsShouldFail() throws Exception {
         createIndex("test");
+        ensureGreen();
         indexRandom(true, client().prepareIndex("test", "type1", "0").setSource("field1", 0, "field2", "toto"));
-
         try {
             client().prepareSearch("test")
                     .addSort("field1", SortOrder.ASC)
                     .setQuery(matchAllQuery())
                     .searchAfter(new Object[]{0})
                     .setScroll("1m")
-                    .execute().actionGet();
+                    .get();
 
             fail("Should fail on search_after cannot be used with scroll.");
         } catch (SearchPhaseExecutionException e) {
@@ -74,7 +74,7 @@ public class SearchAfterIT extends ESIntegTestCase {
                 .setQuery(matchAllQuery())
                 .searchAfter(new Object[]{0})
                 .setFrom(10)
-                .execute().actionGet();
+                .get();
 
             fail("Should fail on search_after cannot be used with from > 0.");
         } catch (SearchPhaseExecutionException e) {
@@ -87,7 +87,7 @@ public class SearchAfterIT extends ESIntegTestCase {
             client().prepareSearch("test")
                     .setQuery(matchAllQuery())
                     .searchAfter(new Object[]{0.75f})
-                    .execute().actionGet();
+                    .get();
 
             fail("Should fail on search_after on score only is disabled");
         } catch (SearchPhaseExecutionException e) {
@@ -115,7 +115,7 @@ public class SearchAfterIT extends ESIntegTestCase {
                     .setQuery(matchAllQuery())
                     .addSort("field1", SortOrder.ASC)
                     .searchAfter(new Object[]{1, 2})
-                    .execute().actionGet();
+                    .get();
             fail("Should fail on search_after size differs from sort field size");
         } catch (SearchPhaseExecutionException e) {
             assertThat(e.getCause().getClass(), Matchers.equalTo(RemoteTransportException.class));
@@ -128,7 +128,7 @@ public class SearchAfterIT extends ESIntegTestCase {
                     .setQuery(matchAllQuery())
                     .addSort("field1", SortOrder.ASC)
                     .searchAfter(new Object[]{"toto"})
-                    .execute().actionGet();
+                    .get();
 
             fail("Should fail on search_after on score only is disabled");
         } catch (SearchPhaseExecutionException e) {
@@ -138,13 +138,31 @@ public class SearchAfterIT extends ESIntegTestCase {
         }
     }
 
+    public void testWithNullStrings() throws ExecutionException, InterruptedException {
+        createIndex("test");
+        ensureGreen();
+        indexRandom(true,
+                client().prepareIndex("test", "type1", "0").setSource("field1", 0),
+                client().prepareIndex("test", "type1", "1").setSource("field1", 100, "field2", "toto"));
+        SearchResponse searchResponse = client().prepareSearch("test")
+                .addSort("field1", SortOrder.ASC)
+                .addSort("field2", SortOrder.ASC)
+                .setQuery(matchAllQuery())
+                .searchAfter(new Object[]{0, null})
+                .get();
+        assertThat(searchResponse.getHits().getTotalHits(), Matchers.equalTo(2L));
+        assertThat(searchResponse.getHits().getHits().length, Matchers.equalTo(1));
+        assertThat(searchResponse.getHits().getHits()[0].sourceAsMap().get("field1"), Matchers.equalTo(100));
+        assertThat(searchResponse.getHits().getHits()[0].sourceAsMap().get("field2"), Matchers.equalTo("toto"));
+    }
+
     public void testWithSimpleTypes() throws Exception {
         int numFields = randomInt(20) + 1;
         int[] types = new int[numFields-1];
         for (int i = 0; i < numFields-1; i++) {
             types[i] = randomInt(6);
         }
-        List<List> documents = new ArrayList<> ();
+        List<List> documents = new ArrayList<>();
         for (int i = 0; i < NUM_DOCS; i++) {
             List values = new ArrayList<>();
             for (int type : types) {
@@ -239,7 +257,7 @@ public class SearchAfterIT extends ESIntegTestCase {
             if (sortValues != null) {
                 req.searchAfter(sortValues);
             }
-            SearchResponse searchResponse = req.execute().actionGet();
+            SearchResponse searchResponse = req.get();
             for (SearchHit hit : searchResponse.getHits()) {
                 List toCompare = convertSortValues(documents.get(offset++));
                 assertThat(LST_COMPARATOR.compare(toCompare, Arrays.asList(hit.sortValues())), equalTo(0));
@@ -282,7 +300,8 @@ public class SearchAfterIT extends ESIntegTestCase {
                 fail("Can't match type [" + type + "]");
             }
         }
-        indexRequestBuilder.addMapping(typeName, mappings.toArray()).execute().actionGet();
+        indexRequestBuilder.addMapping(typeName, mappings.toArray()).get();
+        ensureGreen();
     }
 
     // Convert Integer, Short, Byte and Boolean to Long in order to match the conversion done

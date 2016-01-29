@@ -220,7 +220,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
 
     @Override
     public void postParse(ParseContext context) throws IOException {
-        if (context.id() == null && !context.sourceToParse().flyweight()) {
+        if (context.id() == null) {
             throw new MapperParsingException("No id found while parsing the content source");
         }
         // it either get built in the preParse phase, or get parsed...

@@ -269,7 +269,7 @@ public class UnassignedInfo implements ToXContent, Writeable<UnassignedInfo> {
         long minDelaySetting = Long.MAX_VALUE;
         for (ShardRouting shard : state.routingTable().shardsWithState(ShardRoutingState.UNASSIGNED)) {
             if (shard.primary() == false) {
-                IndexMetaData indexMetaData = state.metaData().index(shard.getIndex());
+                IndexMetaData indexMetaData = state.metaData().index(shard.getIndexName());
                 boolean delayed = shard.unassignedInfo().getLastComputedLeftDelayNanos() > 0;
                 long delayTimeoutSetting = shard.unassignedInfo().getAllocationDelayTimeoutSettingNanos(settings, indexMetaData.getSettings());
                 if (delayed && delayTimeoutSetting > 0 && delayTimeoutSetting < minDelaySetting) {

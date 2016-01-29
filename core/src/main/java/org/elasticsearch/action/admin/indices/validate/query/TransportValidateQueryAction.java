@@ -53,6 +53,7 @@ import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.internal.DefaultSearchContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchLocalRequest;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -93,14 +94,14 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<Valid
     }
 
     @Override
-    protected void doExecute(ValidateQueryRequest request, ActionListener<ValidateQueryResponse> listener) {
+    protected void doExecute(Task task, ValidateQueryRequest request, ActionListener<ValidateQueryResponse> listener) {
         request.nowInMillis = System.currentTimeMillis();
-        super.doExecute(request, listener);
+        super.doExecute(task, request, listener);
     }
 
     @Override
     protected ShardValidateQueryRequest newShardRequest(int numShards, ShardRouting shard, ValidateQueryRequest request) {
-        String[] filteringAliases = indexNameExpressionResolver.filteringAliases(clusterService.state(), shard.index(), request.indices());
+        String[] filteringAliases = indexNameExpressionResolver.filteringAliases(clusterService.state(), shard.getIndexName(), request.indices());
         return new ShardValidateQueryRequest(shard.shardId(), filteringAliases, request);
     }
 

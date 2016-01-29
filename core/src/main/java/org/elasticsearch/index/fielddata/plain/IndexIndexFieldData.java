@@ -102,7 +102,7 @@ public class IndexIndexFieldData extends AbstractIndexOrdinalsFieldData {
 
     private IndexIndexFieldData(IndexSettings indexSettings, String name) {
         super(indexSettings, name, new FieldDataType("string"), null, null);
-        atomicFieldData = new IndexAtomicFieldData(index().name());
+        atomicFieldData = new IndexAtomicFieldData(index().getName());
     }
 
     @Override

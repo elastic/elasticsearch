@@ -22,11 +22,22 @@ package org.elasticsearch.common.logging;
 import org.elasticsearch.common.logging.jdk.JdkESLoggerFactory;
 import org.elasticsearch.common.logging.log4j.Log4jESLoggerFactory;
 import org.elasticsearch.common.logging.slf4j.Slf4jESLoggerFactory;
+import org.elasticsearch.common.settings.AbstractScopedSettings;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
+
+import java.util.Locale;
+import java.util.Map;
+import java.util.function.Consumer;
+import java.util.regex.Pattern;
 
 /**
  * Factory to get {@link ESLogger}s
  */
 public abstract class ESLoggerFactory {
+
+    public static final Setting<LogLevel> LOG_DEFAULT_LEVEL_SETTING = new Setting<>("logger.level", LogLevel.INFO.name(), LogLevel::parse, false, Setting.Scope.CLUSTER);
+    public static final Setting<LogLevel> LOG_LEVEL_SETTING = Setting.dynamicKeySetting("logger.", LogLevel.INFO.name(), LogLevel::parse, true, Setting.Scope.CLUSTER);
 
     private static volatile ESLoggerFactory defaultFactory = new JdkESLoggerFactory();
 
@@ -85,4 +96,11 @@ public abstract class ESLoggerFactory {
     protected abstract ESLogger rootLogger();
 
     protected abstract ESLogger newInstance(String prefix, String name);
+
+    public enum LogLevel {
+        WARN, TRACE, INFO, DEBUG, ERROR;
+        public static LogLevel parse(String level) {
+            return valueOf(level.toUpperCase(Locale.ROOT));
+        }
+    }
 }

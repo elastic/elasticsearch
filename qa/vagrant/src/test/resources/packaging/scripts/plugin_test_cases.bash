@@ -231,8 +231,8 @@ fi
     install_and_check_plugin lang groovy
 }
 
-@test "[$GROUP] install lang-plan-a plugin" {
-    install_and_check_plugin lang plan-a 
+@test "[$GROUP] install lang-painless plugin" {
+    install_and_check_plugin lang painless
 }
 
 @test "[$GROUP] install javascript plugin" {
@@ -337,8 +337,8 @@ fi
     remove_plugin lang-groovy
 }
 
-@test "[$GROUP] remove lang-plan-a plugin" {
-    remove_plugin lang-plan-a
+@test "[$GROUP] remove lang-painless plugin" {
+    remove_plugin lang-painless
 }
 
 @test "[$GROUP] remove javascript plugin" {

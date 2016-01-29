@@ -71,8 +71,8 @@ public class RoutingTableTests extends ESAllocationTestCase {
                 .build();
 
         this.testRoutingTable = new RoutingTable.Builder()
-                .add(new IndexRoutingTable.Builder(TEST_INDEX_1).initializeAsNew(metaData.index(TEST_INDEX_1)).build())
-                .add(new IndexRoutingTable.Builder(TEST_INDEX_2).initializeAsNew(metaData.index(TEST_INDEX_2)).build())
+                .add(new IndexRoutingTable.Builder(metaData.index(TEST_INDEX_1).getIndex()).initializeAsNew(metaData.index(TEST_INDEX_1)).build())
+                .add(new IndexRoutingTable.Builder(metaData.index(TEST_INDEX_2).getIndex()).initializeAsNew(metaData.index(TEST_INDEX_2)).build())
                 .build();
         this.clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.DEFAULT).metaData(metaData).routingTable(testRoutingTable).build();
     }
@@ -127,7 +127,7 @@ public class RoutingTableTests extends ESAllocationTestCase {
     }
 
     public void testIndex() {
-        assertThat(this.testRoutingTable.index(TEST_INDEX_1).getIndex(), is(TEST_INDEX_1));
+        assertThat(this.testRoutingTable.index(TEST_INDEX_1).getIndex().getName(), is(TEST_INDEX_1));
         assertThat(this.testRoutingTable.index("foobar"), is(nullValue()));
     }
 

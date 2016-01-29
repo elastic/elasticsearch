@@ -192,11 +192,11 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                 .build();
         Settings indexSettings = Settings.settingsBuilder()
                 .put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
-        index = new Index(randomAsciiOfLengthBetween(1, 10));
+        index = new Index(randomAsciiOfLengthBetween(1, 10), "_na_");
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index, indexSettings);
         final TestClusterService clusterService = new TestClusterService();
         clusterService.setState(new ClusterState.Builder(clusterService.state()).metaData(new MetaData.Builder().put(
-                new IndexMetaData.Builder(index.name()).settings(indexSettings).numberOfShards(1).numberOfReplicas(0))));
+                new IndexMetaData.Builder(index.getName()).settings(indexSettings).numberOfShards(1).numberOfReplicas(0))));
         SettingsModule settingsModule = new SettingsModule(settings, new SettingsFilter(settings));
         settingsModule.registerSetting(InternalSettingsPlugin.VERSION_CREATED);
         final Client proxy = (Client) Proxy.newProxyInstance(

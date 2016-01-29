@@ -119,12 +119,15 @@ public class OsProbe {
             }
             // fallback
         }
+        if (Constants.WINDOWS) {
+            return null;
+        }
         if (getSystemLoadAverage == null) {
             return null;
         }
         try {
             double oneMinuteLoadAverage = (double) getSystemLoadAverage.invoke(osMxBean);
-            return new double[] { oneMinuteLoadAverage, -1, -1 };
+            return new double[] { oneMinuteLoadAverage >= 0 ? oneMinuteLoadAverage : -1, -1, -1 };
         } catch (Throwable t) {
             return null;
         }

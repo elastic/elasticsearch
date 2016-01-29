@@ -19,9 +19,7 @@
 
 package org.elasticsearch.index.get;
 
-import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -52,10 +50,8 @@ import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.fetch.parent.ParentFieldSubFetchPhase;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
-import org.elasticsearch.search.internal.InternalSearchHitField;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -116,7 +112,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
      */
     public GetResult get(Engine.GetResult engineGetResult, String id, String type, String[] fields, FetchSourceContext fetchSourceContext, boolean ignoreErrorsOnGeneratedFields) {
         if (!engineGetResult.exists()) {
-            return new GetResult(shardId.index().name(), type, id, -1, false, null, null);
+            return new GetResult(shardId.getIndexName(), type, id, -1, false, null, null);
         }
 
         currentMetric.inc();
@@ -125,7 +121,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             DocumentMapper docMapper = mapperService.documentMapper(type);
             if (docMapper == null) {
                 missingMetric.inc(System.nanoTime() - now);
-                return new GetResult(shardId.index().name(), type, id, -1, false, null, null);
+                return new GetResult(shardId.getIndexName(), type, id, -1, false, null, null);
             }
             fetchSourceContext = normalizeFetchSourceContent(fetchSourceContext, fields);
             GetResult getResult = innerGetLoadFromStoredFields(type, id, fields, fetchSourceContext, engineGetResult, docMapper, ignoreErrorsOnGeneratedFields);
@@ -174,25 +170,25 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                 }
             }
             if (get == null) {
-                return new GetResult(shardId.index().name(), type, id, -1, false, null, null);
+                return new GetResult(shardId.getIndexName(), type, id, -1, false, null, null);
             }
             if (!get.exists()) {
                 // no need to release here as well..., we release in the for loop for non exists
-                return new GetResult(shardId.index().name(), type, id, -1, false, null, null);
+                return new GetResult(shardId.getIndexName(), type, id, -1, false, null, null);
             }
         } else {
             get = indexShard.get(new Engine.Get(realtime, new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(type, id)))
                     .version(version).versionType(versionType));
             if (!get.exists()) {
                 get.release();
-                return new GetResult(shardId.index().name(), type, id, -1, false, null, null);
+                return new GetResult(shardId.getIndexName(), type, id, -1, false, null, null);
             }
         }
 
         DocumentMapper docMapper = mapperService.documentMapper(type);
         if (docMapper == null) {
             get.release();
-            return new GetResult(shardId.index().name(), type, id, -1, false, null, null);
+            return new GetResult(shardId.getIndexName(), type, id, -1, false, null, null);
         }
 
         try {
@@ -306,7 +302,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                     }
                 }
 
-                return new GetResult(shardId.index().name(), type, id, get.version(), get.exists(), sourceToBeReturned, fields);
+                return new GetResult(shardId.getIndexName(), type, id, get.version(), get.exists(), sourceToBeReturned, fields);
             }
         } finally {
             get.release();
@@ -422,7 +418,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             }
         }
 
-        return new GetResult(shardId.index().name(), type, id, get.version(), get.exists(), source, fields);
+        return new GetResult(shardId.getIndexName(), type, id, get.version(), get.exists(), source, fields);
     }
 
     private static FieldsVisitor buildFieldsVisitors(String[] fields, FetchSourceContext fetchSourceContext) {

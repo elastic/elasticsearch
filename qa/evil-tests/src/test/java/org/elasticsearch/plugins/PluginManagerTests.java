@@ -593,7 +593,7 @@ public class PluginManagerTests extends ESIntegTestCase {
         PluginManager.checkForOfficialPlugins("analysis-stempel");
         PluginManager.checkForOfficialPlugins("delete-by-query");
         PluginManager.checkForOfficialPlugins("lang-javascript");
-        PluginManager.checkForOfficialPlugins("lang-plan-a");
+        PluginManager.checkForOfficialPlugins("lang-painless");
         PluginManager.checkForOfficialPlugins("lang-python");
         PluginManager.checkForOfficialPlugins("mapper-attachments");
         PluginManager.checkForOfficialPlugins("mapper-murmur3");

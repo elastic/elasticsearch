@@ -92,6 +92,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.groovy.GroovyPlugin;
 import org.elasticsearch.search.action.SearchServiceTransportAction;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -821,7 +822,7 @@ public class IndicesRequestTests extends ESIntegTestCase {
             }
 
             @Override
-            public void messageReceived(T request, TransportChannel channel) throws Exception {
+            public void messageReceived(T request, TransportChannel channel, Task task) throws Exception {
                 synchronized (InterceptingTransportService.this) {
                     if (actions.contains(action)) {
                         List<TransportRequest> requestList = requests.get(action);
@@ -834,7 +835,12 @@ public class IndicesRequestTests extends ESIntegTestCase {
                         }
                     }
                 }
-                requestHandler.messageReceived(request, channel);
+                requestHandler.messageReceived(request, channel, task);
+            }
+
+            @Override
+            public void messageReceived(T request, TransportChannel channel) throws Exception {
+                messageReceived(request, channel, null);
             }
         }
     }

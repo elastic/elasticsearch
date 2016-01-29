@@ -57,7 +57,7 @@ public class PercolateShardResponse extends BroadcastShardResponse {
     }
 
     public PercolateShardResponse(TopDocs topDocs, Map<Integer, String> ids, Map<Integer, Map<String, HighlightField>> hls, PercolateContext context) {
-        super(new ShardId(context.shardTarget().getIndex(), context.shardTarget().getShardId()));
+        super(context.indexShard().shardId());
         this.topDocs = topDocs;
         this.ids = ids;
         this.hls = hls;

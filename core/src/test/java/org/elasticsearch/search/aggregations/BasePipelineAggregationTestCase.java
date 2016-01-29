@@ -100,7 +100,7 @@ public abstract class BasePipelineAggregationTestCase<AF extends PipelineAggrega
                 .build();
 
         namedWriteableRegistry = new NamedWriteableRegistry();
-        index = new Index("test");
+        index = new Index(randomAsciiOfLengthBetween(1, 10), "_na_");
         SettingsModule settingsModule = new SettingsModule(settings, new SettingsFilter(settings));
         injector = new ModulesBuilder().add(
                 new EnvironmentModule(new Environment(settings)),

@@ -43,11 +43,6 @@ public abstract class BaseNodesRequest<Request extends BaseNodesRequest<Request>
 
     }
 
-    protected BaseNodesRequest(ActionRequest<?> request, String... nodesIds) {
-        super(request);
-        this.nodesIds = nodesIds;
-    }
-
     protected BaseNodesRequest(String... nodesIds) {
         this.nodesIds = nodesIds;
     }

@@ -29,6 +29,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryParser;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
@@ -80,7 +81,7 @@ public class SignificanceHeuristicTests extends ESTestCase {
 
         @Override
         public SearchShardTarget shardTarget() {
-            return new SearchShardTarget("no node, this is a unit test", "no index, this is a unit test", 0);
+            return new SearchShardTarget("no node, this is a unit test", new Index("no index, this is a unit test", "_na_"), 0);
         }
     }
 

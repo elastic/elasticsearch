@@ -23,6 +23,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.WriteConsistencyLevel;
+import org.elasticsearch.action.support.ChildTaskActionRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -38,7 +39,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  *
  */
-public abstract class ReplicationRequest<Request extends ReplicationRequest<Request>> extends ActionRequest<Request> implements IndicesRequest {
+public abstract class ReplicationRequest<Request extends ReplicationRequest<Request>> extends ChildTaskActionRequest<Request> implements IndicesRequest {
 
     public static final TimeValue DEFAULT_TIMEOUT = new TimeValue(1, TimeUnit.MINUTES);
 
@@ -58,35 +59,20 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
 
     }
 
-    /**
-     * Creates a new request that inherits headers and context from the request provided as argument.
-     */
-    public ReplicationRequest(ActionRequest<?> request) {
-        super(request);
-    }
 
     /**
      * Creates a new request with resolved shard id
      */
-    public ReplicationRequest(ActionRequest<?> request, ShardId shardId) {
-        super(request);
-        this.index = shardId.getIndex();
+    public ReplicationRequest(ShardId shardId) {
+        this.index = shardId.getIndexName();
         this.shardId = shardId;
-    }
-
-    /**
-     * Copy constructor that creates a new request that is a copy of the one provided as an argument.
-     */
-    protected ReplicationRequest(Request request) {
-        this(request, request);
     }
 
     /**
      * Copy constructor that creates a new request that is a copy of the one provided as an argument.
      * The new request will inherit though headers and context from the original request that caused it.
      */
-    protected ReplicationRequest(Request request, ActionRequest<?> originalRequest) {
-        super(originalRequest);
+    protected ReplicationRequest(Request request) {
         this.timeout = request.timeout();
         this.index = request.index();
         this.consistencyLevel = request.consistencyLevel();

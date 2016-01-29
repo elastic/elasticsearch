@@ -854,6 +854,10 @@ public class IndexShard extends AbstractIndexShardComponent {
         if (state != IndexShardState.RECOVERING) {
             throw new IndexShardNotRecoveringException(shardId, state);
         }
+        // We set active because we are now writing operations to the engine; this way, if we go idle after some time and become inactive,
+        // we still invoke any onShardInactive listeners ... we won't sync'd flush in this case because we only do that on primary and this
+        // is a replica
+        active.set(true);
         return engineConfig.getTranslogRecoveryPerformer().performBatchRecovery(getEngine(), operations);
     }
 
@@ -883,6 +887,11 @@ public class IndexShard extends AbstractIndexShardComponent {
         // but we need to make sure we don't loose deletes until we are done recovering
         engineConfig.setEnableGcDeletes(false);
         engineConfig.setCreate(indexExists == false);
+        if (skipTranslogRecovery == false) {
+            // We set active because we are now writing operations to the engine; this way, if we go idle after some time and become inactive,
+            // we still give sync'd flush a chance to run:
+            active.set(true);
+        }
         createNewEngine(skipTranslogRecovery, engineConfig);
 
     }
@@ -1041,6 +1050,10 @@ public class IndexShard extends AbstractIndexShardComponent {
             throw new IllegalStateException("Can't delete shard state on an active shard");
         }
         MetaDataStateFormat.deleteMetaState(shardPath().getDataPath());
+    }
+
+    public boolean isActive() {
+        return active.get();
     }
 
     public ShardPath shardPath() {
@@ -1301,6 +1314,15 @@ public class IndexShard extends AbstractIndexShardComponent {
             }
             assert this.currentEngineReference.get() == null;
             this.currentEngineReference.set(newEngine(skipTranslogRecovery, config));
+        }
+
+        // time elapses after the engine is created above (pulling the config settings) until we set the engine reference, during which
+        // settings changes could possibly have happened, so here we forcefully push any config changes to the new engine:
+        Engine engine = getEngineOrNull();
+
+        // engine could perhaps be null if we were e.g. concurrently closed:
+        if (engine != null) {
+            engine.onSettingsChanged();
         }
     }
 

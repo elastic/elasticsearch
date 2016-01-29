@@ -26,6 +26,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.NodeConfigurationSource;
+import org.elasticsearch.transport.TransportSettings;
 
 import java.nio.file.Path;
 import java.util.Collections;
@@ -71,9 +72,8 @@ public class InternalTestClusterTests extends ESTestCase {
     final static Set<String> clusterUniqueSettings = new HashSet<>();
 
     static {
-        clusterUniqueSettings.add(ClusterName.SETTING);
-        clusterUniqueSettings.add("transport.tcp.port");
-        clusterUniqueSettings.add("http.port");
+        clusterUniqueSettings.add(ClusterName.CLUSTER_NAME_SETTING.getKey());
+        clusterUniqueSettings.add(TransportSettings.PORT.getKey());
         clusterUniqueSettings.add("http.port");
     }
 

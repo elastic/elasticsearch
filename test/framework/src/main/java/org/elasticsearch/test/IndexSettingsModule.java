@@ -49,7 +49,7 @@ public class IndexSettingsModule extends AbstractModule {
     }
 
     public static IndexSettings newIndexSettings(String index, Settings settings, Setting<?>... setting) {
-        return newIndexSettings(new Index(index), settings, setting);
+        return newIndexSettings(new Index(index, settings.get(IndexMetaData.SETTING_INDEX_UUID, IndexMetaData.INDEX_UUID_NA_VALUE)), settings, setting);
     }
 
     public static IndexSettings newIndexSettings(Index index, Settings settings, Setting<?>... setting) {
@@ -63,6 +63,6 @@ public class IndexSettingsModule extends AbstractModule {
         if (setting.length > 0) {
             settingSet.addAll(Arrays.asList(setting));
         }
-        return new IndexSettings(metaData, Settings.EMPTY, (idx) -> Regex.simpleMatch(idx, metaData.getIndex()), new IndexScopedSettings(Settings.EMPTY, settingSet));
+        return new IndexSettings(metaData, Settings.EMPTY, (idx) -> Regex.simpleMatch(idx, metaData.getIndex().getName()), new IndexScopedSettings(Settings.EMPTY, settingSet));
     }
 }

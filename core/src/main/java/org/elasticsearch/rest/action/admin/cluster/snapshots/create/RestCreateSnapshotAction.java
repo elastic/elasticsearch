@@ -41,7 +41,7 @@ public class RestCreateSnapshotAction extends BaseRestHandler {
 
     @Inject
     public RestCreateSnapshotAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+        super(settings, client);
         controller.registerHandler(PUT, "/_snapshot/{repository}/{snapshot}", this);
         controller.registerHandler(POST, "/_snapshot/{repository}/{snapshot}", this);
     }

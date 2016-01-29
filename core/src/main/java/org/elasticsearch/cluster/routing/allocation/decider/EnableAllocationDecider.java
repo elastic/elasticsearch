@@ -92,7 +92,7 @@ public class EnableAllocationDecider extends AllocationDecider {
             return allocation.decision(Decision.YES, NAME, "allocation disabling is ignored");
         }
 
-        final IndexMetaData indexMetaData = allocation.metaData().index(shardRouting.getIndex());
+        final IndexMetaData indexMetaData = allocation.metaData().index(shardRouting.getIndexName());
         final Allocation enable;
         if (INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.exists(indexMetaData.getSettings())) {
             enable = INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.get(indexMetaData.getSettings());

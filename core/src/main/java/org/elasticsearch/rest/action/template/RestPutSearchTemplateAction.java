@@ -50,7 +50,7 @@ public class RestPutSearchTemplateAction extends RestPutIndexedScriptAction {
 
     final class CreateHandler extends BaseRestHandler {
         protected CreateHandler(Settings settings, RestController controller, Client client) {
-            super(settings, controller, client);
+            super(settings, client);
         }
 
         @Override

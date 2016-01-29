@@ -19,8 +19,12 @@
 
 package org.elasticsearch.client;
 
+import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionRequestBuilder;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -80,10 +84,12 @@ import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
-import org.elasticsearch.client.support.Headers;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+
+import java.util.Map;
 
 /**
  * A client provides a one stop interface for performing actions/operations against the cluster.
@@ -100,7 +106,15 @@ import org.elasticsearch.common.settings.Settings;
  */
 public interface Client extends ElasticsearchClient, Releasable {
 
-    String CLIENT_TYPE_SETTING = "client.type";
+    Setting<String> CLIENT_TYPE_SETTING_S = new Setting<>("client.type", "node", (s) -> {
+        switch (s) {
+            case "node":
+            case "transport":
+                return s;
+            default:
+                throw new IllegalArgumentException("Can't parse [client.type] must be one of [node, transport]");
+        }
+    }, false, Setting.Scope.CLUSTER);
 
     /**
      * The admin client that can be used to perform administrative operations.
@@ -597,5 +611,9 @@ public interface Client extends ElasticsearchClient, Releasable {
      */
     Settings settings();
 
-    Headers headers();
+    /**
+     * Returns a new lightweight Client that applies all given headers to each of the requests
+     * issued from it.
+     */
+    Client filterWithHeader(Map<String, String> headers);
 }

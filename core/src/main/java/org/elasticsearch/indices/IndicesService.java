@@ -53,7 +53,6 @@ import org.elasticsearch.index.NodeServicesProvider;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.get.GetStats;
-import org.elasticsearch.index.shard.IndexingStats;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
@@ -61,6 +60,7 @@ import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexingStats;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.IndexStoreConfig;
 import org.elasticsearch.indices.mapper.MapperRegistry;
@@ -258,11 +258,31 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
     }
 
     /**
+     * Returns an IndexService for the specified index if exists otherwise returns <code>null</code>.
+     *
+     */
+    @Nullable
+    public IndexService indexService(Index index) {
+        return indexService(index.getName());
+    }
+
+    /**
      * Returns an IndexService for the specified index if exists otherwise a {@link IndexNotFoundException} is thrown.
      */
     public IndexService indexServiceSafe(String index) {
         IndexService indexService = indexService(index);
         if (indexService == null) {
+            throw new IndexNotFoundException(index);
+        }
+        return indexService;
+    }
+
+    /**
+     * Returns an IndexService for the specified index if exists otherwise a {@link IndexNotFoundException} is thrown.
+     */
+    public IndexService indexServiceSafe(Index index) {
+        IndexService indexService = indexServiceSafe(index.getName());
+        if (indexService.indexUUID().equals(index.getUUID()) == false) {
             throw new IndexNotFoundException(index);
         }
         return indexService;
@@ -280,11 +300,10 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         if (!lifecycle.started()) {
             throw new IllegalStateException("Can't create an index [" + indexMetaData.getIndex() + "], node is closed");
         }
-        final String indexName = indexMetaData.getIndex();
-        final Predicate<String> indexNameMatcher = (indexExpression) -> indexNameExpressionResolver.matchesIndex(indexName, indexExpression, clusterService.state());
+        final Index index = indexMetaData.getIndex();
+        final Predicate<String> indexNameMatcher = (indexExpression) -> indexNameExpressionResolver.matchesIndex(index.getName(), indexExpression, clusterService.state());
         final IndexSettings idxSettings = new IndexSettings(indexMetaData, this.settings, indexNameMatcher, indexScopeSetting);
-        Index index = new Index(indexMetaData.getIndex());
-        if (indices.containsKey(index.name())) {
+        if (indices.containsKey(index.getName())) {
             throw new IndexAlreadyExistsException(index);
         }
         logger.debug("creating Index [{}], shards [{}]/[{}{}]",
@@ -306,7 +325,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         try {
             assert indexService.getIndexEventListener() == listener;
             listener.afterIndexCreated(indexService);
-            indices = newMapBuilder(indices).put(index.name(), indexService).immutableMap();
+            indices = newMapBuilder(indices).put(index.getName(), indexService).immutableMap();
             success = true;
             return indexService;
         } finally {
@@ -401,7 +420,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
 
     public void deleteClosedIndex(String reason, IndexMetaData metaData, ClusterState clusterState) {
         if (nodeEnv.hasNodeFile()) {
-            String indexName = metaData.getIndex();
+            String indexName = metaData.getIndex().getName();
             try {
                 if (clusterState.metaData().hasIndex(indexName)) {
                     final IndexMetaData index = clusterState.metaData().index(indexName);
@@ -421,7 +440,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
     public void deleteIndexStore(String reason, IndexMetaData metaData, ClusterState clusterState, boolean closed) throws IOException {
         if (nodeEnv.hasNodeFile()) {
             synchronized (this) {
-                String indexName = metaData.getIndex();
+                String indexName = metaData.getIndex().getName();
                 if (indices.containsKey(indexName)) {
                     String localUUid = indices.get(indexName).indexUUID();
                     throw new IllegalStateException("Can't delete index store for [" + indexName + "] - it's still part of the indices service [" + localUUid + "] [" + metaData.getIndexUUID() + "]");
@@ -433,9 +452,8 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
                     throw new IllegalStateException("Can't delete closed index store for [" + indexName + "] - it's still part of the cluster state [" + index.getIndexUUID() + "] [" + metaData.getIndexUUID() + "]");
                 }
             }
-            Index index = new Index(metaData.getIndex());
             final IndexSettings indexSettings = buildIndexSettings(metaData);
-            deleteIndexStore(reason, index, indexSettings, closed);
+            deleteIndexStore(reason, indexSettings.getIndex(), indexSettings, closed);
         }
     }
 
@@ -460,7 +478,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
             }
             // this is a pure protection to make sure this index doesn't get re-imported as a dangeling index.
             // we should in the future rather write a tombstone rather than wiping the metadata.
-            MetaDataStateFormat.deleteMetaState(nodeEnv.indexPaths(index));
+            MetaDataStateFormat.deleteMetaState(nodeEnv.indexPaths(index.getName()));
         }
     }
 
@@ -490,7 +508,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
      * @throws IOException if an IOException occurs
      */
     public void deleteShardStore(String reason, ShardId shardId, ClusterState clusterState) throws IOException {
-        final IndexMetaData metaData = clusterState.getMetaData().indices().get(shardId.getIndex());
+        final IndexMetaData metaData = clusterState.getMetaData().indices().get(shardId.getIndexName());
 
         final IndexSettings indexSettings = buildIndexSettings(metaData);
         if (canDeleteShardContent(shardId, indexSettings) == false) {
@@ -500,8 +518,8 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         logger.debug("{} deleted shard reason [{}]", shardId, reason);
 
         if (clusterState.nodes().localNode().isMasterNode() == false && // master nodes keep the index meta data, even if having no shards..
-                canDeleteIndexContents(shardId.index(), indexSettings, false)) {
-            if (nodeEnv.findAllShardIds(shardId.index()).isEmpty()) {
+                canDeleteIndexContents(shardId.getIndex(), indexSettings, false)) {
+            if (nodeEnv.findAllShardIds(shardId.getIndex()).isEmpty()) {
                 try {
                     // note that deleteIndexStore have more safety checks and may throw an exception if index was concurrently created.
                     deleteIndexStore("no longer used", metaData, clusterState, false);
@@ -510,7 +528,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
                     throw new ElasticsearchException("failed to delete unused index after deleting its last shard (" + shardId + ")", e);
                 }
             } else {
-                logger.trace("[{}] still has shard stores, leaving as is", shardId.index());
+                logger.trace("[{}] still has shard stores, leaving as is", shardId.getIndex());
             }
         }
     }
@@ -524,7 +542,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
      * @return true if the index can be deleted on this node
      */
     public boolean canDeleteIndexContents(Index index, IndexSettings indexSettings, boolean closed) {
-        final IndexService indexService = this.indices.get(index.name());
+        final IndexService indexService = this.indices.get(index.getName());
         // Closed indices may be deleted, even if they are on a shared
         // filesystem. Since it is closed we aren't deleting it for relocation
         if (indexSettings.isOnSharedFilesystem() == false || closed) {
@@ -550,8 +568,8 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
      * @param indexSettings the shards's relevant {@link IndexSettings}. This is required to access the indexes settings etc.
      */
     public boolean canDeleteShardContent(ShardId shardId, IndexSettings indexSettings) {
-        assert shardId.getIndex().equals(indexSettings.getIndex().name());
-        final IndexService indexService = this.indices.get(shardId.getIndex());
+        assert shardId.getIndex().equals(indexSettings.getIndex());
+        final IndexService indexService = this.indices.get(shardId.getIndexName());
         if (indexSettings.isOnSharedFilesystem() == false) {
             if (indexService != null && nodeEnv.hasNodeFile()) {
                 return indexService.hasShard(shardId.id()) == false;
@@ -586,7 +604,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
             throw new IllegalArgumentException("settings must not be null");
         }
         PendingDelete pendingDelete = new PendingDelete(shardId, settings);
-        addPendingDelete(shardId.index(), pendingDelete);
+        addPendingDelete(shardId.getIndex(), pendingDelete);
     }
 
     /**
@@ -609,7 +627,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
     }
 
     private static final class PendingDelete implements Comparable<PendingDelete> {
-        final String index;
+        final Index index;
         final int shardId;
         final IndexSettings settings;
         final boolean deleteIndex;
@@ -628,7 +646,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
          * Creates a new pending delete of a shard
          */
         public PendingDelete(Index index, IndexSettings settings) {
-            this.index = index.getName();
+            this.index = index;
             this.shardId = -1;
             this.settings = settings;
             this.deleteIndex = true;
@@ -742,5 +760,4 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
     public AnalysisRegistry getAnalysis() {
         return analysisRegistry;
     }
-
 }

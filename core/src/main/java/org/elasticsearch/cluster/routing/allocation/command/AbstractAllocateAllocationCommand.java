@@ -35,7 +35,6 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 import java.util.function.Consumer;
@@ -101,15 +100,15 @@ public abstract class AbstractAllocateAllocationCommand implements AllocationCom
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-        builder.field(INDEX_KEY, shardId().index().name());
-        builder.field(SHARD_KEY, shardId().id());
+        builder.field(INDEX_KEY, index());
+        builder.field(SHARD_KEY, shardId());
         builder.field(NODE_KEY, node());
         return builder;
     }
 
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(shardId.getIndex());
-        out.writeVInt(shardId.getId());
+        out.writeString(index);
+        out.writeVInt(shardId);
         out.writeString(node);
     }
 
@@ -143,12 +142,24 @@ public abstract class AbstractAllocateAllocationCommand implements AllocationCom
         }
     }
 
-    protected final ShardId shardId;
+    protected final String index;
+    protected final int shardId;
     protected final String node;
 
-    protected AbstractAllocateAllocationCommand(ShardId shardId, String node) {
+    protected AbstractAllocateAllocationCommand(String index, int shardId, String node) {
+        this.index = index;
         this.shardId = shardId;
         this.node = node;
+    }
+
+
+    /**
+     * Get the index name
+     *
+     * @return name of the index
+     */
+    public String index() {
+        return this.index;
     }
 
     /**
@@ -156,7 +167,7 @@ public abstract class AbstractAllocateAllocationCommand implements AllocationCom
      *
      * @return id of the shard
      */
-    public ShardId shardId() {
+    public int shardId() {
         return this.shardId;
     }
 

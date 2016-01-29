@@ -25,9 +25,11 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
 import org.elasticsearch.transport.TransportRequest;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -61,9 +63,9 @@ public class TaskManager extends AbstractComponent {
     /**
      * Unregister the task
      */
-    public void unregister(Task task) {
+    public Task unregister(Task task) {
         logger.trace("unregister task for id: {}", task.getId());
-        tasks.remove(task.getId());
+        return tasks.remove(task.getId());
     }
 
     /**
@@ -72,5 +74,4 @@ public class TaskManager extends AbstractComponent {
     public Map<Long, Task> getTasks() {
         return Collections.unmodifiableMap(new HashMap<>(tasks));
     }
-
 }

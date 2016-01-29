@@ -23,7 +23,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 
@@ -42,7 +41,7 @@ public class MetaDataTests extends ESTestCase {
                 .putAlias(AliasMetaData.builder("index").build());
         try {
             MetaData.builder().put(builder).build();
-            fail("expection should have been thrown");
+            fail("exception should have been thrown");
         } catch (IllegalStateException e) {
             assertThat(e.getMessage(), equalTo("index and alias names need to be unique, but alias [index] and index [index] have the same name"));
         }

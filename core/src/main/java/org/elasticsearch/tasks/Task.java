@@ -29,6 +29,8 @@ import org.elasticsearch.common.inject.Provider;
  */
 public class Task {
 
+    public static final long NO_PARENT_ID = 0;
+
     private final long id;
 
     private final String type;
@@ -37,15 +39,27 @@ public class Task {
 
     private final Provider<String> description;
 
+    private final String parentNode;
+
+    private final long parentId;
+
+
     public Task(long id, String type, String action, Provider<String> description) {
+        this(id, type, action, description, null, NO_PARENT_ID);
+    }
+
+    public Task(long id, String type, String action, Provider<String> description, String parentNode, long parentId) {
         this.id = id;
         this.type = type;
         this.action = action;
         this.description = description;
+        this.parentNode = parentNode;
+        this.parentId = parentId;
     }
 
+
     public TaskInfo taskInfo(DiscoveryNode node, boolean detailed) {
-        return new TaskInfo(node, id, type, action, detailed ? getDescription() : null);
+        return new TaskInfo(node, getId(), getType(), getAction(), detailed ? getDescription() : null, parentNode, parentId);
     }
 
     /**
@@ -74,6 +88,20 @@ public class Task {
      */
     public String getDescription() {
         return description.get();
+    }
+
+    /**
+     * Returns the parent node of the task or null if the task doesn't have any parent tasks
+     */
+    public String getParentNode() {
+        return parentNode;
+    }
+
+    /**
+     * Returns id of the parent task or NO_PARENT_ID if the task doesn't have any parent tasks
+     */
+    public long getParentId() {
+        return parentId;
     }
 
 }

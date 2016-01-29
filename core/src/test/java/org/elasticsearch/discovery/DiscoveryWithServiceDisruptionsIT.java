@@ -170,7 +170,6 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
             .put("discovery.zen.join_timeout", "10s")  // still long to induce failures but to long so test won't time out
             .put(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(), "1s") // <-- for hitting simulated network failures quickly
             .put("http.enabled", false) // just to make test quicker
-            .put("gateway.local.list_timeout", "10s") // still long to induce failures but to long so test won't time out
             .build();
 
     @Override
@@ -1043,7 +1042,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         CountDownLatch beginRelocationLatch = new CountDownLatch(1);
         CountDownLatch endRelocationLatch = new CountDownLatch(1);
         transportServiceNode2.addTracer(new IndicesStoreIntegrationIT.ReclocationStartEndTracer(logger, beginRelocationLatch, endRelocationLatch));
-        internalCluster().client().admin().cluster().prepareReroute().add(new MoveAllocationCommand(new ShardId("test", 0), node_1, node_2)).get();
+        internalCluster().client().admin().cluster().prepareReroute().add(new MoveAllocationCommand("test", 0, node_1, node_2)).get();
         // wait for relocation to start
         beginRelocationLatch.await();
         disruption.startDisrupting();

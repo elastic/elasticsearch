@@ -344,7 +344,7 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
                             clusterStateChanged = true;
                             logger.info("[{}] dropping index [{}] due to conflict with [{}]", tribeName, tribeIndex.getIndex(), existingFromTribe);
                             removeIndex(blocks, metaData, routingTable, tribeIndex);
-                            droppedIndices.add(tribeIndex.getIndex());
+                            droppedIndices.add(tribeIndex.getIndex().getName());
                         } else if (onConflict.startsWith(ON_CONFLICT_PREFER)) {
                             // on conflict, prefer a tribe...
                             String preferredTribeName = onConflict.substring(ON_CONFLICT_PREFER.length());
@@ -368,23 +368,23 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
         }
 
         private void removeIndex(ClusterBlocks.Builder blocks, MetaData.Builder metaData, RoutingTable.Builder routingTable, IndexMetaData index) {
-            metaData.remove(index.getIndex());
-            routingTable.remove(index.getIndex());
-            blocks.removeIndexBlocks(index.getIndex());
+            metaData.remove(index.getIndex().getName());
+            routingTable.remove(index.getIndex().getName());
+            blocks.removeIndexBlocks(index.getIndex().getName());
         }
 
         private void addNewIndex(ClusterState tribeState, ClusterBlocks.Builder blocks, MetaData.Builder metaData, RoutingTable.Builder routingTable, IndexMetaData tribeIndex) {
             Settings tribeSettings = Settings.builder().put(tribeIndex.getSettings()).put(TRIBE_NAME, tribeName).build();
             metaData.put(IndexMetaData.builder(tribeIndex).settings(tribeSettings));
             routingTable.add(tribeState.routingTable().index(tribeIndex.getIndex()));
-            if (Regex.simpleMatch(blockIndicesMetadata, tribeIndex.getIndex())) {
-                blocks.addIndexBlock(tribeIndex.getIndex(), IndexMetaData.INDEX_METADATA_BLOCK);
+            if (Regex.simpleMatch(blockIndicesMetadata, tribeIndex.getIndex().getName())) {
+                blocks.addIndexBlock(tribeIndex.getIndex().getName(), IndexMetaData.INDEX_METADATA_BLOCK);
             }
-            if (Regex.simpleMatch(blockIndicesRead, tribeIndex.getIndex())) {
-                blocks.addIndexBlock(tribeIndex.getIndex(), IndexMetaData.INDEX_READ_BLOCK);
+            if (Regex.simpleMatch(blockIndicesRead, tribeIndex.getIndex().getName())) {
+                blocks.addIndexBlock(tribeIndex.getIndex().getName(), IndexMetaData.INDEX_READ_BLOCK);
             }
-            if (Regex.simpleMatch(blockIndicesWrite, tribeIndex.getIndex())) {
-                blocks.addIndexBlock(tribeIndex.getIndex(), IndexMetaData.INDEX_WRITE_BLOCK);
+            if (Regex.simpleMatch(blockIndicesWrite, tribeIndex.getIndex().getName())) {
+                blocks.addIndexBlock(tribeIndex.getIndex().getName(), IndexMetaData.INDEX_WRITE_BLOCK);
             }
         }
     }

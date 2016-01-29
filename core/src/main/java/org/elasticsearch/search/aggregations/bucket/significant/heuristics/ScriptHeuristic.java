@@ -22,7 +22,6 @@ package org.elasticsearch.search.aggregations.bucket.significant.heuristics;
 
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.HasContextAndHeaders;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -71,16 +70,16 @@ public class ScriptHeuristic extends SignificanceHeuristic {
 
     @Override
     public void initialize(InternalAggregation.ReduceContext context) {
-        initialize(context.scriptService(), context);
+        initialize(context.scriptService());
     }
 
     @Override
     public void initialize(SearchContext context) {
-        initialize(context.scriptService(), context);
+        initialize(context.scriptService());
     }
 
-    public void initialize(ScriptService scriptService, HasContextAndHeaders hasContextAndHeaders) {
-        searchScript = scriptService.executable(script, ScriptContext.Standard.AGGS, hasContextAndHeaders, Collections.emptyMap());
+    public void initialize(ScriptService scriptService) {
+        searchScript = scriptService.executable(script, ScriptContext.Standard.AGGS, Collections.emptyMap());
         searchScript.setNextVar("_subset_freq", subsetDfHolder);
         searchScript.setNextVar("_subset_size", subsetSizeHolder);
         searchScript.setNextVar("_superset_freq", supersetDfHolder);

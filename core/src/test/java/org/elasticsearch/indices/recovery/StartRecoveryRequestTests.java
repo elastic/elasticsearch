@@ -40,7 +40,7 @@ public class StartRecoveryRequestTests extends ESTestCase {
     public void testSerialization() throws Exception {
         Version targetNodeVersion = randomVersion(random());
         StartRecoveryRequest outRequest = new StartRecoveryRequest(
-                new ShardId("test", 0),
+                new ShardId("test", "_na_", 0),
                 new DiscoveryNode("a", new LocalTransportAddress("1"), targetNodeVersion),
                 new DiscoveryNode("b", new LocalTransportAddress("1"), targetNodeVersion),
                 true,

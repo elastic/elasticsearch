@@ -21,39 +21,27 @@ package org.elasticsearch.http;
 
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
-import org.elasticsearch.rest.RestFilter;
-import org.elasticsearch.rest.RestFilterChain;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.attribute.BasicFileAttributes;
-import java.util.HashMap;
-import java.util.Locale;
-import java.util.Map;
 
-import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.rest.RestStatus.FORBIDDEN;
 import static org.elasticsearch.rest.RestStatus.INTERNAL_SERVER_ERROR;
-import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
-import static org.elasticsearch.rest.RestStatus.OK;
 
 /**
  * A component to serve http requests, backed by rest handlers.
  */
-public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
+public class HttpServer extends AbstractLifecycleComponent<HttpServer> implements HttpServerAdapter {
 
     private final Environment environment;
 
@@ -73,22 +61,9 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
         this.restController = restController;
         this.nodeService = nodeService;
         nodeService.setHttpServer(this);
-        transport.httpServerAdapter(new Dispatcher(this));
+        transport.httpServerAdapter(this);
     }
 
-    static class Dispatcher implements HttpServerAdapter {
-
-        private final HttpServer server;
-
-        Dispatcher(HttpServer server) {
-            this.server = server;
-        }
-
-        @Override
-        public void dispatchRequest(HttpRequest request, HttpChannel channel) {
-            server.internalDispatchRequest(request, channel);
-        }
-    }
 
     @Override
     protected void doStart() {
@@ -118,12 +93,12 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
         return transport.stats();
     }
 
-    public void internalDispatchRequest(final HttpRequest request, final HttpChannel channel) {
+    public void dispatchRequest(HttpRequest request, HttpChannel channel, ThreadContext threadContext) {
         if (request.rawPath().equals("/favicon.ico")) {
             handleFavicon(request, channel);
             return;
         }
-        restController.dispatchRequest(request, channel);
+        restController.dispatchRequest(request, channel, threadContext);
     }
 
     void handleFavicon(HttpRequest request, HttpChannel channel) {

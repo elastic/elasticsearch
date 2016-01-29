@@ -7,6 +7,7 @@ package org.elasticsearch.marvel.agent.renderer.node;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.marvel.agent.collector.node.NodeStatsCollector;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.marvel.test.MarvelIntegTestCase;
@@ -24,6 +25,7 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, numClientNodes = 0, transportClientRatio = 0.0)
@@ -73,23 +75,22 @@ public class MultiNodesStatsTests extends MarvelIntegTestCase {
 
         final int nbNodes = nodes;
         logger.debug("--> waiting for {} nodes to be available", nbNodes);
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                assertThat(cluster().size(), equalTo(nbNodes));
-                assertNoTimeout(client().admin().cluster().prepareHealth().setWaitForNodes(Integer.toString(nbNodes)).get());
-            }
+        assertBusy(() -> {
+            assertThat(cluster().size(), equalTo(nbNodes));
+            assertNoTimeout(client().admin().cluster().prepareHealth().setWaitForNodes(Integer.toString(nbNodes)).get());
         });
 
         updateMarvelInterval(3L, TimeUnit.SECONDS);
         waitForMarvelIndices();
 
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                securedFlush();
+        logger.debug("--> checking that every node correctly reported its own node stats");
+        assertBusy(() -> {
+            String indices = MarvelSettings.MARVEL_INDICES_PREFIX + "*";
+            securedFlush(indices);
+            securedRefresh();
 
-                SearchResponse response = client().prepareSearch()
+            try {
+                SearchResponse response = client().prepareSearch(indices)
                         .setTypes(NodeStatsCollector.TYPE)
                         .setSize(0)
                         .addAggregation(AggregationBuilders.terms("nodes_ids").field("node_stats.node_id"))
@@ -101,9 +102,14 @@ public class MultiNodesStatsTests extends MarvelIntegTestCase {
 
                     for (String nodeName : internalCluster().getNodeNames()) {
                         StringTerms.Bucket bucket = (StringTerms.Bucket) ((StringTerms) aggregation).getBucketByKey(internalCluster().clusterService(nodeName).localNode().getId());
-                        assertThat(bucket.getDocCount(), equalTo(1L));
+                        // At least 1 doc must exist per node, but it can be more than 1
+                        // because the first node may have already collected many node stats documents
+                        // whereas the last node just started to collect node stats.
+                        assertThat(bucket.getDocCount(), greaterThanOrEqualTo(1L));
                     }
                 }
+            } catch (IndexNotFoundException e) {
+                fail("Caught unexpected IndexNotFoundException");
             }
         });
     }

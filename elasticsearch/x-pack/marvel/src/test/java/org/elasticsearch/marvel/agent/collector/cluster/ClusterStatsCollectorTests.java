@@ -132,7 +132,7 @@ public class ClusterStatsCollectorTests extends AbstractCollectorTestCase {
         if (classes != null) {
             assertThat(results.size(), equalTo(classes.length));
             for (Class<?> cl : classes) {
-                assertThat(results.stream().filter(o -> cl.isInstance(o)).count(), equalTo(1));
+                assertThat(results.stream().filter(o -> cl.isInstance(o)).count(), equalTo(1L));
             }
         }
     }

@@ -50,7 +50,6 @@ import java.util.function.Function;
 
 import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
@@ -130,6 +129,14 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
         return client -> (client instanceof NodeClient) ? client.filterWithHeader(headers) : client;
     }
 
+    @Override
+    protected Set<String> excludeTemplates() {
+        Set<String> templates = new HashSet<>();
+        templates.add(MarvelTemplateUtils.indexTemplateName());
+        templates.add(MarvelTemplateUtils.dataTemplateName());
+        return templates;
+    }
+
     /**
      * Override and returns {@code false} to force running without shield
      */
@@ -182,15 +189,7 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
     }
 
     protected void awaitMarvelDocsCount(Matcher<Long> matcher, String... types) throws Exception {
-        securedFlush();
-        securedRefresh();
-
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                assertMarvelDocsCount(matcher, types);
-            }
-        }, 30, TimeUnit.SECONDS);
+        assertBusy(() -> assertMarvelDocsCount(matcher, types), 30, TimeUnit.SECONDS);
     }
 
     protected void ensureMarvelIndicesYellow() {
@@ -208,9 +207,8 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
     protected void assertMarvelDocsCount(Matcher<Long> matcher, String... types) {
         String indices = MarvelSettings.MARVEL_INDICES_PREFIX + "*";
         try {
-            assertNoFailures(client().admin().indices().prepareRefresh(indices).get());
-            long count = client().prepareSearch(indices).setSize(0)
-                    .setTypes(types).get().getHits().totalHits();
+            securedFlushAndRefresh(indices);
+            long count = client().prepareSearch(indices).setSize(0).setTypes(types).get().getHits().totalHits();
             logger.trace("--> searched for [{}] documents, found [{}]", Strings.arrayToCommaDelimitedString(types), count);
             assertThat(count, matcher);
         } catch (IndexNotFoundException e) {
@@ -242,23 +240,22 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
     }
 
     protected void waitForMarvelIndices() throws Exception {
-        String currentVersion = String.valueOf(MarvelTemplateUtils.TEMPLATE_VERSION);
-        awaitIndexExists(MarvelSettings.MARVEL_DATA_INDEX_PREFIX + currentVersion);
-        awaitIndexExists(MarvelSettings.MARVEL_INDICES_PREFIX + currentVersion + "-*");
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                ensureMarvelIndicesYellow();
-            }
-        });
+        awaitIndexExists(MarvelSettings.MARVEL_INDICES_PREFIX + "*");
+        assertBusy(this::ensureMarvelIndicesYellow);
     }
 
-    protected void awaitIndexExists(final String... indices) throws Exception {
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                assertIndicesExists(indices);
-            }
+    protected void awaitIndexExists(final String index) throws Exception {
+        assertBusy(() -> {
+                try {
+                    assertIndicesExists(index);
+                } catch (IndexNotFoundException e) {
+                    if (shieldEnabled) {
+                        // with shield we might get that if wildcards were resolved to no indices
+                        fail("IndexNotFoundException when checking for existence of index [" + index + "]");
+                    } else {
+                        throw e;
+                    }
+                }
         }, 30, TimeUnit.SECONDS);
     }
 
@@ -296,6 +293,18 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
             }
         } else {
             flush(indices);
+        }
+    }
+
+    protected void securedFlushAndRefresh(String... indices) {
+        if (shieldEnabled) {
+            try {
+                flushAndRefresh(indices);
+            } catch (IndexNotFoundException e) {
+                // with shield we might get that if wildcards were resolved to no indices
+            }
+        } else {
+            flushAndRefresh(indices);
         }
     }
 

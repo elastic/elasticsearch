@@ -93,15 +93,8 @@ public class HttpExporterTemplateTests extends AbstractExporterTemplateTestCase 
     }
 
     @Override
-    protected void awaitIndexExists(String... indices) throws Exception {
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                for (String index : indices) {
-                    assertThat("could not find index " + index, dispatcher.hasIndex(index), is(true));
-                }
-            }
-        }, 10, TimeUnit.SECONDS);
+    protected void awaitIndexExists(String index) throws Exception {
+        assertBusy(() -> assertThat("could not find index " + index, dispatcher.hasIndex(index), is(true)), 10, TimeUnit.SECONDS);
     }
 
     class MockServerDispatcher extends Dispatcher {

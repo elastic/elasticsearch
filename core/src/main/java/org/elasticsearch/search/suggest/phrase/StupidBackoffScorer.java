@@ -42,6 +42,10 @@ public class StupidBackoffScorer extends WordScorer {
         this.discount = discount;
     }
 
+    double discount() {
+        return this.discount;
+    }
+
     @Override
     protected double scoreBigram(Candidate word, Candidate w_1) throws IOException {
         SuggestUtils.join(separator, spare, w_1.term, word.term);

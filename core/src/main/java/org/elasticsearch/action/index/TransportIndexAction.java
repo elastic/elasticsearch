@@ -48,6 +48,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -84,7 +85,7 @@ public class TransportIndexAction extends TransportReplicationAction<IndexReques
     }
 
     @Override
-    protected void doExecute(final IndexRequest request, final ActionListener<IndexResponse> listener) {
+    protected void doExecute(Task task, final IndexRequest request, final ActionListener<IndexResponse> listener) {
         // if we don't have a master, we don't have metadata, that's fine, let it find a master using create index API
         ClusterState state = clusterService.state();
         if (autoCreateIndex.shouldAutoCreate(request.index(), state)) {
@@ -93,10 +94,10 @@ public class TransportIndexAction extends TransportReplicationAction<IndexReques
             createIndexRequest.mapping(request.type());
             createIndexRequest.cause("auto(index api)");
             createIndexRequest.masterNodeTimeout(request.timeout());
-            createIndexAction.execute(createIndexRequest, new ActionListener<CreateIndexResponse>() {
+            createIndexAction.execute(task, createIndexRequest, new ActionListener<CreateIndexResponse>() {
                 @Override
                 public void onResponse(CreateIndexResponse result) {
-                    innerExecute(request, listener);
+                    innerExecute(task, request, listener);
                 }
 
                 @Override
@@ -104,7 +105,7 @@ public class TransportIndexAction extends TransportReplicationAction<IndexReques
                     if (ExceptionsHelper.unwrapCause(e) instanceof IndexAlreadyExistsException) {
                         // we have the index, do it
                         try {
-                            innerExecute(request, listener);
+                            innerExecute(task, request, listener);
                         } catch (Throwable e1) {
                             listener.onFailure(e1);
                         }
@@ -114,7 +115,7 @@ public class TransportIndexAction extends TransportReplicationAction<IndexReques
                 }
             });
         } else {
-            innerExecute(request, listener);
+            innerExecute(task, request, listener);
         }
     }
 
@@ -129,8 +130,8 @@ public class TransportIndexAction extends TransportReplicationAction<IndexReques
         request.setShardId(shardId);
     }
 
-    private void innerExecute(final IndexRequest request, final ActionListener<IndexResponse> listener) {
-        super.doExecute(request, listener);
+    private void innerExecute(Task task, final IndexRequest request, final ActionListener<IndexResponse> listener) {
+        super.doExecute(task, request, listener);
     }
 
     @Override

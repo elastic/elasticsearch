@@ -212,7 +212,7 @@ public class TTLFieldMapper extends MetadataFieldMapper {
 
     @Override
     protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException, AlreadyExpiredException {
-        if (enabledState.enabled && !context.sourceToParse().flyweight()) {
+        if (enabledState.enabled) {
             long ttl = context.sourceToParse().ttl();
             if (ttl <= 0 && defaultTTL > 0) { // no ttl provided so we use the default value
                 ttl = defaultTTL;

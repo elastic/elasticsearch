@@ -150,7 +150,7 @@ public class SizeFieldMapper extends MetadataFieldMapper {
         if (!enabledState.enabled) {
             return;
         }
-        if (context.flyweight()) {
+        if (context.source() == null) {
             return;
         }
         fields.add(new IntegerFieldMapper.CustomIntegerNumericField(context.source().length(), fieldType()));

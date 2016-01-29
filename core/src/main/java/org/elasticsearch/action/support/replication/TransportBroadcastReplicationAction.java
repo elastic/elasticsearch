@@ -40,6 +40,7 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -67,8 +68,14 @@ public abstract class TransportBroadcastReplicationAction<Request extends Broadc
         this.clusterService = clusterService;
     }
 
+
     @Override
-    protected void doExecute(final Request request, final ActionListener<Response> listener) {
+    protected final void doExecute(final Request request, final ActionListener<Response> listener) {
+        throw new UnsupportedOperationException("the task parameter is required for this operation");
+    }
+
+    @Override
+    protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
         final ClusterState clusterState = clusterService.state();
         List<ShardId> shards = shards(request, clusterState);
         final CopyOnWriteArrayList<ShardResponse> shardsResponses = new CopyOnWriteArrayList();
@@ -107,12 +114,14 @@ public abstract class TransportBroadcastReplicationAction<Request extends Broadc
                     }
                 }
             };
-            shardExecute(request, shardId, shardActionListener);
+            shardExecute(task, request, shardId, shardActionListener);
         }
     }
 
-    protected void shardExecute(Request request, ShardId shardId, ActionListener<ShardResponse> shardActionListener) {
-        replicatedBroadcastShardAction.execute(newShardRequest(request, shardId), shardActionListener);
+    protected void shardExecute(Task task, Request request, ShardId shardId, ActionListener<ShardResponse> shardActionListener) {
+        ShardRequest shardRequest = newShardRequest(request, shardId);
+        shardRequest.setParentTask(clusterService.localNode().getId(), task.getId());
+        replicatedBroadcastShardAction.execute(shardRequest, shardActionListener);
     }
 
     /**

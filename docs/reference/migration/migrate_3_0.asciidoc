@@ -18,6 +18,7 @@ your application to Elasticsearch 3.0.
 * <<breaking_30_percolator>>
 * <<breaking_30_packaging>>
 * <<breaking_30_scripting>>
+* <<breaking_30_term_vectors>>
 
 [[breaking_30_search_changes]]
 === Warmers
@@ -707,3 +708,8 @@ Previously script mode settings (e.g., "script.inline: true",
 values `off`, `false`, `0`, and `no` for disabling a scripting mode.
 The variants `on`, `1`, and `yes ` for enabling and `off`, `0`,
 and `no` for disabling are no longer supported.
+
+[[breaking_30_term_vectors]]
+=== Term vectors
+
+The term vectors APIs no longer persist unmapped fields in the mappings.

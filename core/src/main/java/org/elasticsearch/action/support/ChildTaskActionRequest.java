@@ -19,23 +19,24 @@
 
 package org.elasticsearch.action.support;
 
+import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 
 /**
- * Base class for requests that can have associated child tasks
+ * Base class for action requests that can have associated child tasks
  */
-public class ChildTaskRequest extends TransportRequest {
+public abstract class ChildTaskActionRequest<Request extends ActionRequest<Request>> extends ActionRequest<Request> {
 
     private String parentTaskNode;
 
     private long parentTaskId;
 
-    protected ChildTaskRequest() {
+    protected ChildTaskActionRequest() {
+
     }
 
     public void setParentTask(String parentTaskNode, long parentTaskId) {
@@ -61,4 +62,5 @@ public class ChildTaskRequest extends TransportRequest {
     public Task createTask(long id, String type, String action) {
         return new Task(id, type, action, this::getDescription, parentTaskNode, parentTaskId);
     }
+
 }

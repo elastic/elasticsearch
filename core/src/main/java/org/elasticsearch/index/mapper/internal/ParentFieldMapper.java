@@ -228,9 +228,7 @@ public class ParentFieldMapper extends MetadataFieldMapper {
 
     @Override
     public void postParse(ParseContext context) throws IOException {
-        if (context.sourceToParse().flyweight() == false) {
-            parse(context);
-        }
+        parse(context);
     }
 
     @Override

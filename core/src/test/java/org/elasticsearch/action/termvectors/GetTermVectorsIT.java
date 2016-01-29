@@ -870,53 +870,6 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         checkBrownFoxTermVector(resp.getFields(), "field1", false);
     }
 
-    public void testArtificialNonExistingField() throws Exception {
-        // setup indices
-        Settings.Builder settings = settingsBuilder()
-                .put(indexSettings())
-                .put("index.analysis.analyzer", "standard");
-        assertAcked(prepareCreate("test")
-                .setSettings(settings)
-                .addMapping("type1", "field1", "type=string"));
-        ensureGreen();
-
-        // index just one doc
-        List<IndexRequestBuilder> indexBuilders = new ArrayList<>();
-            indexBuilders.add(client().prepareIndex()
-                    .setIndex("test")
-                    .setType("type1")
-                    .setId("1")
-                    .setRouting("1")
-                    .setSource("field1", "some text"));
-        indexRandom(true, indexBuilders);
-
-        // request tvs from artificial document
-        XContentBuilder doc = jsonBuilder()
-                .startObject()
-                    .field("field1", "the quick brown fox jumps over the lazy dog")
-                    .field("non_existing", "the quick brown fox jumps over the lazy dog")
-                .endObject();
-
-        for (int i = 0; i < 2; i++) {
-            TermVectorsResponse resp = client().prepareTermVectors()
-                    .setIndex("test")
-                    .setType("type1")
-                    .setDoc(doc)
-                    .setRouting("" + i)
-                    .setOffsets(true)
-                    .setPositions(true)
-                    .setFieldStatistics(true)
-                    .setTermStatistics(true)
-                    .get();
-            assertThat(resp.isExists(), equalTo(true));
-            checkBrownFoxTermVector(resp.getFields(), "field1", false);
-            // we should have created a mapping for this field
-            assertMappingOnMaster("test", "type1", "non_existing");
-            // and return the generated term vectors
-            checkBrownFoxTermVector(resp.getFields(), "non_existing", false);
-        }
-    }
-
     public void testPerFieldAnalyzer() throws IOException {
         int numFields = 25;
 

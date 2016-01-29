@@ -1,6 +1,7 @@
 cluster:admin/render/template/search
 cluster:admin/snapshot/status[nodes]
 cluster:admin/snapshot/status[nodes][n]
+cluster:admin/tasks/cancel[n]
 cluster:monitor/nodes/hot_threads[n]
 cluster:monitor/nodes/info[n]
 cluster:monitor/nodes/liveness
@@ -69,6 +70,7 @@ indices:monitor/shard_stores
 indices:monitor/stats[n]
 indices:monitor/upgrade[n]
 indices:monitor/upgrade
+internal:admin/tasks/ban
 internal:cluster/node/index/deleted
 internal:cluster/node/index_store/deleted
 internal:cluster/node/mapping/refresh

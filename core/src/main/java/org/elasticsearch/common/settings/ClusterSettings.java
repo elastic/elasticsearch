@@ -67,6 +67,7 @@ import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.indices.ttl.IndicesTTLService;
+import org.elasticsearch.monitor.jvm.JvmService;
 import org.elasticsearch.monitor.os.OsService;
 import org.elasticsearch.monitor.process.ProcessService;
 import org.elasticsearch.node.Node;
@@ -321,6 +322,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     NodeEnvironment.ENABLE_LUCENE_SEGMENT_INFOS_TRACE_SETTING,
                     NodeEnvironment.ADD_NODE_ID_TO_CUSTOM_PATH,
                     OsService.REFRESH_INTERVAL_SETTING,
-                    ProcessService.REFRESH_INTERVAL_SETTING
+                    ProcessService.REFRESH_INTERVAL_SETTING,
+                    JvmService.REFRESH_INTERVAL_SETTING
                 )));
 }

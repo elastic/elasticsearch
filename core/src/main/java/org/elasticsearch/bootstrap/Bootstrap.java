@@ -20,6 +20,7 @@
 package org.elasticsearch.bootstrap;
 
 import org.apache.lucene.util.Constants;
+import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -159,12 +160,10 @@ final class Bootstrap {
             Runtime.getRuntime().addShutdownHook(new Thread() {
                 @Override
                 public void run() {
-                    if (node != null) {
-                        try {
-                            node.close();
-                        } catch (IOException ex) {
-                            throw new ElasticsearchException("failed to stop node", ex);
-                        }
+                    try {
+                        IOUtils.close(node);
+                    } catch (IOException ex) {
+                        throw new ElasticsearchException("failed to stop node", ex);
                     }
                 }
             });
@@ -233,7 +232,7 @@ final class Bootstrap {
 
     static void stop() throws IOException {
         try {
-            INSTANCE.node.close();
+            IOUtils.close(INSTANCE.node);
         } finally {
             INSTANCE.keepAliveLatch.countDown();
         }

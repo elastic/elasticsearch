@@ -815,7 +815,7 @@ public final class InternalTestCluster extends TestCluster {
             }
         }
 
-        void closeNode() {
+        void closeNode() throws IOException {
             registerDataPath();
             node.close();
         }

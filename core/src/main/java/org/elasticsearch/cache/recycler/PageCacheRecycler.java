@@ -22,6 +22,7 @@ package org.elasticsearch.cache.recycler;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.recycler.AbstractRecyclerC;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Settings;
@@ -38,7 +39,7 @@ import static org.elasticsearch.common.recycler.Recyclers.dequeFactory;
 import static org.elasticsearch.common.recycler.Recyclers.none;
 
 /** A recycler of fixed-size pages. */
-public class PageCacheRecycler extends AbstractComponent {
+public class PageCacheRecycler extends AbstractComponent implements Releasable {
 
     public static final String TYPE = "recycler.page.type";
     public static final String LIMIT_HEAP = "recycler.page.limit.heap";
@@ -49,6 +50,7 @@ public class PageCacheRecycler extends AbstractComponent {
     private final Recycler<long[]> longPage;
     private final Recycler<Object[]> objectPage;
 
+    @Override
     public void close() {
         bytePage.close();
         intPage.close();

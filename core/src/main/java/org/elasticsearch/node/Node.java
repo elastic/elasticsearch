@@ -19,6 +19,7 @@
 
 package org.elasticsearch.node;
 
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -100,6 +101,7 @@ import org.elasticsearch.watcher.ResourceWatcherModule;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
 import java.io.BufferedWriter;
+import java.io.Closeable;
 import java.io.IOException;
 import java.net.Inet6Address;
 import java.net.InetAddress;
@@ -108,9 +110,11 @@ import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
@@ -120,7 +124,7 @@ import static org.elasticsearch.common.settings.Settings.settingsBuilder;
  * A node represent a node within a cluster (<tt>cluster.name</tt>). The {@link #client()} can be used
  * in order to use a {@link Client} to perform actions/operations against the cluster.
  */
-public class Node implements Releasable {
+public class Node implements Closeable {
 
     public static final Setting<Boolean> WRITE_PORTS_FIELD_SETTING = Setting.boolSetting("node.portsfile", false, false, Setting.Scope.CLUSTER);
     public static final Setting<Boolean> NODE_CLIENT_SETTING = Setting.boolSetting("node.client", false, false, Setting.Scope.CLUSTER);
@@ -351,7 +355,7 @@ public class Node implements Releasable {
     // If not, the hook that is added in Bootstrap#setup() will be useless: close() might not be executed, in case another (for example api) call
     // to close() has already set some lifecycles to stopped. In this case the process will be terminated even if the first call to close() has not finished yet.
     @Override
-    public synchronized void close() {
+    public synchronized void close() throws IOException {
         if (lifecycle.started()) {
             stop();
         }
@@ -361,88 +365,80 @@ public class Node implements Releasable {
 
         ESLogger logger = Loggers.getLogger(Node.class, settings.get("name"));
         logger.info("closing ...");
-
+        List<Closeable> toClose = new ArrayList<>();
         StopWatch stopWatch = new StopWatch("node_close");
-        stopWatch.start("tribe");
-        injector.getInstance(TribeService.class).close();
-        stopWatch.stop().start("node_service");
-        try {
-            injector.getInstance(NodeService.class).close();
-        } catch (IOException e) {
-            logger.warn("NodeService close failed", e);
-        }
-        stopWatch.stop().start("http");
+        toClose.add(() -> stopWatch.start("tribe"));
+        toClose.add(injector.getInstance(TribeService.class));
+        toClose.add(() -> stopWatch.stop().start("node_service"));
+        toClose.add(injector.getInstance(NodeService.class));
+        toClose.add(() ->stopWatch.stop().start("http"));
         if (settings.getAsBoolean("http.enabled", true)) {
-            injector.getInstance(HttpServer.class).close();
+            toClose.add(injector.getInstance(HttpServer.class));
         }
-        stopWatch.stop().start("snapshot_service");
-        injector.getInstance(SnapshotsService.class).close();
-        injector.getInstance(SnapshotShardsService.class).close();
-        stopWatch.stop().start("client");
+        toClose.add(() ->stopWatch.stop().start("snapshot_service"));
+        toClose.add(injector.getInstance(SnapshotsService.class));
+        toClose.add(injector.getInstance(SnapshotShardsService.class));
+        toClose.add(() ->stopWatch.stop().start("client"));
         Releasables.close(injector.getInstance(Client.class));
-        stopWatch.stop().start("indices_cluster");
-        injector.getInstance(IndicesClusterStateService.class).close();
-        stopWatch.stop().start("indices");
-        injector.getInstance(IndicesTTLService.class).close();
-        injector.getInstance(IndicesService.class).close();
+        toClose.add(() ->stopWatch.stop().start("indices_cluster"));
+        toClose.add(injector.getInstance(IndicesClusterStateService.class));
+        toClose.add(() ->stopWatch.stop().start("indices"));
+        toClose.add(injector.getInstance(IndicesTTLService.class));
+        toClose.add(injector.getInstance(IndicesService.class));
         // close filter/fielddata caches after indices
-        injector.getInstance(IndicesQueryCache.class).close();
-        injector.getInstance(IndicesFieldDataCache.class).close();
-        injector.getInstance(IndicesStore.class).close();
-        stopWatch.stop().start("routing");
-        injector.getInstance(RoutingService.class).close();
-        stopWatch.stop().start("cluster");
-        injector.getInstance(ClusterService.class).close();
-        stopWatch.stop().start("discovery");
-        injector.getInstance(DiscoveryService.class).close();
-        stopWatch.stop().start("monitor");
-        injector.getInstance(MonitorService.class).close();
-        stopWatch.stop().start("gateway");
-        injector.getInstance(GatewayService.class).close();
-        stopWatch.stop().start("search");
-        injector.getInstance(SearchService.class).close();
-        stopWatch.stop().start("rest");
-        injector.getInstance(RestController.class).close();
-        stopWatch.stop().start("transport");
-        injector.getInstance(TransportService.class).close();
-        stopWatch.stop().start("percolator_service");
-        injector.getInstance(PercolatorService.class).close();
+        toClose.add(injector.getInstance(IndicesQueryCache.class));
+        toClose.add(injector.getInstance(IndicesFieldDataCache.class));
+        toClose.add(injector.getInstance(IndicesStore.class));
+        toClose.add(() ->stopWatch.stop().start("routing"));
+        toClose.add(injector.getInstance(RoutingService.class));
+        toClose.add(() ->stopWatch.stop().start("cluster"));
+        toClose.add(injector.getInstance(ClusterService.class));
+        toClose.add(() ->stopWatch.stop().start("discovery"));
+        toClose.add(injector.getInstance(DiscoveryService.class));
+        toClose.add(() ->stopWatch.stop().start("monitor"));
+        toClose.add(injector.getInstance(MonitorService.class));
+        toClose.add(() ->stopWatch.stop().start("gateway"));
+        toClose.add(injector.getInstance(GatewayService.class));
+        toClose.add(() ->stopWatch.stop().start("search"));
+        toClose.add(injector.getInstance(SearchService.class));
+        toClose.add(() ->stopWatch.stop().start("rest"));
+        toClose.add(injector.getInstance(RestController.class));
+        toClose.add(() ->stopWatch.stop().start("transport"));
+        toClose.add(injector.getInstance(TransportService.class));
+        toClose.add(() ->stopWatch.stop().start("percolator_service"));
+        toClose.add(injector.getInstance(PercolatorService.class));
 
         for (Class<? extends LifecycleComponent> plugin : pluginsService.nodeServices()) {
-            stopWatch.stop().start("plugin(" + plugin.getName() + ")");
-            injector.getInstance(plugin).close();
+            toClose.add(() ->stopWatch.stop().start("plugin(" + plugin.getName() + ")"));
+            toClose.add(injector.getInstance(plugin));
         }
 
-        stopWatch.stop().start("script");
-        try {
-            injector.getInstance(ScriptService.class).close();
-        } catch(IOException e) {
-            logger.warn("ScriptService close failed", e);
-        }
+        toClose.add(() ->stopWatch.stop().start("script"));
+        toClose.add(injector.getInstance(ScriptService.class));
 
-        stopWatch.stop().start("thread_pool");
+        toClose.add(() ->stopWatch.stop().start("thread_pool"));
         // TODO this should really use ThreadPool.terminate()
-        injector.getInstance(ThreadPool.class).shutdown();
-        try {
-            injector.getInstance(ThreadPool.class).awaitTermination(10, TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
-            // ignore
-        }
-        stopWatch.stop().start("thread_pool_force_shutdown");
-        try {
-            injector.getInstance(ThreadPool.class).shutdownNow();
-        } catch (Exception e) {
-            // ignore
-        }
-        stopWatch.stop();
+        toClose.add(() -> injector.getInstance(ThreadPool.class).shutdown());
+        toClose.add(() -> {
+            try {
+                injector.getInstance(ThreadPool.class).awaitTermination(10, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                // ignore
+            }
+        });
+
+        toClose.add(() ->stopWatch.stop().start("thread_pool_force_shutdown"));
+        toClose.add(() -> injector.getInstance(ThreadPool.class).shutdownNow());
+        toClose.add(() -> stopWatch.stop());
+
+
+        toClose.add(injector.getInstance(NodeEnvironment.class));
+        toClose.add(injector.getInstance(PageCacheRecycler.class));
 
         if (logger.isTraceEnabled()) {
             logger.trace("Close times for each service:\n{}", stopWatch.prettyPrint());
         }
-
-        injector.getInstance(NodeEnvironment.class).close();
-        injector.getInstance(PageCacheRecycler.class).close();
-
+        IOUtils.close(toClose);
         logger.info("closed");
     }
 

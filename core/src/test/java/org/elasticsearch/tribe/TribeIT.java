@@ -244,8 +244,8 @@ public class TribeIT extends ESIntegTestCase {
         logger.info("wait till test1 and test2 exists in the tribe node state");
         awaitIndicesInClusterState("test1", "test2");
 
-        assertThat(tribeClient.admin().cluster().prepareState().get().getState().getMetaData().index("test1").getSettings().get(TribeService.TRIBE_NAME), equalTo("t1"));
-        assertThat(tribeClient.admin().cluster().prepareState().get().getState().getMetaData().index("test2").getSettings().get(TribeService.TRIBE_NAME), equalTo("t2"));
+        assertThat(tribeClient.admin().cluster().prepareState().get().getState().getMetaData().index("test1").getSettings().get("tribe.name"), equalTo("t1"));
+        assertThat(tribeClient.admin().cluster().prepareState().get().getState().getMetaData().index("test2").getSettings().get("tribe.name"), equalTo("t2"));
         assertThat(tribeClient.admin().cluster().prepareState().get().getState().getMetaData().hasIndex("conflict"), equalTo(false));
     }
 
@@ -271,9 +271,9 @@ public class TribeIT extends ESIntegTestCase {
         logger.info("wait till test1 and test2 exists in the tribe node state");
         awaitIndicesInClusterState("test1", "test2", "conflict");
 
-        assertThat(tribeClient.admin().cluster().prepareState().get().getState().getMetaData().index("test1").getSettings().get(TribeService.TRIBE_NAME), equalTo("t1"));
-        assertThat(tribeClient.admin().cluster().prepareState().get().getState().getMetaData().index("test2").getSettings().get(TribeService.TRIBE_NAME), equalTo("t2"));
-        assertThat(tribeClient.admin().cluster().prepareState().get().getState().getMetaData().index("conflict").getSettings().get(TribeService.TRIBE_NAME), equalTo(tribe));
+        assertThat(tribeClient.admin().cluster().prepareState().get().getState().getMetaData().index("test1").getSettings().get("tribe.name"), equalTo("t1"));
+        assertThat(tribeClient.admin().cluster().prepareState().get().getState().getMetaData().index("test2").getSettings().get("tribe.name"), equalTo("t2"));
+        assertThat(tribeClient.admin().cluster().prepareState().get().getState().getMetaData().index("conflict").getSettings().get("tribe.name"), equalTo(tribe));
     }
 
     public void testTribeOnOneCluster() throws Exception {
@@ -438,7 +438,7 @@ public class TribeIT extends ESIntegTestCase {
             if (!node.dataNode()) {
                 continue;
             }
-            if (tribeName.equals(node.getAttributes().get(TribeService.TRIBE_NAME))) {
+            if (tribeName.equals(node.getAttributes().get("tribe.name"))) {
                 count++;
             }
         }

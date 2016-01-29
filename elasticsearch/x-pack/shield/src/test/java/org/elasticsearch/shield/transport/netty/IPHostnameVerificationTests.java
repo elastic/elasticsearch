@@ -8,6 +8,7 @@ package org.elasticsearch.shield.transport.netty;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ShieldIntegTestCase;
+import org.elasticsearch.transport.TransportSettings;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -49,7 +50,7 @@ public class IPHostnameVerificationTests extends ShieldIntegTestCase {
                 .put("shield.ssl.keystore.password", "testnode-ip-only")
                 .put("shield.ssl.truststore.path", keystore.toAbsolutePath()) // settings for client truststore
                 .put("shield.ssl.truststore.password", "testnode-ip-only")
-                .put("transport.host", "127.0.0.1")
+                .put(TransportSettings.BIND_HOST.getKey(), "127.0.0.1")
                 .put("network.host", "127.0.0.1")
                 .put("shield.ssl.client.auth", "false")
                 .put(ShieldNettyTransport.HOSTNAME_VERIFICATION_SETTING, true)

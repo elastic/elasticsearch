@@ -108,6 +108,18 @@ public class SettingsModule extends AbstractModule {
         }
     }
 
+    /**
+     * Check if a setting has already been registered
+     */
+    public boolean exists(Setting<?> setting) {
+        switch (setting.getScope()) {
+            case CLUSTER:
+                return clusterSettings.containsKey(setting.getKey());
+            case INDEX:
+                return indexSettings.containsKey(setting.getKey());
+        }
+        throw new IllegalArgumentException("setting scope is unknown. This should never happen!");
+    }
 
     private void validateTribeSettings(Settings settings, ClusterSettings clusterSettings) {
         Map<String, Settings> groups = settings.filter(TRIBE_CLIENT_NODE_SETTINGS_PREDICATE).getGroups("tribe.", true);

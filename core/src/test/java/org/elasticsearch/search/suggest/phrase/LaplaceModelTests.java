@@ -28,6 +28,11 @@ public class LaplaceModelTests extends SmoothingModelTestCase {
 
     @Override
     protected SmoothingModel createTestModel() {
+        return createRandomModel();
+    }
+
+
+    static SmoothingModel createRandomModel() {
         return new Laplace(randomDoubleBetween(0.0, 10.0, false));
     }
 

@@ -216,6 +216,13 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
         return this;
     }
 
+    /**
+     * Gets the {@link SmoothingModel}
+     */
+    public SmoothingModel smoothingModel() {
+        return this.model;
+    }
+
     public PhraseSuggestionBuilder tokenLimit(int tokenLimit) {
         this.tokenLimit = tokenLimit;
         return this;
@@ -391,8 +398,8 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
          * Default discount parameter for {@link StupidBackoff} smoothing
          */
         public static final double DEFAULT_BACKOFF_DISCOUNT = 0.4;
-        private double discount = DEFAULT_BACKOFF_DISCOUNT;
         static final StupidBackoff PROTOTYPE = new StupidBackoff(DEFAULT_BACKOFF_DISCOUNT);
+        private double discount = DEFAULT_BACKOFF_DISCOUNT;
         private static final String NAME = "stupid_backoff";
         private static final ParseField DISCOUNT_FIELD = new ParseField("discount");
 
@@ -743,7 +750,11 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
         out.writeOptionalFloat(realWordErrorLikelihood);
         out.writeOptionalFloat(confidence);
         out.writeOptionalVInt(gramSize);
-        // NORELEASE model.writeTo();
+        boolean hasModel = model != null;
+        out.writeBoolean(hasModel);
+        if (hasModel) {
+            out.writeSmoothingModel(model);
+        }
         out.writeOptionalBoolean(forceUnigrams);
         out.writeOptionalVInt(tokenLimit);
         out.writeOptionalString(preTag);
@@ -767,7 +778,9 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
         builder.realWordErrorLikelihood = in.readOptionalFloat();
         builder.confidence = in.readOptionalFloat();
         builder.gramSize = in.readOptionalVInt();
-        // NORELEASE read model
+        if (in.readBoolean()) {
+            builder.model = in.readSmoothingModel();
+        }
         builder.forceUnigrams = in.readOptionalBoolean();
         builder.tokenLimit = in.readOptionalVInt();
         builder.preTag = in.readOptionalString();
@@ -790,7 +803,7 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
                 Objects.equals(confidence, other.confidence) &&
                 // NORELEASE Objects.equals(generator, other.generator) &&
                 Objects.equals(gramSize, other.gramSize) &&
-                // NORELEASE Objects.equals(model, other.model) &&
+                Objects.equals(model, other.model) &&
                 Objects.equals(forceUnigrams, other.forceUnigrams) &&
                 Objects.equals(tokenLimit, other.tokenLimit) &&
                 Objects.equals(preTag, other.preTag) &&
@@ -803,10 +816,8 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
     @Override
     protected int doHashCode() {
         return Objects.hash(maxErrors, separator, realWordErrorLikelihood, confidence,
-                /** NORELEASE generators, */
-                gramSize,
-                /** NORELEASE model, */
-                forceUnigrams, tokenLimit, preTag, postTag,
+                // NORELEASE generators,
+                gramSize, model, forceUnigrams, tokenLimit, preTag, postTag,
                 collateQuery, collateParams, collatePrune);
     }
 

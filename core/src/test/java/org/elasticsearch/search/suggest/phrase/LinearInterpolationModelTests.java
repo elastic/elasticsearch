@@ -28,6 +28,10 @@ public class LinearInterpolationModelTests extends SmoothingModelTestCase {
 
     @Override
     protected SmoothingModel createTestModel() {
+        return createRandomModel();
+    }
+
+    static LinearInterpolation createRandomModel() {
         double trigramLambda = randomDoubleBetween(0.0, 10.0, false);
         double bigramLambda = randomDoubleBetween(0.0, 10.0, false);
         double unigramLambda = randomDoubleBetween(0.0, 10.0, false);

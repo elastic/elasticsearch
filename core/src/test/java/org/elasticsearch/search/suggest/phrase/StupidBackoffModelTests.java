@@ -28,6 +28,10 @@ public class StupidBackoffModelTests extends SmoothingModelTestCase {
 
     @Override
     protected SmoothingModel createTestModel() {
+        return createRandomModel();
+    }
+
+    static SmoothingModel createRandomModel() {
         return new StupidBackoff(randomDoubleBetween(0.0, 10.0, false));
     }
 

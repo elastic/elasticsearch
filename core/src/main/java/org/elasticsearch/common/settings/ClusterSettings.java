@@ -79,6 +79,7 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.transport.netty.NettyTransport;
+import org.elasticsearch.tribe.TribeService;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -315,6 +316,12 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     ThreadContext.DEFAULT_HEADERS_SETTING,
                     ESLoggerFactory.LOG_DEFAULT_LEVEL_SETTING,
                     ESLoggerFactory.LOG_LEVEL_SETTING,
+                    TribeService.BLOCKS_METADATA_SETTING,
+                    TribeService.BLOCKS_WRITE_SETTING,
+                    TribeService.BLOCKS_WRITE_INDICES_SETTING,
+                    TribeService.BLOCKS_READ_INDICES_SETTING,
+                    TribeService.BLOCKS_METADATA_INDICES_SETTING,
+                    TribeService.ON_CONFLICT_SETTING,
                     NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING,
                     NodeEnvironment.ENABLE_LUCENE_SEGMENT_INFOS_TRACE_SETTING,
                     NodeEnvironment.ADD_NODE_ID_TO_CUSTOM_PATH)));

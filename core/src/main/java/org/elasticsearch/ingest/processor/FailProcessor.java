@@ -66,7 +66,7 @@ public class FailProcessor extends AbstractProcessor {
 
         @Override
         public FailProcessor doCreate(String processorTag, Map<String, Object> config) throws Exception {
-            String message = ConfigurationUtils.readStringProperty(config, "message");
+            String message = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "message");
             return new FailProcessor(processorTag, templateService.compile(message));
         }
     }

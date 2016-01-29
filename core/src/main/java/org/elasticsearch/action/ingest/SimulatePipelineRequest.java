@@ -139,24 +139,24 @@ public class SimulatePipelineRequest extends ActionRequest<SimulatePipelineReque
     }
 
     static Parsed parse(Map<String, Object> config, boolean verbose, PipelineStore pipelineStore) throws Exception {
-        Map<String, Object> pipelineConfig = ConfigurationUtils.readMap(config, Fields.PIPELINE);
+        Map<String, Object> pipelineConfig = ConfigurationUtils.readMap(null, null, config, Fields.PIPELINE);
         Pipeline pipeline = PIPELINE_FACTORY.create(SIMULATED_PIPELINE_ID, pipelineConfig, pipelineStore.getProcessorFactoryRegistry());
         List<IngestDocument> ingestDocumentList = parseDocs(config);
         return new Parsed(pipeline, ingestDocumentList, verbose);
     }
 
     private static List<IngestDocument> parseDocs(Map<String, Object> config) {
-        List<Map<String, Object>> docs = ConfigurationUtils.readList(config, Fields.DOCS);
+        List<Map<String, Object>> docs = ConfigurationUtils.readList(null, null, config, Fields.DOCS);
         List<IngestDocument> ingestDocumentList = new ArrayList<>();
         for (Map<String, Object> dataMap : docs) {
-            Map<String, Object> document = ConfigurationUtils.readMap(dataMap, Fields.SOURCE);
-            IngestDocument ingestDocument = new IngestDocument(ConfigurationUtils.readStringProperty(dataMap, MetaData.INDEX.getFieldName(), "_index"),
-                    ConfigurationUtils.readStringProperty(dataMap, MetaData.TYPE.getFieldName(), "_type"),
-                    ConfigurationUtils.readStringProperty(dataMap, MetaData.ID.getFieldName(), "_id"),
-                    ConfigurationUtils.readOptionalStringProperty(dataMap, MetaData.ROUTING.getFieldName()),
-                    ConfigurationUtils.readOptionalStringProperty(dataMap, MetaData.PARENT.getFieldName()),
-                    ConfigurationUtils.readOptionalStringProperty(dataMap, MetaData.TIMESTAMP.getFieldName()),
-                    ConfigurationUtils.readOptionalStringProperty(dataMap, MetaData.TTL.getFieldName()),
+            Map<String, Object> document = ConfigurationUtils.readMap(null, null, dataMap, Fields.SOURCE);
+            IngestDocument ingestDocument = new IngestDocument(ConfigurationUtils.readStringProperty(null, null, dataMap, MetaData.INDEX.getFieldName(), "_index"),
+                    ConfigurationUtils.readStringProperty(null, null, dataMap, MetaData.TYPE.getFieldName(), "_type"),
+                    ConfigurationUtils.readStringProperty(null, null, dataMap, MetaData.ID.getFieldName(), "_id"),
+                    ConfigurationUtils.readOptionalStringProperty(null, null, dataMap, MetaData.ROUTING.getFieldName()),
+                    ConfigurationUtils.readOptionalStringProperty(null, null, dataMap, MetaData.PARENT.getFieldName()),
+                    ConfigurationUtils.readOptionalStringProperty(null, null, dataMap, MetaData.TIMESTAMP.getFieldName()),
+                    ConfigurationUtils.readOptionalStringProperty(null, null, dataMap, MetaData.TTL.getFieldName()),
                     document);
             ingestDocumentList.add(ingestDocument);
         }

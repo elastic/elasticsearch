@@ -47,6 +47,7 @@ import java.util.Map;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.Is.is;
 
@@ -198,6 +199,39 @@ public class IngestClientIT extends ESIntegTestCase {
         getResponse = client().admin().cluster().prepareGetPipeline("_id").get();
         assertThat(getResponse.isFound(), is(false));
         assertThat(getResponse.pipelines().size(), equalTo(0));
+    }
+
+    public void testPutWithPipelineError() throws Exception {
+        BytesReference source = jsonBuilder().startObject()
+                .field("description", "my_pipeline")
+                .startArray("processors")
+                .startObject()
+                .startObject("not_found")
+                .endObject()
+                .endObject()
+                .endArray()
+                .endObject().bytes();
+        PutPipelineRequest putPipelineRequest = new PutPipelineRequest("_id", source);
+        WritePipelineResponse response = client().admin().cluster().putPipeline(putPipelineRequest).get();
+        assertThat(response.isAcknowledged(), equalTo(false));
+        assertThat(response.getError().getReason(), equalTo("No processor type exists with name [not_found]"));
+    }
+
+    public void testPutWithProcessorFactoryError() throws Exception {
+        BytesReference source = jsonBuilder().startObject()
+                .field("description", "my_pipeline")
+                .startArray("processors")
+                .startObject()
+                .startObject("test")
+                .field("unused", ":sad_face:")
+                .endObject()
+                .endObject()
+                .endArray()
+                .endObject().bytes();
+        PutPipelineRequest putPipelineRequest = new PutPipelineRequest("_id", source);
+        WritePipelineResponse response = client().admin().cluster().putPipeline(putPipelineRequest).get();
+        assertThat(response.isAcknowledged(), equalTo(false));
+        assertThat(response.getError().getReason(), equalTo("processor [test] doesn't support one or more provided configuration parameters [unused]"));
     }
 
     @Override

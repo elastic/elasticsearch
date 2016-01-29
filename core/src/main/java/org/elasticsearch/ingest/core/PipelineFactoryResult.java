@@ -17,23 +17,27 @@
  * under the License.
  */
 
-
 package org.elasticsearch.ingest.core;
 
-import java.util.Map;
+public class PipelineFactoryResult {
+    private final Pipeline pipeline;
+    private final PipelineFactoryError error;
 
-/**
- * A processor implementation may modify the data belonging to a document.
- * Whether changes are made and what exactly is modified is up to the implementation.
- */
-public abstract class AbstractProcessorFactory<P extends Processor> implements Processor.Factory<P> {
-    public static final String TAG_KEY = "tag";
-
-    @Override
-    public P create(Map<String, Object> config) throws Exception {
-        String tag = ConfigurationUtils.readOptionalStringProperty(null, null, config, TAG_KEY);
-        return doCreate(tag, config);
+    public PipelineFactoryResult(Pipeline pipeline) {
+        this.pipeline = pipeline;
+        this.error = null;
     }
 
-    protected abstract P doCreate(String tag, Map<String, Object> config) throws Exception;
+    public PipelineFactoryResult(PipelineFactoryError error) {
+        this.error = error;
+        this.pipeline = null;
+    }
+
+    public Pipeline getPipeline() {
+        return pipeline;
+    }
+
+    public PipelineFactoryError getError() {
+        return error;
+    }
 }

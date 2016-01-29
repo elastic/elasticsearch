@@ -36,8 +36,10 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.ingest.core.Pipeline;
+import org.elasticsearch.ingest.core.PipelineFactoryError;
 import org.elasticsearch.ingest.core.Processor;
 import org.elasticsearch.ingest.core.TemplateService;
+import org.elasticsearch.ingest.processor.ConfigurationPropertyException;
 import org.elasticsearch.script.ScriptService;
 
 import java.io.Closeable;
@@ -101,7 +103,7 @@ public class PipelineStore extends AbstractComponent implements Closeable, Clust
         Map<String, Pipeline> pipelines = new HashMap<>();
         for (PipelineConfiguration pipeline : ingestMetadata.getPipelines().values()) {
             try {
-                pipelines.put(pipeline.getId(), constructPipeline(pipeline.getId(), pipeline.getConfigAsMap()));
+                pipelines.put(pipeline.getId(), factory.create(pipeline.getId(), pipeline.getConfigAsMap(), processorFactoryRegistry));
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
@@ -148,16 +150,14 @@ public class PipelineStore extends AbstractComponent implements Closeable, Clust
 
     /**
      * Stores the specified pipeline definition in the request.
-     *
-     * @throws IllegalArgumentException If the pipeline holds incorrect configuration
      */
-    public void put(ClusterService clusterService, PutPipelineRequest request, ActionListener<WritePipelineResponse> listener) throws IllegalArgumentException {
-        try {
-            // validates the pipeline and processor configuration before submitting a cluster update task:
-            Map<String, Object> pipelineConfig = XContentHelper.convertToMap(request.getSource(), false).v2();
-            constructPipeline(request.getId(), pipelineConfig);
-        } catch (Exception e) {
-            throw new IllegalArgumentException("Invalid pipeline configuration", e);
+    public void put(ClusterService clusterService, PutPipelineRequest request, ActionListener<WritePipelineResponse> listener) {
+        // validates the pipeline and processor configuration before submitting a cluster update task:
+        Map<String, Object> pipelineConfig = XContentHelper.convertToMap(request.getSource(), false).v2();
+        WritePipelineResponse response = validatePipelineResponse(request.getId(), pipelineConfig);
+        if (response != null) {
+            listener.onResponse(response);
+            return;
         }
         clusterService.submitStateUpdateTask("put-pipeline-" + request.getId(), new AckedClusterStateUpdateTask<WritePipelineResponse>(request, listener) {
 
@@ -235,8 +235,15 @@ public class PipelineStore extends AbstractComponent implements Closeable, Clust
         return result;
     }
 
-    private Pipeline constructPipeline(String id, Map<String, Object> config) throws Exception {
-        return factory.create(id, config, processorFactoryRegistry);
+    WritePipelineResponse validatePipelineResponse(String id, Map<String, Object> config) {
+        try {
+            factory.create(id, config, processorFactoryRegistry);
+            return null;
+        } catch (ConfigurationPropertyException e) {
+            return new WritePipelineResponse(new PipelineFactoryError(e));
+        } catch (Exception e) {
+            return new WritePipelineResponse(new PipelineFactoryError(e.getMessage()));
+        }
     }
 
 }

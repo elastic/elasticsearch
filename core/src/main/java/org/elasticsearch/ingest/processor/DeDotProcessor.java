@@ -95,7 +95,7 @@ public class DeDotProcessor extends AbstractProcessor {
 
         @Override
         public DeDotProcessor doCreate(String processorTag, Map<String, Object> config) throws Exception {
-            String separator = ConfigurationUtils.readOptionalStringProperty(config, "separator");
+            String separator = ConfigurationUtils.readOptionalStringProperty(TYPE, processorTag, config, "separator");
             if (separator == null) {
                 separator = DEFAULT_SEPARATOR;
             }

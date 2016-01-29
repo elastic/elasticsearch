@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.test;
 
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
@@ -87,7 +88,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     private static void stopNode() throws IOException {
         Node node = NODE;
         NODE = null;
-        node.close();
+        IOUtils.close(node);
     }
 
     private void cleanup(boolean resetNode) throws IOException {

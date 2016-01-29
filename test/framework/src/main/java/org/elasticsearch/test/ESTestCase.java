@@ -29,6 +29,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomInts;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import com.carrotsearch.randomizedtesting.rules.TestRuleAdapter;
+import junit.framework.AssertionFailedError;
 import org.apache.lucene.uninverting.UninvertingReader;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
@@ -619,5 +620,27 @@ public abstract class ESTestCase extends LuceneTestCase {
         assertEquals(expected.getFileName(), actual.getFileName());
         assertEquals(expected.getLineNumber(), actual.getLineNumber());
         assertEquals(expected.isNativeMethod(), actual.isNativeMethod());
+    }
+
+    /** A runnable that can throw any checked exception. */
+    @FunctionalInterface
+    public interface ThrowingRunnable {
+        void run() throws Throwable;
+    }
+
+    /** Checks a specific exception class is thrown by the given runnable, and returns it. */
+    @SuppressWarnings("unchecked")
+    public static <T extends Throwable> T expectThrows(Class<T> expectedType, ThrowingRunnable runnable) {
+        try {
+            runnable.run();
+        } catch (Throwable e) {
+            if (expectedType.isInstance(e)) {
+                return (T) e;
+            }
+            AssertionFailedError assertion = new AssertionFailedError("Unexpected exception type, expected " + expectedType.getSimpleName());
+            assertion.initCause(e);
+            throw assertion;
+        }
+        throw new AssertionFailedError("Expected exception " + expectedType.getSimpleName());
     }
 }

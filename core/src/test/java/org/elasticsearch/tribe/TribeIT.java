@@ -225,7 +225,6 @@ public class TribeIT extends ESIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/16299")
     public void testOnConflictDrop() throws Exception {
         logger.info("create 2 indices, test1 on t1, and test2 on t2");
         assertAcked(cluster().client().admin().indices().prepareCreate("conflict"));

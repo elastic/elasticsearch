@@ -322,7 +322,7 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
                     IndexMetaData tribeIndex = tribeState.metaData().index(index.getIndex());
                     clusterStateChanged = true;
                     if (tribeIndex == null || tribeIndex.getState() == IndexMetaData.State.CLOSE) {
-                        logger.info("[{}] removing index [{}]", tribeName, index.getIndex());
+                        logger.info("[{}] removing index {}", tribeName, index.getIndex());
                         removeIndex(blocks, metaData, routingTable, index);
                     } else {
                         // always make sure to update the metadata and routing table, in case
@@ -342,10 +342,10 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
                 }
                 final IndexMetaData indexMetaData = currentState.metaData().index(tribeIndex.getIndex());
                 if (indexMetaData == null) {
-                    if (!droppedIndices.contains(tribeIndex.getIndex())) {
+                    if (!droppedIndices.contains(tribeIndex.getIndex().getName())) {
                         // a new index, add it, and add the tribe name as a setting
                         clusterStateChanged = true;
-                        logger.info("[{}] adding index [{}]", tribeName, tribeIndex.getIndex());
+                        logger.info("[{}] adding index {}", tribeName, tribeIndex.getIndex());
                         addNewIndex(tribeState, blocks, metaData, routingTable, tribeIndex);
                     }
                 } else {
@@ -357,7 +357,7 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
                         } else if (ON_CONFLICT_DROP.equals(onConflict)) {
                             // drop the indices, there is a conflict
                             clusterStateChanged = true;
-                            logger.info("[{}] dropping index [{}] due to conflict with [{}]", tribeName, tribeIndex.getIndex(), existingFromTribe);
+                            logger.info("[{}] dropping index {} due to conflict with [{}]", tribeName, tribeIndex.getIndex(), existingFromTribe);
                             removeIndex(blocks, metaData, routingTable, tribeIndex);
                             droppedIndices.add(tribeIndex.getIndex().getName());
                         } else if (onConflict.startsWith(ON_CONFLICT_PREFER)) {
@@ -366,7 +366,7 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
                             if (tribeName.equals(preferredTribeName)) {
                                 // the new one is hte preferred one, replace...
                                 clusterStateChanged = true;
-                                logger.info("[{}] adding index [{}], preferred over [{}]", tribeName, tribeIndex.getIndex(), existingFromTribe);
+                                logger.info("[{}] adding index {}, preferred over [{}]", tribeName, tribeIndex.getIndex(), existingFromTribe);
                                 removeIndex(blocks, metaData, routingTable, tribeIndex);
                                 addNewIndex(tribeState, blocks, metaData, routingTable, tribeIndex);
                             } // else: either the existing one is the preferred one, or we haven't seen one, carry on

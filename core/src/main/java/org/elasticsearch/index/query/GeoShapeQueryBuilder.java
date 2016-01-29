@@ -43,7 +43,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.geo.GeoShapeFieldMapper;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -384,7 +383,7 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
         String fieldName = in.readString();
         GeoShapeQueryBuilder builder;
         if (in.readBoolean()) {
-            builder = new GeoShapeQueryBuilder(fieldName, in.readShape());
+            builder = new GeoShapeQueryBuilder(fieldName, in.readNamedWriteable(ShapeBuilder.class));
         } else {
             String indexedShapeId = in.readOptionalString();
             String indexedShapeType = in.readOptionalString();
@@ -411,7 +410,7 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
         boolean hasShape = shape != null;
         out.writeBoolean(hasShape);
         if (hasShape) {
-            out.writeShape(shape);
+            out.writeNamedWriteable(shape);
         } else {
             out.writeOptionalString(indexedShapeId);
             out.writeOptionalString(indexedShapeType);

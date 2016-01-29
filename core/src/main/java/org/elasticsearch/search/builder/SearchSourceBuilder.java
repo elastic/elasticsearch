@@ -41,14 +41,13 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsBuilder;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.rescore.RescoreBuilder;
-import org.elasticsearch.search.rescore.RescoreBuilder;
+import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
@@ -1222,7 +1221,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
             int size = in.readVInt();
             List<RescoreBuilder<?>> rescoreBuilders = new ArrayList<>();
             for (int i = 0; i < size; i++) {
-                rescoreBuilders.add(in.readRescorer());
+                rescoreBuilders.add(in.readNamedWriteable(RescoreBuilder.class));
             }
             builder.rescoreBuilders = rescoreBuilders;
         }
@@ -1340,7 +1339,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         if (hasRescoreBuilders) {
             out.writeVInt(rescoreBuilders.size());
             for (RescoreBuilder<?> rescoreBuilder : rescoreBuilders) {
-                out.writeRescorer(rescoreBuilder);
+                out.writeNamedWriteable(rescoreBuilder);
             }
         }
         boolean hasScriptFields = scriptFields != null;

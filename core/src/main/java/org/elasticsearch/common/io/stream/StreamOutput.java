@@ -32,11 +32,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
-import org.elasticsearch.search.rescore.RescoreBuilder;
 import org.joda.time.ReadableInstant;
 
 import java.io.EOFException;
@@ -634,7 +631,7 @@ public abstract class StreamOutput extends OutputStream {
     /**
      * Writes a {@link NamedWriteable} to the current stream, by first writing its name and then the object itself
      */
-    void writeNamedWriteable(NamedWriteable namedWriteable) throws IOException {
+    public void writeNamedWriteable(NamedWriteable<?> namedWriteable) throws IOException {
         writeString(namedWriteable.getWriteableName());
         namedWriteable.writeTo(this);
     }
@@ -644,20 +641,6 @@ public abstract class StreamOutput extends OutputStream {
      */
     public void writeQuery(QueryBuilder queryBuilder) throws IOException {
         writeNamedWriteable(queryBuilder);
-    }
-
-    /**
-     * Writes a {@link ShapeBuilder} to the current stream
-     */
-    public void writeShape(ShapeBuilder shapeBuilder) throws IOException {
-        writeNamedWriteable(shapeBuilder);
-    }
-
-    /**
-     * Writes a {@link ScoreFunctionBuilder} to the current stream
-     */
-    public void writeScoreFunction(ScoreFunctionBuilder<?> scoreFunctionBuilder) throws IOException {
-        writeNamedWriteable(scoreFunctionBuilder);
     }
 
     /**
@@ -677,11 +660,4 @@ public abstract class StreamOutput extends OutputStream {
             obj.writeTo(this);
         }
      }
-
-     /**
-     * Writes a {@link RescoreBuilder} to the current stream
-     */
-    public void writeRescorer(RescoreBuilder<?> rescorer) throws IOException {
-        writeNamedWriteable(rescorer);
-    }
 }

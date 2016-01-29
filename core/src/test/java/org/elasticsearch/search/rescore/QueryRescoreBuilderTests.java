@@ -170,7 +170,7 @@ public class QueryRescoreBuilderTests extends ESTestCase {
 
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
             RescoreBuilder<?> rescoreBuilder = randomRescoreBuilder();
-            QueryRescoreContext rescoreContext = (QueryRescoreContext) rescoreBuilder.build(mockShardContext);
+            QueryRescoreContext rescoreContext = rescoreBuilder.build(mockShardContext);
             XContentParser parser = createParser(rescoreBuilder);
 
             QueryRescoreContext parsedRescoreContext = (QueryRescoreContext) new RescoreParseElement().parseSingleRescoreContext(parser, mockShardContext);
@@ -336,9 +336,9 @@ public class QueryRescoreBuilderTests extends ESTestCase {
 
     private static RescoreBuilder<?> serializedCopy(RescoreBuilder<?> original) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            output.writeRescorer(original);
+            output.writeNamedWriteable(original);
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
-                return in.readRescorer();
+                return in.readNamedWriteable(RescoreBuilder.class);
             }
         }
     }

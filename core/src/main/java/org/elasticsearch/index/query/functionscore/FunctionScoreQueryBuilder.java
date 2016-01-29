@@ -386,12 +386,12 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeQuery(filter);
-            out.writeScoreFunction(scoreFunction);
+            out.writeNamedWriteable(scoreFunction);
         }
 
         @Override
         public FilterFunctionBuilder readFrom(StreamInput in) throws IOException {
-            return new FilterFunctionBuilder(in.readQuery(), in.readScoreFunction());
+            return new FilterFunctionBuilder(in.readQuery(), in.readNamedWriteable(ScoreFunctionBuilder.class));
         }
     }
 }

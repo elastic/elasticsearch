@@ -33,11 +33,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
-import org.elasticsearch.search.rescore.RescoreBuilder;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
@@ -658,7 +655,7 @@ public abstract class StreamInput extends InputStream {
      * Default implementation throws {@link UnsupportedOperationException} as StreamInput doesn't hold a registry.
      * Use {@link FilterInputStream} instead which wraps a stream and supports a {@link NamedWriteableRegistry} too.
      */
-    <C> C readNamedWriteable(@SuppressWarnings("unused") Class<C> categoryClass) throws IOException {
+    public <C> C readNamedWriteable(@SuppressWarnings("unused") Class<C> categoryClass) throws IOException {
         throw new UnsupportedOperationException("can't read named writeable from StreamInput");
     }
 
@@ -667,27 +664,6 @@ public abstract class StreamInput extends InputStream {
      */
     public QueryBuilder readQuery() throws IOException {
         return readNamedWriteable(QueryBuilder.class);
-    }
-
-    /**
-     * Reads a {@link ShapeBuilder} from the current stream
-     */
-    public ShapeBuilder readShape() throws IOException {
-        return readNamedWriteable(ShapeBuilder.class);
-    }
-
-    /**
-     * Reads a {@link RescoreBuilder} from the current stream
-     */
-    public RescoreBuilder<?> readRescorer() throws IOException {
-        return readNamedWriteable(RescoreBuilder.class);
-    }
-
-    /**
-     * Reads a {@link org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder} from the current stream
-     */
-    public ScoreFunctionBuilder<?> readScoreFunction() throws IOException {
-        return readNamedWriteable(ScoreFunctionBuilder.class);
     }
 
     /**

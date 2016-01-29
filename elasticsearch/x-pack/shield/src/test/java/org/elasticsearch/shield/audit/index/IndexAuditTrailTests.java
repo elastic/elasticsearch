@@ -177,7 +177,8 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
                     }
             };
             cluster2 = new InternalTestCluster("network", randomLong(), createTempDir(), numNodes, numNodes, cluster2Name,
-                    cluster2SettingsSource, 0, false, SECOND_CLUSTER_NODE_PREFIX, getMockPlugins(), Function.identity());
+                    cluster2SettingsSource, 0, false, SECOND_CLUSTER_NODE_PREFIX, getMockPlugins(),
+                    useShield ? getClientWrapper() : Function.identity());
             cluster2.beforeTest(getRandom(), 0.5);
             remoteClient = cluster2.client();
 

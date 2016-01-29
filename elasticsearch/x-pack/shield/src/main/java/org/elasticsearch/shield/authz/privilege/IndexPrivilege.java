@@ -32,16 +32,18 @@ public class IndexPrivilege extends AbstractAutomatonPrivilege<IndexPrivilege> {
     public static final IndexPrivilege CREATE_INDEX = new IndexPrivilege("create_index", CreateIndexAction.NAME);
     public static final IndexPrivilege MANAGE_ALIASES = new IndexPrivilege("manage_aliases", "indices:admin/aliases*");
     public static final IndexPrivilege MONITOR = new IndexPrivilege("monitor", "indices:monitor/*");
-    public static final IndexPrivilege DATA_ACCESS = new IndexPrivilege("data_access", "indices:data/*");
-    public static final IndexPrivilege CRUD = new IndexPrivilege("crud", "indices:data/write/*", "indices:data/read/*");
+    public static final IndexPrivilege DATA_ACCESS = new IndexPrivilege("data_access", "indices:data/*", "indices:admin/mapping/put");
+    public static final IndexPrivilege CRUD =
+            new IndexPrivilege("crud", "indices:data/write/*", "indices:data/read/*", "indices:admin/mapping/put");
     public static final IndexPrivilege READ = new IndexPrivilege("read", "indices:data/read/*");
-    public static final IndexPrivilege SEARCH = new IndexPrivilege("search", SearchAction.NAME + "*", MultiSearchAction.NAME + "*",
-            SuggestAction.NAME + "*");
+    public static final IndexPrivilege SEARCH =
+            new IndexPrivilege("search", SearchAction.NAME + "*", MultiSearchAction.NAME + "*", SuggestAction.NAME + "*");
     public static final IndexPrivilege GET = new IndexPrivilege("get", GetAction.NAME + "*", MultiGetAction.NAME + "*");
     public static final IndexPrivilege SUGGEST = new IndexPrivilege("suggest", SuggestAction.NAME + "*");
-    public static final IndexPrivilege INDEX = new IndexPrivilege("index", "indices:data/write/index*", "indices:data/write/update*");
+    public static final IndexPrivilege INDEX =
+            new IndexPrivilege("index", "indices:data/write/index*", "indices:data/write/update*", "indices:admin/mapping/put");
     public static final IndexPrivilege DELETE = new IndexPrivilege("delete", "indices:data/write/delete*");
-    public static final IndexPrivilege WRITE = new IndexPrivilege("write", "indices:data/write/*");
+    public static final IndexPrivilege WRITE = new IndexPrivilege("write", "indices:data/write/*", "indices:admin/mapping/put");
 
     private static final Set<IndexPrivilege> values = new CopyOnWriteArraySet<>();
 

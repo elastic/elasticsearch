@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.shield.authc.support;
 
-import org.apache.lucene.util.LuceneTestCase.BadApple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.shield.User;
@@ -25,8 +24,6 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
-//test is just too slow, please fix it to not be sleep-based
-@BadApple(bugUrl = "https://github.com/elastic/x-plugins/issues/1007")
 public class CachingUsernamePasswordRealmTests extends ESTestCase {
     private Settings globalSettings;
 
@@ -206,7 +203,9 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
         };
 
         final CountDownLatch latch = new CountDownLatch(1);
-        final int numberOfThreads = randomIntBetween(8, 24);
+        final int numberOfProcessors = Runtime.getRuntime().availableProcessors();
+        final int numberOfThreads = scaledRandomIntBetween((numberOfProcessors + 1) / 2, numberOfProcessors * 3);
+        final int numberOfIterations = scaledRandomIntBetween(20, 100);
         List<Thread> threads = new ArrayList<>();
         for (int i = 0; i < numberOfThreads; i++) {
             final boolean invalidPassword = randomBoolean();
@@ -215,9 +214,9 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
                 public void run() {
                     try {
                         latch.await();
-                        for (int i = 0; i < 100; i++) {
-                            User user = realm.authenticate(
-                                    new UsernamePasswordToken(username, invalidPassword ? randomPassword : password));
+                        for (int i = 0; i < numberOfIterations; i++) {
+                            UsernamePasswordToken token = new UsernamePasswordToken(username, invalidPassword ? randomPassword : password);
+                            User user = realm.authenticate(token);
                             if (invalidPassword && user != null) {
                                 throw new RuntimeException("invalid password led to an authenticated user: " + user.toString());
                             } else if (invalidPassword == false && user == null) {

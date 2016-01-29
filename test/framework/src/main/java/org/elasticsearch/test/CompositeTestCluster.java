@@ -241,8 +241,8 @@ public class CompositeTestCluster extends TestCluster {
     }
 
     @Override
-    public synchronized Iterator<Client> iterator() {
-        return Collections.singleton(client()).iterator();
+    public synchronized Iterable<Client> getClients() {
+        return Collections.singleton(client());
     }
 
     /**

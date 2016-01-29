@@ -167,8 +167,8 @@ public final class ExternalTestCluster extends TestCluster {
     }
 
     @Override
-    public Iterator<Client> iterator() {
-        return Collections.singleton(client).iterator();
+    public Iterable<Client> getClients() {
+        return Collections.singleton(client);
     }
 
     @Override

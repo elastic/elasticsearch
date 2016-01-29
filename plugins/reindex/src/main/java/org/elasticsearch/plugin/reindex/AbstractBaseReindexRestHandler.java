@@ -23,7 +23,6 @@ import java.io.IOException;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.NoopActionListener;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterService;
@@ -36,6 +35,7 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.LoggingTaskListener;
 import org.elasticsearch.tasks.Task;
 
 public abstract class AbstractBaseReindexRestHandler<Request extends ActionRequest<Request>, Response extends BulkIndexByScrollResponse, TA extends TransportAction<Request, Response>>
@@ -67,7 +67,7 @@ public abstract class AbstractBaseReindexRestHandler<Request extends ActionReque
             channel.sendResponse(new BytesRestResponse(channel, validationException));
             return;
         }
-        Task task = action.execute(internalRequest, NoopActionListener.instance());
+        Task task = action.execute(internalRequest, LoggingTaskListener.instance());
         sendTask(channel, task);
     }
 

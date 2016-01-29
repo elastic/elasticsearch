@@ -30,6 +30,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskListener;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -67,24 +68,38 @@ public abstract class TransportAction<Request extends ActionRequest<Request>, Re
     }
 
     public final Task execute(Request request, ActionListener<Response> listener) {
-        Task task = taskManager.register("transport", actionName, request);
-        if (task == null) {
-            execute(null, request, listener);
-        } else {
-            execute(task, request, new ActionListener<Response>() {
-                @Override
-                public void onResponse(Response response) {
-                    taskManager.unregister(task);
-                    listener.onResponse(response);
-                }
+        return execute(request, new TaskListener<Response>() {
+            @Override
+            public void onResponse(Task task, Response response) {
+                listener.onResponse(response);
+            }
 
-                @Override
-                public void onFailure(Throwable e) {
+            @Override
+            public void onFailure(Task task, Throwable e) {
+                listener.onFailure(e);
+            }
+        });
+    }
+
+    public final Task execute(Request request, TaskListener<Response> listener) {
+        Task task = taskManager.register("transport", actionName, request);
+        execute(task, request, new ActionListener<Response>() {
+            @Override
+            public void onResponse(Response response) {
+                if (task != null) {
                     taskManager.unregister(task);
-                    listener.onFailure(e);
                 }
-            });
-        }
+                listener.onResponse(task, response);
+            }
+
+            @Override
+            public void onFailure(Throwable e) {
+                if (task != null) {
+                    taskManager.unregister(task);
+                }
+                listener.onFailure(task, e);
+            }
+        });
         return task;
     }
 

@@ -19,14 +19,14 @@
 
 package org.elasticsearch.repositories.s3;
 
+import com.amazonaws.Protocol;
 import org.elasticsearch.cloud.aws.AwsS3Service;
-import org.elasticsearch.cloud.aws.AwsS3Service.CLOUD_AWS;
-import org.elasticsearch.cloud.aws.AwsS3Service.REPOSITORY_S3;
 import org.elasticsearch.cloud.aws.blobstore.S3BlobStore;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.snapshots.IndexShardRepository;
@@ -37,6 +37,7 @@ import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 
 import java.io.IOException;
 import java.util.Locale;
+import java.util.function.Function;
 
 /**
  * Shared file system implementation of the BlobStoreRepository
@@ -54,6 +55,40 @@ import java.util.Locale;
 public class S3Repository extends BlobStoreRepository {
 
     public final static String TYPE = "s3";
+
+    public interface Repositories {
+        Setting<String> KEY_SETTING = new Setting<>("repositories.s3.access_key", AwsS3Service.CLOUD_S3.KEY_SETTING, Function.identity(), false, Setting.Scope.CLUSTER);
+        Setting<String> SECRET_SETTING = new Setting<>("repositories.s3.secret_key", AwsS3Service.CLOUD_S3.SECRET_SETTING, Function.identity(), false, Setting.Scope.CLUSTER);
+        Setting<String> BUCKET_SETTING = Setting.simpleString("repositories.s3.bucket", false, Setting.Scope.CLUSTER);
+        Setting<String> REGION_SETTING = new Setting<>("repositories.s3.region", AwsS3Service.CLOUD_S3.REGION_SETTING, s -> s.toLowerCase(Locale.ROOT), false, Setting.Scope.CLUSTER);
+        Setting<String> ENDPOINT_SETTING = new Setting<>("repositories.s3.endpoint", AwsS3Service.CLOUD_S3.ENDPOINT_SETTING, s -> s.toLowerCase(Locale.ROOT), false, Setting.Scope.CLUSTER);
+        Setting<Protocol> PROTOCOL_SETTING = new Setting<>("repositories.s3.protocol", AwsS3Service.CLOUD_S3.PROTOCOL_SETTING, s -> Protocol.valueOf(s.toUpperCase(Locale.ROOT)), false, Setting.Scope.CLUSTER);
+        Setting<Boolean> SERVER_SIDE_ENCRYPTION_SETTING = Setting.boolSetting("repositories.s3.server_side_encryption", false, false, Setting.Scope.CLUSTER);
+        Setting<ByteSizeValue> BUFFER_SIZE_SETTING = Setting.byteSizeSetting("repositories.s3.buffer_size", S3BlobStore.MIN_BUFFER_SIZE, false, Setting.Scope.CLUSTER);
+        Setting<Integer> MAX_RETRIES_SETTING = Setting.intSetting("repositories.s3.max_retries", 3, false, Setting.Scope.CLUSTER);
+        Setting<ByteSizeValue> CHUNK_SIZE_SETTING = Setting.byteSizeSetting("repositories.s3.chunk_size", new ByteSizeValue(100, ByteSizeUnit.MB), false, Setting.Scope.CLUSTER);
+        Setting<Boolean> COMPRESS_SETTING = Setting.boolSetting("repositories.s3.compress", false, false, Setting.Scope.CLUSTER);
+        Setting<String> STORAGE_CLASS_SETTING = Setting.simpleString("repositories.s3.storage_class", false, Setting.Scope.CLUSTER);
+        Setting<String> CANNED_ACL_SETTING = Setting.simpleString("repositories.s3.canned_acl", false, Setting.Scope.CLUSTER);
+        Setting<String> BASE_PATH_SETTING = Setting.simpleString("repositories.s3.base_path", false, Setting.Scope.CLUSTER);
+    }
+
+    public interface Repository {
+        Setting<String> KEY_SETTING = Setting.simpleString("access_key", false, Setting.Scope.CLUSTER);
+        Setting<String> SECRET_SETTING = Setting.simpleString("secret_key", false, Setting.Scope.CLUSTER);
+        Setting<String> BUCKET_SETTING = Setting.simpleString("bucket", false, Setting.Scope.CLUSTER);
+        Setting<String> ENDPOINT_SETTING = Setting.simpleString("endpoint", false, Setting.Scope.CLUSTER);
+        Setting<Protocol> PROTOCOL_SETTING = new Setting<>("protocol", "https", s -> Protocol.valueOf(s.toUpperCase(Locale.ROOT)), false, Setting.Scope.CLUSTER);
+        Setting<String> REGION_SETTING = new Setting<>("region", "", s -> s.toLowerCase(Locale.ROOT), false, Setting.Scope.CLUSTER);
+        Setting<Boolean> SERVER_SIDE_ENCRYPTION_SETTING = Setting.boolSetting("server_side_encryption", false, false, Setting.Scope.CLUSTER);
+        Setting<ByteSizeValue> BUFFER_SIZE_SETTING = Setting.byteSizeSetting("buffer_size", S3BlobStore.MIN_BUFFER_SIZE, false, Setting.Scope.CLUSTER);
+        Setting<Integer> MAX_RETRIES_SETTING = Setting.intSetting("max_retries", 3, false, Setting.Scope.CLUSTER);
+        Setting<ByteSizeValue> CHUNK_SIZE_SETTING = Setting.byteSizeSetting("chunk_size", "-1", false, Setting.Scope.CLUSTER);
+        Setting<Boolean> COMPRESS_SETTING = Setting.boolSetting("compress", false, false, Setting.Scope.CLUSTER);
+        Setting<String> STORAGE_CLASS_SETTING = Setting.simpleString("storage_class", false, Setting.Scope.CLUSTER);
+        Setting<String> CANNED_ACL_SETTING = Setting.simpleString("canned_acl", false, Setting.Scope.CLUSTER);
+        Setting<String> BASE_PATH_SETTING = Setting.simpleString("base_path", false, Setting.Scope.CLUSTER);
+    }
 
     private final S3BlobStore blobStore;
 
@@ -75,62 +110,40 @@ public class S3Repository extends BlobStoreRepository {
     public S3Repository(RepositoryName name, RepositorySettings repositorySettings, IndexShardRepository indexShardRepository, AwsS3Service s3Service) throws IOException {
         super(name.getName(), repositorySettings, indexShardRepository);
 
-        String bucket = repositorySettings.settings().get("bucket", settings.get(REPOSITORY_S3.BUCKET));
+        String bucket = getValue(repositorySettings, Repository.BUCKET_SETTING, Repositories.BUCKET_SETTING);
         if (bucket == null) {
             throw new RepositoryException(name.name(), "No bucket defined for s3 gateway");
         }
 
-        String endpoint = repositorySettings.settings().get("endpoint", settings.get(REPOSITORY_S3.ENDPOINT));
-        String protocol = repositorySettings.settings().get("protocol", settings.get(REPOSITORY_S3.PROTOCOL));
-
-        String region = repositorySettings.settings().get("region", settings.get(REPOSITORY_S3.REGION));
-        if (region == null) {
-            // InternalBucket setting is not set - use global region setting
-            String regionSetting = settings.get(CLOUD_AWS.REGION);
-            if (regionSetting != null) {
-                regionSetting = regionSetting.toLowerCase(Locale.ENGLISH);
-                if ("us-east".equals(regionSetting) || "us-east-1".equals(regionSetting)) {
-                    // Default bucket - setting region to null
-                    region = null;
-                } else if ("us-west".equals(regionSetting) || "us-west-1".equals(regionSetting)) {
-                    region = "us-west-1";
-                } else if ("us-west-2".equals(regionSetting)) {
-                    region = "us-west-2";
-                } else if ("ap-southeast".equals(regionSetting) || "ap-southeast-1".equals(regionSetting)) {
-                    region = "ap-southeast-1";
-                } else if ("ap-southeast-2".equals(regionSetting)) {
-                    region = "ap-southeast-2";
-                } else if ("ap-northeast".equals(regionSetting) || "ap-northeast-1".equals(regionSetting)) {
-                    region = "ap-northeast-1";
-                } else if ("eu-west".equals(regionSetting) || "eu-west-1".equals(regionSetting)) {
-                    region = "eu-west-1";
-                } else if ("eu-central".equals(regionSetting) || "eu-central-1".equals(regionSetting)) {
-                    region = "eu-central-1";
-                } else if ("sa-east".equals(regionSetting) || "sa-east-1".equals(regionSetting)) {
-                    region = "sa-east-1";
-                } else if ("cn-north".equals(regionSetting) || "cn-north-1".equals(regionSetting)) {
-                    region = "cn-north-1";
-                }
-            }
+        String endpoint = getValue(repositorySettings, Repository.ENDPOINT_SETTING, Repositories.ENDPOINT_SETTING);
+        Protocol protocol = getValue(repositorySettings, Repository.PROTOCOL_SETTING, Repositories.PROTOCOL_SETTING);
+        String region = getValue(repositorySettings, Repository.REGION_SETTING, Repositories.REGION_SETTING);
+        // If no region is defined either in region, repositories.s3.region, cloud.aws.s3.region or cloud.aws.region
+        // we fallback to Default bucket - null
+        if (Strings.isEmpty(region)) {
+            region = null;
         }
 
-        boolean serverSideEncryption = repositorySettings.settings().getAsBoolean("server_side_encryption", settings.getAsBoolean(REPOSITORY_S3.SERVER_SIDE_ENCRYPTION, false));
-        ByteSizeValue bufferSize = repositorySettings.settings().getAsBytesSize("buffer_size", settings.getAsBytesSize(REPOSITORY_S3.BUFFER_SIZE, null));
-        Integer maxRetries = repositorySettings.settings().getAsInt("max_retries", settings.getAsInt(REPOSITORY_S3.MAX_RETRIES, 3));
-        this.chunkSize = repositorySettings.settings().getAsBytesSize("chunk_size", settings.getAsBytesSize(REPOSITORY_S3.CHUNK_SIZE, new ByteSizeValue(100, ByteSizeUnit.MB)));
-        this.compress = repositorySettings.settings().getAsBoolean("compress", settings.getAsBoolean(REPOSITORY_S3.COMPRESS, false));
+        boolean serverSideEncryption = getValue(repositorySettings, Repository.SERVER_SIDE_ENCRYPTION_SETTING, Repositories.SERVER_SIDE_ENCRYPTION_SETTING);
+        ByteSizeValue bufferSize = getValue(repositorySettings, Repository.BUFFER_SIZE_SETTING, Repositories.BUFFER_SIZE_SETTING);
+        Integer maxRetries = getValue(repositorySettings, Repository.MAX_RETRIES_SETTING, Repositories.MAX_RETRIES_SETTING);
+        this.chunkSize = getValue(repositorySettings, Repository.CHUNK_SIZE_SETTING, Repositories.CHUNK_SIZE_SETTING);
+        this.compress = getValue(repositorySettings, Repository.COMPRESS_SETTING, Repositories.COMPRESS_SETTING);
 
         // Parse and validate the user's S3 Storage Class setting
-        String storageClass = repositorySettings.settings().get("storage_class", settings.get(REPOSITORY_S3.STORAGE_CLASS, null));
-        String cannedACL = repositorySettings.settings().get("canned_acl", settings.get(REPOSITORY_S3.CANNED_ACL, null));
+        String storageClass = getValue(repositorySettings, Repository.STORAGE_CLASS_SETTING, Repositories.STORAGE_CLASS_SETTING);
+        String cannedACL = getValue(repositorySettings, Repository.CANNED_ACL_SETTING, Repositories.CANNED_ACL_SETTING);
 
         logger.debug("using bucket [{}], region [{}], endpoint [{}], protocol [{}], chunk_size [{}], server_side_encryption [{}], buffer_size [{}], max_retries [{}], cannedACL [{}], storageClass [{}]",
                 bucket, region, endpoint, protocol, chunkSize, serverSideEncryption, bufferSize, maxRetries, cannedACL, storageClass);
 
-        blobStore = new S3BlobStore(settings, s3Service.client(endpoint, protocol, region, repositorySettings.settings().get("access_key"), repositorySettings.settings().get("secret_key"), maxRetries),
+        String key = getValue(repositorySettings, Repository.KEY_SETTING, Repositories.KEY_SETTING);
+        String secret = getValue(repositorySettings, Repository.SECRET_SETTING, Repositories.SECRET_SETTING);
+
+        blobStore = new S3BlobStore(settings, s3Service.client(endpoint, protocol, region, key, secret, maxRetries),
                 bucket, region, serverSideEncryption, bufferSize, maxRetries, cannedACL, storageClass);
 
-        String basePath = repositorySettings.settings().get("base_path", settings.get(REPOSITORY_S3.BASE_PATH));
+        String basePath = getValue(repositorySettings, Repository.BASE_PATH_SETTING, Repositories.BASE_PATH_SETTING);
         if (Strings.hasLength(basePath)) {
             BlobPath path = new BlobPath();
             for(String elem : Strings.splitStringToArray(basePath, '/')) {
@@ -171,4 +184,13 @@ public class S3Repository extends BlobStoreRepository {
         return chunkSize;
     }
 
+    public static <T> T getValue(RepositorySettings repositorySettings,
+                                 Setting<T> repositorySetting,
+                                 Setting<T> repositoriesSetting) {
+        if (repositorySetting.exists(repositorySettings.settings())) {
+            return repositorySetting.get(repositorySettings.settings());
+        } else {
+            return repositoriesSetting.get(repositorySettings.globalSettings());
+        }
+    }
 }

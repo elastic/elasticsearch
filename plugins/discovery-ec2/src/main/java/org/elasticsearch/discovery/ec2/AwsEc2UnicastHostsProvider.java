@@ -31,7 +31,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cloud.aws.AwsEc2Service;
 import org.elasticsearch.cloud.aws.AwsEc2Service.DISCOVERY_EC2;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -42,11 +41,9 @@ import org.elasticsearch.discovery.zen.ping.unicast.UnicastHostsProvider;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -54,13 +51,6 @@ import java.util.Set;
  *
  */
 public class AwsEc2UnicastHostsProvider extends AbstractComponent implements UnicastHostsProvider {
-
-    private static enum HostType {
-        PRIVATE_IP,
-        PUBLIC_IP,
-        PRIVATE_DNS,
-        PUBLIC_DNS
-    }
 
     private final TransportService transportService;
 
@@ -76,7 +66,7 @@ public class AwsEc2UnicastHostsProvider extends AbstractComponent implements Uni
 
     private final Set<String> availabilityZones;
 
-    private final HostType hostType;
+    private final DISCOVERY_EC2.HostType hostType;
 
     private final DiscoNodesCache discoNodes;
 
@@ -87,24 +77,17 @@ public class AwsEc2UnicastHostsProvider extends AbstractComponent implements Uni
         this.client = awsEc2Service.client();
         this.version = version;
 
-        this.hostType = HostType.valueOf(settings.get(DISCOVERY_EC2.HOST_TYPE, "private_ip")
-                .toUpperCase(Locale.ROOT));
+        this.hostType = DISCOVERY_EC2.HOST_TYPE_SETTING.get(settings);
+        this.discoNodes = new DiscoNodesCache(DISCOVERY_EC2.NODE_CACHE_TIME_SETTING.get(settings));
 
-        this.discoNodes = new DiscoNodesCache(this.settings.getAsTime(DISCOVERY_EC2.NODE_CACHE_TIME,
-                                              TimeValue.timeValueMillis(10_000L)));
-
-        this.bindAnyGroup = settings.getAsBoolean(DISCOVERY_EC2.ANY_GROUP, true);
+        this.bindAnyGroup = DISCOVERY_EC2.ANY_GROUP_SETTING.get(settings);
         this.groups = new HashSet<>();
-        groups.addAll(Arrays.asList(settings.getAsArray(DISCOVERY_EC2.GROUPS)));
+        this.groups.addAll(DISCOVERY_EC2.GROUPS_SETTING.get(settings));
 
-        this.tags = settings.getByPrefix(DISCOVERY_EC2.TAG_PREFIX).getAsMap();
+        this.tags = DISCOVERY_EC2.TAG_SETTING.get(settings).getAsMap();
 
-        Set<String> availabilityZones = new HashSet<>();
-        availabilityZones.addAll(Arrays.asList(settings.getAsArray(DISCOVERY_EC2.AVAILABILITY_ZONES)));
-        if (settings.get(DISCOVERY_EC2.AVAILABILITY_ZONES) != null) {
-            availabilityZones.addAll(Strings.commaDelimitedListToSet(settings.get(DISCOVERY_EC2.AVAILABILITY_ZONES)));
-        }
-        this.availabilityZones = availabilityZones;
+        this.availabilityZones = new HashSet<>();
+        availabilityZones.addAll(DISCOVERY_EC2.AVAILABILITY_ZONES_SETTING.get(settings));
 
         if (logger.isDebugEnabled()) {
             logger.debug("using host_type [{}], tags [{}], groups [{}] with any_group [{}], availability_zones [{}]", hostType, tags, groups, bindAnyGroup, availabilityZones);

@@ -19,11 +19,6 @@
 
 package org.elasticsearch.plugin.discovery.ec2;
 
-import java.security.AccessController;
-import java.security.PrivilegedAction;
-import java.util.ArrayList;
-import java.util.Collection;
-
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.cloud.aws.AwsEc2Service;
 import org.elasticsearch.cloud.aws.AwsEc2ServiceImpl;
@@ -38,6 +33,11 @@ import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.ec2.AwsEc2UnicastHostsProvider;
 import org.elasticsearch.discovery.ec2.Ec2Discovery;
 import org.elasticsearch.plugins.Plugin;
+
+import java.security.AccessController;
+import java.security.PrivilegedAction;
+import java.util.ArrayList;
+import java.util.Collection;
 
 /**
  *
@@ -104,12 +104,43 @@ public class Ec2DiscoveryPlugin extends Plugin {
     }
 
     public void onModule(SettingsModule settingsModule) {
+        // Register global cloud aws settings: cloud.aws
+        settingsModule.registerSetting(AwsEc2Service.KEY_SETTING);
+        settingsModule.registerSetting(AwsEc2Service.SECRET_SETTING);
+        settingsModule.registerSetting(AwsEc2Service.PROTOCOL_SETTING);
+        settingsModule.registerSetting(AwsEc2Service.PROXY_HOST_SETTING);
+        settingsModule.registerSetting(AwsEc2Service.PROXY_PORT_SETTING);
+        settingsModule.registerSetting(AwsEc2Service.PROXY_USERNAME_SETTING);
+        settingsModule.registerSetting(AwsEc2Service.PROXY_PASSWORD_SETTING);
+        settingsModule.registerSetting(AwsEc2Service.SIGNER_SETTING);
+        settingsModule.registerSetting(AwsEc2Service.REGION_SETTING);
+
+        // Register EC2 specific settings: cloud.aws.ec2
+        settingsModule.registerSetting(AwsEc2Service.CLOUD_EC2.KEY_SETTING);
+        settingsModule.registerSetting(AwsEc2Service.CLOUD_EC2.SECRET_SETTING);
+        settingsModule.registerSetting(AwsEc2Service.CLOUD_EC2.PROTOCOL_SETTING);
+        settingsModule.registerSetting(AwsEc2Service.CLOUD_EC2.PROXY_HOST_SETTING);
+        settingsModule.registerSetting(AwsEc2Service.CLOUD_EC2.PROXY_PORT_SETTING);
+        settingsModule.registerSetting(AwsEc2Service.CLOUD_EC2.PROXY_USERNAME_SETTING);
+        settingsModule.registerSetting(AwsEc2Service.CLOUD_EC2.PROXY_PASSWORD_SETTING);
+        settingsModule.registerSetting(AwsEc2Service.CLOUD_EC2.SIGNER_SETTING);
+        settingsModule.registerSetting(AwsEc2Service.CLOUD_EC2.REGION_SETTING);
+        settingsModule.registerSetting(AwsEc2Service.CLOUD_EC2.ENDPOINT_SETTING);
+
+        // Register EC2 discovery settings: discovery.ec2
+        settingsModule.registerSetting(AwsEc2Service.DISCOVERY_EC2.HOST_TYPE_SETTING);
+        settingsModule.registerSetting(AwsEc2Service.DISCOVERY_EC2.ANY_GROUP_SETTING);
+        settingsModule.registerSetting(AwsEc2Service.DISCOVERY_EC2.GROUPS_SETTING);
+        settingsModule.registerSetting(AwsEc2Service.DISCOVERY_EC2.AVAILABILITY_ZONES_SETTING);
+        settingsModule.registerSetting(AwsEc2Service.DISCOVERY_EC2.NODE_CACHE_TIME_SETTING);
+
         // Filter global settings
-        settingsModule.registerSettingsFilterIfMissing(AwsEc2Service.CLOUD_AWS.KEY);
-        settingsModule.registerSettingsFilterIfMissing(AwsEc2Service.CLOUD_AWS.SECRET);
-        settingsModule.registerSettingsFilterIfMissing(AwsEc2Service.CLOUD_AWS.PROXY_PASSWORD);
-        settingsModule.registerSettingsFilterIfMissing(AwsEc2Service.CLOUD_EC2.KEY);
-        settingsModule.registerSettingsFilterIfMissing(AwsEc2Service.CLOUD_EC2.SECRET);
-        settingsModule.registerSettingsFilterIfMissing(AwsEc2Service.CLOUD_EC2.PROXY_PASSWORD);
+        settingsModule.registerSettingsFilterIfMissing(AwsEc2Service.KEY_SETTING.getKey());
+        settingsModule.registerSettingsFilterIfMissing(AwsEc2Service.SECRET_SETTING.getKey());
+        settingsModule.registerSettingsFilterIfMissing(AwsEc2Service.PROXY_PASSWORD_SETTING.getKey());
+        settingsModule.registerSettingsFilterIfMissing(AwsEc2Service.CLOUD_EC2.KEY_SETTING.getKey());
+        settingsModule.registerSettingsFilterIfMissing(AwsEc2Service.CLOUD_EC2.SECRET_SETTING.getKey());
+        settingsModule.registerSettingsFilterIfMissing(AwsEc2Service.CLOUD_EC2.PROXY_PASSWORD_SETTING.getKey());
     }
+
 }

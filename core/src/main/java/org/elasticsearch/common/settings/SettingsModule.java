@@ -71,6 +71,11 @@ public class SettingsModule extends AbstractModule {
      * the setting during startup.
      */
     public void registerSetting(Setting<?> setting) {
+        if (setting.isFiltered()) {
+            if (settingsFilterPattern.contains(setting.getKey()) == false) {
+                registerSettingsFilter(setting.getKey());
+            }
+        }
         switch (setting.getScope()) {
             case CLUSTER:
                 if (clusterSettings.containsKey(setting.getKey())) {
@@ -99,12 +104,6 @@ public class SettingsModule extends AbstractModule {
             throw new IllegalArgumentException("filter [" + filter + "] has already been registered");
         }
         settingsFilterPattern.add(filter);
-    }
-
-    public void registerSettingsFilterIfMissing(String filter) {
-        if (settingsFilterPattern.contains(filter) == false) {
-            registerSettingsFilter(filter);
-        }
     }
 
     /**

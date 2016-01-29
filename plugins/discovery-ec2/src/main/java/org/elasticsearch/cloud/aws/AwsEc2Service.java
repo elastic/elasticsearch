@@ -40,11 +40,11 @@ public interface AwsEc2Service {
     /**
      * cloud.aws.access_key: AWS Access key. Shared with repository-s3 plugin
      */
-    Setting<String> KEY_SETTING = Setting.simpleString("cloud.aws.access_key", false, Setting.Scope.CLUSTER);
+    Setting<String> KEY_SETTING = Setting.simpleString("cloud.aws.access_key", false, Setting.Scope.CLUSTER, true);
     /**
      * cloud.aws.secret_key: AWS Secret key. Shared with repository-s3 plugin
      */
-    Setting<String> SECRET_SETTING = Setting.simpleString("cloud.aws.secret_key", false, Setting.Scope.CLUSTER);
+    Setting<String> SECRET_SETTING = Setting.simpleString("cloud.aws.secret_key", false, Setting.Scope.CLUSTER, true);
     /**
      * cloud.aws.protocol: Protocol for AWS API: http or https. Defaults to https. Shared with repository-s3 plugin
      */
@@ -65,7 +65,7 @@ public interface AwsEc2Service {
     /**
      * cloud.aws.proxy.password: In case of proxy with auth, define the password. Shared with repository-s3 plugin
      */
-    Setting<String> PROXY_PASSWORD_SETTING = Setting.simpleString("cloud.aws.proxy.password", false, Setting.Scope.CLUSTER);
+    Setting<String> PROXY_PASSWORD_SETTING = Setting.simpleString("cloud.aws.proxy.password", false, Setting.Scope.CLUSTER, true);
     /**
      * cloud.aws.signer: If you are using an old AWS API version, you can define a Signer. Shared with repository-s3 plugin
      */
@@ -84,13 +84,13 @@ public interface AwsEc2Service {
          * @see AwsEc2Service#KEY_SETTING
          */
         Setting<String> KEY_SETTING = new Setting<>("cloud.aws.ec2.access_key", AwsEc2Service.KEY_SETTING, Function.identity(), false,
-            Setting.Scope.CLUSTER);
+            Setting.Scope.CLUSTER, true);
         /**
          * cloud.aws.ec2.secret_key: AWS Secret key specific for EC2 API calls. Defaults to cloud.aws.secret_key.
          * @see AwsEc2Service#SECRET_SETTING
          */
         Setting<String> SECRET_SETTING = new Setting<>("cloud.aws.ec2.secret_key", AwsEc2Service.SECRET_SETTING, Function.identity(), false,
-            Setting.Scope.CLUSTER);
+            Setting.Scope.CLUSTER, true);
         /**
          * cloud.aws.ec2.protocol: Protocol for AWS API specific for EC2 API calls: http or https.  Defaults to cloud.aws.protocol.
          * @see AwsEc2Service#PROTOCOL_SETTING
@@ -122,7 +122,7 @@ public interface AwsEc2Service {
          * @see AwsEc2Service#PROXY_PASSWORD_SETTING
          */
         Setting<String> PROXY_PASSWORD_SETTING = new Setting<>("cloud.aws.ec2.proxy.password", AwsEc2Service.PROXY_PASSWORD_SETTING,
-            Function.identity(), false, Setting.Scope.CLUSTER);
+            Function.identity(), false, Setting.Scope.CLUSTER, true);
         /**
          * cloud.aws.ec2.signer: If you are using an old AWS API version, you can define a Signer. Specific for EC2 API calls.
          * Defaults to cloud.aws.signer.

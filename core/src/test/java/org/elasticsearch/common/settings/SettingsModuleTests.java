@@ -132,11 +132,10 @@ public class SettingsModuleTests extends ModuleTestCase {
         Settings settings = Settings.builder().put("foo.bar", "false").put("bar.foo", false).put("bar.baz", false).build();
         SettingsModule module = new SettingsModule(settings);
         module.registerSetting(Setting.boolSetting("foo.bar", true, false, Setting.Scope.CLUSTER));
-        module.registerSetting(Setting.boolSetting("bar.foo", true, false, Setting.Scope.CLUSTER));
+        module.registerSetting(Setting.boolSetting("bar.foo", true, false, Setting.Scope.CLUSTER, true));
         module.registerSetting(Setting.boolSetting("bar.baz", true, false, Setting.Scope.CLUSTER));
 
         module.registerSettingsFilter("foo.*");
-        module.registerSettingsFilterIfMissing("bar.foo");
         try {
             module.registerSettingsFilter("bar.foo");
             fail();

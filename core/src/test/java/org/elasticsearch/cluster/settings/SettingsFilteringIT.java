@@ -50,6 +50,11 @@ public class SettingsFilteringIT extends ESIntegTestCase {
     }
 
     public static class SettingsFilteringPlugin extends Plugin {
+        public static final Setting<Boolean> SOME_NODE_SETTING =
+            Setting.boolSetting("some.node.setting", false, false, Setting.Scope.CLUSTER, true);
+        public static final Setting<Boolean> SOME_OTHER_NODE_SETTING =
+            Setting.boolSetting("some.other.node.setting", false, false, Setting.Scope.CLUSTER);
+
         /**
          * The name of the plugin.
          */
@@ -72,10 +77,9 @@ public class SettingsFilteringIT extends ESIntegTestCase {
         }
 
         public void onModule(SettingsModule module) {
+            module.registerSetting(SOME_NODE_SETTING);
+            module.registerSetting(SOME_OTHER_NODE_SETTING);
             module.registerSetting(Setting.groupSetting("index.filter_test.", false, Setting.Scope.INDEX));
-            module.registerSetting(Setting.boolSetting("some.node.setting", false,  false, Setting.Scope.CLUSTER));
-            module.registerSetting(Setting.boolSetting("some.other.node.setting", false,  false, Setting.Scope.CLUSTER));
-            module.registerSettingsFilter("some.node.setting");
             module.registerSettingsFilter("index.filter_test.foo");
             module.registerSettingsFilter("index.filter_test.bar*");
         }
@@ -104,8 +108,8 @@ public class SettingsFilteringIT extends ESIntegTestCase {
         for(NodeInfo info : nodeInfos.getNodes()) {
             Settings settings = info.getSettings();
             assertNotNull(settings);
-            assertNull(settings.get("some.node.setting"));
-            assertTrue(settings.getAsBoolean("some.other.node.setting", false));
+            assertNull(settings.get(SettingsFilteringPlugin.SOME_NODE_SETTING.getKey()));
+            assertTrue(settings.getAsBoolean(SettingsFilteringPlugin.SOME_OTHER_NODE_SETTING.getKey(), false));
             assertEquals(settings.get("node.name"), info.getNode().getName());
         }
     }

@@ -71,22 +71,50 @@ public class Setting<T> extends ToXContentToBytes {
     private final Function<String, T> parser;
     private final boolean dynamic;
     private final Scope scope;
+    private final boolean filtered;
+
+    /**
+     * Creates a new Setting instance, unfiltered
+     * @param key the settings key for this setting.
+     * @param defaultValue a default value function that returns the default values string representation.
+     * @param parser a parser that parses the string rep into a complex datatype.
+     * @param dynamic true if this setting can be dynamically updateable
+     * @param scope the scope of this setting
+     */
+    public Setting(String key, Function<Settings, String> defaultValue, Function<String, T> parser, boolean dynamic, Scope scope) {
+        this(key, defaultValue, parser, dynamic, scope, false);
+    }
 
     /**
      * Creates a new Setting instance
      * @param key the settings key for this setting.
      * @param defaultValue a default value function that returns the default values string representation.
      * @param parser a parser that parses the string rep into a complex datatype.
-     * @param dynamic true iff this setting can be dynamically updateable
+     * @param dynamic true if this setting can be dynamically updateable
      * @param scope the scope of this setting
+     * @param filtered true if this setting should be filtered
      */
-    public Setting(String key, Function<Settings, String> defaultValue, Function<String, T> parser, boolean dynamic, Scope scope) {
+    public Setting(String key, Function<Settings, String> defaultValue, Function<String, T> parser, boolean dynamic, Scope scope,
+                   boolean filtered) {
         assert parser.apply(defaultValue.apply(Settings.EMPTY)) != null || this.isGroupSetting(): "parser returned null";
         this.key = key;
         this.defaultValue = defaultValue;
         this.parser = parser;
         this.dynamic = dynamic;
         this.scope = scope;
+        this.filtered = filtered;
+    }
+
+    /**
+     * Creates a new Setting instance, unfiltered
+     * @param key the settings key for this setting.
+     * @param fallBackSetting a setting to fall back to if the current setting is not set.
+     * @param parser a parser that parses the string rep into a complex datatype.
+     * @param dynamic true iff this setting can be dynamically updateable
+     * @param scope the scope of this setting
+     */
+    public Setting(String key, Setting<T> fallBackSetting, Function<String, T> parser, boolean dynamic, Scope scope) {
+        this(key, fallBackSetting, parser, dynamic, scope, false);
     }
 
     /**
@@ -96,9 +124,10 @@ public class Setting<T> extends ToXContentToBytes {
      * @param parser a parser that parses the string rep into a complex datatype.
      * @param dynamic true iff this setting can be dynamically updateable
      * @param scope the scope of this setting
+     * @param filtered true if this setting should be filtered
      */
-    public Setting(String key, Setting<T> fallBackSetting, Function<String, T> parser, boolean dynamic, Scope scope) {
-        this(key, fallBackSetting::getRaw, parser, dynamic, scope);
+    public Setting(String key, Setting<T> fallBackSetting, Function<String, T> parser, boolean dynamic, Scope scope, boolean filtered) {
+        this(key, fallBackSetting::getRaw, parser, dynamic, scope, filtered);
     }
 
     /**
@@ -113,7 +142,7 @@ public class Setting<T> extends ToXContentToBytes {
     }
 
     /**
-     * Returns <code>true</code> iff this setting is dynamically updateable, otherwise <code>false</code>
+     * Returns <code>true</code> if this setting is dynamically updateable, otherwise <code>false</code>
      */
     public final boolean isDynamic() {
         return dynamic;
@@ -124,6 +153,13 @@ public class Setting<T> extends ToXContentToBytes {
      */
     public final Scope getScope() {
         return scope;
+    }
+
+    /**
+     * Returns <code>true</code> if this setting must be filtered, otherwise <code>false</code>
+     */
+    public boolean isFiltered() {
+        return filtered;
     }
 
     /**
@@ -331,7 +367,11 @@ public class Setting<T> extends ToXContentToBytes {
 
 
     public Setting(String key, String defaultValue, Function<String, T> parser, boolean dynamic, Scope scope) {
-        this(key, (s) -> defaultValue, parser, dynamic, scope);
+        this(key, defaultValue, parser, dynamic, scope, false);
+    }
+
+    public Setting(String key, String defaultValue, Function<String, T> parser, boolean dynamic, Scope scope, boolean filtered) {
+        this(key, (s) -> defaultValue, parser, dynamic, scope, filtered);
     }
 
     public static Setting<Float> floatSetting(String key, float defaultValue, boolean dynamic, Scope scope) {
@@ -357,11 +397,19 @@ public class Setting<T> extends ToXContentToBytes {
     }
 
     public static Setting<Long> longSetting(String key, long defaultValue, long minValue, boolean dynamic, Scope scope) {
-        return new Setting<>(key, (s) -> Long.toString(defaultValue), (s) -> parseLong(s, minValue, key), dynamic, scope);
+        return longSetting(key, defaultValue, minValue, dynamic, scope, false);
+    }
+
+    public static Setting<Long> longSetting(String key, long defaultValue, long minValue, boolean dynamic, Scope scope, boolean filtered) {
+        return new Setting<>(key, (s) -> Long.toString(defaultValue), (s) -> parseLong(s, minValue, key), dynamic, scope, filtered);
     }
 
     public static Setting<String> simpleString(String key, boolean dynamic, Scope scope) {
-        return new Setting<>(key, "", Function.identity(), dynamic, scope);
+        return simpleString(key, dynamic, scope, false);
+    }
+
+    public static Setting<String> simpleString(String key, boolean dynamic, Scope scope, boolean filtered) {
+        return new Setting<>(key, s -> "", Function.identity(), dynamic, scope, filtered);
     }
 
     public static int parseInt(String s, int minValue, String key) {
@@ -392,7 +440,11 @@ public class Setting<T> extends ToXContentToBytes {
     }
 
     public static Setting<Boolean> boolSetting(String key, boolean defaultValue, boolean dynamic, Scope scope) {
-        return new Setting<>(key, (s) -> Boolean.toString(defaultValue), Booleans::parseBooleanExact, dynamic, scope);
+        return boolSetting(key, defaultValue, dynamic, scope, false);
+    }
+
+    public static Setting<Boolean> boolSetting(String key, boolean defaultValue, boolean dynamic, Scope scope, boolean filtered) {
+        return new Setting<>(key, (s) -> Boolean.toString(defaultValue), Booleans::parseBooleanExact, dynamic, scope, filtered);
     }
 
     public static Setting<Boolean> boolSetting(String key, Setting<Boolean> fallbackSetting, boolean dynamic, Scope scope) {

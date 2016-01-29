@@ -632,8 +632,8 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         client().admin().cluster().preparePutRepository("test-repo")
                 .setType("mock").setSettings(Settings.settingsBuilder()
                         .put("location", randomRepoPath())
-                        .put("secret.mock.username", "notsecretusername")
-                        .put("secret.mock.password", "verysecretpassword")
+                        .put(MockRepository.Plugin.USERNAME_SETTING.getKey(), "notsecretusername")
+                        .put(MockRepository.Plugin.PASSWORD_SETTING.getKey(), "verysecretpassword")
         ).get();
 
         RestGetRepositoriesAction getRepoAction = internalCluster().getInstance(RestGetRepositoriesAction.class);

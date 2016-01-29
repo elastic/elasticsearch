@@ -140,12 +140,12 @@ public class S3Repository extends BlobStoreRepository {
          * access_key
          * @see  Repositories#KEY_SETTING
          */
-        Setting<String> KEY_SETTING = Setting.simpleString("access_key", false, Setting.Scope.CLUSTER);
+        Setting<String> KEY_SETTING = Setting.simpleString("access_key", false, Setting.Scope.CLUSTER, true);
         /**
          * secret_key
          * @see  Repositories#SECRET_SETTING
          */
-        Setting<String> SECRET_SETTING = Setting.simpleString("secret_key", false, Setting.Scope.CLUSTER);
+        Setting<String> SECRET_SETTING = Setting.simpleString("secret_key", false, Setting.Scope.CLUSTER, true);
         /**
          * bucket
          * @see  Repositories#BUCKET_SETTING

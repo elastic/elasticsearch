@@ -32,6 +32,7 @@ import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
@@ -63,6 +64,11 @@ public class MockRepository extends FsRepository {
 
     public static class Plugin extends org.elasticsearch.plugins.Plugin {
 
+        public static final Setting<String> USERNAME_SETTING =
+            Setting.simpleString("secret.mock.username", false, Setting.Scope.CLUSTER);
+        public static final Setting<String> PASSWORD_SETTING =
+            Setting.simpleString("secret.mock.password", false, Setting.Scope.CLUSTER, true);
+
         @Override
         public String name() {
             return "mock-repository";
@@ -78,8 +84,8 @@ public class MockRepository extends FsRepository {
         }
 
         public void onModule(SettingsModule module) {
-            module.registerSettingsFilter("secret.mock.password");
-
+            module.registerSetting(USERNAME_SETTING);
+            module.registerSetting(PASSWORD_SETTING);
         }
     }
 

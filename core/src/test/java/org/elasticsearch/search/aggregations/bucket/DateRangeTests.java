@@ -26,7 +26,7 @@ import org.elasticsearch.search.aggregations.bucket.range.date.DateRangeAggregat
 public class DateRangeTests extends BaseAggregationTestCase<DateRangeAggregatorBuilder> {
 
     @Override
-    protected DateRangeAggregatorBuilder createTestAggregatorFactory() {
+    protected DateRangeAggregatorBuilder createTestAggregatorBuilder() {
         int numRanges = randomIntBetween(1, 10);
         DateRangeAggregatorBuilder factory = new DateRangeAggregatorBuilder("foo");
         for (int i = 0; i < numRanges; i++) {

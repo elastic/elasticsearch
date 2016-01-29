@@ -25,7 +25,7 @@ import org.elasticsearch.search.aggregations.bucket.nested.ReverseNestedAggregat
 public class ReverseNestedTests extends BaseAggregationTestCase<ReverseNestedAggregator.ReverseNestedAggregatorBuilder> {
 
     @Override
-    protected ReverseNestedAggregatorBuilder createTestAggregatorFactory() {
+    protected ReverseNestedAggregatorBuilder createTestAggregatorBuilder() {
         ReverseNestedAggregatorBuilder factory = new ReverseNestedAggregatorBuilder(randomAsciiOfLengthBetween(1, 20));
         if (randomBoolean()) {
             factory.path(randomAsciiOfLengthBetween(3, 40));

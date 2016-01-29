@@ -26,7 +26,7 @@ import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregator.Glob
 public class GlobalTests extends BaseAggregationTestCase<GlobalAggregator.GlobalAggregatorBuilder> {
 
     @Override
-    protected GlobalAggregatorBuilder createTestAggregatorFactory() {
+    protected GlobalAggregatorBuilder createTestAggregatorBuilder() {
         return new GlobalAggregator.GlobalAggregatorBuilder(randomAsciiOfLengthBetween(3, 20));
     }
 

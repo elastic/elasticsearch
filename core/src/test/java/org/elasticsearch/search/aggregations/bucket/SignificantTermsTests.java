@@ -50,7 +50,7 @@ public class SignificantTermsTests extends BaseAggregationTestCase<SignificantTe
     }
 
     @Override
-    protected SignificantTermsAggregatorBuilder createTestAggregatorFactory() {
+    protected SignificantTermsAggregatorBuilder createTestAggregatorBuilder() {
         String name = randomAsciiOfLengthBetween(3, 20);
         SignificantTermsAggregatorBuilder factory = new SignificantTermsAggregatorBuilder(name, null);
         String field = randomAsciiOfLengthBetween(3, 20);

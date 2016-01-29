@@ -25,7 +25,7 @@ import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashGridParser.Ge
 public class GeoHashGridTests extends BaseAggregationTestCase<GeoGridAggregatorFactory> {
 
     @Override
-    protected GeoGridAggregatorFactory createTestAggregatorFactory() {
+    protected GeoGridAggregatorFactory createTestAggregatorBuilder() {
         String name = randomAsciiOfLengthBetween(3, 20);
         GeoGridAggregatorFactory factory = new GeoGridAggregatorFactory(name);
         if (randomBoolean()) {

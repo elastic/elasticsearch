@@ -25,7 +25,7 @@ import org.elasticsearch.search.aggregations.bucket.sampler.SamplerAggregator;
 public class SamplerTests extends BaseAggregationTestCase<SamplerAggregator.SamplerAggregatorBuilder> {
 
     @Override
-    protected final SamplerAggregator.SamplerAggregatorBuilder createTestAggregatorFactory() {
+    protected final SamplerAggregator.SamplerAggregatorBuilder createTestAggregatorBuilder() {
         SamplerAggregator.SamplerAggregatorBuilder factory = new SamplerAggregator.SamplerAggregatorBuilder("foo");
         if (randomBoolean()) {
             factory.shardSize(randomIntBetween(1, 1000));

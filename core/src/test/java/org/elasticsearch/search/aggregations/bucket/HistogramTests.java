@@ -28,7 +28,7 @@ import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregato
 public class HistogramTests extends BaseAggregationTestCase<HistogramAggregator.HistogramAggregatorBuilder> {
 
     @Override
-    protected HistogramAggregatorBuilder createTestAggregatorFactory() {
+    protected HistogramAggregatorBuilder createTestAggregatorBuilder() {
         HistogramAggregatorBuilder factory = new HistogramAggregatorBuilder("foo");
         factory.field(INT_FIELD_NAME);
         factory.interval(randomIntBetween(1, 100000));

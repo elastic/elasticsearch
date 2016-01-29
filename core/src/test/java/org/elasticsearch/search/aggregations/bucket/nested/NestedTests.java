@@ -25,7 +25,7 @@ import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregator.Nest
 public class NestedTests extends BaseAggregationTestCase<NestedAggregator.NestedAggregatorBuilder> {
 
     @Override
-    protected NestedAggregatorBuilder createTestAggregatorFactory() {
+    protected NestedAggregatorBuilder createTestAggregatorBuilder() {
         return new NestedAggregatorBuilder(randomAsciiOfLengthBetween(1, 20), randomAsciiOfLengthBetween(3, 40));
     }
 

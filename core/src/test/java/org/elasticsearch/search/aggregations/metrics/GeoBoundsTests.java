@@ -26,7 +26,7 @@ import org.elasticsearch.search.aggregations.metrics.geobounds.GeoBoundsAggregat
 public class GeoBoundsTests extends BaseAggregationTestCase<GeoBoundsAggregator.GeoBoundsAggregatorBuilder> {
 
     @Override
-    protected GeoBoundsAggregatorBuilder createTestAggregatorFactory() {
+    protected GeoBoundsAggregatorBuilder createTestAggregatorBuilder() {
         GeoBoundsAggregatorBuilder factory = new GeoBoundsAggregatorBuilder(randomAsciiOfLengthBetween(1, 20));
         String field = randomAsciiOfLengthBetween(3, 20);
         factory.field(field);

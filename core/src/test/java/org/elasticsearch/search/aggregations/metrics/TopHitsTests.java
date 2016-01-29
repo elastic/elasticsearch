@@ -34,7 +34,7 @@ import java.util.List;;
 public class TopHitsTests extends BaseAggregationTestCase<TopHitsAggregator.TopHitsAggregatorBuilder> {
 
     @Override
-    protected final TopHitsAggregator.TopHitsAggregatorBuilder createTestAggregatorFactory() {
+    protected final TopHitsAggregator.TopHitsAggregatorBuilder createTestAggregatorBuilder() {
         TopHitsAggregator.TopHitsAggregatorBuilder factory = new TopHitsAggregator.TopHitsAggregatorBuilder("foo");
         if (randomBoolean()) {
             factory.from(randomIntBetween(0, 10000));

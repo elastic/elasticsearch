@@ -30,7 +30,7 @@ import org.elasticsearch.test.geo.RandomShapeGenerator;
 public class GeoDistanceRangeTests extends BaseAggregationTestCase<GeoDistanceAggregatorBuilder> {
 
     @Override
-    protected GeoDistanceAggregatorBuilder createTestAggregatorFactory() {
+    protected GeoDistanceAggregatorBuilder createTestAggregatorBuilder() {
         int numRanges = randomIntBetween(1, 10);
         GeoPoint origin = RandomShapeGenerator.randomPoint(getRandom());
         GeoDistanceAggregatorBuilder factory = new GeoDistanceAggregatorBuilder("foo", origin);

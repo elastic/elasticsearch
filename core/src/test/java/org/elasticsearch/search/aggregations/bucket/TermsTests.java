@@ -46,7 +46,7 @@ public class TermsTests extends BaseAggregationTestCase<TermsAggregatorBuilder> 
     }
 
     @Override
-    protected TermsAggregatorBuilder createTestAggregatorFactory() {
+    protected TermsAggregatorBuilder createTestAggregatorBuilder() {
         String name = randomAsciiOfLengthBetween(3, 20);
         TermsAggregatorBuilder factory = new TermsAggregatorBuilder(name, null);
         String field = randomAsciiOfLengthBetween(3, 20);

@@ -26,7 +26,7 @@ import org.elasticsearch.search.aggregations.bucket.children.ParentToChildrenAgg
 public class ChildrenTests extends BaseAggregationTestCase<ParentToChildrenAggregator.ChildrenAggregatorBuilder> {
 
     @Override
-    protected ChildrenAggregatorBuilder createTestAggregatorFactory() {
+    protected ChildrenAggregatorBuilder createTestAggregatorBuilder() {
         String name = randomAsciiOfLengthBetween(3, 20);
         String childType = randomAsciiOfLengthBetween(5, 40);
         ChildrenAggregatorBuilder factory = new ChildrenAggregatorBuilder(name, childType);

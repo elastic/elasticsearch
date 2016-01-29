@@ -28,7 +28,7 @@ import org.elasticsearch.search.aggregations.bucket.range.ipv4.IPv4RangeAggregat
 public class IPv4RangeTests extends BaseAggregationTestCase<IPv4RangeAggregatorBuilder> {
 
     @Override
-    protected IPv4RangeAggregatorBuilder createTestAggregatorFactory() {
+    protected IPv4RangeAggregatorBuilder createTestAggregatorBuilder() {
         int numRanges = randomIntBetween(1, 10);
         IPv4RangeAggregatorBuilder factory = new IPv4RangeAggregatorBuilder("foo");
         for (int i = 0; i < numRanges; i++) {

@@ -629,13 +629,12 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /** Checks a specific exception class is thrown by the given runnable, and returns it. */
-    @SuppressWarnings("unchecked")
     public static <T extends Throwable> T expectThrows(Class<T> expectedType, ThrowingRunnable runnable) {
         try {
             runnable.run();
         } catch (Throwable e) {
             if (expectedType.isInstance(e)) {
-                return (T) e;
+                return expectedType.cast(e);
             }
             AssertionFailedError assertion = new AssertionFailedError("Unexpected exception type, expected " + expectedType.getSimpleName());
             assertion.initCause(e);

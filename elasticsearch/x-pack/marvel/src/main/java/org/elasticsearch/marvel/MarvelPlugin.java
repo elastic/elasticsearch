@@ -28,7 +28,6 @@ import org.elasticsearch.marvel.shield.MarvelShieldIntegration;
 import org.elasticsearch.marvel.shield.MarvelShieldModule;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.shield.authz.AuthorizationModule;
-import org.elasticsearch.tribe.TribeService;
 import org.elasticsearch.xpack.XPackPlugin;
 
 import java.util.ArrayList;
@@ -46,6 +45,7 @@ public class MarvelPlugin extends Plugin {
     public static final String ENABLED = NAME + ".enabled";
     public static final Setting<String> INDEX_MARVEL_VERSION_SETTING = new Setting<>("index.marvel.plugin.version", "", Function.identity(), false, Setting.Scope.INDEX);
     public static final Setting<String> INDEX_MARVEL_TEMPLATE_VERSION_SETTING = new Setting<>("index.marvel.template.version", "", Function.identity(), false, Setting.Scope.INDEX);
+    private static final String TRIBE_NAME_SETTING = "tribe.name";
 
     private final Settings settings;
     private final boolean enabled;
@@ -118,7 +118,7 @@ public class MarvelPlugin extends Plugin {
     }
 
     static boolean isTribeClientNode(Settings settings) {
-        String tribeName = settings.get(TribeService.TRIBE_NAME);
+        String tribeName = settings.get(TRIBE_NAME_SETTING);
         if (tribeName != null) {
             logger.trace("detecting tribe client node [{}]", tribeName);
             return true;

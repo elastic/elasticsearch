@@ -185,12 +185,13 @@
             "processors": [
               {
                 "remove" : {
+                  "tag" : "first_processor",
                   "field" : "field_to_remove",
                   "on_failure" : [
                     {
                       "set" : {
                         "field" : "error",
-                        "value" : "processor [{{ _ingest.on_failure_processor }}]: {{ _ingest.on_failure_message }}"
+                        "value" : "processor {{ _ingest.on_failure_processor_tag }} [{{ _ingest.on_failure_processor_type }}]: {{ _ingest.on_failure_message }}"
                       }
                     }
                   ]
@@ -217,4 +218,4 @@
         id: 1
   - length: { _source: 2 }
   - match: { _source.do_nothing: "foo" }
-  - match: { _source.error: "processor [remove]: field [field_to_remove] not present as part of path [field_to_remove]" }
+  - match: { _source.error: "processor first_processor [remove]: field [field_to_remove] not present as part of path [field_to_remove]" }

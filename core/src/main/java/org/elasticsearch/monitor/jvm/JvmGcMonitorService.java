@@ -20,6 +20,8 @@
 package org.elasticsearch.monitor.jvm;
 
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Scope;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
@@ -31,13 +33,12 @@ import java.util.Map;
 import java.util.concurrent.ScheduledFuture;
 
 import static java.util.Collections.unmodifiableMap;
-import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 import static org.elasticsearch.monitor.jvm.JvmStats.jvmStats;
 
 /**
  *
  */
-public class JvmMonitorService extends AbstractLifecycleComponent<JvmMonitorService> {
+public class JvmGcMonitorService extends AbstractLifecycleComponent<JvmGcMonitorService> {
 
     private final ThreadPool threadPool;
     private final boolean enabled;
@@ -45,6 +46,11 @@ public class JvmMonitorService extends AbstractLifecycleComponent<JvmMonitorServ
     private final Map<String, GcThreshold> gcThresholds;
 
     private volatile ScheduledFuture scheduledFuture;
+
+    public final static Setting<Boolean> ENABLED_SETTING = Setting.boolSetting("monitor.jvm.gc.enabled", true, false, Scope.CLUSTER);
+    public final static Setting<TimeValue> REFRESH_INTERVAL_SETTING =
+        Setting.timeSetting("monitor.jvm.gc.refresh_interval", TimeValue.timeValueSeconds(1), TimeValue.timeValueSeconds(1), false, Scope.CLUSTER);
+    public final static Setting<Settings> GC_SETTING = Setting.groupSetting("monitor.jvm.gc.collector.", false, Scope.CLUSTER);
 
     static class GcThreshold {
         public final String name;
@@ -70,15 +76,15 @@ public class JvmMonitorService extends AbstractLifecycleComponent<JvmMonitorServ
         }
     }
 
-    public JvmMonitorService(Settings settings, ThreadPool threadPool) {
+    public JvmGcMonitorService(Settings settings, ThreadPool threadPool) {
         super(settings);
         this.threadPool = threadPool;
 
-        this.enabled = this.settings.getAsBoolean("monitor.jvm.enabled", true);
-        this.interval = this.settings.getAsTime("monitor.jvm.interval", timeValueSeconds(1));
+        this.enabled = ENABLED_SETTING.get(settings);
+        this.interval = REFRESH_INTERVAL_SETTING.get(settings);
 
         Map<String, GcThreshold> gcThresholds = new HashMap<>();
-        Map<String, Settings> gcThresholdGroups = this.settings.getGroups("monitor.jvm.gc");
+        Map<String, Settings> gcThresholdGroups = GC_SETTING.get(settings).getAsGroups();
         for (Map.Entry<String, Settings> entry : gcThresholdGroups.entrySet()) {
             String name = entry.getKey();
             TimeValue warn = entry.getValue().getAsTime("warn", null);

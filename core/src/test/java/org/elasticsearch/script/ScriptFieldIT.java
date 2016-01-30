@@ -44,7 +44,7 @@ public class ScriptFieldIT extends ESIntegTestCase {
     }
 
     static int[] intArray = { Integer.MAX_VALUE, Integer.MIN_VALUE, 3 };
-    static long[] longArray = { Long.MAX_VALUE, Long.MIN_VALUE, 9223372036854775807l };
+    static long[] longArray = { Long.MAX_VALUE, Long.MIN_VALUE, 9223372036854775807L };
     static float[] floatArray = { Float.MAX_VALUE, Float.MIN_VALUE, 3.3f };
     static double[] doubleArray = { Double.MAX_VALUE, Double.MIN_VALUE, 3.3d };
 

@@ -69,12 +69,12 @@ public class NettyScheduledPingTests extends ESTestCase {
         assertBusy(new Runnable() {
             @Override
             public void run() {
-                assertThat(nettyA.scheduledPing.successfulPings.count(), greaterThan(100l));
-                assertThat(nettyB.scheduledPing.successfulPings.count(), greaterThan(100l));
+                assertThat(nettyA.scheduledPing.successfulPings.count(), greaterThan(100L));
+                assertThat(nettyB.scheduledPing.successfulPings.count(), greaterThan(100L));
             }
         });
-        assertThat(nettyA.scheduledPing.failedPings.count(), equalTo(0l));
-        assertThat(nettyB.scheduledPing.failedPings.count(), equalTo(0l));
+        assertThat(nettyA.scheduledPing.failedPings.count(), equalTo(0L));
+        assertThat(nettyB.scheduledPing.failedPings.count(), equalTo(0L));
 
         serviceA.registerRequestHandler("sayHello", TransportRequest.Empty::new, ThreadPool.Names.GENERIC, new TransportRequestHandler<TransportRequest.Empty>() {
             @Override
@@ -118,12 +118,12 @@ public class NettyScheduledPingTests extends ESTestCase {
         assertBusy(new Runnable() {
             @Override
             public void run() {
-                assertThat(nettyA.scheduledPing.successfulPings.count(), greaterThan(200l));
-                assertThat(nettyB.scheduledPing.successfulPings.count(), greaterThan(200l));
+                assertThat(nettyA.scheduledPing.successfulPings.count(), greaterThan(200L));
+                assertThat(nettyB.scheduledPing.successfulPings.count(), greaterThan(200L));
             }
         });
-        assertThat(nettyA.scheduledPing.failedPings.count(), equalTo(0l));
-        assertThat(nettyB.scheduledPing.failedPings.count(), equalTo(0l));
+        assertThat(nettyA.scheduledPing.failedPings.count(), equalTo(0L));
+        assertThat(nettyB.scheduledPing.failedPings.count(), equalTo(0L));
 
         Releasables.close(serviceA, serviceB);
         terminate(threadPool);

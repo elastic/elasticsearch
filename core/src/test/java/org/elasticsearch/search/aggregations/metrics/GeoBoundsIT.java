@@ -166,7 +166,7 @@ public class GeoBoundsIT extends AbstractGeoTestCase {
                         .wrapLongitude(false))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(0l));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(0L));
         GeoBounds geoBounds = searchResponse.getAggregations().get(aggName);
         assertThat(geoBounds, notNullValue());
         assertThat(geoBounds.getName(), equalTo(aggName));
@@ -238,7 +238,7 @@ public class GeoBoundsIT extends AbstractGeoTestCase {
         for (int i = 0; i < 10; i++) {
             Bucket bucket = buckets.get(i);
             assertThat(bucket, notNullValue());
-            assertThat("InternalBucket " + bucket.getKey() + " has wrong number of documents", bucket.getDocCount(), equalTo(1l));
+            assertThat("InternalBucket " + bucket.getKey() + " has wrong number of documents", bucket.getDocCount(), equalTo(1L));
             GeoBounds geoBounds = bucket.getAggregations().get(aggName);
             assertThat(geoBounds, notNullValue());
             assertThat(geoBounds.getName(), equalTo(aggName));

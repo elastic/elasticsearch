@@ -467,7 +467,7 @@ public class BucketSelectorTests extends ESIntegTestCase {
     public void testEmptyBuckets() {
         SearchResponse response = client().prepareSearch("idx_with_gaps")
                 .addAggregation(histogram("histo").field(FIELD_1_NAME).interval(1)
-                        .subAggregation(histogram("inner_histo").field(FIELD_1_NAME).interval(1).extendedBounds(1l, 4l).minDocCount(0)
+                        .subAggregation(histogram("inner_histo").field(FIELD_1_NAME).interval(1).extendedBounds(1L, 4L).minDocCount(0)
                                 .subAggregation(derivative("derivative").setBucketsPaths("_count").gapPolicy(GapPolicy.INSERT_ZEROS))))
                 .execute().actionGet();
 

@@ -101,12 +101,12 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
         Terms accurateTerms = accurateResponse.getAggregations().get("terms");
         assertThat(accurateTerms, notNullValue());
         assertThat(accurateTerms.getName(), equalTo("terms"));
-        assertThat(accurateTerms.getDocCountError(), equalTo(0l));
+        assertThat(accurateTerms.getDocCountError(), equalTo(0L));
 
         Terms testTerms = testResponse.getAggregations().get("terms");
         assertThat(testTerms, notNullValue());
         assertThat(testTerms.getName(), equalTo("terms"));
-        assertThat(testTerms.getDocCountError(), greaterThanOrEqualTo(0l));
+        assertThat(testTerms.getDocCountError(), greaterThanOrEqualTo(0L));
         Collection<Bucket> testBuckets = testTerms.getBuckets();
         assertThat(testBuckets.size(), lessThanOrEqualTo(size));
         assertThat(accurateTerms.getBuckets().size(), greaterThanOrEqualTo(testBuckets.size()));
@@ -115,7 +115,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
             assertThat(testBucket, notNullValue());
             Terms.Bucket accurateBucket = accurateTerms.getBucketByKey(testBucket.getKeyAsString());
             assertThat(accurateBucket, notNullValue());
-            assertThat(accurateBucket.getDocCountError(), equalTo(0l));
+            assertThat(accurateBucket.getDocCountError(), equalTo(0L));
             assertThat(testBucket.getDocCountError(), lessThanOrEqualTo(testTerms.getDocCountError()));
             assertThat(testBucket.getDocCount() + testBucket.getDocCountError(), greaterThanOrEqualTo(accurateBucket.getDocCount()));
             assertThat(testBucket.getDocCount() - testBucket.getDocCountError(), lessThanOrEqualTo(accurateBucket.getDocCount()));
@@ -135,12 +135,12 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
         Terms accurateTerms = accurateResponse.getAggregations().get("terms");
         assertThat(accurateTerms, notNullValue());
         assertThat(accurateTerms.getName(), equalTo("terms"));
-        assertThat(accurateTerms.getDocCountError(), equalTo(0l));
+        assertThat(accurateTerms.getDocCountError(), equalTo(0L));
 
         Terms testTerms = testResponse.getAggregations().get("terms");
         assertThat(testTerms, notNullValue());
         assertThat(testTerms.getName(), equalTo("terms"));
-        assertThat(testTerms.getDocCountError(), equalTo(0l));
+        assertThat(testTerms.getDocCountError(), equalTo(0L));
         Collection<Bucket> testBuckets = testTerms.getBuckets();
         assertThat(testBuckets.size(), lessThanOrEqualTo(size));
         assertThat(accurateTerms.getBuckets().size(), greaterThanOrEqualTo(testBuckets.size()));
@@ -149,8 +149,8 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
             assertThat(testBucket, notNullValue());
             Terms.Bucket accurateBucket = accurateTerms.getBucketByKey(testBucket.getKeyAsString());
             assertThat(accurateBucket, notNullValue());
-            assertThat(accurateBucket.getDocCountError(), equalTo(0l));
-            assertThat(testBucket.getDocCountError(), equalTo(0l));
+            assertThat(accurateBucket.getDocCountError(), equalTo(0L));
+            assertThat(testBucket.getDocCountError(), equalTo(0L));
         }
     }
 
@@ -158,13 +158,13 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
         Terms testTerms = testResponse.getAggregations().get("terms");
         assertThat(testTerms, notNullValue());
         assertThat(testTerms.getName(), equalTo("terms"));
-        assertThat(testTerms.getDocCountError(), equalTo(0l));
+        assertThat(testTerms.getDocCountError(), equalTo(0L));
         Collection<Bucket> testBuckets = testTerms.getBuckets();
         assertThat(testBuckets.size(), lessThanOrEqualTo(size));
 
         for (Terms.Bucket testBucket : testBuckets) {
             assertThat(testBucket, notNullValue());
-            assertThat(testBucket.getDocCountError(), equalTo(0l));
+            assertThat(testBucket.getDocCountError(), equalTo(0L));
         }
     }
 
@@ -172,12 +172,12 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
         Terms accurateTerms = accurateResponse.getAggregations().get("terms");
         assertThat(accurateTerms, notNullValue());
         assertThat(accurateTerms.getName(), equalTo("terms"));
-        assertThat(accurateTerms.getDocCountError(), equalTo(0l));
+        assertThat(accurateTerms.getDocCountError(), equalTo(0L));
 
         Terms testTerms = testResponse.getAggregations().get("terms");
         assertThat(testTerms, notNullValue());
         assertThat(testTerms.getName(), equalTo("terms"));
-        assertThat(testTerms.getDocCountError(),anyOf(equalTo(-1l), equalTo(0l)));
+        assertThat(testTerms.getDocCountError(),anyOf(equalTo(-1L), equalTo(0L)));
         Collection<Bucket> testBuckets = testTerms.getBuckets();
         assertThat(testBuckets.size(), lessThanOrEqualTo(size));
         assertThat(accurateTerms.getBuckets().size(), greaterThanOrEqualTo(testBuckets.size()));
@@ -186,8 +186,8 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
             assertThat(testBucket, notNullValue());
             Terms.Bucket accurateBucket = accurateTerms.getBucketByKey(testBucket.getKeyAsString());
             assertThat(accurateBucket, notNullValue());
-            assertThat(accurateBucket.getDocCountError(), equalTo(0l));
-            assertThat(testBucket.getDocCountError(), anyOf(equalTo(-1l), equalTo(0l)));
+            assertThat(accurateBucket.getDocCountError(), equalTo(0L));
+            assertThat(testBucket.getDocCountError(), anyOf(equalTo(-1L), equalTo(0L)));
         }
     }
 

@@ -93,7 +93,7 @@ public class IndicesShardStoreRequestIT extends ESIntegTestCase {
         assertThat(shardStores.values().size(), equalTo(2));
         for (ObjectCursor<List<IndicesShardStoresResponse.StoreStatus>> shardStoreStatuses : shardStores.values()) {
             for (IndicesShardStoresResponse.StoreStatus storeStatus : shardStoreStatuses.value) {
-                assertThat(storeStatus.getVersion(), greaterThan(-1l));
+                assertThat(storeStatus.getVersion(), greaterThan(-1L));
                 assertThat(storeStatus.getAllocationId(), notNullValue());
                 assertThat(storeStatus.getNode(), notNullValue());
                 assertThat(storeStatus.getStoreException(), nullValue());
@@ -191,10 +191,10 @@ public class IndicesShardStoreRequestIT extends ESIntegTestCase {
             for (IndicesShardStoresResponse.StoreStatus status : shardStatus.value) {
                 if (corruptedShardIDMap.containsKey(shardStatus.key)
                         && corruptedShardIDMap.get(shardStatus.key).contains(status.getNode().name())) {
-                    assertThat(status.getVersion(), greaterThanOrEqualTo(0l));
+                    assertThat(status.getVersion(), greaterThanOrEqualTo(0L));
                     assertThat(status.getStoreException(), notNullValue());
                 } else {
-                    assertThat(status.getVersion(), greaterThanOrEqualTo(0l));
+                    assertThat(status.getVersion(), greaterThanOrEqualTo(0L));
                     assertNull(status.getStoreException());
                 }
             }

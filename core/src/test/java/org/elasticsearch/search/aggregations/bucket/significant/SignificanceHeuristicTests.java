@@ -103,8 +103,8 @@ public class SignificanceHeuristicTests extends ESTestCase {
         assertThat(originalBucket.getKeyAsString(), equalTo(streamedBucket.getKeyAsString()));
         assertThat(originalBucket.getSupersetDf(), equalTo(streamedBucket.getSupersetDf()));
         assertThat(originalBucket.getSubsetDf(), equalTo(streamedBucket.getSubsetDf()));
-        assertThat(streamedBucket.getSubsetSize(), equalTo(10l));
-        assertThat(streamedBucket.getSupersetSize(), equalTo(20l));
+        assertThat(streamedBucket.getSubsetSize(), equalTo(10L));
+        assertThat(streamedBucket.getSupersetSize(), equalTo(20L));
     }
 
     InternalSignificantTerms[] getRandomSignificantTerms(SignificanceHeuristic heuristic) {
@@ -139,14 +139,14 @@ public class SignificanceHeuristicTests extends ESTestCase {
         List<InternalAggregation> aggs = createInternalAggregations();
         SignificantTerms reducedAgg = (SignificantTerms) aggs.get(0).doReduce(aggs, null);
         assertThat(reducedAgg.getBuckets().size(), equalTo(2));
-        assertThat(reducedAgg.getBuckets().get(0).getSubsetDf(), equalTo(8l));
-        assertThat(reducedAgg.getBuckets().get(0).getSubsetSize(), equalTo(16l));
-        assertThat(reducedAgg.getBuckets().get(0).getSupersetDf(), equalTo(10l));
-        assertThat(reducedAgg.getBuckets().get(0).getSupersetSize(), equalTo(30l));
-        assertThat(reducedAgg.getBuckets().get(1).getSubsetDf(), equalTo(8l));
-        assertThat(reducedAgg.getBuckets().get(1).getSubsetSize(), equalTo(16l));
-        assertThat(reducedAgg.getBuckets().get(1).getSupersetDf(), equalTo(10l));
-        assertThat(reducedAgg.getBuckets().get(1).getSupersetSize(), equalTo(30l));
+        assertThat(reducedAgg.getBuckets().get(0).getSubsetDf(), equalTo(8L));
+        assertThat(reducedAgg.getBuckets().get(0).getSubsetSize(), equalTo(16L));
+        assertThat(reducedAgg.getBuckets().get(0).getSupersetDf(), equalTo(10L));
+        assertThat(reducedAgg.getBuckets().get(0).getSupersetSize(), equalTo(30L));
+        assertThat(reducedAgg.getBuckets().get(1).getSubsetDf(), equalTo(8L));
+        assertThat(reducedAgg.getBuckets().get(1).getSubsetSize(), equalTo(16L));
+        assertThat(reducedAgg.getBuckets().get(1).getSupersetDf(), equalTo(10L));
+        assertThat(reducedAgg.getBuckets().get(1).getSupersetSize(), equalTo(30L));
     }
 
     // Create aggregations as they might come from three different shards and return as list.
@@ -252,7 +252,7 @@ public class SignificanceHeuristicTests extends ESTestCase {
         stParser.nextToken();
         SignificantTermsAggregatorFactory aggregatorFactory = (SignificantTermsAggregatorFactory) new SignificantTermsParser(heuristicParserMapper).parse("testagg", stParser, searchContext);
         stParser.nextToken();
-        assertThat(aggregatorFactory.getBucketCountThresholds().getMinDocCount(), equalTo(200l));
+        assertThat(aggregatorFactory.getBucketCountThresholds().getMinDocCount(), equalTo(200L));
         assertThat(stParser.currentToken(), equalTo(null));
         stParser.close();
         return aggregatorFactory.getSignificanceHeuristic();

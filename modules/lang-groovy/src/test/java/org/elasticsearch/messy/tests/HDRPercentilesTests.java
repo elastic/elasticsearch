@@ -119,14 +119,14 @@ public class HDRPercentilesTests extends AbstractNumericTestCase {
                 .addAggregation(
                         histogram("histo")
                                 .field("value")
-                                .interval(1l)
+                                .interval(1L)
                                 .minDocCount(0)
                                 .subAggregation(
                                         percentiles("percentiles").numberOfSignificantValueDigits(sigDigits).method(PercentilesMethod.HDR)
                                                 .percentiles(10,
                                                 15))).execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2l));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
         Histogram histo = searchResponse.getAggregations().get("histo");
         assertThat(histo, notNullValue());
         Histogram.Bucket bucket = histo.getBuckets().get(1);
@@ -149,7 +149,7 @@ public class HDRPercentilesTests extends AbstractNumericTestCase {
                         percentiles("percentiles").numberOfSignificantValueDigits(sigDigits).method(PercentilesMethod.HDR).field("value")
                                 .percentiles(0, 10, 15, 100)).execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(0l));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(0L));
 
         Percentiles percentiles = searchResponse.getAggregations().get("percentiles");
         assertThat(percentiles, notNullValue());
@@ -196,7 +196,7 @@ public class HDRPercentilesTests extends AbstractNumericTestCase {
         Global global = searchResponse.getAggregations().get("global");
         assertThat(global, notNullValue());
         assertThat(global.getName(), equalTo("global"));
-        assertThat(global.getDocCount(), equalTo(10l));
+        assertThat(global.getDocCount(), equalTo(10L));
         assertThat(global.getAggregations(), notNullValue());
         assertThat(global.getAggregations().asMap().size(), equalTo(1));
 
@@ -417,7 +417,7 @@ public class HDRPercentilesTests extends AbstractNumericTestCase {
                 .prepareSearch("idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(
-                        histogram("histo").field("value").interval(2l)
+                        histogram("histo").field("value").interval(2L)
                                 .subAggregation(
                                         percentiles("percentiles").method(PercentilesMethod.HDR).numberOfSignificantValueDigits(sigDigits)
                                                 .percentiles(99))

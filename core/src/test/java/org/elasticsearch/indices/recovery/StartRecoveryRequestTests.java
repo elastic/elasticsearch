@@ -46,7 +46,7 @@ public class StartRecoveryRequestTests extends ESTestCase {
                 true,
                 Store.MetadataSnapshot.EMPTY,
                 RecoveryState.Type.RELOCATION,
-                1l
+                1L
 
         );
         ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();

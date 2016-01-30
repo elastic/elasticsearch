@@ -229,7 +229,7 @@ public class ContextAndHeaderTransportIT extends ESIntegTestCase {
 
         GetRequest getRequest = client.prepareGet(lookupIndex, "type", "1").request();
         PercolateResponse response = client.preparePercolate().setDocumentType("type").setGetRequest(getRequest).get();
-        assertThat(response.getCount(), is(1l));
+        assertThat(response.getCount(), is(1L));
 
         assertGetRequestsContainHeaders();
     }

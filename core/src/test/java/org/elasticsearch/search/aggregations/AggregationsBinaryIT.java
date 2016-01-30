@@ -85,7 +85,7 @@ public class AggregationsBinaryIT extends ESIntegTestCase {
             Terms.Bucket bucket = terms.getBucketByKey("val" + i);
             assertThat(bucket, notNullValue());
             assertThat(bucket.getKeyAsString(), equalTo("val" + i));
-            assertThat(bucket.getDocCount(), equalTo(1l));
+            assertThat(bucket.getDocCount(), equalTo(1L));
             Aggregations subAggs = bucket.getAggregations();
             assertThat(subAggs, notNullValue());
             assertThat(subAggs.asList().size(), equalTo(1));
@@ -95,7 +95,7 @@ public class AggregationsBinaryIT extends ESIntegTestCase {
             assertThat(subTermsBuckets, notNullValue());
             assertThat(subTermsBuckets.size(), equalTo(1));
             assertThat(((Number) subTermsBuckets.get(0).getKey()).intValue(), equalTo(i));
-            assertThat(subTermsBuckets.get(0).getDocCount(), equalTo(1l));
+            assertThat(subTermsBuckets.get(0).getDocCount(), equalTo(1L));
         }
     }
 
@@ -126,7 +126,7 @@ public class AggregationsBinaryIT extends ESIntegTestCase {
             Terms.Bucket bucket = terms.getBucketByKey("val" + i);
             assertThat(bucket, notNullValue());
             assertThat(bucket.getKeyAsString(), equalTo("val" + i));
-            assertThat(bucket.getDocCount(), equalTo(1l));
+            assertThat(bucket.getDocCount(), equalTo(1L));
             Aggregations subAggs = bucket.getAggregations();
             assertThat(subAggs, notNullValue());
             assertThat(subAggs.asList().size(), equalTo(1));
@@ -136,7 +136,7 @@ public class AggregationsBinaryIT extends ESIntegTestCase {
             assertThat(subTermsBuckets, notNullValue());
             assertThat(subTermsBuckets.size(), equalTo(1));
             assertThat(((Number) subTermsBuckets.get(0).getKey()).intValue(), equalTo(i));
-            assertThat(subTermsBuckets.get(0).getDocCount(), equalTo(1l));
+            assertThat(subTermsBuckets.get(0).getDocCount(), equalTo(1L));
         }
     }
 }

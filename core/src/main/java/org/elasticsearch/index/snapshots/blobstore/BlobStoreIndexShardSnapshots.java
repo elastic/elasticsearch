@@ -187,7 +187,7 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
      *         "name": "__0",
      *         "physical_name": "_0.cfs",
      *         "length": 3354,
-     *         "checksum": "491liz",
+     *         "checksum": "491Liz",
      *         "written_by": "5.1.0"
      *     }, {
      *         "name": "__4",

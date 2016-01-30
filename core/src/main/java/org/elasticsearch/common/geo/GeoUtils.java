@@ -179,7 +179,7 @@ public class GeoUtils {
             final double width = Math.sqrt((meters*meters)/(ratio*ratio)); // convert to cell width
             final long part = Math.round(Math.ceil(EARTH_EQUATOR / width));
             final int level = Long.SIZE - Long.numberOfLeadingZeros(part)-1; // (log_2)
-            return (part<=(1l<<level)) ?level :(level+1); // adjust level
+            return (part<=(1L<<level)) ?level :(level+1); // adjust level
         }
     }
 

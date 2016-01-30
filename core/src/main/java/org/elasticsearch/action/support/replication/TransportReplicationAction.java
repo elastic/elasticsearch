@@ -898,7 +898,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                                 onReplicaFailure(nodeId, exp);
                             } else {
                                 String message = String.format(Locale.ROOT, "failed to perform %s on replica on node %s", transportReplicaAction, node);
-                                logger.warn("{} {}", exp, shardId, message);
+                                logger.warn("[{}] {}", exp, shardId, message);
                                 shardStateAction.shardFailed(
                                     shard,
                                     indexUUID,

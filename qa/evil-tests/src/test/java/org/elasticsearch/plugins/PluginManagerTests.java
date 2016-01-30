@@ -598,7 +598,6 @@ public class PluginManagerTests extends ESIntegTestCase {
         PluginManager.checkForOfficialPlugins("mapper-attachments");
         PluginManager.checkForOfficialPlugins("mapper-murmur3");
         PluginManager.checkForOfficialPlugins("mapper-size");
-        PluginManager.checkForOfficialPlugins("discovery-multicast");
         PluginManager.checkForOfficialPlugins("discovery-azure");
         PluginManager.checkForOfficialPlugins("discovery-ec2");
         PluginManager.checkForOfficialPlugins("discovery-gce");

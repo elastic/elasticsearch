@@ -100,7 +100,6 @@ public class PluginManager {
             "discovery-azure",
             "discovery-ec2",
             "discovery-gce",
-            "discovery-multicast",
             "ingest-geoip",
             "lang-javascript",
             "lang-painless",

@@ -319,6 +319,10 @@ disable doc values is by using the `doc_values` property of mappings.
 
 Site plugins have been removed. It is recommended to migrate site plugins to Kibana plugins.
 
+==== Multicast plugin removed
+
+Multicast has been removed. Use unicast discovery, or one of the cloud discovery plugins.
+
 ==== Plugins with custom query implementations
 
 Plugins implementing custom queries need to implement the `fromXContent(QueryParseContext)` method in their

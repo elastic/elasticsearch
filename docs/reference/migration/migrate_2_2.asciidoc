@@ -4,13 +4,20 @@
 This section discusses the changes that you need to be aware of when migrating
 your application to Elasticsearch 2.2.
 
-* <<breaking_22_index_apis>>
+[float]
+=== Scripting and security
 
-[[breaking_22_index_apis]]
-=== Index APIs
+The Java Security Manager is being used to lock down the privileges available
+to the scripting languages and to restrict the classes they are allowed to
+load to a predefined whitelist.  These changes may cause scripts which worked
+in earlier versions to fail.  See <<modules-scripting-security>> for more
+details.
 
-==== Field stats API
+[float]
+=== Field stats API
 
-The field stats' response format has been changed for number based and date fields. The `min_value` and
-`max_value` elements now return values as number and the new `min_value_as_string` and `max_value_as_string`
-return the values as string.
+The field stats' response format has been changed for number based and date
+fields. The `min_value` and `max_value` elements now return values as number
+and the new `min_value_as_string` and `max_value_as_string` return the values
+as string.
+

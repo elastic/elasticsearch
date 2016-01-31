@@ -930,7 +930,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                         return new Tuple<>(indexInput.readStringStringMap(), lastFound);
                     }
                 }
-                return new Tuple<>(new HashMap<>(), -1l);
+                return new Tuple<>(new HashMap<>(), -1L);
             }
         }
 

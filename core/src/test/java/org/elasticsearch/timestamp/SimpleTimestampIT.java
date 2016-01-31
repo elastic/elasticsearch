@@ -74,7 +74,7 @@ public class SimpleTimestampIT extends ESIntegTestCase {
 
         getResponse = client().prepareGet("test", "type1", "1").setFields("_timestamp").setRealtime(false).execute().actionGet();
         timestamp = ((Number) getResponse.getField("_timestamp").getValue()).longValue();
-        assertThat(timestamp, equalTo(10l));
+        assertThat(timestamp, equalTo(10L));
         // verify its the same timestamp when going the replica
         getResponse = client().prepareGet("test", "type1", "1").setFields("_timestamp").setRealtime(false).execute().actionGet();
         assertThat(((Number) getResponse.getField("_timestamp").getValue()).longValue(), equalTo(timestamp));
@@ -84,7 +84,7 @@ public class SimpleTimestampIT extends ESIntegTestCase {
 
         getResponse = client().prepareGet("test", "type1", "1").setFields("_timestamp").setRealtime(false).execute().actionGet();
         timestamp = ((Number) getResponse.getField("_timestamp").getValue()).longValue();
-        assertThat(timestamp, equalTo(20l));
+        assertThat(timestamp, equalTo(20L));
         // verify its the same timestamp when going the replica
         getResponse = client().prepareGet("test", "type1", "1").setFields("_timestamp").setRealtime(false).execute().actionGet();
         assertThat(((Number) getResponse.getField("_timestamp").getValue()).longValue(), equalTo(timestamp));

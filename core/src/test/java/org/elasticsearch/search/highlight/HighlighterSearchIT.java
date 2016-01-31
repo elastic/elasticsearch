@@ -1659,7 +1659,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                 .get();
         // Highlighting of numeric fields is not supported, but it should not raise errors
         // (this behavior is consistent with version 0.20)
-        assertHitCount(response, 1l);
+        assertHitCount(response, 1L);
     }
 
     // Issue #3200
@@ -1680,7 +1680,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                 .setQuery(QueryBuilders.matchQuery("text", "test").type(MatchQuery.Type.BOOLEAN))
                 .highlighter(new HighlightBuilder().field("text")).execute().actionGet();
         // PatternAnalyzer will throw an exception if it is resetted twice
-        assertHitCount(response, 1l);
+        assertHitCount(response, 1L);
     }
 
     public void testHighlightUsesHighlightQuery() throws IOException {
@@ -2118,7 +2118,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                         .field(new HighlightBuilder.Field("field1").numOfFragments(0).preTags("<field1>").postTags("</field1>")));
 
         searchResponse = client().search(searchRequest("test").source(source)).actionGet();
-        assertHitCount(searchResponse, 2l);
+        assertHitCount(searchResponse, 2L);
 
         for (SearchHit searchHit : searchResponse.getHits()) {
             if ("1".equals(searchHit.id())) {
@@ -2167,7 +2167,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                             .field(new Field("field1").requireFieldMatch(true).preTags("<field1>").postTags("</field1>")));
             logger.info("Running multi-match type: [" + matchQueryType + "] highlight with type: [" + highlighterType + "]");
             SearchResponse searchResponse = client().search(searchRequest("test").source(source)).actionGet();
-            assertHitCount(searchResponse, 1l);
+            assertHitCount(searchResponse, 1L);
             assertHighlight(searchResponse, 0, "field1", 0, anyOf(equalTo("<field1>The quick brown fox</field1> jumps over"),
                     equalTo("<field1>The</field1> <field1>quick</field1> <field1>brown</field1> <field1>fox</field1> jumps over")));
         }
@@ -2240,7 +2240,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                 .setQuery(matchQuery("title", "This is a Test"))
 .highlighter(new HighlightBuilder().field("title")).get();
 
-        assertHitCount(searchResponse, 1l);
+        assertHitCount(searchResponse, 1L);
         SearchHit hit = searchResponse.getHits().getAt(0);
         //stopwords are not highlighted since not indexed
         assertHighlight(hit, "title", 0, 1, equalTo("this is a <em>test</em> ."));
@@ -2249,7 +2249,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         searchResponse = client().prepareSearch()
                 .setQuery(matchQuery("title.key", "this is a test"))
                 .highlighter(new HighlightBuilder().field("title.key")).get();
-        assertHitCount(searchResponse, 1l);
+        assertHitCount(searchResponse, 1L);
 
         //stopwords are now highlighted since we used only whitespace analyzer here
         assertHighlight(searchResponse, 0, "title.key", 0, 1, equalTo("<em>this</em> <em>is</em> <em>a</em> <em>test</em> ."));
@@ -2349,7 +2349,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         SearchSourceBuilder source = searchSource().query(commonTermsQuery("field2", "quick brown").cutoffFrequency(100))
                 .highlighter(highlight().field("field2").preTags("<x>").postTags("</x>"));
         SearchResponse searchResponse = client().search(searchRequest("test").source(source)).actionGet();
-        assertHitCount(searchResponse, 1l);
+        assertHitCount(searchResponse, 1L);
 
         assertHighlight(searchResponse, 0, "field2", 0, 1, equalTo("The <x>quick</x> <x>brown</x> fox jumps over the lazy dog!"));
     }
@@ -2423,7 +2423,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         source = searchSource().query(wildcardQuery("field2", "qu*k"))
                 .highlighter(highlight().field("field2"));
         searchResponse = client().prepareSearch("test").setSource(source).get();
-        assertHitCount(searchResponse, 1l);
+        assertHitCount(searchResponse, 1L);
 
         assertHighlight(searchResponse, 0, "field2", 0, 1, equalTo("The <em>quick</em> brown fox jumps over the lazy dog!"));
     }

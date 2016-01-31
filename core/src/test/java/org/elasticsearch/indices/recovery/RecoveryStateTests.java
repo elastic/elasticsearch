@@ -148,8 +148,8 @@ public class RecoveryStateTests extends ESTestCase {
         }
 
         timer.start();
-        assertThat(timer.startTime(), greaterThan(0l));
-        assertThat(timer.stopTime(), equalTo(0l));
+        assertThat(timer.startTime(), greaterThan(0L));
+        assertThat(timer.stopTime(), equalTo(0L));
         Timer lastRead = streamer.serializeDeserialize();
         final long time = lastRead.time();
         assertThat(time, lessThanOrEqualTo(timer.time()));
@@ -164,7 +164,7 @@ public class RecoveryStateTests extends ESTestCase {
         if (randomBoolean()) {
             timer.stop();
             assertThat(timer.stopTime(), greaterThanOrEqualTo(timer.startTime()));
-            assertThat(timer.time(), greaterThan(0l));
+            assertThat(timer.time(), greaterThan(0L));
             lastRead = streamer.serializeDeserialize();
             assertThat(lastRead.startTime(), equalTo(timer.startTime()));
             assertThat(lastRead.time(), equalTo(timer.time()));
@@ -172,13 +172,13 @@ public class RecoveryStateTests extends ESTestCase {
         }
 
         timer.reset();
-        assertThat(timer.startTime(), equalTo(0l));
-        assertThat(timer.time(), equalTo(0l));
-        assertThat(timer.stopTime(), equalTo(0l));
+        assertThat(timer.startTime(), equalTo(0L));
+        assertThat(timer.time(), equalTo(0L));
+        assertThat(timer.stopTime(), equalTo(0L));
         lastRead = streamer.serializeDeserialize();
-        assertThat(lastRead.startTime(), equalTo(0l));
-        assertThat(lastRead.time(), equalTo(0l));
-        assertThat(lastRead.stopTime(), equalTo(0l));
+        assertThat(lastRead.startTime(), equalTo(0L));
+        assertThat(lastRead.time(), equalTo(0L));
+        assertThat(lastRead.stopTime(), equalTo(0L));
 
     }
 
@@ -242,7 +242,7 @@ public class RecoveryStateTests extends ESTestCase {
         assertThat(index.reusedFileCount(), equalTo(totalReused));
         assertThat(index.totalRecoverFiles(), equalTo(filesToRecover.size()));
         assertThat(index.recoveredFileCount(), equalTo(0));
-        assertThat(index.recoveredBytes(), equalTo(0l));
+        assertThat(index.recoveredBytes(), equalTo(0L));
         assertThat(index.recoveredFilesPercent(), equalTo(filesToRecover.size() == 0 ? 100.0f : 0.0f));
         assertThat(index.recoveredBytesPercent(), equalTo(filesToRecover.size() == 0 ? 100.0f : 0.0f));
 
@@ -296,7 +296,7 @@ public class RecoveryStateTests extends ESTestCase {
         if (completeRecovery) {
             assertThat(filesToRecover.size(), equalTo(0));
             index.stop();
-            assertThat(index.time(), greaterThanOrEqualTo(0l));
+            assertThat(index.time(), greaterThanOrEqualTo(0L));
         }
 
         logger.info("testing serialized information");
@@ -457,15 +457,15 @@ public class RecoveryStateTests extends ESTestCase {
 
         // we don't need to test the time aspect, it's done in the timer test
         verifyIndex.start();
-        assertThat(verifyIndex.checkIndexTime(), equalTo(0l));
+        assertThat(verifyIndex.checkIndexTime(), equalTo(0L));
         // force one
         VerifyIndex lastRead = streamer.serializeDeserialize();
-        assertThat(lastRead.checkIndexTime(), equalTo(0l));
+        assertThat(lastRead.checkIndexTime(), equalTo(0L));
 
         long took = randomLong();
         if (took < 0) {
             took = -took;
-            took = Math.max(0l, took);
+            took = Math.max(0L, took);
 
         }
         verifyIndex.checkIndexTime(took);

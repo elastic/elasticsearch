@@ -379,7 +379,7 @@ public class UpdateThreadPoolSettingsTests extends ESTestCase {
                     assertEquals(info.getThreadPoolType(), ThreadPool.ThreadPoolType.FIXED);
                     assertThat(info.getMin(), equalTo(1));
                     assertThat(info.getMax(), equalTo(1));
-                    assertThat(info.getQueueSize().singles(), equalTo(1l));
+                    assertThat(info.getQueueSize().singles(), equalTo(1L));
                 } else {
                     for (Field field : Names.class.getFields()) {
                         if (info.getName().equalsIgnoreCase(field.getName())) {
@@ -411,7 +411,7 @@ public class UpdateThreadPoolSettingsTests extends ESTestCase {
                     foundPool2 = true;
                     assertThat(info.getMax(), equalTo(10));
                     assertThat(info.getMin(), equalTo(10));
-                    assertThat(info.getQueueSize().singles(), equalTo(1l));
+                    assertThat(info.getQueueSize().singles(), equalTo(1L));
                     assertEquals(info.getThreadPoolType(), ThreadPool.ThreadPoolType.FIXED);
                 } else {
                     for (Field field : Names.class.getFields()) {

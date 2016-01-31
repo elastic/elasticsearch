@@ -60,7 +60,7 @@ public class TimeValueTests extends ESTestCase {
     }
 
     public void testMinusOne() {
-        assertThat(new TimeValue(-1).nanos(), lessThan(0l));
+        assertThat(new TimeValue(-1).nanos(), lessThan(0L));
     }
 
     public void testParseTimeValue() {

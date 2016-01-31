@@ -462,12 +462,12 @@ public class GetActionIT extends ESIntegTestCase {
         response = client().prepareGet(indexOrAlias(), "type1", "1").setVersion(Versions.MATCH_ANY).get();
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getId(), equalTo("1"));
-        assertThat(response.getVersion(), equalTo(1l));
+        assertThat(response.getVersion(), equalTo(1L));
 
         response = client().prepareGet(indexOrAlias(), "type1", "1").setVersion(1).get();
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getId(), equalTo("1"));
-        assertThat(response.getVersion(), equalTo(1l));
+        assertThat(response.getVersion(), equalTo(1L));
 
         try {
             client().prepareGet(indexOrAlias(), "type1", "1").setVersion(2).get();
@@ -483,13 +483,13 @@ public class GetActionIT extends ESIntegTestCase {
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getId(), equalTo("1"));
         assertThat(response.getIndex(), equalTo("test"));
-        assertThat(response.getVersion(), equalTo(1l));
+        assertThat(response.getVersion(), equalTo(1L));
 
         response = client().prepareGet(indexOrAlias(), "type1", "1").setVersion(1).setRealtime(false).get();
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getId(), equalTo("1"));
         assertThat(response.getIndex(), equalTo("test"));
-        assertThat(response.getVersion(), equalTo(1l));
+        assertThat(response.getVersion(), equalTo(1L));
 
         try {
             client().prepareGet(indexOrAlias(), "type1", "1").setVersion(2).setRealtime(false).get();
@@ -507,7 +507,7 @@ public class GetActionIT extends ESIntegTestCase {
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getId(), equalTo("1"));
         assertThat(response.getIndex(), equalTo("test"));
-        assertThat(response.getVersion(), equalTo(2l));
+        assertThat(response.getVersion(), equalTo(2L));
 
         try {
             client().prepareGet(indexOrAlias(), "type1", "1").setVersion(1).get();
@@ -520,7 +520,7 @@ public class GetActionIT extends ESIntegTestCase {
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getId(), equalTo("1"));
         assertThat(response.getIndex(), equalTo("test"));
-        assertThat(response.getVersion(), equalTo(2l));
+        assertThat(response.getVersion(), equalTo(2L));
 
         // From Lucene index:
         refresh();
@@ -529,7 +529,7 @@ public class GetActionIT extends ESIntegTestCase {
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getId(), equalTo("1"));
         assertThat(response.getIndex(), equalTo("test"));
-        assertThat(response.getVersion(), equalTo(2l));
+        assertThat(response.getVersion(), equalTo(2L));
 
         try {
             client().prepareGet(indexOrAlias(), "type1", "1").setVersion(1).setRealtime(false).get();
@@ -542,7 +542,7 @@ public class GetActionIT extends ESIntegTestCase {
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getId(), equalTo("1"));
         assertThat(response.getIndex(), equalTo("test"));
-        assertThat(response.getVersion(), equalTo(2l));
+        assertThat(response.getVersion(), equalTo(2L));
     }
 
     public void testMultiGetWithVersion() throws Exception {

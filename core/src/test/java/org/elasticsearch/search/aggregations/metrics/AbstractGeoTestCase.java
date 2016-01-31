@@ -199,7 +199,7 @@ public abstract class AbstractGeoTestCase extends ESIntegTestCase {
             Long value = hitField.getValue();
             assertThat("Hit " + i + " has wrong value", value.intValue(), equalTo(i));
         }
-        assertThat(totalHits, equalTo(2000l));
+        assertThat(totalHits, equalTo(2000L));
     }
 
     private void updateGeohashBucketsCentroid(final GeoPoint location) {

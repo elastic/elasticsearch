@@ -317,7 +317,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
             assertThat(fields.size(), equalTo(ft.storeTermVectors() ? 1 : 0));
             if (ft.storeTermVectors()) {
                 Terms terms = fields.terms("field");
-                assertThat(terms.size(), equalTo(8l));
+                assertThat(terms.size(), equalTo(8L));
                 TermsEnum iterator = terms.iterator();
                 for (int j = 0; j < values.length; j++) {
                     String string = values[j];
@@ -637,7 +637,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         int[][] endOffset = {{15}, {43}, {19}, {25}, {39}, {30}, {9}, {3, 34}};
 
         Terms terms = fields.terms(fieldName);
-        assertThat(terms.size(), equalTo(8l));
+        assertThat(terms.size(), equalTo(8L));
         TermsEnum iterator = terms.iterator();
         for (int j = 0; j < values.length; j++) {
             String string = values[j];
@@ -1087,12 +1087,12 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         response = client().prepareTermVectors(indexOrAlias(), "type1", "1").setVersion(Versions.MATCH_ANY).get();
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getId(), equalTo("1"));
-        assertThat(response.getVersion(), equalTo(1l));
+        assertThat(response.getVersion(), equalTo(1L));
 
         response = client().prepareTermVectors(indexOrAlias(), "type1", "1").setVersion(1).get();
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getId(), equalTo("1"));
-        assertThat(response.getVersion(), equalTo(1l));
+        assertThat(response.getVersion(), equalTo(1L));
 
         try {
             client().prepareGet(indexOrAlias(), "type1", "1").setVersion(2).get();
@@ -1109,13 +1109,13 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getId(), equalTo("1"));
         assertThat(response.getIndex(), equalTo("test"));
-        assertThat(response.getVersion(), equalTo(1l));
+        assertThat(response.getVersion(), equalTo(1L));
 
         response = client().prepareTermVectors(indexOrAlias(), "type1", "1").setVersion(1).setRealtime(false).get();
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getId(), equalTo("1"));
         assertThat(response.getIndex(), equalTo("test"));
-        assertThat(response.getVersion(), equalTo(1l));
+        assertThat(response.getVersion(), equalTo(1L));
 
         try {
             client().prepareGet(indexOrAlias(), "type1", "1").setVersion(2).setRealtime(false).get();
@@ -1134,7 +1134,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getId(), equalTo("1"));
         assertThat(response.getIndex(), equalTo("test"));
-        assertThat(response.getVersion(), equalTo(2l));
+        assertThat(response.getVersion(), equalTo(2L));
 
         try {
             client().prepareGet(indexOrAlias(), "type1", "1").setVersion(1).get();
@@ -1147,7 +1147,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getId(), equalTo("1"));
         assertThat(response.getIndex(), equalTo("test"));
-        assertThat(response.getVersion(), equalTo(2l));
+        assertThat(response.getVersion(), equalTo(2L));
 
         // From Lucene index:
         refresh();
@@ -1157,7 +1157,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getId(), equalTo("1"));
         assertThat(response.getIndex(), equalTo("test"));
-        assertThat(response.getVersion(), equalTo(2l));
+        assertThat(response.getVersion(), equalTo(2L));
 
         try {
             client().prepareGet(indexOrAlias(), "type1", "1").setVersion(1).setRealtime(false).get();
@@ -1170,7 +1170,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getId(), equalTo("1"));
         assertThat(response.getIndex(), equalTo("test"));
-        assertThat(response.getVersion(), equalTo(2l));
+        assertThat(response.getVersion(), equalTo(2L));
     }
 
     public void testFilterLength() throws ExecutionException, InterruptedException, IOException {

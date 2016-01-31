@@ -690,7 +690,7 @@ public class SimpleSortTests extends ESIntegTestCase {
         size = 1 + random.nextInt(10);
         searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setSize(size).addSort("long_value", SortOrder.DESC).execute()
                 .actionGet();
-        assertHitCount(searchResponse, 10l);
+        assertHitCount(searchResponse, 10L);
         assertHitCount(searchResponse, 10);
         assertThat(searchResponse.getHits().hits().length, equalTo(size));
         for (int i = 0; i < size; i++) {
@@ -705,7 +705,7 @@ public class SimpleSortTests extends ESIntegTestCase {
         searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setSize(size).addSort("float_value", SortOrder.ASC).execute()
                 .actionGet();
 
-        assertHitCount(searchResponse, 10l);
+        assertHitCount(searchResponse, 10L);
         assertThat(searchResponse.getHits().hits().length, equalTo(size));
         for (int i = 0; i < size; i++) {
             assertThat(searchResponse.getHits().getAt(i).id(), equalTo(Integer.toString(i)));
@@ -731,7 +731,7 @@ public class SimpleSortTests extends ESIntegTestCase {
         searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setSize(size).addSort("double_value", SortOrder.ASC).execute()
                 .actionGet();
 
-        assertHitCount(searchResponse, 10l);
+        assertHitCount(searchResponse, 10L);
         assertThat(searchResponse.getHits().hits().length, equalTo(size));
         for (int i = 0; i < size; i++) {
             assertThat(searchResponse.getHits().getAt(i).id(), equalTo(Integer.toString(i)));
@@ -743,7 +743,7 @@ public class SimpleSortTests extends ESIntegTestCase {
         searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setSize(size).addSort("double_value", SortOrder.DESC).execute()
                 .actionGet();
 
-        assertHitCount(searchResponse, 10l);
+        assertHitCount(searchResponse, 10L);
         assertThat(searchResponse.getHits().hits().length, equalTo(size));
         for (int i = 0; i < size; i++) {
             assertThat(searchResponse.getHits().getAt(i).id(), equalTo(Integer.toString(9 - i)));
@@ -809,7 +809,7 @@ public class SimpleSortTests extends ESIntegTestCase {
 
         assertNoFailures(searchResponse);
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(20l));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(20L));
         for (int i = 0; i < 10; i++) {
             assertThat("res: " + i + " id: " + searchResponse.getHits().getAt(i).getId(), (Long) searchResponse.getHits().getAt(i).field("min").value(), equalTo((long) i));
         }
@@ -822,7 +822,7 @@ public class SimpleSortTests extends ESIntegTestCase {
 
         assertNoFailures(searchResponse);
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(20l));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(20L));
         for (int i = 0; i < 10; i++) {
             assertThat("res: " + i + " id: " + searchResponse.getHits().getAt(i).getId(), (Double) searchResponse.getHits().getAt(i).field("min").value(), equalTo((double) i));
         }
@@ -836,7 +836,7 @@ public class SimpleSortTests extends ESIntegTestCase {
 
         assertNoFailures(searchResponse);
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(20l));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(20L));
         for (int i = 0; i < 10; i++) {
             assertThat("res: " + i + " id: " + searchResponse.getHits().getAt(i).getId(), (Integer) searchResponse.getHits().getAt(i).field("min").value(), equalTo(i));
         }
@@ -850,7 +850,7 @@ public class SimpleSortTests extends ESIntegTestCase {
 
         assertNoFailures(searchResponse);
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(20l));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(20L));
         for (int i = 0; i < 10; i++) {
             assertThat("res: " + i + " id: " + searchResponse.getHits().getAt(i).getId(), (Double) searchResponse.getHits().getAt(i).field("min").value(), closeTo((double) i, TOLERANCE));
         }
@@ -893,7 +893,7 @@ public class SimpleSortTests extends ESIntegTestCase {
 
         assertNoFailures(searchResponse);
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3l));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3L));
         assertThat(searchResponse.getHits().getAt(0).field("id").value(), equalTo("1"));
         assertThat(searchResponse.getHits().getAt(1).field("id").value(), equalTo("3"));
         assertThat(searchResponse.getHits().getAt(2).field("id").value(), equalTo("2"));
@@ -906,7 +906,7 @@ public class SimpleSortTests extends ESIntegTestCase {
 
         assertNoFailures(searchResponse);
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3l));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3L));
         assertThat(searchResponse.getHits().getAt(0).field("id").value(), equalTo("1"));
         assertThat(searchResponse.getHits().getAt(1).field("id").value(), equalTo("3"));
         assertThat(searchResponse.getHits().getAt(2).field("id").value(), equalTo("2"));
@@ -925,7 +925,7 @@ public class SimpleSortTests extends ESIntegTestCase {
         }
         assertThat(searchResponse.getFailedShards(), equalTo(0));
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3l));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3L));
         assertThat(searchResponse.getHits().getAt(0).field("id").value(), equalTo("3"));
         assertThat(searchResponse.getHits().getAt(1).field("id").value(), equalTo("1"));
         assertThat(searchResponse.getHits().getAt(2).field("id").value(), equalTo("2"));
@@ -945,7 +945,7 @@ public class SimpleSortTests extends ESIntegTestCase {
         }
         assertThat(searchResponse.getFailedShards(), equalTo(0));
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
         assertThat(searchResponse.getHits().getAt(0).field("id").value(), equalTo("2"));
     }
 
@@ -993,7 +993,7 @@ public class SimpleSortTests extends ESIntegTestCase {
                 .execute().actionGet();
         assertNoFailures(searchResponse);
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3l));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3L));
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("1"));
         assertThat(searchResponse.getHits().getAt(1).id(), equalTo("3"));
         assertThat(searchResponse.getHits().getAt(2).id(), equalTo("2"));
@@ -1005,7 +1005,7 @@ public class SimpleSortTests extends ESIntegTestCase {
                 .execute().actionGet();
         assertNoFailures(searchResponse);
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3l));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3L));
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("1"));
         assertThat(searchResponse.getHits().getAt(1).id(), equalTo("3"));
         assertThat(searchResponse.getHits().getAt(2).id(), equalTo("2"));
@@ -1017,7 +1017,7 @@ public class SimpleSortTests extends ESIntegTestCase {
                 .execute().actionGet();
         assertNoFailures(searchResponse);
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3l));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3L));
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("2"));
         assertThat(searchResponse.getHits().getAt(1).id(), equalTo("1"));
         assertThat(searchResponse.getHits().getAt(2).id(), equalTo("3"));
@@ -1068,7 +1068,7 @@ public class SimpleSortTests extends ESIntegTestCase {
                 .execute().actionGet();
         assertThat(Arrays.toString(searchResponse.getShardFailures()), searchResponse.getFailedShards(), equalTo(0));
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3l));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3L));
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("1"));
         assertThat(searchResponse.getHits().getAt(1).id(), equalTo("3"));
         assertThat(searchResponse.getHits().getAt(2).id(), equalTo("2"));
@@ -1080,7 +1080,7 @@ public class SimpleSortTests extends ESIntegTestCase {
                 .execute().actionGet();
         assertThat(Arrays.toString(searchResponse.getShardFailures()), searchResponse.getFailedShards(), equalTo(0));
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3l));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3L));
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("1"));
         assertThat(searchResponse.getHits().getAt(1).id(), equalTo("3"));
         assertThat(searchResponse.getHits().getAt(2).id(), equalTo("2"));
@@ -1092,7 +1092,7 @@ public class SimpleSortTests extends ESIntegTestCase {
                 .execute().actionGet();
         assertThat(Arrays.toString(searchResponse.getShardFailures()), searchResponse.getFailedShards(), equalTo(0));
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3l));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3L));
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("2"));
         assertThat(searchResponse.getHits().getAt(1).id(), equalTo("1"));
         assertThat(searchResponse.getHits().getAt(2).id(), equalTo("3"));
@@ -1104,7 +1104,7 @@ public class SimpleSortTests extends ESIntegTestCase {
                 .execute().actionGet();
         assertThat(Arrays.toString(searchResponse.getShardFailures()), searchResponse.getFailedShards(), equalTo(0));
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3l));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3L));
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("1"));
         assertThat(searchResponse.getHits().getAt(1).id(), equalTo("2"));
         assertThat(searchResponse.getHits().getAt(2).id(), equalTo("3"));
@@ -1155,7 +1155,7 @@ public class SimpleSortTests extends ESIntegTestCase {
         ensureGreen();
 
         client().prepareIndex("test", "type1", Integer.toString(1)).setSource(jsonBuilder().startObject()
-                .array("long_values", 1l, 5l, 10l, 8l)
+                .array("long_values", 1L, 5L, 10L, 8L)
                 .array("int_values", 1, 5, 10, 8)
                 .array("short_values", 1, 5, 10, 8)
                 .array("byte_values", 1, 5, 10, 8)
@@ -1164,7 +1164,7 @@ public class SimpleSortTests extends ESIntegTestCase {
                 .array("string_values", "01", "05", "10", "08")
                 .endObject()).execute().actionGet();
         client().prepareIndex("test", "type1", Integer.toString(2)).setSource(jsonBuilder().startObject()
-                .array("long_values", 11l, 15l, 20l, 7l)
+                .array("long_values", 11L, 15L, 20L, 7L)
                 .array("int_values", 11, 15, 20, 7)
                 .array("short_values", 11, 15, 20, 7)
                 .array("byte_values", 11, 15, 20, 7)
@@ -1173,7 +1173,7 @@ public class SimpleSortTests extends ESIntegTestCase {
                 .array("string_values", "11", "15", "20", "07")
                 .endObject()).execute().actionGet();
         client().prepareIndex("test", "type1", Integer.toString(3)).setSource(jsonBuilder().startObject()
-                .array("long_values", 2l, 1l, 3l, -4l)
+                .array("long_values", 2L, 1L, 3L, -4L)
                 .array("int_values", 2, 1, 3, -4)
                 .array("short_values", 2, 1, 3, -4)
                 .array("byte_values", 2, 1, 3, -4)
@@ -1190,17 +1190,17 @@ public class SimpleSortTests extends ESIntegTestCase {
                 .addSort("long_values", SortOrder.ASC)
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3l));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3L));
         assertThat(searchResponse.getHits().hits().length, equalTo(3));
 
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo(Integer.toString(3)));
-        assertThat(((Number) searchResponse.getHits().getAt(0).sortValues()[0]).longValue(), equalTo(-4l));
+        assertThat(((Number) searchResponse.getHits().getAt(0).sortValues()[0]).longValue(), equalTo(-4L));
 
         assertThat(searchResponse.getHits().getAt(1).id(), equalTo(Integer.toString(1)));
-        assertThat(((Number) searchResponse.getHits().getAt(1).sortValues()[0]).longValue(), equalTo(1l));
+        assertThat(((Number) searchResponse.getHits().getAt(1).sortValues()[0]).longValue(), equalTo(1L));
 
         assertThat(searchResponse.getHits().getAt(2).id(), equalTo(Integer.toString(2)));
-        assertThat(((Number) searchResponse.getHits().getAt(2).sortValues()[0]).longValue(), equalTo(7l));
+        assertThat(((Number) searchResponse.getHits().getAt(2).sortValues()[0]).longValue(), equalTo(7L));
 
         searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
@@ -1208,17 +1208,17 @@ public class SimpleSortTests extends ESIntegTestCase {
                 .addSort("long_values", SortOrder.DESC)
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3l));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3L));
         assertThat(searchResponse.getHits().hits().length, equalTo(3));
 
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo(Integer.toString(2)));
-        assertThat(((Number) searchResponse.getHits().getAt(0).sortValues()[0]).longValue(), equalTo(20l));
+        assertThat(((Number) searchResponse.getHits().getAt(0).sortValues()[0]).longValue(), equalTo(20L));
 
         assertThat(searchResponse.getHits().getAt(1).id(), equalTo(Integer.toString(1)));
-        assertThat(((Number) searchResponse.getHits().getAt(1).sortValues()[0]).longValue(), equalTo(10l));
+        assertThat(((Number) searchResponse.getHits().getAt(1).sortValues()[0]).longValue(), equalTo(10L));
 
         assertThat(searchResponse.getHits().getAt(2).id(), equalTo(Integer.toString(3)));
-        assertThat(((Number) searchResponse.getHits().getAt(2).sortValues()[0]).longValue(), equalTo(3l));
+        assertThat(((Number) searchResponse.getHits().getAt(2).sortValues()[0]).longValue(), equalTo(3L));
 
         searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
@@ -1226,17 +1226,17 @@ public class SimpleSortTests extends ESIntegTestCase {
                 .addSort(SortBuilders.fieldSort("long_values").order(SortOrder.DESC).sortMode("sum"))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3l));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3L));
         assertThat(searchResponse.getHits().hits().length, equalTo(3));
 
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo(Integer.toString(2)));
-        assertThat(((Number) searchResponse.getHits().getAt(0).sortValues()[0]).longValue(), equalTo(53l));
+        assertThat(((Number) searchResponse.getHits().getAt(0).sortValues()[0]).longValue(), equalTo(53L));
 
         assertThat(searchResponse.getHits().getAt(1).id(), equalTo(Integer.toString(1)));
-        assertThat(((Number) searchResponse.getHits().getAt(1).sortValues()[0]).longValue(), equalTo(24l));
+        assertThat(((Number) searchResponse.getHits().getAt(1).sortValues()[0]).longValue(), equalTo(24L));
 
         assertThat(searchResponse.getHits().getAt(2).id(), equalTo(Integer.toString(3)));
-        assertThat(((Number) searchResponse.getHits().getAt(2).sortValues()[0]).longValue(), equalTo(2l));
+        assertThat(((Number) searchResponse.getHits().getAt(2).sortValues()[0]).longValue(), equalTo(2L));
 
         searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
@@ -1244,7 +1244,7 @@ public class SimpleSortTests extends ESIntegTestCase {
                 .addSort("int_values", SortOrder.ASC)
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3l));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3L));
         assertThat(searchResponse.getHits().hits().length, equalTo(3));
 
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo(Integer.toString(3)));
@@ -1262,7 +1262,7 @@ public class SimpleSortTests extends ESIntegTestCase {
                 .addSort("int_values", SortOrder.DESC)
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3l));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3L));
         assertThat(searchResponse.getHits().hits().length, equalTo(3));
 
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo(Integer.toString(2)));
@@ -1280,7 +1280,7 @@ public class SimpleSortTests extends ESIntegTestCase {
                 .addSort("short_values", SortOrder.ASC)
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3l));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3L));
         assertThat(searchResponse.getHits().hits().length, equalTo(3));
 
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo(Integer.toString(3)));
@@ -1298,7 +1298,7 @@ public class SimpleSortTests extends ESIntegTestCase {
                 .addSort("short_values", SortOrder.DESC)
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3l));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3L));
         assertThat(searchResponse.getHits().hits().length, equalTo(3));
 
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo(Integer.toString(2)));
@@ -1316,7 +1316,7 @@ public class SimpleSortTests extends ESIntegTestCase {
                 .addSort("byte_values", SortOrder.ASC)
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3l));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3L));
         assertThat(searchResponse.getHits().hits().length, equalTo(3));
 
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo(Integer.toString(3)));
@@ -1334,7 +1334,7 @@ public class SimpleSortTests extends ESIntegTestCase {
                 .addSort("byte_values", SortOrder.DESC)
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3l));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3L));
         assertThat(searchResponse.getHits().hits().length, equalTo(3));
 
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo(Integer.toString(2)));
@@ -1352,7 +1352,7 @@ public class SimpleSortTests extends ESIntegTestCase {
                 .addSort("float_values", SortOrder.ASC)
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3l));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3L));
         assertThat(searchResponse.getHits().hits().length, equalTo(3));
 
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo(Integer.toString(3)));
@@ -1370,7 +1370,7 @@ public class SimpleSortTests extends ESIntegTestCase {
                 .addSort("float_values", SortOrder.DESC)
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3l));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3L));
         assertThat(searchResponse.getHits().hits().length, equalTo(3));
 
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo(Integer.toString(2)));
@@ -1388,7 +1388,7 @@ public class SimpleSortTests extends ESIntegTestCase {
                 .addSort("double_values", SortOrder.ASC)
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3l));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3L));
         assertThat(searchResponse.getHits().hits().length, equalTo(3));
 
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo(Integer.toString(3)));
@@ -1406,7 +1406,7 @@ public class SimpleSortTests extends ESIntegTestCase {
                 .addSort("double_values", SortOrder.DESC)
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3l));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3L));
         assertThat(searchResponse.getHits().hits().length, equalTo(3));
 
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo(Integer.toString(2)));
@@ -1424,7 +1424,7 @@ public class SimpleSortTests extends ESIntegTestCase {
                 .addSort("string_values", SortOrder.ASC)
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3l));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3L));
         assertThat(searchResponse.getHits().hits().length, equalTo(3));
 
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo(Integer.toString(3)));
@@ -1442,7 +1442,7 @@ public class SimpleSortTests extends ESIntegTestCase {
                 .addSort("string_values", SortOrder.DESC)
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3l));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3L));
         assertThat(searchResponse.getHits().hits().length, equalTo(3));
 
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo(Integer.toString(2)));

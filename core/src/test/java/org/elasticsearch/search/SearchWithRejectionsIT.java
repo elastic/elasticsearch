@@ -50,7 +50,7 @@ public class SearchWithRejectionsIT extends ESIntegTestCase {
             client().prepareIndex("test", "type", Integer.toString(i)).setSource("field", "value").execute().actionGet();
         }
         IndicesStatsResponse indicesStats = client().admin().indices().prepareStats().execute().actionGet();
-        assertThat(indicesStats.getTotal().getSearch().getOpenContexts(), equalTo(0l));
+        assertThat(indicesStats.getTotal().getSearch().getOpenContexts(), equalTo(0L));
         refresh();
 
         int numSearches = 10;
@@ -71,6 +71,6 @@ public class SearchWithRejectionsIT extends ESIntegTestCase {
         }
         awaitBusy(() -> client().admin().indices().prepareStats().execute().actionGet().getTotal().getSearch().getOpenContexts() == 0, 1, TimeUnit.SECONDS);
         indicesStats = client().admin().indices().prepareStats().execute().actionGet();
-        assertThat(indicesStats.getTotal().getSearch().getOpenContexts(), equalTo(0l));
+        assertThat(indicesStats.getTotal().getSearch().getOpenContexts(), equalTo(0L));
     }
 }

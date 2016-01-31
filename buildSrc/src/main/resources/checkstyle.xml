@@ -28,6 +28,9 @@
     <module name="NoLineWrap" />
     <!-- Each java file has only one outer class -->
     <module name="OneTopLevelClass" />
+    <!-- The suffix L is preferred, because the letter l (ell) is often
+    hard to distinguish from the digit 1 (one). -->
+    <module name="UpperEll"/>
 
     <!-- We don't use Java's builtin serialization and we suppress all warning
       about it. The flip side of that coin is that we shouldn't _try_ to use

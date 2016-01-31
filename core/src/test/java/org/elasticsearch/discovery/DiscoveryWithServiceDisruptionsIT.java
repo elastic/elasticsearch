@@ -469,7 +469,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
                                     int shard = MathUtils.mod(Murmur3HashFunction.hash(id), numPrimaries);
                                     logger.trace("[{}] indexing id [{}] through node [{}] targeting shard [{}]", name, id, node, shard);
                                     IndexResponse response = client.prepareIndex("test", "type", id).setSource("{}").setTimeout("1s").get();
-                                    assertThat(response.getVersion(), equalTo(1l));
+                                    assertThat(response.getVersion(), equalTo(1L));
                                     ackedDocs.put(id, node);
                                     logger.trace("[{}] indexed id [{}] through node [{}]", name, id, node);
                                 } catch (ElasticsearchException e) {
@@ -728,14 +728,14 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
 
 
         IndexResponse indexResponse = internalCluster().client(notIsolatedNode).prepareIndex("test", "type").setSource("field", "value").get();
-        assertThat(indexResponse.getVersion(), equalTo(1l));
+        assertThat(indexResponse.getVersion(), equalTo(1L));
 
         logger.info("Verifying if document exists via node[" + notIsolatedNode + "]");
         GetResponse getResponse = internalCluster().client(notIsolatedNode).prepareGet("test", "type", indexResponse.getId())
                 .setPreference("_local")
                 .get();
         assertThat(getResponse.isExists(), is(true));
-        assertThat(getResponse.getVersion(), equalTo(1l));
+        assertThat(getResponse.getVersion(), equalTo(1L));
         assertThat(getResponse.getId(), equalTo(indexResponse.getId()));
 
         scheme.stopDisrupting();
@@ -749,7 +749,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
                     .setPreference("_local")
                     .get();
             assertThat(getResponse.isExists(), is(true));
-            assertThat(getResponse.getVersion(), equalTo(1l));
+            assertThat(getResponse.getVersion(), equalTo(1L));
             assertThat(getResponse.getId(), equalTo(indexResponse.getId()));
         }
     }
@@ -1049,7 +1049,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         // wait for relocation to finish
         endRelocationLatch.await();
         // now search for the documents and see if we get a reply
-        assertThat(client().prepareSearch().setSize(0).get().getHits().totalHits(), equalTo(100l));
+        assertThat(client().prepareSearch().setSize(0).get().getHits().totalHits(), equalTo(100L));
     }
 
     public void testIndexImportedFromDataOnlyNodesIfMasterLostDataFolder() throws Exception {

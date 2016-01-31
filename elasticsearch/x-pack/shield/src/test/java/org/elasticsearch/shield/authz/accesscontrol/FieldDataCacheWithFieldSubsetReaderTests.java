@@ -99,20 +99,20 @@ public class FieldDataCacheWithFieldSubsetReaderTests extends ESTestCase {
         DirectoryReader ir = FieldSubsetReader.wrap(this.ir, Collections.<String>emptySet());
         global = sortedSetDVOrdinalsIndexFieldData.loadGlobal(ir);
         atomic = global.load(ir.leaves().get(0));
-        assertThat(atomic.getOrdinalsValues().getValueCount(), equalTo(0l));
+        assertThat(atomic.getOrdinalsValues().getValueCount(), equalTo(0L));
         assertThat(indexFieldDataCache.topLevelBuilds, equalTo(1));
     }
 
     public void testSortedSetDVOrdinalsIndexFieldData_segment() throws Exception {
         for (LeafReaderContext context : ir.leaves()) {
             AtomicOrdinalsFieldData atomic = sortedSetDVOrdinalsIndexFieldData.load(context);
-            assertThat(atomic.getOrdinalsValues().getValueCount(), greaterThanOrEqualTo(1l));
+            assertThat(atomic.getOrdinalsValues().getValueCount(), greaterThanOrEqualTo(1L));
         }
 
         DirectoryReader ir = FieldSubsetReader.wrap(this.ir, Collections.<String>emptySet());
         for (LeafReaderContext context : ir.leaves()) {
             AtomicOrdinalsFieldData atomic = sortedSetDVOrdinalsIndexFieldData.load(context);
-            assertThat(atomic.getOrdinalsValues().getValueCount(), equalTo(0l));
+            assertThat(atomic.getOrdinalsValues().getValueCount(), equalTo(0L));
         }
         // dv based field data doesn't use index field data cache, so in the end noting should have been added
         assertThat(indexFieldDataCache.leafLevelBuilds, equalTo(0));
@@ -128,7 +128,7 @@ public class FieldDataCacheWithFieldSubsetReaderTests extends ESTestCase {
         DirectoryReader ir = FieldSubsetReader.wrap(this.ir, Collections.<String>emptySet());
         global = pagedBytesIndexFieldData.loadGlobal(ir);
         atomic = global.load(ir.leaves().get(0));
-        assertThat(atomic.getOrdinalsValues().getValueCount(), equalTo(0l));
+        assertThat(atomic.getOrdinalsValues().getValueCount(), equalTo(0L));
         assertThat(indexFieldDataCache.topLevelBuilds, equalTo(1));
     }
 
@@ -136,14 +136,14 @@ public class FieldDataCacheWithFieldSubsetReaderTests extends ESTestCase {
         assertThat(indexFieldDataCache.leafLevelBuilds, equalTo(0));
         for (LeafReaderContext context : ir.leaves()) {
             AtomicOrdinalsFieldData atomic = pagedBytesIndexFieldData.load(context);
-            assertThat(atomic.getOrdinalsValues().getValueCount(), greaterThanOrEqualTo(1l));
+            assertThat(atomic.getOrdinalsValues().getValueCount(), greaterThanOrEqualTo(1L));
         }
         assertThat(indexFieldDataCache.leafLevelBuilds, equalTo(ir.leaves().size()));
 
         DirectoryReader ir = FieldSubsetReader.wrap(this.ir, Collections.<String>emptySet());
         for (LeafReaderContext context : ir.leaves()) {
             AtomicOrdinalsFieldData atomic = pagedBytesIndexFieldData.load(context);
-            assertThat(atomic.getOrdinalsValues().getValueCount(), equalTo(0l));
+            assertThat(atomic.getOrdinalsValues().getValueCount(), equalTo(0L));
         }
         assertThat(indexFieldDataCache.leafLevelBuilds, equalTo(ir.leaves().size()));
     }

@@ -58,7 +58,7 @@ public class WatchMetadataTests extends AbstractWatcherIntegrationTestCase {
                 .setSource(watchBuilder()
                         .trigger(schedule(cron("0/5 * * * * ? *")))
                         .input(searchInput(WatcherTestUtils.newInputSearchRequest("my-index").source(searchSource().query(matchAllQuery()))))
-                        .condition(compareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 1l))
+                        .condition(compareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 1L))
                         .metadata(metadata))
                         .get();
 

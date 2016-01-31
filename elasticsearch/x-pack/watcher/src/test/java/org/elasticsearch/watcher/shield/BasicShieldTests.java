@@ -129,7 +129,7 @@ public class BasicShieldTests extends AbstractWatcherIntegrationTestCase {
                 .preparePutWatch("_id")
                 .setSource(watchBuilder().trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.SECONDS))))
                 .get();
-        assertThat(putWatchResponse.getVersion(), equalTo(1l));
+        assertThat(putWatchResponse.getVersion(), equalTo(1L));
         ExecuteWatchResponse executeWatchResponse = watcherClient().filterWithHeader(Collections.singletonMap("Authorization", token))
                 .prepareExecuteWatch("_id")
                 .setTriggerEvent(triggerEvent)
@@ -137,7 +137,7 @@ public class BasicShieldTests extends AbstractWatcherIntegrationTestCase {
         DeleteWatchResponse deleteWatchResponse = watcherClient().filterWithHeader(Collections.singletonMap("Authorization", token))
                 .prepareDeleteWatch("_id")
                 .get();
-        assertThat(deleteWatchResponse.getVersion(), equalTo(2l));
+        assertThat(deleteWatchResponse.getVersion(), equalTo(2L));
         assertThat(deleteWatchResponse.isFound(), is(true));
 
         // stats and get watch are also allowed by role monitor:

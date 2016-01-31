@@ -269,7 +269,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         when(searchResponse1.getSuccessfulShards()).thenReturn(1);
         when(searchResponse1.getTotalShards()).thenReturn(1);
         InternalSearchHit hit = new InternalSearchHit(0, "_id", new Text("_type"), null);
-        hit.version(1l);
+        hit.version(1L);
         hit.shard(new SearchShardTarget("_node_id", index, 0));
         hit.sourceRef(new BytesArray("{}"));
         InternalSearchHits hits = new InternalSearchHits(new InternalSearchHit[]{hit}, 1, 1.0f);
@@ -279,7 +279,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
 
         // First return a scroll response with a single hit and then with no hits
         hit = new InternalSearchHit(0, "_id", new Text("_type"), null);
-        hit.version(1l);
+        hit.version(1L);
         hit.shard(new SearchShardTarget("_node_id", index, 0));
         hit.sourceRef(new BytesArray("{}"));
         hits = new InternalSearchHits(new InternalSearchHit[]{hit}, 1, 1.0f);
@@ -289,7 +289,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
 
 
         TriggeredWatch triggeredWatch = mock(TriggeredWatch.class);
-        when(parser.parse(eq("_id"), eq(1l), any(BytesReference.class))).thenReturn(triggeredWatch);
+        when(parser.parse(eq("_id"), eq(1L), any(BytesReference.class))).thenReturn(triggeredWatch);
 
         when(clientProxy.clearScroll(anyString())).thenReturn(new ClearScrollResponse(true, 1));
 

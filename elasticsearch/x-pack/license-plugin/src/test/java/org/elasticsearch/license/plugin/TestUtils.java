@@ -117,7 +117,7 @@ public class TestUtils {
     }
 
     public static License generateSignedLicense(String type, long issueDate, TimeValue expiryDuration) throws Exception {
-        long issue = (issueDate != -1l) ? issueDate : System.currentTimeMillis();
+        long issue = (issueDate != -1L) ? issueDate : System.currentTimeMillis();
         int version = randomIntBetween(License.VERSION_START, License.VERSION_CURRENT);
         final String licenseType;
         if (version < License.VERSION_NO_FEATURE_TYPE) {

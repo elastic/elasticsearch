@@ -72,7 +72,7 @@ public class SlowWatchStatsTests extends AbstractWatcherIntegrationTestCase {
             public void run() {
                 WatcherStatsResponse response = watcherClient().prepareWatcherStats().setIncludeCurrentWatches(true).get();
                 assertThat(response.getWatcherState(), equalTo(WatcherState.STARTED));
-                assertThat(response.getWatchesCount(), equalTo(1l));
+                assertThat(response.getWatchesCount(), equalTo(1L));
                 assertThat(response.getQueuedWatches(), nullValue());
                 assertThat(response.getSnapshots(), notNullValue());
                 assertThat(response.getSnapshots().size(), equalTo(1));
@@ -98,7 +98,7 @@ public class SlowWatchStatsTests extends AbstractWatcherIntegrationTestCase {
             public void run() {
                 WatcherStatsResponse response = watcherClient().prepareWatcherStats().setIncludeQueuedWatches(true).get();
                 assertThat(response.getWatcherState(), equalTo(WatcherState.STARTED));
-                assertThat(response.getWatchesCount(), equalTo(5l));
+                assertThat(response.getWatchesCount(), equalTo(5L));
                 assertThat(response.getSnapshots(), nullValue());
                 assertThat(response.getQueuedWatches(), notNullValue());
                 assertThat(response.getQueuedWatches().size(), greaterThanOrEqualTo(5));

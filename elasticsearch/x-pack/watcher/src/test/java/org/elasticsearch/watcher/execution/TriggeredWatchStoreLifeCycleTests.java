@@ -56,7 +56,7 @@ public class TriggeredWatchStoreLifeCycleTests extends AbstractWatcherIntegratio
             assertThat(loadedTriggeredWatches.contains(triggeredWatch), is(true));
             triggeredWatchStore.delete(triggeredWatch.id());
             GetResponse getResponse = client().prepareGet(TriggeredWatchStore.INDEX_NAME, TriggeredWatchStore.DOC_TYPE, triggeredWatch.id().value())
-                    .setVersion(2l)
+                    .setVersion(2L)
                     .get();
             assertThat(getResponse.isExists(), equalTo(false));
         }

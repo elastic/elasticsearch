@@ -25,6 +25,8 @@ import com.carrotsearch.hppc.cursors.ObjectLongCursor;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.TestUtil;
+import org.elasticsearch.cache.recycler.PageCacheRecycler;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.util.HashMap;
@@ -38,13 +40,18 @@ public class BytesRefHashTests extends ESSingleNodeTestCase {
 
     BytesRefHash hash;
 
+    private BigArrays randombigArrays() {
+        final PageCacheRecycler recycler = randomBoolean() ? null : getInstanceFromNode(PageCacheRecycler.class);
+        return new MockBigArrays(recycler, new NoneCircuitBreakerService());
+    }
+
     private void newHash() {
         if (hash != null) {
             hash.close();
         }
         // Test high load factors to make sure that collision resolution works fine
         final float maxLoadFactor = 0.6f + randomFloat() * 0.39f;
-        hash = new BytesRefHash(randomIntBetween(0, 100), maxLoadFactor, BigArraysTests.randombigArrays());
+        hash = new BytesRefHash(randomIntBetween(0, 100), maxLoadFactor, randombigArrays());
     }
 
     @Override

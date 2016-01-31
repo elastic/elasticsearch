@@ -236,7 +236,7 @@ public class PluginManager {
         // unzip plugin to a staging temp dir, named for the plugin
         Path tmp = Files.createTempDirectory(environment.tmpFile(), null);
         Path root = tmp.resolve(pluginHandle.name);
-        unzipPlugin(pluginFile, root);
+        unzipPlugin(pluginFile, root, terminal);
 
         // find the actual root (in case its unzipped with extra directory wrapping)
         root = findPluginRoot(root);
@@ -481,7 +481,7 @@ public class PluginManager {
         }
     }
 
-    private void unzipPlugin(Path zip, Path target) throws IOException {
+    private void unzipPlugin(Path zip, Path target, Terminal terminal) throws IOException {
         Files.createDirectories(target);
 
         try (ZipInputStream zipInput = new ZipInputStream(Files.newInputStream(zip))) {
@@ -490,8 +490,8 @@ public class PluginManager {
             while ((entry = zipInput.getNextEntry()) != null) {
                 Path targetFile = target.resolve(entry.getName());
 		if(targetFile.getParent() == null) {
-                	 throw new IOException("Cannot find parent for " + targetFile.getFileName()
-                			 + " on file system " + targetFile.getFileSystem());
+                    terminal.println("Cannot find parent for "+ entry.getName()+ " .Ignoring file...");
+ 		    continue;
                 }
                 // be on the safe side: do not rely on that directories are always extracted
                 // before their children (although this makes sense, but is it guaranteed?)

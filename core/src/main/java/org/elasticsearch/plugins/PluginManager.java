@@ -489,7 +489,10 @@ public class PluginManager {
             byte[] buffer = new byte[8192];
             while ((entry = zipInput.getNextEntry()) != null) {
                 Path targetFile = target.resolve(entry.getName());
-
+		if(targetFile.getParent() == null) {
+                	 throw new IOException("Cannot find parent for " + targetFile.getFileName()
+                			 + " on file system " + targetFile.getFileSystem());
+                }
                 // be on the safe side: do not rely on that directories are always extracted
                 // before their children (although this makes sense, but is it guaranteed?)
                 Files.createDirectories(targetFile.getParent());

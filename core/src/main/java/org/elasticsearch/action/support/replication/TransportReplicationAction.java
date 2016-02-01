@@ -320,7 +320,6 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         public void onFailure(Throwable t) {
             if (t instanceof RetryOnReplicaException) {
                 logger.trace("Retrying operation on replica, action [{}], request [{}]", t, transportReplicaAction, request);
-                final ThreadContext threadContext = threadPool.getThreadContext();
                 final ThreadContext.StoredContext context = threadPool.getThreadContext().newStoredContext();
                 observer.waitForNextChange(new ClusterStateObserver.Listener() {
                     @Override
@@ -528,7 +527,6 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                 finishAsFailed(failure);
                 return;
             }
-            final ThreadContext threadContext = threadPool.getThreadContext();
             final ThreadContext.StoredContext context = threadPool.getThreadContext().newStoredContext();
             observer.waitForNextChange(new ClusterStateObserver.Listener() {
                 @Override

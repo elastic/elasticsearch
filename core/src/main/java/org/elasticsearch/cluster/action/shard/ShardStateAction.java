@@ -239,15 +239,15 @@ public class ShardStateAction extends AbstractComponent {
 
             // partition tasks into those that correspond to shards
             // that exist versus do not exist
-            Map<TaskClassification, List<ShardRoutingEntry>> partition =
-                tasks.stream().collect(Collectors.groupingBy(task -> classifyTask(currentState, task)));
+            Map<ValidationResult, List<ShardRoutingEntry>> partition =
+                tasks.stream().collect(Collectors.groupingBy(task -> validateTask(currentState, task)));
 
             // tasks that correspond to non-existent shards are marked
             // as successful
-            batchResultBuilder.successes(partition.getOrDefault(TaskClassification.DOES_NOT_EXIST, Collections.emptyList()));
+            batchResultBuilder.successes(partition.getOrDefault(ValidationResult.SHARD_MISSING, Collections.emptyList()));
 
             ClusterState maybeUpdatedState = currentState;
-            List<ShardRoutingEntry> tasksToFail = partition.getOrDefault(TaskClassification.EXISTS_LEGAL, Collections.emptyList());
+            List<ShardRoutingEntry> tasksToFail = partition.getOrDefault(ValidationResult.VALID, Collections.emptyList());
             try {
                 List<FailedRerouteAllocation.FailedShard> failedShards =
                     tasksToFail
@@ -266,7 +266,7 @@ public class ShardStateAction extends AbstractComponent {
             }
 
             partition
-                .getOrDefault(TaskClassification.EXISTS_ILLEGAL, Collections.emptyList())
+                .getOrDefault(ValidationResult.SOURCE_INVALID, Collections.emptyList())
                 .forEach(task -> batchResultBuilder.failure(
                     task,
                     new NoLongerPrimaryShardException(
@@ -282,13 +282,13 @@ public class ShardStateAction extends AbstractComponent {
             return allocationService.applyFailedShards(currentState, failedShards);
         }
 
-        private enum TaskClassification {
-            EXISTS_LEGAL,
-            EXISTS_ILLEGAL,
-            DOES_NOT_EXIST
+        private enum ValidationResult {
+            VALID,
+            SOURCE_INVALID,
+            SHARD_MISSING
         }
 
-        private TaskClassification classifyTask(ClusterState currentState, ShardRoutingEntry task) {
+        private ValidationResult validateTask(ClusterState currentState, ShardRoutingEntry task) {
             RoutingNodes.RoutingNodeIterator routingNodeIterator =
                 currentState.getRoutingNodes().routingNodeIter(task.getShardRouting().currentNodeId());
             if (routingNodeIterator != null) {
@@ -298,16 +298,16 @@ public class ShardStateAction extends AbstractComponent {
                             currentState.getRoutingTable().shardRoutingTable(task.getShardRouting().index().getName(), task.getShardRouting().getId());
                         ShardRouting primaryShard = indexShard.primaryShard();
                         if (task.sourceShardRouting.allocationId().equals(maybe.allocationId())) {
-                            return TaskClassification.EXISTS_LEGAL;
+                            return ValidationResult.VALID;
                         } else if (primaryShard != null && primaryShard.allocationId().equals(task.sourceShardRouting.allocationId())) {
-                            return TaskClassification.EXISTS_LEGAL;
+                            return ValidationResult.VALID;
                         } else {
-                            return TaskClassification.EXISTS_ILLEGAL;
+                            return ValidationResult.SOURCE_INVALID;
                         }
                     }
                 }
             }
-            return TaskClassification.DOES_NOT_EXIST;
+            return ValidationResult.SHARD_MISSING;
         }
 
         @Override

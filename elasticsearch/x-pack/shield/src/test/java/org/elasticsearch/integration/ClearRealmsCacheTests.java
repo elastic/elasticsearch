@@ -106,7 +106,7 @@ public class ClearRealmsCacheTests extends ShieldIntegTestCase {
 
             @Override
             public void executeRequest() throws Exception {
-                executeHttpRequest("/_shield/realm/" + (randomBoolean() ? "*" : "_all") + "/_cache/clear", Collections.<String, String>emptyMap());
+                executeHttpRequest("/_shield/realm/" + (randomBoolean() ? "*" : "_all") + "/_clear_cache", Collections.<String, String>emptyMap());
             }
         },
 

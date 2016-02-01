@@ -6,6 +6,8 @@
 package org.elasticsearch.shield;
 
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateAction;
+import org.elasticsearch.shield.action.realm.ClearRealmCacheAction;
+import org.elasticsearch.shield.action.role.ClearRolesCacheAction;
 import org.elasticsearch.shield.audit.index.IndexAuditTrail;
 import org.elasticsearch.shield.authz.permission.Role;
 import org.elasticsearch.shield.authz.privilege.ClusterPrivilege;
@@ -22,7 +24,7 @@ public class InternalShieldUser extends User {
     public static final String NAME = "__es_internal_user";
 
     public static final Role ROLE = Role.builder("__es_internal_role")
-            .cluster(ClusterPrivilege.get(new Privilege.Name(PutIndexTemplateAction.NAME, "cluster:admin/shield/realm/cache/clear*", "cluster:admin/shield/roles/cache/clear*")))
+            .cluster(ClusterPrivilege.get(new Privilege.Name(PutIndexTemplateAction.NAME, ClearRealmCacheAction.NAME + "*", ClearRolesCacheAction.NAME + "*")))
             .add(IndexPrivilege.ALL, ShieldTemplateService.SHIELD_ADMIN_INDEX_NAME)
             .add(IndexPrivilege.ALL, IndexAuditTrail.INDEX_NAME_PREFIX + "*")
             .build();

@@ -32,14 +32,12 @@ public class RestGetUsersAction extends BaseRestHandler {
     public RestGetUsersAction(Settings settings, RestController controller, Client client) {
         super(settings, client);
         controller.registerHandler(RestRequest.Method.GET, "/_shield/user/", this);
-        controller.registerHandler(RestRequest.Method.GET, "/_shield/user/{user}", this);
-        controller.registerHandler(RestRequest.Method.GET, "/_shield/users/", this);
-        controller.registerHandler(RestRequest.Method.GET, "/_shield/users/{user}", this);
+        controller.registerHandler(RestRequest.Method.GET, "/_shield/user/{username}", this);
     }
 
     @Override
     protected void handleRequest(RestRequest request, final RestChannel channel, Client client) throws Exception {
-        String[] users = Strings.splitStringByCommaToArray(request.param("user"));
+        String[] users = Strings.splitStringByCommaToArray(request.param("username"));
 
         new ShieldClient(client).prepareGetUsers().users(users).execute(new RestBuilderListener<GetUsersResponse>(channel) {
             @Override

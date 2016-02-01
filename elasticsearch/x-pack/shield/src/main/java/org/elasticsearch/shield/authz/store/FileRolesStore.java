@@ -20,6 +20,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.shield.InternalShieldUser;
 import org.elasticsearch.shield.ShieldPlugin;
 import org.elasticsearch.shield.InternalSystemUser;
 import org.elasticsearch.shield.authc.support.RefreshListener;
@@ -143,7 +144,7 @@ public class FileRolesStore extends AbstractLifecycleComponent<RolesStore> imple
                     Role role = parseRole(segment, path, logger, resolvePermission, settings);
                     if (role != null) {
                         if (InternalSystemUser.ROLE_NAME.equals(role.name())) {
-                            logger.warn("role [{}] is reserved to the system. the relevant role definition in the mapping file will be ignored", InternalSystemUser.ROLE_NAME);
+                            logger.warn("role [{}] is reserved. the relevant role definition in the mapping file will be ignored", role.name());
                         } else {
                             roles.put(role.name(), role);
                         }

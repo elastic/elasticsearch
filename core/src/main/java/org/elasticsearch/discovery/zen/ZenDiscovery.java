@@ -22,7 +22,13 @@ package org.elasticsearch.discovery.zen;
 import com.google.common.collect.Sets;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.*;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateNonMasterUpdateTask;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -56,10 +62,20 @@ import org.elasticsearch.discovery.zen.publish.PublishClusterStateAction;
 import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.*;
+import org.elasticsearch.transport.EmptyTransportResponseHandler;
+import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestHandler;
+import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
+import java.util.Queue;
+import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -74,7 +90,6 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
  */
 public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implements Discovery, PingContextProvider {
 
-    public final static String SETTING_REJOIN_ON_MASTER_GONE = "discovery.zen.rejoin_on_master_gone";
     public final static String SETTING_PING_TIMEOUT = "discovery.zen.ping.timeout";
     public final static String SETTING_JOIN_TIMEOUT = "discovery.zen.join_timeout";
     public final static String SETTING_JOIN_RETRY_ATTEMPTS = "discovery.zen.join_retry_attempts";
@@ -125,8 +140,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
     private final AtomicBoolean initialStateSent = new AtomicBoolean();
 
-    private volatile boolean rejoinOnMasterGone;
-
     /** counts the time this node has joined the cluster or have elected it self as master */
     private final AtomicLong clusterJoinsCounter = new AtomicLong();
 
@@ -163,7 +176,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         this.masterElectionFilterClientNodes = settings.getAsBoolean(SETTING_MASTER_ELECTION_FILTER_CLIENT, true);
         this.masterElectionFilterDataNodes = settings.getAsBoolean(SETTING_MASTER_ELECTION_FILTER_DATA, false);
         this.masterElectionWaitForJoinsTimeout = settings.getAsTime(SETTING_MASTER_ELECTION_WAIT_FOR_JOINS_TIMEOUT, TimeValue.timeValueMillis(joinTimeout.millis() / 2));
-        this.rejoinOnMasterGone = settings.getAsBoolean(SETTING_REJOIN_ON_MASTER_GONE, true);
 
         if (this.joinRetryAttempts < 1) {
             throw new IllegalArgumentException("'" + SETTING_JOIN_RETRY_ATTEMPTS + "' must be a positive number. got [" + SETTING_JOIN_RETRY_ATTEMPTS + "]");
@@ -612,35 +624,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 processNewClusterStates.drainTo(pendingNewClusterStates);
                 logger.trace("removed [{}] pending cluster states", pendingNewClusterStates.size());
 
-                if (rejoinOnMasterGone) {
-                    return rejoin(ClusterState.builder(currentState).nodes(discoveryNodes).build(), "master left (reason = " + reason + ")");
-                }
-
-                if (!electMaster.hasEnoughMasterNodes(discoveryNodes)) {
-                    return rejoin(ClusterState.builder(currentState).nodes(discoveryNodes).build(), "not enough master nodes after master left (reason = " + reason + ")");
-                }
-
-                final DiscoveryNode electedMaster = electMaster.electMaster(discoveryNodes); // elect master
-                final DiscoveryNode localNode = currentState.nodes().localNode();
-                if (localNode.equals(electedMaster)) {
-                    masterFD.stop("got elected as new master since master left (reason = " + reason + ")");
-                    discoveryNodes = DiscoveryNodes.builder(discoveryNodes).masterNodeId(localNode.id()).build();
-                    ClusterState newState = ClusterState.builder(currentState).nodes(discoveryNodes).build();
-                    nodesFD.updateNodesAndPing(newState);
-                    return newState;
-
-                } else {
-                    nodesFD.stop();
-                    if (electedMaster != null) {
-                        discoveryNodes = DiscoveryNodes.builder(discoveryNodes).masterNodeId(electedMaster.id()).build();
-                        masterFD.restart(electedMaster, "possible elected master since master left (reason = " + reason + ")");
-                        return ClusterState.builder(currentState)
-                                .nodes(discoveryNodes)
-                                .build();
-                    } else {
-                        return rejoin(ClusterState.builder(currentState).nodes(discoveryNodes).build(), "master_left and no other node elected to become master");
-                    }
-                }
+                return rejoin(ClusterState.builder(currentState).nodes(discoveryNodes).build(), "master left (reason = " + reason + ")");
             }
 
             @Override
@@ -1129,10 +1113,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         }
     }
 
-    boolean isRejoinOnMasterGone() {
-        return rejoinOnMasterGone;
-    }
-
     public static class RejoinClusterRequest extends TransportRequest {
 
         private String fromNodeId;
@@ -1198,12 +1178,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 logger.info("updating {} from [{}] to [{}]", ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES,
                         ZenDiscovery.this.electMaster.minimumMasterNodes(), minimumMasterNodes);
                 handleMinimumMasterNodesChanged(minimumMasterNodes);
-            }
-
-            boolean rejoinOnMasterGone = settings.getAsBoolean(SETTING_REJOIN_ON_MASTER_GONE, ZenDiscovery.this.rejoinOnMasterGone);
-            if (rejoinOnMasterGone != ZenDiscovery.this.rejoinOnMasterGone) {
-                logger.info("updating {} from [{}] to [{}]", SETTING_REJOIN_ON_MASTER_GONE, ZenDiscovery.this.rejoinOnMasterGone, rejoinOnMasterGone);
-                ZenDiscovery.this.rejoinOnMasterGone = rejoinOnMasterGone;
             }
         }
     }

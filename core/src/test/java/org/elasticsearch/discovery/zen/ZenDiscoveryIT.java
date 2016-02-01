@@ -77,22 +77,6 @@ import static org.hamcrest.Matchers.sameInstance;
 public class ZenDiscoveryIT extends ESIntegTestCase {
 
     @Test
-    public void testChangeRejoinOnMasterOptionIsDynamic() throws Exception {
-        Settings nodeSettings = Settings.settingsBuilder()
-                .put("discovery.type", "zen") // <-- To override the local setting if set externally
-                .build();
-        String nodeName = internalCluster().startNode(nodeSettings);
-        ZenDiscovery zenDiscovery = (ZenDiscovery) internalCluster().getInstance(Discovery.class, nodeName);
-        assertThat(zenDiscovery.isRejoinOnMasterGone(), is(true));
-
-        client().admin().cluster().prepareUpdateSettings()
-                .setTransientSettings(Settings.builder().put(ZenDiscovery.SETTING_REJOIN_ON_MASTER_GONE, false))
-                .get();
-
-        assertThat(zenDiscovery.isRejoinOnMasterGone(), is(false));
-    }
-
-    @Test
     public void testNoShardRelocationsOccurWhenElectedMasterNodeFails() throws Exception {
         Settings defaultSettings = Settings.builder()
                 .put(FaultDetection.SETTING_PING_TIMEOUT, "1s")
@@ -235,8 +219,8 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
     @Test
     public void testHandleNodeJoin_incompatibleClusterState() throws UnknownHostException {
         Settings nodeSettings = Settings.settingsBuilder()
-            .put("discovery.type", "zen") // <-- To override the local setting if set externally
-            .build();
+                .put("discovery.type", "zen") // <-- To override the local setting if set externally
+                .build();
         String masterOnlyNode = internalCluster().startMasterOnlyNode(nodeSettings);
         String node1 = internalCluster().startNode(nodeSettings);
         ZenDiscovery zenDiscovery = (ZenDiscovery) internalCluster().getInstance(Discovery.class, masterOnlyNode);

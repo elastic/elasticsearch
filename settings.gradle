@@ -40,8 +40,8 @@ List projects = [
   'qa:smoke-test-client',
   'qa:smoke-test-multinode',
   'qa:smoke-test-plugins',
-  'qa:ingest-with-mustache',
-  'qa:ingest-disabled',
+  'qa:smoke-test-ingest-with-all-dependencies',
+  'qa:smoke-test-ingest-disabled',
   'qa:vagrant',
 ]
 

@@ -59,7 +59,7 @@ public class IngestGrokPlugin extends Plugin {
         nodeModule.registerProcessor(GrokProcessor.TYPE, (templateService) -> new GrokProcessor.Factory(builtinPatterns));
     }
 
-    static Map<String, String> loadBuiltinPatterns() throws IOException {
+    public static Map<String, String> loadBuiltinPatterns() throws IOException {
         Map<String, String> builtinPatterns = new HashMap<>();
         for (String pattern : PATTERN_NAMES) {
             try(InputStream is = IngestGrokPlugin.class.getResourceAsStream("/patterns/" + pattern)) {

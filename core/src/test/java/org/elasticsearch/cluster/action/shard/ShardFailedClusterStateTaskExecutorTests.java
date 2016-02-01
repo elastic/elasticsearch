@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.action.shard;
 
+import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
@@ -26,6 +27,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.RoutingNodes;
@@ -40,6 +42,7 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.DiscoveryService;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESAllocationTestCase;
 import org.junit.Before;
 
@@ -54,6 +57,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -184,12 +188,17 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
 
     private List<ShardStateAction.ShardRoutingEntry> createNonExistentShards(ClusterState currentState, String reason) {
         // add shards from a non-existent index
-        MetaData nonExistentMetaData =
-            MetaData.builder()
-                .put(IndexMetaData.builder("non-existent").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(numberOfReplicas))
-                .build();
-        RoutingTable routingTable = RoutingTable.builder().addAsNew(nonExistentMetaData.index("non-existent")).build();
-        String nonExistentIndexUUID = nonExistentMetaData.index("non-existent").getIndexUUID();
+        String nonExistentIndexUUID = "non-existent";
+        Index index = new Index("non-existent", nonExistentIndexUUID);
+        List<String> nodeIds = new ArrayList<>();
+        for (ObjectCursor<String> nodeId : currentState.nodes().getNodes().keys()) {
+            nodeIds.add(nodeId.toString());
+        }
+        List<ShardRouting> nonExistentShards = new ArrayList<>();
+        nonExistentShards.add(nonExistentShardRouting(index, nodeIds, true));
+        for (int i = 0; i < numberOfReplicas; i++) {
+            nonExistentShards.add(nonExistentShardRouting(index, nodeIds, false));
+        }
 
         List<ShardStateAction.ShardRoutingEntry> existingShards = createExistingShards(currentState, reason);
         List<ShardStateAction.ShardRoutingEntry> shardsWithMismatchedAllocationIds = new ArrayList<>();
@@ -201,9 +210,13 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
         }
 
         List<ShardStateAction.ShardRoutingEntry> tasks = new ArrayList<>();
-        tasks.addAll(toTasks(currentState, routingTable.allShards(), nonExistentIndexUUID, reason));
+        nonExistentShards.forEach(shard -> tasks.add(new ShardStateAction.ShardRoutingEntry(shard, shard, reason, new CorruptIndexException("simulated", nonExistentIndexUUID))));
         tasks.addAll(shardsWithMismatchedAllocationIds);
         return tasks;
+    }
+
+    private ShardRouting nonExistentShardRouting(Index index, List<String> nodeIds, boolean primary) {
+        return TestShardRouting.newShardRouting(index, 0, randomFrom(nodeIds), primary, randomFrom(ShardRoutingState.INITIALIZING, ShardRoutingState.RELOCATING, ShardRoutingState.STARTED), randomIntBetween(1, 8));
     }
 
     private static void assertTasksSuccessful(

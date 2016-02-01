@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.MasterNodeChangePredicate;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingService;
@@ -289,6 +290,25 @@ public class ShardStateAction extends AbstractComponent {
         }
 
         private ValidationResult validateTask(ClusterState currentState, ShardRoutingEntry task) {
+
+            // non-local requests
+            if (!task.shardRouting.isSameAllocation(task.sourceShardRouting)) {
+                IndexRoutingTable indexRoutingTable = currentState.getRoutingTable().index(task.getShardRouting().index().getName());
+                if (indexRoutingTable == null) {
+                    // the index does not exist anymore
+                    return ValidationResult.SOURCE_INVALID;
+                }
+                IndexShardRoutingTable indexShard = indexRoutingTable.shard(task.getShardRouting().id());
+                if (indexShard == null) {
+                    // the shard does not exist anymore
+                    return ValidationResult.SOURCE_INVALID;
+                }
+                ShardRouting primaryShard = indexShard.primaryShard();
+                if (primaryShard == null || !primaryShard.isSameAllocation(task.sourceShardRouting)) {
+                    return ValidationResult.SOURCE_INVALID;
+                }
+            }
+
             RoutingNodes.RoutingNodeIterator routingNodeIterator =
                 currentState.getRoutingNodes().routingNodeIter(task.getShardRouting().currentNodeId());
             if (routingNodeIterator != null) {

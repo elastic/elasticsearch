@@ -1132,7 +1132,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
                 // Use the same value for both checks since lastAccessTime can
                 // be modified by another thread between checks!
                 final long lastAccessTime = context.lastAccessTime();
-                if (lastAccessTime == -1l) { // its being processed or timeout is disabled
+                if (lastAccessTime == -1L) { // its being processed or timeout is disabled
                     continue;
                 }
                 if ((time - lastAccessTime > context.keepAlive())) {

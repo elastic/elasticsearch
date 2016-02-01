@@ -43,7 +43,7 @@ public class FieldDataLoadingIT extends ESIntegTestCase {
         client().admin().indices().prepareRefresh("test").get();
 
         ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
-        assertThat(response.getIndicesStats().getFieldData().getMemorySizeInBytes(), greaterThan(0l));
+        assertThat(response.getIndicesStats().getFieldData().getMemorySizeInBytes(), greaterThan(0L));
     }
 
     public void testEagerGlobalOrdinalsFieldDataLoading() throws Exception {
@@ -60,7 +60,7 @@ public class FieldDataLoadingIT extends ESIntegTestCase {
         client().admin().indices().prepareRefresh("test").get();
 
         ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
-        assertThat(response.getIndicesStats().getFieldData().getMemorySizeInBytes(), greaterThan(0l));
+        assertThat(response.getIndicesStats().getFieldData().getMemorySizeInBytes(), greaterThan(0L));
     }
 
 }

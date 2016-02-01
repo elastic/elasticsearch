@@ -121,43 +121,43 @@ public class StringTermsTests extends AbstractTermsTestCase {
         expectedMultiSortBuckets = new HashMap<>();
         Map<String, Object> bucketProps = new HashMap<>();
         bucketProps.put("_term", "val1");
-        bucketProps.put("_count", 3l);
+        bucketProps.put("_count", 3L);
         bucketProps.put("avg_l", 1d);
         bucketProps.put("sum_d", 6d);
         expectedMultiSortBuckets.put((String) bucketProps.get("_term"), bucketProps);
         bucketProps = new HashMap<>();
         bucketProps.put("_term", "val2");
-        bucketProps.put("_count", 3l);
+        bucketProps.put("_count", 3L);
         bucketProps.put("avg_l", 2d);
         bucketProps.put("sum_d", 6d);
         expectedMultiSortBuckets.put((String) bucketProps.get("_term"), bucketProps);
         bucketProps = new HashMap<>();
         bucketProps.put("_term", "val3");
-        bucketProps.put("_count", 2l);
+        bucketProps.put("_count", 2L);
         bucketProps.put("avg_l", 3d);
         bucketProps.put("sum_d", 3d);
         expectedMultiSortBuckets.put((String) bucketProps.get("_term"), bucketProps);
         bucketProps = new HashMap<>();
         bucketProps.put("_term", "val4");
-        bucketProps.put("_count", 2l);
+        bucketProps.put("_count", 2L);
         bucketProps.put("avg_l", 3d);
         bucketProps.put("sum_d", 4d);
         expectedMultiSortBuckets.put((String) bucketProps.get("_term"), bucketProps);
         bucketProps = new HashMap<>();
         bucketProps.put("_term", "val5");
-        bucketProps.put("_count", 2l);
+        bucketProps.put("_count", 2L);
         bucketProps.put("avg_l", 5d);
         bucketProps.put("sum_d", 3d);
         expectedMultiSortBuckets.put((String) bucketProps.get("_term"), bucketProps);
         bucketProps = new HashMap<>();
         bucketProps.put("_term", "val6");
-        bucketProps.put("_count", 1l);
+        bucketProps.put("_count", 1L);
         bucketProps.put("avg_l", 5d);
         bucketProps.put("sum_d", 1d);
         expectedMultiSortBuckets.put((String) bucketProps.get("_term"), bucketProps);
         bucketProps = new HashMap<>();
         bucketProps.put("_term", "val7");
-        bucketProps.put("_count", 1l);
+        bucketProps.put("_count", 1L);
         bucketProps.put("avg_l", 5d);
         bucketProps.put("sum_d", 1d);
         expectedMultiSortBuckets.put((String) bucketProps.get("_term"), bucketProps);
@@ -231,9 +231,9 @@ public class StringTermsTests extends AbstractTermsTestCase {
             Terms.Bucket bucket = terms.getBucketByKey("val" + i);
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("val" + i));
-            assertThat(bucket.getDocCount(), equalTo(1l));
+            assertThat(bucket.getDocCount(), equalTo(1L));
             assertThat((String) propertiesKeys[i], equalTo("val" + i));
-            assertThat((long) propertiesDocCounts[i], equalTo(1l));
+            assertThat((long) propertiesDocCounts[i], equalTo(1L));
         }
     }
 
@@ -259,7 +259,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
                 Terms.Bucket bucket = terms.getBucketByKey("val" + i);
                 assertThat(bucket, notNullValue());
                 assertThat(key(bucket), equalTo("val" + i));
-                assertThat(bucket.getDocCount(), equalTo(1l));
+                assertThat(bucket.getDocCount(), equalTo(1L));
             }
         }
     }
@@ -286,7 +286,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
             Terms.Bucket bucket = terms.getBucketByKey("val00" + i);
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("val00" + i));
-            assertThat(bucket.getDocCount(), equalTo(1l));
+            assertThat(bucket.getDocCount(), equalTo(1L));
         }
 
         // include and exclude
@@ -311,7 +311,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
             Terms.Bucket bucket = terms.getBucketByKey("val00" + i);
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("val00" + i));
-            assertThat(bucket.getDocCount(), equalTo(1l));
+            assertThat(bucket.getDocCount(), equalTo(1L));
         }
 
         // exclude without include
@@ -335,7 +335,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
             Terms.Bucket bucket = terms.getBucketByKey("val00" + i);
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("val00" + i));
-            assertThat(bucket.getDocCount(), equalTo(1l));
+            assertThat(bucket.getDocCount(), equalTo(1L));
         }
     }
 
@@ -360,7 +360,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
             Terms.Bucket bucket = terms.getBucketByKey(incVal);
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo(incVal));
-            assertThat(bucket.getDocCount(), equalTo(1l));
+            assertThat(bucket.getDocCount(), equalTo(1L));
         }
 
         // include and exclude
@@ -388,7 +388,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
             Terms.Bucket bucket = terms.getBucketByKey("val00" + i);
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("val00" + i));
-            assertThat(bucket.getDocCount(), equalTo(1l));
+            assertThat(bucket.getDocCount(), equalTo(1L));
         }
 
         // Check case with only exact term exclude clauses
@@ -415,7 +415,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
             Terms.Bucket bucket = terms.getBucketByKey("val" + nf.format(i));
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("val" + nf.format(i)));
-            assertThat(bucket.getDocCount(), equalTo(1l));
+            assertThat(bucket.getDocCount(), equalTo(1L));
         }
 
     }
@@ -440,7 +440,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
             Terms.Bucket bucket = terms.getBucketByKey("val" + Strings.padStart(i + "", 3, '0'));
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("val" + Strings.padStart(i + "", 3, '0')));
-            assertThat(bucket.getDocCount(), equalTo(1l));
+            assertThat(bucket.getDocCount(), equalTo(1L));
         }
     }
 
@@ -464,7 +464,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
         for (Terms.Bucket bucket : terms.getBuckets()) {
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("val" + i));
-            assertThat(bucket.getDocCount(), equalTo(1l));
+            assertThat(bucket.getDocCount(), equalTo(1L));
             i++;
         }
     }
@@ -489,7 +489,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
         for (Terms.Bucket bucket : terms.getBuckets()) {
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("val" + i));
-            assertThat(bucket.getDocCount(), equalTo(1l));
+            assertThat(bucket.getDocCount(), equalTo(1L));
             i--;
         }
     }
@@ -517,12 +517,12 @@ public class StringTermsTests extends AbstractTermsTestCase {
             Terms.Bucket bucket = terms.getBucketByKey("val" + i);
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("val" + i));
-            assertThat(bucket.getDocCount(), equalTo(1l));
+            assertThat(bucket.getDocCount(), equalTo(1L));
             ValueCount valueCount = bucket.getAggregations().get("count");
             assertThat(valueCount, notNullValue());
-            assertThat(valueCount.getValue(), equalTo(2l));
+            assertThat(valueCount.getValue(), equalTo(2L));
             assertThat((String) propertiesKeys[i], equalTo("val" + i));
-            assertThat((long) propertiesDocCounts[i], equalTo(1l));
+            assertThat((long) propertiesDocCounts[i], equalTo(1L));
             assertThat((double) propertiesCounts[i], equalTo(2.0));
         }
     }
@@ -547,10 +547,10 @@ public class StringTermsTests extends AbstractTermsTestCase {
             Terms.Bucket bucket = terms.getBucketByKey("val" + i);
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("val" + i));
-            assertThat(bucket.getDocCount(), equalTo(1l));
+            assertThat(bucket.getDocCount(), equalTo(1L));
             ValueCount valueCount = bucket.getAggregations().get("count");
             assertThat(valueCount, notNullValue());
-            assertThat(valueCount.getValue(), equalTo(1l));
+            assertThat(valueCount.getValue(), equalTo(1L));
         }
     }
 
@@ -574,7 +574,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
             Terms.Bucket bucket = terms.getBucketByKey("foo_val" + i);
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("foo_val" + i));
-            assertThat(bucket.getDocCount(), equalTo(1l));
+            assertThat(bucket.getDocCount(), equalTo(1L));
         }
     }
 
@@ -597,7 +597,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
         Terms.Bucket bucket = terms.getBucketByKey("val");
         assertThat(bucket, notNullValue());
         assertThat(key(bucket), equalTo("val"));
-        assertThat(bucket.getDocCount(), equalTo(5l));
+        assertThat(bucket.getDocCount(), equalTo(5L));
     }
 
     public void testMultiValuedField() throws Exception {
@@ -620,9 +620,9 @@ public class StringTermsTests extends AbstractTermsTestCase {
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("val" + i));
             if (i == 0 || i == 5) {
-                assertThat(bucket.getDocCount(), equalTo(1l));
+                assertThat(bucket.getDocCount(), equalTo(1L));
             } else {
-                assertThat(bucket.getDocCount(), equalTo(2l));
+                assertThat(bucket.getDocCount(), equalTo(2L));
             }
         }
     }
@@ -647,9 +647,9 @@ public class StringTermsTests extends AbstractTermsTestCase {
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("val" + i));
             if (i == 0 || i == 5) {
-                assertThat(bucket.getDocCount(), equalTo(1l));
+                assertThat(bucket.getDocCount(), equalTo(1L));
             } else {
-                assertThat(bucket.getDocCount(), equalTo(2l));
+                assertThat(bucket.getDocCount(), equalTo(2L));
             }
         }
     }
@@ -675,9 +675,9 @@ public class StringTermsTests extends AbstractTermsTestCase {
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("foo_val" + i));
             if (i == 0 || i == 5) {
-                assertThat(bucket.getDocCount(), equalTo(1l));
+                assertThat(bucket.getDocCount(), equalTo(1L));
             } else {
-                assertThat(bucket.getDocCount(), equalTo(2l));
+                assertThat(bucket.getDocCount(), equalTo(2L));
             }
         }
     }
@@ -715,15 +715,15 @@ public class StringTermsTests extends AbstractTermsTestCase {
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("foo_val" + i));
             if (i == 0 | i == 5) {
-                assertThat(bucket.getDocCount(), equalTo(1l));
+                assertThat(bucket.getDocCount(), equalTo(1L));
                 ValueCount valueCount = bucket.getAggregations().get("count");
                 assertThat(valueCount, notNullValue());
-                assertThat(valueCount.getValue(), equalTo(2l));
+                assertThat(valueCount.getValue(), equalTo(2L));
             } else {
-                assertThat(bucket.getDocCount(), equalTo(2l));
+                assertThat(bucket.getDocCount(), equalTo(2L));
                 ValueCount valueCount = bucket.getAggregations().get("count");
                 assertThat(valueCount, notNullValue());
-                assertThat("term[" + key(bucket) + "]", valueCount.getValue(), equalTo(4l));
+                assertThat("term[" + key(bucket) + "]", valueCount.getValue(), equalTo(4L));
             }
         }
     }
@@ -747,7 +747,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
             Terms.Bucket bucket = terms.getBucketByKey("val" + i);
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("val" + i));
-            assertThat(bucket.getDocCount(), equalTo(1l));
+            assertThat(bucket.getDocCount(), equalTo(1L));
         }
     }
 
@@ -770,7 +770,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
             Terms.Bucket bucket = terms.getBucketByKey("val" + i);
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("val" + i));
-            assertThat(bucket.getDocCount(), equalTo(1l));
+            assertThat(bucket.getDocCount(), equalTo(1L));
         }
     }
 
@@ -794,10 +794,10 @@ public class StringTermsTests extends AbstractTermsTestCase {
             Terms.Bucket bucket = terms.getBucketByKey("val" + i);
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("val" + i));
-            assertThat(bucket.getDocCount(), equalTo(1l));
+            assertThat(bucket.getDocCount(), equalTo(1L));
             ValueCount valueCount = bucket.getAggregations().get("count");
             assertThat(valueCount, notNullValue());
-            assertThat(valueCount.getValue(), equalTo(1l));
+            assertThat(valueCount.getValue(), equalTo(1L));
         }
     }
 
@@ -821,9 +821,9 @@ public class StringTermsTests extends AbstractTermsTestCase {
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("val" + i));
             if (i == 0 || i == 5) {
-                assertThat(bucket.getDocCount(), equalTo(1l));
+                assertThat(bucket.getDocCount(), equalTo(1L));
             } else {
-                assertThat(bucket.getDocCount(), equalTo(2l));
+                assertThat(bucket.getDocCount(), equalTo(2L));
             }
         }
     }
@@ -849,15 +849,15 @@ public class StringTermsTests extends AbstractTermsTestCase {
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("val" + i));
             if (i == 0 | i == 5) {
-                assertThat(bucket.getDocCount(), equalTo(1l));
+                assertThat(bucket.getDocCount(), equalTo(1L));
                 ValueCount valueCount = bucket.getAggregations().get("count");
                 assertThat(valueCount, notNullValue());
-                assertThat(valueCount.getValue(), equalTo(2l));
+                assertThat(valueCount.getValue(), equalTo(2L));
             } else {
-                assertThat(bucket.getDocCount(), equalTo(2l));
+                assertThat(bucket.getDocCount(), equalTo(2L));
                 ValueCount valueCount = bucket.getAggregations().get("count");
                 assertThat(valueCount, notNullValue());
-                assertThat(valueCount.getValue(), equalTo(4l));
+                assertThat(valueCount.getValue(), equalTo(4L));
             }
         }
     }
@@ -897,7 +897,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
             Terms.Bucket bucket = terms.getBucketByKey("val" + i);
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("val" + i));
-            assertThat(bucket.getDocCount(), equalTo(1l));
+            assertThat(bucket.getDocCount(), equalTo(1L));
         }
     }
 
@@ -933,10 +933,10 @@ public class StringTermsTests extends AbstractTermsTestCase {
                 .prepareSearch("empty_bucket_idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(
-                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(1l).minDocCount(0).subAggregation(terms("terms")))
+                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(1L).minDocCount(0).subAggregation(terms("terms")))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2l));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
         Histogram histo = searchResponse.getAggregations().get("histo");
         assertThat(histo, Matchers.notNullValue());
         Histogram.Bucket bucket = histo.getBuckets().get(1);
@@ -969,7 +969,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
         for (Terms.Bucket bucket : terms.getBuckets()) {
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("val" + i));
-            assertThat(bucket.getDocCount(), equalTo(1l));
+            assertThat(bucket.getDocCount(), equalTo(1L));
             Avg avg = bucket.getAggregations().get("avg_i");
             assertThat(avg, notNullValue());
             assertThat(avg.getValue(), equalTo((double) i));
@@ -1028,18 +1028,18 @@ public class StringTermsTests extends AbstractTermsTestCase {
         Terms.Bucket tag = iters.next();
         assertThat(tag, notNullValue());
         assertThat(key(tag), equalTo(asc ? "less" : "more"));
-        assertThat(tag.getDocCount(), equalTo(asc ? 2l : 3l));
+        assertThat(tag.getDocCount(), equalTo(asc ? 2L : 3L));
         Filter filter = tag.getAggregations().get("filter");
         assertThat(filter, notNullValue());
-        assertThat(filter.getDocCount(), equalTo(asc ? 2l : 3l));
+        assertThat(filter.getDocCount(), equalTo(asc ? 2L : 3L));
 
         tag = iters.next();
         assertThat(tag, notNullValue());
         assertThat(key(tag), equalTo(asc ? "more" : "less"));
-        assertThat(tag.getDocCount(), equalTo(asc ? 3l : 2l));
+        assertThat(tag.getDocCount(), equalTo(asc ? 3L : 2L));
         filter = tag.getAggregations().get("filter");
         assertThat(filter, notNullValue());
-        assertThat(filter.getDocCount(), equalTo(asc ? 3l : 2l));
+        assertThat(filter.getDocCount(), equalTo(asc ? 3L : 2L));
     }
 
     public void testSingleValuedFieldOrderedBySubAggregationAscMultiHierarchyLevels() throws Exception {
@@ -1073,13 +1073,13 @@ public class StringTermsTests extends AbstractTermsTestCase {
         Terms.Bucket tag = iters.next();
         assertThat(tag, notNullValue());
         assertThat(key(tag), equalTo(asc ? "more" : "less"));
-        assertThat(tag.getDocCount(), equalTo(asc ? 3l : 2l));
+        assertThat(tag.getDocCount(), equalTo(asc ? 3L : 2L));
         Filter filter1 = tag.getAggregations().get("filter1");
         assertThat(filter1, notNullValue());
-        assertThat(filter1.getDocCount(), equalTo(asc ? 3l : 2l));
+        assertThat(filter1.getDocCount(), equalTo(asc ? 3L : 2L));
         Filter filter2 = filter1.getAggregations().get("filter2");
         assertThat(filter2, notNullValue());
-        assertThat(filter2.getDocCount(), equalTo(asc ? 3l : 2l));
+        assertThat(filter2.getDocCount(), equalTo(asc ? 3L : 2L));
         Stats stats = filter2.getAggregations().get("stats");
         assertThat(stats, notNullValue());
         assertThat(stats.getMax(), equalTo(asc ? 2.0 : 4.0));
@@ -1087,13 +1087,13 @@ public class StringTermsTests extends AbstractTermsTestCase {
         tag = iters.next();
         assertThat(tag, notNullValue());
         assertThat(key(tag), equalTo(asc ? "less" : "more"));
-        assertThat(tag.getDocCount(), equalTo(asc ? 2l : 3l));
+        assertThat(tag.getDocCount(), equalTo(asc ? 2L : 3L));
         filter1 = tag.getAggregations().get("filter1");
         assertThat(filter1, notNullValue());
-        assertThat(filter1.getDocCount(), equalTo(asc ? 2l : 3l));
+        assertThat(filter1.getDocCount(), equalTo(asc ? 2L : 3L));
         filter2 = filter1.getAggregations().get("filter2");
         assertThat(filter2, notNullValue());
-        assertThat(filter2.getDocCount(), equalTo(asc ? 2l : 3l));
+        assertThat(filter2.getDocCount(), equalTo(asc ? 2L : 3L));
         stats = filter2.getAggregations().get("stats");
         assertThat(stats, notNullValue());
         assertThat(stats.getMax(), equalTo(asc ? 4.0 : 2.0));
@@ -1136,13 +1136,13 @@ public class StringTermsTests extends AbstractTermsTestCase {
         Terms.Bucket tag = iters.next();
         assertThat(tag, notNullValue());
         assertThat(key(tag), equalTo(asc ? "more" : "less"));
-        assertThat(tag.getDocCount(), equalTo(asc ? 3l : 2l));
+        assertThat(tag.getDocCount(), equalTo(asc ? 3L : 2L));
         Filter filter1 = tag.getAggregations().get("filter1");
         assertThat(filter1, notNullValue());
-        assertThat(filter1.getDocCount(), equalTo(asc ? 3l : 2l));
+        assertThat(filter1.getDocCount(), equalTo(asc ? 3L : 2L));
         Filter filter2 = filter1.getAggregations().get(filter2Name);
         assertThat(filter2, notNullValue());
-        assertThat(filter2.getDocCount(), equalTo(asc ? 3l : 2l));
+        assertThat(filter2.getDocCount(), equalTo(asc ? 3L : 2L));
         Stats stats = filter2.getAggregations().get(statsName);
         assertThat(stats, notNullValue());
         assertThat(stats.getMax(), equalTo(asc ? 2.0 : 4.0));
@@ -1150,13 +1150,13 @@ public class StringTermsTests extends AbstractTermsTestCase {
         tag = iters.next();
         assertThat(tag, notNullValue());
         assertThat(key(tag), equalTo(asc ? "less" : "more"));
-        assertThat(tag.getDocCount(), equalTo(asc ? 2l : 3l));
+        assertThat(tag.getDocCount(), equalTo(asc ? 2L : 3L));
         filter1 = tag.getAggregations().get("filter1");
         assertThat(filter1, notNullValue());
-        assertThat(filter1.getDocCount(), equalTo(asc ? 2l : 3l));
+        assertThat(filter1.getDocCount(), equalTo(asc ? 2L : 3L));
         filter2 = filter1.getAggregations().get(filter2Name);
         assertThat(filter2, notNullValue());
-        assertThat(filter2.getDocCount(), equalTo(asc ? 2l : 3l));
+        assertThat(filter2.getDocCount(), equalTo(asc ? 2L : 3L));
         stats = filter2.getAggregations().get(statsName);
         assertThat(stats, notNullValue());
         assertThat(stats.getMax(), equalTo(asc ? 4.0 : 2.0));
@@ -1199,13 +1199,13 @@ public class StringTermsTests extends AbstractTermsTestCase {
         Terms.Bucket tag = iters.next();
         assertThat(tag, notNullValue());
         assertThat(key(tag), equalTo(asc ? "more" : "less"));
-        assertThat(tag.getDocCount(), equalTo(asc ? 3l : 2l));
+        assertThat(tag.getDocCount(), equalTo(asc ? 3L : 2L));
         Filter filter1 = tag.getAggregations().get("filter1");
         assertThat(filter1, notNullValue());
-        assertThat(filter1.getDocCount(), equalTo(asc ? 3l : 2l));
+        assertThat(filter1.getDocCount(), equalTo(asc ? 3L : 2L));
         Filter filter2 = filter1.getAggregations().get(filter2Name);
         assertThat(filter2, notNullValue());
-        assertThat(filter2.getDocCount(), equalTo(asc ? 3l : 2l));
+        assertThat(filter2.getDocCount(), equalTo(asc ? 3L : 2L));
         Stats stats = filter2.getAggregations().get(statsName);
         assertThat(stats, notNullValue());
         assertThat(stats.getMax(), equalTo(asc ? 2.0 : 4.0));
@@ -1213,13 +1213,13 @@ public class StringTermsTests extends AbstractTermsTestCase {
         tag = iters.next();
         assertThat(tag, notNullValue());
         assertThat(key(tag), equalTo(asc ? "less" : "more"));
-        assertThat(tag.getDocCount(), equalTo(asc ? 2l : 3l));
+        assertThat(tag.getDocCount(), equalTo(asc ? 2L : 3L));
         filter1 = tag.getAggregations().get("filter1");
         assertThat(filter1, notNullValue());
-        assertThat(filter1.getDocCount(), equalTo(asc ? 2l : 3l));
+        assertThat(filter1.getDocCount(), equalTo(asc ? 2L : 3L));
         filter2 = filter1.getAggregations().get(filter2Name);
         assertThat(filter2, notNullValue());
-        assertThat(filter2.getDocCount(), equalTo(asc ? 2l : 3l));
+        assertThat(filter2.getDocCount(), equalTo(asc ? 2L : 3L));
         stats = filter2.getAggregations().get(statsName);
         assertThat(stats, notNullValue());
         assertThat(stats.getMax(), equalTo(asc ? 4.0 : 2.0));
@@ -1324,7 +1324,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
         for (Terms.Bucket bucket : terms.getBuckets()) {
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("val" + i));
-            assertThat(bucket.getDocCount(), equalTo(1l));
+            assertThat(bucket.getDocCount(), equalTo(1L));
 
             Avg avg = bucket.getAggregations().get("avg_i");
             assertThat(avg, notNullValue());
@@ -1355,7 +1355,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
         for (Terms.Bucket bucket : terms.getBuckets()) {
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("val" + i));
-            assertThat(bucket.getDocCount(), equalTo(1l));
+            assertThat(bucket.getDocCount(), equalTo(1L));
 
             Stats stats = bucket.getAggregations().get("stats");
             assertThat(stats, notNullValue());
@@ -1385,7 +1385,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
         for (Terms.Bucket bucket : terms.getBuckets()) {
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("val" + i));
-            assertThat(bucket.getDocCount(), equalTo(1l));
+            assertThat(bucket.getDocCount(), equalTo(1L));
 
             Stats stats = bucket.getAggregations().get("stats");
             assertThat(stats, notNullValue());
@@ -1417,7 +1417,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
         for (Terms.Bucket bucket : terms.getBuckets()) {
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("val" + i));
-            assertThat(bucket.getDocCount(), equalTo(1l));
+            assertThat(bucket.getDocCount(), equalTo(1L));
 
             ExtendedStats stats = bucket.getAggregations().get("stats");
             assertThat(stats, notNullValue());
@@ -1451,7 +1451,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
         for (Terms.Bucket bucket : terms.getBuckets()) {
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("val" + i));
-            assertThat(bucket.getDocCount(), equalTo(1l));
+            assertThat(bucket.getDocCount(), equalTo(1L));
 
             ExtendedStats stats = bucket.getAggregations().get("stats");
             assertThat(stats, notNullValue());
@@ -1464,7 +1464,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
             for (Terms.Bucket subBucket : subTermsAgg.getBuckets()) {
                 assertThat(subBucket, notNullValue());
                 assertThat(key(subBucket), equalTo("val" + j));
-                assertThat(subBucket.getDocCount(), equalTo(1l));
+                assertThat(subBucket.getDocCount(), equalTo(1L));
                 j++;
             }
             i++;

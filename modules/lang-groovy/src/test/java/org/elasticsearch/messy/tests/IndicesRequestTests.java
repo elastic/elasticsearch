@@ -592,7 +592,7 @@ public class IndicesRequestTests extends ESIntegTestCase {
         SearchRequest searchRequest = new SearchRequest(randomIndicesOrAliases).searchType(SearchType.QUERY_THEN_FETCH);
         SearchResponse searchResponse = internalCluster().clientNodeClient().search(searchRequest).actionGet();
         assertNoFailures(searchResponse);
-        assertThat(searchResponse.getHits().totalHits(), greaterThan(0l));
+        assertThat(searchResponse.getHits().totalHits(), greaterThan(0L));
 
         clearInterceptedActions();
         assertSameIndices(searchRequest, SearchServiceTransportAction.QUERY_ACTION_NAME, SearchServiceTransportAction.FETCH_ID_ACTION_NAME);
@@ -613,7 +613,7 @@ public class IndicesRequestTests extends ESIntegTestCase {
         SearchRequest searchRequest = new SearchRequest(randomIndicesOrAliases).searchType(SearchType.DFS_QUERY_THEN_FETCH);
         SearchResponse searchResponse = internalCluster().clientNodeClient().search(searchRequest).actionGet();
         assertNoFailures(searchResponse);
-        assertThat(searchResponse.getHits().totalHits(), greaterThan(0l));
+        assertThat(searchResponse.getHits().totalHits(), greaterThan(0L));
 
         clearInterceptedActions();
         assertSameIndices(searchRequest, SearchServiceTransportAction.DFS_ACTION_NAME, SearchServiceTransportAction.QUERY_ID_ACTION_NAME,
@@ -635,7 +635,7 @@ public class IndicesRequestTests extends ESIntegTestCase {
         SearchRequest searchRequest = new SearchRequest(randomIndicesOrAliases).searchType(SearchType.QUERY_AND_FETCH);
         SearchResponse searchResponse = internalCluster().clientNodeClient().search(searchRequest).actionGet();
         assertNoFailures(searchResponse);
-        assertThat(searchResponse.getHits().totalHits(), greaterThan(0l));
+        assertThat(searchResponse.getHits().totalHits(), greaterThan(0L));
 
         clearInterceptedActions();
         assertSameIndices(searchRequest, SearchServiceTransportAction.QUERY_FETCH_ACTION_NAME);
@@ -656,7 +656,7 @@ public class IndicesRequestTests extends ESIntegTestCase {
         SearchRequest searchRequest = new SearchRequest(randomIndicesOrAliases).searchType(SearchType.DFS_QUERY_AND_FETCH);
         SearchResponse searchResponse = internalCluster().clientNodeClient().search(searchRequest).actionGet();
         assertNoFailures(searchResponse);
-        assertThat(searchResponse.getHits().totalHits(), greaterThan(0l));
+        assertThat(searchResponse.getHits().totalHits(), greaterThan(0L));
 
         clearInterceptedActions();
         assertSameIndices(searchRequest, SearchServiceTransportAction.QUERY_QUERY_FETCH_ACTION_NAME);

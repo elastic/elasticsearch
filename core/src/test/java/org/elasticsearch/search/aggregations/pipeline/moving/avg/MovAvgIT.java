@@ -686,7 +686,7 @@ public class MovAvgIT extends ESIntegTestCase {
             Bucket bucket = buckets.get(i);
             assertThat(bucket, notNullValue());
             assertThat((long) bucket.getKey(), equalTo((long) i - 10));
-            assertThat(bucket.getDocCount(), equalTo(1l));
+            assertThat(bucket.getDocCount(), equalTo(1L));
             Avg avgAgg = bucket.getAggregations().get("avg");
             assertThat(avgAgg, notNullValue());
             assertThat(avgAgg.value(), equalTo(10d));
@@ -699,7 +699,7 @@ public class MovAvgIT extends ESIntegTestCase {
             Bucket bucket = buckets.get(i);
             assertThat(bucket, notNullValue());
             assertThat((long) bucket.getKey(), equalTo((long) i - 10));
-            assertThat(bucket.getDocCount(), equalTo(0l));
+            assertThat(bucket.getDocCount(), equalTo(0L));
             Avg avgAgg = bucket.getAggregations().get("avg");
             assertThat(avgAgg, nullValue());
             SimpleValue movAvgAgg = bucket.getAggregations().get("movavg_values");
@@ -919,7 +919,7 @@ public class MovAvgIT extends ESIntegTestCase {
         Bucket bucket = buckets.get(0);
         assertThat(bucket, notNullValue());
         assertThat((long) bucket.getKey(), equalTo((long) 0));
-        assertThat(bucket.getDocCount(), equalTo(1l));
+        assertThat(bucket.getDocCount(), equalTo(1L));
 
         Avg avgAgg = bucket.getAggregations().get("avg");
         assertThat(avgAgg, notNullValue());
@@ -938,7 +938,7 @@ public class MovAvgIT extends ESIntegTestCase {
         bucket = buckets.get(1);
         assertThat(bucket, notNullValue());
         assertThat((long) bucket.getKey(), equalTo(1L));
-        assertThat(bucket.getDocCount(), equalTo(1l));
+        assertThat(bucket.getDocCount(), equalTo(1L));
 
         avgAgg = bucket.getAggregations().get("avg");
         assertThat(avgAgg, notNullValue());
@@ -959,7 +959,7 @@ public class MovAvgIT extends ESIntegTestCase {
             bucket = buckets.get(i);
             assertThat(bucket, notNullValue());
             assertThat((long) bucket.getKey(), equalTo((long) i));
-            assertThat(bucket.getDocCount(), equalTo(1l));
+            assertThat(bucket.getDocCount(), equalTo(1L));
 
             avgAgg = bucket.getAggregations().get("avg");
             assertThat(avgAgg, notNullValue());
@@ -983,7 +983,7 @@ public class MovAvgIT extends ESIntegTestCase {
             bucket = buckets.get(i);
             assertThat(bucket, notNullValue());
             assertThat((long) bucket.getKey(), equalTo((long) i));
-            assertThat(bucket.getDocCount(), equalTo(0l));
+            assertThat(bucket.getDocCount(), equalTo(0L));
 
             avgAgg = bucket.getAggregations().get("avg");
             assertThat(avgAgg, nullValue());

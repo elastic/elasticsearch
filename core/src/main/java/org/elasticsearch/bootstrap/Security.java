@@ -25,7 +25,7 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.http.netty.NettyHttpServerTransport;
+import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.plugins.PluginInfo;
 import org.elasticsearch.transport.TransportSettings;
 
@@ -270,9 +270,7 @@ final class Security {
 
     static void addBindPermissions(Permissions policy, Settings settings) throws IOException {
         // http is simple
-        String httpRange = settings.get("http.netty.port",
-                               settings.get("http.port",
-                                       NettyHttpServerTransport.DEFAULT_PORT_RANGE));
+        String httpRange = HttpTransportSettings.SETTING_HTTP_PORT.get(settings).getPortRangeString();
         // listen is always called with 'localhost' but use wildcard to be sure, no name service is consulted.
         // see SocketPermission implies() code
         policy.add(new SocketPermission("*:" + httpRange, "listen,resolve"));

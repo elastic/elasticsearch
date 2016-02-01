@@ -19,6 +19,8 @@
 
 package org.elasticsearch.bootstrap;
 
+import java.io.IOException;
+
 /**
  * This class starts elasticsearch.
  */
@@ -48,7 +50,7 @@ public final class Elasticsearch {
      *
      * NOTE: If this method is renamed and/or moved, make sure to update service.bat!
      */
-    static void close(String[] args) {
+    static void close(String[] args) throws IOException {
         Bootstrap.stop();
     }
 }

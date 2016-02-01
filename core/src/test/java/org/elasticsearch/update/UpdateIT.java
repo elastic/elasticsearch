@@ -598,13 +598,13 @@ public class UpdateIT extends ESIntegTestCase {
 
         client().prepareUpdate(indexOrAlias(), "type", "1")
                 .setScript(new Script("", ScriptService.ScriptType.INLINE, "put_values", Collections.singletonMap("text", "v2"))).setVersion(1).get();
-        assertThat(client().prepareGet("test", "type", "1").get().getVersion(), equalTo(2l));
+        assertThat(client().prepareGet("test", "type", "1").get().getVersion(), equalTo(2L));
 
         // and again with a higher version..
         client().prepareUpdate(indexOrAlias(), "type", "1")
                 .setScript(new Script("", ScriptService.ScriptType.INLINE, "put_values", Collections.singletonMap("text", "v3"))).setVersion(2).get();
 
-        assertThat(client().prepareGet("test", "type", "1").get().getVersion(), equalTo(3l));
+        assertThat(client().prepareGet("test", "type", "1").get().getVersion(), equalTo(3L));
 
         // after delete
         client().prepareDelete("test", "type", "1").get();
@@ -628,7 +628,7 @@ public class UpdateIT extends ESIntegTestCase {
                 .setVersion(10).setVersionType(VersionType.FORCE).get();
 
         GetResponse get = get("test", "type", "2");
-        assertThat(get.getVersion(), equalTo(10l));
+        assertThat(get.getVersion(), equalTo(10L));
         assertThat((String) get.getSource().get("text"), equalTo("v10"));
 
         // upserts - the combination with versions is a bit weird. Test are here to ensure we do not change our behavior unintentionally
@@ -638,7 +638,7 @@ public class UpdateIT extends ESIntegTestCase {
                 .setScript(new Script("", ScriptService.ScriptType.INLINE, "put_values", Collections.singletonMap("text", "v2")))
                 .setVersion(10).setUpsert("{ \"text\": \"v0\" }").get();
         get = get("test", "type", "3");
-        assertThat(get.getVersion(), equalTo(1l));
+        assertThat(get.getVersion(), equalTo(1L));
         assertThat((String) get.getSource().get("text"), equalTo("v0"));
 
         // retry on conflict is rejected:

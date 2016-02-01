@@ -29,7 +29,7 @@ public class FieldTests extends ScriptTestCase {
         public char c = 'c';
         public int i = 2;
         public int si = -1;
-        public long j = 3l;
+        public long j = 3L;
         public float f = 4.0f;
         public double d = 5.0;
         public String t = "s";

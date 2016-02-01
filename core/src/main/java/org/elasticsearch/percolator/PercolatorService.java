@@ -43,6 +43,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
@@ -85,7 +86,7 @@ import java.util.stream.StreamSupport;
 import static org.apache.lucene.search.BooleanClause.Occur.FILTER;
 import static org.apache.lucene.search.BooleanClause.Occur.MUST;
 
-public class PercolatorService extends AbstractComponent {
+public class PercolatorService extends AbstractComponent implements Releasable {
 
     public final static float NO_SCORE = Float.NEGATIVE_INFINITY;
     public final static String TYPE_NAME = ".percolator";
@@ -304,6 +305,7 @@ public class PercolatorService extends AbstractComponent {
         }
     }
 
+    @Override
     public void close() {
         cache.close();
     }

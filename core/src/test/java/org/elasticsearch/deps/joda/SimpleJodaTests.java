@@ -63,7 +63,7 @@ public class SimpleJodaTests extends ESTestCase {
         DateTimeFormatter formatter = ISODateTimeFormat.dateTimeNoMillis().withZone(DateTimeZone.UTC);
         long millis = formatter.parseMillis("1970-01-01T00:00:00Z");
 
-        assertThat(millis, equalTo(0l));
+        assertThat(millis, equalTo(0L));
     }
 
     public void testUpperBound() {
@@ -79,20 +79,20 @@ public class SimpleJodaTests extends ESTestCase {
     public void testIsoDateFormatDateOptionalTimeUTC() {
         DateTimeFormatter formatter = ISODateTimeFormat.dateOptionalTimeParser().withZone(DateTimeZone.UTC);
         long millis = formatter.parseMillis("1970-01-01T00:00:00Z");
-        assertThat(millis, equalTo(0l));
+        assertThat(millis, equalTo(0L));
         millis = formatter.parseMillis("1970-01-01T00:00:00.001Z");
-        assertThat(millis, equalTo(1l));
+        assertThat(millis, equalTo(1L));
         millis = formatter.parseMillis("1970-01-01T00:00:00.1Z");
-        assertThat(millis, equalTo(100l));
+        assertThat(millis, equalTo(100L));
         millis = formatter.parseMillis("1970-01-01T00:00:00.1");
-        assertThat(millis, equalTo(100l));
+        assertThat(millis, equalTo(100L));
         millis = formatter.parseMillis("1970-01-01T00:00:00");
-        assertThat(millis, equalTo(0l));
+        assertThat(millis, equalTo(0L));
         millis = formatter.parseMillis("1970-01-01");
-        assertThat(millis, equalTo(0l));
+        assertThat(millis, equalTo(0L));
 
         millis = formatter.parseMillis("1970");
-        assertThat(millis, equalTo(0l));
+        assertThat(millis, equalTo(0L));
 
         try {
             formatter.parseMillis("1970 kuku");
@@ -109,15 +109,15 @@ public class SimpleJodaTests extends ESTestCase {
     public void testIsoVsCustom() {
         DateTimeFormatter formatter = ISODateTimeFormat.dateOptionalTimeParser().withZone(DateTimeZone.UTC);
         long millis = formatter.parseMillis("1970-01-01T00:00:00");
-        assertThat(millis, equalTo(0l));
+        assertThat(millis, equalTo(0L));
 
         formatter = DateTimeFormat.forPattern("yyyy/MM/dd HH:mm:ss").withZone(DateTimeZone.UTC);
         millis = formatter.parseMillis("1970/01/01 00:00:00");
-        assertThat(millis, equalTo(0l));
+        assertThat(millis, equalTo(0L));
 
         FormatDateTimeFormatter formatter2 = Joda.forPattern("yyyy/MM/dd HH:mm:ss");
         millis = formatter2.parser().parseMillis("1970/01/01 00:00:00");
-        assertThat(millis, equalTo(0l));
+        assertThat(millis, equalTo(0L));
     }
 
     public void testWriteAndParse() {
@@ -345,19 +345,19 @@ public class SimpleJodaTests extends ESTestCase {
     public void testThatEpochParserIsIdempotent() {
         FormatDateTimeFormatter formatter = Joda.forPattern("epoch_millis");
         DateTime dateTime = formatter.parser().parseDateTime("1234567890123");
-        assertThat(dateTime.getMillis(), is(1234567890123l));
+        assertThat(dateTime.getMillis(), is(1234567890123L));
         dateTime = formatter.printer().parseDateTime("1234567890456");
-        assertThat(dateTime.getMillis(), is(1234567890456l));
+        assertThat(dateTime.getMillis(), is(1234567890456L));
         dateTime = formatter.parser().parseDateTime("1234567890789");
-        assertThat(dateTime.getMillis(), is(1234567890789l));
+        assertThat(dateTime.getMillis(), is(1234567890789L));
 
         FormatDateTimeFormatter secondsFormatter = Joda.forPattern("epoch_second");
         DateTime secondsDateTime = secondsFormatter.parser().parseDateTime("1234567890");
-        assertThat(secondsDateTime.getMillis(), is(1234567890000l));
+        assertThat(secondsDateTime.getMillis(), is(1234567890000L));
         secondsDateTime = secondsFormatter.printer().parseDateTime("1234567890");
-        assertThat(secondsDateTime.getMillis(), is(1234567890000l));
+        assertThat(secondsDateTime.getMillis(), is(1234567890000L));
         secondsDateTime = secondsFormatter.parser().parseDateTime("1234567890");
-        assertThat(secondsDateTime.getMillis(), is(1234567890000l));
+        assertThat(secondsDateTime.getMillis(), is(1234567890000L));
     }
 
     public void testThatDefaultFormatterChecksForCorrectYearLength() throws Exception {

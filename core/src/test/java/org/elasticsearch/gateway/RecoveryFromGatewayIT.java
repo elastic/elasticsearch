@@ -409,7 +409,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
                         recoveryState.getShardId().getId(), recoveryState.getSourceNode().name(), recoveryState.getTargetNode().name(),
                         recoveryState.getIndex().recoveredBytes(), recoveryState.getIndex().reusedBytes());
                 assertThat("no bytes should be recovered", recoveryState.getIndex().recoveredBytes(), equalTo(recovered));
-                assertThat("data should have been reused", recoveryState.getIndex().reusedBytes(), greaterThan(0l));
+                assertThat("data should have been reused", recoveryState.getIndex().reusedBytes(), greaterThan(0L));
                 // we have to recover the segments file since we commit the translog ID on engine startup
                 assertThat("all bytes should be reused except of the segments file", recoveryState.getIndex().reusedBytes(), equalTo(recoveryState.getIndex().totalBytes() - recovered));
                 assertThat("no files should be recovered except of the segments file", recoveryState.getIndex().recoveredFileCount(), equalTo(1));
@@ -421,7 +421,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
                             recoveryState.getShardId().getId(), recoveryState.getSourceNode().name(), recoveryState.getTargetNode().name(),
                             recoveryState.getIndex().recoveredBytes(), recoveryState.getIndex().reusedBytes());
                 }
-                assertThat(recoveryState.getIndex().recoveredBytes(), equalTo(0l));
+                assertThat(recoveryState.getIndex().recoveredBytes(), equalTo(0L));
                 assertThat(recoveryState.getIndex().reusedBytes(), equalTo(recoveryState.getIndex().totalBytes()));
                 assertThat(recoveryState.getIndex().recoveredFileCount(), equalTo(0));
                 assertThat(recoveryState.getIndex().reusedFileCount(), equalTo(recoveryState.getIndex().totalFileCount()));

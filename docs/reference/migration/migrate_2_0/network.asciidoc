@@ -19,15 +19,11 @@ bin/elasticsearch --network.host _non_loopback_
 
 The full list of options that network.host accepts can be found in the <<modules-network>>.
 
-==== Multicast removed
+==== Unicast discovery
 
-Multicast has been removed (although it is still
-{plugins}/discovery-multicast.html[provided as a plugin] for now). Instead,
-and only when bound to localhost, Elasticsearch will use unicast to contact
+When bound to localhost, Elasticsearch will use unicast to contact
 the first 5 ports in the `transport.tcp.port` range, which defaults to
-`9300-9400`.
-
-This preserves the zero-config auto-clustering experience for the developer,
+`9300-9400`. This preserves the zero-config auto-clustering experience for the developer,
 but it means that you will have to provide a list of <<unicast,unicast hosts>>
 when moving to production, for instance:
 

@@ -54,7 +54,7 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
         assertSearchResponse(r1);
 
         // The cached is actually used
-        assertThat(client().admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getMemorySizeInBytes(), greaterThan(0l));
+        assertThat(client().admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getMemorySizeInBytes(), greaterThan(0L));
 
         for (int i = 0; i < 10; ++i) {
             final SearchResponse r2 = client().prepareSearch("index").setSize(0).setSearchType(SearchType.QUERY_THEN_FETCH)

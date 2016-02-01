@@ -93,7 +93,7 @@ public class ClusterStatsIT extends ESIntegTestCase {
         ensureYellow();
         response = client().admin().cluster().prepareClusterStats().get();
         assertThat(response.getStatus(), Matchers.equalTo(ClusterHealthStatus.YELLOW));
-        assertThat(response.indicesStats.getDocs().getCount(), Matchers.equalTo(0l));
+        assertThat(response.indicesStats.getDocs().getCount(), Matchers.equalTo(0L));
         assertThat(response.indicesStats.getIndexCount(), Matchers.equalTo(1));
         assertShardStats(response.getIndicesStats().getShards(), 1, 2, 2, 0.0);
 
@@ -104,7 +104,7 @@ public class ClusterStatsIT extends ESIntegTestCase {
         refresh(); // make the doc visible
         response = client().admin().cluster().prepareClusterStats().get();
         assertThat(response.getStatus(), Matchers.equalTo(ClusterHealthStatus.GREEN));
-        assertThat(response.indicesStats.getDocs().getCount(), Matchers.equalTo(1l));
+        assertThat(response.indicesStats.getDocs().getCount(), Matchers.equalTo(1L));
         assertShardStats(response.getIndicesStats().getShards(), 1, 4, 2, 1.0);
 
         prepareCreate("test2").setSettings("number_of_shards", 3, "number_of_replicas", 0).get();
@@ -141,10 +141,10 @@ public class ClusterStatsIT extends ESIntegTestCase {
         ensureYellow("test1");
         ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
         String msg = response.toString();
-        assertThat(msg, response.getTimestamp(), Matchers.greaterThan(946681200000l)); // 1 Jan 2000
-        assertThat(msg, response.indicesStats.getStore().getSizeInBytes(), Matchers.greaterThan(0l));
+        assertThat(msg, response.getTimestamp(), Matchers.greaterThan(946681200000L)); // 1 Jan 2000
+        assertThat(msg, response.indicesStats.getStore().getSizeInBytes(), Matchers.greaterThan(0L));
 
-        assertThat(msg, response.nodesStats.getFs().getTotal().bytes(), Matchers.greaterThan(0l));
+        assertThat(msg, response.nodesStats.getFs().getTotal().bytes(), Matchers.greaterThan(0L));
         assertThat(msg, response.nodesStats.getJvm().getVersions().size(), Matchers.greaterThan(0));
 
         assertThat(msg, response.nodesStats.getVersions().size(), Matchers.greaterThan(0));

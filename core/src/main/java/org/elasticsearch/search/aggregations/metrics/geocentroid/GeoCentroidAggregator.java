@@ -114,7 +114,7 @@ public final class GeoCentroidAggregator extends MetricsAggregator {
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalGeoCentroid(name, null, 0l, pipelineAggregators(), metaData());
+        return new InternalGeoCentroid(name, null, 0L, pipelineAggregators(), metaData());
     }
 
     @Override

@@ -332,7 +332,7 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
             }
         }
         SearchResponse test = client().prepareSearch(indexName).get();
-        assertThat(test.getHits().getTotalHits(), greaterThanOrEqualTo(1l));
+        assertThat(test.getHits().getTotalHits(), greaterThanOrEqualTo(1L));
     }
 
     void assertBasicSearchWorks(String indexName) {

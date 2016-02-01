@@ -597,7 +597,7 @@ public class ExceptionSerializationTests extends ESTestCase {
     public void testIllegalShardFailureExceptions() throws IOException {
         ShardId shardId = new ShardId(new Index(randomAsciiOfLength(4), randomAsciiOfLength(4)), randomIntBetween(0, Integer.MAX_VALUE));
         String msg = randomAsciiOfLength(4);
-        ShardStateAction.IllegalShardFailureException ex = serialize(new ShardStateAction.IllegalShardFailureException(shardId, msg));
+        ShardStateAction.NoLongerPrimaryShardException ex = serialize(new ShardStateAction.NoLongerPrimaryShardException(shardId, msg));
         assertEquals(shardId, ex.getShardId());
         assertEquals(msg, ex.getMessage());
     }
@@ -784,7 +784,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(139, null);
         ids.put(140, org.elasticsearch.discovery.Discovery.FailedToCommitClusterStateException.class);
         ids.put(141, org.elasticsearch.index.query.QueryShardException.class);
-        ids.put(142, org.elasticsearch.cluster.action.shard.ShardStateAction.IllegalShardFailureException.class);
+        ids.put(142, ShardStateAction.NoLongerPrimaryShardException.class);
 
         Map<Class<? extends ElasticsearchException>, Integer> reverse = new HashMap<>();
         for (Map.Entry<Integer, Class<? extends ElasticsearchException>> entry : ids.entrySet()) {

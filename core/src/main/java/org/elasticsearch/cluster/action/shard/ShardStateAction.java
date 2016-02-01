@@ -269,7 +269,7 @@ public class ShardStateAction extends AbstractComponent {
                 .getOrDefault(TaskClassification.EXISTS_ILLEGAL, Collections.emptyList())
                 .forEach(task -> batchResultBuilder.failure(
                     task,
-                    new IllegalShardFailureException(
+                    new NoLongerPrimaryShardException(
                         task.getShardRouting().shardId(),
                         "source shard [" + task.sourceShardRouting + "] is neither the local allocation nor the primary allocation")
                 ));
@@ -465,14 +465,14 @@ public class ShardStateAction extends AbstractComponent {
 
     }
 
-    public static class IllegalShardFailureException extends ElasticsearchException {
+    public static class NoLongerPrimaryShardException extends ElasticsearchException {
 
-        public IllegalShardFailureException(ShardId shardId, String msg) {
+        public NoLongerPrimaryShardException(ShardId shardId, String msg) {
             super(msg);
             setShard(shardId);
         }
 
-        public IllegalShardFailureException(StreamInput in) throws IOException {
+        public NoLongerPrimaryShardException(StreamInput in) throws IOException {
             super(in);
         }
 

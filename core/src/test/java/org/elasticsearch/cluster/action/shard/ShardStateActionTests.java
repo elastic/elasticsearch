@@ -355,14 +355,14 @@ public class ShardStateActionTests extends ESTestCase {
             }
         });
 
-        ShardStateAction.IllegalShardFailureException catastrophicError =
-            new ShardStateAction.IllegalShardFailureException(failedShard.shardId(), "source shard [" + sourceFailedShard + " is neither the local allocation nor the primary allocation");
+        ShardStateAction.NoLongerPrimaryShardException catastrophicError =
+            new ShardStateAction.NoLongerPrimaryShardException(failedShard.shardId(), "source shard [" + sourceFailedShard + " is neither the local allocation nor the primary allocation");
         CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
         transport.handleRemoteError(capturedRequests[0].requestId, catastrophicError);
 
         latch.await();
         assertNotNull(failure.get());
-        assertThat(failure.get(), instanceOf(ShardStateAction.IllegalShardFailureException.class));
+        assertThat(failure.get(), instanceOf(ShardStateAction.NoLongerPrimaryShardException.class));
         assertThat(failure.get().getMessage(), equalTo(catastrophicError.getMessage()));
     }
 

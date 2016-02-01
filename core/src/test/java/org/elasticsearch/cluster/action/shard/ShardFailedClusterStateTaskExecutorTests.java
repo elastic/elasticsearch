@@ -143,7 +143,7 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
         Map<ShardStateAction.ShardRoutingEntry, ClusterStateTaskExecutor.TaskResult> taskResultMap =
             tasks.stream().collect(Collectors.toMap(
                 Function.identity(),
-                task -> ClusterStateTaskExecutor.TaskResult.failure(new ShardStateAction.IllegalShardFailureException(task.getShardRouting().shardId(), "source shard [" + task.sourceShardRouting + "] is neither the local allocation nor the primary allocation"))));
+                task -> ClusterStateTaskExecutor.TaskResult.failure(new ShardStateAction.NoLongerPrimaryShardException(task.getShardRouting().shardId(), "source shard [" + task.sourceShardRouting + "] is neither the local allocation nor the primary allocation"))));
         ClusterStateTaskExecutor.BatchResult<ShardStateAction.ShardRoutingEntry> result = executor.execute(currentState, tasks);
         assertTaskResults(taskResultMap, result, currentState, false);
     }

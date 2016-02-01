@@ -7,6 +7,7 @@ package org.elasticsearch.shield.transport;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.shield.action.ShieldActionMapper;
@@ -66,8 +67,9 @@ public class ShieldServerTransportService extends TransportService {
                                         AuthorizationService authzService,
                                         ShieldActionMapper actionMapper,
                                         ClientTransportFilter clientTransportFilter,
-                                        ShieldLicenseState licenseState) {
-        super(settings, transport, threadPool);
+                                        ShieldLicenseState licenseState,
+                                        NamedWriteableRegistry namedWriteableRegistry) {
+        super(settings, transport, threadPool, namedWriteableRegistry);
         this.authcService = authcService;
         this.authzService = authzService;
         this.actionMapper = actionMapper;

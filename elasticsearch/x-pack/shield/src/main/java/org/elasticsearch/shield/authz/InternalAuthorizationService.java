@@ -55,6 +55,7 @@ import static org.elasticsearch.shield.support.Exceptions.authorizationError;
 public class InternalAuthorizationService extends AbstractComponent implements AuthorizationService {
 
     public static final String INDICES_PERMISSIONS_KEY = "_indices_permissions";
+    static final String ORIGINATING_ACTION_KEY = "_originating_action_name";
 
     private final ClusterService clusterService;
     private final RolesStore rolesStore;
@@ -109,6 +110,9 @@ public class InternalAuthorizationService extends AbstractComponent implements A
 
     @Override
     public void authorize(User user, String action, TransportRequest request) throws ElasticsearchSecurityException {
+        // prior to doing any authorization lets set the originating action in the context only
+        setOriginatingAction(action);
+
         // first we need to check if the user is the system. If it is, we'll just authorize the system access
         if (InternalSystemUser.is(user)) {
             if (InternalSystemUser.isAuthorized(action)) {
@@ -224,6 +228,13 @@ public class InternalAuthorizationService extends AbstractComponent implements A
     private void setIndicesAccessControl(IndicesAccessControl accessControl) {
         if (threadContext.getTransient(INDICES_PERMISSIONS_KEY) == null) {
             threadContext.putTransient(INDICES_PERMISSIONS_KEY, accessControl);
+        }
+    }
+
+    private void setOriginatingAction(String action) {
+        String originatingAction = threadContext.getTransient(ORIGINATING_ACTION_KEY);
+        if (originatingAction == null) {
+            threadContext.putTransient(ORIGINATING_ACTION_KEY, action);
         }
     }
 

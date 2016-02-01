@@ -27,6 +27,7 @@ import org.elasticsearch.shield.audit.AuditTrail;
 import org.elasticsearch.shield.authc.AuthenticationService;
 import org.elasticsearch.shield.authc.InternalAuthenticationService;
 import org.elasticsearch.shield.authz.AuthorizationService;
+import org.elasticsearch.shield.authz.AuthorizationUtils;
 import org.elasticsearch.shield.authz.privilege.HealthAndStatsPrivilege;
 import org.elasticsearch.shield.crypto.CryptoService;
 import org.elasticsearch.shield.license.ShieldLicenseState;
@@ -97,37 +98,7 @@ public class ShieldActionFilter extends AbstractComponent implements ActionFilte
                 threadContext.getTransient(InternalAuthenticationService.USER_KEY) != null;
         try {
             if (licenseState.securityEnabled()) {
-                // FIXME yet another hack. Needed to work around something like
-                /*
-                FailedNodeException[total failure in fetching]; nested: ElasticsearchSecurityException[action [internal:gateway/local/started_shards] is unauthorized for user [test_user]];
-                    at org.elasticsearch.gateway.AsyncShardFetch$1.onFailure(AsyncShardFetch.java:284)
-                    at org.elasticsearch.action.support.TransportAction$1.onFailure(TransportAction.java:84)
-                    at org.elasticsearch.shield.action.ShieldActionFilter.apply(ShieldActionFilter.java:121)
-                    at org.elasticsearch.action.support.TransportAction$RequestFilterChain.proceed(TransportAction.java:133)
-                    at org.elasticsearch.action.support.TransportAction.execute(TransportAction.java:107)
-                    at org.elasticsearch.action.support.TransportAction.execute(TransportAction.java:74)
-                    at org.elasticsearch.gateway.TransportNodesListGatewayStartedShards.list(TransportNodesListGatewayStartedShards.java:78)
-                    at org.elasticsearch.gateway.AsyncShardFetch.asyncFetch(AsyncShardFetch.java:274)
-                    at org.elasticsearch.gateway.AsyncShardFetch.fetchData(AsyncShardFetch.java:124)
-                    at org.elasticsearch.gateway.GatewayAllocator$InternalPrimaryShardAllocator.fetchData(GatewayAllocator.java:156)
-                    at org.elasticsearch.gateway.PrimaryShardAllocator.allocateUnassigned(PrimaryShardAllocator.java:83)
-                    at org.elasticsearch.gateway.GatewayAllocator.allocateUnassigned(GatewayAllocator.java:120)
-                    at org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocators.allocateUnassigned(ShardsAllocators.java:72)
-                    at org.elasticsearch.cluster.routing.allocation.AllocationService.reroute(AllocationService.java:309)
-                    at org.elasticsearch.cluster.routing.allocation.AllocationService.reroute(AllocationService.java:273)
-                    at org.elasticsearch.cluster.routing.allocation.AllocationService.reroute(AllocationService.java:259)
-                    at org.elasticsearch.cluster.routing.RoutingService$2.execute(RoutingService.java:158)
-                    at org.elasticsearch.cluster.ClusterStateUpdateTask.execute(ClusterStateUpdateTask.java:45)
-                    at org.elasticsearch.cluster.service.InternalClusterService.runTasksForExecutor(InternalClusterService.java:447)
-                    at org.elasticsearch.cluster.service.InternalClusterService$UpdateTask.run(InternalClusterService.java:757)
-                    at org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor$FilterRunnable.run(EsThreadPoolExecutor.java:211)
-                    at org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor$TieBreakingPrioritizedRunnable.runAndClean(PrioritizedEsThreadPoolExecutor.java:237)
-                    at org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor$TieBreakingPrioritizedRunnable.run(PrioritizedEsThreadPoolExecutor.java:200)
-                    at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1142)
-                    at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:617)
-                    at java.lang.Thread.run(Thread.java:745)
-                 */
-                if (INTERNAL_PREDICATE.test(action)) {
+                if (AuthorizationUtils.shouldReplaceUserWithSystem(threadContext, action)) {
                     try (ThreadContext.StoredContext ctx = threadContext.stashContext()) {
                         String shieldAction = actionMapper.action(action, request);
                         User user = authcService.authenticate(shieldAction, request, InternalSystemUser.INSTANCE);
@@ -145,7 +116,6 @@ public class ShieldActionFilter extends AbstractComponent implements ActionFilte
                     }
                 }
 
-
                 /**
                  here we fallback on the system user. Internal system requests are requests that are triggered by
                  the system itself (e.g. pings, update mappings, share relocation, etc...) and were not originated
@@ -156,7 +126,6 @@ public class ShieldActionFilter extends AbstractComponent implements ActionFilte
                  the {@link Rest} filter and the {@link ServerTransport} filter respectively), it's safe to assume a system user
                  here if a request is not associated with any other user.
                  */
-
                 String shieldAction = actionMapper.action(action, request);
                 User user = authcService.authenticate(shieldAction, request, InternalSystemUser.INSTANCE);
                 authzService.authorize(user, shieldAction, request);

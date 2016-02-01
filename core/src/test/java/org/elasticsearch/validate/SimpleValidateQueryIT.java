@@ -92,7 +92,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
 
         refresh();
 
-        for (Client client : internalCluster()) {
+        for (Client client : internalCluster().getClients()) {
             ValidateQueryResponse response = client.admin().indices().prepareValidateQuery("test")
                     .setQuery(QueryBuilders.wrapperQuery("foo".getBytes(StandardCharsets.UTF_8)))
                     .setExplain(true)
@@ -104,7 +104,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
 
         }
 
-        for (Client client : internalCluster()) {
+        for (Client client : internalCluster().getClients()) {
             ValidateQueryResponse response = client.admin().indices().prepareValidateQuery("test")
                     .setQuery(QueryBuilders.queryStringQuery("foo"))
                     .setExplain(true)

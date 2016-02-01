@@ -115,9 +115,7 @@ public class ClusterDiscoveryConfiguration extends NodeConfigurationSource {
             } else {
                 // we need to pin the node port & host so we'd know where to point things
                 builder.put(TransportSettings.PORT.getKey(), unicastHostPorts[nodeOrdinal]);
-                builder.put("transport.host", IP_ADDR); // only bind on one IF we use v4 here by default
-                builder.put("transport.bind_host", IP_ADDR);
-                builder.put("transport.publish_host", IP_ADDR);
+                builder.put(TransportSettings.HOST.getKey(), IP_ADDR); // only bind on one IF we use v4 here by default
                 builder.put("http.enabled", false);
                 for (int i = 0; i < unicastHostOrdinals.length; i++) {
                     unicastHosts[i] = IP_ADDR + ":" + (unicastHostPorts[unicastHostOrdinals[i]]);

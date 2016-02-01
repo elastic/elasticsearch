@@ -115,12 +115,12 @@ public class TDigestPercentileRanksTests extends AbstractNumericTestCase {
     public void testEmptyAggregation() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(histogram("histo").field("value").interval(1l).minDocCount(0)
+                .addAggregation(histogram("histo").field("value").interval(1L).minDocCount(0)
                         .subAggregation(randomCompression(percentileRanks("percentile_ranks"))
                                 .values(10, 15)))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2l));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
         Histogram histo = searchResponse.getAggregations().get("histo");
         assertThat(histo, notNullValue());
         Histogram.Bucket bucket = histo.getBuckets().get(1);
@@ -142,7 +142,7 @@ public class TDigestPercentileRanksTests extends AbstractNumericTestCase {
                         .values(0, 10, 15, 100))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(0l));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(0L));
 
         PercentileRanks reversePercentiles = searchResponse.getAggregations().get("percentile_ranks");
         assertThat(reversePercentiles, notNullValue());
@@ -185,7 +185,7 @@ public class TDigestPercentileRanksTests extends AbstractNumericTestCase {
         Global global = searchResponse.getAggregations().get("global");
         assertThat(global, notNullValue());
         assertThat(global.getName(), equalTo("global"));
-        assertThat(global.getDocCount(), equalTo(10l));
+        assertThat(global.getDocCount(), equalTo(10L));
         assertThat(global.getAggregations(), notNullValue());
         assertThat(global.getAggregations().asMap().size(), equalTo(1));
 
@@ -404,7 +404,7 @@ public class TDigestPercentileRanksTests extends AbstractNumericTestCase {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(
-                        histogram("histo").field("value").interval(2l)
+                        histogram("histo").field("value").interval(2L)
                             .subAggregation(randomCompression(percentileRanks("percentile_ranks").values(99)))
                             .order(Order.aggregation("percentile_ranks", "99", asc)))
                 .execute().actionGet();

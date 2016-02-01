@@ -122,7 +122,7 @@ public class DerivativeIT extends ESIntegTestCase {
         }
 
         // setup for index with empty buckets
-        valueCounts_empty = new Long[] { 1l, 1l, 2l, 0l, 2l, 2l, 0l, 0l, 0l, 3l, 2l, 1l };
+        valueCounts_empty = new Long[] { 1L, 1L, 2L, 0L, 2L, 2L, 0L, 0L, 0L, 3L, 2L, 1L };
         firstDerivValueCounts_empty = new Double[] { null, 0d, 1d, -2d, 2d, 0d, -2d, 0d, 0d, 3d, -1d, -1d };
 
         assertAcked(prepareCreate("empty_bucket_idx").addMapping("type", SINGLE_VALUED_FIELD_NAME, "type=integer"));
@@ -144,7 +144,7 @@ public class DerivativeIT extends ESIntegTestCase {
             valueCounts_empty_rnd[i] = (long) randomIntBetween(1, 10);
             // make approximately half of the buckets empty
             if (randomBoolean())
-                valueCounts_empty_rnd[i] = 0l;
+                valueCounts_empty_rnd[i] = 0L;
             for (int docs = 0; docs < valueCounts_empty_rnd[i]; docs++) {
                 builders.add(client().prepareIndex("empty_bucket_idx_rnd", "type").setSource(newDocBuilder(i)));
                 numDocsEmptyIdx_rnd++;
@@ -410,7 +410,7 @@ public class DerivativeIT extends ESIntegTestCase {
                 .setQuery(matchAllQuery())
                 .addAggregation(
                         histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(1)
-                                .extendedBounds(new ExtendedBounds(0l, (long) numBuckets_empty_rnd - 1))
+                                .extendedBounds(new ExtendedBounds(0L, (long) numBuckets_empty_rnd - 1))
                                 .subAggregation(derivative("deriv", "_count").gapPolicy(randomFrom(GapPolicy.values()))))
                 .execute().actionGet();
 
@@ -549,7 +549,7 @@ public class DerivativeIT extends ESIntegTestCase {
                 .setQuery(matchAllQuery())
                 .addAggregation(
                         histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(1)
-                                .extendedBounds(new ExtendedBounds(0l, (long) numBuckets_empty_rnd - 1))
+                                .extendedBounds(new ExtendedBounds(0L, (long) numBuckets_empty_rnd - 1))
                                 .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME))
                                 .subAggregation(derivative("deriv", "sum").gapPolicy(gapPolicy))).execute().actionGet();
 

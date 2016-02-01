@@ -315,8 +315,8 @@ public class ObjectParserTests extends ESTestCase {
         assertArrayEquals(parse.double_array_field.toArray(), Arrays.asList(2.1d).toArray());
         assertEquals(parse.double_field, 2.1d, 0.0d);
 
-        assertArrayEquals(parse.long_array_field.toArray(), Arrays.asList(4l).toArray());
-        assertEquals(parse.long_field, 4l);
+        assertArrayEquals(parse.long_array_field.toArray(), Arrays.asList(4L).toArray());
+        assertEquals(parse.long_field, 4L);
 
         assertArrayEquals(parse.string_array_field.toArray(), Arrays.asList("5").toArray());
         assertEquals(parse.string_field, "5");

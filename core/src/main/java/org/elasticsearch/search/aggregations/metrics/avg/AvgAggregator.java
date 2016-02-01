@@ -114,7 +114,7 @@ public class AvgAggregator extends NumericMetricsAggregator.SingleValue {
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalAvg(name, 0.0, 0l, formatter, pipelineAggregators(), metaData());
+        return new InternalAvg(name, 0.0, 0L, formatter, pipelineAggregators(), metaData());
     }
 
     public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.Numeric, Factory> {

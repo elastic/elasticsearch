@@ -279,7 +279,7 @@ public class BucketSelectorTests extends ESIntegTestCase {
                                 .subAggregation(sum("field3Sum").field(FIELD_3_NAME))
                                 .subAggregation(
                                         bucketSelector("bucketSelector", bucketPathsMap, new Script("Double.isNaN(my_value1) ? false : (my_value1 + my_value2 > 100)",
-                                                ScriptType.INLINE, null, null)))).execute()
+                                                        ScriptType.INLINE, null, null)))).execute()
                 .actionGet();
 
         assertSearchResponse(response);
@@ -459,7 +459,7 @@ public class BucketSelectorTests extends ESIntegTestCase {
     public void testEmptyBuckets() {
         SearchResponse response = client().prepareSearch("idx_with_gaps")
                 .addAggregation(histogram("histo").field(FIELD_1_NAME).interval(1)
-                        .subAggregation(histogram("inner_histo").field(FIELD_1_NAME).interval(1).extendedBounds(new ExtendedBounds(1l, 4l))
+                        .subAggregation(histogram("inner_histo").field(FIELD_1_NAME).interval(1).extendedBounds(new ExtendedBounds(1L, 4L))
                                 .minDocCount(0).subAggregation(derivative("derivative", "_count").gapPolicy(GapPolicy.INSERT_ZEROS))))
                 .execute().actionGet();
 

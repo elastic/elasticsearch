@@ -31,7 +31,7 @@ public abstract class AbstractProcessorFactory<P extends Processor> implements P
 
     @Override
     public P create(Map<String, Object> config) throws Exception {
-        String tag = ConfigurationUtils.readOptionalStringProperty(config, TAG_KEY);
+        String tag = ConfigurationUtils.readOptionalStringProperty(null, null, config, TAG_KEY);
         return doCreate(tag, config);
     }
 

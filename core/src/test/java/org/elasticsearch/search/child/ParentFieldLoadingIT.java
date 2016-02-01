@@ -73,7 +73,7 @@ public class ParentFieldLoadingIT extends ESIntegTestCase {
         refresh();
 
         ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
-        assertThat(response.getIndicesStats().getFieldData().getMemorySizeInBytes(), equalTo(0l));
+        assertThat(response.getIndicesStats().getFieldData().getMemorySizeInBytes(), equalTo(0L));
 
         logger.info("testing default loading...");
         assertAcked(client().admin().indices().prepareDelete("test").get());
@@ -88,7 +88,7 @@ public class ParentFieldLoadingIT extends ESIntegTestCase {
         refresh();
 
         response = client().admin().cluster().prepareClusterStats().get();
-        assertThat(response.getIndicesStats().getFieldData().getMemorySizeInBytes(), equalTo(0l));
+        assertThat(response.getIndicesStats().getFieldData().getMemorySizeInBytes(), equalTo(0L));
 
         logger.info("testing eager loading...");
         assertAcked(client().admin().indices().prepareDelete("test").get());
@@ -103,7 +103,7 @@ public class ParentFieldLoadingIT extends ESIntegTestCase {
         refresh();
 
         response = client().admin().cluster().prepareClusterStats().get();
-        assertThat(response.getIndicesStats().getFieldData().getMemorySizeInBytes(), equalTo(0l));
+        assertThat(response.getIndicesStats().getFieldData().getMemorySizeInBytes(), equalTo(0L));
 
         logger.info("testing eager global ordinals loading...");
         assertAcked(client().admin().indices().prepareDelete("test").get());
@@ -121,7 +121,7 @@ public class ParentFieldLoadingIT extends ESIntegTestCase {
         refresh();
 
         response = client().admin().cluster().prepareClusterStats().get();
-        assertThat(response.getIndicesStats().getFieldData().getMemorySizeInBytes(), greaterThan(0l));
+        assertThat(response.getIndicesStats().getFieldData().getMemorySizeInBytes(), greaterThan(0L));
     }
 
     public void testChangingEagerParentFieldLoadingAtRuntime() throws Exception {
@@ -136,7 +136,7 @@ public class ParentFieldLoadingIT extends ESIntegTestCase {
         refresh();
 
         ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
-        assertThat(response.getIndicesStats().getFieldData().getMemorySizeInBytes(), equalTo(0l));
+        assertThat(response.getIndicesStats().getFieldData().getMemorySizeInBytes(), equalTo(0L));
 
         PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping("test").setType("child")
                 .setSource(childMapping(MappedFieldType.Loading.EAGER_GLOBAL_ORDINALS))
@@ -169,7 +169,7 @@ public class ParentFieldLoadingIT extends ESIntegTestCase {
         client().prepareIndex("test", "dummy", "dummy").setSource("{}").get();
         refresh();
         response = client().admin().cluster().prepareClusterStats().get();
-        assertThat(response.getIndicesStats().getFieldData().getMemorySizeInBytes(), greaterThan(0l));
+        assertThat(response.getIndicesStats().getFieldData().getMemorySizeInBytes(), greaterThan(0L));
     }
 
     private XContentBuilder childMapping(MappedFieldType.Loading loading) throws IOException {

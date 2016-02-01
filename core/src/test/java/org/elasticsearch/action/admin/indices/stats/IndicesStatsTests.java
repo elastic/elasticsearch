@@ -66,11 +66,11 @@ public class IndicesStatsTests extends ESSingleNodeTestCase {
 
         IndicesStatsResponse rsp = client().admin().indices().prepareStats("test").get();
         SegmentsStats stats = rsp.getIndex("test").getTotal().getSegments();
-        assertThat(stats.getTermsMemoryInBytes(), greaterThan(0l));
-        assertThat(stats.getStoredFieldsMemoryInBytes(), greaterThan(0l));
-        assertThat(stats.getTermVectorsMemoryInBytes(), greaterThan(0l));
-        assertThat(stats.getNormsMemoryInBytes(), greaterThan(0l));
-        assertThat(stats.getDocValuesMemoryInBytes(), greaterThan(0l));
+        assertThat(stats.getTermsMemoryInBytes(), greaterThan(0L));
+        assertThat(stats.getStoredFieldsMemoryInBytes(), greaterThan(0L));
+        assertThat(stats.getTermVectorsMemoryInBytes(), greaterThan(0L));
+        assertThat(stats.getNormsMemoryInBytes(), greaterThan(0L));
+        assertThat(stats.getDocValuesMemoryInBytes(), greaterThan(0L));
 
         // now check multiple segments stats are merged together
         client().prepareIndex("test", "doc", "2").setSource("foo", "bar").get();
@@ -93,7 +93,7 @@ public class IndicesStatsTests extends ESSingleNodeTestCase {
         for (ShardStats shardStats : rsp.getIndex("test").getShards()) {
             final CommitStats commitStats = shardStats.getCommitStats();
             assertNotNull(commitStats);
-            assertThat(commitStats.getGeneration(), greaterThan(0l));
+            assertThat(commitStats.getGeneration(), greaterThan(0L));
             assertThat(commitStats.getId(), notNullValue());
             assertThat(commitStats.getUserData(), hasKey(Translog.TRANSLOG_GENERATION_KEY));
             assertThat(commitStats.getUserData(), hasKey(Translog.TRANSLOG_UUID_KEY));

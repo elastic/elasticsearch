@@ -179,21 +179,21 @@ public class DateHistogramIT extends ESIntegTestCase {
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKeyAsString(), equalTo(getBucketKeyAsString(key)));
         assertThat(((DateTime) bucket.getKey()), equalTo(key));
-        assertThat(bucket.getDocCount(), equalTo(1l));
+        assertThat(bucket.getDocCount(), equalTo(1L));
 
         key = new DateTime(2012, 2, 1, 0, 0, DateTimeZone.UTC);
         bucket = buckets.get(1);
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKeyAsString(), equalTo(getBucketKeyAsString(key)));
         assertThat(((DateTime) bucket.getKey()), equalTo(key));
-        assertThat(bucket.getDocCount(), equalTo(2l));
+        assertThat(bucket.getDocCount(), equalTo(2L));
 
         key = new DateTime(2012, 3, 1, 0, 0, DateTimeZone.UTC);
         bucket = buckets.get(2);
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKeyAsString(), equalTo(getBucketKeyAsString(key)));
         assertThat(((DateTime) bucket.getKey()), equalTo(key));
-        assertThat(bucket.getDocCount(), equalTo(3l));
+        assertThat(bucket.getDocCount(), equalTo(3L));
     }
 
     public void testSingleValuedFieldWithTimeZone() throws Exception {
@@ -214,42 +214,42 @@ public class DateHistogramIT extends ESIntegTestCase {
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKeyAsString(), equalTo(getBucketKeyAsString(key, tz)));
         assertThat(((DateTime) bucket.getKey()), equalTo(key));
-        assertThat(bucket.getDocCount(), equalTo(1l));
+        assertThat(bucket.getDocCount(), equalTo(1L));
 
         key = new DateTime(2012, 2, 1, 23, 0, DateTimeZone.UTC);
         bucket = buckets.get(1);
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKeyAsString(), equalTo(getBucketKeyAsString(key, tz)));
         assertThat(((DateTime) bucket.getKey()), equalTo(key));
-        assertThat(bucket.getDocCount(), equalTo(1l));
+        assertThat(bucket.getDocCount(), equalTo(1L));
 
         key = new DateTime(2012, 2, 14, 23, 0, DateTimeZone.UTC);
         bucket = buckets.get(2);
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKeyAsString(), equalTo(getBucketKeyAsString(key, tz)));
         assertThat(((DateTime) bucket.getKey()), equalTo(key));
-        assertThat(bucket.getDocCount(), equalTo(1l));
+        assertThat(bucket.getDocCount(), equalTo(1L));
 
         key = new DateTime(2012, 3, 1, 23, 0, DateTimeZone.UTC);
         bucket = buckets.get(3);
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKeyAsString(), equalTo(getBucketKeyAsString(key, tz)));
         assertThat(((DateTime) bucket.getKey()), equalTo(key));
-        assertThat(bucket.getDocCount(), equalTo(1l));
+        assertThat(bucket.getDocCount(), equalTo(1L));
 
         key = new DateTime(2012, 3, 14, 23, 0, DateTimeZone.UTC);
         bucket = buckets.get(4);
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKeyAsString(), equalTo(getBucketKeyAsString(key, tz)));
         assertThat(((DateTime) bucket.getKey()), equalTo(key));
-        assertThat(bucket.getDocCount(), equalTo(1l));
+        assertThat(bucket.getDocCount(), equalTo(1L));
 
         key = new DateTime(2012, 3, 22, 23, 0, DateTimeZone.UTC);
         bucket = buckets.get(5);
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKeyAsString(), equalTo(getBucketKeyAsString(key, tz)));
         assertThat(((DateTime) bucket.getKey()), equalTo(key));
-        assertThat(bucket.getDocCount(), equalTo(1l));
+        assertThat(bucket.getDocCount(), equalTo(1L));
     }
 
     public void testSingleValuedFieldOrderedByKeyAsc() throws Exception {
@@ -363,12 +363,12 @@ public class DateHistogramIT extends ESIntegTestCase {
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKeyAsString(), equalTo(getBucketKeyAsString(key)));
         assertThat(((DateTime) bucket.getKey()), equalTo(key));
-        assertThat(bucket.getDocCount(), equalTo(1l));
+        assertThat(bucket.getDocCount(), equalTo(1L));
         Sum sum = bucket.getAggregations().get("sum");
         assertThat(sum, notNullValue());
         assertThat(sum.getValue(), equalTo(1.0));
         assertThat((DateTime) propertiesKeys[0], equalTo(key));
-        assertThat((long) propertiesDocCounts[0], equalTo(1l));
+        assertThat((long) propertiesDocCounts[0], equalTo(1L));
         assertThat((double) propertiesCounts[0], equalTo(1.0));
 
         key = new DateTime(2012, 2, 1, 0, 0, DateTimeZone.UTC);
@@ -376,12 +376,12 @@ public class DateHistogramIT extends ESIntegTestCase {
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKeyAsString(), equalTo(getBucketKeyAsString(key)));
         assertThat(((DateTime) bucket.getKey()), equalTo(key));
-        assertThat(bucket.getDocCount(), equalTo(2l));
+        assertThat(bucket.getDocCount(), equalTo(2L));
         sum = bucket.getAggregations().get("sum");
         assertThat(sum, notNullValue());
         assertThat(sum.getValue(), equalTo(5.0));
         assertThat((DateTime) propertiesKeys[1], equalTo(key));
-        assertThat((long) propertiesDocCounts[1], equalTo(2l));
+        assertThat((long) propertiesDocCounts[1], equalTo(2L));
         assertThat((double) propertiesCounts[1], equalTo(5.0));
 
         key = new DateTime(2012, 3, 1, 0, 0, DateTimeZone.UTC);
@@ -389,12 +389,12 @@ public class DateHistogramIT extends ESIntegTestCase {
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKeyAsString(), equalTo(getBucketKeyAsString(key)));
         assertThat(((DateTime) bucket.getKey()), equalTo(key));
-        assertThat(bucket.getDocCount(), equalTo(3l));
+        assertThat(bucket.getDocCount(), equalTo(3L));
         sum = bucket.getAggregations().get("sum");
         assertThat(sum, notNullValue());
         assertThat(sum.getValue(), equalTo(15.0));
         assertThat((DateTime) propertiesKeys[2], equalTo(key));
-        assertThat((long) propertiesDocCounts[2], equalTo(3l));
+        assertThat((long) propertiesDocCounts[2], equalTo(3L));
         assertThat((double) propertiesCounts[2], equalTo(15.0));
     }
 
@@ -417,7 +417,7 @@ public class DateHistogramIT extends ESIntegTestCase {
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKeyAsString(), equalTo(getBucketKeyAsString(key)));
         assertThat(((DateTime) bucket.getKey()), equalTo(key));
-        assertThat(bucket.getDocCount(), equalTo(1l));
+        assertThat(bucket.getDocCount(), equalTo(1L));
         Max max = bucket.getAggregations().get("max");
         assertThat(max, notNullValue());
         assertThat(max.getValue(), equalTo((double) new DateTime(2012, 1, 2, 0, 0, DateTimeZone.UTC).getMillis()));
@@ -427,7 +427,7 @@ public class DateHistogramIT extends ESIntegTestCase {
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKeyAsString(), equalTo(getBucketKeyAsString(key)));
         assertThat(((DateTime) bucket.getKey()), equalTo(key));
-        assertThat(bucket.getDocCount(), equalTo(2l));
+        assertThat(bucket.getDocCount(), equalTo(2L));
         max = bucket.getAggregations().get("max");
         assertThat(max, notNullValue());
         assertThat(max.getValue(), equalTo((double) new DateTime(2012, 2, 15, 0, 0, DateTimeZone.UTC).getMillis()));
@@ -437,7 +437,7 @@ public class DateHistogramIT extends ESIntegTestCase {
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKeyAsString(), equalTo(getBucketKeyAsString(key)));
         assertThat(((DateTime) bucket.getKey()), equalTo(key));
-        assertThat(bucket.getDocCount(), equalTo(3l));
+        assertThat(bucket.getDocCount(), equalTo(3L));
         max = bucket.getAggregations().get("max");
         assertThat(max, notNullValue());
         assertThat(max.getValue(), equalTo((double) new DateTime(2012, 3, 23, 0, 0, DateTimeZone.UTC).getMillis()));
@@ -556,21 +556,21 @@ public class DateHistogramIT extends ESIntegTestCase {
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKeyAsString(), equalTo(getBucketKeyAsString(key)));
         assertThat(((DateTime) bucket.getKey()), equalTo(key));
-        assertThat(bucket.getDocCount(), equalTo(1l));
+        assertThat(bucket.getDocCount(), equalTo(1L));
 
         key = new DateTime(2012, 3, 1, 0, 0, DateTimeZone.UTC);
         bucket = buckets.get(1);
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKeyAsString(), equalTo(getBucketKeyAsString(key)));
         assertThat(((DateTime) bucket.getKey()), equalTo(key));
-        assertThat(bucket.getDocCount(), equalTo(2l));
+        assertThat(bucket.getDocCount(), equalTo(2L));
 
         key = new DateTime(2012, 4, 1, 0, 0, DateTimeZone.UTC);
         bucket = buckets.get(2);
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKeyAsString(), equalTo(getBucketKeyAsString(key)));
         assertThat(((DateTime) bucket.getKey()), equalTo(key));
-        assertThat(bucket.getDocCount(), equalTo(3l));
+        assertThat(bucket.getDocCount(), equalTo(3L));
     }
 
     /*
@@ -600,28 +600,28 @@ public class DateHistogramIT extends ESIntegTestCase {
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKeyAsString(), equalTo(getBucketKeyAsString(key)));
         assertThat(((DateTime) bucket.getKey()), equalTo(key));
-        assertThat(bucket.getDocCount(), equalTo(1l));
+        assertThat(bucket.getDocCount(), equalTo(1L));
 
         key = new DateTime(2012, 2, 1, 0, 0, DateTimeZone.UTC);
         bucket = buckets.get(1);
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKeyAsString(), equalTo(getBucketKeyAsString(key)));
         assertThat(((DateTime) bucket.getKey()), equalTo(key));
-        assertThat(bucket.getDocCount(), equalTo(3l));
+        assertThat(bucket.getDocCount(), equalTo(3L));
 
         key = new DateTime(2012, 3, 1, 0, 0, DateTimeZone.UTC);
         bucket = buckets.get(2);
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKeyAsString(), equalTo(getBucketKeyAsString(key)));
         assertThat(((DateTime) bucket.getKey()), equalTo(key));
-        assertThat(bucket.getDocCount(), equalTo(5l));
+        assertThat(bucket.getDocCount(), equalTo(5L));
 
         key = new DateTime(2012, 4, 1, 0, 0, DateTimeZone.UTC);
         bucket = buckets.get(3);
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKeyAsString(), equalTo(getBucketKeyAsString(key)));
         assertThat(((DateTime) bucket.getKey()), equalTo(key));
-        assertThat(bucket.getDocCount(), equalTo(3l));
+        assertThat(bucket.getDocCount(), equalTo(3L));
     }
 
     public void testMultiValuedFieldOrderedByKeyDesc() throws Exception {
@@ -644,19 +644,19 @@ public class DateHistogramIT extends ESIntegTestCase {
 
         Histogram.Bucket bucket = buckets.get(0);
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getDocCount(), equalTo(5l));
+        assertThat(bucket.getDocCount(), equalTo(5L));
 
         bucket = buckets.get(1);
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getDocCount(), equalTo(3l));
+        assertThat(bucket.getDocCount(), equalTo(3L));
 
         bucket = buckets.get(2);
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getDocCount(), equalTo(3l));
+        assertThat(bucket.getDocCount(), equalTo(3L));
 
         bucket = buckets.get(3);
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getDocCount(), equalTo(1l));
+        assertThat(bucket.getDocCount(), equalTo(1L));
     }
 
     /**
@@ -689,28 +689,28 @@ public class DateHistogramIT extends ESIntegTestCase {
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKeyAsString(), equalTo(getBucketKeyAsString(key)));
         assertThat(((DateTime) bucket.getKey()), equalTo(key));
-        assertThat(bucket.getDocCount(), equalTo(1l));
+        assertThat(bucket.getDocCount(), equalTo(1L));
 
         key = new DateTime(2012, 3, 1, 0, 0, DateTimeZone.UTC);
         bucket = buckets.get(1);
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKeyAsString(), equalTo(getBucketKeyAsString(key)));
         assertThat(((DateTime) bucket.getKey()), equalTo(key));
-        assertThat(bucket.getDocCount(), equalTo(3l));
+        assertThat(bucket.getDocCount(), equalTo(3L));
 
         key = new DateTime(2012, 4, 1, 0, 0, DateTimeZone.UTC);
         bucket = buckets.get(2);
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKeyAsString(), equalTo(getBucketKeyAsString(key)));
         assertThat(((DateTime) bucket.getKey()), equalTo(key));
-        assertThat(bucket.getDocCount(), equalTo(5l));
+        assertThat(bucket.getDocCount(), equalTo(5L));
 
         key = new DateTime(2012, 5, 1, 0, 0, DateTimeZone.UTC);
         bucket = buckets.get(3);
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKeyAsString(), equalTo(getBucketKeyAsString(key)));
         assertThat(((DateTime) bucket.getKey()), equalTo(key));
-        assertThat(bucket.getDocCount(), equalTo(3l));
+        assertThat(bucket.getDocCount(), equalTo(3L));
     }
 
     /**
@@ -743,7 +743,7 @@ public class DateHistogramIT extends ESIntegTestCase {
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKeyAsString(), equalTo(getBucketKeyAsString(key)));
         assertThat(((DateTime) bucket.getKey()), equalTo(key));
-        assertThat(bucket.getDocCount(), equalTo(1l));
+        assertThat(bucket.getDocCount(), equalTo(1L));
         Max max = bucket.getAggregations().get("max");
         assertThat(max, notNullValue());
         assertThat((long) max.getValue(), equalTo(new DateTime(2012, 3, 3, 0, 0, DateTimeZone.UTC).getMillis()));
@@ -753,7 +753,7 @@ public class DateHistogramIT extends ESIntegTestCase {
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKeyAsString(), equalTo(getBucketKeyAsString(key)));
         assertThat(((DateTime) bucket.getKey()), equalTo(key));
-        assertThat(bucket.getDocCount(), equalTo(3l));
+        assertThat(bucket.getDocCount(), equalTo(3L));
         max = bucket.getAggregations().get("max");
         assertThat(max, notNullValue());
         assertThat((long) max.getValue(), equalTo(new DateTime(2012, 4, 16, 0, 0, DateTimeZone.UTC).getMillis()));
@@ -763,7 +763,7 @@ public class DateHistogramIT extends ESIntegTestCase {
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKeyAsString(), equalTo(getBucketKeyAsString(key)));
         assertThat(((DateTime) bucket.getKey()), equalTo(key));
-        assertThat(bucket.getDocCount(), equalTo(5l));
+        assertThat(bucket.getDocCount(), equalTo(5L));
         max = bucket.getAggregations().get("max");
         assertThat(max, notNullValue());
         assertThat((long) max.getValue(), equalTo(new DateTime(2012, 5, 24, 0, 0, DateTimeZone.UTC).getMillis()));
@@ -773,7 +773,7 @@ public class DateHistogramIT extends ESIntegTestCase {
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKeyAsString(), equalTo(getBucketKeyAsString(key)));
         assertThat(((DateTime) bucket.getKey()), equalTo(key));
-        assertThat(bucket.getDocCount(), equalTo(3l));
+        assertThat(bucket.getDocCount(), equalTo(3L));
         max = bucket.getAggregations().get("max");
         assertThat(max, notNullValue());
         assertThat((long) max.getValue(), equalTo(new DateTime(2012, 5, 24, 0, 0, DateTimeZone.UTC).getMillis()));
@@ -805,21 +805,21 @@ public class DateHistogramIT extends ESIntegTestCase {
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKeyAsString(), equalTo(getBucketKeyAsString(key)));
         assertThat(((DateTime) bucket.getKey()), equalTo(key));
-        assertThat(bucket.getDocCount(), equalTo(1l));
+        assertThat(bucket.getDocCount(), equalTo(1L));
 
         key = new DateTime(2012, 2, 1, 0, 0, DateTimeZone.UTC);
         bucket = buckets.get(1);
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKeyAsString(), equalTo(getBucketKeyAsString(key)));
         assertThat(((DateTime) bucket.getKey()), equalTo(key));
-        assertThat(bucket.getDocCount(), equalTo(2l));
+        assertThat(bucket.getDocCount(), equalTo(2L));
 
         key = new DateTime(2012, 3, 1, 0, 0, DateTimeZone.UTC);
         bucket = buckets.get(2);
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKeyAsString(), equalTo(getBucketKeyAsString(key)));
         assertThat(((DateTime) bucket.getKey()), equalTo(key));
-        assertThat(bucket.getDocCount(), equalTo(3l));
+        assertThat(bucket.getDocCount(), equalTo(3L));
     }
 
     public void testScriptSingleValueWithSubAggregatorInherited() throws Exception {
@@ -841,7 +841,7 @@ public class DateHistogramIT extends ESIntegTestCase {
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKeyAsString(), equalTo(getBucketKeyAsString(key)));
         assertThat(((DateTime) bucket.getKey()), equalTo(key));
-        assertThat(bucket.getDocCount(), equalTo(1l));
+        assertThat(bucket.getDocCount(), equalTo(1L));
         Max max = bucket.getAggregations().get("max");
         assertThat(max, notNullValue());
         assertThat(max.getValue(), equalTo((double) new DateTime(2012, 1, 2, 0, 0, DateTimeZone.UTC).getMillis()));
@@ -851,7 +851,7 @@ public class DateHistogramIT extends ESIntegTestCase {
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKeyAsString(), equalTo(getBucketKeyAsString(key)));
         assertThat(((DateTime) bucket.getKey()), equalTo(key));
-        assertThat(bucket.getDocCount(), equalTo(2l));
+        assertThat(bucket.getDocCount(), equalTo(2L));
         max = bucket.getAggregations().get("max");
         assertThat(max, notNullValue());
         assertThat(max.getValue(), equalTo((double) new DateTime(2012, 2, 15, 0, 0, DateTimeZone.UTC).getMillis()));
@@ -861,7 +861,7 @@ public class DateHistogramIT extends ESIntegTestCase {
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKeyAsString(), equalTo(getBucketKeyAsString(key)));
         assertThat(((DateTime) bucket.getKey()), equalTo(key));
-        assertThat(bucket.getDocCount(), equalTo(3l));
+        assertThat(bucket.getDocCount(), equalTo(3L));
         max = bucket.getAggregations().get("max");
         assertThat(max, notNullValue());
         assertThat(max.getValue(), equalTo((double) new DateTime(2012, 3, 23, 0, 0, DateTimeZone.UTC).getMillis()));
@@ -885,28 +885,28 @@ public class DateHistogramIT extends ESIntegTestCase {
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKeyAsString(), equalTo(getBucketKeyAsString(key)));
         assertThat(((DateTime) bucket.getKey()), equalTo(key));
-        assertThat(bucket.getDocCount(), equalTo(1l));
+        assertThat(bucket.getDocCount(), equalTo(1L));
 
         key = new DateTime(2012, 2, 1, 0, 0, DateTimeZone.UTC);
         bucket = buckets.get(1);
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKeyAsString(), equalTo(getBucketKeyAsString(key)));
         assertThat(((DateTime) bucket.getKey()), equalTo(key));
-        assertThat(bucket.getDocCount(), equalTo(3l));
+        assertThat(bucket.getDocCount(), equalTo(3L));
 
         key = new DateTime(2012, 3, 1, 0, 0, DateTimeZone.UTC);
         bucket = buckets.get(2);
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKeyAsString(), equalTo(getBucketKeyAsString(key)));
         assertThat(((DateTime) bucket.getKey()), equalTo(key));
-        assertThat(bucket.getDocCount(), equalTo(5l));
+        assertThat(bucket.getDocCount(), equalTo(5L));
 
         key = new DateTime(2012, 4, 1, 0, 0, DateTimeZone.UTC);
         bucket = buckets.get(3);
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKeyAsString(), equalTo(getBucketKeyAsString(key)));
         assertThat(((DateTime) bucket.getKey()), equalTo(key));
-        assertThat(bucket.getDocCount(), equalTo(3l));
+        assertThat(bucket.getDocCount(), equalTo(3L));
     }
 
 
@@ -939,7 +939,7 @@ public class DateHistogramIT extends ESIntegTestCase {
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKeyAsString(), equalTo(getBucketKeyAsString(key)));
         assertThat(((DateTime) bucket.getKey()), equalTo(key));
-        assertThat(bucket.getDocCount(), equalTo(1l));
+        assertThat(bucket.getDocCount(), equalTo(1L));
         Max max = bucket.getAggregations().get("max");
         assertThat(max, notNullValue());
         assertThat((long) max.getValue(), equalTo(new DateTime(2012, 2, 3, 0, 0, DateTimeZone.UTC).getMillis()));
@@ -949,7 +949,7 @@ public class DateHistogramIT extends ESIntegTestCase {
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKeyAsString(), equalTo(getBucketKeyAsString(key)));
         assertThat(((DateTime) bucket.getKey()), equalTo(key));
-        assertThat(bucket.getDocCount(), equalTo(3l));
+        assertThat(bucket.getDocCount(), equalTo(3L));
         max = bucket.getAggregations().get("max");
         assertThat(max, notNullValue());
         assertThat((long) max.getValue(), equalTo(new DateTime(2012, 3, 16, 0, 0, DateTimeZone.UTC).getMillis()));
@@ -959,7 +959,7 @@ public class DateHistogramIT extends ESIntegTestCase {
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKeyAsString(), equalTo(getBucketKeyAsString(key)));
         assertThat(((DateTime) bucket.getKey()), equalTo(key));
-        assertThat(bucket.getDocCount(), equalTo(5l));
+        assertThat(bucket.getDocCount(), equalTo(5L));
         max = bucket.getAggregations().get("max");
         assertThat(max, notNullValue());
         assertThat((long) max.getValue(), equalTo(new DateTime(2012, 4, 24, 0, 0, DateTimeZone.UTC).getMillis()));
@@ -969,7 +969,7 @@ public class DateHistogramIT extends ESIntegTestCase {
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKeyAsString(), equalTo(getBucketKeyAsString(key)));
         assertThat(((DateTime) bucket.getKey()), equalTo(key));
-        assertThat(bucket.getDocCount(), equalTo(3l));
+        assertThat(bucket.getDocCount(), equalTo(3L));
         max = bucket.getAggregations().get("max");
         assertThat(max, notNullValue());
         assertThat((long) max.getValue(), equalTo(new DateTime(2012, 4, 24, 0, 0, DateTimeZone.UTC).getMillis()));
@@ -1006,30 +1006,30 @@ public class DateHistogramIT extends ESIntegTestCase {
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKeyAsString(), equalTo(getBucketKeyAsString(key)));
         assertThat(((DateTime) bucket.getKey()), equalTo(key));
-        assertThat(bucket.getDocCount(), equalTo(1l));
+        assertThat(bucket.getDocCount(), equalTo(1L));
 
         key = new DateTime(2012, 2, 1, 0, 0, DateTimeZone.UTC);
         bucket = buckets.get(1);
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKeyAsString(), equalTo(getBucketKeyAsString(key)));
         assertThat(((DateTime) bucket.getKey()), equalTo(key));
-        assertThat(bucket.getDocCount(), equalTo(2l));
+        assertThat(bucket.getDocCount(), equalTo(2L));
 
         key = new DateTime(2012, 3, 1, 0, 0, DateTimeZone.UTC);
         bucket = buckets.get(2);
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKeyAsString(), equalTo(getBucketKeyAsString(key)));
         assertThat(((DateTime) bucket.getKey()), equalTo(key));
-        assertThat(bucket.getDocCount(), equalTo(3l));
+        assertThat(bucket.getDocCount(), equalTo(3L));
     }
 
     public void testEmptyAggregation() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(histogram("histo").field("value").interval(1l).minDocCount(0).subAggregation(dateHistogram("date_histo").interval(1)))
+                .addAggregation(histogram("histo").field("value").interval(1L).minDocCount(0).subAggregation(dateHistogram("date_histo").interval(1)))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2l));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
         Histogram histo = searchResponse.getAggregations().get("histo");
         assertThat(histo, Matchers.notNullValue());
         List<? extends Histogram.Bucket> buckets = histo.getBuckets();
@@ -1065,7 +1065,7 @@ public class DateHistogramIT extends ESIntegTestCase {
                         .format("yyyy-MM-dd:HH-mm-ssZZ"))
                 .execute().actionGet();
 
-        assertThat(response.getHits().getTotalHits(), equalTo(5l));
+        assertThat(response.getHits().getTotalHits(), equalTo(5L));
 
         Histogram histo = response.getAggregations().get("date_histo");
         List<? extends Histogram.Bucket> buckets = histo.getBuckets();
@@ -1074,12 +1074,12 @@ public class DateHistogramIT extends ESIntegTestCase {
         Histogram.Bucket bucket = buckets.get(0);
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKeyAsString(), equalTo("2014-03-10:00-00-00-02:00"));
-        assertThat(bucket.getDocCount(), equalTo(2l));
+        assertThat(bucket.getDocCount(), equalTo(2L));
 
         bucket = buckets.get(1);
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKeyAsString(), equalTo("2014-03-11:00-00-00-02:00"));
-        assertThat(bucket.getDocCount(), equalTo(3l));
+        assertThat(bucket.getDocCount(), equalTo(3L));
     }
 
     public void testSingleValueFieldWithExtendedBounds() throws Exception {
@@ -1235,7 +1235,7 @@ public class DateHistogramIT extends ESIntegTestCase {
                 ).execute().actionGet();
         assertSearchResponse(response);
 
-        assertThat("Expected 24 buckets for one day aggregation with hourly interval", response.getHits().totalHits(), equalTo(2l));
+        assertThat("Expected 24 buckets for one day aggregation with hourly interval", response.getHits().totalHits(), equalTo(2L));
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -1248,9 +1248,9 @@ public class DateHistogramIT extends ESIntegTestCase {
             assertThat(bucket, notNullValue());
             assertThat("InternalBucket " + i + " had wrong key", (DateTime) bucket.getKey(), equalTo(new DateTime(timeZoneStartToday.getMillis() + (i * 60 * 60 * 1000), DateTimeZone.UTC)));
             if (i == 0 || i == 12) {
-                assertThat(bucket.getDocCount(), equalTo(1l));
+                assertThat(bucket.getDocCount(), equalTo(1L));
             } else {
-                assertThat(bucket.getDocCount(), equalTo(0l));
+                assertThat(bucket.getDocCount(), equalTo(0L));
             }
         }
         internalCluster().wipeIndices("test12278");
@@ -1283,7 +1283,7 @@ public class DateHistogramIT extends ESIntegTestCase {
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKeyAsString(), equalTo(getBucketKeyAsString(key)));
         assertThat(((DateTime) bucket.getKey()), equalTo(key));
-        assertThat(bucket.getDocCount(), equalTo(5l));
+        assertThat(bucket.getDocCount(), equalTo(5L));
     }
 
     public void testIssue6965() {
@@ -1306,21 +1306,21 @@ public class DateHistogramIT extends ESIntegTestCase {
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKeyAsString(), equalTo(getBucketKeyAsString(key, tz)));
         assertThat(((DateTime) bucket.getKey()), equalTo(key));
-        assertThat(bucket.getDocCount(), equalTo(1l));
+        assertThat(bucket.getDocCount(), equalTo(1L));
 
         key = new DateTime(2012, 1, 31, 23, 0, DateTimeZone.UTC);
         bucket = buckets.get(1);
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKeyAsString(), equalTo(getBucketKeyAsString(key, tz)));
         assertThat(((DateTime) bucket.getKey()), equalTo(key));
-        assertThat(bucket.getDocCount(), equalTo(2l));
+        assertThat(bucket.getDocCount(), equalTo(2L));
 
         key = new DateTime(2012, 2, 29, 23, 0, DateTimeZone.UTC);
         bucket = buckets.get(2);
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKeyAsString(), equalTo(getBucketKeyAsString(key, tz)));
         assertThat(((DateTime) bucket.getKey()), equalTo(key));
-        assertThat(bucket.getDocCount(), equalTo(3l));
+        assertThat(bucket.getDocCount(), equalTo(3L));
     }
 
     public void testDSTBoundaryIssue9491() throws InterruptedException, ExecutionException {

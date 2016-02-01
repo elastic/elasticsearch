@@ -61,10 +61,6 @@ public class ForbiddenPatternsTask extends DefaultTask {
         // add mandatory rules
         patterns.put('nocommit', /nocommit/)
         patterns.put('tab', /\t/)
-        patterns.put('wildcard imports', /^\s*import.*\.\*/)
-        // We don't use Java serialization so we fail if it looks like we're trying to.
-        patterns.put('declares serialVersionUID', /serialVersionUID/)
-        patterns.put('references Serializable', /java\.io\.Serializable/)
 
         inputs.property("excludes", filesFilter.excludes)
         inputs.property("rules", patterns)

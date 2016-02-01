@@ -54,7 +54,7 @@ import static org.hamcrest.core.IsNull.notNullValue;
 public class CreateIndexIT extends ESIntegTestCase {
     public void testCreationDateGivenFails() {
         try {
-            prepareCreate("test").setSettings(Settings.builder().put(IndexMetaData.SETTING_CREATION_DATE, 4l)).get();
+            prepareCreate("test").setSettings(Settings.builder().put(IndexMetaData.SETTING_CREATION_DATE, 4L)).get();
             fail();
         } catch (IllegalArgumentException ex) {
             assertEquals("unknown setting [index.creation_date]", ex.getMessage());

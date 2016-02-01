@@ -54,7 +54,7 @@ public class AliasResolveRoutingIT extends ESIntegTestCase {
             client().prepareIndex("test-0", "type1", "2").setSource("field1", "quick brown"),
             client().prepareIndex("test-0", "type1", "3").setSource("field1", "quick"));
         refresh("test-*");
-        assertHitCount(client().prepareSearch().setIndices("alias-*").setIndicesOptions(IndicesOptions.lenientExpandOpen()).setQuery(matchQuery("_all", "quick")).get(), 3l);
+        assertHitCount(client().prepareSearch().setIndices("alias-*").setIndicesOptions(IndicesOptions.lenientExpandOpen()).setQuery(matchQuery("_all", "quick")).get(), 3L);
     }
 
     public void testResolveIndexRouting() throws Exception {

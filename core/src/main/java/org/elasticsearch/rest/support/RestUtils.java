@@ -57,7 +57,7 @@ public class RestUtils {
         if (fromIndex >= s.length()) {
             return;
         }
-        
+
         int queryStringLength = s.contains("#") ? s.indexOf("#") : s.length();
 
         String name = null;

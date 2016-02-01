@@ -441,7 +441,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         client().prepareIndex("test", "bar", "1").setSource("{}").setRefresh(true).get();
         client().admin().indices().prepareFlush("test").get();
         SearchResponse response = client().prepareSearch("test").get();
-        assertHitCount(response, 1l);
+        assertHitCount(response, 1L);
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         IndexService test = indicesService.indexService("test");
         IndexShard shard = test.getShardOrNull(0);
@@ -456,7 +456,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         createIndex("test");
         ensureGreen("test");
         response = client().prepareSearch("test").get();
-        assertHitCount(response, 0l);
+        assertHitCount(response, 0L);
     }
 
     public void testIndexDirIsDeletedWhenShardRemoved() throws Exception {
@@ -470,7 +470,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         ensureGreen("test");
         client().prepareIndex("test", "bar", "1").setSource("{}").setRefresh(true).get();
         SearchResponse response = client().prepareSearch("test").get();
-        assertHitCount(response, 1l);
+        assertHitCount(response, 1L);
         client().admin().indices().prepareDelete("test").get();
         assertPathHasBeenCleared(idxPath);
     }
@@ -995,7 +995,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
             MappedFieldType foo = newShard.mapperService().fullName("foo");
             IndexFieldData.Global ifd = shard.indexFieldDataService().getForField(foo);
             FieldDataStats before = shard.fieldData().stats("foo");
-            assertThat(before.getMemorySizeInBytes(), equalTo(0l));
+            assertThat(before.getMemorySizeInBytes(), equalTo(0L));
             FieldDataStats after = null;
             try (Engine.Searcher searcher = newShard.acquireSearcher("test")) {
                 assumeTrue("we have to have more than one segment", searcher.getDirectoryReader().leaves().size() > 1);
@@ -1003,7 +1003,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
                 after = shard.fieldData().stats("foo");
                 assertEquals(after.getEvictions(), before.getEvictions());
                 // If a field doesn't exist an empty IndexFieldData is returned and that isn't cached:
-                assertThat(after.getMemorySizeInBytes(), equalTo(0l));
+                assertThat(after.getMemorySizeInBytes(), equalTo(0L));
             }
             assertEquals(shard.fieldData().stats("foo").getEvictions(), before.getEvictions());
             assertEquals(shard.fieldData().stats("foo").getMemorySizeInBytes(), after.getMemorySizeInBytes());

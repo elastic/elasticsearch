@@ -137,7 +137,7 @@ public class SamplerIT extends ESIntegTestCase {
         for (Terms.Bucket testBucket : testBuckets) {
             maxBooksPerAuthor = Math.max(testBucket.getDocCount(), maxBooksPerAuthor);
         }
-        assertThat(maxBooksPerAuthor, equalTo(3l));
+        assertThat(maxBooksPerAuthor, equalTo(3L));
     }
 
     public void testUnmappedChildAggNoDiversity() throws Exception {
@@ -152,7 +152,7 @@ public class SamplerIT extends ESIntegTestCase {
                 .actionGet();
         assertSearchResponse(response);
         Sampler sample = response.getAggregations().get("sample");
-        assertThat(sample.getDocCount(), equalTo(0l));
+        assertThat(sample.getDocCount(), equalTo(0L));
         Terms authors = sample.getAggregations().get("authors");
         assertThat(authors.getBuckets().size(), equalTo(0));
     }
@@ -169,7 +169,7 @@ public class SamplerIT extends ESIntegTestCase {
                 .actionGet();
         assertSearchResponse(response);
         Sampler sample = response.getAggregations().get("sample");
-        assertThat(sample.getDocCount(), greaterThan(0l));
+        assertThat(sample.getDocCount(), greaterThan(0L));
         Terms authors = sample.getAggregations().get("authors");
         assertThat(authors.getBuckets().size(), greaterThan(0));
     }

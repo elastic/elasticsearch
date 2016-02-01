@@ -35,6 +35,8 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.ingest.core.AbstractProcessor;
 import org.elasticsearch.ingest.core.AbstractProcessorFactory;
 import org.elasticsearch.ingest.core.IngestDocument;
+import org.elasticsearch.ingest.core.Processor;
+import org.elasticsearch.ingest.processor.ConfigurationPropertyException;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -226,10 +228,10 @@ public final class GeoIpProcessor extends AbstractProcessor {
 
         @Override
         public GeoIpProcessor doCreate(String processorTag, Map<String, Object> config) throws Exception {
-            String ipField = readStringProperty(config, "source_field");
-            String targetField = readStringProperty(config, "target_field", "geoip");
-            String databaseFile = readStringProperty(config, "database_file", "GeoLite2-City.mmdb");
-            List<String> fieldNames = readOptionalList(config, "fields");
+            String ipField = readStringProperty(TYPE, processorTag, config, "source_field");
+            String targetField = readStringProperty(TYPE, processorTag, config, "target_field", "geoip");
+            String databaseFile = readStringProperty(TYPE, processorTag, config, "database_file", "GeoLite2-City.mmdb");
+            List<String> fieldNames = readOptionalList(TYPE, processorTag, config, "fields");
 
             final Set<Field> fields;
             if (fieldNames != null) {
@@ -238,7 +240,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
                     try {
                         fields.add(Field.parse(fieldName));
                     } catch (Exception e) {
-                        throw new IllegalArgumentException("illegal field option [" + fieldName +"]. valid values are [" + Arrays.toString(Field.values()) +"]", e);
+                        throw new ConfigurationPropertyException(TYPE, processorTag, "fields", "illegal field option [" + fieldName + "]. valid values are [" + Arrays.toString(Field.values()) +"]");
                     }
                 }
             } else {
@@ -247,7 +249,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
 
             DatabaseReader databaseReader = databaseReaders.get(databaseFile);
             if (databaseReader == null) {
-                throw new IllegalArgumentException("database file [" + databaseFile + "] doesn't exist");
+                throw new ConfigurationPropertyException(TYPE, processorTag, "database_file", "database file [" + databaseFile + "] doesn't exist");
             }
             return new GeoIpProcessor(processorTag, ipField, databaseReader, targetField, fields);
         }

@@ -206,7 +206,7 @@ public class StatsBucketIT extends ESIntegTestCase {
             Terms.Bucket bucket = buckets.get(i);
             assertThat(bucket, notNullValue());
             assertThat((String) bucket.getKey(), equalTo("tag" + (i % interval)));
-            assertThat(bucket.getDocCount(), greaterThan(0l));
+            assertThat(bucket.getDocCount(), greaterThan(0L));
             Sum sum = bucket.getAggregations().get("sum");
             assertThat(sum, notNullValue());
             count++;

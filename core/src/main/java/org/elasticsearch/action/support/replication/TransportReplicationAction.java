@@ -320,7 +320,6 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         public void onFailure(Throwable t) {
             if (t instanceof RetryOnReplicaException) {
                 logger.trace("Retrying operation on replica, action [{}], request [{}]", t, transportReplicaAction, request);
-                final ThreadContext threadContext = threadPool.getThreadContext();
                 final ThreadContext.StoredContext context = threadPool.getThreadContext().newStoredContext();
                 observer.waitForNextChange(new ClusterStateObserver.Listener() {
                     @Override
@@ -528,7 +527,6 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                 finishAsFailed(failure);
                 return;
             }
-            final ThreadContext threadContext = threadPool.getThreadContext();
             final ThreadContext.StoredContext context = threadPool.getThreadContext().newStoredContext();
             observer.waitForNextChange(new ClusterStateObserver.Listener() {
                 @Override
@@ -898,7 +896,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                                 onReplicaFailure(nodeId, exp);
                             } else {
                                 String message = String.format(Locale.ROOT, "failed to perform %s on replica on node %s", transportReplicaAction, node);
-                                logger.warn("{} {}", exp, shardId, message);
+                                logger.warn("[{}] {}", exp, shardId, message);
                                 shardStateAction.shardFailed(
                                     shard,
                                     indexUUID,

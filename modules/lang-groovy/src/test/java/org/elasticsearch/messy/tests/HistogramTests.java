@@ -910,12 +910,12 @@ public class HistogramTests extends ESIntegTestCase {
         Histogram.Bucket bucket = buckets.get(0);
         assertThat(bucket, notNullValue());
         assertThat(((Number) bucket.getKey()).longValue(), equalTo((long) -1 * 2 * interval));
-        assertThat(bucket.getDocCount(), equalTo(0l));
+        assertThat(bucket.getDocCount(), equalTo(0L));
 
         bucket = buckets.get(1);
         assertThat(bucket, notNullValue());
         assertThat(((Number) bucket.getKey()).longValue(), equalTo((long) -1 * interval));
-        assertThat(bucket.getDocCount(), equalTo(0l));
+        assertThat(bucket.getDocCount(), equalTo(0L));
 
         for (int i = 2; i < numValueBuckets + 2; ++i) {
             bucket = buckets.get(i);
@@ -928,11 +928,11 @@ public class HistogramTests extends ESIntegTestCase {
     public void testEmptyAggregation() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(1l).minDocCount(0)
-                        .subAggregation(histogram("sub_histo").interval(1l)))
+                .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(1L).minDocCount(0)
+                        .subAggregation(histogram("sub_histo").interval(1L)))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2l));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
         Histogram histo = searchResponse.getAggregations().get("histo");
         assertThat(histo, Matchers.notNullValue());
         List<? extends Bucket> buckets = histo.getBuckets();

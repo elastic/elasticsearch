@@ -196,13 +196,13 @@ children("to_comment", "comment")
 
         Terms.Bucket categoryBucket = categoryTerms.getBucketByKey("a");
         assertThat(categoryBucket.getKeyAsString(), equalTo("a"));
-        assertThat(categoryBucket.getDocCount(), equalTo(3l));
+        assertThat(categoryBucket.getDocCount(), equalTo(3L));
 
         Children childrenBucket = categoryBucket.getAggregations().get("to_comment");
         assertThat(childrenBucket.getName(), equalTo("to_comment"));
-        assertThat(childrenBucket.getDocCount(), equalTo(2l));
+        assertThat(childrenBucket.getDocCount(), equalTo(2L));
         TopHits topHits = childrenBucket.getAggregations().get("top_comments");
-        assertThat(topHits.getHits().totalHits(), equalTo(2l));
+        assertThat(topHits.getHits().totalHits(), equalTo(2L));
         assertThat(topHits.getHits().getAt(0).getId(), equalTo("a"));
         assertThat(topHits.getHits().getAt(0).getType(), equalTo("comment"));
         assertThat(topHits.getHits().getAt(1).getId(), equalTo("c"));
@@ -210,25 +210,25 @@ children("to_comment", "comment")
 
         categoryBucket = categoryTerms.getBucketByKey("b");
         assertThat(categoryBucket.getKeyAsString(), equalTo("b"));
-        assertThat(categoryBucket.getDocCount(), equalTo(2l));
+        assertThat(categoryBucket.getDocCount(), equalTo(2L));
 
         childrenBucket = categoryBucket.getAggregations().get("to_comment");
         assertThat(childrenBucket.getName(), equalTo("to_comment"));
-        assertThat(childrenBucket.getDocCount(), equalTo(1l));
+        assertThat(childrenBucket.getDocCount(), equalTo(1L));
         topHits = childrenBucket.getAggregations().get("top_comments");
-        assertThat(topHits.getHits().totalHits(), equalTo(1l));
+        assertThat(topHits.getHits().totalHits(), equalTo(1L));
         assertThat(topHits.getHits().getAt(0).getId(), equalTo("c"));
         assertThat(topHits.getHits().getAt(0).getType(), equalTo("comment"));
 
         categoryBucket = categoryTerms.getBucketByKey("c");
         assertThat(categoryBucket.getKeyAsString(), equalTo("c"));
-        assertThat(categoryBucket.getDocCount(), equalTo(2l));
+        assertThat(categoryBucket.getDocCount(), equalTo(2L));
 
         childrenBucket = categoryBucket.getAggregations().get("to_comment");
         assertThat(childrenBucket.getName(), equalTo("to_comment"));
-        assertThat(childrenBucket.getDocCount(), equalTo(1l));
+        assertThat(childrenBucket.getDocCount(), equalTo(1L));
         topHits = childrenBucket.getAggregations().get("top_comments");
-        assertThat(topHits.getHits().totalHits(), equalTo(1l));
+        assertThat(topHits.getHits().totalHits(), equalTo(1L));
         assertThat(topHits.getHits().getAt(0).getId(), equalTo("c"));
         assertThat(topHits.getHits().getAt(0).getType(), equalTo("comment"));
     }
@@ -256,7 +256,7 @@ children("to_comment", "comment")
 
             assertNoFailures(searchResponse);
             Children children = searchResponse.getAggregations().get("children");
-            assertThat(children.getDocCount(), equalTo(4l));
+            assertThat(children.getDocCount(), equalTo(4L));
 
             Sum count = children.getAggregations().get("counts");
             assertThat(count.getValue(), equalTo(4.));
@@ -272,7 +272,7 @@ children("to_comment", "comment")
                     .setDoc("count", 1)
                     .setDetectNoop(false)
                     .get();
-            assertThat(updateResponse.getVersion(), greaterThan(1l));
+            assertThat(updateResponse.getVersion(), greaterThan(1L));
             refresh();
         }
     }
@@ -286,7 +286,7 @@ children("non-existing", "xyz")
 
         Children children = searchResponse.getAggregations().get("non-existing");
         assertThat(children.getName(), equalTo("non-existing"));
-        assertThat(children.getDocCount(), equalTo(0l));
+        assertThat(children.getDocCount(), equalTo(0L));
     }
 
     public void testPostCollection() throws Exception {
@@ -328,23 +328,23 @@ children("non-existing", "xyz")
         assertHitCount(response, 1);
 
         Children childrenAgg = response.getAggregations().get("my-refinements");
-        assertThat(childrenAgg.getDocCount(), equalTo(7l));
+        assertThat(childrenAgg.getDocCount(), equalTo(7L));
 
         Terms termsAgg = childrenAgg.getAggregations().get("my-colors");
         assertThat(termsAgg.getBuckets().size(), equalTo(4));
-        assertThat(termsAgg.getBucketByKey("black").getDocCount(), equalTo(3l));
-        assertThat(termsAgg.getBucketByKey("blue").getDocCount(), equalTo(2l));
-        assertThat(termsAgg.getBucketByKey("green").getDocCount(), equalTo(1l));
-        assertThat(termsAgg.getBucketByKey("orange").getDocCount(), equalTo(1l));
+        assertThat(termsAgg.getBucketByKey("black").getDocCount(), equalTo(3L));
+        assertThat(termsAgg.getBucketByKey("blue").getDocCount(), equalTo(2L));
+        assertThat(termsAgg.getBucketByKey("green").getDocCount(), equalTo(1L));
+        assertThat(termsAgg.getBucketByKey("orange").getDocCount(), equalTo(1L));
 
         termsAgg = childrenAgg.getAggregations().get("my-sizes");
         assertThat(termsAgg.getBuckets().size(), equalTo(6));
-        assertThat(termsAgg.getBucketByKey("36").getDocCount(), equalTo(2l));
-        assertThat(termsAgg.getBucketByKey("32").getDocCount(), equalTo(1l));
-        assertThat(termsAgg.getBucketByKey("34").getDocCount(), equalTo(1l));
-        assertThat(termsAgg.getBucketByKey("38").getDocCount(), equalTo(1l));
-        assertThat(termsAgg.getBucketByKey("40").getDocCount(), equalTo(1l));
-        assertThat(termsAgg.getBucketByKey("44").getDocCount(), equalTo(1l));
+        assertThat(termsAgg.getBucketByKey("36").getDocCount(), equalTo(2L));
+        assertThat(termsAgg.getBucketByKey("32").getDocCount(), equalTo(1L));
+        assertThat(termsAgg.getBucketByKey("34").getDocCount(), equalTo(1L));
+        assertThat(termsAgg.getBucketByKey("38").getDocCount(), equalTo(1L));
+        assertThat(termsAgg.getBucketByKey("40").getDocCount(), equalTo(1L));
+        assertThat(termsAgg.getBucketByKey("44").getDocCount(), equalTo(1L));
     }
 
     public void testHierarchicalChildrenAggs() {
@@ -382,14 +382,14 @@ children("non-existing", "xyz")
 
         Children children = response.getAggregations().get(parentType);
         assertThat(children.getName(), equalTo(parentType));
-        assertThat(children.getDocCount(), equalTo(1l));
+        assertThat(children.getDocCount(), equalTo(1L));
         children = children.getAggregations().get(childType);
         assertThat(children.getName(), equalTo(childType));
-        assertThat(children.getDocCount(), equalTo(1l));
+        assertThat(children.getDocCount(), equalTo(1L));
         Terms terms = children.getAggregations().get("name");
         assertThat(terms.getBuckets().size(), equalTo(1));
         assertThat(terms.getBuckets().get(0).getKey().toString(), equalTo("brussels"));
-        assertThat(terms.getBuckets().get(0).getDocCount(), equalTo(1l));
+        assertThat(terms.getBuckets().get(0).getDocCount(), equalTo(1L));
     }
 
     public void testPostCollectAllLeafReaders() throws Exception {

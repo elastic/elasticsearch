@@ -59,7 +59,7 @@ public class CustomBoostMappingTests extends ESSingleNodeTestCase {
 
         ParsedDocument doc = mapper.parse("test", "type", "1", XContentFactory.jsonBuilder().startObject()
                 .startObject("s_field").field("value", "s_value").field("boost", 2.0f).endObject()
-                .startObject("l_field").field("value", 1l).field("boost", 3.0f).endObject()
+                .startObject("l_field").field("value", 1L).field("boost", 3.0f).endObject()
                 .startObject("i_field").field("value", 1).field("boost", 4.0f).endObject()
                 .startObject("sh_field").field("value", 1).field("boost", 5.0f).endObject()
                 .startObject("b_field").field("value", 1).field("boost", 6.0f).endObject()

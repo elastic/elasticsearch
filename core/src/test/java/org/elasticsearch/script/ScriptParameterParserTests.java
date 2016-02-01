@@ -891,7 +891,7 @@ public class ScriptParameterParserTests extends ESTestCase {
 
     public void testConfigMultipleParametersInlineWrongType() throws IOException {
         Map<String, Object> config = new HashMap<>();
-        config.put("foo", 1l);
+        config.put("foo", 1L);
         config.put("bar_file", "barScriptValue");
         config.put("baz_id", "bazScriptValue");
         config.put("lang", "myLang");
@@ -917,7 +917,7 @@ public class ScriptParameterParserTests extends ESTestCase {
     public void testConfigMultipleParametersFileWrongType() throws IOException {
         Map<String, Object> config = new HashMap<>();
         config.put("foo", "fooScriptValue");
-        config.put("bar_file", 1l);
+        config.put("bar_file", 1L);
         config.put("baz_id", "bazScriptValue");
         config.put("lang", "myLang");
         Set<String> parameters = new HashSet<>();
@@ -944,7 +944,7 @@ public class ScriptParameterParserTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("foo", "fooScriptValue");
         config.put("bar_file", "barScriptValue");
-        config.put("baz_id", 1l);
+        config.put("baz_id", 1L);
         config.put("lang", "myLang");
         Set<String> parameters = new HashSet<>();
         parameters.add("foo");
@@ -970,7 +970,7 @@ public class ScriptParameterParserTests extends ESTestCase {
         config.put("foo", "fooScriptValue");
         config.put("bar_file", "barScriptValue");
         config.put("baz_id", "bazScriptValue");
-        config.put("lang", 1l);
+        config.put("lang", 1L);
         Set<String> parameters = new HashSet<>();
         parameters.add("foo");
         parameters.add("bar");

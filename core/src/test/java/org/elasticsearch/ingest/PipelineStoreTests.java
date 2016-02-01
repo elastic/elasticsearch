@@ -22,6 +22,7 @@ package org.elasticsearch.ingest;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
+import org.elasticsearch.action.ingest.WritePipelineResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -41,7 +42,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Mockito.mock;
 
 public class PipelineStoreTests extends ESTestCase {
 
@@ -100,6 +100,45 @@ public class PipelineStoreTests extends ESTestCase {
         assertThat(pipeline.getId(), equalTo(id));
         assertThat(pipeline.getDescription(), equalTo("_description"));
         assertThat(pipeline.getProcessors().size(), equalTo(0));
+    }
+
+    public void testPutWithErrorResponse() {
+
+    }
+
+    public void testConstructPipelineResponseSuccess() {
+        Map<String, Object> processorConfig = new HashMap<>();
+        processorConfig.put("field", "foo");
+        processorConfig.put("value", "bar");
+        Map<String, Object> pipelineConfig = new HashMap<>();
+        pipelineConfig.put("description", "_description");
+        pipelineConfig.put("processors", Collections.singletonList(Collections.singletonMap("set", processorConfig)));
+        WritePipelineResponse response = store.validatePipelineResponse("test_id", pipelineConfig);
+        assertThat(response, nullValue());
+    }
+
+    public void testConstructPipelineResponseMissingProcessorsFieldException() {
+        Map<String, Object> pipelineConfig = new HashMap<>();
+        pipelineConfig.put("description", "_description");
+        WritePipelineResponse response = store.validatePipelineResponse("test_id", pipelineConfig);
+        assertThat(response.getError().getProcessorType(), is(nullValue()));
+        assertThat(response.getError().getProcessorTag(), is(nullValue()));
+        assertThat(response.getError().getProcessorPropertyName(), equalTo("processors"));
+        assertThat(response.getError().getReason(), equalTo("[processors] required property is missing"));
+    }
+
+    public void testConstructPipelineResponseConfigurationException() {
+        Map<String, Object> processorConfig = new HashMap<>();
+        processorConfig.put("field", "foo");
+        Map<String, Object> pipelineConfig = new HashMap<>();
+        pipelineConfig.put("description", "_description");
+        pipelineConfig.put("processors", Collections.singletonList(Collections.singletonMap("set", processorConfig)));
+        WritePipelineResponse response = store.validatePipelineResponse("test_id", pipelineConfig);
+
+        assertThat(response.getError().getProcessorTag(), nullValue());
+        assertThat(response.getError().getProcessorType(), equalTo("set"));
+        assertThat(response.getError().getProcessorPropertyName(), equalTo("value"));
+        assertThat(response.getError().getReason(), equalTo("[value] required property is missing"));
     }
 
     public void testDelete() {

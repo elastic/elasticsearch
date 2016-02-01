@@ -142,7 +142,7 @@ public class NestedAggregatorTests extends ESSingleNodeTestCase {
 
         Nested nested = (Nested) aggs[0].buildAggregation(0);
         // The bug manifests if 6 docs are returned, because currentRootDoc isn't reset the previous child docs from the first segment are emitted as hits.
-        assertThat(nested.getDocCount(), equalTo(4l));
+        assertThat(nested.getDocCount(), equalTo(4L));
 
         directoryReader.close();
         directory.close();

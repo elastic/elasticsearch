@@ -180,7 +180,7 @@ public class RangeTests extends ESIntegTestCase {
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo(3.0));
         assertThat(bucket.getFromAsString(), nullValue());
         assertThat(bucket.getToAsString(), equalTo("3.0"));
-        assertThat(bucket.getDocCount(), equalTo(2l));
+        assertThat(bucket.getDocCount(), equalTo(2L));
 
         bucket = buckets.get(1);
         assertThat(bucket, notNullValue());
@@ -189,7 +189,7 @@ public class RangeTests extends ESIntegTestCase {
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo(6.0));
         assertThat(bucket.getFromAsString(), equalTo("3.0"));
         assertThat(bucket.getToAsString(), equalTo("6.0"));
-        assertThat(bucket.getDocCount(), equalTo(3l));
+        assertThat(bucket.getDocCount(), equalTo(3L));
 
         bucket = buckets.get(2);
         assertThat(bucket, notNullValue());
@@ -224,7 +224,7 @@ public class RangeTests extends ESIntegTestCase {
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo(3.0));
         assertThat(bucket.getFromAsString(), nullValue());
         assertThat(bucket.getToAsString(), equalTo("3"));
-        assertThat(bucket.getDocCount(), equalTo(2l));
+        assertThat(bucket.getDocCount(), equalTo(2L));
 
         bucket = buckets.get(1);
         assertThat(bucket, notNullValue());
@@ -233,7 +233,7 @@ public class RangeTests extends ESIntegTestCase {
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo(6.0));
         assertThat(bucket.getFromAsString(), equalTo("3"));
         assertThat(bucket.getToAsString(), equalTo("6"));
-        assertThat(bucket.getDocCount(), equalTo(3l));
+        assertThat(bucket.getDocCount(), equalTo(3L));
 
         bucket = buckets.get(2);
         assertThat(bucket, notNullValue());
@@ -270,7 +270,7 @@ public class RangeTests extends ESIntegTestCase {
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo(3.0));
         assertThat(bucket.getFromAsString(), nullValue());
         assertThat(bucket.getToAsString(), equalTo("3.0"));
-        assertThat(bucket.getDocCount(), equalTo(2l));
+        assertThat(bucket.getDocCount(), equalTo(2L));
 
         bucket = buckets.get(1);
         assertThat(bucket, notNullValue());
@@ -279,7 +279,7 @@ public class RangeTests extends ESIntegTestCase {
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo(6.0));
         assertThat(bucket.getFromAsString(), equalTo("3.0"));
         assertThat(bucket.getToAsString(), equalTo("6.0"));
-        assertThat(bucket.getDocCount(), equalTo(3l));
+        assertThat(bucket.getDocCount(), equalTo(3L));
 
         bucket = buckets.get(2);
         assertThat(bucket, notNullValue());
@@ -320,12 +320,12 @@ public class RangeTests extends ESIntegTestCase {
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo(3.0));
         assertThat(bucket.getFromAsString(), nullValue());
         assertThat(bucket.getToAsString(), equalTo("3.0"));
-        assertThat(bucket.getDocCount(), equalTo(2l));
+        assertThat(bucket.getDocCount(), equalTo(2L));
         Sum sum = bucket.getAggregations().get("sum");
         assertThat(sum, notNullValue());
         assertThat(sum.getValue(), equalTo(3.0)); // 1 + 2
         assertThat((String) propertiesKeys[0], equalTo("*-3.0"));
-        assertThat((long) propertiesDocCounts[0], equalTo(2l));
+        assertThat((long) propertiesDocCounts[0], equalTo(2L));
         assertThat((double) propertiesCounts[0], equalTo(3.0));
 
         bucket = buckets.get(1);
@@ -335,12 +335,12 @@ public class RangeTests extends ESIntegTestCase {
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo(6.0));
         assertThat(bucket.getFromAsString(), equalTo("3.0"));
         assertThat(bucket.getToAsString(), equalTo("6.0"));
-        assertThat(bucket.getDocCount(), equalTo(3l));
+        assertThat(bucket.getDocCount(), equalTo(3L));
         sum = bucket.getAggregations().get("sum");
         assertThat(sum, notNullValue());
         assertThat(sum.getValue(), equalTo(12.0)); // 3 + 4 + 5
         assertThat((String) propertiesKeys[1], equalTo("3.0-6.0"));
-        assertThat((long) propertiesDocCounts[1], equalTo(3l));
+        assertThat((long) propertiesDocCounts[1], equalTo(3L));
         assertThat((double) propertiesCounts[1], equalTo(12.0));
 
         bucket = buckets.get(2);
@@ -350,7 +350,7 @@ public class RangeTests extends ESIntegTestCase {
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo(Double.POSITIVE_INFINITY));
         assertThat(bucket.getFromAsString(), equalTo("6.0"));
         assertThat(bucket.getToAsString(), nullValue());
-        assertThat(bucket.getDocCount(), equalTo(numDocs - 5l));
+        assertThat(bucket.getDocCount(), equalTo(numDocs - 5L));
         sum = bucket.getAggregations().get("sum");
         assertThat(sum, notNullValue());
         long total = 0;
@@ -359,7 +359,7 @@ public class RangeTests extends ESIntegTestCase {
         }
         assertThat(sum.getValue(), equalTo((double) total));
         assertThat((String) propertiesKeys[2], equalTo("6.0-*"));
-        assertThat((long) propertiesDocCounts[2], equalTo(numDocs - 5l));
+        assertThat((long) propertiesDocCounts[2], equalTo(numDocs - 5L));
         assertThat((double) propertiesCounts[2], equalTo((double) total));
     }
 
@@ -389,7 +389,7 @@ public class RangeTests extends ESIntegTestCase {
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo(3.0));
         assertThat(bucket.getFromAsString(), nullValue());
         assertThat(bucket.getToAsString(), equalTo("3.0"));
-        assertThat(bucket.getDocCount(), equalTo(2l));
+        assertThat(bucket.getDocCount(), equalTo(2L));
         Avg avg = bucket.getAggregations().get("avg");
         assertThat(avg, notNullValue());
         assertThat(avg.getValue(), equalTo(1.5)); // (1 + 2) / 2
@@ -401,7 +401,7 @@ public class RangeTests extends ESIntegTestCase {
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo(6.0));
         assertThat(bucket.getFromAsString(), equalTo("3.0"));
         assertThat(bucket.getToAsString(), equalTo("6.0"));
-        assertThat(bucket.getDocCount(), equalTo(3l));
+        assertThat(bucket.getDocCount(), equalTo(3L));
         avg = bucket.getAggregations().get("avg");
         assertThat(avg, notNullValue());
         assertThat(avg.getValue(), equalTo(4.0)); // (3 + 4 + 5) / 3
@@ -413,7 +413,7 @@ public class RangeTests extends ESIntegTestCase {
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo(Double.POSITIVE_INFINITY));
         assertThat(bucket.getFromAsString(), equalTo("6.0"));
         assertThat(bucket.getToAsString(), nullValue());
-        assertThat(bucket.getDocCount(), equalTo(numDocs - 5l));
+        assertThat(bucket.getDocCount(), equalTo(numDocs - 5L));
         avg = bucket.getAggregations().get("avg");
         assertThat(avg, notNullValue());
         long total = 0;
@@ -445,7 +445,7 @@ public class RangeTests extends ESIntegTestCase {
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo(3.0));
         assertThat(bucket.getFromAsString(), nullValue());
         assertThat(bucket.getToAsString(), equalTo("3.0"));
-        assertThat(bucket.getDocCount(), equalTo(1l)); // 2
+        assertThat(bucket.getDocCount(), equalTo(1L)); // 2
 
         bucket = buckets.get(1);
         assertThat(bucket, notNullValue());
@@ -454,7 +454,7 @@ public class RangeTests extends ESIntegTestCase {
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo(6.0));
         assertThat(bucket.getFromAsString(), equalTo("3.0"));
         assertThat(bucket.getToAsString(), equalTo("6.0"));
-        assertThat(bucket.getDocCount(), equalTo(3l)); // 3, 4, 5
+        assertThat(bucket.getDocCount(), equalTo(3L)); // 3, 4, 5
 
         bucket = buckets.get(2);
         assertThat(bucket, notNullValue());
@@ -463,7 +463,7 @@ public class RangeTests extends ESIntegTestCase {
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo(Double.POSITIVE_INFINITY));
         assertThat(bucket.getFromAsString(), equalTo("6.0"));
         assertThat(bucket.getToAsString(), nullValue());
-        assertThat(bucket.getDocCount(), equalTo(numDocs - 4l));
+        assertThat(bucket.getDocCount(), equalTo(numDocs - 4L));
     }
 
     /*
@@ -504,7 +504,7 @@ public class RangeTests extends ESIntegTestCase {
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo(3.0));
         assertThat(bucket.getFromAsString(), nullValue());
         assertThat(bucket.getToAsString(), equalTo("3.0"));
-        assertThat(bucket.getDocCount(), equalTo(2l));
+        assertThat(bucket.getDocCount(), equalTo(2L));
 
         bucket = buckets.get(1);
         assertThat(bucket, notNullValue());
@@ -513,7 +513,7 @@ public class RangeTests extends ESIntegTestCase {
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo(6.0));
         assertThat(bucket.getFromAsString(), equalTo("3.0"));
         assertThat(bucket.getToAsString(), equalTo("6.0"));
-        assertThat(bucket.getDocCount(), equalTo(4l));
+        assertThat(bucket.getDocCount(), equalTo(4L));
 
         bucket = buckets.get(2);
         assertThat(bucket, notNullValue());
@@ -522,7 +522,7 @@ public class RangeTests extends ESIntegTestCase {
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo(Double.POSITIVE_INFINITY));
         assertThat(bucket.getFromAsString(), equalTo("6.0"));
         assertThat(bucket.getToAsString(), nullValue());
-        assertThat(bucket.getDocCount(), equalTo(numDocs - 4l));
+        assertThat(bucket.getDocCount(), equalTo(numDocs - 4L));
     }
 
     /*
@@ -561,7 +561,7 @@ public class RangeTests extends ESIntegTestCase {
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo(3.0));
         assertThat(bucket.getFromAsString(), nullValue());
         assertThat(bucket.getToAsString(), equalTo("3.0"));
-        assertThat(bucket.getDocCount(), equalTo(1l));
+        assertThat(bucket.getDocCount(), equalTo(1L));
 
         bucket = buckets.get(1);
         assertThat(bucket, notNullValue());
@@ -570,7 +570,7 @@ public class RangeTests extends ESIntegTestCase {
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo(6.0));
         assertThat(bucket.getFromAsString(), equalTo("3.0"));
         assertThat(bucket.getToAsString(), equalTo("6.0"));
-        assertThat(bucket.getDocCount(), equalTo(4l));
+        assertThat(bucket.getDocCount(), equalTo(4L));
 
         bucket = buckets.get(2);
         assertThat(bucket, notNullValue());
@@ -579,7 +579,7 @@ public class RangeTests extends ESIntegTestCase {
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo(Double.POSITIVE_INFINITY));
         assertThat(bucket.getFromAsString(), equalTo("6.0"));
         assertThat(bucket.getToAsString(), nullValue());
-        assertThat(bucket.getDocCount(), equalTo(numDocs - 3l));
+        assertThat(bucket.getDocCount(), equalTo(numDocs - 3L));
     }
 
     /*
@@ -622,7 +622,7 @@ public class RangeTests extends ESIntegTestCase {
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo(3.0));
         assertThat(bucket.getFromAsString(), nullValue());
         assertThat(bucket.getToAsString(), equalTo("3.0"));
-        assertThat(bucket.getDocCount(), equalTo(1l));
+        assertThat(bucket.getDocCount(), equalTo(1L));
         Sum sum = bucket.getAggregations().get("sum");
         assertThat(sum, notNullValue());
         assertThat(sum.getName(), equalTo("sum"));
@@ -635,7 +635,7 @@ public class RangeTests extends ESIntegTestCase {
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo(6.0));
         assertThat(bucket.getFromAsString(), equalTo("3.0"));
         assertThat(bucket.getToAsString(), equalTo("6.0"));
-        assertThat(bucket.getDocCount(), equalTo(4l));
+        assertThat(bucket.getDocCount(), equalTo(4L));
         sum = bucket.getAggregations().get("sum");
         assertThat(sum, notNullValue());
         assertThat(sum.getName(), equalTo("sum"));
@@ -682,7 +682,7 @@ public class RangeTests extends ESIntegTestCase {
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo(3.0));
         assertThat(bucket.getFromAsString(), nullValue());
         assertThat(bucket.getToAsString(), equalTo("3.0"));
-        assertThat(bucket.getDocCount(), equalTo(2l));
+        assertThat(bucket.getDocCount(), equalTo(2L));
 
         bucket = buckets.get(1);
         assertThat(bucket, notNullValue());
@@ -691,7 +691,7 @@ public class RangeTests extends ESIntegTestCase {
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo(6.0));
         assertThat(bucket.getFromAsString(), equalTo("3.0"));
         assertThat(bucket.getToAsString(), equalTo("6.0"));
-        assertThat(bucket.getDocCount(), equalTo(3l));
+        assertThat(bucket.getDocCount(), equalTo(3L));
 
         bucket = buckets.get(2);
         assertThat(bucket, notNullValue());
@@ -700,7 +700,7 @@ public class RangeTests extends ESIntegTestCase {
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo(Double.POSITIVE_INFINITY));
         assertThat(bucket.getFromAsString(), equalTo("6.0"));
         assertThat(bucket.getToAsString(), nullValue());
-        assertThat(bucket.getDocCount(), equalTo(numDocs - 5l));
+        assertThat(bucket.getDocCount(), equalTo(numDocs - 5L));
     }
 
     public void testScriptSingleValueWithSubAggregatorInherited() throws Exception {
@@ -726,7 +726,7 @@ public class RangeTests extends ESIntegTestCase {
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo(3.0));
         assertThat(bucket.getFromAsString(), nullValue());
         assertThat(bucket.getToAsString(), equalTo("3.0"));
-        assertThat(bucket.getDocCount(), equalTo(2l));
+        assertThat(bucket.getDocCount(), equalTo(2L));
         Avg avg = bucket.getAggregations().get("avg");
         assertThat(avg, notNullValue());
         assertThat(avg.getValue(), equalTo(1.5)); // (1 + 2) / 2
@@ -738,7 +738,7 @@ public class RangeTests extends ESIntegTestCase {
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo(6.0));
         assertThat(bucket.getFromAsString(), equalTo("3.0"));
         assertThat(bucket.getToAsString(), equalTo("6.0"));
-        assertThat(bucket.getDocCount(), equalTo(3l));
+        assertThat(bucket.getDocCount(), equalTo(3L));
         avg = bucket.getAggregations().get("avg");
         assertThat(avg, notNullValue());
         assertThat(avg.getValue(), equalTo(4.0)); // (3 + 4 + 5) / 3
@@ -750,7 +750,7 @@ public class RangeTests extends ESIntegTestCase {
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo(Double.POSITIVE_INFINITY));
         assertThat(bucket.getFromAsString(), equalTo("6.0"));
         assertThat(bucket.getToAsString(), nullValue());
-        assertThat(bucket.getDocCount(), equalTo(numDocs - 5l));
+        assertThat(bucket.getDocCount(), equalTo(numDocs - 5L));
         avg = bucket.getAggregations().get("avg");
         assertThat(avg, notNullValue());
         long total = 0;
@@ -784,7 +784,7 @@ public class RangeTests extends ESIntegTestCase {
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo(-1.0));
         assertThat(bucket.getFromAsString(), nullValue());
         assertThat(bucket.getToAsString(), equalTo("-1.0"));
-        assertThat(bucket.getDocCount(), equalTo(0l));
+        assertThat(bucket.getDocCount(), equalTo(0L));
 
         bucket = buckets.get(1);
         assertThat(bucket, notNullValue());
@@ -793,7 +793,7 @@ public class RangeTests extends ESIntegTestCase {
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo(Double.POSITIVE_INFINITY));
         assertThat(bucket.getFromAsString(), equalTo("1000.0"));
         assertThat(bucket.getToAsString(), nullValue());
-        assertThat(bucket.getDocCount(), equalTo(0l));
+        assertThat(bucket.getDocCount(), equalTo(0L));
     }
 
     public void testScriptMultiValued() throws Exception {
@@ -819,7 +819,7 @@ public class RangeTests extends ESIntegTestCase {
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo(3.0));
         assertThat(bucket.getFromAsString(), nullValue());
         assertThat(bucket.getToAsString(), equalTo("3.0"));
-        assertThat(bucket.getDocCount(), equalTo(2l));
+        assertThat(bucket.getDocCount(), equalTo(2L));
 
         bucket = buckets.get(1);
         assertThat(bucket, notNullValue());
@@ -828,7 +828,7 @@ public class RangeTests extends ESIntegTestCase {
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo(6.0));
         assertThat(bucket.getFromAsString(), equalTo("3.0"));
         assertThat(bucket.getToAsString(), equalTo("6.0"));
-        assertThat(bucket.getDocCount(), equalTo(4l));
+        assertThat(bucket.getDocCount(), equalTo(4L));
 
         bucket = buckets.get(2);
         assertThat(bucket, notNullValue());
@@ -837,7 +837,7 @@ public class RangeTests extends ESIntegTestCase {
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo(Double.POSITIVE_INFINITY));
         assertThat(bucket.getFromAsString(), equalTo("6.0"));
         assertThat(bucket.getToAsString(), nullValue());
-        assertThat(bucket.getDocCount(), equalTo(numDocs - 4l));
+        assertThat(bucket.getDocCount(), equalTo(numDocs - 4L));
     }
 
     /*
@@ -880,7 +880,7 @@ public class RangeTests extends ESIntegTestCase {
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo(3.0));
         assertThat(bucket.getFromAsString(), nullValue());
         assertThat(bucket.getToAsString(), equalTo("3.0"));
-        assertThat(bucket.getDocCount(), equalTo(2l));
+        assertThat(bucket.getDocCount(), equalTo(2L));
         Sum sum = bucket.getAggregations().get("sum");
         assertThat(sum, notNullValue());
         assertThat(sum.getName(), equalTo("sum"));
@@ -893,7 +893,7 @@ public class RangeTests extends ESIntegTestCase {
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo(6.0));
         assertThat(bucket.getFromAsString(), equalTo("3.0"));
         assertThat(bucket.getToAsString(), equalTo("6.0"));
-        assertThat(bucket.getDocCount(), equalTo(4l));
+        assertThat(bucket.getDocCount(), equalTo(4L));
         sum = bucket.getAggregations().get("sum");
         assertThat(sum, notNullValue());
         assertThat(sum.getName(), equalTo("sum"));
@@ -906,7 +906,7 @@ public class RangeTests extends ESIntegTestCase {
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo(Double.POSITIVE_INFINITY));
         assertThat(bucket.getFromAsString(), equalTo("6.0"));
         assertThat(bucket.getToAsString(), nullValue());
-        assertThat(bucket.getDocCount(), equalTo(numDocs - 4l));
+        assertThat(bucket.getDocCount(), equalTo(numDocs - 4L));
         sum = bucket.getAggregations().get("sum");
         assertThat(sum, notNullValue());
         assertThat(sum.getName(), equalTo("sum"));
@@ -942,7 +942,7 @@ public class RangeTests extends ESIntegTestCase {
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo(3.0));
         assertThat(bucket.getFromAsString(), nullValue());
         assertThat(bucket.getToAsString(), equalTo("3.0"));
-        assertThat(bucket.getDocCount(), equalTo(0l));
+        assertThat(bucket.getDocCount(), equalTo(0L));
 
         bucket = buckets.get(1);
         assertThat(bucket, notNullValue());
@@ -951,7 +951,7 @@ public class RangeTests extends ESIntegTestCase {
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo(6.0));
         assertThat(bucket.getFromAsString(), equalTo("3.0"));
         assertThat(bucket.getToAsString(), equalTo("6.0"));
-        assertThat(bucket.getDocCount(), equalTo(0l));
+        assertThat(bucket.getDocCount(), equalTo(0L));
 
         bucket = buckets.get(2);
         assertThat(bucket, notNullValue());
@@ -960,7 +960,7 @@ public class RangeTests extends ESIntegTestCase {
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo(Double.POSITIVE_INFINITY));
         assertThat(bucket.getFromAsString(), equalTo("6.0"));
         assertThat(bucket.getToAsString(), nullValue());
-        assertThat(bucket.getDocCount(), equalTo(0l));
+        assertThat(bucket.getDocCount(), equalTo(0L));
     }
 
     public void testPartiallyUnmapped() throws Exception {
@@ -990,7 +990,7 @@ public class RangeTests extends ESIntegTestCase {
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo(3.0));
         assertThat(bucket.getFromAsString(), nullValue());
         assertThat(bucket.getToAsString(), equalTo("3.0"));
-        assertThat(bucket.getDocCount(), equalTo(2l));
+        assertThat(bucket.getDocCount(), equalTo(2L));
 
         bucket = buckets.get(1);
         assertThat(bucket, notNullValue());
@@ -999,7 +999,7 @@ public class RangeTests extends ESIntegTestCase {
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo(6.0));
         assertThat(bucket.getFromAsString(), equalTo("3.0"));
         assertThat(bucket.getToAsString(), equalTo("6.0"));
-        assertThat(bucket.getDocCount(), equalTo(3l));
+        assertThat(bucket.getDocCount(), equalTo(3L));
 
         bucket = buckets.get(2);
         assertThat(bucket, notNullValue());
@@ -1008,7 +1008,7 @@ public class RangeTests extends ESIntegTestCase {
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo(Double.POSITIVE_INFINITY));
         assertThat(bucket.getFromAsString(), equalTo("6.0"));
         assertThat(bucket.getToAsString(), nullValue());
-        assertThat(bucket.getDocCount(), equalTo(numDocs - 5l));
+        assertThat(bucket.getDocCount(), equalTo(numDocs - 5L));
     }
 
     public void testOverlappingRanges() throws Exception {
@@ -1037,7 +1037,7 @@ public class RangeTests extends ESIntegTestCase {
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo(5.0));
         assertThat(bucket.getFromAsString(), nullValue());
         assertThat(bucket.getToAsString(), equalTo("5.0"));
-        assertThat(bucket.getDocCount(), equalTo(4l));
+        assertThat(bucket.getDocCount(), equalTo(4L));
 
         bucket = buckets.get(1);
         assertThat(bucket, notNullValue());
@@ -1046,7 +1046,7 @@ public class RangeTests extends ESIntegTestCase {
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo(6.0));
         assertThat(bucket.getFromAsString(), equalTo("3.0"));
         assertThat(bucket.getToAsString(), equalTo("6.0"));
-        assertThat(bucket.getDocCount(), equalTo(4l));
+        assertThat(bucket.getDocCount(), equalTo(4L));
 
         bucket = buckets.get(2);
         assertThat(bucket, notNullValue());
@@ -1055,7 +1055,7 @@ public class RangeTests extends ESIntegTestCase {
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo(5.0));
         assertThat(bucket.getFromAsString(), equalTo("4.0"));
         assertThat(bucket.getToAsString(), equalTo("5.0"));
-        assertThat(bucket.getDocCount(), equalTo(2l));
+        assertThat(bucket.getDocCount(), equalTo(2L));
 
         bucket = buckets.get(3);
         assertThat(bucket, notNullValue());
@@ -1064,17 +1064,17 @@ public class RangeTests extends ESIntegTestCase {
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo(Double.POSITIVE_INFINITY));
         assertThat(bucket.getFromAsString(), equalTo("4.0"));
         assertThat(bucket.getToAsString(), nullValue());
-        assertThat(bucket.getDocCount(), equalTo(numDocs - 2l));
+        assertThat(bucket.getDocCount(), equalTo(numDocs - 2L));
     }
 
     public void testEmptyAggregation() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(1l).minDocCount(0)
+                .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(1L).minDocCount(0)
                         .subAggregation(range("range").addRange("0-2", 0.0, 2.0)))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2l));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
         Histogram histo = searchResponse.getAggregations().get("histo");
         assertThat(histo, Matchers.notNullValue());
         Histogram.Bucket bucket = histo.getBuckets().get(1);
@@ -1091,7 +1091,7 @@ public class RangeTests extends ESIntegTestCase {
         assertThat(((Number) buckets.get(0).getTo()).doubleValue(), equalTo(2.0));
         assertThat(buckets.get(0).getFromAsString(), equalTo("0.0"));
         assertThat(buckets.get(0).getToAsString(), equalTo("2.0"));
-        assertThat(buckets.get(0).getDocCount(), equalTo(0l));
+        assertThat(buckets.get(0).getDocCount(), equalTo(0L));
 
     }
 }

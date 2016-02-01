@@ -212,7 +212,7 @@ public class NestedIT extends ESIntegTestCase {
         Nested nested = searchResponse.getAggregations().get("nested");
         assertThat(nested, Matchers.notNullValue());
         assertThat(nested.getName(), equalTo("nested"));
-        assertThat(nested.getDocCount(), is(0l));
+        assertThat(nested.getDocCount(), is(0L));
     }
 
     public void testNestedWithSubTermsAgg() throws Exception {
@@ -308,23 +308,23 @@ public class NestedIT extends ESIntegTestCase {
         Nested level1 = response.getAggregations().get("level1");
         assertThat(level1, notNullValue());
         assertThat(level1.getName(), equalTo("level1"));
-        assertThat(level1.getDocCount(), equalTo(2l));
+        assertThat(level1.getDocCount(), equalTo(2L));
 
         StringTerms a = level1.getAggregations().get("a");
         Terms.Bucket bBucket = a.getBucketByKey("a");
-        assertThat(bBucket.getDocCount(), equalTo(1l));
+        assertThat(bBucket.getDocCount(), equalTo(1L));
 
         Nested level2 = bBucket.getAggregations().get("level2");
-        assertThat(level2.getDocCount(), equalTo(1l));
+        assertThat(level2.getDocCount(), equalTo(1L));
         Sum sum = level2.getAggregations().get("sum");
         assertThat(sum.getValue(), equalTo(2d));
 
         a = level1.getAggregations().get("a");
         bBucket = a.getBucketByKey("b");
-        assertThat(bBucket.getDocCount(), equalTo(1l));
+        assertThat(bBucket.getDocCount(), equalTo(1L));
 
         level2 = bBucket.getAggregations().get("level2");
-        assertThat(level2.getDocCount(), equalTo(1l));
+        assertThat(level2.getDocCount(), equalTo(1L));
         sum = level2.getAggregations().get("sum");
         assertThat(sum.getValue(), equalTo(2d));
     }
@@ -332,11 +332,11 @@ public class NestedIT extends ESIntegTestCase {
     public void testEmptyAggregation() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(histogram("histo").field("value").interval(1l).minDocCount(0)
+                .addAggregation(histogram("histo").field("value").interval(1L).minDocCount(0)
                         .subAggregation(nested("nested", "nested")))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2l));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
         Histogram histo = searchResponse.getAggregations().get("histo");
         assertThat(histo, Matchers.notNullValue());
         Histogram.Bucket bucket = histo.getBuckets().get(1);
@@ -345,7 +345,7 @@ public class NestedIT extends ESIntegTestCase {
         Nested nested = bucket.getAggregations().get("nested");
         assertThat(nested, Matchers.notNullValue());
         assertThat(nested.getName(), equalTo("nested"));
-        assertThat(nested.getDocCount(), is(0l));
+        assertThat(nested.getDocCount(), is(0L));
     }
 
     public void testNestedOnObjectField() throws Exception {
@@ -425,36 +425,36 @@ public class NestedIT extends ESIntegTestCase {
         Terms startDate = response.getAggregations().get("startDate");
         assertThat(startDate.getBuckets().size(), equalTo(2));
         Terms.Bucket bucket = startDate.getBucketByKey("2014-11-01T00:00:00.000Z");
-        assertThat(bucket.getDocCount(), equalTo(1l));
+        assertThat(bucket.getDocCount(), equalTo(1L));
         Terms endDate = bucket.getAggregations().get("endDate");
         bucket = endDate.getBucketByKey("2014-11-30T00:00:00.000Z");
-        assertThat(bucket.getDocCount(), equalTo(1l));
+        assertThat(bucket.getDocCount(), equalTo(1L));
         Terms period = bucket.getAggregations().get("period");
         bucket = period.getBucketByKey("2014-11");
-        assertThat(bucket.getDocCount(), equalTo(1l));
+        assertThat(bucket.getDocCount(), equalTo(1L));
         Nested comments = bucket.getAggregations().get("ctxt_idfier_nested");
-        assertThat(comments.getDocCount(), equalTo(2l));
+        assertThat(comments.getDocCount(), equalTo(2L));
         Filter filter = comments.getAggregations().get("comment_filter");
-        assertThat(filter.getDocCount(), equalTo(1l));
+        assertThat(filter.getDocCount(), equalTo(1L));
         Nested nestedTags = filter.getAggregations().get("nested_tags");
-        assertThat(nestedTags.getDocCount(), equalTo(0l)); // This must be 0
+        assertThat(nestedTags.getDocCount(), equalTo(0L)); // This must be 0
         Terms tags = nestedTags.getAggregations().get("tag");
         assertThat(tags.getBuckets().size(), equalTo(0)); // and this must be empty
 
         bucket = startDate.getBucketByKey("2014-12-01T00:00:00.000Z");
-        assertThat(bucket.getDocCount(), equalTo(1l));
+        assertThat(bucket.getDocCount(), equalTo(1L));
         endDate = bucket.getAggregations().get("endDate");
         bucket = endDate.getBucketByKey("2014-12-31T00:00:00.000Z");
-        assertThat(bucket.getDocCount(), equalTo(1l));
+        assertThat(bucket.getDocCount(), equalTo(1L));
         period = bucket.getAggregations().get("period");
         bucket = period.getBucketByKey("2014-12");
-        assertThat(bucket.getDocCount(), equalTo(1l));
+        assertThat(bucket.getDocCount(), equalTo(1L));
         comments = bucket.getAggregations().get("ctxt_idfier_nested");
-        assertThat(comments.getDocCount(), equalTo(2l));
+        assertThat(comments.getDocCount(), equalTo(2L));
         filter = comments.getAggregations().get("comment_filter");
-        assertThat(filter.getDocCount(), equalTo(1l));
+        assertThat(filter.getDocCount(), equalTo(1L));
         nestedTags = filter.getAggregations().get("nested_tags");
-        assertThat(nestedTags.getDocCount(), equalTo(0l)); // This must be 0
+        assertThat(nestedTags.getDocCount(), equalTo(0L)); // This must be 0
         tags = nestedTags.getAggregations().get("tag");
         assertThat(tags.getBuckets().size(), equalTo(0)); // and this must be empty
     }
@@ -501,47 +501,47 @@ public class NestedIT extends ESIntegTestCase {
         assertThat(category.getBuckets().size(), equalTo(4));
 
         Terms.Bucket bucket = category.getBucketByKey("1");
-        assertThat(bucket.getDocCount(), equalTo(2l));
+        assertThat(bucket.getDocCount(), equalTo(2L));
         Nested property = bucket.getAggregations().get("property");
-        assertThat(property.getDocCount(), equalTo(6l));
+        assertThat(property.getDocCount(), equalTo(6L));
         Terms propertyId = property.getAggregations().get("property_id");
         assertThat(propertyId.getBuckets().size(), equalTo(5));
-        assertThat(propertyId.getBucketByKey("1").getDocCount(), equalTo(2l));
-        assertThat(propertyId.getBucketByKey("2").getDocCount(), equalTo(1l));
-        assertThat(propertyId.getBucketByKey("3").getDocCount(), equalTo(1l));
-        assertThat(propertyId.getBucketByKey("4").getDocCount(), equalTo(1l));
-        assertThat(propertyId.getBucketByKey("5").getDocCount(), equalTo(1l));
+        assertThat(propertyId.getBucketByKey("1").getDocCount(), equalTo(2L));
+        assertThat(propertyId.getBucketByKey("2").getDocCount(), equalTo(1L));
+        assertThat(propertyId.getBucketByKey("3").getDocCount(), equalTo(1L));
+        assertThat(propertyId.getBucketByKey("4").getDocCount(), equalTo(1L));
+        assertThat(propertyId.getBucketByKey("5").getDocCount(), equalTo(1L));
 
         bucket = category.getBucketByKey("2");
-        assertThat(bucket.getDocCount(), equalTo(2l));
+        assertThat(bucket.getDocCount(), equalTo(2L));
         property = bucket.getAggregations().get("property");
-        assertThat(property.getDocCount(), equalTo(6l));
+        assertThat(property.getDocCount(), equalTo(6L));
         propertyId = property.getAggregations().get("property_id");
         assertThat(propertyId.getBuckets().size(), equalTo(5));
-        assertThat(propertyId.getBucketByKey("1").getDocCount(), equalTo(2l));
-        assertThat(propertyId.getBucketByKey("2").getDocCount(), equalTo(1l));
-        assertThat(propertyId.getBucketByKey("3").getDocCount(), equalTo(1l));
-        assertThat(propertyId.getBucketByKey("4").getDocCount(), equalTo(1l));
-        assertThat(propertyId.getBucketByKey("5").getDocCount(), equalTo(1l));
+        assertThat(propertyId.getBucketByKey("1").getDocCount(), equalTo(2L));
+        assertThat(propertyId.getBucketByKey("2").getDocCount(), equalTo(1L));
+        assertThat(propertyId.getBucketByKey("3").getDocCount(), equalTo(1L));
+        assertThat(propertyId.getBucketByKey("4").getDocCount(), equalTo(1L));
+        assertThat(propertyId.getBucketByKey("5").getDocCount(), equalTo(1L));
 
         bucket = category.getBucketByKey("3");
-        assertThat(bucket.getDocCount(), equalTo(1l));
+        assertThat(bucket.getDocCount(), equalTo(1L));
         property = bucket.getAggregations().get("property");
-        assertThat(property.getDocCount(), equalTo(3l));
+        assertThat(property.getDocCount(), equalTo(3L));
         propertyId = property.getAggregations().get("property_id");
         assertThat(propertyId.getBuckets().size(), equalTo(3));
-        assertThat(propertyId.getBucketByKey("1").getDocCount(), equalTo(1l));
-        assertThat(propertyId.getBucketByKey("2").getDocCount(), equalTo(1l));
-        assertThat(propertyId.getBucketByKey("3").getDocCount(), equalTo(1l));
+        assertThat(propertyId.getBucketByKey("1").getDocCount(), equalTo(1L));
+        assertThat(propertyId.getBucketByKey("2").getDocCount(), equalTo(1L));
+        assertThat(propertyId.getBucketByKey("3").getDocCount(), equalTo(1L));
 
         bucket = category.getBucketByKey("4");
-        assertThat(bucket.getDocCount(), equalTo(1l));
+        assertThat(bucket.getDocCount(), equalTo(1L));
         property = bucket.getAggregations().get("property");
-        assertThat(property.getDocCount(), equalTo(3l));
+        assertThat(property.getDocCount(), equalTo(3L));
         propertyId = property.getAggregations().get("property_id");
         assertThat(propertyId.getBuckets().size(), equalTo(3));
-        assertThat(propertyId.getBucketByKey("1").getDocCount(), equalTo(1l));
-        assertThat(propertyId.getBucketByKey("2").getDocCount(), equalTo(1l));
-        assertThat(propertyId.getBucketByKey("3").getDocCount(), equalTo(1l));
+        assertThat(propertyId.getBucketByKey("1").getDocCount(), equalTo(1L));
+        assertThat(propertyId.getBucketByKey("2").getDocCount(), equalTo(1L));
+        assertThat(propertyId.getBucketByKey("3").getDocCount(), equalTo(1L));
     }
 }

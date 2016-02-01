@@ -78,8 +78,8 @@ public class RenameProcessor extends AbstractProcessor {
     public static class Factory extends AbstractProcessorFactory<RenameProcessor> {
         @Override
         public RenameProcessor doCreate(String processorTag, Map<String, Object> config) throws Exception {
-            String field = ConfigurationUtils.readStringProperty(config, "field");
-            String newField = ConfigurationUtils.readStringProperty(config, "to");
+            String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
+            String newField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "to");
             return new RenameProcessor(processorTag, field, newField);
         }
     }

@@ -137,8 +137,8 @@ public class ConvertProcessor extends AbstractProcessor {
     public static class Factory extends AbstractProcessorFactory<ConvertProcessor> {
         @Override
         public ConvertProcessor doCreate(String processorTag, Map<String, Object> config) throws Exception {
-            String field = ConfigurationUtils.readStringProperty(config, "field");
-            Type convertType = Type.fromString(ConfigurationUtils.readStringProperty(config, "type"));
+            String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
+            Type convertType = Type.fromString(ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "type"));
             return new ConvertProcessor(processorTag, field, convertType);
         }
     }

@@ -80,9 +80,9 @@ public class StoredNumericValuesTests extends ESSingleNodeTestCase {
         Document doc2 = new Document();
         doc2.add(new StoredField("field1", new BytesRef(Numbers.intToBytes(1))));
         doc2.add(new StoredField("field2", new BytesRef(Numbers.floatToBytes(1.1f))));
-        doc2.add(new StoredField("field3", new BytesRef(Numbers.longToBytes(1l))));
-        doc2.add(new StoredField("field3", new BytesRef(Numbers.longToBytes(2l))));
-        doc2.add(new StoredField("field3", new BytesRef(Numbers.longToBytes(3l))));
+        doc2.add(new StoredField("field3", new BytesRef(Numbers.longToBytes(1L))));
+        doc2.add(new StoredField("field3", new BytesRef(Numbers.longToBytes(2L))));
+        doc2.add(new StoredField("field3", new BytesRef(Numbers.longToBytes(3L))));
         writer.addDocument(doc2);
 
         DirectoryReader reader = DirectoryReader.open(writer, true);
@@ -98,9 +98,9 @@ public class StoredNumericValuesTests extends ESSingleNodeTestCase {
         assertThat(fieldsVisitor.fields().get("field2").size(), equalTo(1));
         assertThat((Float) fieldsVisitor.fields().get("field2").get(0), equalTo(1.1f));
         assertThat(fieldsVisitor.fields().get("field3").size(), equalTo(3));
-        assertThat((Long) fieldsVisitor.fields().get("field3").get(0), equalTo(1l));
-        assertThat((Long) fieldsVisitor.fields().get("field3").get(1), equalTo(2l));
-        assertThat((Long) fieldsVisitor.fields().get("field3").get(2), equalTo(3l));
+        assertThat((Long) fieldsVisitor.fields().get("field3").get(0), equalTo(1L));
+        assertThat((Long) fieldsVisitor.fields().get("field3").get(1), equalTo(2L));
+        assertThat((Long) fieldsVisitor.fields().get("field3").get(2), equalTo(3L));
 
         // Make sure the doc gets loaded as if it was stored in the new way
         fieldsVisitor.reset();
@@ -112,9 +112,9 @@ public class StoredNumericValuesTests extends ESSingleNodeTestCase {
         assertThat(fieldsVisitor.fields().get("field2").size(), equalTo(1));
         assertThat((Float) fieldsVisitor.fields().get("field2").get(0), equalTo(1.1f));
         assertThat(fieldsVisitor.fields().get("field3").size(), equalTo(3));
-        assertThat((Long) fieldsVisitor.fields().get("field3").get(0), equalTo(1l));
-        assertThat((Long) fieldsVisitor.fields().get("field3").get(1), equalTo(2l));
-        assertThat((Long) fieldsVisitor.fields().get("field3").get(2), equalTo(3l));
+        assertThat((Long) fieldsVisitor.fields().get("field3").get(0), equalTo(1L));
+        assertThat((Long) fieldsVisitor.fields().get("field3").get(1), equalTo(2L));
+        assertThat((Long) fieldsVisitor.fields().get("field3").get(2), equalTo(3L));
 
         reader.close();
         writer.close();

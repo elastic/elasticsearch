@@ -112,11 +112,11 @@ public final class DateProcessor extends AbstractProcessor {
 
         @SuppressWarnings("unchecked")
         public DateProcessor doCreate(String processorTag, Map<String, Object> config) throws Exception {
-            String matchField = ConfigurationUtils.readStringProperty(config, "match_field");
-            String targetField = ConfigurationUtils.readStringProperty(config, "target_field", DEFAULT_TARGET_FIELD);
-            String timezoneString = ConfigurationUtils.readOptionalStringProperty(config, "timezone");
+            String matchField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "match_field");
+            String targetField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "target_field", DEFAULT_TARGET_FIELD);
+            String timezoneString = ConfigurationUtils.readOptionalStringProperty(TYPE, processorTag, config, "timezone");
             DateTimeZone timezone = timezoneString == null ? DateTimeZone.UTC : DateTimeZone.forID(timezoneString);
-            String localeString = ConfigurationUtils.readOptionalStringProperty(config, "locale");
+            String localeString = ConfigurationUtils.readOptionalStringProperty(TYPE, processorTag, config, "locale");
             Locale locale = Locale.ENGLISH;
             if (localeString != null) {
                 try {
@@ -125,7 +125,7 @@ public final class DateProcessor extends AbstractProcessor {
                     throw new IllegalArgumentException("Invalid language tag specified: " + localeString);
                 }
             }
-            List<String> matchFormats = ConfigurationUtils.readList(config, "match_formats");
+            List<String> matchFormats = ConfigurationUtils.readList(TYPE, processorTag, config, "match_formats");
             return new DateProcessor(processorTag, timezone, locale, matchField, matchFormats, targetField);
         }
     }

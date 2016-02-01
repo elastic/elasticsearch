@@ -49,6 +49,7 @@ public class NetworkService extends AbstractComponent {
             s -> s, false, Setting.Scope.CLUSTER);
     public static final Setting<List<String>> GLOBAL_NETWORK_PUBLISHHOST_SETTING = Setting.listSetting("network.publish_host", GLOBAL_NETWORK_HOST_SETTING,
             s -> s, false, Setting.Scope.CLUSTER);
+    public static final Setting<Boolean> NETWORK_SERVER = Setting.boolSetting("network.server", true, false, Setting.Scope.CLUSTER);
 
     public static final class TcpSettings {
         public static final Setting<Boolean> TCP_NO_DELAY = Setting.boolSetting("network.tcp.no_delay", true, false, Setting.Scope.CLUSTER);
@@ -149,7 +150,7 @@ public class NetworkService extends AbstractComponent {
      */
     // TODO: needs to be InetAddress[]
     public InetAddress resolvePublishHostAddresses(String publishHosts[]) throws IOException {
-        if (publishHosts == null) {
+        if (publishHosts == null || publishHosts.length == 0) {
             if (GLOBAL_NETWORK_PUBLISHHOST_SETTING.exists(settings) || GLOBAL_NETWORK_HOST_SETTING.exists(settings)) {
                 // if we have settings use them (we have a fallback to GLOBAL_NETWORK_HOST_SETTING inline
                 publishHosts = GLOBAL_NETWORK_PUBLISHHOST_SETTING.get(settings).toArray(Strings.EMPTY_ARRAY);

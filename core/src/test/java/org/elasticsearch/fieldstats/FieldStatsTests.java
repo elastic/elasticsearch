@@ -66,9 +66,9 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
     }
 
     public void testLong() {
-        testNumberRange("field1", "long", 312321312312412l, 312321312312422l);
+        testNumberRange("field1", "long", 312321312312412L, 312321312312422L);
         testNumberRange("field1", "long", -5, 5);
-        testNumberRange("field1", "long", -312321312312422l, -312321312312412l);
+        testNumberRange("field1", "long", -312321312312422L, -312321312312412L);
     }
 
     public void testString() {
@@ -79,8 +79,8 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
         client().admin().indices().prepareRefresh().get();
 
         FieldStatsResponse result = client().prepareFieldStats().setFields("field").get();
-        assertThat(result.getAllFieldStats().get("field").getMaxDoc(), equalTo(11l));
-        assertThat(result.getAllFieldStats().get("field").getDocCount(), equalTo(11l));
+        assertThat(result.getAllFieldStats().get("field").getMaxDoc(), equalTo(11L));
+        assertThat(result.getAllFieldStats().get("field").getDocCount(), equalTo(11L));
         assertThat(result.getAllFieldStats().get("field").getDensity(), equalTo(100));
         assertThat(result.getAllFieldStats().get("field").getMinValue(), equalTo(new BytesRef(String.format(Locale.ENGLISH, "%03d", 0))));
         assertThat(result.getAllFieldStats().get("field").getMaxValue(), equalTo(new BytesRef(String.format(Locale.ENGLISH, "%03d", 10))));
@@ -97,8 +97,8 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
         client().admin().indices().prepareRefresh().get();
 
         FieldStatsResponse result = client().prepareFieldStats().setFields(fieldName).get();
-        assertThat(result.getAllFieldStats().get(fieldName).getMaxDoc(), equalTo(11l));
-        assertThat(result.getAllFieldStats().get(fieldName).getDocCount(), equalTo(11l));
+        assertThat(result.getAllFieldStats().get(fieldName).getMaxDoc(), equalTo(11L));
+        assertThat(result.getAllFieldStats().get(fieldName).getDocCount(), equalTo(11L));
         assertThat(result.getAllFieldStats().get(fieldName).getDensity(), equalTo(100));
         assertThat(result.getAllFieldStats().get(fieldName).getMinValue(), equalTo(-1d));
         assertThat(result.getAllFieldStats().get(fieldName).getMaxValue(), equalTo(9d));
@@ -114,8 +114,8 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
         client().admin().indices().prepareRefresh().get();
 
         FieldStatsResponse result = client().prepareFieldStats().setFields(fieldName).get();
-        assertThat(result.getAllFieldStats().get(fieldName).getMaxDoc(), equalTo(11l));
-        assertThat(result.getAllFieldStats().get(fieldName).getDocCount(), equalTo(11l));
+        assertThat(result.getAllFieldStats().get(fieldName).getMaxDoc(), equalTo(11L));
+        assertThat(result.getAllFieldStats().get(fieldName).getDocCount(), equalTo(11L));
         assertThat(result.getAllFieldStats().get(fieldName).getDensity(), equalTo(100));
         assertThat(result.getAllFieldStats().get(fieldName).getMinValue(), equalTo(-1f));
         assertThat(result.getAllFieldStats().get(fieldName).getMaxValue(), equalTo(9f));
@@ -144,44 +144,44 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
 
     public void testMerge() {
         List<FieldStats> stats = new ArrayList<>();
-        stats.add(new FieldStats.Long(1, 1l, 1l, 1l, 1l, 1l));
-        stats.add(new FieldStats.Long(1, 1l, 1l, 1l, 1l, 1l));
-        stats.add(new FieldStats.Long(1, 1l, 1l, 1l, 1l, 1l));
+        stats.add(new FieldStats.Long(1, 1L, 1L, 1L, 1L, 1L));
+        stats.add(new FieldStats.Long(1, 1L, 1L, 1L, 1L, 1L));
+        stats.add(new FieldStats.Long(1, 1L, 1L, 1L, 1L, 1L));
 
-        FieldStats stat = new FieldStats.Long(1, 1l, 1l, 1l, 1l, 1l);
+        FieldStats stat = new FieldStats.Long(1, 1L, 1L, 1L, 1L, 1L);
         for (FieldStats otherStat : stats) {
             stat.append(otherStat);
         }
-        assertThat(stat.getMaxDoc(), equalTo(4l));
-        assertThat(stat.getDocCount(), equalTo(4l));
-        assertThat(stat.getSumDocFreq(), equalTo(4l));
-        assertThat(stat.getSumTotalTermFreq(), equalTo(4l));
+        assertThat(stat.getMaxDoc(), equalTo(4L));
+        assertThat(stat.getDocCount(), equalTo(4L));
+        assertThat(stat.getSumDocFreq(), equalTo(4L));
+        assertThat(stat.getSumTotalTermFreq(), equalTo(4L));
     }
 
     public void testMerge_notAvailable() {
         List<FieldStats> stats = new ArrayList<>();
-        stats.add(new FieldStats.Long(1, 1l, 1l, 1l, 1l, 1l));
-        stats.add(new FieldStats.Long(1, 1l, 1l, 1l, 1l, 1l));
-        stats.add(new FieldStats.Long(1, 1l, 1l, 1l, 1l, 1l));
+        stats.add(new FieldStats.Long(1, 1L, 1L, 1L, 1L, 1L));
+        stats.add(new FieldStats.Long(1, 1L, 1L, 1L, 1L, 1L));
+        stats.add(new FieldStats.Long(1, 1L, 1L, 1L, 1L, 1L));
 
-        FieldStats stat = new FieldStats.Long(1, -1l, -1l, -1l, 1l, 1l);
+        FieldStats stat = new FieldStats.Long(1, -1L, -1L, -1L, 1L, 1L);
         for (FieldStats otherStat : stats) {
             stat.append(otherStat);
         }
-        assertThat(stat.getMaxDoc(), equalTo(4l));
-        assertThat(stat.getDocCount(), equalTo(-1l));
-        assertThat(stat.getSumDocFreq(), equalTo(-1l));
-        assertThat(stat.getSumTotalTermFreq(), equalTo(-1l));
+        assertThat(stat.getMaxDoc(), equalTo(4L));
+        assertThat(stat.getDocCount(), equalTo(-1L));
+        assertThat(stat.getSumDocFreq(), equalTo(-1L));
+        assertThat(stat.getSumTotalTermFreq(), equalTo(-1L));
 
-        stats.add(new FieldStats.Long(1, -1l, -1l, -1l, 1l, 1l));
+        stats.add(new FieldStats.Long(1, -1L, -1L, -1L, 1L, 1L));
         stat = stats.remove(0);
         for (FieldStats otherStat : stats) {
             stat.append(otherStat);
         }
-        assertThat(stat.getMaxDoc(), equalTo(4l));
-        assertThat(stat.getDocCount(), equalTo(-1l));
-        assertThat(stat.getSumDocFreq(), equalTo(-1l));
-        assertThat(stat.getSumTotalTermFreq(), equalTo(-1l));
+        assertThat(stat.getMaxDoc(), equalTo(4L));
+        assertThat(stat.getDocCount(), equalTo(-1L));
+        assertThat(stat.getSumDocFreq(), equalTo(-1L));
+        assertThat(stat.getSumTotalTermFreq(), equalTo(-1L));
     }
 
     public void testInvalidField() {
@@ -213,9 +213,9 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
 
     public void testNumberFiltering() {
         createIndex("test1", Settings.EMPTY, "type", "value", "type=long");
-        client().prepareIndex("test1", "test").setSource("value", 1l).get();
+        client().prepareIndex("test1", "test").setSource("value", 1L).get();
         createIndex("test2", Settings.EMPTY, "type", "value", "type=long");
-        client().prepareIndex("test2", "test").setSource("value", 3l).get();
+        client().prepareIndex("test2", "test").setSource("value", 3L).get();
         client().admin().indices().prepareRefresh().get();
 
         FieldStatsResponse response = client().prepareFieldStats()
@@ -223,8 +223,8 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
                 .setLevel("indices")
                 .get();
         assertThat(response.getIndicesMergedFieldStats().size(), equalTo(2));
-        assertThat(response.getIndicesMergedFieldStats().get("test1").get("value").getMinValue(), equalTo(1l));
-        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValue(), equalTo(3l));
+        assertThat(response.getIndicesMergedFieldStats().get("test1").get("value").getMinValue(), equalTo(1L));
+        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValue(), equalTo(3L));
 
         response = client().prepareFieldStats()
                 .setFields("value")
@@ -246,7 +246,7 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
                 .setLevel("indices")
                 .get();
         assertThat(response.getIndicesMergedFieldStats().size(), equalTo(1));
-        assertThat(response.getIndicesMergedFieldStats().get("test1").get("value").getMinValue(), equalTo(1l));
+        assertThat(response.getIndicesMergedFieldStats().get("test1").get("value").getMinValue(), equalTo(1L));
 
         response = client().prepareFieldStats()
                 .setFields("value")
@@ -254,7 +254,7 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
                 .setLevel("indices")
                 .get();
         assertThat(response.getIndicesMergedFieldStats().size(), equalTo(1));
-        assertThat(response.getIndicesMergedFieldStats().get("test1").get("value").getMinValue(), equalTo(1l));
+        assertThat(response.getIndicesMergedFieldStats().get("test1").get("value").getMinValue(), equalTo(1L));
 
         response = client().prepareFieldStats()
                 .setFields("value")
@@ -269,7 +269,7 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
                 .setLevel("indices")
                 .get();
         assertThat(response.getIndicesMergedFieldStats().size(), equalTo(1));
-        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValue(), equalTo(3l));
+        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValue(), equalTo(3L));
 
         response = client().prepareFieldStats()
                 .setFields("value")
@@ -277,7 +277,7 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
                 .setLevel("indices")
                 .get();
         assertThat(response.getIndicesMergedFieldStats().size(), equalTo(1));
-        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValue(), equalTo(3l));
+        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValue(), equalTo(3L));
 
         response = client().prepareFieldStats()
                 .setFields("value")
@@ -292,8 +292,8 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
                 .setLevel("indices")
                 .get();
         assertThat(response.getIndicesMergedFieldStats().size(), equalTo(2));
-        assertThat(response.getIndicesMergedFieldStats().get("test1").get("value").getMinValue(), equalTo(1l));
-        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValue(), equalTo(3l));
+        assertThat(response.getIndicesMergedFieldStats().get("test1").get("value").getMinValue(), equalTo(1L));
+        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValue(), equalTo(3L));
 
         response = client().prepareFieldStats()
                 .setFields("value")

@@ -23,6 +23,8 @@ package org.elasticsearch.tasks;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TaskInfo;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.Provider;
+import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.common.xcontent.ToXContent;
 
 /**
  * Current task information
@@ -57,9 +59,24 @@ public class Task {
         this.parentId = parentId;
     }
 
-
+    /**
+     * Build a version of the task status you can throw over the wire and back
+     * to the user.
+     *
+     * @param node
+     *            the node this task is running on
+     * @param detailed
+     *            should the information include detailed, potentially slow to
+     *            generate data?
+     */
     public TaskInfo taskInfo(DiscoveryNode node, boolean detailed) {
-        return new TaskInfo(node, getId(), getType(), getAction(), detailed ? getDescription() : null, parentNode, parentId);
+        String description = null;
+        Task.Status status = null;
+        if (detailed) {
+            description = getDescription();
+            status = getStatus();
+        }
+        return new TaskInfo(node, getId(), getType(), getAction(), description, status, parentNode, parentId);
     }
 
     /**
@@ -104,4 +121,15 @@ public class Task {
         return parentId;
     }
 
+    /**
+     * Build a status for this task or null if this task doesn't have status.
+     * Since most tasks don't have status this defaults to returning null. While
+     * this can never perform IO it might be a costly operation, requiring
+     * collating lists of results, etc. So only use it if you need the value.
+     */
+    public Status getStatus() {
+        return null;
+    }
+
+    public interface Status extends ToXContent, NamedWriteable<Status> {}
 }

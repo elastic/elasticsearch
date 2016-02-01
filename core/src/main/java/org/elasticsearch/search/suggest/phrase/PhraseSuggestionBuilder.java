@@ -27,6 +27,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -216,6 +217,13 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
         return this;
     }
 
+    /**
+     * Gets the {@link SmoothingModel}
+     */
+    public SmoothingModel smoothingModel() {
+        return this.model;
+    }
+
     public PhraseSuggestionBuilder tokenLimit(int tokenLimit) {
         this.tokenLimit = tokenLimit;
         return this;
@@ -391,8 +399,8 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
          * Default discount parameter for {@link StupidBackoff} smoothing
          */
         public static final double DEFAULT_BACKOFF_DISCOUNT = 0.4;
-        private double discount = DEFAULT_BACKOFF_DISCOUNT;
         static final StupidBackoff PROTOTYPE = new StupidBackoff(DEFAULT_BACKOFF_DISCOUNT);
+        private double discount = DEFAULT_BACKOFF_DISCOUNT;
         private static final String NAME = "stupid_backoff";
         private static final ParseField DISCOUNT_FIELD = new ParseField("discount");
 
@@ -743,7 +751,11 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
         out.writeOptionalFloat(realWordErrorLikelihood);
         out.writeOptionalFloat(confidence);
         out.writeOptionalVInt(gramSize);
-        // NORELEASE model.writeTo();
+        boolean hasModel = model != null;
+        out.writeBoolean(hasModel);
+        if (hasModel) {
+            out.writePhraseSuggestionSmoothingModel(model);
+        }
         out.writeOptionalBoolean(forceUnigrams);
         out.writeOptionalVInt(tokenLimit);
         out.writeOptionalString(preTag);
@@ -757,7 +769,15 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
         }
         out.writeMap(collateParams);
         out.writeOptionalBoolean(collatePrune);
-        // NORELEASE write Map<String, List<CandidateGenerator>> generators = new HashMap<>();
+        out.writeVInt(this.generators.size());
+        for (Entry<String, List<CandidateGenerator>> entry : this.generators.entrySet()) {
+            out.writeString(entry.getKey());
+            List<CandidateGenerator> generatorsList = entry.getValue();
+            out.writeVInt(generatorsList.size());
+            for (CandidateGenerator generator : generatorsList) {
+                generator.writeTo(out);
+            }
+        }
     }
 
     @Override
@@ -767,7 +787,9 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
         builder.realWordErrorLikelihood = in.readOptionalFloat();
         builder.confidence = in.readOptionalFloat();
         builder.gramSize = in.readOptionalVInt();
-        // NORELEASE read model
+        if (in.readBoolean()) {
+            builder.model = in.readPhraseSuggestionSmoothingModel();
+        }
         builder.forceUnigrams = in.readOptionalBoolean();
         builder.tokenLimit = in.readOptionalVInt();
         builder.preTag = in.readOptionalString();
@@ -778,7 +800,17 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
         }
         builder.collateParams = in.readMap();
         builder.collatePrune = in.readOptionalBoolean();
-        // NORELEASE read Map<String, List<CandidateGenerator>> generators;
+        int generatorsEntries = in.readVInt();
+        for (int i = 0; i < generatorsEntries; i++) {
+            String type = in.readString();
+            int numberOfGenerators = in.readVInt();
+            List<CandidateGenerator> generatorsList = new ArrayList<>(numberOfGenerators);
+            for (int g = 0; g < numberOfGenerators; g++) {
+                DirectCandidateGeneratorBuilder generator = DirectCandidateGeneratorBuilder.PROTOTYPE.readFrom(in);
+                generatorsList.add(generator);
+            }
+            builder.generators.put(type, generatorsList);
+        }
         return builder;
     }
 
@@ -788,9 +820,9 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
                 Objects.equals(separator, other.separator) &&
                 Objects.equals(realWordErrorLikelihood, other.realWordErrorLikelihood) &&
                 Objects.equals(confidence, other.confidence) &&
-                // NORELEASE Objects.equals(generator, other.generator) &&
+                Objects.equals(generators, other.generators) &&
                 Objects.equals(gramSize, other.gramSize) &&
-                // NORELEASE Objects.equals(model, other.model) &&
+                Objects.equals(model, other.model) &&
                 Objects.equals(forceUnigrams, other.forceUnigrams) &&
                 Objects.equals(tokenLimit, other.tokenLimit) &&
                 Objects.equals(preTag, other.preTag) &&
@@ -803,17 +835,14 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
     @Override
     protected int doHashCode() {
         return Objects.hash(maxErrors, separator, realWordErrorLikelihood, confidence,
-                /** NORELEASE generators, */
-                gramSize,
-                /** NORELEASE model, */
-                forceUnigrams, tokenLimit, preTag, postTag,
+                generators, gramSize, model, forceUnigrams, tokenLimit, preTag, postTag,
                 collateQuery, collateParams, collatePrune);
     }
 
     /**
      * {@link CandidateGenerator} interface.
      */
-    public interface CandidateGenerator extends ToXContent {
+    public interface CandidateGenerator extends Writeable<CandidateGenerator>, ToXContent {
         String getType();
 
         CandidateGenerator fromXContent(QueryParseContext parseContext) throws IOException;

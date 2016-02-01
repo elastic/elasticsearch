@@ -21,12 +21,24 @@ package org.elasticsearch.search.suggest.phrase;
 
 import org.elasticsearch.script.Template;
 import org.elasticsearch.search.suggest.AbstractSuggestionBuilderTestCase;
+import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder.Laplace;
+import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder.LinearInterpolation;
+import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder.SmoothingModel;
+import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder.StupidBackoff;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
 public class PhraseSuggestionBuilderTests extends AbstractSuggestionBuilderTestCase<PhraseSuggestionBuilder> {
+
+    @BeforeClass
+    public static void initSmoothingModels() {
+        namedWriteableRegistry.registerPrototype(SmoothingModel.class, Laplace.PROTOTYPE);
+        namedWriteableRegistry.registerPrototype(SmoothingModel.class, LinearInterpolation.PROTOTYPE);
+        namedWriteableRegistry.registerPrototype(SmoothingModel.class, StupidBackoff.PROTOTYPE);
+    }
 
     @Override
     protected PhraseSuggestionBuilder randomSuggestionBuilder() {
@@ -50,18 +62,36 @@ public class PhraseSuggestionBuilderTests extends AbstractSuggestionBuilderTestC
             testBuilder.collateParams(collateParams );
         }
         if (randomBoolean()) {
-            // NORELEASE add random model
+            testBuilder.smoothingModel(randomSmoothingModel());
         }
-
         if (randomBoolean()) {
-            // NORELEASE add random generator
+            int numGenerators = randomIntBetween(1, 5);
+            for (int i = 0; i < numGenerators; i++) {
+                testBuilder.addCandidateGenerator(DirectCandidateGeneratorTests.randomCandidateGenerator());
+            }
         }
         return testBuilder;
     }
 
+    private static SmoothingModel randomSmoothingModel() {
+        SmoothingModel model = null;
+        switch (randomIntBetween(0,2)) {
+        case 0:
+            model = LaplaceModelTests.createRandomModel();
+            break;
+        case 1:
+            model = StupidBackoffModelTests.createRandomModel();
+            break;
+        case 2:
+            model = LinearInterpolationModelTests.createRandomModel();
+            break;
+        }
+        return model;
+    }
+
     @Override
     protected void mutateSpecificParameters(PhraseSuggestionBuilder builder) throws IOException {
-        switch (randomIntBetween(0, 7)) {
+        switch (randomIntBetween(0, 12)) {
         case 0:
             builder.maxErrors(randomValueOtherThan(builder.maxErrors(), () -> randomFloat()));
             break;
@@ -105,9 +135,16 @@ public class PhraseSuggestionBuilderTests extends AbstractSuggestionBuilderTestC
             builder.forceUnigrams(builder.forceUnigrams() == null ? randomBoolean() : ! builder.forceUnigrams());
             break;
         case 10:
-            builder.collateParams().put(randomAsciiOfLength(5), randomAsciiOfLength(5));
+            Map<String, Object> collateParams = builder.collateParams() == null ? new HashMap<>(1) : builder.collateParams();
+            collateParams.put(randomAsciiOfLength(5), randomAsciiOfLength(5));
+            builder.collateParams(collateParams);
             break;
-        // TODO mutate random Model && generator
+        case 11:
+            builder.smoothingModel(randomValueOtherThan(builder.smoothingModel(), PhraseSuggestionBuilderTests::randomSmoothingModel));
+            break;
+        case 12:
+            builder.addCandidateGenerator(DirectCandidateGeneratorTests.randomCandidateGenerator());
+            break;
         }
     }
 

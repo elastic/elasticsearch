@@ -38,7 +38,7 @@ import static org.hamcrest.Matchers.not;
 public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBuilder<SB>> extends ESTestCase {
 
     private static final int NUMBER_OF_TESTBUILDERS = 20;
-    private static NamedWriteableRegistry namedWriteableRegistry;
+    protected static NamedWriteableRegistry namedWriteableRegistry;
 
     /**
      * setup for the whole base test class

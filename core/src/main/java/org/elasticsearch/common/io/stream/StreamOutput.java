@@ -38,6 +38,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.elasticsearch.search.rescore.RescoreBuilder;
 import org.elasticsearch.search.suggest.SuggestionBuilder;
+import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder.SmoothingModel;
 import org.joda.time.ReadableInstant;
 
 import java.io.EOFException;
@@ -668,6 +669,13 @@ public abstract class StreamOutput extends OutputStream {
      */
     public void writeScoreFunction(ScoreFunctionBuilder<?> scoreFunctionBuilder) throws IOException {
         writeNamedWriteable(scoreFunctionBuilder);
+    }
+
+    /**
+     * Writes the given {@link SmoothingModel} to the stream
+     */
+    public void writePhraseSuggestionSmoothingModel(SmoothingModel smoothinModel) throws IOException {
+        writeNamedWriteable(smoothinModel);
     }
 
     /**

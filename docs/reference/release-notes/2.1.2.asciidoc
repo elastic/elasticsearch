@@ -50,6 +50,7 @@ Mapping::
 
 Packaging::
 * Fix Windows service installation failure {pull}15549[#15549] (issue: {issue}15349[#15349])
+* fix command line options for windows bat file {pull}15320[#15320] (issues: {issue}15284[#15284], {issue}16086[#16086])
 
 Query DSL::
 * Fix FunctionScore equals/hashCode to include minScore and friends {pull}15676[#15676]
@@ -61,12 +62,16 @@ Stats::
 * Fix calculation of age of pending tasks {pull}15995[#15995] (issue: {issue}15988[#15988])
 
 Translog::
+* Make sure IndexShard is active during recovery so it gets its fair share of the indexing buffer {pull}16209[#16209] (issue: {issue}16206[#16206])
 * Avoid circular reference in exception {pull}15952[#15952] (issue: {issue}15941[#15941])
 * Initialize translog before scheduling the sync to disk {pull}15881[#15881]
 * Translog base flushes can be disabled after replication relocation or slow recovery {pull}15830[#15830] (issues: {issue}10624[#10624], {issue}15814[#15814])
 * Catch tragic even inside the checkpoint method rather than on the caller side {pull}15825[#15825]
 * Never delete translog-N.tlog file when creation fails {pull}15788[#15788]
 * Close recovered translog readers if createWriter fails {pull}15762[#15762] (issue: {issue}15754[#15754])
+
+Tribe Node::
+* Tribe node: pass path.conf to inner tribe clients {pull}16258[#16258] (issue: {issue}16253[#16253])
 
 
 

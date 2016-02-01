@@ -815,7 +815,7 @@ public final class InternalTestCluster extends TestCluster {
             }
         }
 
-        void closeNode() {
+        void closeNode() throws IOException {
             registerDataPath();
             node.close();
         }
@@ -1720,27 +1720,29 @@ public final class InternalTestCluster extends TestCluster {
         return null;
     }
 
-    @Override
-    public synchronized Iterator<Client> iterator() {
+    public synchronized Iterable<Client> getClients() {
         ensureOpen();
-        final Iterator<NodeAndClient> iterator = nodes.values().iterator();
-        return new Iterator<Client>() {
+        return () -> {
+            ensureOpen();
+            final Iterator<NodeAndClient> iterator = nodes.values().iterator();
+            return new Iterator<Client>() {
 
-            @Override
-            public boolean hasNext() {
-                return iterator.hasNext();
-            }
+                @Override
+                public boolean hasNext() {
+                    return iterator.hasNext();
+                }
 
-            @Override
-            public Client next() {
-                return iterator.next().client(random);
-            }
+                @Override
+                public Client next() {
+                    return iterator.next().client(random);
+                }
 
-            @Override
-            public void remove() {
-                throw new UnsupportedOperationException("");
-            }
+                @Override
+                public void remove() {
+                    throw new UnsupportedOperationException("");
+                }
 
+            };
         };
     }
 

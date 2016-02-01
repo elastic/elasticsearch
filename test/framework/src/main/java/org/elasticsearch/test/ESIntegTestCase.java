@@ -129,6 +129,7 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.annotation.Annotation;
@@ -675,7 +676,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     public static Iterable<Client> clients() {
-        return cluster();
+        return cluster().getClients();
     }
 
     protected int minimumNumberOfShards() {
@@ -1099,7 +1100,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             Map<String, Object> masterStateMap = convertToMap(masterClusterState);
             int masterClusterStateSize = masterClusterState.toString().length();
             String masterId = masterClusterState.nodes().masterNodeId();
-            for (Client client : cluster()) {
+            for (Client client : cluster().getClients()) {
                 ClusterState localClusterState = client.admin().cluster().prepareState().all().setLocal(true).get().getState();
                 byte[] localClusterStateBytes = ClusterState.Builder.toBytes(localClusterState);
                 // remove local node reference

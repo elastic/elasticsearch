@@ -32,6 +32,8 @@ import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
+
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -48,7 +50,7 @@ public class TransportClientIT extends ESIntegTestCase {
 
     }
 
-    public void testNodeVersionIsUpdated() {
+    public void testNodeVersionIsUpdated() throws IOException {
         TransportClient client = (TransportClient)  internalCluster().client();
         TransportClientNodesService nodeService = client.nodeService();
         Node node = new Node(Settings.builder()

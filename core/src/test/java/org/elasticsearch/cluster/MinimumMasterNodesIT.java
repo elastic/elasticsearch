@@ -279,7 +279,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         setMinimumMasterNodes(2);
 
         // make sure it has been processed on all nodes (master node spawns a secondary cluster state update task)
-        for (Client client : internalCluster()) {
+        for (Client client : internalCluster().getClients()) {
             assertThat(client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setLocal(true).get().isTimedOut(),
                     equalTo(false));
         }
@@ -303,7 +303,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         assertTrue(awaitBusy(
                         () -> {
                             boolean success = true;
-                            for (Client client : internalCluster()) {
+                            for (Client client : internalCluster().getClients()) {
                                 boolean clientHasNoMasterBlock = hasNoMasterBlock.test(client);
                                 if (logger.isDebugEnabled()) {
                                     logger.debug("Checking for NO_MASTER_BLOCK on client: {} NO_MASTER_BLOCK: [{}]", client, clientHasNoMasterBlock);

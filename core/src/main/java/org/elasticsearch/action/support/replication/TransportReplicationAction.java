@@ -128,7 +128,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
 
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
-        new ReroutePhase(task, request, listener).run();
+        new ReroutePhase((ReplicationTask) task, request, listener).run();
     }
 
     protected abstract Response newResponseInstance();
@@ -271,14 +271,24 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
     class PrimaryOperationTransportHandler implements TransportRequestHandler<Request> {
         @Override
         public void messageReceived(final Request request, final TransportChannel channel) throws Exception {
-            new PrimaryPhase(request, channel).run();
+            throw new UnsupportedOperationException("the task parameter is required for this operation");
+        }
+
+        @Override
+        public void messageReceived(Request request, TransportChannel channel, Task task) throws Exception {
+            new PrimaryPhase((ReplicationTask) task, request, channel).run();
         }
     }
 
     class ReplicaOperationTransportHandler implements TransportRequestHandler<ReplicaRequest> {
         @Override
         public void messageReceived(final ReplicaRequest request, final TransportChannel channel) throws Exception {
-            new AsyncReplicaAction(request, channel).run();
+            throw new UnsupportedOperationException("the task parameter is required for this operation");
+        }
+
+        @Override
+        public void messageReceived(ReplicaRequest request, TransportChannel channel, Task task) throws Exception {
+            new AsyncReplicaAction(request, channel, (ReplicationTask) task).run();
         }
     }
 
@@ -297,13 +307,18 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
     private final class AsyncReplicaAction extends AbstractRunnable {
         private final ReplicaRequest request;
         private final TransportChannel channel;
+        /**
+         * The task on the node with the replica shard.
+         */
+        private final ReplicationTask task;
         // important: we pass null as a timeout as failing a replica is
         // something we want to avoid at all costs
         private final ClusterStateObserver observer = new ClusterStateObserver(clusterService, null, logger);
 
-        AsyncReplicaAction(ReplicaRequest request, TransportChannel channel) {
+        AsyncReplicaAction(ReplicaRequest request, TransportChannel channel, ReplicationTask task) {
             this.request = request;
             this.channel = channel;
+            this.task = task;
         }
 
         @Override
@@ -371,6 +386,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
 
         @Override
         protected void doRun() throws Exception {
+            setPhase(task, "replica");
             assert request.shardId() != null : "request shardId must be set";
             try (Releasable ignored = getIndexShardOperationsCounter(request.shardId())) {
                 shardOperationOnReplica(request);
@@ -378,6 +394,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                     logger.trace("action [{}] completed on shard [{}] for request [{}]", transportReplicaAction, request.shardId(), request);
                 }
             }
+            setPhase(task, "finished");
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
     }
@@ -403,15 +420,17 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
     final class ReroutePhase extends AbstractRunnable {
         private final ActionListener<Response> listener;
         private final Request request;
+        private final ReplicationTask task;
         private final ClusterStateObserver observer;
         private final AtomicBoolean finished = new AtomicBoolean();
 
-        ReroutePhase(Task task, Request request, ActionListener<Response> listener) {
+        ReroutePhase(ReplicationTask task, Request request, ActionListener<Response> listener) {
             this.request = request;
             if (task != null) {
                 this.request.setParentTask(clusterService.localNode().getId(), task.getId());
             }
             this.listener = listener;
+            this.task = task;
             this.observer = new ClusterStateObserver(clusterService, request.timeout(), logger);
         }
 
@@ -422,6 +441,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
 
         @Override
         protected void doRun() {
+            setPhase(task, "routing");
             final ClusterState state = observer.observedState();
             ClusterBlockException blockException = state.blocks().globalBlockedException(globalBlockLevel());
             if (blockException != null) {
@@ -452,6 +472,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
             }
             final DiscoveryNode node = state.nodes().get(primary.currentNodeId());
             if (primary.currentNodeId().equals(state.nodes().localNodeId())) {
+                setPhase(task, "waiting_on_primary");
                 if (logger.isTraceEnabled()) {
                     logger.trace("send action [{}] on primary [{}] for request [{}] with cluster state version [{}] to [{}] ", transportPrimaryAction, request.shardId(), request, state.version(), primary.currentNodeId());
                 }
@@ -460,6 +481,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                 if (logger.isTraceEnabled()) {
                     logger.trace("send action [{}] on primary [{}] for request [{}] with cluster state version [{}] to [{}]", actionName, request.shardId(), request, state.version(), primary.currentNodeId());
                 }
+                setPhase(task, "rerouted");
                 performAction(node, actionName, false);
             }
         }
@@ -517,6 +539,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                 finishAsFailed(failure);
                 return;
             }
+            setPhase(task, "waiting_for_retry");
             observer.waitForNextChange(new ClusterStateObserver.Listener() {
                 @Override
                 public void onNewClusterState(ClusterState state) {
@@ -538,6 +561,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
 
         void finishAsFailed(Throwable failure) {
             if (finished.compareAndSet(false, true)) {
+                setPhase(task, "failed");
                 logger.trace("operation failed. action [{}], request [{}]", failure, actionName, request);
                 listener.onFailure(failure);
             } else {
@@ -548,6 +572,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         void finishWithUnexpectedFailure(Throwable failure) {
             logger.warn("unexpected error during the primary phase for action [{}], request [{}]", failure, actionName, request);
             if (finished.compareAndSet(false, true)) {
+                setPhase(task, "failed");
                 listener.onFailure(failure);
             } else {
                 assert false : "finishWithUnexpectedFailure called but operation is already finished";
@@ -556,6 +581,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
 
         void finishOnSuccess(Response response) {
             if (finished.compareAndSet(false, true)) {
+                setPhase(task, "finished");
                 if (logger.isTraceEnabled()) {
                     logger.trace("operation succeeded. action [{}],request [{}]", actionName, request);
                 }
@@ -576,14 +602,16 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
      * Note that as soon as we move to replication action, state responsibility is transferred to {@link ReplicationPhase}.
      */
     final class PrimaryPhase extends AbstractRunnable {
+        private final ReplicationTask task;
         private final Request request;
         private final TransportChannel channel;
         private final ClusterState state;
         private final AtomicBoolean finished = new AtomicBoolean();
         private Releasable indexShardReference;
 
-        PrimaryPhase(Request request, TransportChannel channel) {
+        PrimaryPhase(ReplicationTask task, Request request, TransportChannel channel) {
             this.state = clusterService.state();
+            this.task = task;
             this.request = request;
             this.channel = channel;
         }
@@ -595,6 +623,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
 
         @Override
         protected void doRun() throws Exception {
+            setPhase(task, "primary");
             // request shardID was set in ReroutePhase
             assert request.shardId() != null : "request shardID must be set prior to primary phase";
             final ShardId shardId = request.shardId();
@@ -610,7 +639,8 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                 if (logger.isTraceEnabled()) {
                     logger.trace("action [{}] completed on shard [{}] for request [{}] with cluster state version [{}]", transportPrimaryAction, shardId, request, state.version());
                 }
-                replicationPhase = new ReplicationPhase(primaryResponse.v2(), primaryResponse.v1(), shardId, channel, indexShardReference);
+                replicationPhase = new ReplicationPhase(task, primaryResponse.v2(), primaryResponse.v1(), shardId, channel,
+                    indexShardReference);
             } catch (Throwable e) {
                 request.setCanHaveDuplicates();
                 if (ExceptionsHelper.status(e) == RestStatus.CONFLICT) {
@@ -692,6 +722,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
          */
         void finishAsFailed(Throwable failure) {
             if (finished.compareAndSet(false, true)) {
+                setPhase(task, "failed");
                 Releasables.close(indexShardReference);
                 logger.trace("operation failed", failure);
                 try {
@@ -720,7 +751,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
      * relocating copies
      */
     final class ReplicationPhase extends AbstractRunnable {
-
+        private final ReplicationTask task;
         private final ReplicaRequest replicaRequest;
         private final Response finalResponse;
         private final TransportChannel channel;
@@ -736,8 +767,9 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         private final int totalShards;
         private final Releasable indexShardReference;
 
-        public ReplicationPhase(ReplicaRequest replicaRequest, Response finalResponse, ShardId shardId,
+        public ReplicationPhase(ReplicationTask task, ReplicaRequest replicaRequest, Response finalResponse, ShardId shardId,
                                 TransportChannel channel, Releasable indexShardReference) {
+            this.task = task;
             this.replicaRequest = replicaRequest;
             this.channel = channel;
             this.finalResponse = finalResponse;
@@ -822,6 +854,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
          */
         @Override
         protected void doRun() {
+            setPhase(task, "replicating");
             if (pending.get() == 0) {
                 doFinish();
                 return;
@@ -914,6 +947,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         }
 
         private void forceFinishAsFailed(Throwable t) {
+            setPhase(task, "failed");
             if (finished.compareAndSet(false, true)) {
                 Releasables.close(indexShardReference);
                 try {
@@ -927,6 +961,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
 
         private void doFinish() {
             if (finished.compareAndSet(false, true)) {
+                setPhase(task, "finished");
                 Releasables.close(indexShardReference);
                 final ActionWriteResponse.ShardInfo.Failure[] failuresArray;
                 if (!shardReplicaFailures.isEmpty()) {
@@ -997,6 +1032,16 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         }
         if (indexShard.getTranslogDurability() == Translog.Durabilty.REQUEST && location != null) {
             indexShard.sync(location);
+        }
+    }
+
+    /**
+     * Sets the current phase on the task if it isn't null. Pulled into its own
+     * method because its more convenient that way.
+     */
+    static void setPhase(ReplicationTask task, String phase) {
+        if (task != null) {
+            task.setPhase(phase);
         }
     }
 }

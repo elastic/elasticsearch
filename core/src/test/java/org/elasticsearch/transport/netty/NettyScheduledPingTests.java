@@ -56,13 +56,15 @@ public class NettyScheduledPingTests extends ESTestCase {
         int endPort = startPort + 10;
         Settings settings = Settings.builder().put(NettyTransport.PING_SCHEDULE, "5ms").put("transport.tcp.port", startPort + "-" + endPort).build();
 
-        final NettyTransport nettyA = new NettyTransport(settings, threadPool, new NetworkService(settings), BigArrays.NON_RECYCLING_INSTANCE, Version.CURRENT, new NamedWriteableRegistry());
-        MockTransportService serviceA = new MockTransportService(settings, nettyA, threadPool);
+        NamedWriteableRegistry registryA = new NamedWriteableRegistry();
+        final NettyTransport nettyA = new NettyTransport(settings, threadPool, new NetworkService(settings), BigArrays.NON_RECYCLING_INSTANCE, Version.CURRENT, registryA);
+        MockTransportService serviceA = new MockTransportService(settings, nettyA, threadPool, registryA);
         serviceA.start();
         serviceA.acceptIncomingRequests();
 
-        final NettyTransport nettyB = new NettyTransport(settings, threadPool, new NetworkService(settings), BigArrays.NON_RECYCLING_INSTANCE, Version.CURRENT, new NamedWriteableRegistry());
-        MockTransportService serviceB = new MockTransportService(settings, nettyB, threadPool);
+        NamedWriteableRegistry registryB = new NamedWriteableRegistry();
+        final NettyTransport nettyB = new NettyTransport(settings, threadPool, new NetworkService(settings), BigArrays.NON_RECYCLING_INSTANCE, Version.CURRENT, registryB);
+        MockTransportService serviceB = new MockTransportService(settings, nettyB, threadPool, registryB);
         serviceB.start();
         serviceB.acceptIncomingRequests();
 

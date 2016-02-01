@@ -33,7 +33,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.common.text.Text;
+import org.elasticsearch.tasks.Task;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
@@ -574,6 +574,13 @@ public abstract class StreamInput extends InputStream {
      */
     <C> C readNamedWriteable(@SuppressWarnings("unused") Class<C> categoryClass) throws IOException {
         throw new UnsupportedOperationException();
+    }
+
+    /**
+     * Reads a {@link Task.Status} from the current stream.
+     */
+    public Task.Status readTaskStatus() throws IOException {
+        return readNamedWriteable(Task.Status.class);
     }
 
     /**

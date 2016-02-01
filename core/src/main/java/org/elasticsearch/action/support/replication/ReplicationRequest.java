@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.support.replication;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.WriteConsistencyLevel;
@@ -30,6 +29,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.tasks.Task;
 
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
@@ -205,6 +205,11 @@ public class ReplicationRequest<T extends ReplicationRequest<T>> extends ChildTa
         timeout.writeTo(out);
         out.writeString(index);
         out.writeBoolean(canHaveDuplicates);
+    }
+
+    @Override
+    public Task createTask(long id, String type, String action) {
+        return new ReplicationTask(id, type, action, this::getDescription, getParentTaskNode(), getParentTaskId());
     }
 
     /**

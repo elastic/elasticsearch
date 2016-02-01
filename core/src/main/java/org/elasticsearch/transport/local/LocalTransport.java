@@ -310,6 +310,7 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
     }
 
     protected void handleResponse(StreamInput buffer, LocalTransport sourceTransport, final TransportResponseHandler handler) {
+        buffer = new NamedWriteableAwareStreamInput(buffer, namedWriteableRegistry);
         final TransportResponse response = handler.newInstance();
         response.remoteAddress(sourceTransport.boundAddress.publishAddress());
         try {

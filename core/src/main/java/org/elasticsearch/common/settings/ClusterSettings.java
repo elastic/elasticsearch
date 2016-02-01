@@ -67,6 +67,11 @@ import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.indices.ttl.IndicesTTLService;
+import org.elasticsearch.monitor.fs.FsService;
+import org.elasticsearch.monitor.jvm.JvmGcMonitorService;
+import org.elasticsearch.monitor.jvm.JvmService;
+import org.elasticsearch.monitor.os.OsService;
+import org.elasticsearch.monitor.process.ProcessService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.repositories.fs.FsRepository;
@@ -79,6 +84,7 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.transport.netty.NettyTransport;
+import org.elasticsearch.tribe.TribeService;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -220,6 +226,10 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_TYPE_SETTING,
                     Transport.TRANSPORT_TCP_COMPRESS,
                     TransportSettings.TRANSPORT_PROFILES_SETTING,
+                    TransportSettings.HOST,
+                    TransportSettings.PUBLISH_HOST,
+                    TransportSettings.BIND_HOST,
+                    TransportSettings.PUBLISH_PORT,
                     TransportSettings.PORT,
                     NettyTransport.WORKER_COUNT,
                     NettyTransport.CONNECTIONS_PER_NODE_RECOVERY,
@@ -235,8 +245,14 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     NettyTransport.NETTY_RECEIVE_PREDICTOR_SIZE,
                     NettyTransport.NETTY_RECEIVE_PREDICTOR_MIN,
                     NettyTransport.NETTY_RECEIVE_PREDICTOR_MAX,
-                    NettyTransport.NETWORK_SERVER,
+                    NetworkService.NETWORK_SERVER,
                     NettyTransport.NETTY_BOSS_COUNT,
+                    NettyTransport.TCP_NO_DELAY,
+                    NettyTransport.TCP_KEEP_ALIVE,
+                    NettyTransport.TCP_REUSE_ADDRESS,
+                    NettyTransport.TCP_SEND_BUFFER_SIZE,
+                    NettyTransport.TCP_RECEIVE_BUFFER_SIZE,
+                    NettyTransport.TCP_BLOCKING_SERVER,
                     NetworkService.GLOBAL_NETWORK_HOST_SETTING,
                     NetworkService.GLOBAL_NETWORK_BINDHOST_SETTING,
                     NetworkService.GLOBAL_NETWORK_PUBLISHHOST_SETTING,
@@ -315,7 +331,21 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     ThreadContext.DEFAULT_HEADERS_SETTING,
                     ESLoggerFactory.LOG_DEFAULT_LEVEL_SETTING,
                     ESLoggerFactory.LOG_LEVEL_SETTING,
+                    TribeService.BLOCKS_METADATA_SETTING,
+                    TribeService.BLOCKS_WRITE_SETTING,
+                    TribeService.BLOCKS_WRITE_INDICES_SETTING,
+                    TribeService.BLOCKS_READ_INDICES_SETTING,
+                    TribeService.BLOCKS_METADATA_INDICES_SETTING,
+                    TribeService.ON_CONFLICT_SETTING,
                     NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING,
                     NodeEnvironment.ENABLE_LUCENE_SEGMENT_INFOS_TRACE_SETTING,
-                    NodeEnvironment.ADD_NODE_ID_TO_CUSTOM_PATH)));
+                    NodeEnvironment.ADD_NODE_ID_TO_CUSTOM_PATH,
+                    OsService.REFRESH_INTERVAL_SETTING,
+                    ProcessService.REFRESH_INTERVAL_SETTING,
+                    JvmService.REFRESH_INTERVAL_SETTING,
+                    FsService.REFRESH_INTERVAL_SETTING,
+                    JvmGcMonitorService.ENABLED_SETTING,
+                    JvmGcMonitorService.REFRESH_INTERVAL_SETTING,
+                    JvmGcMonitorService.GC_SETTING
+                )));
 }

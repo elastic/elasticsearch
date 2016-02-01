@@ -279,7 +279,7 @@ public class ScriptedMetricTests extends ESIntegTestCase {
                 // A particular shard may not have any documents stored on it so
                 // we have to assume the lower bound may be 0. The check at the
                 // bottom of the test method will make sure the count is correct
-                assertThat(numberValue.longValue(), allOf(greaterThanOrEqualTo(0l), lessThanOrEqualTo(numDocs)));
+                assertThat(numberValue.longValue(), allOf(greaterThanOrEqualTo(0L), lessThanOrEqualTo(numDocs)));
                 totalCount += numberValue.longValue();
             }
         }
@@ -329,7 +329,7 @@ public class ScriptedMetricTests extends ESIntegTestCase {
                 // A particular shard may not have any documents stored on it so
                 // we have to assume the lower bound may be 0. The check at the
                 // bottom of the test method will make sure the count is correct
-                assertThat(numberValue.longValue(), allOf(greaterThanOrEqualTo(0l), lessThanOrEqualTo(numDocs * 3)));
+                assertThat(numberValue.longValue(), allOf(greaterThanOrEqualTo(0L), lessThanOrEqualTo(numDocs * 3)));
                 totalCount += numberValue.longValue();
             }
         }
@@ -687,7 +687,7 @@ public class ScriptedMetricTests extends ESIntegTestCase {
         assertThat(buckets, notNullValue());
         for (Bucket b : buckets) {
             assertThat(b, notNullValue());
-            assertThat(b.getDocCount(), equalTo(1l));
+            assertThat(b.getDocCount(), equalTo(1L));
             Aggregations subAggs = b.getAggregations();
             assertThat(subAggs, notNullValue());
             assertThat(subAggs.asList().size(), equalTo(1));
@@ -703,7 +703,7 @@ public class ScriptedMetricTests extends ESIntegTestCase {
             Object object = aggregationList.get(0);
             assertThat(object, notNullValue());
             assertThat(object, instanceOf(Number.class));
-            assertThat(((Number) object).longValue(), equalTo(3l));
+            assertThat(((Number) object).longValue(), equalTo(3L));
         }
     }
 
@@ -716,7 +716,7 @@ public class ScriptedMetricTests extends ESIntegTestCase {
 
         SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(histogram("histo").field("value").interval(1l).minDocCount(0)
+                .addAggregation(histogram("histo").field("value").interval(1L).minDocCount(0)
                         .subAggregation(
                         scriptedMetric("scripted")
                                 .params(params)
@@ -730,7 +730,7 @@ public class ScriptedMetricTests extends ESIntegTestCase {
                                                                 "newaggregation = []; sum = 0;for (aggregation in _aggs) { for (a in aggregation) { sum += a} }; newaggregation.add(sum); return newaggregation"))))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2l));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
         Histogram histo = searchResponse.getAggregations().get("histo");
         assertThat(histo, notNullValue());
         Histogram.Bucket bucket = histo.getBuckets().get(1);

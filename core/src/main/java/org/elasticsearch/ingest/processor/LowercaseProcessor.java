@@ -45,6 +45,11 @@ public class LowercaseProcessor extends AbstractStringProcessor {
     }
 
     public static class Factory extends AbstractStringProcessor.Factory<LowercaseProcessor> {
+
+        public Factory() {
+            super(TYPE);
+        }
+
         @Override
         protected LowercaseProcessor newProcessor(String tag, String field) {
             return new LowercaseProcessor(tag, field);

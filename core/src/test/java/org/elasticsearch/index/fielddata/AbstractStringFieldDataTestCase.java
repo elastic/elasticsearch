@@ -485,17 +485,17 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
         values.setDocument(0);
         assertThat(values.cardinality(), equalTo(2));
         long ord = values.nextOrd();
-        assertThat(ord, equalTo(3l));
+        assertThat(ord, equalTo(3L));
         assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("02"));
         ord = values.nextOrd();
-        assertThat(ord, equalTo(5l));
+        assertThat(ord, equalTo(5L));
         assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("04"));
         values.setDocument(1);
         assertThat(values.cardinality(), equalTo(0));
         values.setDocument(2);
         assertThat(values.cardinality(), equalTo(1));
         ord = values.nextOrd();
-        assertThat(ord, equalTo(4l));
+        assertThat(ord, equalTo(4L));
         assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("03"));
 
         // Second segment
@@ -506,37 +506,37 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
         values.setDocument(0);
         assertThat(values.cardinality(), equalTo(3));
         ord = values.nextOrd();
-        assertThat(ord, equalTo(5l));
+        assertThat(ord, equalTo(5L));
         assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("04"));
         ord = values.nextOrd();
-        assertThat(ord, equalTo(6l));
+        assertThat(ord, equalTo(6L));
         assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("05"));
         ord = values.nextOrd();
-        assertThat(ord, equalTo(7l));
+        assertThat(ord, equalTo(7L));
         assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("06"));
         values.setDocument(1);
         assertThat(values.cardinality(), equalTo(3));
         ord = values.nextOrd();
-        assertThat(ord, equalTo(7l));
+        assertThat(ord, equalTo(7L));
         assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("06"));
         ord = values.nextOrd();
-        assertThat(ord, equalTo(8l));
+        assertThat(ord, equalTo(8L));
         assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("07"));
         ord = values.nextOrd();
-        assertThat(ord, equalTo(9l));
+        assertThat(ord, equalTo(9L));
         assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("08"));
         values.setDocument(2);
         assertThat(values.cardinality(), equalTo(0));
         values.setDocument(3);
         assertThat(values.cardinality(), equalTo(3));
         ord = values.nextOrd();
-        assertThat(ord, equalTo(9l));
+        assertThat(ord, equalTo(9L));
         assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("08"));
         ord = values.nextOrd();
-        assertThat(ord, equalTo(10l));
+        assertThat(ord, equalTo(10L));
         assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("09"));
         ord = values.nextOrd();
-        assertThat(ord, equalTo(11l));
+        assertThat(ord, equalTo(11L));
         assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("10"));
 
         // Third segment
@@ -548,13 +548,13 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
         values.setDocument(0);
         assertThat(values.cardinality(), equalTo(3));
         ord = values.nextOrd();
-        assertThat(ord, equalTo(0l));
+        assertThat(ord, equalTo(0L));
         assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("!08"));
         ord = values.nextOrd();
-        assertThat(ord, equalTo(1l));
+        assertThat(ord, equalTo(1L));
         assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("!09"));
         ord = values.nextOrd();
-        assertThat(ord, equalTo(2l));
+        assertThat(ord, equalTo(2L));
         assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("!10"));
     }
 
@@ -620,6 +620,6 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
         assertThat(ifd.loadGlobal(topLevelReader), not(sameInstance(globalOrdinals)));
 
         ifdService.clear();
-        assertThat(indicesFieldDataCache.getCache().weight(), equalTo(0l));
+        assertThat(indicesFieldDataCache.getCache().weight(), equalTo(0L));
     }
 }

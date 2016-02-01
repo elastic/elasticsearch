@@ -791,7 +791,7 @@ public class StoreTests extends ESTestCase {
     public void assertDeleteContent(Store store, DirectoryService service) throws IOException {
         deleteContent(store.directory());
         assertThat(Arrays.toString(store.directory().listAll()), store.directory().listAll().length, equalTo(0));
-        assertThat(store.stats().sizeInBytes(), equalTo(0l));
+        assertThat(store.stats().sizeInBytes(), equalTo(0L));
         assertThat(service.newDirectory().listAll().length, equalTo(0));
     }
 

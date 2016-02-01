@@ -119,7 +119,7 @@ public class HotThreadsIT extends ESIntegTestCase {
                                 .setQuery(matchAllQuery())
                                 .setPostFilter(boolQuery().must(matchAllQuery()).mustNot(boolQuery().must(termQuery("field1", "value1")).must(termQuery("field1", "value2"))))
                                 .get(),
-                        3l);
+                        3L);
             }
             latch.await();
             assertThat(hasErrors.get(), is(false));

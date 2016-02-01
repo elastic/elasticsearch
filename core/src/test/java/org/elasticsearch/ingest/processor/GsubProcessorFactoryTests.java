@@ -20,6 +20,7 @@
 package org.elasticsearch.ingest.processor;
 
 import org.elasticsearch.ingest.core.AbstractProcessorFactory;
+import org.elasticsearch.ingest.core.Processor;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
@@ -52,8 +53,8 @@ public class GsubProcessorFactoryTests extends ESTestCase {
         try {
             factory.create(config);
             fail("factory create should have failed");
-        } catch(IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("required property [field] is missing"));
+        } catch(ConfigurationPropertyException e) {
+            assertThat(e.getMessage(), equalTo("[field] required property is missing"));
         }
     }
 
@@ -65,8 +66,8 @@ public class GsubProcessorFactoryTests extends ESTestCase {
         try {
             factory.create(config);
             fail("factory create should have failed");
-        } catch(IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("required property [pattern] is missing"));
+        } catch(ConfigurationPropertyException e) {
+            assertThat(e.getMessage(), equalTo("[pattern] required property is missing"));
         }
     }
 
@@ -78,8 +79,8 @@ public class GsubProcessorFactoryTests extends ESTestCase {
         try {
             factory.create(config);
             fail("factory create should have failed");
-        } catch(IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("required property [replacement] is missing"));
+        } catch(ConfigurationPropertyException e) {
+            assertThat(e.getMessage(), equalTo("[replacement] required property is missing"));
         }
     }
 }

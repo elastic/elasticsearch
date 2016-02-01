@@ -225,7 +225,6 @@ public class TribeIT extends ESIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/16299")
     public void testOnConflictDrop() throws Exception {
         logger.info("create 2 indices, test1 on t1, and test2 on t2");
         assertAcked(cluster().client().admin().indices().prepareCreate("conflict"));
@@ -244,8 +243,8 @@ public class TribeIT extends ESIntegTestCase {
         logger.info("wait till test1 and test2 exists in the tribe node state");
         awaitIndicesInClusterState("test1", "test2");
 
-        assertThat(tribeClient.admin().cluster().prepareState().get().getState().getMetaData().index("test1").getSettings().get(TribeService.TRIBE_NAME), equalTo("t1"));
-        assertThat(tribeClient.admin().cluster().prepareState().get().getState().getMetaData().index("test2").getSettings().get(TribeService.TRIBE_NAME), equalTo("t2"));
+        assertThat(tribeClient.admin().cluster().prepareState().get().getState().getMetaData().index("test1").getSettings().get("tribe.name"), equalTo("t1"));
+        assertThat(tribeClient.admin().cluster().prepareState().get().getState().getMetaData().index("test2").getSettings().get("tribe.name"), equalTo("t2"));
         assertThat(tribeClient.admin().cluster().prepareState().get().getState().getMetaData().hasIndex("conflict"), equalTo(false));
     }
 
@@ -271,9 +270,9 @@ public class TribeIT extends ESIntegTestCase {
         logger.info("wait till test1 and test2 exists in the tribe node state");
         awaitIndicesInClusterState("test1", "test2", "conflict");
 
-        assertThat(tribeClient.admin().cluster().prepareState().get().getState().getMetaData().index("test1").getSettings().get(TribeService.TRIBE_NAME), equalTo("t1"));
-        assertThat(tribeClient.admin().cluster().prepareState().get().getState().getMetaData().index("test2").getSettings().get(TribeService.TRIBE_NAME), equalTo("t2"));
-        assertThat(tribeClient.admin().cluster().prepareState().get().getState().getMetaData().index("conflict").getSettings().get(TribeService.TRIBE_NAME), equalTo(tribe));
+        assertThat(tribeClient.admin().cluster().prepareState().get().getState().getMetaData().index("test1").getSettings().get("tribe.name"), equalTo("t1"));
+        assertThat(tribeClient.admin().cluster().prepareState().get().getState().getMetaData().index("test2").getSettings().get("tribe.name"), equalTo("t2"));
+        assertThat(tribeClient.admin().cluster().prepareState().get().getState().getMetaData().index("conflict").getSettings().get("tribe.name"), equalTo(tribe));
     }
 
     public void testTribeOnOneCluster() throws Exception {
@@ -298,8 +297,8 @@ public class TribeIT extends ESIntegTestCase {
         tribeClient.admin().indices().prepareRefresh().get();
 
         logger.info("verify they are there");
-        assertHitCount(tribeClient.prepareSearch().setSize(0).get(), 2l);
-        assertHitCount(tribeClient.prepareSearch().get(), 2l);
+        assertHitCount(tribeClient.prepareSearch().setSize(0).get(), 2L);
+        assertHitCount(tribeClient.prepareSearch().get(), 2L);
         assertBusy(new Runnable() {
             @Override
             public void run() {
@@ -317,8 +316,8 @@ public class TribeIT extends ESIntegTestCase {
 
 
         logger.info("verify they are there");
-        assertHitCount(tribeClient.prepareSearch().setSize(0).get(), 4l);
-        assertHitCount(tribeClient.prepareSearch().get(), 4l);
+        assertHitCount(tribeClient.prepareSearch().setSize(0).get(), 4L);
+        assertHitCount(tribeClient.prepareSearch().get(), 4L);
         assertBusy(new Runnable() {
             @Override
             public void run() {
@@ -438,7 +437,7 @@ public class TribeIT extends ESIntegTestCase {
             if (!node.dataNode()) {
                 continue;
             }
-            if (tribeName.equals(node.getAttributes().get(TribeService.TRIBE_NAME))) {
+            if (tribeName.equals(node.getAttributes().get("tribe.name"))) {
                 count++;
             }
         }

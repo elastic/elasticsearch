@@ -22,22 +22,29 @@ package org.elasticsearch.action.ingest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.StatusToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
+import org.elasticsearch.ingest.core.PipelineFactoryError;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-public class SimulatePipelineResponse extends ActionResponse implements ToXContent {
+public class SimulatePipelineResponse extends ActionResponse implements StatusToXContent {
     private String pipelineId;
     private boolean verbose;
     private List<SimulateDocumentResult> results;
+    private PipelineFactoryError error;
 
     public SimulatePipelineResponse() {
 
+    }
+
+    public SimulatePipelineResponse(PipelineFactoryError error) {
+        this.error = error;
     }
 
     public SimulatePipelineResponse(String pipelineId, boolean verbose, List<SimulateDocumentResult> responses) {
@@ -58,42 +65,69 @@ public class SimulatePipelineResponse extends ActionResponse implements ToXConte
         return verbose;
     }
 
+    public boolean isError() {
+        return error != null;
+    }
+
+    @Override
+    public RestStatus status() {
+        if (isError()) {
+            return RestStatus.BAD_REQUEST;
+        }
+        return RestStatus.OK;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(pipelineId);
-        out.writeBoolean(verbose);
-        out.writeVInt(results.size());
-        for (SimulateDocumentResult response : results) {
-            response.writeTo(out);
+        out.writeBoolean(isError());
+        if (isError()) {
+            error.writeTo(out);
+        } else {
+            out.writeString(pipelineId);
+            out.writeBoolean(verbose);
+            out.writeVInt(results.size());
+            for (SimulateDocumentResult response : results) {
+                response.writeTo(out);
+            }
         }
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        this.pipelineId = in.readString();
-        boolean verbose = in.readBoolean();
-        int responsesLength = in.readVInt();
-        results = new ArrayList<>();
-        for (int i = 0; i < responsesLength; i++) {
-            SimulateDocumentResult<?> simulateDocumentResult;
-            if (verbose) {
-                simulateDocumentResult = SimulateDocumentVerboseResult.readSimulateDocumentVerboseResultFrom(in);
-            } else {
-                simulateDocumentResult = SimulateDocumentBaseResult.readSimulateDocumentSimpleResult(in);
+        boolean isError = in.readBoolean();
+        if (isError) {
+            error = new PipelineFactoryError();
+            error.readFrom(in);
+        } else {
+            this.pipelineId = in.readString();
+            boolean verbose = in.readBoolean();
+            int responsesLength = in.readVInt();
+            results = new ArrayList<>();
+            for (int i = 0; i < responsesLength; i++) {
+                SimulateDocumentResult<?> simulateDocumentResult;
+                if (verbose) {
+                    simulateDocumentResult = SimulateDocumentVerboseResult.readSimulateDocumentVerboseResultFrom(in);
+                } else {
+                    simulateDocumentResult = SimulateDocumentBaseResult.readSimulateDocumentSimpleResult(in);
+                }
+                results.add(simulateDocumentResult);
             }
-            results.add(simulateDocumentResult);
         }
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startArray(Fields.DOCUMENTS);
-        for (SimulateDocumentResult response : results) {
-            response.toXContent(builder, params);
+        if (isError()) {
+            error.toXContent(builder, params);
+        } else {
+            builder.startArray(Fields.DOCUMENTS);
+            for (SimulateDocumentResult response : results) {
+                response.toXContent(builder, params);
+            }
+            builder.endArray();
         }
-        builder.endArray();
         return builder;
     }
 

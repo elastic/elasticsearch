@@ -61,9 +61,10 @@ public class InnerHitsParseElement implements SearchParseElement {
     public void parse(XContentParser parser, SearchContext searchContext) throws Exception {
         QueryShardContext context = searchContext.indexShard().getQueryShardContext();
         context.reset(parser);
-        Map<String, InnerHitsContext.BaseInnerHits> innerHitsMap = parseInnerHits(parser, context, searchContext);
-        if (innerHitsMap != null) {
-            searchContext.innerHits(new InnerHitsContext(innerHitsMap));
+        Map<String, InnerHitsContext.BaseInnerHits> topLevelInnerHits = parseInnerHits(parser, context, searchContext);
+        if (topLevelInnerHits != null) {
+            InnerHitsContext innerHitsContext = searchContext.innerHits();
+            innerHitsContext.addInnerHitDefinitions(topLevelInnerHits);
         }
     }
 

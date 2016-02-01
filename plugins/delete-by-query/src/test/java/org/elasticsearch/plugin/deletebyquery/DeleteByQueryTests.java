@@ -72,7 +72,7 @@ public class DeleteByQueryTests extends ESIntegTestCase {
     public void testDeleteByQueryWithNoIndices() throws Exception {
         DeleteByQueryRequestBuilder delete = newDeleteByQuery().setQuery(QueryBuilders.matchAllQuery());
         delete.setIndicesOptions(IndicesOptions.fromOptions(false, true, true, false));
-        assertDBQResponse(delete.get(), 0L, 0l, 0l, 0l);
+        assertDBQResponse(delete.get(), 0L, 0L, 0L, 0L);
         assertSearchContextsClosed();
     }
 
@@ -85,7 +85,7 @@ public class DeleteByQueryTests extends ESIntegTestCase {
         assertHitCount(client().prepareSearch("test").setSize(0).get(), docs);
 
         DeleteByQueryRequestBuilder delete = newDeleteByQuery().setIndices("t*").setQuery(QueryBuilders.matchAllQuery());
-        assertDBQResponse(delete.get(), docs, docs, 0l, 0l);
+        assertDBQResponse(delete.get(), docs, docs, 0L, 0L);
         refresh();
         assertHitCount(client().prepareSearch("test").setSize(0).get(), 0);
         assertSearchContextsClosed();
@@ -124,7 +124,7 @@ public class DeleteByQueryTests extends ESIntegTestCase {
         refresh();
 
         // Checks that the DBQ response returns the expected number of deletions
-        assertDBQResponse(response, deletions, deletions, 0l, 0l);
+        assertDBQResponse(response, deletions, deletions, 0L, 0L);
         assertNotNull(response.getIndices());
         assertThat(response.getIndices().length, equalTo(indices));
 
@@ -160,7 +160,7 @@ public class DeleteByQueryTests extends ESIntegTestCase {
         }
 
         delete.setIndicesOptions(IndicesOptions.lenientExpandOpen());
-        assertDBQResponse(delete.get(), 1L, 1L, 0l, 0l);
+        assertDBQResponse(delete.get(), 1L, 1L, 0L, 0L);
         refresh();
         assertHitCount(client().prepareSearch("test").setSize(0).get(), 0);
         assertSearchContextsClosed();
@@ -178,7 +178,7 @@ public class DeleteByQueryTests extends ESIntegTestCase {
         assertHitCount(client().prepareSearch().setSize(0).setTypes("type2").get(), docs);
 
         DeleteByQueryRequestBuilder delete = newDeleteByQuery().setTypes("type1").setQuery(QueryBuilders.matchAllQuery());
-        assertDBQResponse(delete.get(), docs, docs, 0l, 0l);
+        assertDBQResponse(delete.get(), docs, docs, 0L, 0L);
         refresh();
 
         assertHitCount(client().prepareSearch().setSize(0).get(), docs);
@@ -208,7 +208,7 @@ public class DeleteByQueryTests extends ESIntegTestCase {
 
         logger.info("--> delete all documents with routing [{}] with a delete-by-query", routing);
         DeleteByQueryRequestBuilder delete = newDeleteByQuery().setRouting(routing).setQuery(QueryBuilders.matchAllQuery());
-        assertDBQResponse(delete.get(), expected, expected, 0l, 0l);
+        assertDBQResponse(delete.get(), expected, expected, 0L, 0L);
         refresh();
 
         assertHitCount(client().prepareSearch().setSize(0).get(), docs - expected);
@@ -231,7 +231,7 @@ public class DeleteByQueryTests extends ESIntegTestCase {
         assertHitCount(client().prepareSearch("test").setSize(0).setQuery(QueryBuilders.matchAllQuery()).get(), numDocs);
 
         DeleteByQueryRequestBuilder delete = newDeleteByQuery().setIndices("alias").setQuery(QueryBuilders.matchQuery("_id", Integer.toString(n)));
-        assertDBQResponse(delete.get(), 1L, 1L, 0l, 0l);
+        assertDBQResponse(delete.get(), 1L, 1L, 0L, 0L);
         refresh();
         assertHitCount(client().prepareSearch("test").setSize(0).setQuery(QueryBuilders.matchAllQuery()).get(), numDocs - 1);
         assertSearchContextsClosed();
@@ -244,7 +244,7 @@ public class DeleteByQueryTests extends ESIntegTestCase {
         assertHitCount(client().prepareSearch("test").setSize(0).get(), 1);
 
         DeleteByQueryRequestBuilder delete = newDeleteByQuery().setIndices("test").setQuery(QueryBuilders.rangeQuery("d").to("now-1h"));
-        assertDBQResponse(delete.get(), 1L, 1L, 0l, 0l);
+        assertDBQResponse(delete.get(), 1L, 1L, 0L, 0L);
         refresh();
         assertHitCount(client().prepareSearch("test").setSize(0).get(), 0);
         assertSearchContextsClosed();
@@ -267,12 +267,12 @@ public class DeleteByQueryTests extends ESIntegTestCase {
         assertThat(searchResponse.getHits().totalHits(), equalTo((long) numDocs + 1));
 
         DeleteByQueryResponse delete = newDeleteByQuery().setIndices("test").setQuery(QueryBuilders.termQuery("field", "value")).get();
-        assertDBQResponse(delete, numDocs, numDocs, 0l, 0l);
+        assertDBQResponse(delete, numDocs, numDocs, 0L, 0L);
 
         refresh();
         searchResponse = client().prepareSearch("test").get();
         assertNoFailures(searchResponse);
-        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1L));
         assertSearchContextsClosed();
     }
 

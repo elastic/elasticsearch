@@ -248,10 +248,10 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         assertExists(getResponse);
 
         SearchResponse countResponse = client().prepareSearch("test1").setSize(0).get();
-        assertHitCount(countResponse, 1l);
+        assertHitCount(countResponse, 1L);
 
         SearchResponse searchResponse = client().prepareSearch("test1").get();
-        assertHitCount(searchResponse, 1l);
+        assertHitCount(searchResponse, 1L);
 
         countResponse = client().prepareSearch("test2").setSize(0).get();
         assertThat(countResponse.getTotalShards(), equalTo(2));

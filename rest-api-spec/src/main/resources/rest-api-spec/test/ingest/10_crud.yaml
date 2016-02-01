@@ -51,6 +51,29 @@
           }
 
 ---
+"Test invalid processor config":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "set" : {
+                  "tag" : "fritag"
+                }
+              }
+            ]
+          }
+  - match: { "acknowledged": false }
+  - length: { "error": 4 }
+  - match: { "error.reason": "[field] required property is missing" }
+  - match: { "error.property_name": "field" }
+  - match: { "error.type": "set" }
+  - match: { "error.tag": "fritag" }
+
+---
 "Test basic pipeline with on_failure in processor":
   - do:
       ingest.put_pipeline:

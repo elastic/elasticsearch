@@ -20,6 +20,7 @@
 package org.elasticsearch.ingest.processor;
 
 import org.elasticsearch.ingest.core.AbstractProcessorFactory;
+import org.elasticsearch.ingest.core.Processor;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
@@ -66,8 +67,8 @@ public class ConvertProcessorFactoryTests extends ESTestCase {
         try {
             factory.create(config);
             fail("factory create should have failed");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), Matchers.equalTo("required property [field] is missing"));
+        } catch (ConfigurationPropertyException e) {
+            assertThat(e.getMessage(), Matchers.equalTo("[field] required property is missing"));
         }
     }
 
@@ -78,8 +79,8 @@ public class ConvertProcessorFactoryTests extends ESTestCase {
         try {
             factory.create(config);
             fail("factory create should have failed");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), Matchers.equalTo("required property [type] is missing"));
+        } catch (ConfigurationPropertyException e) {
+            assertThat(e.getMessage(), Matchers.equalTo("[type] required property is missing"));
         }
     }
 }

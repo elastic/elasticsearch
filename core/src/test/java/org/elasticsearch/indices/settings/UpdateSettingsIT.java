@@ -205,7 +205,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         // No merge IO throttling should have happened:
         NodesStatsResponse nodesStats = client().admin().cluster().prepareNodesStats().setIndices(true).get();
         for(NodeStats stats : nodesStats.getNodes()) {
-            assertThat(stats.getIndices().getStore().getThrottleTime().getMillis(), equalTo(0l));
+            assertThat(stats.getIndices().getStore().getThrottleTime().getMillis(), equalTo(0L));
         }
 
         logger.info("test: set low merge throttling");

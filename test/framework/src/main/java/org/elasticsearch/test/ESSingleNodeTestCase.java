@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.test;
 
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
@@ -51,6 +52,7 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -68,7 +70,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
 
     private static Node NODE = null;
 
-    private void reset() {
+    private void reset() throws IOException {
         assert NODE != null;
         stopNode();
         startNode();
@@ -83,13 +85,13 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         assertFalse(clusterHealthResponse.isTimedOut());
     }
 
-    private static void stopNode() {
+    private static void stopNode() throws IOException {
         Node node = NODE;
         NODE = null;
-        Releasables.close(node);
+        IOUtils.close(node);
     }
 
-    private void cleanup(boolean resetNode) {
+    private void cleanup(boolean resetNode) throws IOException {
         assertAcked(client().admin().indices().prepareDelete("*").get());
         if (resetNode) {
             reset();
@@ -126,7 +128,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     }
 
     @AfterClass
-    public static void tearDownClass() {
+    public static void tearDownClass() throws IOException {
         stopNode();
     }
 

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.tribe;
 
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -34,6 +35,7 @@ import org.elasticsearch.test.InternalTestCluster;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
+import java.io.IOException;
 import java.nio.file.Path;
 
 import static org.hamcrest.CoreMatchers.either;
@@ -76,10 +78,9 @@ public class TribeUnitTests extends ESTestCase {
     }
 
     @AfterClass
-    public static void closeTribes() {
-        tribe1.close();
+    public static void closeTribes() throws IOException {
+        IOUtils.close(tribe1, tribe2);
         tribe1 = null;
-        tribe2.close();
         tribe2 = null;
     }
 

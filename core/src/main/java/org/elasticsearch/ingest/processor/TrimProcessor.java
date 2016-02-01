@@ -42,6 +42,11 @@ public class TrimProcessor extends AbstractStringProcessor {
     }
 
     public static class Factory extends AbstractStringProcessor.Factory<TrimProcessor> {
+
+        public Factory() {
+            super(TYPE);
+        }
+
         @Override
         protected TrimProcessor newProcessor(String tag, String field) {
             return new TrimProcessor(tag, field);

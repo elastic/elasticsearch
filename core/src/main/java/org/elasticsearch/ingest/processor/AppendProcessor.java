@@ -74,8 +74,8 @@ public class AppendProcessor extends AbstractProcessor {
 
         @Override
         public AppendProcessor doCreate(String processorTag, Map<String, Object> config) throws Exception {
-            String field = ConfigurationUtils.readStringProperty(config, "field");
-            Object value = ConfigurationUtils.readObject(config, "value");
+            String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
+            Object value = ConfigurationUtils.readObject(TYPE, processorTag, config, "value");
             return new AppendProcessor(processorTag, templateService.compile(field), ValueSource.wrap(value, templateService));
         }
     }

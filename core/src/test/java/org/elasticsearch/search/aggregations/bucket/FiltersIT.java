@@ -250,11 +250,11 @@ public class FiltersIT extends ESIntegTestCase {
     public void testEmptyAggregation() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(histogram("histo").field("value").interval(1l).minDocCount(0)
+                .addAggregation(histogram("histo").field("value").interval(1L).minDocCount(0)
                         .subAggregation(filters("filters").filter("all", matchAllQuery())))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2l));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
         Histogram histo = searchResponse.getAggregations().get("histo");
         assertThat(histo, Matchers.notNullValue());
         Histogram.Bucket bucket = histo.getBuckets().get(1);
@@ -265,7 +265,7 @@ public class FiltersIT extends ESIntegTestCase {
         Filters.Bucket all = filters.getBucketByKey("all");
         assertThat(all, Matchers.notNullValue());
         assertThat(all.getKeyAsString(), equalTo("all"));
-        assertThat(all.getDocCount(), is(0l));
+        assertThat(all.getDocCount(), is(0L));
     }
 
     public void testSimpleNonKeyed() throws Exception {

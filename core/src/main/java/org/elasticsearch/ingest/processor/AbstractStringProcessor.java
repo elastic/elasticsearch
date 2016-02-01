@@ -55,10 +55,15 @@ public abstract class AbstractStringProcessor extends AbstractProcessor {
     protected abstract String process(String value);
 
     public static abstract class Factory<T extends AbstractStringProcessor> extends AbstractProcessorFactory<T> {
+        protected final String processorType;
+
+        protected Factory(String processorType) {
+            this.processorType = processorType;
+        }
 
         @Override
         public T doCreate(String processorTag, Map<String, Object> config) throws Exception {
-            String field = ConfigurationUtils.readStringProperty(config, "field");
+            String field = ConfigurationUtils.readStringProperty(processorType, processorTag, config, "field");
             return newProcessor(processorTag, field);
         }
 

@@ -70,8 +70,8 @@ import org.elasticsearch.script.mustache.MustachePlugin;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.search.suggest.SuggestionBuilder;
+import org.elasticsearch.search.suggest.phrase.DirectCandidateGeneratorBuilder;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder;
-import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder.DirectCandidateGenerator;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
@@ -213,7 +213,7 @@ public class SuggestSearchTests extends ESIntegTestCase {
         index("test", "type1", "3", "name", "I like ice cream.");
         refresh();
 
-        DirectCandidateGenerator generator = candidateGenerator("name").prefixLength(0).minWordLength(0).suggestMode("always").maxEdits(2);
+        DirectCandidateGeneratorBuilder generator = candidateGenerator("name").prefixLength(0).minWordLength(0).suggestMode("always").maxEdits(2);
         PhraseSuggestionBuilder phraseSuggestion = phraseSuggestion("did_you_mean").field("name.shingled")
                 .addCandidateGenerator(generator)
                 .gramSize(3);

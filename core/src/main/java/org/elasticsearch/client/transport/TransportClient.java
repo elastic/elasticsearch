@@ -112,7 +112,7 @@ public class TransportClient extends AbstractClient {
             final Settings.Builder settingsBuilder = settingsBuilder()
                     .put(NettyTransport.PING_SCHEDULE.getKey(), "5s") // enable by default the transport schedule ping interval
                     .put(InternalSettingsPreparer.prepareSettings(settings))
-                    .put(NettyTransport.NETWORK_SERVER.getKey(), false)
+                    .put(NetworkService.NETWORK_SERVER.getKey(), false)
                     .put(Node.NODE_CLIENT_SETTING.getKey(), true)
                     .put(CLIENT_TYPE_SETTING_S.getKey(), CLIENT_TYPE);
             return new PluginsService(settingsBuilder.build(), null, null, pluginClasses);

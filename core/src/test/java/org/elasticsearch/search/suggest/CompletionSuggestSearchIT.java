@@ -294,12 +294,12 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         Map<String, List<Object>> firstPayload = options.get(0).getPayload();
         assertThat(firstPayload.keySet(), containsInAnyOrder("title", "count"));
         assertThat((String) firstPayload.get("title").get(0), equalTo("title2"));
-        assertThat((long) firstPayload.get("count").get(0), equalTo(2l));
+        assertThat((long) firstPayload.get("count").get(0), equalTo(2L));
 
         Map<String, List<Object>> secondPayload = options.get(1).getPayload();
         assertThat(secondPayload.keySet(), containsInAnyOrder("title", "count"));
         assertThat((String) secondPayload.get("title").get(0), equalTo("title1"));
-        assertThat((long) secondPayload.get("count").get(0), equalTo(1l));
+        assertThat((long) secondPayload.get("count").get(0), equalTo(1L));
     }
 
     public void testSuggestWithPayload() throws Exception {
@@ -379,7 +379,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         PercolateResponse response = client().preparePercolate().setIndices(INDEX).setDocumentType(TYPE)
                 .setGetRequest(Requests.getRequest(INDEX).type(TYPE).id("1"))
                 .execute().actionGet();
-        assertThat(response.getCount(), equalTo(1l));
+        assertThat(response.getCount(), equalTo(1L));
     }
 
     public void testThatWeightsAreWorking() throws Exception {
@@ -439,7 +439,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         CompletionSuggestion.Entry.Option prefixOption = (CompletionSuggestion.Entry.Option) option;
 
         assertThat(prefixOption.getText().string(), equalTo("testing"));
-        assertThat((long) prefixOption.getScore(), equalTo(10l));
+        assertThat((long) prefixOption.getScore(), equalTo(10L));
     }
 
 
@@ -1046,7 +1046,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         refresh();
 
         assertSuggestions("b");
-        assertThat(2l, equalTo(client().prepareSearch(INDEX).setSize(0).get().getHits().totalHits()));
+        assertThat(2L, equalTo(client().prepareSearch(INDEX).setSize(0).get().getHits().totalHits()));
         for (IndexShardSegments seg : client().admin().indices().prepareSegments().get().getIndices().get(INDEX)) {
             ShardSegments[] shards = seg.getShards();
             for (ShardSegments shardSegments : shards) {

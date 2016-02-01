@@ -583,16 +583,6 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public void innerHits(InnerHitsContext innerHitsContext) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public InnerHitsContext innerHits() {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
     public Profilers getProfilers() {
         return null; // no profiling
     }

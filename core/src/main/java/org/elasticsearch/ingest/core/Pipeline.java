@@ -19,6 +19,8 @@
 
 package org.elasticsearch.ingest.core;
 
+import org.elasticsearch.ingest.processor.ConfigurationPropertyException;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -82,19 +84,20 @@ public final class Pipeline {
 
     public final static class Factory {
 
-        public Pipeline create(String id, Map<String, Object> config, Map<String, Processor.Factory> processorRegistry) throws Exception {
-            String description = ConfigurationUtils.readOptionalStringProperty(config, DESCRIPTION_KEY);
-            List<Processor> processors = readProcessors(PROCESSORS_KEY, processorRegistry, config);
-            List<Processor> onFailureProcessors = readProcessors(ON_FAILURE_KEY, processorRegistry, config);
+        public Pipeline create(String id, Map<String, Object> config, Map<String, Processor.Factory> processorRegistry) throws ConfigurationPropertyException {
+            String description = ConfigurationUtils.readOptionalStringProperty(null, null, config, DESCRIPTION_KEY);
+            List<Map<String, Map<String, Object>>> processorConfigs = ConfigurationUtils.readList(null, null, config, PROCESSORS_KEY);
+            List<Processor> processors = readProcessorConfigs(processorConfigs, processorRegistry);
+            List<Map<String, Map<String, Object>>> onFailureProcessorConfigs = ConfigurationUtils.readOptionalList(null, null, config, ON_FAILURE_KEY);
+            List<Processor> onFailureProcessors = readProcessorConfigs(onFailureProcessorConfigs, processorRegistry);
             if (config.isEmpty() == false) {
-                throw new IllegalArgumentException("pipeline [" + id + "] doesn't support one or more provided configuration parameters " + Arrays.toString(config.keySet().toArray()));
+                throw new ConfigurationPropertyException("pipeline [" + id + "] doesn't support one or more provided configuration parameters " + Arrays.toString(config.keySet().toArray()));
             }
             CompoundProcessor compoundProcessor = new CompoundProcessor(Collections.unmodifiableList(processors), Collections.unmodifiableList(onFailureProcessors));
             return new Pipeline(id, description, compoundProcessor);
         }
 
-        private List<Processor> readProcessors(String fieldName, Map<String, Processor.Factory> processorRegistry, Map<String, Object> config) throws Exception {
-            List<Map<String, Map<String, Object>>> processorConfigs = ConfigurationUtils.readOptionalList(config, fieldName);
+        private List<Processor> readProcessorConfigs(List<Map<String, Map<String, Object>>> processorConfigs, Map<String, Processor.Factory> processorRegistry) throws ConfigurationPropertyException {
             List<Processor> processors = new ArrayList<>();
             if (processorConfigs != null) {
                 for (Map<String, Map<String, Object>> processorConfigWithKey : processorConfigs) {
@@ -107,20 +110,28 @@ public final class Pipeline {
             return processors;
         }
 
-        private Processor readProcessor(Map<String, Processor.Factory> processorRegistry, String type, Map<String, Object> config) throws Exception {
+        private Processor readProcessor(Map<String, Processor.Factory> processorRegistry, String type, Map<String, Object> config) throws ConfigurationPropertyException {
             Processor.Factory factory = processorRegistry.get(type);
             if (factory != null) {
-                List<Processor> onFailureProcessors = readProcessors(ON_FAILURE_KEY, processorRegistry, config);
-                Processor processor = factory.create(config);
-                if (config.isEmpty() == false) {
-                    throw new IllegalArgumentException("processor [" + type + "] doesn't support one or more provided configuration parameters " + Arrays.toString(config.keySet().toArray()));
+                List<Map<String, Map<String, Object>>> onFailureProcessorConfigs = ConfigurationUtils.readOptionalList(null, null, config, ON_FAILURE_KEY);
+                List<Processor> onFailureProcessors = readProcessorConfigs(onFailureProcessorConfigs, processorRegistry);
+                Processor processor;
+                try {
+                    processor = factory.create(config);
+                } catch (ConfigurationPropertyException e) {
+                    throw e;
+                } catch (Exception e) {
+                    throw new ConfigurationPropertyException(e.getMessage());
+                }
+                if (!config.isEmpty()) {
+                    throw new ConfigurationPropertyException("processor [" + type + "] doesn't support one or more provided configuration parameters " + Arrays.toString(config.keySet().toArray()));
                 }
                 if (onFailureProcessors.isEmpty()) {
                     return processor;
                 }
                 return new CompoundProcessor(Collections.singletonList(processor), onFailureProcessors);
             }
-            throw new IllegalArgumentException("No processor type exists with name [" + type + "]");
+            throw new ConfigurationPropertyException("No processor type exists with name [" + type + "]");
         }
     }
 }

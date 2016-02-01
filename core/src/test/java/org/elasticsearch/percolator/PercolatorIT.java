@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.percolator;
 
+import com.vividsolutions.jts.geom.Coordinate;
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -30,6 +31,7 @@ import org.elasticsearch.action.percolate.PercolateSourceBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.common.geo.builders.ShapeBuilders;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
@@ -71,6 +73,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.yamlBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
+import static org.elasticsearch.index.query.QueryBuilders.geoShapeQuery;
 import static org.elasticsearch.index.query.QueryBuilders.hasChildQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
@@ -132,7 +135,7 @@ public class PercolatorIT extends ESIntegTestCase {
                 .setIndices("test").setDocumentType("type")
                 .setPercolateDoc(docBuilder().setDoc(jsonBuilder().startObject().field("field1", "b").endObject()))
                 .execute().actionGet();
-        assertMatchCount(response, 2l);
+        assertMatchCount(response, 2L);
         assertThat(response.getMatches(), arrayWithSize(2));
         assertThat(convertFromTextArray(response.getMatches(), "test"), arrayContainingInAnyOrder("1", "4"));
 
@@ -141,7 +144,7 @@ public class PercolatorIT extends ESIntegTestCase {
                 .setIndices("test").setDocumentType("type")
                 .setPercolateDoc(docBuilder().setDoc(yamlBuilder().startObject().field("field1", "c").endObject()))
                 .execute().actionGet();
-        assertMatchCount(response, 2l);
+        assertMatchCount(response, 2L);
         assertThat(response.getMatches(), arrayWithSize(2));
         assertThat(convertFromTextArray(response.getMatches(), "test"), arrayContainingInAnyOrder("2", "4"));
 
@@ -150,7 +153,7 @@ public class PercolatorIT extends ESIntegTestCase {
                 .setIndices("test").setDocumentType("type")
                 .setPercolateDoc(docBuilder().setDoc(smileBuilder().startObject().field("field1", "b c").endObject()))
                 .execute().actionGet();
-        assertMatchCount(response, 4l);
+        assertMatchCount(response, 4L);
         assertThat(response.getMatches(), arrayWithSize(4));
         assertThat(convertFromTextArray(response.getMatches(), "test"), arrayContainingInAnyOrder("1", "2", "3", "4"));
 
@@ -159,7 +162,7 @@ public class PercolatorIT extends ESIntegTestCase {
                 .setIndices("test").setDocumentType("type")
                 .setPercolateDoc(docBuilder().setDoc(jsonBuilder().startObject().field("field1", "d").endObject()))
                 .execute().actionGet();
-        assertMatchCount(response, 1l);
+        assertMatchCount(response, 1L);
         assertThat(response.getMatches(), arrayWithSize(1));
         assertThat(convertFromTextArray(response.getMatches(), "test"), arrayContaining("4"));
 
@@ -187,7 +190,7 @@ public class PercolatorIT extends ESIntegTestCase {
         PercolateResponse response = client().preparePercolate().setSource(doc)
                 .setIndices("test").setDocumentType("type1")
                 .execute().actionGet();
-        assertMatchCount(response, 0l);
+        assertMatchCount(response, 0L);
         assertThat(response.getMatches(), emptyArray());
 
         // add first query...
@@ -199,7 +202,7 @@ public class PercolatorIT extends ESIntegTestCase {
         response = client().preparePercolate()
                 .setIndices("test").setDocumentType("type1")
                 .setSource(doc).execute().actionGet();
-        assertMatchCount(response, 1l);
+        assertMatchCount(response, 1L);
         assertThat(response.getMatches(), arrayWithSize(1));
         assertThat(convertFromTextArray(response.getMatches(), "test"), arrayContaining("test1"));
 
@@ -213,7 +216,7 @@ public class PercolatorIT extends ESIntegTestCase {
                 .setIndices("test").setDocumentType("type1")
                 .setSource(doc)
                 .execute().actionGet();
-        assertMatchCount(response, 2l);
+        assertMatchCount(response, 2L);
         assertThat(response.getMatches(), arrayWithSize(2));
         assertThat(convertFromTextArray(response.getMatches(), "test"), arrayContainingInAnyOrder("test1", "test2"));
 
@@ -223,7 +226,7 @@ public class PercolatorIT extends ESIntegTestCase {
         response = client().preparePercolate()
                 .setIndices("test").setDocumentType("type1")
                 .setSource(doc).execute().actionGet();
-        assertMatchCount(response, 1l);
+        assertMatchCount(response, 1L);
         assertThat(response.getMatches(), arrayWithSize(1));
         assertThat(convertFromTextArray(response.getMatches(), "test"), arrayContaining("test1"));
     }
@@ -249,7 +252,7 @@ public class PercolatorIT extends ESIntegTestCase {
                 .setPercolateDoc(docBuilder().setDoc(jsonBuilder().startObject().startObject("doc").field("field1", "value").endObject().endObject()))
                 .setSize(100)
                 .execute().actionGet();
-        assertMatchCount(response, 100l);
+        assertMatchCount(response, 100L);
         assertThat(response.getMatches(), arrayWithSize(100));
 
         logger.info("--> Percolate doc with routing=0");
@@ -259,7 +262,7 @@ public class PercolatorIT extends ESIntegTestCase {
                         .setSize(100)
                         .setRouting("0")
                         .execute().actionGet();
-        assertMatchCount(response, 50l);
+        assertMatchCount(response, 50L);
         assertThat(response.getMatches(), arrayWithSize(50));
 
         logger.info("--> Percolate doc with routing=1");
@@ -269,7 +272,7 @@ public class PercolatorIT extends ESIntegTestCase {
                 .setSize(100)
                 .setRouting("1")
                 .execute().actionGet();
-        assertMatchCount(response, 50l);
+        assertMatchCount(response, 50L);
         assertThat(response.getMatches(), arrayWithSize(50));
     }
 
@@ -336,7 +339,7 @@ public class PercolatorIT extends ESIntegTestCase {
                         .field("query", termQuery("source", "productizer"))
                         .endObject())
                 .execute().actionGet();
-        assertMatchCount(percolate, 1l);
+        assertMatchCount(percolate, 1L);
         assertThat(percolate.getMatches(), arrayWithSize(1));
 
     }
@@ -358,7 +361,7 @@ public class PercolatorIT extends ESIntegTestCase {
         SearchResponse countResponse = client().prepareSearch().setSize(0)
                 .setQuery(matchAllQuery()).setTypes(PercolatorService.TYPE_NAME)
                 .execute().actionGet();
-        assertThat(countResponse.getHits().totalHits(), equalTo(1l));
+        assertThat(countResponse.getHits().totalHits(), equalTo(1L));
 
 
         for (int i = 0; i < 10; i++) {
@@ -366,7 +369,7 @@ public class PercolatorIT extends ESIntegTestCase {
                     .setIndices("test").setDocumentType("type1")
                     .setSource(jsonBuilder().startObject().startObject("doc").field("field1", "value1").endObject().endObject())
                     .execute().actionGet();
-            assertMatchCount(percolate, 1l);
+            assertMatchCount(percolate, 1L);
             assertThat(percolate.getMatches(), arrayWithSize(1));
         }
 
@@ -376,7 +379,7 @@ public class PercolatorIT extends ESIntegTestCase {
                     .setPreference("_local")
                     .setSource(jsonBuilder().startObject().startObject("doc").field("field1", "value1").endObject().endObject())
                     .execute().actionGet();
-            assertMatchCount(percolate, 1l);
+            assertMatchCount(percolate, 1L);
             assertThat(percolate.getMatches(), arrayWithSize(1));
         }
 
@@ -387,7 +390,7 @@ public class PercolatorIT extends ESIntegTestCase {
         countResponse = client().prepareSearch().setSize(0)
                 .setQuery(matchAllQuery()).setTypes(PercolatorService.TYPE_NAME)
                 .execute().actionGet();
-        assertHitCount(countResponse, 0l);
+        assertHitCount(countResponse, 0L);
     }
 
     public void testMultiplePercolators() throws Exception {
@@ -416,7 +419,7 @@ public class PercolatorIT extends ESIntegTestCase {
                 .setIndices("test").setDocumentType("type1")
                 .setSource(jsonBuilder().startObject().startObject("doc").field("field1", "value1").endObject().endObject())
                 .execute().actionGet();
-        assertMatchCount(percolate, 1l);
+        assertMatchCount(percolate, 1L);
         assertThat(percolate.getMatches(), arrayWithSize(1));
         assertThat(convertFromTextArray(percolate.getMatches(), "test"), arrayContaining("kuku"));
 
@@ -424,7 +427,7 @@ public class PercolatorIT extends ESIntegTestCase {
                 .setIndices("test").setDocumentType("type1")
                 .setSource(jsonBuilder().startObject().startObject("doc").field("field1", "value2").endObject().endObject())
                 .execute().actionGet();
-        assertMatchCount(percolate, 1l);
+        assertMatchCount(percolate, 1L);
         assertThat(percolate.getMatches(), arrayWithSize(1));
         assertThat(convertFromTextArray(percolate.getMatches(), "test"), arrayContaining("bubu"));
 
@@ -450,7 +453,7 @@ public class PercolatorIT extends ESIntegTestCase {
                 .setIndices("test").setDocumentType("type1")
                 .setSource(jsonBuilder().startObject().startObject("doc").field("field1", "value1").endObject().endObject())
                 .execute().actionGet();
-        assertMatchCount(percolate, 1l);
+        assertMatchCount(percolate, 1L);
         assertThat(percolate.getMatches(), arrayWithSize(1));
         assertThat(convertFromTextArray(percolate.getMatches(), "test"), arrayContaining("kuku"));
 
@@ -467,7 +470,7 @@ public class PercolatorIT extends ESIntegTestCase {
                 .setIndices("test").setDocumentType("type1")
                 .setSource(jsonBuilder().startObject().startObject("doc").field("field1", "value2").endObject().endObject())
                 .execute().actionGet();
-        assertMatchCount(percolate, 1l);
+        assertMatchCount(percolate, 1L);
         assertThat(percolate.getMatches(), arrayWithSize(1));
         assertThat(convertFromTextArray(percolate.getMatches(), "test"), arrayContaining("bubu"));
 
@@ -487,7 +490,7 @@ public class PercolatorIT extends ESIntegTestCase {
                 .setIndices("test").setDocumentType("type1")
                 .setSource(sourceBuilder)
                 .execute().actionGet();
-        assertMatchCount(percolate, 1l);
+        assertMatchCount(percolate, 1L);
         assertThat(percolate.getMatches(), arrayWithSize(1));
         assertThat(convertFromTextArray(percolate.getMatches(), "test"), arrayContaining("susu"));
 
@@ -500,7 +503,7 @@ public class PercolatorIT extends ESIntegTestCase {
                         .field("field1", "value1")
                         .endObject().endObject().endObject())
                 .execute().actionGet();
-        assertMatchCount(percolate, 0l);
+        assertMatchCount(percolate, 0L);
         assertThat(percolate.getMatches(), emptyArray());
     }
 
@@ -519,16 +522,16 @@ public class PercolatorIT extends ESIntegTestCase {
                 .setIndices("test").setDocumentType("type")
                 .setSource(jsonBuilder().startObject().startObject("doc").field("field", "val").endObject().endObject())
                 .execute().actionGet();
-        assertMatchCount(response, 1l);
+        assertMatchCount(response, 1L);
         assertThat(convertFromTextArray(response.getMatches(), "test"), arrayContaining("1"));
 
         NumShards numShards = getNumShards("test");
 
         IndicesStatsResponse indicesResponse = client().admin().indices().prepareStats("test").execute().actionGet();
         assertThat(indicesResponse.getTotal().getPercolate().getCount(), equalTo((long) numShards.numPrimaries));
-        assertThat(indicesResponse.getTotal().getPercolate().getCurrent(), equalTo(0l));
+        assertThat(indicesResponse.getTotal().getPercolate().getCurrent(), equalTo(0L));
         assertThat(indicesResponse.getTotal().getPercolate().getNumQueries(), equalTo((long)numShards.dataCopies)); //number of copies
-        assertThat(indicesResponse.getTotal().getPercolate().getMemorySizeInBytes(), equalTo(-1l));
+        assertThat(indicesResponse.getTotal().getPercolate().getMemorySizeInBytes(), equalTo(-1L));
 
         NodesStatsResponse nodesResponse = client().admin().cluster().prepareNodesStats().execute().actionGet();
         long percolateCount = 0;
@@ -542,15 +545,15 @@ public class PercolatorIT extends ESIntegTestCase {
                 .setIndices("test").setDocumentType("type")
                 .setSource(jsonBuilder().startObject().startObject("doc").field("field", "val").endObject().endObject())
                 .execute().actionGet();
-        assertMatchCount(response, 1l);
+        assertMatchCount(response, 1L);
         assertThat(response.getMatches(), arrayWithSize(1));
         assertThat(convertFromTextArray(response.getMatches(), "test"), arrayContaining("1"));
 
         indicesResponse = client().admin().indices().prepareStats().setPercolate(true).execute().actionGet();
         assertThat(indicesResponse.getTotal().getPercolate().getCount(), equalTo((long) numShards.numPrimaries * 2));
-        assertThat(indicesResponse.getTotal().getPercolate().getCurrent(), equalTo(0l));
+        assertThat(indicesResponse.getTotal().getPercolate().getCurrent(), equalTo(0L));
         assertThat(indicesResponse.getTotal().getPercolate().getNumQueries(), equalTo((long)numShards.dataCopies)); //number of copies
-        assertThat(indicesResponse.getTotal().getPercolate().getMemorySizeInBytes(), equalTo(-1l));
+        assertThat(indicesResponse.getTotal().getPercolate().getMemorySizeInBytes(), equalTo(-1L));
 
         percolateCount = 0;
         nodesResponse = client().admin().cluster().prepareNodesStats().execute().actionGet();
@@ -585,7 +588,7 @@ public class PercolatorIT extends ESIntegTestCase {
             percolateCount += nodeStats.getIndices().getPercolate().getCount();
             percolateSumTime += nodeStats.getIndices().getPercolate().getTimeInMillis();
         }
-        assertThat(percolateSumTime, greaterThan(0l));
+        assertThat(percolateSumTime, greaterThan(0L));
     }
 
     public void testPercolatingExistingDocs() throws Exception {
@@ -621,7 +624,7 @@ public class PercolatorIT extends ESIntegTestCase {
                 .setIndices("test").setDocumentType("type")
                 .setGetRequest(Requests.getRequest("test").type("type").id("1"))
                 .execute().actionGet();
-        assertMatchCount(response, 2l);
+        assertMatchCount(response, 2L);
         assertThat(response.getMatches(), arrayWithSize(2));
         assertThat(convertFromTextArray(response.getMatches(), "test"), arrayContainingInAnyOrder("1", "4"));
 
@@ -630,7 +633,7 @@ public class PercolatorIT extends ESIntegTestCase {
                 .setIndices("test").setDocumentType("type")
                 .setGetRequest(Requests.getRequest("test").type("type").id("2"))
                 .execute().actionGet();
-        assertMatchCount(response, 2l);
+        assertMatchCount(response, 2L);
         assertThat(response.getMatches(), arrayWithSize(2));
         assertThat(convertFromTextArray(response.getMatches(), "test"), arrayContainingInAnyOrder("2", "4"));
 
@@ -639,7 +642,7 @@ public class PercolatorIT extends ESIntegTestCase {
                 .setIndices("test").setDocumentType("type")
                 .setGetRequest(Requests.getRequest("test").type("type").id("3"))
                 .execute().actionGet();
-        assertMatchCount(response, 4l);
+        assertMatchCount(response, 4L);
         assertThat(response.getMatches(), arrayWithSize(4));
         assertThat(convertFromTextArray(response.getMatches(), "test"), arrayContainingInAnyOrder("1", "2", "3", "4"));
 
@@ -648,7 +651,7 @@ public class PercolatorIT extends ESIntegTestCase {
                 .setIndices("test").setDocumentType("type")
                 .setGetRequest(Requests.getRequest("test").type("type").id("4"))
                 .execute().actionGet();
-        assertMatchCount(response, 1l);
+        assertMatchCount(response, 1L);
         assertThat(response.getMatches(), arrayWithSize(1));
         assertThat(convertFromTextArray(response.getMatches(), "test"), arrayContaining("4"));
     }
@@ -686,7 +689,7 @@ public class PercolatorIT extends ESIntegTestCase {
                 .setIndices("test").setDocumentType("type")
                 .setGetRequest(Requests.getRequest("test").type("type").id("1").routing("4"))
                 .execute().actionGet();
-        assertMatchCount(response, 2l);
+        assertMatchCount(response, 2L);
         assertThat(response.getMatches(), arrayWithSize(2));
         assertThat(convertFromTextArray(response.getMatches(), "test"), arrayContainingInAnyOrder("1", "4"));
 
@@ -695,7 +698,7 @@ public class PercolatorIT extends ESIntegTestCase {
                 .setIndices("test").setDocumentType("type")
                 .setGetRequest(Requests.getRequest("test").type("type").id("2").routing("3"))
                 .execute().actionGet();
-        assertMatchCount(response, 2l);
+        assertMatchCount(response, 2L);
         assertThat(response.getMatches(), arrayWithSize(2));
         assertThat(convertFromTextArray(response.getMatches(), "test"), arrayContainingInAnyOrder("2", "4"));
 
@@ -704,7 +707,7 @@ public class PercolatorIT extends ESIntegTestCase {
                 .setIndices("test").setDocumentType("type")
                 .setGetRequest(Requests.getRequest("test").type("type").id("3").routing("2"))
                 .execute().actionGet();
-        assertMatchCount(response, 4l);
+        assertMatchCount(response, 4L);
         assertThat(response.getMatches(), arrayWithSize(4));
         assertThat(convertFromTextArray(response.getMatches(), "test"), arrayContainingInAnyOrder("1", "2", "3", "4"));
 
@@ -713,7 +716,7 @@ public class PercolatorIT extends ESIntegTestCase {
                 .setIndices("test").setDocumentType("type")
                 .setGetRequest(Requests.getRequest("test").type("type").id("4").routing("1"))
                 .execute().actionGet();
-        assertMatchCount(response, 1l);
+        assertMatchCount(response, 1L);
         assertThat(response.getMatches(), arrayWithSize(1));
         assertThat(convertFromTextArray(response.getMatches(), "test"), arrayContaining("4"));
     }
@@ -749,9 +752,9 @@ public class PercolatorIT extends ESIntegTestCase {
         logger.info("--> Percolate existing doc with id 2 and version 1");
         PercolateResponse response = client().preparePercolate()
                 .setIndices("test").setDocumentType("type")
-                .setGetRequest(Requests.getRequest("test").type("type").id("2").version(1l))
+                .setGetRequest(Requests.getRequest("test").type("type").id("2").version(1L))
                 .execute().actionGet();
-        assertMatchCount(response, 2l);
+        assertMatchCount(response, 2L);
         assertThat(response.getMatches(), arrayWithSize(2));
         assertThat(convertFromTextArray(response.getMatches(), "test"), arrayContainingInAnyOrder("2", "4"));
 
@@ -759,7 +762,7 @@ public class PercolatorIT extends ESIntegTestCase {
         try {
             client().preparePercolate()
                     .setIndices("test").setDocumentType("type")
-                    .setGetRequest(Requests.getRequest("test").type("type").id("2").version(2l))
+                    .setGetRequest(Requests.getRequest("test").type("type").id("2").version(2L))
                     .execute().actionGet();
             fail("Error should have been thrown");
         } catch (VersionConflictEngineException e) {
@@ -771,9 +774,9 @@ public class PercolatorIT extends ESIntegTestCase {
         logger.info("--> Percolate existing doc with id 2 and version 2");
         response = client().preparePercolate()
                 .setIndices("test").setDocumentType("type")
-                .setGetRequest(Requests.getRequest("test").type("type").id("2").version(2l))
+                .setGetRequest(Requests.getRequest("test").type("type").id("2").version(2L))
                 .execute().actionGet();
-        assertMatchCount(response, 2l);
+        assertMatchCount(response, 2L);
         assertThat(response.getMatches(), arrayWithSize(2));
         assertThat(convertFromTextArray(response.getMatches(), "test"), arrayContainingInAnyOrder("2", "4"));
     }
@@ -796,7 +799,7 @@ public class PercolatorIT extends ESIntegTestCase {
                 .setIndices("test1").setDocumentType("type")
                 .setSource(jsonBuilder().startObject().startObject("doc").field("field1", "value").endObject().endObject())
                 .execute().actionGet();
-        assertMatchCount(response, 5l);
+        assertMatchCount(response, 5L);
         assertThat(response.getMatches(), arrayWithSize(5));
 
         logger.info("--> Percolate doc to index test2");
@@ -804,7 +807,7 @@ public class PercolatorIT extends ESIntegTestCase {
                 .setIndices("test2").setDocumentType("type")
                 .setSource(jsonBuilder().startObject().startObject("doc").field("field1", "value").endObject().endObject())
                 .execute().actionGet();
-        assertMatchCount(response, 5l);
+        assertMatchCount(response, 5L);
         assertThat(response.getMatches(), arrayWithSize(5));
 
         logger.info("--> Percolate doc to index test1 and test2");
@@ -812,7 +815,7 @@ public class PercolatorIT extends ESIntegTestCase {
                 .setIndices("test1", "test2").setDocumentType("type")
                 .setSource(jsonBuilder().startObject().startObject("doc").field("field1", "value").endObject().endObject())
                 .execute().actionGet();
-        assertMatchCount(response, 10l);
+        assertMatchCount(response, 10L);
         assertThat(response.getMatches(), arrayWithSize(10));
 
         logger.info("--> Percolate doc to index test2 and test3, with ignore missing");
@@ -821,7 +824,7 @@ public class PercolatorIT extends ESIntegTestCase {
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                 .setSource(jsonBuilder().startObject().startObject("doc").field("field1", "value").endObject().endObject())
                 .execute().actionGet();
-        assertMatchCount(response, 5l);
+        assertMatchCount(response, 5L);
         assertThat(response.getMatches(), arrayWithSize(5));
 
         logger.info("--> Adding aliases");
@@ -838,7 +841,7 @@ public class PercolatorIT extends ESIntegTestCase {
                 .setIndices("my-alias1").setDocumentType("type")
                 .setSource(jsonBuilder().startObject().startObject("doc").field("field1", "value").endObject().endObject())
                 .execute().actionGet();
-        assertMatchCount(response, 10l);
+        assertMatchCount(response, 10L);
         assertThat(response.getMatches(), arrayWithSize(10));
         for (PercolateResponse.Match match : response) {
             assertThat(match.getIndex().string(), anyOf(equalTo("test1"), equalTo("test2")));
@@ -849,7 +852,7 @@ public class PercolatorIT extends ESIntegTestCase {
                 .setIndices("my-alias2").setDocumentType("type")
                 .setSource(jsonBuilder().startObject().startObject("doc").field("field1", "value").endObject().endObject())
                 .execute().actionGet();
-        assertMatchCount(response, 5l);
+        assertMatchCount(response, 5L);
         assertThat(response.getMatches(), arrayWithSize(5));
         for (PercolateResponse.Match match : response) {
             assertThat(match.getIndex().string(), equalTo("test2"));
@@ -880,7 +883,7 @@ public class PercolatorIT extends ESIntegTestCase {
                 .setPercolateDoc(new PercolateSourceBuilder.DocBuilder().setDoc("{}"))
                 .get();
         assertNoFailures(response);
-        assertThat(response.getCount(), equalTo(1l));
+        assertThat(response.getCount(), equalTo(1L));
         assertThat(response.getMatches()[0].getId().string(), equalTo("1"));
 
         response = client().preparePercolate()
@@ -889,7 +892,7 @@ public class PercolatorIT extends ESIntegTestCase {
                 .setPercolateDoc(new PercolateSourceBuilder.DocBuilder().setDoc("{}"))
                 .get();
         assertNoFailures(response);
-        assertThat(response.getCount(), equalTo(1l));
+        assertThat(response.getCount(), equalTo(1L));
         assertThat(response.getMatches()[0].getId().string(), equalTo("2"));
 
 
@@ -899,7 +902,7 @@ public class PercolatorIT extends ESIntegTestCase {
                 .setPercolateDoc(new PercolateSourceBuilder.DocBuilder().setDoc("{}"))
                 .get();
         assertNoFailures(response);
-        assertThat(response.getCount(), equalTo(0l));
+        assertThat(response.getCount(), equalTo(0L));
 
         // Testing that the alias filter and the filter specified while percolating are both taken into account.
         response = client().preparePercolate()
@@ -909,7 +912,7 @@ public class PercolatorIT extends ESIntegTestCase {
                 .setPercolateQuery(QueryBuilders.matchAllQuery())
                 .get();
         assertNoFailures(response);
-        assertThat(response.getCount(), equalTo(1l));
+        assertThat(response.getCount(), equalTo(1L));
         assertThat(response.getMatches()[0].getId().string(), equalTo("1"));
 
         response = client().preparePercolate()
@@ -919,7 +922,7 @@ public class PercolatorIT extends ESIntegTestCase {
                 .setPercolateQuery(QueryBuilders.matchAllQuery())
                 .get();
         assertNoFailures(response);
-        assertThat(response.getCount(), equalTo(1l));
+        assertThat(response.getCount(), equalTo(1L));
         assertThat(response.getMatches()[0].getId().string(), equalTo("2"));
 
 
@@ -930,7 +933,7 @@ public class PercolatorIT extends ESIntegTestCase {
                 .setPercolateQuery(QueryBuilders.matchAllQuery())
                 .get();
         assertNoFailures(response);
-        assertThat(response.getCount(), equalTo(0l));
+        assertThat(response.getCount(), equalTo(0L));
     }
 
     public void testCountPercolation() throws Exception {
@@ -963,7 +966,7 @@ public class PercolatorIT extends ESIntegTestCase {
                 .setIndices("test").setDocumentType("type").setOnlyCount(true)
                 .setPercolateDoc(docBuilder().setDoc(jsonBuilder().startObject().field("field1", "b").endObject()))
                 .execute().actionGet();
-        assertMatchCount(response, 2l);
+        assertMatchCount(response, 2L);
         assertThat(response.getMatches(), nullValue());
 
         logger.info("--> Count percolate doc with field1=c");
@@ -971,7 +974,7 @@ public class PercolatorIT extends ESIntegTestCase {
                 .setIndices("test").setDocumentType("type").setOnlyCount(true)
                 .setPercolateDoc(docBuilder().setDoc(yamlBuilder().startObject().field("field1", "c").endObject()))
                 .execute().actionGet();
-        assertMatchCount(response, 2l);
+        assertMatchCount(response, 2L);
         assertThat(response.getMatches(), nullValue());
 
         logger.info("--> Count percolate doc with field1=b c");
@@ -979,7 +982,7 @@ public class PercolatorIT extends ESIntegTestCase {
                 .setIndices("test").setDocumentType("type").setOnlyCount(true)
                 .setPercolateDoc(docBuilder().setDoc(smileBuilder().startObject().field("field1", "b c").endObject()))
                 .execute().actionGet();
-        assertMatchCount(response, 4l);
+        assertMatchCount(response, 4L);
         assertThat(response.getMatches(), nullValue());
 
         logger.info("--> Count percolate doc with field1=d");
@@ -987,7 +990,7 @@ public class PercolatorIT extends ESIntegTestCase {
                 .setIndices("test").setDocumentType("type").setOnlyCount(true)
                 .setPercolateDoc(docBuilder().setDoc(jsonBuilder().startObject().field("field1", "d").endObject()))
                 .execute().actionGet();
-        assertMatchCount(response, 1l);
+        assertMatchCount(response, 1L);
         assertThat(response.getMatches(), nullValue());
 
         logger.info("--> Count percolate non existing doc");
@@ -1034,7 +1037,7 @@ public class PercolatorIT extends ESIntegTestCase {
                 .setIndices("test").setDocumentType("type").setOnlyCount(true)
                 .setGetRequest(Requests.getRequest("test").type("type").id("1"))
                 .execute().actionGet();
-        assertMatchCount(response, 2l);
+        assertMatchCount(response, 2L);
         assertThat(response.getMatches(), nullValue());
 
         logger.info("--> Count percolate existing doc with id 2");
@@ -1042,7 +1045,7 @@ public class PercolatorIT extends ESIntegTestCase {
                 .setIndices("test").setDocumentType("type").setOnlyCount(true)
                 .setGetRequest(Requests.getRequest("test").type("type").id("2"))
                 .execute().actionGet();
-        assertMatchCount(response, 2l);
+        assertMatchCount(response, 2L);
         assertThat(response.getMatches(), nullValue());
 
         logger.info("--> Count percolate existing doc with id 3");
@@ -1050,7 +1053,7 @@ public class PercolatorIT extends ESIntegTestCase {
                 .setIndices("test").setDocumentType("type").setOnlyCount(true)
                 .setGetRequest(Requests.getRequest("test").type("type").id("3"))
                 .execute().actionGet();
-        assertMatchCount(response, 4l);
+        assertMatchCount(response, 4L);
         assertThat(response.getMatches(), nullValue());
 
         logger.info("--> Count percolate existing doc with id 4");
@@ -1058,7 +1061,7 @@ public class PercolatorIT extends ESIntegTestCase {
                 .setIndices("test").setDocumentType("type").setOnlyCount(true)
                 .setGetRequest(Requests.getRequest("test").type("type").id("4"))
                 .execute().actionGet();
-        assertMatchCount(response, 1l);
+        assertMatchCount(response, 1L);
         assertThat(response.getMatches(), nullValue());
     }
 
@@ -1261,7 +1264,7 @@ public class PercolatorIT extends ESIntegTestCase {
                 .setPercolateDoc(docBuilder().setDoc("field", "value"))
                 .setPercolateQuery(QueryBuilders.functionScoreQuery(matchAllQuery(), fieldValueFactorFunction("level")))
                 .execute().actionGet();
-        assertMatchCount(response, 2l);
+        assertMatchCount(response, 2L);
         assertThat(response.getMatches()[0].getId().string(), equalTo("2"));
         assertThat(response.getMatches()[0].getScore(), equalTo(2f));
         assertThat(response.getMatches()[1].getId().string(), equalTo("1"));
@@ -1305,7 +1308,7 @@ public class PercolatorIT extends ESIntegTestCase {
                 .setPercolateDoc(docBuilder().setDoc("field", "value"))
                 .setPercolateQuery(QueryBuilders.functionScoreQuery(matchAllQuery(), fieldValueFactorFunction("level")))
                 .execute().actionGet();
-        assertMatchCount(response, 0l);
+        assertMatchCount(response, 0L);
     }
 
     public void testPercolatorWithHighlighting() throws Exception {
@@ -1343,7 +1346,7 @@ public class PercolatorIT extends ESIntegTestCase {
                 .setPercolateDoc(docBuilder().setDoc(jsonBuilder().startObject().field("field1", "The quick brown fox jumps over the lazy dog").endObject()))
                 .setHighlightBuilder(new HighlightBuilder().field("field1"))
                 .execute().actionGet();
-        assertMatchCount(response, 5l);
+        assertMatchCount(response, 5L);
         assertThat(response.getMatches(), arrayWithSize(5));
         assertThat(convertFromTextArray(response.getMatches(), "test"), arrayContainingInAnyOrder("1", "2", "3", "4", "5"));
 
@@ -1369,7 +1372,7 @@ public class PercolatorIT extends ESIntegTestCase {
                 .setHighlightBuilder(new HighlightBuilder().field("field1"))
                 .setPercolateQuery(matchAllQuery())
                 .execute().actionGet();
-        assertMatchCount(response, 5l);
+        assertMatchCount(response, 5L);
         assertThat(response.getMatches(), arrayWithSize(5));
         assertThat(convertFromTextArray(response.getMatches(), "test"), arrayContainingInAnyOrder("1", "2", "3", "4", "5"));
 
@@ -1428,7 +1431,7 @@ public class PercolatorIT extends ESIntegTestCase {
                 .setPercolateQuery(functionScoreQuery(new WeightBuilder().setWeight(5.5f)))
                 .setSortByScore(true)
                 .execute().actionGet();
-        assertMatchCount(response, 5l);
+        assertMatchCount(response, 5L);
         assertThat(response.getMatches(), arrayWithSize(5));
         assertThat(convertFromTextArray(response.getMatches(), "test"), arrayContainingInAnyOrder("1", "2", "3", "4", "5"));
 
@@ -1460,7 +1463,7 @@ public class PercolatorIT extends ESIntegTestCase {
                 .setPercolateQuery(functionScoreQuery(new WeightBuilder().setWeight(5.5f)))
                 .setSortByScore(true)
                 .execute().actionGet();
-        assertMatchCount(response, 5l);
+        assertMatchCount(response, 5L);
         assertThat(response.getMatches(), arrayWithSize(5));
         assertThat(convertFromTextArray(response.getMatches(), "test"), arrayContainingInAnyOrder("1", "2", "3", "4", "5"));
 
@@ -1498,7 +1501,7 @@ public class PercolatorIT extends ESIntegTestCase {
                 .setPercolateQuery(functionScoreQuery(new WeightBuilder().setWeight(5.5f)))
                 .setSortByScore(true)
                 .execute().actionGet();
-        assertMatchCount(response, 5l);
+        assertMatchCount(response, 5L);
         assertThat(response.getMatches(), arrayWithSize(5));
         assertThat(convertFromTextArray(response.getMatches(), "test"), arrayContainingInAnyOrder("1", "2", "3", "4", "5"));
 
@@ -1544,7 +1547,7 @@ public class PercolatorIT extends ESIntegTestCase {
                         .endObject())
                 .execute().actionGet();
         assertNoFailures(percolate);
-        assertMatchCount(percolate, 0l);
+        assertMatchCount(percolate, 0L);
     }
 
     public void testNestedPercolation() throws IOException {
@@ -1594,7 +1597,7 @@ public class PercolatorIT extends ESIntegTestCase {
                 .setPercolateDoc(docBuilder().setDoc(jsonBuilder().startObject().field("field", "value").endObject()))
                 .setPercolateQuery(QueryBuilders.matchAllQuery())
                 .get();
-        assertMatchCount(response, 1l);
+        assertMatchCount(response, 1L);
         assertThat(response.getMatches(), arrayWithSize(1));
         assertThat(convertFromTextArray(response.getMatches(), "test"), arrayContainingInAnyOrder("1"));
     }
@@ -1641,7 +1644,7 @@ public class PercolatorIT extends ESIntegTestCase {
                 .setIndices("test").setDocumentType("my-type")
                 .setPercolateDoc(docBuilder().setDoc("timestamp", System.currentTimeMillis()))
                 .get();
-        assertMatchCount(response, 2l);
+        assertMatchCount(response, 2L);
         assertThat(response.getMatches(), arrayWithSize(2));
         assertThat(convertFromTextArray(response.getMatches(), "test"), arrayContainingInAnyOrder("1", "2"));
     }
@@ -1796,7 +1799,7 @@ public class PercolatorIT extends ESIntegTestCase {
                 .setIndices("test").setDocumentType("doc")
                 .setPercolateDoc(docBuilder().setDoc(doc))
                 .get();
-        assertMatchCount(response, 3l);
+        assertMatchCount(response, 3L);
         Set<String> expectedIds = new HashSet<>();
         expectedIds.add("q1");
         expectedIds.add("q4");
@@ -1809,12 +1812,12 @@ public class PercolatorIT extends ESIntegTestCase {
                 .setIndices("test").setDocumentType("doc")
                 .setPercolateDoc(docBuilder().setDoc(doc))
                 .get();
-        assertMatchCount(response, 3l);
+        assertMatchCount(response, 3L);
         response = client().preparePercolate().setScore(randomBoolean()).setSortByScore(randomBoolean()).setOnlyCount(randomBoolean()).setSize(10).setPercolateQuery(QueryBuilders.termQuery("text", "foo"))
                 .setIndices("test").setDocumentType("doc")
                 .setPercolateDoc(docBuilder().setDoc(doc))
                 .get();
-        assertMatchCount(response, 3l);
+        assertMatchCount(response, 3L);
     }
 
     public void testMapUnmappedFieldAsString() throws IOException{
@@ -1832,8 +1835,35 @@ public class PercolatorIT extends ESIntegTestCase {
                 .setIndices("test").setDocumentType("type")
                 .setPercolateDoc(docBuilder().setDoc(jsonBuilder().startObject().field("field1", "value").endObject()))
                 .execute().actionGet();
-        assertMatchCount(response1, 1l);
+        assertMatchCount(response1, 1L);
         assertThat(response1.getMatches(), arrayWithSize(1));
+    }
+
+    public void testGeoShapeWithMapUnmappedFieldAsString() throws Exception {
+        // If index.percolator.map_unmapped_fields_as_string is set to true, unmapped field is mapped as an analyzed string.
+        Settings.Builder settings = Settings.settingsBuilder()
+            .put(indexSettings())
+            .put("index.percolator.map_unmapped_fields_as_string", true);
+        assertAcked(prepareCreate("test")
+            .setSettings(settings)
+            .addMapping("type", "location", "type=geo_shape"));
+        client().prepareIndex("test", PercolatorService.TYPE_NAME, "1")
+            .setSource(jsonBuilder().startObject().field("query", geoShapeQuery("location", ShapeBuilders.newEnvelope(new Coordinate(0d, 50d), new Coordinate(2d, 40d)))).endObject())
+            .get();
+        refresh();
+
+        PercolateResponse response1 = client().preparePercolate()
+            .setIndices("test").setDocumentType("type")
+            .setPercolateDoc(docBuilder().setDoc(jsonBuilder().startObject()
+                .startObject("location")
+                    .field("type", "point")
+                    .field("coordinates", Arrays.asList(1.44207d, 43.59959d))
+                .endObject()
+                .endObject()))
+            .execute().actionGet();
+        assertMatchCount(response1, 1L);
+        assertThat(response1.getMatches().length, equalTo(1));
+        assertThat(response1.getMatches()[0].getId().string(), equalTo("1"));
     }
 
     public void testFailNicelyWithInnerHits() throws Exception {

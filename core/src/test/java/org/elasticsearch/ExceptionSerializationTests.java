@@ -543,9 +543,9 @@ public class ExceptionSerializationTests extends ESTestCase {
 
     public void testNotSerializableExceptionWrapper() throws IOException {
         NotSerializableExceptionWrapper ex = serialize(new NotSerializableExceptionWrapper(new NullPointerException()));
-        assertEquals("{\"type\":\"null_pointer_exception\",\"reason\":null}", toXContent(ex));
+        assertEquals("{\"type\":\"null_pointer_exception\",\"reason\":\"null_pointer_exception: null\"}", toXContent(ex));
         ex = serialize(new NotSerializableExceptionWrapper(new IllegalArgumentException("nono!")));
-        assertEquals("{\"type\":\"illegal_argument_exception\",\"reason\":\"nono!\"}", toXContent(ex));
+        assertEquals("{\"type\":\"illegal_argument_exception\",\"reason\":\"illegal_argument_exception: nono!\"}", toXContent(ex));
 
         Throwable[] unknowns = new Throwable[]{
                 new Exception("foobar"),
@@ -586,7 +586,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ElasticsearchException serialize = serialize((ElasticsearchException) uhe);
         assertTrue(serialize instanceof NotSerializableExceptionWrapper);
         NotSerializableExceptionWrapper e = (NotSerializableExceptionWrapper) serialize;
-        assertEquals("msg", e.getMessage());
+        assertEquals("unknown_header_exception: msg", e.getMessage());
         assertEquals(2, e.getHeader("foo").size());
         assertEquals("foo", e.getHeader("foo").get(0));
         assertEquals("bar", e.getHeader("foo").get(1));

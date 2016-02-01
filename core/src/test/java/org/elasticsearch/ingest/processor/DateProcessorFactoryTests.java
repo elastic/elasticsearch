@@ -20,6 +20,7 @@
 package org.elasticsearch.ingest.processor;
 
 import org.elasticsearch.ingest.core.AbstractProcessorFactory;
+import org.elasticsearch.ingest.core.Processor;
 import org.elasticsearch.test.ESTestCase;
 import org.joda.time.DateTimeZone;
 
@@ -63,8 +64,8 @@ public class DateProcessorFactoryTests extends ESTestCase {
         try {
             factory.create(config);
             fail("processor creation should have failed");
-        } catch(IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("required property [match_field] is missing"));
+        } catch(ConfigurationPropertyException e) {
+            assertThat(e.getMessage(), containsString("[match_field] required property is missing"));
         }
     }
 
@@ -79,8 +80,8 @@ public class DateProcessorFactoryTests extends ESTestCase {
         try {
             factory.create(config);
             fail("processor creation should have failed");
-        } catch(IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("required property [match_formats] is missing"));
+        } catch(ConfigurationPropertyException e) {
+            assertThat(e.getMessage(), containsString("[match_formats] required property is missing"));
         }
     }
 
@@ -169,8 +170,8 @@ public class DateProcessorFactoryTests extends ESTestCase {
         try {
             factory.create(config);
             fail("processor creation should have failed");
-        } catch(IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("property [match_formats] isn't a list, but of type [java.lang.String]"));
+        } catch(ConfigurationPropertyException e) {
+            assertThat(e.getMessage(), containsString("[match_formats] property isn't a list, but of type [java.lang.String]"));
         }
     }
 

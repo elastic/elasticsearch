@@ -56,6 +56,7 @@ import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -63,6 +64,10 @@ import java.util.Map;
 public final class InnerHitsContext {
 
     private final Map<String, BaseInnerHits> innerHits;
+
+    public InnerHitsContext() {
+        this.innerHits = new HashMap<>();
+    }
 
     public InnerHitsContext(Map<String, BaseInnerHits> innerHits) {
         this.innerHits = innerHits;
@@ -73,7 +78,17 @@ public final class InnerHitsContext {
     }
 
     public void addInnerHitDefinition(String name, BaseInnerHits innerHit) {
+        if (innerHits.containsKey(name)) {
+            throw new IllegalArgumentException("inner_hit definition with the name [" + name + "] already exists. Use a different inner_hit name");
+        }
+
         innerHits.put(name, innerHit);
+    }
+
+    public void addInnerHitDefinitions(Map<String, BaseInnerHits> innerHits) {
+        for (Map.Entry<String, BaseInnerHits> entry : innerHits.entrySet()) {
+            addInnerHitDefinition(entry.getKey(), entry.getValue());
+        }
     }
 
     public static abstract class BaseInnerHits extends FilteredSearchContext {

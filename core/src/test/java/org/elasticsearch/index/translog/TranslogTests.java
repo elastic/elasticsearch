@@ -288,7 +288,7 @@ public class TranslogTests extends ESTestCase {
     public void testStats() throws IOException {
         final long firstOperationPosition = translog.getFirstOperationPosition();
         TranslogStats stats = stats();
-        assertThat(stats.estimatedNumberOfOperations(), equalTo(0l));
+        assertThat(stats.estimatedNumberOfOperations(), equalTo(0L));
         long lastSize = stats.getTranslogSizeInBytes();
         assertThat((int) firstOperationPosition, greaterThan(CodecUtil.headerLength(TranslogWriter.TRANSLOG_CODEC)));
         assertThat(lastSize, equalTo(firstOperationPosition));
@@ -296,14 +296,14 @@ public class TranslogTests extends ESTestCase {
         translog.add(new Translog.Index("test", "1", new byte[]{1}));
         stats = stats();
         total.add(stats);
-        assertThat(stats.estimatedNumberOfOperations(), equalTo(1l));
+        assertThat(stats.estimatedNumberOfOperations(), equalTo(1L));
         assertThat(stats.getTranslogSizeInBytes(), greaterThan(lastSize));
         lastSize = stats.getTranslogSizeInBytes();
 
         translog.add(new Translog.Delete(newUid("2")));
         stats = stats();
         total.add(stats);
-        assertThat(stats.estimatedNumberOfOperations(), equalTo(2l));
+        assertThat(stats.estimatedNumberOfOperations(), equalTo(2L));
         assertThat(stats.getTranslogSizeInBytes(), greaterThan(lastSize));
         lastSize = stats.getTranslogSizeInBytes();
 
@@ -311,13 +311,13 @@ public class TranslogTests extends ESTestCase {
         translog.prepareCommit();
         stats = stats();
         total.add(stats);
-        assertThat(stats.estimatedNumberOfOperations(), equalTo(3l));
+        assertThat(stats.estimatedNumberOfOperations(), equalTo(3L));
         assertThat(stats.getTranslogSizeInBytes(), greaterThan(lastSize));
 
         translog.commit();
         stats = stats();
         total.add(stats);
-        assertThat(stats.estimatedNumberOfOperations(), equalTo(0l));
+        assertThat(stats.estimatedNumberOfOperations(), equalTo(0L));
         assertThat(stats.getTranslogSizeInBytes(), equalTo(firstOperationPosition));
         assertEquals(6, total.estimatedNumberOfOperations());
         assertEquals(431, total.getTranslogSizeInBytes());
@@ -983,7 +983,7 @@ public class TranslogTests extends ESTestCase {
             if (op == prepareOp) {
                 translogGeneration = translog.getGeneration();
                 translog.prepareCommit();
-                assertEquals("expected this to be the first commit", 1l, translogGeneration.translogFileGeneration);
+                assertEquals("expected this to be the first commit", 1L, translogGeneration.translogFileGeneration);
                 assertNotNull(translogGeneration.translogUUID);
             }
         }
@@ -1034,7 +1034,7 @@ public class TranslogTests extends ESTestCase {
             if (op == prepareOp) {
                 translogGeneration = translog.getGeneration();
                 translog.prepareCommit();
-                assertEquals("expected this to be the first commit", 1l, translogGeneration.translogFileGeneration);
+                assertEquals("expected this to be the first commit", 1L, translogGeneration.translogFileGeneration);
                 assertNotNull(translogGeneration.translogUUID);
             }
         }
@@ -1090,7 +1090,7 @@ public class TranslogTests extends ESTestCase {
             if (op == prepareOp) {
                 translogGeneration = translog.getGeneration();
                 translog.prepareCommit();
-                assertEquals("expected this to be the first commit", 1l, translogGeneration.translogFileGeneration);
+                assertEquals("expected this to be the first commit", 1L, translogGeneration.translogFileGeneration);
                 assertNotNull(translogGeneration.translogUUID);
             }
         }

@@ -22,6 +22,7 @@ import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
+import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClientNodesService;
 import org.elasticsearch.cluster.ClusterModule;
@@ -346,6 +347,12 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     FsService.REFRESH_INTERVAL_SETTING,
                     JvmGcMonitorService.ENABLED_SETTING,
                     JvmGcMonitorService.REFRESH_INTERVAL_SETTING,
-                    JvmGcMonitorService.GC_SETTING
+                    JvmGcMonitorService.GC_SETTING,
+                    PageCacheRecycler.LIMIT_HEAP_SETTING,
+                    PageCacheRecycler.WEIGHT_BYTES_SETTING,
+                    PageCacheRecycler.WEIGHT_INT_SETTING,
+                    PageCacheRecycler.WEIGHT_LONG_SETTING,
+                    PageCacheRecycler.WEIGHT_OBJECTS_SETTING,
+                    PageCacheRecycler.TYPE_SETTING
                 )));
 }

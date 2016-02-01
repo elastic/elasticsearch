@@ -32,25 +32,25 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 
-public class PluginManagerCliTests extends CliToolTestCase {
+public class PluginCliTests extends CliToolTestCase {
     public void testHelpWorks() throws IOException {
         CliToolTestCase.CaptureOutputTerminal terminal = new CliToolTestCase.CaptureOutputTerminal();
-        assertThat(new PluginManagerCliParser(terminal).execute(args("--help")), is(OK_AND_EXIT));
+        assertThat(new PluginCli(terminal).execute(args("--help")), is(OK_AND_EXIT));
         assertTerminalOutputContainsHelpFile(terminal, "/org/elasticsearch/plugins/plugin.help");
 
         terminal.getTerminalOutput().clear();
-        assertThat(new PluginManagerCliParser(terminal).execute(args("install -h")), is(OK_AND_EXIT));
+        assertThat(new PluginCli(terminal).execute(args("install -h")), is(OK_AND_EXIT));
         assertTerminalOutputContainsHelpFile(terminal, "/org/elasticsearch/plugins/plugin-install.help");
-        for (String plugin : PluginManager.OFFICIAL_PLUGINS) {
+        for (String plugin : InstallPluginCommand.OFFICIAL_PLUGINS) {
             assertThat(terminal.getTerminalOutput(), hasItem(containsString(plugin)));
         }
 
         terminal.getTerminalOutput().clear();
-        assertThat(new PluginManagerCliParser(terminal).execute(args("remove --help")), is(OK_AND_EXIT));
+        assertThat(new PluginCli(terminal).execute(args("remove --help")), is(OK_AND_EXIT));
         assertTerminalOutputContainsHelpFile(terminal, "/org/elasticsearch/plugins/plugin-remove.help");
 
         terminal.getTerminalOutput().clear();
-        assertThat(new PluginManagerCliParser(terminal).execute(args("list -h")), is(OK_AND_EXIT));
+        assertThat(new PluginCli(terminal).execute(args("list -h")), is(OK_AND_EXIT));
         assertTerminalOutputContainsHelpFile(terminal, "/org/elasticsearch/plugins/plugin-list.help");
     }
 
@@ -58,8 +58,7 @@ public class PluginManagerCliTests extends CliToolTestCase {
         CliToolTestCase.CaptureOutputTerminal terminal = new CliToolTestCase.CaptureOutputTerminal();
         Path tmpDir = createTempDir().resolve("foo deps");
         String finalDir = tmpDir.toAbsolutePath().toUri().toURL().toString();
-        logger.warn(finalDir);
-        CliTool.ExitStatus execute = new PluginManagerCliParser(terminal).execute(args("install " + finalDir));
+        CliTool.ExitStatus execute = new PluginCli(terminal).execute("install", finalDir);
         assertThat(execute.status(), is(IO_ERROR.status()));
     }
 }

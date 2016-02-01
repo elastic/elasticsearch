@@ -50,7 +50,7 @@ public class HelpPrinter {
                 }
             });
         } catch (IOException ioe) {
-            ioe.printStackTrace(terminal.writer());
+            throw new RuntimeException(ioe);
         }
         terminal.println();
     }

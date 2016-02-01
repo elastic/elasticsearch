@@ -19,6 +19,7 @@
 
 package org.elasticsearch.ingest.processor;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ingest.core.AbstractProcessor;
 import org.elasticsearch.ingest.core.AbstractProcessorFactory;
 import org.elasticsearch.ingest.core.IngestDocument;
@@ -28,6 +29,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+
+import static org.elasticsearch.ingest.core.ConfigurationUtils.newConfigurationException;
 
 /**
  * Processor that converts fields content to a different type. Supported types are: integer, float, boolean and string.
@@ -80,11 +83,11 @@ public class ConvertProcessor extends AbstractProcessor {
 
         public abstract Object convert(Object value);
 
-        public static Type fromString(String type) {
+        public static Type fromString(String processorTag, String propertyName, String type) {
             try {
                 return Type.valueOf(type.toUpperCase(Locale.ROOT));
             } catch(IllegalArgumentException e) {
-                throw new IllegalArgumentException("type [" + type + "] not supported, cannot convert field.", e);
+                throw newConfigurationException(TYPE, processorTag, propertyName, "type [" + type + "] not supported, cannot convert field.");
             }
         }
     }
@@ -138,7 +141,8 @@ public class ConvertProcessor extends AbstractProcessor {
         @Override
         public ConvertProcessor doCreate(String processorTag, Map<String, Object> config) throws Exception {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
-            Type convertType = Type.fromString(ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "type"));
+            String typeProperty = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "type");
+            Type convertType = Type.fromString(processorTag, "type", typeProperty);
             return new ConvertProcessor(processorTag, field, convertType);
         }
     }

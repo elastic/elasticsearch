@@ -46,9 +46,6 @@ Network::
 Plugin Analysis Phonetic::
 * Add support for `daitch_mokotoff` {pull}14834[#14834]
 
-Plugin Repository HDFS::
-* HDFS Snapshot/Restore plugin {pull}15192[#15192] (issue: {issue}15191[#15191])
-
 Plugin Repository S3::
 * Add support for S3 storage class {pull}13656[#13656] (issue: {issue}13655[#13655])
 

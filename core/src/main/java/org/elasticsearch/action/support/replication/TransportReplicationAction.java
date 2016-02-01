@@ -742,7 +742,6 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         private final List<ShardRouting> shards;
         private final DiscoveryNodes nodes;
         private final boolean executeOnReplica;
-        private final String indexUUID;
         private final AtomicBoolean finished = new AtomicBoolean();
         private final AtomicInteger success = new AtomicInteger(1); // We already wrote into the primary shard
         private final ConcurrentMap<String, Throwable> shardReplicaFailures = ConcurrentCollections.newConcurrentMap();
@@ -769,7 +768,6 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
             final IndexMetaData indexMetaData = clusterState.getMetaData().index(shardId.getIndex());
             this.shards = (shardRoutingTable != null) ? shardRoutingTable.shards() : Collections.emptyList();
             this.executeOnReplica = (indexMetaData == null) || shouldExecuteReplication(indexMetaData.getSettings());
-            this.indexUUID = (indexMetaData != null) ? indexMetaData.getIndexUUID() : null;
             this.nodes = clusterState.getNodes();
 
             if (shards.isEmpty()) {
@@ -906,7 +904,6 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                                 shardStateAction.shardFailed(
                                     shard,
                                     primary,
-                                    indexUUID,
                                     message,
                                     exp,
                                     new ShardStateAction.Listener() {

@@ -62,11 +62,13 @@ public class PhraseSuggestionBuilderTests extends AbstractSuggestionBuilderTestC
             testBuilder.collateParams(collateParams );
         }
         if (randomBoolean()) {
-            randomSmoothingModel();
+            testBuilder.smoothingModel(randomSmoothingModel());
         }
-
         if (randomBoolean()) {
-            // NORELEASE add random generator
+            int numGenerators = randomIntBetween(1, 5);
+            for (int i = 0; i < numGenerators; i++) {
+                testBuilder.addCandidateGenerator(DirectCandidateGeneratorTests.randomCandidateGenerator());
+            }
         }
         return testBuilder;
     }
@@ -89,7 +91,7 @@ public class PhraseSuggestionBuilderTests extends AbstractSuggestionBuilderTestC
 
     @Override
     protected void mutateSpecificParameters(PhraseSuggestionBuilder builder) throws IOException {
-        switch (randomIntBetween(0, 7)) {
+        switch (randomIntBetween(0, 12)) {
         case 0:
             builder.maxErrors(randomValueOtherThan(builder.maxErrors(), () -> randomFloat()));
             break;
@@ -133,12 +135,16 @@ public class PhraseSuggestionBuilderTests extends AbstractSuggestionBuilderTestC
             builder.forceUnigrams(builder.forceUnigrams() == null ? randomBoolean() : ! builder.forceUnigrams());
             break;
         case 10:
-            builder.collateParams().put(randomAsciiOfLength(5), randomAsciiOfLength(5));
+            Map<String, Object> collateParams = builder.collateParams() == null ? new HashMap<>(1) : builder.collateParams();
+            collateParams.put(randomAsciiOfLength(5), randomAsciiOfLength(5));
+            builder.collateParams(collateParams);
             break;
         case 11:
             builder.smoothingModel(randomValueOtherThan(builder.smoothingModel(), PhraseSuggestionBuilderTests::randomSmoothingModel));
             break;
-        // TODO mutate random Model && generator
+        case 12:
+            builder.addCandidateGenerator(DirectCandidateGeneratorTests.randomCandidateGenerator());
+            break;
         }
     }
 

@@ -27,6 +27,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -768,7 +769,15 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
         }
         out.writeMap(collateParams);
         out.writeOptionalBoolean(collatePrune);
-        // NORELEASE write Map<String, List<CandidateGenerator>> generators = new HashMap<>();
+        out.writeVInt(this.generators.size());
+        for (Entry<String, List<CandidateGenerator>> entry : this.generators.entrySet()) {
+            out.writeString(entry.getKey());
+            List<CandidateGenerator> generatorsList = entry.getValue();
+            out.writeVInt(generatorsList.size());
+            for (CandidateGenerator generator : generatorsList) {
+                generator.writeTo(out);
+            }
+        }
     }
 
     @Override
@@ -791,7 +800,17 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
         }
         builder.collateParams = in.readMap();
         builder.collatePrune = in.readOptionalBoolean();
-        // NORELEASE read Map<String, List<CandidateGenerator>> generators;
+        int generatorsEntries = in.readVInt();
+        for (int i = 0; i < generatorsEntries; i++) {
+            String type = in.readString();
+            int numberOfGenerators = in.readVInt();
+            List<CandidateGenerator> generatorsList = new ArrayList<>(numberOfGenerators);
+            for (int g = 0; g < numberOfGenerators; g++) {
+                DirectCandidateGeneratorBuilder generator = DirectCandidateGeneratorBuilder.PROTOTYPE.readFrom(in);
+                generatorsList.add(generator);
+            }
+            builder.generators.put(type, generatorsList);
+        }
         return builder;
     }
 
@@ -801,7 +820,7 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
                 Objects.equals(separator, other.separator) &&
                 Objects.equals(realWordErrorLikelihood, other.realWordErrorLikelihood) &&
                 Objects.equals(confidence, other.confidence) &&
-                // NORELEASE Objects.equals(generator, other.generator) &&
+                Objects.equals(generators, other.generators) &&
                 Objects.equals(gramSize, other.gramSize) &&
                 Objects.equals(model, other.model) &&
                 Objects.equals(forceUnigrams, other.forceUnigrams) &&
@@ -816,15 +835,14 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
     @Override
     protected int doHashCode() {
         return Objects.hash(maxErrors, separator, realWordErrorLikelihood, confidence,
-                // NORELEASE generators,
-                gramSize, model, forceUnigrams, tokenLimit, preTag, postTag,
+                generators, gramSize, model, forceUnigrams, tokenLimit, preTag, postTag,
                 collateQuery, collateParams, collatePrune);
     }
 
     /**
      * {@link CandidateGenerator} interface.
      */
-    public interface CandidateGenerator extends ToXContent {
+    public interface CandidateGenerator extends Writeable<CandidateGenerator>, ToXContent {
         String getType();
 
         CandidateGenerator fromXContent(QueryParseContext parseContext) throws IOException;

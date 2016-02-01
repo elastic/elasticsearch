@@ -25,7 +25,6 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -42,7 +41,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 
 public final class DirectCandidateGeneratorBuilder
-        implements Writeable<DirectCandidateGeneratorBuilder>, CandidateGenerator {
+        implements CandidateGenerator {
 
     private static final String TYPE = "direct_generator";
     static final DirectCandidateGeneratorBuilder PROTOTYPE = new DirectCandidateGeneratorBuilder("_na_");

@@ -94,7 +94,7 @@ public class NoMasterNodeTests extends AbstractWatcherIntegrationTestCase {
         WatchSourceBuilder watchSource = watchBuilder()
                 .trigger(schedule(cron("0/5 * * * * ? *")))
                 .input(searchInput(searchRequest))
-                .condition(compareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 1l));
+                .condition(compareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 1L));
 
         // we first need to make sure the license is enabled, otherwise all APIs will be blocked
         ensureLicenseEnabled();
@@ -203,7 +203,7 @@ public class NoMasterNodeTests extends AbstractWatcherIntegrationTestCase {
             WatchSourceBuilder watchSource = watchBuilder()
                     .trigger(schedule(cron("0/5 * * * * ? *")))
                     .input(searchInput(searchRequest))
-                    .condition(compareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 1l));
+                    .condition(compareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 1L));
             watcherClient().preparePutWatch(watchName).setSource(watchSource).get();
         }
         ensureGreen();
@@ -254,7 +254,7 @@ public class NoMasterNodeTests extends AbstractWatcherIntegrationTestCase {
             assertThat(watcherService.state(), is(WatcherState.STOPPED));
         }
         for (ExecutionService executionService : internalCluster().getInstances(ExecutionService.class)) {
-            assertThat(executionService.executionThreadPoolQueueSize(), equalTo(0l));
+            assertThat(executionService.executionThreadPoolQueueSize(), equalTo(0L));
         }
     }
 

@@ -94,7 +94,7 @@ public class EmailActionIntegrationTests extends AbstractWatcherIntegrationTestC
                 .setSource(watchBuilder()
                         .trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.SECONDS)))
                         .input(searchInput(searchRequest))
-                        .condition(compareCondition("ctx.payload.hits.total", CompareCondition.Op.GT, 0l))
+                        .condition(compareCondition("ctx.payload.hits.total", CompareCondition.Op.GT, 0L))
                         .addAction("_email", emailAction(EmailTemplate.builder().from("_from").to("_to")
                                 .subject("{{ctx.payload.hits.hits.0._source.field}}")).setAuthentication(USERNAME, PASSWORD.toCharArray())))
                         .get();

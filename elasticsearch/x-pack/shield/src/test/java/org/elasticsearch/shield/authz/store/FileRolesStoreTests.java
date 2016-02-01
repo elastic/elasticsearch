@@ -351,7 +351,7 @@ public class FileRolesStoreTests extends ESTestCase {
         Path path = getDataPath("reserved_roles.yml");
         Map<String, Role> roles = FileRolesStore.parseFile(path, reservedRoles, logger, Settings.EMPTY);
         assertThat(roles, notNullValue());
-        assertThat(roles.size(), is(2));
+        assertThat(roles.size(), is(3));
 
         assertThat(roles, hasKey("admin"));
         assertThat(roles, hasKey("reserved"));

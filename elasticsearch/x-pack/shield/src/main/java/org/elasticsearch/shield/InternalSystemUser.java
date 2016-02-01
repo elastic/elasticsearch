@@ -1,0 +1,42 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License;
+ * you may not use this file except in compliance with the Elastic License.
+ */
+package org.elasticsearch.shield;
+
+import org.elasticsearch.shield.authz.privilege.SystemPrivilege;
+
+import java.util.function.Predicate;
+
+/**
+ * Shield internal user that manages the {@code .shield}
+ * index. Has permission to monitor the cluster as well as all actions that deal
+ * with the shield admin index.
+ */
+public class InternalSystemUser extends User {
+
+    public static final String NAME = "__es_system_user";
+    public static final String ROLE_NAME = "__es_system_role";
+
+    public static final User INSTANCE = new InternalSystemUser();
+
+    private static final Predicate<String> PREDICATE = SystemPrivilege.INSTANCE.predicate();
+
+    private InternalSystemUser() {
+        super(NAME, ROLE_NAME);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        return o == INSTANCE;
+    }
+
+    public static boolean is(User user) {
+        return INSTANCE.equals(user);
+    }
+
+    public static boolean isAuthorized(String action) {
+        return PREDICATE.test(action);
+    }
+}

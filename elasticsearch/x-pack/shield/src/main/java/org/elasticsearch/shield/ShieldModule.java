@@ -22,6 +22,7 @@ public class ShieldModule extends AbstractShieldModule {
         if (!clientMode) {
             bind(ShieldLifecycleService.class).asEagerSingleton();
             bind(ShieldSettingsFilter.class).asEagerSingleton();
+            bind(ShieldTemplateService.class).asEagerSingleton();
         }
     }
 }

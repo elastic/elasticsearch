@@ -18,32 +18,23 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.shield.action.ShieldActionFilter;
 import org.elasticsearch.shield.action.ShieldActionModule;
-import org.elasticsearch.shield.action.admin.role.AddRoleAction;
-import org.elasticsearch.shield.action.admin.role.DeleteRoleAction;
-import org.elasticsearch.shield.action.admin.role.GetRolesAction;
-import org.elasticsearch.shield.action.admin.role.RestAddRoleAction;
-import org.elasticsearch.shield.action.admin.role.RestDeleteRoleAction;
-import org.elasticsearch.shield.action.admin.role.RestGetRolesAction;
-import org.elasticsearch.shield.action.admin.role.TransportAddRoleAction;
-import org.elasticsearch.shield.action.admin.role.TransportDeleteRoleAction;
-import org.elasticsearch.shield.action.admin.role.TransportGetRolesAction;
-import org.elasticsearch.shield.action.admin.user.AddUserAction;
-import org.elasticsearch.shield.action.admin.user.DeleteUserAction;
-import org.elasticsearch.shield.action.admin.user.GetUsersAction;
-import org.elasticsearch.shield.action.admin.user.RestAddUserAction;
-import org.elasticsearch.shield.action.admin.user.RestDeleteUserAction;
-import org.elasticsearch.shield.action.admin.user.RestGetUsersAction;
-import org.elasticsearch.shield.action.admin.user.TransportAddUserAction;
-import org.elasticsearch.shield.action.admin.user.TransportDeleteUserAction;
-import org.elasticsearch.shield.action.admin.user.TransportGetUsersAction;
-import org.elasticsearch.shield.action.authc.cache.ClearRealmCacheAction;
-import org.elasticsearch.shield.action.authc.cache.TransportClearRealmCacheAction;
-import org.elasticsearch.shield.action.authz.cache.ClearRolesCacheAction;
-import org.elasticsearch.shield.action.authz.cache.TransportClearRolesCacheAction;
-import org.elasticsearch.shield.admin.ShieldAdminModule;
-import org.elasticsearch.shield.admin.ShieldInternalUserHolder;
+import org.elasticsearch.shield.action.realm.ClearRealmCacheAction;
+import org.elasticsearch.shield.action.realm.TransportClearRealmCacheAction;
+import org.elasticsearch.shield.action.role.AddRoleAction;
+import org.elasticsearch.shield.action.role.ClearRolesCacheAction;
+import org.elasticsearch.shield.action.role.DeleteRoleAction;
+import org.elasticsearch.shield.action.role.GetRolesAction;
+import org.elasticsearch.shield.action.role.TransportAddRoleAction;
+import org.elasticsearch.shield.action.role.TransportClearRolesCacheAction;
+import org.elasticsearch.shield.action.role.TransportDeleteRoleAction;
+import org.elasticsearch.shield.action.role.TransportGetRolesAction;
+import org.elasticsearch.shield.action.user.AddUserAction;
+import org.elasticsearch.shield.action.user.DeleteUserAction;
+import org.elasticsearch.shield.action.user.GetUsersAction;
+import org.elasticsearch.shield.action.user.TransportAddUserAction;
+import org.elasticsearch.shield.action.user.TransportDeleteUserAction;
+import org.elasticsearch.shield.action.user.TransportGetUsersAction;
 import org.elasticsearch.shield.audit.AuditTrailModule;
-import org.elasticsearch.shield.audit.index.IndexAuditUserHolder;
 import org.elasticsearch.shield.audit.logfile.LoggingAuditTrail;
 import org.elasticsearch.shield.authc.AuthenticationModule;
 import org.elasticsearch.shield.authc.Realms;
@@ -61,8 +52,14 @@ import org.elasticsearch.shield.license.ShieldLicensee;
 import org.elasticsearch.shield.rest.ShieldRestModule;
 import org.elasticsearch.shield.rest.action.RestAuthenticateAction;
 import org.elasticsearch.shield.rest.action.RestShieldInfoAction;
-import org.elasticsearch.shield.rest.action.authc.cache.RestClearRealmCacheAction;
-import org.elasticsearch.shield.rest.action.authz.cache.RestClearRolesCacheAction;
+import org.elasticsearch.shield.rest.action.realm.RestClearRealmCacheAction;
+import org.elasticsearch.shield.rest.action.role.RestAddRoleAction;
+import org.elasticsearch.shield.rest.action.role.RestClearRolesCacheAction;
+import org.elasticsearch.shield.rest.action.role.RestDeleteRoleAction;
+import org.elasticsearch.shield.rest.action.role.RestGetRolesAction;
+import org.elasticsearch.shield.rest.action.user.RestAddUserAction;
+import org.elasticsearch.shield.rest.action.user.RestDeleteUserAction;
+import org.elasticsearch.shield.rest.action.user.RestGetUsersAction;
 import org.elasticsearch.shield.ssl.SSLModule;
 import org.elasticsearch.shield.transport.ShieldClientTransportService;
 import org.elasticsearch.shield.transport.ShieldServerTransportService;
@@ -139,7 +136,6 @@ public class ShieldPlugin extends Plugin {
                     new ShieldRestModule(settings),
                     new ShieldActionModule(settings),
                     new ShieldTransportModule(settings),
-                    new ShieldAdminModule(settings),
                     new SSLModule(settings));
         }
     }
@@ -256,10 +252,7 @@ public class ShieldPlugin extends Plugin {
 
     public void onModule(AuthorizationModule module) {
         if (enabled) {
-            module.registerReservedRole(ShieldInternalUserHolder.ROLE);
-            if (AuditTrailModule.auditingEnabled(settings)) {
-                module.registerReservedRole(IndexAuditUserHolder.ROLE);
-            }
+            module.registerReservedRole(InternalShieldUser.ROLE);
         }
     }
 

@@ -8,10 +8,10 @@ package org.elasticsearch.shield.client;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.shield.action.authc.cache.ClearRealmCacheAction;
-import org.elasticsearch.shield.action.authc.cache.ClearRealmCacheRequest;
-import org.elasticsearch.shield.action.authc.cache.ClearRealmCacheRequestBuilder;
-import org.elasticsearch.shield.action.authc.cache.ClearRealmCacheResponse;
+import org.elasticsearch.shield.action.realm.ClearRealmCacheAction;
+import org.elasticsearch.shield.action.realm.ClearRealmCacheRequest;
+import org.elasticsearch.shield.action.realm.ClearRealmCacheRequestBuilder;
+import org.elasticsearch.shield.action.realm.ClearRealmCacheResponse;
 
 /**
  * A client to manage Shield's authentication

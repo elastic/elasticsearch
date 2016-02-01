@@ -84,8 +84,8 @@ public class CompareConditionSearchTests extends AbstractWatcherIntegrationTestC
         hit.score(1f);
         hit.shard(new SearchShardTarget("a", new Index("a", "indexUUID"), 0));
 
-        InternalSearchResponse internalSearchResponse = new InternalSearchResponse(new InternalSearchHits(new InternalSearchHit[]{hit}, 1l, 1f), null, null, null, false, false);
-        SearchResponse response = new SearchResponse(internalSearchResponse, "", 3, 3, 500l, new ShardSearchFailure[0]);
+        InternalSearchResponse internalSearchResponse = new InternalSearchResponse(new InternalSearchHits(new InternalSearchHit[]{hit}, 1L, 1f), null, null, null, false, false);
+        SearchResponse response = new SearchResponse(internalSearchResponse, "", 3, 3, 500L, new ShardSearchFailure[0]);
 
         WatchExecutionContext ctx = mockExecutionContext("_watch_name", new Payload.XContent(response));
         assertThat(condition.execute(ctx).met(), is(true));

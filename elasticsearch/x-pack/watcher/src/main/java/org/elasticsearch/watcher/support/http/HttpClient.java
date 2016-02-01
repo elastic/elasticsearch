@@ -7,7 +7,6 @@ package org.elasticsearch.watcher.support.http;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -31,9 +30,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.SocketTimeoutException;
-import java.net.URI;
-import java.net.URISyntaxException;
 import java.net.URL;
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -137,20 +135,18 @@ public class HttpClient extends AbstractLifecycleComponent<HttpClient> {
                 if (builder.length() != 0) {
                     builder.append('&');
                 }
-                builder.append(entry.getKey())
+                builder.append(URLEncoder.encode(entry.getKey(), "UTF-8"))
                         .append('=')
-                        .append(entry.getValue());
+                        .append(URLEncoder.encode(entry.getValue(), "UTF-8"));
             }
             queryString = builder.toString();
         }
 
-        URI uri;
-        try {
-            uri = new URI(request.scheme().scheme(), null, request.host(), request.port(), request.path(), queryString, null);
-        } catch (URISyntaxException e) {
-            throw ExceptionsHelper.convertToElastic(e);
+        String path = Strings.hasLength(request.path) ? request.path : "";
+        if (Strings.hasLength(queryString)) {
+            path += "?" + queryString;
         }
-        URL url = uri.toURL();
+        URL url = new URL(request.scheme.scheme(), request.host, request.port, path);
 
         logger.debug("making [{}] request to [{}]", request.method().method(), url);
         logger.trace("sending [{}] as body of request", request.body());

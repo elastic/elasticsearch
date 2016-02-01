@@ -194,7 +194,7 @@ public class EmailAttachmentTests extends AbstractWatcherIntegrationTestCase {
         WatchSourceBuilder watchSourceBuilder = watchBuilder()
                 .trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.SECONDS)))
                 .input(searchInput(searchRequest))
-                .condition(compareCondition("ctx.payload.hits.total", CompareCondition.Op.GT, 0l))
+                .condition(compareCondition("ctx.payload.hits.total", CompareCondition.Op.GT, 0L))
                 .addAction("_email", emailAction(emailBuilder).setAuthentication(USERNAME, PASSWORD.toCharArray())
                 .setAttachments(emailAttachments));
         logger.info("TMP WATCHSOURCE {}", watchSourceBuilder.build().getBytes().toUtf8());

@@ -21,13 +21,13 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.shield.ShieldPlugin;
+import org.elasticsearch.shield.InternalSystemUser;
 import org.elasticsearch.shield.authc.support.RefreshListener;
 import org.elasticsearch.shield.authz.permission.Role;
 import org.elasticsearch.shield.authz.privilege.ClusterPrivilege;
 import org.elasticsearch.shield.authz.privilege.GeneralPrivilege;
 import org.elasticsearch.shield.authz.privilege.IndexPrivilege;
 import org.elasticsearch.shield.authz.privilege.Privilege;
-import org.elasticsearch.shield.authz.SystemRole;
 import org.elasticsearch.shield.support.NoOpLogger;
 import org.elasticsearch.shield.support.Validation;
 import org.elasticsearch.watcher.FileChangesListener;
@@ -142,8 +142,8 @@ public class FileRolesStore extends AbstractLifecycleComponent<RolesStore> imple
                 for (String segment : roleSegments) {
                     Role role = parseRole(segment, path, logger, resolvePermission, settings);
                     if (role != null) {
-                        if (SystemRole.NAME.equals(role.name())) {
-                            logger.warn("role [{}] is reserved to the system. the relevant role definition in the mapping file will be ignored", SystemRole.NAME);
+                        if (InternalSystemUser.ROLE_NAME.equals(role.name())) {
+                            logger.warn("role [{}] is reserved to the system. the relevant role definition in the mapping file will be ignored", InternalSystemUser.ROLE_NAME);
                         } else {
                             roles.put(role.name(), role);
                         }

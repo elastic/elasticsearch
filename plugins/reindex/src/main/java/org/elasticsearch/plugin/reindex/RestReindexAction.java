@@ -19,10 +19,15 @@
 
 package org.elasticsearch.plugin.reindex;
 
+import java.io.IOException;
+import java.util.List;
+import java.util.Map;
+
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.inject.Inject;
@@ -36,26 +41,20 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
-import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.script.Script;
 
-import java.io.IOException;
-import java.util.List;
-import java.util.Map;
-
 import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
-import static org.elasticsearch.plugin.reindex.ReindexAction.INSTANCE;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
 
 /**
  * Expose IndexBySearchRequest over rest.
  */
-public class RestReindexAction extends BaseRestHandler {
+public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexRequest, ReindexResponse, TransportReindexAction> {
     private static final ObjectParser<ReindexRequest, QueryParseContext> PARSER = new ObjectParser<>("reindex");
     static {
         ObjectParser.Parser<SearchRequest, QueryParseContext> sourceParser = (parser, search, context) -> {
@@ -97,13 +96,10 @@ public class RestReindexAction extends BaseRestHandler {
         PARSER.declareString(ReindexRequest::setConflicts, new ParseField("conflicts"));
     }
 
-    private IndicesQueriesRegistry indicesQueriesRegistry;
-
     @Inject
     public RestReindexAction(Settings settings, RestController controller, Client client,
-            IndicesQueriesRegistry indicesQueriesRegistry) {
-        super(settings, controller, client);
-        this.indicesQueriesRegistry = indicesQueriesRegistry;
+            IndicesQueriesRegistry indicesQueriesRegistry, ClusterService clusterService, TransportReindexAction action) {
+        super(settings, controller, client, indicesQueriesRegistry, clusterService, action);
         controller.registerHandler(POST, "/_reindex", this);
     }
 
@@ -125,7 +121,7 @@ public class RestReindexAction extends BaseRestHandler {
         }
         parseCommon(internalRequest, request);
 
-        client.execute(INSTANCE, internalRequest, new BulkIndexByScrollResponseContentListener<>(channel));
+        execute(request, internalRequest, channel);
     }
 
     private void badRequest(RestChannel channel, String message) {

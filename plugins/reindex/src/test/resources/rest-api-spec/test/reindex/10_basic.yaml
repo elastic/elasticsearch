@@ -22,6 +22,7 @@
   - match: {batches: 1}
   - match: {failures: []}
   - is_true: took
+  - is_false: task
 
 ---
 "Response format for updated":
@@ -53,6 +54,35 @@
   - match: {batches: 1}
   - match: {failures: []}
   - is_true: took
+  - is_false: task
+
+---
+"wait_for_completion=false":
+  - do:
+      index:
+        index:   source
+        type:    foo
+        id:      1
+        body:    { "text": "test" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      reindex:
+        wait_for_completion: false
+        body:
+          source:
+            index: source
+          dest:
+            index: dest
+  - match: {task: '/.+:\d+/'}
+  - is_false: updated
+  - is_false: version_conflicts
+  - is_false: batches
+  - is_false: failures
+  - is_false: noops
+  - is_false: took
+  - is_false: created
 
 ---
 "Response format for version conflict":

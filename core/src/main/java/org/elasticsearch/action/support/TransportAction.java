@@ -30,6 +30,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskListener;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -67,6 +68,13 @@ public abstract class TransportAction<Request extends ActionRequest<Request>, Re
     }
 
     public final Task execute(Request request, ActionListener<Response> listener) {
+        /*
+         * While this version of execute could delegate to the TaskListener
+         * version of execute that'd add yet another layer of wrapping on the
+         * listener and prevent us from using the listener bare if there isn't a
+         * task. That just seems like too many objects. Thus the two versions of
+         * this method.
+         */
         Task task = taskManager.register("transport", actionName, request);
         if (task == null) {
             execute(null, request, listener);
@@ -85,6 +93,28 @@ public abstract class TransportAction<Request extends ActionRequest<Request>, Re
                 }
             });
         }
+        return task;
+    }
+
+    public final Task execute(Request request, TaskListener<Response> listener) {
+        Task task = taskManager.register("transport", actionName, request);
+        execute(task, request, new ActionListener<Response>() {
+            @Override
+            public void onResponse(Response response) {
+                if (task != null) {
+                    taskManager.unregister(task);
+                }
+                listener.onResponse(task, response);
+            }
+
+            @Override
+            public void onFailure(Throwable e) {
+                if (task != null) {
+                    taskManager.unregister(task);
+                }
+                listener.onFailure(task, e);
+            }
+        });
         return task;
     }
 

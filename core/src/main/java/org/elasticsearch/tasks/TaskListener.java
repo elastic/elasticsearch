@@ -17,20 +17,33 @@
  * under the License.
  */
 
-package org.elasticsearch.action;
+package org.elasticsearch.tasks;
 
 /**
- * A listener for action responses or failures.
+ * Listener for Task success or failure.
  */
-public interface ActionListener<Response> {
+public interface TaskListener<Response> {
     /**
-     * Handle action response. This response may constitute a failure or a
-     * success but it is up to the listener to make that decision.
+     * Handle task response. This response may constitute a failure or a success
+     * but it is up to the listener to make that decision.
+     *
+     * @param task
+     *            the task being executed. May be null if the action doesn't
+     *            create a task
+     * @param response
+     *            the response from the action that executed the task
      */
-    void onResponse(Response response);
+    void onResponse(Task task, Response response);
 
     /**
      * A failure caused by an exception at some phase of the task.
+     *
+     * @param task
+     *            the task being executed. May be null if the action doesn't
+     *            create a task
+     * @param e
+     *            the failure
      */
-    void onFailure(Throwable e);
+    void onFailure(Task task, Throwable e);
+
 }

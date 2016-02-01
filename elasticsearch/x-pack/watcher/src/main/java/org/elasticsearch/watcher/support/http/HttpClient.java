@@ -142,7 +142,7 @@ public class HttpClient extends AbstractLifecycleComponent<HttpClient> {
             queryString = builder.toString();
         }
 
-        String path = request.path;
+        String path = Strings.hasLength(request.path) ? request.path : "";
         if (Strings.hasLength(queryString)) {
             path += "?" + queryString;
         }

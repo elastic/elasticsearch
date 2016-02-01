@@ -24,10 +24,7 @@ import org.junit.Before;
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
 import java.io.IOException;
-import java.net.BindException;
-import java.net.InetAddress;
-import java.net.Socket;
-import java.net.UnknownHostException;
+import java.net.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.security.UnrecoverableKeyException;
@@ -146,6 +143,14 @@ public class HttpClientTests extends ESTestCase {
         RecordedRequest recordedRequest = webServer.takeRequest();
         assertThat(recordedRequest.getPath(), equalTo("/test"));
         assertThat(recordedRequest.getHeader("Authorization"), equalTo("Basic dXNlcjpwYXNz"));
+    }
+
+    public void testNoPathSpecified() throws Exception {
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody("doesntmatter"));
+        HttpRequest.Builder request = HttpRequest.builder("localhost", webPort).method(HttpMethod.GET);
+        httpClient.execute(request.build());
+        RecordedRequest recordedRequest = webServer.takeRequest();
+        assertThat(recordedRequest.getPath(), equalTo("/"));
     }
 
     public void testHttps() throws Exception {

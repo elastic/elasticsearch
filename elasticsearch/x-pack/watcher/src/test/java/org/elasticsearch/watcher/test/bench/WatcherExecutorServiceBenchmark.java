@@ -49,7 +49,6 @@ public class WatcherExecutorServiceBenchmark {
             .put("network.host", "localhost")
             .put("script.disable_dynamic", false)
             .put("discovery.zen.ping.unicast.hosts", "localhost")
-            .put("discovery.zen.ping.multicast.enabled", false)
             .put("http.cors.enabled", true)
             .put("cluster.routing.allocation.disk.threshold_enabled", false)
 //                .put("recycler.page.limit.heap", "60%")

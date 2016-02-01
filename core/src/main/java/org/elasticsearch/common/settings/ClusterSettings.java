@@ -58,7 +58,6 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.gateway.PrimaryShardAllocator;
 import org.elasticsearch.http.HttpTransportSettings;
-import org.elasticsearch.http.netty.NettyHttpServerTransport;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.store.IndexStoreConfig;
 import org.elasticsearch.indices.analysis.HunspellService;
@@ -160,7 +159,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
         ConcurrentRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE_SETTING,
         EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING,
         EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING,
-        ZenDiscovery.REJOIN_ON_MASTER_GONE_SETTING,
         FilterAllocationDecider.CLUSTER_ROUTING_INCLUDE_GROUP_SETTING,
         FilterAllocationDecider.CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING,
         FilterAllocationDecider.CLUSTER_ROUTING_REQUIRE_GROUP_SETTING,

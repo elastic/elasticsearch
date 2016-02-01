@@ -273,7 +273,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
 
     @Override
     public String nodeDescription() {
-        return clusterName.value() + "/" + localNode();
+        return clusterName.value() + "/" + localNode().id();
     }
 
     @Override

@@ -710,7 +710,7 @@ public abstract class StreamInput extends InputStream {
     /**
      * Reads a {@link SmoothingModel} from the current stream
      */
-    public SmoothingModel readSmoothingModel() throws IOException {
+    public SmoothingModel readPhraseSuggestionSmoothingModel() throws IOException {
         return readNamedWriteable(SmoothingModel.class);
     }
 

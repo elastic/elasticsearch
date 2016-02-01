@@ -674,7 +674,7 @@ public abstract class StreamOutput extends OutputStream {
     /**
      * Writes the given {@link SmoothingModel} to the stream
      */
-    public void writeSmoothingModel(SmoothingModel smoothinModel) throws IOException {
+    public void writePhraseSuggestionSmoothingModel(SmoothingModel smoothinModel) throws IOException {
         writeNamedWriteable(smoothinModel);
     }
 

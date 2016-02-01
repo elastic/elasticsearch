@@ -754,7 +754,7 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
         boolean hasModel = model != null;
         out.writeBoolean(hasModel);
         if (hasModel) {
-            out.writeSmoothingModel(model);
+            out.writePhraseSuggestionSmoothingModel(model);
         }
         out.writeOptionalBoolean(forceUnigrams);
         out.writeOptionalVInt(tokenLimit);
@@ -788,7 +788,7 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
         builder.confidence = in.readOptionalFloat();
         builder.gramSize = in.readOptionalVInt();
         if (in.readBoolean()) {
-            builder.model = in.readSmoothingModel();
+            builder.model = in.readPhraseSuggestionSmoothingModel();
         }
         builder.forceUnigrams = in.readOptionalBoolean();
         builder.tokenLimit = in.readOptionalVInt();

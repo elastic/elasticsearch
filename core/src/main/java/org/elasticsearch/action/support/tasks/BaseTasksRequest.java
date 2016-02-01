@@ -26,7 +26,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.tasks.ChildTask;
 import org.elasticsearch.tasks.Task;
 
 import java.io.IOException;
@@ -59,15 +58,6 @@ public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends
     @Override
     public ActionRequestValidationException validate() {
         return null;
-    }
-
-    /**
-     * Get information about tasks from nodes based on the nodes ids specified.
-     * If none are passed, information for all nodes will be returned.
-     */
-    public BaseTasksRequest(ActionRequest<?> request, String... nodesIds) {
-        super(request);
-        this.nodesIds = nodesIds;
     }
 
     /**
@@ -173,20 +163,13 @@ public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends
         if (actions() != null && actions().length > 0 && Regex.simpleMatch(actions(), task.getAction()) == false) {
             return false;
         }
-        if (parentNode() != null || parentTaskId() != BaseTasksRequest.ALL_TASKS) {
-            if (task instanceof ChildTask) {
-                if (parentNode() != null) {
-                    if (parentNode().equals(((ChildTask) task).getParentNode()) == false) {
-                        return false;
-                    }
-                }
-                if (parentTaskId() != BaseTasksRequest.ALL_TASKS) {
-                    if (parentTaskId() != ((ChildTask) task).getParentId()) {
-                        return false;
-                    }
-                }
-            } else {
-                // This is not a child task and we need to match parent node or id
+        if (parentNode() != null) {
+            if (parentNode().equals(task.getParentNode()) == false) {
+                return false;
+            }
+        }
+        if (parentTaskId() != BaseTasksRequest.ALL_TASKS) {
+            if (parentTaskId() != task.getParentId()) {
                 return false;
             }
         }

@@ -82,7 +82,7 @@ public class NetworkModuleTests extends ModuleTestCase {
 
     static class FakeRestHandler extends BaseRestHandler {
         public FakeRestHandler() {
-            super(null, null, null);
+            super(null, null);
         }
         @Override
         protected void handleRequest(RestRequest request, RestChannel channel, Client client) throws Exception {}
@@ -143,7 +143,7 @@ public class NetworkModuleTests extends ModuleTestCase {
         }
 
         // not added if http is disabled
-        settings = Settings.builder().put(NetworkModule.HTTP_ENABLED, false).build();
+        settings = Settings.builder().put(NetworkModule.HTTP_ENABLED.getKey(), false).build();
         module = new NetworkModule(new NetworkService(settings), settings, false, null);
         assertNotBound(module, HttpServerTransport.class);
     }

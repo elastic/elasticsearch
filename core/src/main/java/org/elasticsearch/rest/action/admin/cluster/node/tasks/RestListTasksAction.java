@@ -37,7 +37,7 @@ public class RestListTasksAction extends BaseRestHandler {
 
     @Inject
     public RestListTasksAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+        super(settings, client);
         controller.registerHandler(GET, "/_tasks", this);
         controller.registerHandler(GET, "/_tasks/{nodeId}", this);
         controller.registerHandler(GET, "/_tasks/{nodeId}/{actions}", this);

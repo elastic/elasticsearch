@@ -88,12 +88,14 @@ You must enclose date math index name expressions within angle brackets. For exa
 
 [source,js]
 ----------------------------------------------------------------------
-curl -XGET 'localhost:9200/<logstash-{now/d-2d}>/_search' {
+curl -XGET 'localhost:9200/<logstash-{now%2Fd-2d}>/_search' {
   "query" : {
     ...
   }
 }
 ----------------------------------------------------------------------
+
+NOTE: The `/` used for date rounding must be url encoded as `%2F` in any url.
 
 The following example shows different forms of date math index names and the final index names
 they resolve to given the current time is 22rd March 2024 noon utc.
@@ -119,7 +121,7 @@ three days, assuming the indices use the default Logstash index name format,
 
 [source,js]
 ----------------------------------------------------------------------
-curl -XGET 'localhost:9200/<logstash-{now/d-2d}>,<logstash-{now/d-1d}>,<logstash-{now/d}>/_search' {
+curl -XGET 'localhost:9200/<logstash-{now%2Fd-2d}>,<logstash-{now%2Fd-1d}>,<logstash-{now%2Fd}>/_search' {
   "query" : {
     ...
   }

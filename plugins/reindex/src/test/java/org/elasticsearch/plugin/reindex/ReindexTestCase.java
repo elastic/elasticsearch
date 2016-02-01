@@ -47,7 +47,7 @@ public abstract class ReindexTestCase extends ESIntegTestCase {
 
     public static class IndexBySearchResponseMatcher
             extends AbstractBulkIndexByScrollResponseMatcher<ReindexResponse, IndexBySearchResponseMatcher> {
-        private Matcher<Long> createdMatcher = equalTo(0l);
+        private Matcher<Long> createdMatcher = equalTo(0L);
 
         public IndexBySearchResponseMatcher created(Matcher<Long> updatedMatcher) {
             this.createdMatcher = updatedMatcher;

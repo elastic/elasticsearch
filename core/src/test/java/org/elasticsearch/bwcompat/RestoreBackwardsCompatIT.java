@@ -1,4 +1,5 @@
 /*
+/*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
  * this work for additional information regarding copyright
@@ -27,6 +28,8 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.repositories.uri.URLRepository;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.snapshots.RestoreInfo;
@@ -64,7 +67,7 @@ public class RestoreBackwardsCompatIT extends AbstractSnapshotIntegTestCase {
             // Configure using path.repo
             return settingsBuilder()
                     .put(super.nodeSettings(nodeOrdinal))
-                    .put("path.repo", getBwcIndicesPath())
+                    .put(Environment.PATH_REPO_SETTING.getKey(), getBwcIndicesPath())
                     .build();
         } else {
             // Configure using url white list
@@ -72,7 +75,7 @@ public class RestoreBackwardsCompatIT extends AbstractSnapshotIntegTestCase {
                 URI repoJarPatternUri = new URI("jar:" + getBwcIndicesPath().toUri().toString() + "*.zip!/repo/");
                 return settingsBuilder()
                         .put(super.nodeSettings(nodeOrdinal))
-                        .putArray("repositories.url.allowed_urls", repoJarPatternUri.toString())
+                        .putArray(URLRepository.ALLOWED_URLS_SETTING.getKey(), repoJarPatternUri.toString())
                         .build();
             } catch (URISyntaxException ex) {
                 throw new IllegalArgumentException(ex);

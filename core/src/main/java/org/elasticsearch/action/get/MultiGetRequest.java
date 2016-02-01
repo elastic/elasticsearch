@@ -266,18 +266,6 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
 
     List<Item> items = new ArrayList<>();
 
-    public MultiGetRequest() {
-
-    }
-
-    /**
-     * Creates a multi get request caused by some other request, which is provided as an
-     * argument so that its headers and context can be copied to the new request
-     */
-    public MultiGetRequest(ActionRequest request) {
-        super(request);
-    }
-
     public List<Item> getItems() {
         return this.items;
     }

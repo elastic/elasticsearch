@@ -19,10 +19,6 @@
 
 package org.elasticsearch.plugin.reindex;
 
-import java.io.IOException;
-import java.util.List;
-import java.util.Map;
-
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -46,6 +42,10 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.script.Script;
+
+import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -99,7 +99,7 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
     @Inject
     public RestReindexAction(Settings settings, RestController controller, Client client,
             IndicesQueriesRegistry indicesQueriesRegistry, ClusterService clusterService, TransportReindexAction action) {
-        super(settings, controller, client, indicesQueriesRegistry, clusterService, action);
+        super(settings, client, indicesQueriesRegistry, clusterService, action);
         controller.registerHandler(POST, "/_reindex", this);
     }
 

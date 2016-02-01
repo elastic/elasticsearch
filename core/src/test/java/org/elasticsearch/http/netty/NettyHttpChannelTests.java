@@ -25,6 +25,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -81,9 +82,9 @@ public class NettyHttpChannelTests extends ESTestCase {
     public void testCorsEnabledWithoutAllowOrigins() {
         // Set up a HTTP transport with only the CORS enabled setting
         Settings settings = Settings.builder()
-                .put(NettyHttpServerTransport.SETTING_CORS_ENABLED, true)
+                .put(HttpTransportSettings.SETTING_CORS_ENABLED.getKey(), true)
                 .build();
-        httpServerTransport = new NettyHttpServerTransport(settings, networkService, bigArrays);
+        httpServerTransport = new NettyHttpServerTransport(settings, networkService, bigArrays, threadPool);
         HttpRequest httpRequest = new TestHttpRequest();
         httpRequest.headers().add(HttpHeaders.Names.ORIGIN, "remote");
         httpRequest.headers().add(HttpHeaders.Names.USER_AGENT, "Mozilla fake");
@@ -104,10 +105,10 @@ public class NettyHttpChannelTests extends ESTestCase {
     public void testCorsEnabledWithAllowOrigins() {
         // create a http transport with CORS enabled and allow origin configured
         Settings settings = Settings.builder()
-                .put(NettyHttpServerTransport.SETTING_CORS_ENABLED, true)
-                .put(NettyHttpServerTransport.SETTING_CORS_ALLOW_ORIGIN, "remote-host")
+                .put(HttpTransportSettings.SETTING_CORS_ENABLED.getKey(), true)
+                .put(HttpTransportSettings.SETTING_CORS_ALLOW_ORIGIN.getKey(), "remote-host")
                 .build();
-        httpServerTransport = new NettyHttpServerTransport(settings, networkService, bigArrays);
+        httpServerTransport = new NettyHttpServerTransport(settings, networkService, bigArrays, threadPool);
         HttpRequest httpRequest = new TestHttpRequest();
         httpRequest.headers().add(HttpHeaders.Names.ORIGIN, "remote");
         httpRequest.headers().add(HttpHeaders.Names.USER_AGENT, "Mozilla fake");

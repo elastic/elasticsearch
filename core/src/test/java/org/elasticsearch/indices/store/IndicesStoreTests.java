@@ -30,9 +30,12 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.cluster.TestClusterService;
+import org.elasticsearch.transport.TransportService;
 import org.junit.Before;
 
 import java.util.Arrays;
@@ -60,7 +63,7 @@ public class IndicesStoreTests extends ESTestCase {
     @Before
     public void before() {
         localNode = new DiscoveryNode("abc", new LocalTransportAddress("abc"), Version.CURRENT);
-        indicesStore = new IndicesStore();
+        indicesStore = new IndicesStore(Settings.EMPTY, null, new TestClusterService(), new TransportService(null, null), null);
     }
 
     public void testShardCanBeDeletedNoShardRouting() throws Exception {
@@ -69,7 +72,7 @@ public class IndicesStoreTests extends ESTestCase {
 
         ClusterState.Builder clusterState = ClusterState.builder(new ClusterName("test"));
         clusterState.metaData(MetaData.builder().put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(numShards).numberOfReplicas(numReplicas)));
-        IndexShardRoutingTable.Builder routingTable = new IndexShardRoutingTable.Builder(new ShardId("test", 1));
+        IndexShardRoutingTable.Builder routingTable = new IndexShardRoutingTable.Builder(new ShardId("test", "_na_", 1));
 
         assertFalse(indicesStore.shardCanBeDeleted(clusterState.build(), routingTable.build()));
     }
@@ -80,7 +83,7 @@ public class IndicesStoreTests extends ESTestCase {
 
         ClusterState.Builder clusterState = ClusterState.builder(new ClusterName("test"));
         clusterState.metaData(MetaData.builder().put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(numShards).numberOfReplicas(numReplicas)));
-        IndexShardRoutingTable.Builder routingTable = new IndexShardRoutingTable.Builder(new ShardId("test", 1));
+        IndexShardRoutingTable.Builder routingTable = new IndexShardRoutingTable.Builder(new ShardId("test", "_na_", 1));
 
         for (int i = 0; i < numShards; i++) {
             int unStartedShard = randomInt(numReplicas);
@@ -108,7 +111,7 @@ public class IndicesStoreTests extends ESTestCase {
         ClusterState.Builder clusterState = ClusterState.builder(new ClusterName("test"));
         clusterState.metaData(MetaData.builder().put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(numShards).numberOfReplicas(numReplicas)));
         clusterState.nodes(DiscoveryNodes.builder().localNodeId(localNode.id()).put(localNode).put(new DiscoveryNode("xyz", new LocalTransportAddress("xyz"), Version.CURRENT)));
-        IndexShardRoutingTable.Builder routingTable = new IndexShardRoutingTable.Builder(new ShardId("test", 1));
+        IndexShardRoutingTable.Builder routingTable = new IndexShardRoutingTable.Builder(new ShardId("test", "_na_", 1));
         int localShardId = randomInt(numShards - 1);
         for (int i = 0; i < numShards; i++) {
             String nodeId = i == localShardId ? localNode.getId() : randomBoolean() ? "abc" : "xyz";
@@ -130,7 +133,7 @@ public class IndicesStoreTests extends ESTestCase {
         ClusterState.Builder clusterState = ClusterState.builder(new ClusterName("test"));
         clusterState.metaData(MetaData.builder().put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(numShards).numberOfReplicas(numReplicas)));
         clusterState.nodes(DiscoveryNodes.builder().localNodeId(localNode.id()).put(localNode));
-        IndexShardRoutingTable.Builder routingTable = new IndexShardRoutingTable.Builder(new ShardId("test", 1));
+        IndexShardRoutingTable.Builder routingTable = new IndexShardRoutingTable.Builder(new ShardId("test", "_na_", 1));
         for (int i = 0; i < numShards; i++) {
             String relocatingNodeId = randomBoolean() ? null : "def";
             routingTable.addShard(TestShardRouting.newShardRouting("test", i, "xyz", relocatingNodeId, true, ShardRoutingState.STARTED, 0));
@@ -152,7 +155,7 @@ public class IndicesStoreTests extends ESTestCase {
         ClusterState.Builder clusterState = ClusterState.builder(new ClusterName("test"));
         clusterState.metaData(MetaData.builder().put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(numShards).numberOfReplicas(numReplicas)));
         clusterState.nodes(DiscoveryNodes.builder().localNodeId(localNode.id()).put(localNode).put(new DiscoveryNode("xyz", new LocalTransportAddress("xyz"), nodeVersion)));
-        IndexShardRoutingTable.Builder routingTable = new IndexShardRoutingTable.Builder(new ShardId("test", 1));
+        IndexShardRoutingTable.Builder routingTable = new IndexShardRoutingTable.Builder(new ShardId("test", "_na_", 1));
         for (int i = 0; i < numShards; i++) {
             routingTable.addShard(TestShardRouting.newShardRouting("test", i, "xyz", null, true, ShardRoutingState.STARTED, 0));
             for (int j = 0; j < numReplicas; j++) {
@@ -177,7 +180,7 @@ public class IndicesStoreTests extends ESTestCase {
                 .put(new DiscoveryNode("xyz", new LocalTransportAddress("xyz"), Version.CURRENT))
                 .put(new DiscoveryNode("def", new LocalTransportAddress("def"), nodeVersion) // <-- only set relocating, since we're testing that in this test
                 ));
-        IndexShardRoutingTable.Builder routingTable = new IndexShardRoutingTable.Builder(new ShardId("test", 1));
+        IndexShardRoutingTable.Builder routingTable = new IndexShardRoutingTable.Builder(new ShardId("test", "_na_", 1));
         for (int i = 0; i < numShards; i++) {
             routingTable.addShard(TestShardRouting.newShardRouting("test", i, "xyz", "def", true, ShardRoutingState.STARTED, 0));
             for (int j = 0; j < numReplicas; j++) {

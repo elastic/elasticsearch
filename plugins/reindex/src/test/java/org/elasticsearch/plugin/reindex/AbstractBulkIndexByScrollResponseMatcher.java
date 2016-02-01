@@ -27,12 +27,12 @@ import static org.hamcrest.Matchers.equalTo;
 
 public abstract class AbstractBulkIndexByScrollResponseMatcher<Response extends BulkIndexByScrollResponse, Self extends AbstractBulkIndexByScrollResponseMatcher<Response, Self>>
         extends TypeSafeMatcher<Response> {
-    private Matcher<Long> updatedMatcher = equalTo(0l);
+    private Matcher<Long> updatedMatcher = equalTo(0L);
     /**
      * Matches for number of batches. Optional.
      */
     private Matcher<Integer> batchesMatcher;
-    private Matcher<Long> versionConflictsMatcher = equalTo(0l);
+    private Matcher<Long> versionConflictsMatcher = equalTo(0L);
     private Matcher<Integer> failuresMatcher = equalTo(0);
 
     protected abstract Self self();

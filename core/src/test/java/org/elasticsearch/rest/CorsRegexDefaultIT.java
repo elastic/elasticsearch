@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.rest;
 
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -35,7 +36,7 @@ public class CorsRegexDefaultIT extends ESIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
-            .put(Node.HTTP_ENABLED, true)
+            .put(NetworkModule.HTTP_ENABLED.getKey(), true)
             .put(super.nodeSettings(nodeOrdinal)).build();
     }
 

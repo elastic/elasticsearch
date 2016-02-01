@@ -90,15 +90,17 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implements Discovery, PingContextProvider {
 
     public final static Setting<Boolean> REJOIN_ON_MASTER_GONE_SETTING = Setting.boolSetting("discovery.zen.rejoin_on_master_gone", true, true, Setting.Scope.CLUSTER);
-    public final static String SETTING_PING_TIMEOUT = "discovery.zen.ping_timeout";
-    public final static String SETTING_JOIN_TIMEOUT = "discovery.zen.join_timeout";
-    public final static String SETTING_JOIN_RETRY_ATTEMPTS = "discovery.zen.join_retry_attempts";
-    public final static String SETTING_JOIN_RETRY_DELAY = "discovery.zen.join_retry_delay";
-    public final static String SETTING_MAX_PINGS_FROM_ANOTHER_MASTER = "discovery.zen.max_pings_from_another_master";
-    public final static String SETTING_SEND_LEAVE_REQUEST = "discovery.zen.send_leave_request";
-    public final static String SETTING_MASTER_ELECTION_FILTER_CLIENT = "discovery.zen.master_election.filter_client";
-    public final static String SETTING_MASTER_ELECTION_WAIT_FOR_JOINS_TIMEOUT = "discovery.zen.master_election.wait_for_joins_timeout";
-    public final static String SETTING_MASTER_ELECTION_FILTER_DATA = "discovery.zen.master_election.filter_data";
+    public final static Setting<TimeValue> PING_TIMEOUT_SETTING = Setting.positiveTimeSetting("discovery.zen.ping_timeout", timeValueSeconds(3), false, Setting.Scope.CLUSTER);
+    public final static Setting<TimeValue> JOIN_TIMEOUT_SETTING = Setting.timeSetting("discovery.zen.join_timeout",
+        settings -> TimeValue.timeValueMillis(PING_TIMEOUT_SETTING.get(settings).millis() * 20).toString(), TimeValue.timeValueMillis(0), false, Setting.Scope.CLUSTER);
+    public final static Setting<Integer> JOIN_RETRY_ATTEMPTS_SETTING = Setting.intSetting("discovery.zen.join_retry_attempts", 3, 1, false, Setting.Scope.CLUSTER);
+    public final static Setting<TimeValue> JOIN_RETRY_DELAY_SETTING = Setting.positiveTimeSetting("discovery.zen.join_retry_delay", TimeValue.timeValueMillis(100), false, Setting.Scope.CLUSTER);
+    public final static Setting<Integer> MAX_PINGS_FROM_ANOTHER_MASTER_SETTING = Setting.intSetting("discovery.zen.max_pings_from_another_master", 3, 1, false, Setting.Scope.CLUSTER);
+    public final static Setting<Boolean> SEND_LEAVE_REQUEST_SETTING = Setting.boolSetting("discovery.zen.send_leave_request", true, false, Setting.Scope.CLUSTER);
+    public final static Setting<Boolean> MASTER_ELECTION_FILTER_CLIENT_SETTING = Setting.boolSetting("discovery.zen.master_election.filter_client", true, false, Setting.Scope.CLUSTER);
+    public final static Setting<TimeValue> MASTER_ELECTION_WAIT_FOR_JOINS_TIMEOUT_SETTING = Setting.timeSetting("discovery.zen.master_election.wait_for_joins_timeout",
+        settings -> TimeValue.timeValueMillis(JOIN_TIMEOUT_SETTING.get(settings).millis() / 2).toString(), TimeValue.timeValueMillis(0), false, Setting.Scope.CLUSTER);
+    public final static Setting<Boolean> MASTER_ELECTION_FILTER_DATA_SETTING = Setting.boolSetting("discovery.zen.master_election.filter_data", false, false, Setting.Scope.CLUSTER);
 
     public static final String DISCOVERY_REJOIN_ACTION_NAME = "internal:discovery/zen/rejoin";
 
@@ -164,25 +166,18 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         this.discoverySettings = discoverySettings;
         this.pingService = pingService;
         this.electMaster = electMasterService;
-        this.pingTimeout = settings.getAsTime(SETTING_PING_TIMEOUT, timeValueSeconds(3));
+        this.pingTimeout = PING_TIMEOUT_SETTING.get(settings);
 
-        this.joinTimeout = settings.getAsTime(SETTING_JOIN_TIMEOUT, TimeValue.timeValueMillis(this.pingTimeout.millis() * 20));
-        this.joinRetryAttempts = settings.getAsInt(SETTING_JOIN_RETRY_ATTEMPTS, 3);
-        this.joinRetryDelay = settings.getAsTime(SETTING_JOIN_RETRY_DELAY, TimeValue.timeValueMillis(100));
-        this.maxPingsFromAnotherMaster = settings.getAsInt(SETTING_MAX_PINGS_FROM_ANOTHER_MASTER, 3);
-        this.sendLeaveRequest = settings.getAsBoolean(SETTING_SEND_LEAVE_REQUEST, true);
+        this.joinTimeout = JOIN_TIMEOUT_SETTING.get(settings);
+        this.joinRetryAttempts = JOIN_RETRY_ATTEMPTS_SETTING.get(settings);
+        this.joinRetryDelay = JOIN_RETRY_DELAY_SETTING.get(settings);
+        this.maxPingsFromAnotherMaster = MAX_PINGS_FROM_ANOTHER_MASTER_SETTING.get(settings);
+        this.sendLeaveRequest = SEND_LEAVE_REQUEST_SETTING.get(settings);
 
-        this.masterElectionFilterClientNodes = settings.getAsBoolean(SETTING_MASTER_ELECTION_FILTER_CLIENT, true);
-        this.masterElectionFilterDataNodes = settings.getAsBoolean(SETTING_MASTER_ELECTION_FILTER_DATA, false);
-        this.masterElectionWaitForJoinsTimeout = settings.getAsTime(SETTING_MASTER_ELECTION_WAIT_FOR_JOINS_TIMEOUT, TimeValue.timeValueMillis(joinTimeout.millis() / 2));
+        this.masterElectionFilterClientNodes = MASTER_ELECTION_FILTER_CLIENT_SETTING.get(settings);
+        this.masterElectionFilterDataNodes = MASTER_ELECTION_FILTER_DATA_SETTING.get(settings);
+        this.masterElectionWaitForJoinsTimeout = MASTER_ELECTION_WAIT_FOR_JOINS_TIMEOUT_SETTING.get(settings);
         this.rejoinOnMasterGone = REJOIN_ON_MASTER_GONE_SETTING.get(settings);
-
-        if (this.joinRetryAttempts < 1) {
-            throw new IllegalArgumentException("'" + SETTING_JOIN_RETRY_ATTEMPTS + "' must be a positive number. got [" + SETTING_JOIN_RETRY_ATTEMPTS + "]");
-        }
-        if (this.maxPingsFromAnotherMaster < 1) {
-            throw new IllegalArgumentException("'" + SETTING_MAX_PINGS_FROM_ANOTHER_MASTER + "' must be a positive number. got [" + this.maxPingsFromAnotherMaster + "]");
-        }
 
         logger.debug("using ping_timeout [{}], join.timeout [{}], master_election.filter_client [{}], master_election.filter_data [{}]", this.pingTimeout, joinTimeout, masterElectionFilterClientNodes, masterElectionFilterDataNodes);
 

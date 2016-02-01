@@ -19,8 +19,6 @@
 
 package org.elasticsearch.plugin.reindex;
 
-import java.util.Map;
-
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterService;
@@ -40,6 +38,8 @@ import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.script.Script;
 
+import java.util.Map;
+
 import static org.elasticsearch.plugin.reindex.AbstractBulkByScrollRequest.SIZE_ALL_MATCHES;
 import static org.elasticsearch.plugin.reindex.RestReindexAction.parseCommon;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -50,7 +50,7 @@ public class RestUpdateByQueryAction extends
     public RestUpdateByQueryAction(Settings settings, RestController controller, Client client,
             IndicesQueriesRegistry indicesQueriesRegistry, ClusterService clusterService,
             TransportUpdateByQueryAction action) {
-        super(settings, controller, client, indicesQueriesRegistry, clusterService, action);
+        super(settings, client, indicesQueriesRegistry, clusterService, action);
         controller.registerHandler(POST, "/{index}/_update_by_query", this);
         controller.registerHandler(POST, "/{index}/{type}/_update_by_query", this);
     }

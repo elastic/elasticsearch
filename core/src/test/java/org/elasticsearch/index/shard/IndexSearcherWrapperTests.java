@@ -56,7 +56,7 @@ public class IndexSearcherWrapperTests extends ESTestCase {
         doc.add(new StringField("id", "1", random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
         doc.add(new TextField("field", "doc", random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
         writer.addDocument(doc);
-        DirectoryReader open = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer, true), new ShardId("foo", 1));
+        DirectoryReader open = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer, true), new ShardId("foo", "_na_", 1));
         IndexSearcher searcher = new IndexSearcher(open);
         assertEquals(1, searcher.search(new TermQuery(new Term("field", "doc")), 1).totalHits);
         final AtomicInteger closeCalls = new AtomicInteger(0);
@@ -106,7 +106,7 @@ public class IndexSearcherWrapperTests extends ESTestCase {
         doc.add(new StringField("id", "1", random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
         doc.add(new TextField("field", "doc", random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
         writer.addDocument(doc);
-        DirectoryReader open = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer, true), new ShardId("foo", 1));
+        DirectoryReader open = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer, true), new ShardId("foo", "_na_", 1));
         IndexSearcher searcher = new IndexSearcher(open);
         assertEquals(1, searcher.search(new TermQuery(new Term("field", "doc")), 1).totalHits);
         searcher.setSimilarity(iwc.getSimilarity());
@@ -148,7 +148,7 @@ public class IndexSearcherWrapperTests extends ESTestCase {
         doc.add(new StringField("id", "1", random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
         doc.add(new TextField("field", "doc", random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
         writer.addDocument(doc);
-        DirectoryReader open = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer, true), new ShardId("foo", 1));
+        DirectoryReader open = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer, true), new ShardId("foo", "_na_", 1));
         IndexSearcher searcher = new IndexSearcher(open);
         assertEquals(1, searcher.search(new TermQuery(new Term("field", "doc")), 1).totalHits);
         searcher.setSimilarity(iwc.getSimilarity());
@@ -168,7 +168,7 @@ public class IndexSearcherWrapperTests extends ESTestCase {
         doc.add(new StringField("id", "1", random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
         doc.add(new TextField("field", "doc", random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
         writer.addDocument(doc);
-        DirectoryReader open = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer, true), new ShardId("foo", 1));
+        DirectoryReader open = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer, true), new ShardId("foo", "_na_", 1));
         IndexSearcher searcher = new IndexSearcher(open);
         assertEquals(1, searcher.search(new TermQuery(new Term("field", "doc")), 1).totalHits);
         searcher.setSimilarity(iwc.getSimilarity());
@@ -258,7 +258,7 @@ public class IndexSearcherWrapperTests extends ESTestCase {
         public DirectoryReader getDelegate() {
             if (hideDelegate) {
                 try {
-                    return ElasticsearchDirectoryReader.wrap(super.getDelegate(), new ShardId("foo", 1));
+                    return ElasticsearchDirectoryReader.wrap(super.getDelegate(), new ShardId("foo", "_na_", 1));
                 } catch (IOException e) {
                     throw new RuntimeException(e);
                 }

@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDeci
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.recovery.RecoveryState;
@@ -331,10 +332,10 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
     public void testReusePeerRecovery() throws Exception {
         final Settings settings = settingsBuilder()
                 .put("action.admin.cluster.node.shutdown.delay", "10ms")
-                .put(MockFSIndexStore.INDEX_CHECK_INDEX_ON_CLOSE_SETTING, false)
+                .put(MockFSIndexStore.INDEX_CHECK_INDEX_ON_CLOSE_SETTING.getKey(), false)
                 .put("gateway.recover_after_nodes", 4)
-                .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING, 4)
-                .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING, 4)
+                .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 4)
+                .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 4)
                 .put(MockFSDirectoryService.CRASH_INDEX_SETTING.getKey(), false).build();
 
         internalCluster().startNodesAsync(4, settings).get();
@@ -408,7 +409,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
                         recoveryState.getShardId().getId(), recoveryState.getSourceNode().name(), recoveryState.getTargetNode().name(),
                         recoveryState.getIndex().recoveredBytes(), recoveryState.getIndex().reusedBytes());
                 assertThat("no bytes should be recovered", recoveryState.getIndex().recoveredBytes(), equalTo(recovered));
-                assertThat("data should have been reused", recoveryState.getIndex().reusedBytes(), greaterThan(0l));
+                assertThat("data should have been reused", recoveryState.getIndex().reusedBytes(), greaterThan(0L));
                 // we have to recover the segments file since we commit the translog ID on engine startup
                 assertThat("all bytes should be reused except of the segments file", recoveryState.getIndex().reusedBytes(), equalTo(recoveryState.getIndex().totalBytes() - recovered));
                 assertThat("no files should be recovered except of the segments file", recoveryState.getIndex().recoveredFileCount(), equalTo(1));
@@ -420,7 +421,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
                             recoveryState.getShardId().getId(), recoveryState.getSourceNode().name(), recoveryState.getTargetNode().name(),
                             recoveryState.getIndex().recoveredBytes(), recoveryState.getIndex().reusedBytes());
                 }
-                assertThat(recoveryState.getIndex().recoveredBytes(), equalTo(0l));
+                assertThat(recoveryState.getIndex().recoveredBytes(), equalTo(0L));
                 assertThat(recoveryState.getIndex().reusedBytes(), equalTo(recoveryState.getIndex().totalBytes()));
                 assertThat(recoveryState.getIndex().recoveredFileCount(), equalTo(0));
                 assertThat(recoveryState.getIndex().reusedFileCount(), equalTo(recoveryState.getIndex().totalFileCount()));
@@ -438,11 +439,11 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
     public void testRecoveryDifferentNodeOrderStartup() throws Exception {
         // we need different data paths so we make sure we start the second node fresh
 
-        final String node_1 = internalCluster().startNode(settingsBuilder().put("path.data", createTempDir()).build());
+        final String node_1 = internalCluster().startNode(settingsBuilder().put(Environment.PATH_DATA_SETTING.getKey(), createTempDir()).build());
 
         client().prepareIndex("test", "type1", "1").setSource("field", "value").execute().actionGet();
 
-        internalCluster().startNode(settingsBuilder().put("path.data", createTempDir()).build());
+        internalCluster().startNode(settingsBuilder().put(Environment.PATH_DATA_SETTING.getKey(), createTempDir()).build());
 
         ensureGreen();
 

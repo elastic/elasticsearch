@@ -250,6 +250,12 @@ public class TimeValue implements Streamable {
         }
     }
 
+    public static TimeValue parseTimeValue(String sValue, String settingName) {
+        Objects.requireNonNull(settingName);
+        Objects.requireNonNull(sValue);
+        return parseTimeValue(sValue, null, settingName);
+    }
+
     public static TimeValue parseTimeValue(String sValue, TimeValue defaultValue, String settingName) {
         settingName = Objects.requireNonNull(settingName);
         if (sValue == null) {

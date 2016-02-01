@@ -32,10 +32,6 @@ public abstract class ActionRequest<Request extends ActionRequest<Request>> exte
 
     public ActionRequest() {
         super();
-    }
-
-    protected ActionRequest(ActionRequest<?> request) {
-        super(request);
         // this does not set the listenerThreaded API, if needed, its up to the caller to set it
         // since most times, we actually want it to not be threaded...
         // this.listenerThreaded = request.listenerThreaded();

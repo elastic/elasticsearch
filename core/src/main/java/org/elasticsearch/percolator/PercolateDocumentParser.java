@@ -24,6 +24,7 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.percolate.PercolateShardRequest;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -34,6 +35,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.DocumentMapperForType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.aggregations.AggregationPhase;
@@ -49,21 +51,20 @@ public class PercolateDocumentParser {
     private final HighlightPhase highlightPhase;
     private final SortParseElement sortParseElement;
     private final AggregationPhase aggregationPhase;
-    private final MappingUpdatedAction mappingUpdatedAction;
 
     @Inject
-    public PercolateDocumentParser(HighlightPhase highlightPhase, SortParseElement sortParseElement, AggregationPhase aggregationPhase, MappingUpdatedAction mappingUpdatedAction) {
+    public PercolateDocumentParser(HighlightPhase highlightPhase, SortParseElement sortParseElement,
+                                   AggregationPhase aggregationPhase) {
         this.highlightPhase = highlightPhase;
         this.sortParseElement = sortParseElement;
         this.aggregationPhase = aggregationPhase;
-        this.mappingUpdatedAction = mappingUpdatedAction;
     }
 
     public ParsedDocument parse(PercolateShardRequest request, PercolateContext context, MapperService mapperService, QueryShardContext queryShardContext) {
         BytesReference source = request.source();
         if (source == null || source.length() == 0) {
             if (request.docSource() != null && request.docSource().length() != 0) {
-                return parseFetchedDoc(context, request.docSource(), mapperService, request.shardId().getIndex(), request.documentType());
+                return parseFetchedDoc(context, request.docSource(), mapperService, request.shardId().getIndexName(), request.documentType());
             } else {
                 return null;
             }
@@ -94,12 +95,9 @@ public class PercolateDocumentParser {
 
                         DocumentMapperForType docMapper = mapperService.documentMapperWithAutoCreate(request.documentType());
                         String index = context.shardTarget().index();
-                        doc = docMapper.getDocumentMapper().parse(source(parser).index(index).type(request.documentType()).flyweight(true));
+                        doc = docMapper.getDocumentMapper().parse(source(parser).index(index).type(request.documentType()).id("_id_for_percolate_api"));
                         if (docMapper.getMapping() != null) {
                             doc.addDynamicMappingsUpdate(docMapper.getMapping());
-                        }
-                        if (doc.dynamicMappingsUpdate() != null) {
-                            mappingUpdatedAction.updateMappingOnMasterSynchronously(request.shardId().getIndex(), request.documentType(), doc.dynamicMappingsUpdate());
                         }
                         // the document parsing exists the "doc" object, so we need to set the new current field.
                         currentFieldName = parser.currentName();
@@ -186,7 +184,7 @@ public class PercolateDocumentParser {
                 throw new IllegalArgumentException("Can't specify the document to percolate in the source of the request and as document id");
             }
 
-            doc = parseFetchedDoc(context, request.docSource(), mapperService, request.shardId().getIndex(), request.documentType());
+            doc = parseFetchedDoc(context, request.docSource(), mapperService, request.shardId().getIndexName(), request.documentType());
         }
 
         if (doc == null) {
@@ -206,19 +204,15 @@ public class PercolateDocumentParser {
     }
 
     private ParsedDocument parseFetchedDoc(PercolateContext context, BytesReference fetchedDoc, MapperService mapperService, String index, String type) {
-        try (XContentParser parser = XContentFactory.xContent(fetchedDoc).createParser(fetchedDoc)) {
-            DocumentMapperForType docMapper = mapperService.documentMapperWithAutoCreate(type);
-            ParsedDocument doc = docMapper.getDocumentMapper().parse(source(parser).index(index).type(type).flyweight(true));
-            if (doc == null) {
-                throw new ElasticsearchParseException("No doc to percolate in the request");
-            }
-            if (context.highlight() != null) {
-                doc.setSource(fetchedDoc);
-            }
-            return doc;
-        } catch (Throwable e) {
-            throw new ElasticsearchParseException("failed to parse request", e);
+        DocumentMapperForType docMapper = mapperService.documentMapperWithAutoCreate(type);
+        ParsedDocument doc = docMapper.getDocumentMapper().parse(source(fetchedDoc).index(index).type(type).id("_id_for_percolate_api"));
+        if (doc == null) {
+            throw new ElasticsearchParseException("No doc to percolate in the request");
         }
+        if (context.highlight() != null) {
+            doc.setSource(fetchedDoc);
+        }
+        return doc;
     }
 
 }

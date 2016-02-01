@@ -22,12 +22,14 @@ package org.elasticsearch.script;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.MapBinder;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.SettingsModule;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * An {@link org.elasticsearch.common.inject.Module} which manages {@link ScriptEngineService}s, as well
@@ -35,20 +37,25 @@ import java.util.Map;
  */
 public class ScriptModule extends AbstractModule {
 
-    private final Settings settings;
+    private final SettingsModule settingsModule;
 
-    private final List<Class<? extends ScriptEngineService>> scriptEngines = new ArrayList<>();
+    private final List<ScriptEngineRegistry.ScriptEngineRegistration> scriptEngineRegistrations = new ArrayList<>();
+
+    {
+        scriptEngineRegistrations.add(new ScriptEngineRegistry.ScriptEngineRegistration(NativeScriptEngineService.class, NativeScriptEngineService.TYPES));
+    }
 
     private final Map<String, Class<? extends NativeScriptFactory>> scripts = new HashMap<>();
 
     private final List<ScriptContext.Plugin> customScriptContexts = new ArrayList<>();
 
-    public ScriptModule(Settings settings) {
-        this.settings = settings;
+    public ScriptModule(SettingsModule settingsModule) {
+        this.settingsModule = settingsModule;
     }
 
-    public void addScriptEngine(Class<? extends ScriptEngineService> scriptEngine) {
-        scriptEngines.add(scriptEngine);
+    public void addScriptEngine(ScriptEngineRegistry.ScriptEngineRegistration scriptEngineRegistration) {
+        Objects.requireNonNull(scriptEngineRegistration);
+        scriptEngineRegistrations.add(scriptEngineRegistration);
     }
 
     public void registerScript(String name, Class<? extends NativeScriptFactory> script) {
@@ -74,11 +81,23 @@ public class ScriptModule extends AbstractModule {
         Multibinder<ScriptEngineService> multibinder = Multibinder.newSetBinder(binder(), ScriptEngineService.class);
         multibinder.addBinding().to(NativeScriptEngineService.class);
 
-        for (Class<? extends ScriptEngineService> scriptEngine : scriptEngines) {
-            multibinder.addBinding().to(scriptEngine).asEagerSingleton();
+        for (ScriptEngineRegistry.ScriptEngineRegistration scriptEngineRegistration : scriptEngineRegistrations) {
+            multibinder.addBinding().to(scriptEngineRegistration.getScriptEngineService()).asEagerSingleton();
         }
 
-        bind(ScriptContextRegistry.class).toInstance(new ScriptContextRegistry(customScriptContexts));
+        ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(customScriptContexts);
+        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(scriptEngineRegistrations);
+
+        ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
+
+        scriptSettings.getScriptTypeSettings().forEach(settingsModule::registerSetting);
+        scriptSettings.getScriptContextSettings().forEach(settingsModule::registerSetting);
+        scriptSettings.getScriptLanguageSettings().forEach(settingsModule::registerSetting);
+        settingsModule.registerSetting(scriptSettings.getDefaultScriptLanguageSetting());
+
+        bind(ScriptContextRegistry.class).toInstance(scriptContextRegistry);
+        bind(ScriptEngineRegistry.class).toInstance(scriptEngineRegistry);
+        bind(ScriptSettings.class).toInstance(scriptSettings);
         bind(ScriptService.class).asEagerSingleton();
     }
 }

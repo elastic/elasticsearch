@@ -23,7 +23,6 @@ import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
-import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
@@ -120,10 +119,10 @@ public final class BitsetFilterCache extends AbstractIndexComponent implements L
         final Object coreCacheReader = context.reader().getCoreCacheKey();
         final ShardId shardId = ShardUtils.extractShardId(context.reader());
         if (shardId != null // can't require it because of the percolator
-                && indexSettings.getIndex().getName().equals(shardId.getIndex()) == false) {
+                && indexSettings.getIndex().equals(shardId.getIndex()) == false) {
             // insanity
-            throw new IllegalStateException("Trying to load bit set for index [" + shardId.getIndex()
-                    + "] with cache of index [" + indexSettings.getIndex().getName() + "]");
+            throw new IllegalStateException("Trying to load bit set for index " + shardId.getIndex()
+                    + " with cache of index " + indexSettings.getIndex());
         }
         Cache<Query, Value> filterToFbs = loadedFilters.computeIfAbsent(coreCacheReader, key -> {
             context.reader().addCoreClosedListener(BitsetFilterCache.this);

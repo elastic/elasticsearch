@@ -21,6 +21,7 @@ package org.elasticsearch.transport.local;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportResponse;
@@ -79,9 +80,9 @@ public class LocalTransportChannel implements TransportChannel {
             stream.writeByte(status); // 0 for request, 1 for response.
             response.writeTo(stream);
             final byte[] data = stream.bytes().toBytes();
-            targetTransport.workers().execute(new Runnable() {
-                @Override
-                public void run() {
+            targetTransport.workers().execute(() -> {
+                ThreadContext threadContext = targetTransport.threadPool.getThreadContext();
+                try (ThreadContext.StoredContext ignore = threadContext.stashContext()){
                     targetTransport.messageReceived(data, action, sourceTransport, version, null);
                 }
             });
@@ -97,9 +98,9 @@ public class LocalTransportChannel implements TransportChannel {
         stream.writeThrowable(tx);
 
         final byte[] data = stream.bytes().toBytes();
-        targetTransport.workers().execute(new Runnable() {
-            @Override
-            public void run() {
+        targetTransport.workers().execute(() -> {
+            ThreadContext threadContext = targetTransport.threadPool.getThreadContext();
+            try (ThreadContext.StoredContext ignore = threadContext.stashContext()){
                 targetTransport.messageReceived(data, action, sourceTransport, version, null);
             }
         });

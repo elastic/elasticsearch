@@ -162,7 +162,7 @@ class ElasticsearchConcurrentMergeScheduler extends ConcurrentMergeScheduler {
     @Override
     protected MergeThread getMergeThread(IndexWriter writer, MergePolicy.OneMerge merge) throws IOException {
         MergeThread thread = super.getMergeThread(writer, merge);
-        thread.setName(EsExecutors.threadName(indexSettings, "[" + shardId.index().name() + "][" + shardId.id() + "]: " + thread.getName()));
+        thread.setName(EsExecutors.threadName(indexSettings, "[" + shardId.getIndexName() + "][" + shardId.id() + "]: " + thread.getName()));
         return thread;
     }
 

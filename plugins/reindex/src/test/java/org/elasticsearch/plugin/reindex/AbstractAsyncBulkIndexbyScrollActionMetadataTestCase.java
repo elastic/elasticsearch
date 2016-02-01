@@ -21,6 +21,7 @@ package org.elasticsearch.plugin.reindex;
 
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.internal.TTLFieldMapper;
 import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
 import org.elasticsearch.search.SearchShardTarget;
@@ -40,7 +41,7 @@ public abstract class AbstractAsyncBulkIndexbyScrollActionMetadataTestCase<Reque
     protected InternalSearchHit doc(String field, Object value) {
         InternalSearchHit doc = new InternalSearchHit(0, "id", new Text("type"), singletonMap(field,
                 new InternalSearchHitField(field, singletonList(value))));
-        doc.shardTarget(new SearchShardTarget("node", "shard", 0));
+        doc.shardTarget(new SearchShardTarget("node", new Index("index", "uuid"), 0));
         return doc;
     }
 

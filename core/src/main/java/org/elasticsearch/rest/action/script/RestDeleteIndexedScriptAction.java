@@ -47,7 +47,7 @@ public class RestDeleteIndexedScriptAction extends BaseRestHandler {
     }
 
     protected RestDeleteIndexedScriptAction(Settings settings, RestController controller, boolean registerDefaultHandlers, Client client) {
-        super(settings, controller, client);
+        super(settings, client);
         if (registerDefaultHandlers) {
             controller.registerHandler(DELETE, "/_scripts/{lang}/{id}", this);
         }

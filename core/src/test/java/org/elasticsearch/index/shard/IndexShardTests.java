@@ -68,6 +68,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.NodeServicesProvider;
@@ -137,7 +138,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
 
     public void testWriteShardState() throws Exception {
         try (NodeEnvironment env = newNodeEnvironment()) {
-            ShardId id = new ShardId("foo", 1);
+            ShardId id = new ShardId("foo", "_na_", 1);
             long version = between(1, Integer.MAX_VALUE / 2);
             boolean primary = randomBoolean();
             AllocationId allocationId = randomBoolean() ? null : randomAllocationId();
@@ -163,7 +164,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         createIndex("test");
         ensureGreen();
         NodeEnvironment env = getInstanceFromNode(NodeEnvironment.class);
-        Path[] shardPaths = env.availableShardPaths(new ShardId("test", 0));
+        Path[] shardPaths = env.availableShardPaths(new ShardId("test", "_na_", 0));
         logger.info("--> paths: [{}]", (Object)shardPaths);
         // Should not be able to acquire the lock because it's already open
         try {
@@ -175,7 +176,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         // Test without the regular shard lock to assume we can acquire it
         // (worst case, meaning that the shard lock could be acquired and
         // we're green to delete the shard's directory)
-        ShardLock sLock = new DummyShardLock(new ShardId("test", 0));
+        ShardLock sLock = new DummyShardLock(new ShardId("test", "_na_", 0));
         try {
             env.deleteShardDirectoryUnderLock(sLock, IndexSettingsModule.newIndexSettings("test", Settings.EMPTY));
             fail("should not have been able to delete the directory");
@@ -250,7 +251,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         ShardStateMetaData shardStateMetaData = load(logger, env.availableShardPaths(shard.shardId));
         assertEquals(shardStateMetaData, getShardStateMetadata(shard));
 
-        routing = TestShardRouting.newShardRouting(shard.shardId.index().getName(), shard.shardId.id(), routing.currentNodeId(), null, routing.primary(), ShardRoutingState.INITIALIZING, shard.shardRouting.allocationId(), shard.shardRouting.version() + 1);
+        routing = TestShardRouting.newShardRouting(shard.shardId.getIndex(), shard.shardId.id(), routing.currentNodeId(), null, routing.primary(), ShardRoutingState.INITIALIZING, shard.shardRouting.allocationId(), shard.shardRouting.version() + 1);
         shard.updateRoutingEntry(routing, true);
         shard.deleteShardState();
 
@@ -274,7 +275,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         ShardPath shardPath = ShardPath.loadShardPath(logger, env, shard.shardId(), test.getIndexSettings());
         assertNotNull(shardPath);
         // but index can't be opened for a failed shard
-        assertThat("store index should be corrupted", Store.canOpenIndex(logger, shardPath.resolveIndex()), equalTo(false));
+        assertThat("store index should be corrupted", Store.canOpenIndex(logger, shardPath.resolveIndex(), shard.shardId()), equalTo(false));
     }
 
     ShardStateMetaData getShardStateMetadata(IndexShard shard) {
@@ -407,7 +408,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
     }
 
     private void setDurability(IndexShard shard, Translog.Durability durability) {
-        client().admin().indices().prepareUpdateSettings(shard.shardId.getIndex()).setSettings(settingsBuilder().put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), durability.name()).build()).get();
+        client().admin().indices().prepareUpdateSettings(shard.shardId.getIndexName()).setSettings(settingsBuilder().put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), durability.name()).build()).get();
         assertEquals(durability, shard.getTranslogDurability());
     }
 
@@ -441,7 +442,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         client().prepareIndex("test", "bar", "1").setSource("{}").setRefresh(true).get();
         client().admin().indices().prepareFlush("test").get();
         SearchResponse response = client().prepareSearch("test").get();
-        assertHitCount(response, 1l);
+        assertHitCount(response, 1L);
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         IndexService test = indicesService.indexService("test");
         IndexShard shard = test.getShardOrNull(0);
@@ -456,7 +457,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         createIndex("test");
         ensureGreen("test");
         response = client().prepareSearch("test").get();
-        assertHitCount(response, 0l);
+        assertHitCount(response, 0L);
     }
 
     public void testIndexDirIsDeletedWhenShardRemoved() throws Exception {
@@ -470,7 +471,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         ensureGreen("test");
         client().prepareIndex("test", "bar", "1").setSource("{}").setRefresh(true).get();
         SearchResponse response = client().prepareSearch("test").get();
-        assertHitCount(response, 1l);
+        assertHitCount(response, 1L);
         client().admin().indices().prepareDelete("test").get();
         assertPathHasBeenCleared(idxPath);
     }
@@ -995,7 +996,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
             MappedFieldType foo = newShard.mapperService().fullName("foo");
             IndexFieldData.Global ifd = shard.indexFieldDataService().getForField(foo);
             FieldDataStats before = shard.fieldData().stats("foo");
-            assertThat(before.getMemorySizeInBytes(), equalTo(0l));
+            assertThat(before.getMemorySizeInBytes(), equalTo(0L));
             FieldDataStats after = null;
             try (Engine.Searcher searcher = newShard.acquireSearcher("test")) {
                 assumeTrue("we have to have more than one segment", searcher.getDirectoryReader().leaves().size() > 1);
@@ -1003,7 +1004,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
                 after = shard.fieldData().stats("foo");
                 assertEquals(after.getEvictions(), before.getEvictions());
                 // If a field doesn't exist an empty IndexFieldData is returned and that isn't cached:
-                assertThat(after.getMemorySizeInBytes(), equalTo(0l));
+                assertThat(after.getMemorySizeInBytes(), equalTo(0L));
             }
             assertEquals(shard.fieldData().stats("foo").getEvictions(), before.getEvictions());
             assertEquals(shard.fieldData().stats("foo").getMemorySizeInBytes(), after.getMemorySizeInBytes());
@@ -1086,5 +1087,66 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         newShard.performTranslogRecovery(true);
         newShard.performBatchRecovery(operations);
         assertFalse(newShard.getTranslog().syncNeeded());
+    }
+
+    public void testIndexingBufferDuringInternalRecovery() throws IOException {
+        createIndex("index");
+        client().admin().indices().preparePutMapping("index").setType("testtype").setSource(jsonBuilder().startObject()
+                .startObject("testtype")
+                .startObject("properties")
+                .startObject("foo")
+                .field("type", "string")
+                .endObject()
+                .endObject().endObject().endObject()).get();
+        ensureGreen();
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexService test = indicesService.indexService("index");
+        IndexShard shard = test.getShardOrNull(0);
+        ShardRouting routing = new ShardRouting(shard.routingEntry());
+        test.removeShard(0, "b/c britta says so");
+        IndexShard newShard = test.createShard(routing);
+        newShard.shardRouting = routing;
+        DiscoveryNode localNode = new DiscoveryNode("foo", DummyTransportAddress.INSTANCE, Version.CURRENT);
+        newShard.markAsRecovering("for testing", new RecoveryState(newShard.shardId(), routing.primary(), RecoveryState.Type.REPLICA, localNode, localNode));
+        // Shard is still inactive since we haven't started recovering yet
+        assertFalse(newShard.isActive());
+        newShard.prepareForIndexRecovery();
+        // Shard is still inactive since we haven't started recovering yet
+        assertFalse(newShard.isActive());
+        newShard.performTranslogRecovery(true);
+        // Shard should now be active since we did recover:
+        assertTrue(newShard.isActive());
+    }
+
+    public void testIndexingBufferDuringPeerRecovery() throws IOException {
+        createIndex("index");
+        client().admin().indices().preparePutMapping("index").setType("testtype").setSource(jsonBuilder().startObject()
+                .startObject("testtype")
+                .startObject("properties")
+                .startObject("foo")
+                .field("type", "string")
+                .endObject()
+                .endObject().endObject().endObject()).get();
+        ensureGreen();
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexService test = indicesService.indexService("index");
+        IndexShard shard = test.getShardOrNull(0);
+        ShardRouting routing = new ShardRouting(shard.routingEntry());
+        test.removeShard(0, "b/c britta says so");
+        IndexShard newShard = test.createShard(routing);
+        newShard.shardRouting = routing;
+        DiscoveryNode localNode = new DiscoveryNode("foo", DummyTransportAddress.INSTANCE, Version.CURRENT);
+        newShard.markAsRecovering("for testing", new RecoveryState(newShard.shardId(), routing.primary(), RecoveryState.Type.REPLICA, localNode, localNode));
+        // Shard is still inactive since we haven't started recovering yet
+        assertFalse(newShard.isActive());
+        List<Translog.Operation> operations = new ArrayList<>();
+        operations.add(new Translog.Index("testtype", "1", jsonBuilder().startObject().field("foo", "bar").endObject().bytes().toBytes()));
+        newShard.prepareForIndexRecovery();
+        newShard.skipTranslogRecovery();
+        // Shard is still inactive since we haven't started recovering yet
+        assertFalse(newShard.isActive());
+        newShard.performBatchRecovery(operations);
+        // Shard should now be active since we did recover:
+        assertTrue(newShard.isActive());
     }
 }

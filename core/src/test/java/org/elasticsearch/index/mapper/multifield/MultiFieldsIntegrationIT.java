@@ -67,11 +67,11 @@ public class MultiFieldsIntegrationIT extends ESIntegTestCase {
         SearchResponse searchResponse = client().prepareSearch("my-index")
                 .setQuery(matchQuery("title", "multi"))
                 .get();
-        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1L));
         searchResponse = client().prepareSearch("my-index")
                 .setQuery(matchQuery("title.not_analyzed", "Multi fields"))
                 .get();
-        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1L));
 
         assertAcked(
                 client().admin().indices().preparePutMapping("my-index").setType("my-type")
@@ -98,7 +98,7 @@ public class MultiFieldsIntegrationIT extends ESIntegTestCase {
         searchResponse = client().prepareSearch("my-index")
                 .setQuery(matchQuery("title.uncased", "Multi"))
                 .get();
-        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1L));
     }
 
     public void testGeoPointMultiField() throws Exception {
@@ -127,9 +127,9 @@ public class MultiFieldsIntegrationIT extends ESIntegTestCase {
         SearchResponse countResponse = client().prepareSearch("my-index").setSize(0)
                 .setQuery(constantScoreQuery(geoDistanceQuery("a").point(51, 19).distance(50, DistanceUnit.KILOMETERS)))
                 .get();
-        assertThat(countResponse.getHits().totalHits(), equalTo(1l));
+        assertThat(countResponse.getHits().totalHits(), equalTo(1L));
         countResponse = client().prepareSearch("my-index").setSize(0).setQuery(matchQuery("a.b", point.toString())).get();
-        assertThat(countResponse.getHits().totalHits(), equalTo(1l));
+        assertThat(countResponse.getHits().totalHits(), equalTo(1L));
     }
 
     public void testTokenCountMultiField() throws Exception {
@@ -167,7 +167,7 @@ public class MultiFieldsIntegrationIT extends ESIntegTestCase {
 
         client().prepareIndex("my-index", "my-type", "1").setSource("a", "my tokens").setRefresh(true).get();
         SearchResponse countResponse = client().prepareSearch("my-index").setSize(0).setQuery(matchQuery("a.b", "my tokens")).get();
-        assertThat(countResponse.getHits().totalHits(), equalTo(1l));
+        assertThat(countResponse.getHits().totalHits(), equalTo(1L));
     }
 
     public void testCompletionMultiField() throws Exception {
@@ -192,7 +192,7 @@ public class MultiFieldsIntegrationIT extends ESIntegTestCase {
 
         client().prepareIndex("my-index", "my-type", "1").setSource("a", "complete me").setRefresh(true).get();
         SearchResponse countResponse = client().prepareSearch("my-index").setSize(0).setQuery(matchQuery("a.b", "complete me")).get();
-        assertThat(countResponse.getHits().totalHits(), equalTo(1l));
+        assertThat(countResponse.getHits().totalHits(), equalTo(1L));
     }
 
     public void testIpMultiField() throws Exception {
@@ -217,7 +217,7 @@ public class MultiFieldsIntegrationIT extends ESIntegTestCase {
 
         client().prepareIndex("my-index", "my-type", "1").setSource("a", "127.0.0.1").setRefresh(true).get();
         SearchResponse countResponse = client().prepareSearch("my-index").setSize(0).setQuery(matchQuery("a.b", "127.0.0.1")).get();
-        assertThat(countResponse.getHits().totalHits(), equalTo(1l));
+        assertThat(countResponse.getHits().totalHits(), equalTo(1L));
     }
 
     private XContentBuilder createMappingSource(String fieldType) throws IOException {

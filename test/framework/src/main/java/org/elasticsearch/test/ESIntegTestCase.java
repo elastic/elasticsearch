@@ -110,7 +110,6 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.cache.request.IndicesRequestCache;
 import org.elasticsearch.indices.store.IndicesStore;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeMocksPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
@@ -130,6 +129,7 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.annotation.Annotation;
@@ -527,11 +527,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         }
 
         if (random.nextBoolean()) {
-            if (rarely(random)) {
-                builder.put(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey(), 0); // 0 has special meaning to sync each op
-            } else {
-                builder.put(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey(), RandomInts.randomIntBetween(random, 100, 5000), TimeUnit.MILLISECONDS);
-            }
+            builder.put(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey(), RandomInts.randomIntBetween(random, 100, 5000), TimeUnit.MILLISECONDS);
         }
 
         return builder;
@@ -680,7 +676,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     public static Iterable<Client> clients() {
-        return cluster();
+        return cluster().getClients();
     }
 
     protected int minimumNumberOfShards() {
@@ -1104,7 +1100,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             Map<String, Object> masterStateMap = convertToMap(masterClusterState);
             int masterClusterStateSize = masterClusterState.toString().length();
             String masterId = masterClusterState.nodes().masterNodeId();
-            for (Client client : cluster()) {
+            for (Client client : cluster().getClients()) {
                 ClusterState localClusterState = client.admin().cluster().prepareState().all().setLocal(true).get().getState();
                 byte[] localClusterStateBytes = ClusterState.Builder.toBytes(localClusterState);
                 // remove local node reference
@@ -1682,10 +1678,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 // from failing on nodes without enough disk space
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "1b")
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "1b")
-                .put("script.indexed", "on")
-                .put("script.inline", "on")
+                .put("script.indexed", "true")
+                .put("script.inline", "true")
                         // wait short time for other active shards before actually deleting, default 30s not needed in tests
-                .put(IndicesStore.INDICES_STORE_DELETE_SHARD_TIMEOUT, new TimeValue(1, TimeUnit.SECONDS));
+                .put(IndicesStore.INDICES_STORE_DELETE_SHARD_TIMEOUT.getKey(), new TimeValue(1, TimeUnit.SECONDS));
         return builder.build();
     }
 
@@ -1759,7 +1755,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         NodeConfigurationSource nodeConfigurationSource = new NodeConfigurationSource() {
             @Override
             public Settings nodeSettings(int nodeOrdinal) {
-                return Settings.builder().put(Node.HTTP_ENABLED, false).
+                return Settings.builder().put(NetworkModule.HTTP_ENABLED.getKey(), false).
                         put(ESIntegTestCase.this.nodeSettings(nodeOrdinal)).build();
             }
 
@@ -1803,7 +1799,16 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
         return new InternalTestCluster(nodeMode, seed, createTempDir(), minNumDataNodes, maxNumDataNodes,
                 InternalTestCluster.clusterName(scope.name(), seed) + "-cluster", nodeConfigurationSource, getNumClientNodes(),
-                InternalTestCluster.DEFAULT_ENABLE_HTTP_PIPELINING, nodePrefix, mockPlugins);
+                InternalTestCluster.DEFAULT_ENABLE_HTTP_PIPELINING, nodePrefix, mockPlugins, getClientWrapper());
+    }
+
+    /**
+     * Returns a function that allows to wrap / filter all clients that are exposed by the test cluster. This is useful
+     * for debugging or request / response pre and post processing. It also allows to intercept all calls done by the test
+     * framework. By default this method returns an identity function {@link Function#identity()}.
+     */
+    protected Function<Client,Client> getClientWrapper() {
+        return Function.identity();
     }
 
     /** Return the mock plugins the cluster should use */
@@ -1937,7 +1942,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
             for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
                 for (ShardRouting shardRouting : indexShardRoutingTable) {
-                    if (shardRouting.currentNodeId() != null && index.equals(shardRouting.getIndex())) {
+                    if (shardRouting.currentNodeId() != null && index.equals(shardRouting.getIndexName())) {
                         String name = clusterState.nodes().get(shardRouting.currentNodeId()).name();
                         nodes.add(name);
                         assertThat("Allocated on new node: " + name, Regex.simpleMatch(pattern, name), is(true));
@@ -2082,11 +2087,11 @@ public abstract class ESIntegTestCase extends ESTestCase {
         assertTrue(Files.exists(dest));
         Settings.Builder builder = Settings.builder()
                 .put(settings)
-                .put("path.data", dataDir.toAbsolutePath());
+                .put(Environment.PATH_DATA_SETTING.getKey(), dataDir.toAbsolutePath());
 
         Path configDir = indexDir.resolve("config");
         if (Files.exists(configDir)) {
-            builder.put("path.conf", configDir.toAbsolutePath());
+            builder.put(Environment.PATH_CONF_SETTING.getKey(), configDir.toAbsolutePath());
         }
         return builder.build();
     }

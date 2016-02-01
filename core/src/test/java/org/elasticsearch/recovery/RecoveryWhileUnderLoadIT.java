@@ -36,6 +36,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.Arrays;
 import java.util.concurrent.TimeUnit;
@@ -49,6 +50,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllS
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 
+@TestLogging("_root:DEBUG")
 public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
     private final ESLogger logger = Loggers.getLogger(RecoveryWhileUnderLoadIT.class);
 

@@ -122,43 +122,43 @@ public class DoubleTermsTests extends AbstractTermsTestCase {
         expectedMultiSortBuckets = new HashMap<>();
         Map<String, Object> bucketProps = new HashMap<>();
         bucketProps.put("_term", 1d);
-        bucketProps.put("_count", 3l);
+        bucketProps.put("_count", 3L);
         bucketProps.put("avg_l", 1d);
         bucketProps.put("sum_d", 6d);
         expectedMultiSortBuckets.put((Double) bucketProps.get("_term"), bucketProps);
         bucketProps = new HashMap<>();
         bucketProps.put("_term", 2d);
-        bucketProps.put("_count", 3l);
+        bucketProps.put("_count", 3L);
         bucketProps.put("avg_l", 2d);
         bucketProps.put("sum_d", 6d);
         expectedMultiSortBuckets.put((Double) bucketProps.get("_term"), bucketProps);
         bucketProps = new HashMap<>();
         bucketProps.put("_term", 3d);
-        bucketProps.put("_count", 2l);
+        bucketProps.put("_count", 2L);
         bucketProps.put("avg_l", 3d);
         bucketProps.put("sum_d", 3d);
         expectedMultiSortBuckets.put((Double) bucketProps.get("_term"), bucketProps);
         bucketProps = new HashMap<>();
         bucketProps.put("_term", 4d);
-        bucketProps.put("_count", 2l);
+        bucketProps.put("_count", 2L);
         bucketProps.put("avg_l", 3d);
         bucketProps.put("sum_d", 4d);
         expectedMultiSortBuckets.put((Double) bucketProps.get("_term"), bucketProps);
         bucketProps = new HashMap<>();
         bucketProps.put("_term", 5d);
-        bucketProps.put("_count", 2l);
+        bucketProps.put("_count", 2L);
         bucketProps.put("avg_l", 5d);
         bucketProps.put("sum_d", 3d);
         expectedMultiSortBuckets.put((Double) bucketProps.get("_term"), bucketProps);
         bucketProps = new HashMap<>();
         bucketProps.put("_term", 6d);
-        bucketProps.put("_count", 1l);
+        bucketProps.put("_count", 1L);
         bucketProps.put("avg_l", 5d);
         bucketProps.put("sum_d", 1d);
         expectedMultiSortBuckets.put((Double) bucketProps.get("_term"), bucketProps);
         bucketProps = new HashMap<>();
         bucketProps.put("_term", 7d);
-        bucketProps.put("_count", 1l);
+        bucketProps.put("_count", 1L);
         bucketProps.put("avg_l", 5d);
         bucketProps.put("sum_d", 1d);
         expectedMultiSortBuckets.put((Double) bucketProps.get("_term"), bucketProps);
@@ -270,7 +270,7 @@ public class DoubleTermsTests extends AbstractTermsTestCase {
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("" + (double)i));
             assertThat(bucket.getKeyAsNumber().intValue(), equalTo(i));
-            assertThat(bucket.getDocCount(), equalTo(1l));
+            assertThat(bucket.getDocCount(), equalTo(1L));
         }
     }
 
@@ -296,7 +296,7 @@ public class DoubleTermsTests extends AbstractTermsTestCase {
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("" + (double) i));
             assertThat(bucket.getKeyAsNumber().intValue(), equalTo(i));
-            assertThat(bucket.getDocCount(), equalTo(1l));
+            assertThat(bucket.getDocCount(), equalTo(1L));
         }
     }
 
@@ -326,7 +326,7 @@ public class DoubleTermsTests extends AbstractTermsTestCase {
         for (int i = 0; i < expecteds.length; i++) {
             Terms.Bucket bucket = terms.getBucketByKey("" + expecteds[i]);
             assertThat(bucket, notNullValue());
-            assertThat(bucket.getDocCount(), equalTo(1l));
+            assertThat(bucket.getDocCount(), equalTo(1L));
         }
     }
 
@@ -351,7 +351,7 @@ public class DoubleTermsTests extends AbstractTermsTestCase {
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("" + (double)i));
             assertThat(bucket.getKeyAsNumber().intValue(), equalTo(i));
-            assertThat(bucket.getDocCount(), equalTo(1l));
+            assertThat(bucket.getDocCount(), equalTo(1L));
             i++;
         }
     }
@@ -377,7 +377,7 @@ public class DoubleTermsTests extends AbstractTermsTestCase {
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("" + (double) i));
             assertThat(bucket.getKeyAsNumber().intValue(), equalTo(i));
-            assertThat(bucket.getDocCount(), equalTo(1l));
+            assertThat(bucket.getDocCount(), equalTo(1L));
             i--;
         }
     }
@@ -406,13 +406,13 @@ public class DoubleTermsTests extends AbstractTermsTestCase {
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("" + (double) i));
             assertThat(bucket.getKeyAsNumber().intValue(), equalTo(i));
-            assertThat(bucket.getDocCount(), equalTo(1l));
+            assertThat(bucket.getDocCount(), equalTo(1L));
             Sum sum = bucket.getAggregations().get("sum");
             assertThat(sum, notNullValue());
-            assertThat((long) sum.getValue(), equalTo(i+i+1l));
+            assertThat((long) sum.getValue(), equalTo(i+i+1L));
             assertThat((double) propertiesKeys[i], equalTo((double) i));
-            assertThat((long) propertiesDocCounts[i], equalTo(1l));
-            assertThat((double) propertiesCounts[i], equalTo((double) i + i + 1l));
+            assertThat((long) propertiesDocCounts[i], equalTo(1L));
+            assertThat((double) propertiesCounts[i], equalTo((double) i + i + 1L));
         }
     }
 
@@ -437,7 +437,7 @@ public class DoubleTermsTests extends AbstractTermsTestCase {
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("" + (double) i));
             assertThat(bucket.getKeyAsNumber().intValue(), equalTo(i));
-            assertThat(bucket.getDocCount(), equalTo(1l));
+            assertThat(bucket.getDocCount(), equalTo(1L));
             Sum sum = bucket.getAggregations().get("sum");
             assertThat(sum, notNullValue());
             assertThat(sum.getValue(), equalTo((double) i));
@@ -465,7 +465,7 @@ public class DoubleTermsTests extends AbstractTermsTestCase {
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("" + (i+1d)));
             assertThat(bucket.getKeyAsNumber().intValue(), equalTo(i + 1));
-            assertThat(bucket.getDocCount(), equalTo(1l));
+            assertThat(bucket.getDocCount(), equalTo(1L));
         }
     }
 
@@ -490,9 +490,9 @@ public class DoubleTermsTests extends AbstractTermsTestCase {
             assertThat(key(bucket), equalTo("" + (double) i));
             assertThat(bucket.getKeyAsNumber().intValue(), equalTo(i));
             if (i == 0 || i == 5) {
-                assertThat(bucket.getDocCount(), equalTo(1l));
+                assertThat(bucket.getDocCount(), equalTo(1L));
             } else {
-                assertThat(bucket.getDocCount(), equalTo(2l));
+                assertThat(bucket.getDocCount(), equalTo(2L));
             }
         }
     }
@@ -519,9 +519,9 @@ public class DoubleTermsTests extends AbstractTermsTestCase {
             assertThat(key(bucket), equalTo("" + (i+1d)));
             assertThat(bucket.getKeyAsNumber().intValue(), equalTo(i + 1));
             if (i == 0 || i == 5) {
-                assertThat(bucket.getDocCount(), equalTo(1l));
+                assertThat(bucket.getDocCount(), equalTo(1L));
             } else {
-                assertThat(bucket.getDocCount(), equalTo(2l));
+                assertThat(bucket.getDocCount(), equalTo(2L));
             }
         }
     }
@@ -546,7 +546,7 @@ public class DoubleTermsTests extends AbstractTermsTestCase {
         assertThat(bucket, notNullValue());
         assertThat(key(bucket), equalTo("1.0"));
         assertThat(bucket.getKeyAsNumber().intValue(), equalTo(1));
-        assertThat(bucket.getDocCount(), equalTo(5l));
+        assertThat(bucket.getDocCount(), equalTo(5L));
     }
 
     /*
@@ -623,7 +623,7 @@ public class DoubleTermsTests extends AbstractTermsTestCase {
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("" + (double) i));
             assertThat(bucket.getKeyAsNumber().intValue(), equalTo(i));
-            assertThat(bucket.getDocCount(), equalTo(1l));
+            assertThat(bucket.getDocCount(), equalTo(1L));
         }
     }
 
@@ -648,7 +648,7 @@ public class DoubleTermsTests extends AbstractTermsTestCase {
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("" + (double) i));
             assertThat(bucket.getKeyAsNumber().intValue(), equalTo(i));
-            assertThat(bucket.getDocCount(), equalTo(1l));
+            assertThat(bucket.getDocCount(), equalTo(1L));
             Sum sum = bucket.getAggregations().get("sum");
             assertThat(sum, notNullValue());
             assertThat(sum.getValue(), equalTo((double) i));
@@ -676,9 +676,9 @@ public class DoubleTermsTests extends AbstractTermsTestCase {
             assertThat(key(bucket), equalTo("" + (double) i));
             assertThat(bucket.getKeyAsNumber().intValue(), equalTo(i));
             if (i == 0 || i == 5) {
-                assertThat(bucket.getDocCount(), equalTo(1l));
+                assertThat(bucket.getDocCount(), equalTo(1L));
             } else {
-                assertThat(bucket.getDocCount(), equalTo(2l));
+                assertThat(bucket.getDocCount(), equalTo(2L));
             }
         }
     }
@@ -779,18 +779,18 @@ public class DoubleTermsTests extends AbstractTermsTestCase {
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("" + (double) i));
             assertThat(bucket.getKeyAsNumber().intValue(), equalTo(i));
-            assertThat(bucket.getDocCount(), equalTo(1l));
+            assertThat(bucket.getDocCount(), equalTo(1L));
         }
     }
 
     public void testEmptyAggregation() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(1l).minDocCount(0)
+                .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(1L).minDocCount(0)
                         .subAggregation(terms("terms")))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2l));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
         Histogram histo = searchResponse.getAggregations().get("histo");
         assertThat(histo, Matchers.notNullValue());
         Histogram.Bucket bucket = histo.getBuckets().get(1);
@@ -824,7 +824,7 @@ public class DoubleTermsTests extends AbstractTermsTestCase {
             Terms.Bucket bucket = terms.getBucketByKey("" + (double) i);
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("" + (double)i));
-            assertThat(bucket.getDocCount(), equalTo(1l));
+            assertThat(bucket.getDocCount(), equalTo(1L));
             Avg avg = bucket.getAggregations().get("avg_i");
             assertThat(avg, notNullValue());
             assertThat(avg.getValue(), equalTo((double) i));
@@ -857,7 +857,7 @@ public class DoubleTermsTests extends AbstractTermsTestCase {
             Terms.Bucket bucket = terms.getBucketByKey("" + (double) i);
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("" + (double)i));
-            assertThat(bucket.getDocCount(), equalTo(1l));
+            assertThat(bucket.getDocCount(), equalTo(1L));
 
             Avg avg = bucket.getAggregations().get("avg_i");
             assertThat(avg, notNullValue());
@@ -870,7 +870,7 @@ public class DoubleTermsTests extends AbstractTermsTestCase {
             for (Terms.Bucket subBucket : subTermsAgg.getBuckets()) {
                 assertThat(subBucket, notNullValue());
                 assertThat(key(subBucket), equalTo(String.valueOf(j)));
-                assertThat(subBucket.getDocCount(), equalTo(1l));
+                assertThat(subBucket.getDocCount(), equalTo(1L));
                 j++;
             }
         }
@@ -899,18 +899,18 @@ public class DoubleTermsTests extends AbstractTermsTestCase {
         Terms.Bucket tag = iters.next();
         assertThat(tag, notNullValue());
         assertThat(key(tag), equalTo(asc ? "0" : "1"));
-        assertThat(tag.getDocCount(), equalTo(asc ? 2l : 3l));
+        assertThat(tag.getDocCount(), equalTo(asc ? 2L : 3L));
         Filter filter = tag.getAggregations().get("filter");
         assertThat(filter, notNullValue());
-        assertThat(filter.getDocCount(), equalTo(asc ? 2l : 3l));
+        assertThat(filter.getDocCount(), equalTo(asc ? 2L : 3L));
 
         tag = iters.next();
         assertThat(tag, notNullValue());
         assertThat(key(tag), equalTo(asc ? "1" : "0"));
-        assertThat(tag.getDocCount(), equalTo(asc ? 3l : 2l));
+        assertThat(tag.getDocCount(), equalTo(asc ? 3L : 2L));
         filter = tag.getAggregations().get("filter");
         assertThat(filter, notNullValue());
-        assertThat(filter.getDocCount(), equalTo(asc ? 3l : 2l));
+        assertThat(filter.getDocCount(), equalTo(asc ? 3L : 2L));
     }
 
     public void testSingleValuedFieldOrderedBySubAggregationAscMultiHierarchyLevels() throws Exception {
@@ -944,13 +944,13 @@ public class DoubleTermsTests extends AbstractTermsTestCase {
         Terms.Bucket tag = iters.next();
         assertThat(tag, notNullValue());
         assertThat(key(tag), equalTo(asc ? "1" : "0"));
-        assertThat(tag.getDocCount(), equalTo(asc ? 3l : 2l));
+        assertThat(tag.getDocCount(), equalTo(asc ? 3L : 2L));
         Filter filter1 = tag.getAggregations().get("filter1");
         assertThat(filter1, notNullValue());
-        assertThat(filter1.getDocCount(), equalTo(asc ? 3l : 2l));
+        assertThat(filter1.getDocCount(), equalTo(asc ? 3L : 2L));
         Filter filter2 = filter1.getAggregations().get("filter2");
         assertThat(filter2, notNullValue());
-        assertThat(filter2.getDocCount(), equalTo(asc ? 3l : 2l));
+        assertThat(filter2.getDocCount(), equalTo(asc ? 3L : 2L));
         Max max = filter2.getAggregations().get("max");
         assertThat(max, notNullValue());
         assertThat(max.getValue(), equalTo(asc ? 2.0 : 4.0));
@@ -958,13 +958,13 @@ public class DoubleTermsTests extends AbstractTermsTestCase {
         tag = iters.next();
         assertThat(tag, notNullValue());
         assertThat(key(tag), equalTo(asc ? "0" : "1"));
-        assertThat(tag.getDocCount(), equalTo(asc ? 2l : 3l));
+        assertThat(tag.getDocCount(), equalTo(asc ? 2L : 3L));
         filter1 = tag.getAggregations().get("filter1");
         assertThat(filter1, notNullValue());
-        assertThat(filter1.getDocCount(), equalTo(asc ? 2l : 3l));
+        assertThat(filter1.getDocCount(), equalTo(asc ? 2L : 3L));
         filter2 = filter1.getAggregations().get("filter2");
         assertThat(filter2, notNullValue());
-        assertThat(filter2.getDocCount(), equalTo(asc ? 2l : 3l));
+        assertThat(filter2.getDocCount(), equalTo(asc ? 2L : 3L));
         max = filter2.getAggregations().get("max");
         assertThat(max, notNullValue());
         assertThat(max.getValue(), equalTo(asc ? 4.0 : 2.0));
@@ -1070,7 +1070,7 @@ public class DoubleTermsTests extends AbstractTermsTestCase {
             Terms.Bucket bucket = terms.getBucketByKey("" + (double) i);
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("" + (double)i));
-            assertThat(bucket.getDocCount(), equalTo(1l));
+            assertThat(bucket.getDocCount(), equalTo(1L));
 
             Avg avg = bucket.getAggregations().get("avg_i");
             assertThat(avg, notNullValue());
@@ -1099,7 +1099,7 @@ public class DoubleTermsTests extends AbstractTermsTestCase {
             Terms.Bucket bucket = terms.getBucketByKey("" + (double) i);
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("" + (double)i));
-            assertThat(bucket.getDocCount(), equalTo(1l));
+            assertThat(bucket.getDocCount(), equalTo(1L));
 
             Stats stats = bucket.getAggregations().get("stats");
             assertThat(stats, notNullValue());
@@ -1128,7 +1128,7 @@ public class DoubleTermsTests extends AbstractTermsTestCase {
             Terms.Bucket bucket = terms.getBucketByKey("" + (double) i);
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("" + (double)i));
-            assertThat(bucket.getDocCount(), equalTo(1l));
+            assertThat(bucket.getDocCount(), equalTo(1L));
 
             Stats stats = bucket.getAggregations().get("stats");
             assertThat(stats, notNullValue());
@@ -1157,7 +1157,7 @@ public class DoubleTermsTests extends AbstractTermsTestCase {
             Terms.Bucket bucket = terms.getBucketByKey("" + (double) i);
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("" + (double)i));
-            assertThat(bucket.getDocCount(), equalTo(1l));
+            assertThat(bucket.getDocCount(), equalTo(1L));
 
             ExtendedStats stats = bucket.getAggregations().get("stats");
             assertThat(stats, notNullValue());

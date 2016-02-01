@@ -52,16 +52,20 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
     private final ImmutableOpenMap<String, DiscoveryNode> nodes;
     private final ImmutableOpenMap<String, DiscoveryNode> dataNodes;
     private final ImmutableOpenMap<String, DiscoveryNode> masterNodes;
+    private final ImmutableOpenMap<String, DiscoveryNode> ingestNodes;
 
     private final String masterNodeId;
     private final String localNodeId;
     private final Version minNodeVersion;
     private final Version minNonClientNodeVersion;
 
-    private DiscoveryNodes(ImmutableOpenMap<String, DiscoveryNode> nodes, ImmutableOpenMap<String, DiscoveryNode> dataNodes, ImmutableOpenMap<String, DiscoveryNode> masterNodes, String masterNodeId, String localNodeId, Version minNodeVersion, Version minNonClientNodeVersion) {
+    private DiscoveryNodes(ImmutableOpenMap<String, DiscoveryNode> nodes, ImmutableOpenMap<String, DiscoveryNode> dataNodes,
+                           ImmutableOpenMap<String, DiscoveryNode> masterNodes, ImmutableOpenMap<String, DiscoveryNode> ingestNodes,
+                           String masterNodeId, String localNodeId, Version minNodeVersion, Version minNonClientNodeVersion) {
         this.nodes = nodes;
         this.dataNodes = dataNodes;
         this.masterNodes = masterNodes;
+        this.ingestNodes = ingestNodes;
         this.masterNodeId = masterNodeId;
         this.localNodeId = localNodeId;
         this.minNodeVersion = minNodeVersion;
@@ -162,6 +166,13 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
      */
     public ImmutableOpenMap<String, DiscoveryNode> getMasterNodes() {
         return masterNodes();
+    }
+
+    /**
+     * @return All the ingest nodes arranged by their ids
+     */
+    public ImmutableOpenMap<String, DiscoveryNode> getIngestNodes() {
+        return ingestNodes;
     }
 
     /**
@@ -654,6 +665,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
         public DiscoveryNodes build() {
             ImmutableOpenMap.Builder<String, DiscoveryNode> dataNodesBuilder = ImmutableOpenMap.builder();
             ImmutableOpenMap.Builder<String, DiscoveryNode> masterNodesBuilder = ImmutableOpenMap.builder();
+            ImmutableOpenMap.Builder<String, DiscoveryNode> ingestNodesBuilder = ImmutableOpenMap.builder();
             Version minNodeVersion = Version.CURRENT;
             Version minNonClientNodeVersion = Version.CURRENT;
             for (ObjectObjectCursor<String, DiscoveryNode> nodeEntry : nodes) {
@@ -665,10 +677,16 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
                     masterNodesBuilder.put(nodeEntry.key, nodeEntry.value);
                     minNonClientNodeVersion = Version.smallest(minNonClientNodeVersion, nodeEntry.value.version());
                 }
+                if (nodeEntry.value.isIngestNode()) {
+                    ingestNodesBuilder.put(nodeEntry.key, nodeEntry.value);
+                }
                 minNodeVersion = Version.smallest(minNodeVersion, nodeEntry.value.version());
             }
 
-            return new DiscoveryNodes(nodes.build(), dataNodesBuilder.build(), masterNodesBuilder.build(), masterNodeId, localNodeId, minNodeVersion, minNonClientNodeVersion);
+            return new DiscoveryNodes(
+                nodes.build(), dataNodesBuilder.build(), masterNodesBuilder.build(), ingestNodesBuilder.build(),
+                masterNodeId, localNodeId, minNodeVersion, minNonClientNodeVersion
+            );
         }
 
         public static DiscoveryNodes readFrom(StreamInput in, @Nullable DiscoveryNode localNode) throws IOException {

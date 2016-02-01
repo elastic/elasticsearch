@@ -66,9 +66,8 @@ DEFAULT_PLUGINS = ["analysis-icu",
                    "discovery-azure",
                    "discovery-ec2",
                    "discovery-gce",
-                   "discovery-multicast",
                    "lang-javascript",
-                   "lang-plan-a",
+                   "lang-painless",
                    "lang-python",
                    "mapper-attachments",
                    "mapper-murmur3",
@@ -194,7 +193,7 @@ def smoke_test_release(release, files, expected_hash, plugins):
       headers = {}
     print('  Starting elasticsearch deamon from [%s]' % os.path.join(tmp_dir, 'elasticsearch-%s' % release))
     try:
-      run('%s; %s -Des.node.name=smoke_tester -Des.cluster.name=prepare_release -Des.script.inline=on -Des.script.indexed=on -Des.repositories.url.allowed_urls=http://snapshot.test* %s -Des.pidfile=%s'
+      run('%s; %s -Des.node.name=smoke_tester -Des.cluster.name=prepare_release -Des.script.inline=true -Des.script.indexed=true -Des.repositories.url.allowed_urls=http://snapshot.test* %s -Des.pidfile=%s'
           % (java_exe(), es_run_path, '-d', os.path.join(tmp_dir, 'elasticsearch-%s' % (release), 'es-smoke.pid')))
       conn = HTTPConnection(host='127.0.0.1', port=9200, timeout=20)
       if not wait_for_node_startup(header=headers):

@@ -4,30 +4,30 @@
       "name": {
         "type": "string",
         "index": "analyzed",
-        "store": "yes",
+        "store": true,
         "fields": {
           "indexed": {
             "type": "string",
             "index": "analyzed",
-            "store": "no"
+            "store": false
           },
           "not_indexed": {
             "type": "string",
             "index": "no",
-            "store": "yes"
+            "store": true
           },
           "test1": {
             "type": "string",
             "index": "analyzed",
-            "store": "yes",
+            "store": true,
             "fielddata": {
               "loading": "eager"
             }
           },
           "test2": {
             "type": "token_count",
-            "index": "not_analyzed",
-            "store": "yes",
+            "index": true,
+            "store": true,
             "analyzer": "simple"
           }
         }

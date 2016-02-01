@@ -53,9 +53,6 @@ import org.elasticsearch.search.aggregations.support.values.ScriptLongValues;
 
 import java.io.IOException;
 
-/**
- * How to load values for an aggregation.
- */
 public abstract class ValuesSource {
 
     /**
@@ -531,7 +528,6 @@ public abstract class ValuesSource {
                 return indexFieldData.load(context).getBytesValues();
             }
 
-            @Override
             public org.elasticsearch.index.fielddata.MultiGeoPointValues geoPointValues(LeafReaderContext context) {
                 return indexFieldData.load(context).getGeoPointValues();
             }

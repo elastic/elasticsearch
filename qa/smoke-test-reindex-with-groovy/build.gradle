@@ -21,7 +21,7 @@ apply plugin: 'elasticsearch.rest-test'
 
 integTest {
   cluster {
-    systemProperty 'es.script.inline', 'on'
+    systemProperty 'es.script.inline', 'true'
     plugin 'reindex', project(':plugins:reindex')
   }
 }

@@ -67,7 +67,7 @@ public abstract class AbstractAsyncBulkIndexByScrollAction<Request extends Abstr
         if (mainRequest.getScript() == null) {
             script = null;
         } else {
-            script = scriptService.compile(mainRequest.getScript(), ScriptContext.Standard.UPDATE, mainRequest, emptyMap());
+            script = scriptService.compile(mainRequest.getScript(), ScriptContext.Standard.UPDATE, emptyMap());
         }
     }
 
@@ -87,7 +87,7 @@ public abstract class AbstractAsyncBulkIndexByScrollAction<Request extends Abstr
 
     @Override
     protected BulkRequest buildBulk(Iterable<SearchHit> docs) {
-        BulkRequest bulkRequest = new BulkRequest(mainRequest);
+        BulkRequest bulkRequest = new BulkRequest();
         ExecutableScript executableScript = null;
         Map<String, Object> scriptCtx = null;
 

@@ -28,7 +28,6 @@ import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
-import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
@@ -130,7 +129,7 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
         routingNodes = clusterState.getRoutingNodes();
 
         assertThat(routingNodes.node("node3").size(), equalTo(1));
-        assertThat(routingNodes.node("node3").get(0).shardId().index().name(), equalTo("test1"));
+        assertThat(routingNodes.node("node3").get(0).shardId().getIndex().getName(), equalTo("test1"));
     }
 
 
@@ -235,7 +234,7 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
         routingNodes = clusterState.getRoutingNodes();
 
         assertThat(routingNodes.node("node3").size(), equalTo(1));
-        assertThat(routingNodes.node("node3").get(0).shardId().index().name(), equalTo("test1"));
+        assertThat(routingNodes.node("node3").get(0).shardId().getIndex().getName(), equalTo("test1"));
     }
 
     public void testClusterPrimariesActive2() {
@@ -442,7 +441,7 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
         routingNodes = clusterState.getRoutingNodes();
 
         assertThat(routingNodes.node("node3").size(), equalTo(1));
-        assertThat(routingNodes.node("node3").get(0).shardId().index().name(), anyOf(equalTo("test1"), equalTo("test2")));
+        assertThat(routingNodes.node("node3").get(0).shardId().getIndex().getName(), anyOf(equalTo("test1"), equalTo("test2")));
     }
 
     public void testClusterAllActive2() {
@@ -643,7 +642,7 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
                     RoutingNodes.UnassignedShards.UnassignedIterator iterator = unassigned.iterator();
                     while (iterator.hasNext()) {
                         ShardRouting next = iterator.next();
-                        if ("test1".equals(next.index())) {
+                        if ("test1".equals(next.index().getName())) {
                             iterator.removeAndIgnore();
                         }
 

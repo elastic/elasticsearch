@@ -44,8 +44,8 @@ public abstract class BasePrimaryAllocationCommand extends AbstractAllocateAlloc
 
     protected final boolean acceptDataLoss;
 
-    protected BasePrimaryAllocationCommand(ShardId shardId, String node, boolean acceptDataLoss) {
-        super(shardId, node);
+    protected BasePrimaryAllocationCommand(String index, int shardId, String node, boolean acceptDataLoss) {
+        super(index, shardId, node);
         this.acceptDataLoss = acceptDataLoss;
     }
 

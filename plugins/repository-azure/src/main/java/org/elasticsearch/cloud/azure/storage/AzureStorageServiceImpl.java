@@ -28,6 +28,7 @@ import com.microsoft.azure.storage.blob.CloudBlobContainer;
 import com.microsoft.azure.storage.blob.CloudBlockBlob;
 import com.microsoft.azure.storage.blob.ListBlobItem;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -41,7 +42,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.Hashtable;
+import java.util.HashMap;
 import java.util.Map;
 
 public class AzureStorageServiceImpl extends AbstractLifecycleComponent<AzureStorageServiceImpl>
@@ -60,7 +61,7 @@ public class AzureStorageServiceImpl extends AbstractLifecycleComponent<AzureSto
         this.primaryStorageSettings = storageSettings.v1();
         this.secondariesStorageSettings = storageSettings.v2();
 
-        this.clients = new Hashtable<>();
+        this.clients = new HashMap<>();
     }
 
     void createClient(AzureStorageSettings azureStorageSettings) {
@@ -94,13 +95,13 @@ public class AzureStorageServiceImpl extends AbstractLifecycleComponent<AzureSto
             throw new IllegalArgumentException("No primary azure storage can be found. Check your elasticsearch.yml.");
         }
 
-        if (account != null) {
+        if (Strings.hasLength(account)) {
             azureStorageSettings = this.secondariesStorageSettings.get(account);
         }
 
         // if account is not secondary, it's the primary
         if (azureStorageSettings == null) {
-            if (account == null || primaryStorageSettings.getName() == null || account.equals(primaryStorageSettings.getName())) {
+            if (Strings.hasLength(account) == false || primaryStorageSettings.getName() == null || account.equals(primaryStorageSettings.getName())) {
                 azureStorageSettings = primaryStorageSettings;
             }
         }

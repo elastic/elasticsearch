@@ -77,7 +77,7 @@ public class MovAvgIT extends ESIntegTestCase {
     static int period;
     static HoltWintersModel.SeasonalityType seasonalityType;
     static BucketHelpers.GapPolicy gapPolicy;
-    static ValuesSourceMetricsAggregationBuilder<?> metric;
+    static ValuesSourceMetricsAggregationBuilder metric;
     static List<PipelineAggregationHelperTests.MockBucket> mockHisto;
 
     static Map<String, ArrayList<Double>> testValues;
@@ -686,7 +686,7 @@ public class MovAvgIT extends ESIntegTestCase {
             Bucket bucket = buckets.get(i);
             assertThat(bucket, notNullValue());
             assertThat((long) bucket.getKey(), equalTo((long) i - 10));
-            assertThat(bucket.getDocCount(), equalTo(1l));
+            assertThat(bucket.getDocCount(), equalTo(1L));
             Avg avgAgg = bucket.getAggregations().get("avg");
             assertThat(avgAgg, notNullValue());
             assertThat(avgAgg.value(), equalTo(10d));
@@ -699,7 +699,7 @@ public class MovAvgIT extends ESIntegTestCase {
             Bucket bucket = buckets.get(i);
             assertThat(bucket, notNullValue());
             assertThat((long) bucket.getKey(), equalTo((long) i - 10));
-            assertThat(bucket.getDocCount(), equalTo(0l));
+            assertThat(bucket.getDocCount(), equalTo(0L));
             Avg avgAgg = bucket.getAggregations().get("avg");
             assertThat(avgAgg, nullValue());
             SimpleValue movAvgAgg = bucket.getAggregations().get("movavg_values");
@@ -864,7 +864,7 @@ public class MovAvgIT extends ESIntegTestCase {
 
     public void testHoltWintersNotEnoughData() {
         try {
-            client()
+            SearchResponse response = client()
                     .prepareSearch("idx").setTypes("type")
                     .addAggregation(
                             histogram("histo").field(INTERVAL_FIELD).interval(interval)
@@ -919,7 +919,7 @@ public class MovAvgIT extends ESIntegTestCase {
         Bucket bucket = buckets.get(0);
         assertThat(bucket, notNullValue());
         assertThat((long) bucket.getKey(), equalTo((long) 0));
-        assertThat(bucket.getDocCount(), equalTo(1l));
+        assertThat(bucket.getDocCount(), equalTo(1L));
 
         Avg avgAgg = bucket.getAggregations().get("avg");
         assertThat(avgAgg, notNullValue());
@@ -938,7 +938,7 @@ public class MovAvgIT extends ESIntegTestCase {
         bucket = buckets.get(1);
         assertThat(bucket, notNullValue());
         assertThat((long) bucket.getKey(), equalTo(1L));
-        assertThat(bucket.getDocCount(), equalTo(1l));
+        assertThat(bucket.getDocCount(), equalTo(1L));
 
         avgAgg = bucket.getAggregations().get("avg");
         assertThat(avgAgg, notNullValue());
@@ -959,7 +959,7 @@ public class MovAvgIT extends ESIntegTestCase {
             bucket = buckets.get(i);
             assertThat(bucket, notNullValue());
             assertThat((long) bucket.getKey(), equalTo((long) i));
-            assertThat(bucket.getDocCount(), equalTo(1l));
+            assertThat(bucket.getDocCount(), equalTo(1L));
 
             avgAgg = bucket.getAggregations().get("avg");
             assertThat(avgAgg, notNullValue());
@@ -983,7 +983,7 @@ public class MovAvgIT extends ESIntegTestCase {
             bucket = buckets.get(i);
             assertThat(bucket, notNullValue());
             assertThat((long) bucket.getKey(), equalTo((long) i));
-            assertThat(bucket.getDocCount(), equalTo(0l));
+            assertThat(bucket.getDocCount(), equalTo(0L));
 
             avgAgg = bucket.getAggregations().get("avg");
             assertThat(avgAgg, nullValue());
@@ -1003,7 +1003,7 @@ public class MovAvgIT extends ESIntegTestCase {
 
     public void testBadModelParams() {
         try {
-            client()
+            SearchResponse response = client()
                     .prepareSearch("idx").setTypes("type")
                     .addAggregation(
                             histogram("histo").field(INTERVAL_FIELD).interval(interval)
@@ -1248,7 +1248,7 @@ public class MovAvgIT extends ESIntegTestCase {
 
         for (MovAvgModelBuilder builder : builders) {
             try {
-                client()
+                SearchResponse response = client()
                         .prepareSearch("idx").setTypes("type")
                         .addAggregation(
                                 histogram("histo").field(INTERVAL_FIELD).interval(interval)
@@ -1265,10 +1265,14 @@ public class MovAvgIT extends ESIntegTestCase {
                 // All good
             }
         }
+
+
+
+
     }
 
 
-    private void assertValidIterators(Iterator<?> expectedBucketIter, Iterator<?> expectedCountsIter, Iterator<?> expectedValuesIter) {
+    private void assertValidIterators(Iterator expectedBucketIter, Iterator expectedCountsIter, Iterator expectedValuesIter) {
         if (!expectedBucketIter.hasNext()) {
             fail("`expectedBucketIter` iterator ended before `actual` iterator, size mismatch");
         }
@@ -1351,7 +1355,7 @@ public class MovAvgIT extends ESIntegTestCase {
         }
     }
 
-    private ValuesSourceMetricsAggregationBuilder<?> randomMetric(String name, String field) {
+    private ValuesSourceMetricsAggregationBuilder randomMetric(String name, String field) {
         int rand = randomIntBetween(0,3);
 
         switch (rand) {

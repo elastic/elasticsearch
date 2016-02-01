@@ -429,9 +429,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             try (ReleasableLock lock = readLock.acquire()) {
                 ensureOpen();
                 Location location = current.add(bytes);
-                if (config.isSyncOnEachOperation()) {
-                    current.sync();
-                }
                 assert assertBytesAtLocation(location, bytes);
                 return location;
             }

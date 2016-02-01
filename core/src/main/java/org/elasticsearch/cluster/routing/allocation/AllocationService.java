@@ -131,7 +131,7 @@ public class AllocationService extends AbstractComponent {
         for (IndexRoutingTable indexRoutingTable : newRoutingTable) {
             final IndexMetaData indexMetaData = currentMetaData.index(indexRoutingTable.getIndex());
             if (indexMetaData == null) {
-                throw new IllegalStateException("no metadata found for index [" + indexRoutingTable.index() + "]");
+                throw new IllegalStateException("no metadata found for index " + indexRoutingTable.getIndex().getName());
             }
             IndexMetaData.Builder indexMetaDataBuilder = null;
             for (IndexShardRoutingTable shardRoutings : indexRoutingTable) {

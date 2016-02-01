@@ -48,9 +48,8 @@ import static org.hamcrest.Matchers.instanceOf;
  */
 public class PolishAnalysisTests extends ESTestCase {
     public void testDefaultsPolishAnalysis() throws IOException {
-        Index index = new Index("test");
         Settings settings = settingsBuilder()
-                .put("path.home", createTempDir())
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .build();
 
@@ -63,7 +62,7 @@ public class PolishAnalysisTests extends ESTestCase {
                 new EnvironmentModule(new Environment(settings)), analysisModule)
                 .createInjector();
 
-        final AnalysisService analysisService = parentInjector.getInstance(AnalysisRegistry.class).build(IndexSettingsModule.newIndexSettings(index, settings));
+        final AnalysisService analysisService = parentInjector.getInstance(AnalysisRegistry.class).build(IndexSettingsModule.newIndexSettings("test", settings));
         TokenFilterFactory tokenizerFactory = analysisService.tokenFilter("polish_stem");
         MatcherAssert.assertThat(tokenizerFactory, instanceOf(PolishStemTokenFilterFactory.class));
 

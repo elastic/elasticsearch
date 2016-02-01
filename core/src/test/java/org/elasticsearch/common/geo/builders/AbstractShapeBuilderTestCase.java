@@ -89,7 +89,6 @@ public abstract class AbstractShapeBuilderTestCase<SB extends ShapeBuilder> exte
             }
             XContentBuilder builder = testShape.toXContent(contentBuilder, ToXContent.EMPTY_PARAMS);
             XContentParser shapeParser = XContentHelper.createParser(builder.bytes());
-            XContentHelper.createParser(builder.bytes());
             shapeParser.nextToken();
             ShapeBuilder parsedShape = ShapeBuilder.parse(shapeParser);
             assertNotSame(testShape, parsedShape);

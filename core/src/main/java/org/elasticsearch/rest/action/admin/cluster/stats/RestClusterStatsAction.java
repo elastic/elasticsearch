@@ -38,7 +38,7 @@ public class RestClusterStatsAction extends BaseRestHandler {
 
     @Inject
     public RestClusterStatsAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+        super(settings, client);
         controller.registerHandler(RestRequest.Method.GET, "/_cluster/stats", this);
         controller.registerHandler(RestRequest.Method.GET, "/_cluster/stats/nodes/{nodeId}", this);
     }

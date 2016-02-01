@@ -20,16 +20,16 @@ package org.elasticsearch.rest;
 
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
 
-import static org.elasticsearch.http.netty.NettyHttpServerTransport.SETTING_CORS_ALLOW_CREDENTIALS;
-import static org.elasticsearch.http.netty.NettyHttpServerTransport.SETTING_CORS_ALLOW_ORIGIN;
-import static org.elasticsearch.http.netty.NettyHttpServerTransport.SETTING_CORS_ENABLED;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_CREDENTIALS;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_ORIGIN;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ENABLED;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -46,10 +46,10 @@ public class CorsRegexIT extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(SETTING_CORS_ALLOW_ORIGIN, "/https?:\\/\\/localhost(:[0-9]+)?/")
-                .put(SETTING_CORS_ALLOW_CREDENTIALS, true)
-                .put(SETTING_CORS_ENABLED, true)
-                .put(Node.HTTP_ENABLED, true)
+                .put(SETTING_CORS_ALLOW_ORIGIN.getKey(), "/https?:\\/\\/localhost(:[0-9]+)?/")
+                .put(SETTING_CORS_ALLOW_CREDENTIALS.getKey(), true)
+                .put(SETTING_CORS_ENABLED.getKey(), true)
+                .put(NetworkModule.HTTP_ENABLED.getKey(), true)
                 .build();
     }
 

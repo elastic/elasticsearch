@@ -31,8 +31,10 @@ import org.elasticsearch.common.cache.RemovalListener;
 import org.elasticsearch.common.cache.RemovalNotification;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -51,10 +53,10 @@ import java.util.function.ToLongBiFunction;
 
 /**
  */
-public class IndicesFieldDataCache extends AbstractComponent implements RemovalListener<IndicesFieldDataCache.Key, Accountable> {
+public class IndicesFieldDataCache extends AbstractComponent implements RemovalListener<IndicesFieldDataCache.Key, Accountable>, Releasable{
 
-    public static final String FIELDDATA_CLEAN_INTERVAL_SETTING = "indices.fielddata.cache.cleanup_interval";
-    public static final String INDICES_FIELDDATA_CACHE_SIZE_KEY = "indices.fielddata.cache.size";
+    public static final Setting<TimeValue> INDICES_FIELDDATA_CLEAN_INTERVAL_SETTING = Setting.positiveTimeSetting("indices.fielddata.cache.cleanup_interval", TimeValue.timeValueMinutes(1), false, Setting.Scope.CLUSTER);
+    public static final Setting<ByteSizeValue> INDICES_FIELDDATA_CACHE_SIZE_KEY = Setting.byteSizeSetting("indices.fielddata.cache.size", new ByteSizeValue(-1), false, Setting.Scope.CLUSTER);
 
 
     private final IndicesFieldDataCacheListener indicesFieldDataCacheListener;
@@ -68,23 +70,22 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
         super(settings);
         this.threadPool = threadPool;
         this.indicesFieldDataCacheListener = indicesFieldDataCacheListener;
-        final String size = settings.get(INDICES_FIELDDATA_CACHE_SIZE_KEY, "-1");
-        final long sizeInBytes = settings.getAsMemory(INDICES_FIELDDATA_CACHE_SIZE_KEY, "-1").bytes();
+        final long sizeInBytes = INDICES_FIELDDATA_CACHE_SIZE_KEY.get(settings).bytes();
         CacheBuilder<Key, Accountable> cacheBuilder = CacheBuilder.<Key, Accountable>builder()
                 .removalListener(this);
         if (sizeInBytes > 0) {
             cacheBuilder.setMaximumWeight(sizeInBytes).weigher(new FieldDataWeigher());
         }
 
-        logger.debug("using size [{}] [{}]", size, new ByteSizeValue(sizeInBytes));
         cache = cacheBuilder.build();
 
-        this.cleanInterval = settings.getAsTime(FIELDDATA_CLEAN_INTERVAL_SETTING, TimeValue.timeValueMinutes(1));
+        this.cleanInterval = INDICES_FIELDDATA_CLEAN_INTERVAL_SETTING.get(settings);
         // Start thread that will manage cleaning the field data cache periodically
         threadPool.schedule(this.cleanInterval, ThreadPool.Names.SAME,
                 new FieldDataCacheCleaner(this.cache, this.logger, this.threadPool, this.cleanInterval));
     }
 
+    @Override
     public void close() {
         cache.invalidateAll();
         this.closed = true;

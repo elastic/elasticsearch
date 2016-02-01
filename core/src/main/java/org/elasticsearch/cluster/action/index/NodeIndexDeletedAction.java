@@ -103,7 +103,7 @@ public class NodeIndexDeletedAction extends AbstractComponent {
             // master. If we can't acquire the locks here immediately there might be a shard of this index still holding on to the lock
             // due to a "currently canceled recovery" or so. The shard will delete itself BEFORE the lock is released so it's guaranteed to be
             // deleted by the time we get the lock
-            indicesService.processPendingDeletes(new Index(index), indexSettings, new TimeValue(30, TimeUnit.MINUTES));
+            indicesService.processPendingDeletes(indexSettings.getIndex(), indexSettings, new TimeValue(30, TimeUnit.MINUTES));
             transportService.sendRequest(clusterState.nodes().masterNode(),
                     INDEX_STORE_DELETED_ACTION_NAME, new NodeIndexStoreDeletedMessage(index, nodeId), EmptyTransportResponseHandler.INSTANCE_SAME);
         } catch (LockObtainFailedException exc) {

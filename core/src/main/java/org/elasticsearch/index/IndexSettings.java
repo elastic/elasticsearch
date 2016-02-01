@@ -36,6 +36,7 @@ import org.elasticsearch.index.translog.Translog;
 
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -54,7 +55,7 @@ public final class IndexSettings {
     public static final Setting<Boolean> QUERY_STRING_ANALYZE_WILDCARD = Setting.boolSetting("indices.query.query_string.analyze_wildcard", false, false, Setting.Scope.CLUSTER);
     public static final Setting<Boolean> QUERY_STRING_ALLOW_LEADING_WILDCARD = Setting.boolSetting("indices.query.query_string.allowLeadingWildcard", true, false, Setting.Scope.CLUSTER);
     public static final Setting<Boolean> ALLOW_UNMAPPED = Setting.boolSetting("index.query.parse.allow_unmapped_fields", true, false, Setting.Scope.INDEX);
-    public static final Setting<TimeValue> INDEX_TRANSLOG_SYNC_INTERVAL_SETTING = Setting.timeSetting("index.translog.sync_interval", TimeValue.timeValueSeconds(5), false, Setting.Scope.INDEX);
+    public static final Setting<TimeValue> INDEX_TRANSLOG_SYNC_INTERVAL_SETTING = Setting.timeSetting("index.translog.sync_interval", TimeValue.timeValueSeconds(5), TimeValue.timeValueMillis(100), false, Setting.Scope.INDEX);
     public static final Setting<Translog.Durability> INDEX_TRANSLOG_DURABILITY_SETTING = new Setting<>("index.translog.durability", Translog.Durability.REQUEST.name(), (value) -> Translog.Durability.valueOf(value.toUpperCase(Locale.ROOT)), true, Setting.Scope.INDEX);
     public static final Setting<Boolean> INDEX_WARMER_ENABLED_SETTING = Setting.boolSetting("index.warmer.enabled", true, true, Setting.Scope.INDEX);
     public static final Setting<Boolean> INDEX_TTL_DISABLE_PURGE_SETTING = Setting.boolSetting("index.ttl.disable_purge", false, true, Setting.Scope.INDEX);
@@ -91,7 +92,6 @@ public final class IndexSettings {
     public static final TimeValue DEFAULT_GC_DELETES = TimeValue.timeValueSeconds(60);
     public static final Setting<TimeValue> INDEX_GC_DELETES_SETTING = Setting.timeSetting("index.gc_deletes", DEFAULT_GC_DELETES, new TimeValue(-1, TimeUnit.MILLISECONDS), true, Setting.Scope.INDEX);
 
-    private final String uuid;
     private final Index index;
     private final Version version;
     private final ESLogger logger;
@@ -164,11 +164,7 @@ public final class IndexSettings {
      * @param nodeSettings the nodes settings this index is allocated on.
      */
     public IndexSettings(final IndexMetaData indexMetaData, final Settings nodeSettings) {
-        this(indexMetaData, nodeSettings, (index) -> Regex.simpleMatch(index, indexMetaData.getIndex()), IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
-    }
-
-    IndexSettings(final IndexMetaData indexMetaData, final Settings nodeSettings, IndexScopedSettings indexScopedSettings) {
-        this(indexMetaData, nodeSettings, (index) -> Regex.simpleMatch(index, indexMetaData.getIndex()), indexScopedSettings);
+        this(indexMetaData, nodeSettings, (index) -> Regex.simpleMatch(index, indexMetaData.getIndex().getName()), IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
     }
 
     /**
@@ -183,9 +179,8 @@ public final class IndexSettings {
         scopedSettings = indexScopedSettings.copy(nodeSettings, indexMetaData);
         this.nodeSettings = nodeSettings;
         this.settings = Settings.builder().put(nodeSettings).put(indexMetaData.getSettings()).build();
-        this.index = new Index(indexMetaData.getIndex());
+        this.index = indexMetaData.getIndex();
         version = Version.indexCreated(settings);
-        uuid = settings.get(IndexMetaData.SETTING_INDEX_UUID, IndexMetaData.INDEX_UUID_NA_VALUE);
         logger = Loggers.getLogger(getClass(), settings, index);
         nodeName = settings.get("name", "");
         this.indexMetaData = indexMetaData;
@@ -200,24 +195,35 @@ public final class IndexSettings {
         this.defaultAllowUnmappedFields = scopedSettings.get(ALLOW_UNMAPPED);
         this.indexNameMatcher = indexNameMatcher;
         this.durability = scopedSettings.get(INDEX_TRANSLOG_DURABILITY_SETTING);
-        scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_DURABILITY_SETTING, this::setTranslogDurability);
         syncInterval = INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.get(settings);
         refreshInterval = scopedSettings.get(INDEX_REFRESH_INTERVAL_SETTING);
-        scopedSettings.addSettingsUpdateConsumer(INDEX_REFRESH_INTERVAL_SETTING, this::setRefreshInterval);
         flushThresholdSize = scopedSettings.get(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTTING);
-        scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTTING, this::setTranslogFlushThresholdSize);
         mergeSchedulerConfig = new MergeSchedulerConfig(this);
-        scopedSettings.addSettingsUpdateConsumer(INDEX_GC_DELETES_SETTING, this::setGCDeletes);
         gcDeletesInMillis = scopedSettings.get(INDEX_GC_DELETES_SETTING).getMillis();
         warmerEnabled = scopedSettings.get(INDEX_WARMER_ENABLED_SETTING);
-        scopedSettings.addSettingsUpdateConsumer(INDEX_WARMER_ENABLED_SETTING, this::setEnableWarmer);
         maxResultWindow = scopedSettings.get(MAX_RESULT_WINDOW_SETTING);
-        scopedSettings.addSettingsUpdateConsumer(MAX_RESULT_WINDOW_SETTING, this::setMaxResultWindow);
         TTLPurgeDisabled = scopedSettings.get(INDEX_TTL_DISABLE_PURGE_SETTING);
-        scopedSettings.addSettingsUpdateConsumer(INDEX_TTL_DISABLE_PURGE_SETTING, this::setTTLPurgeDisabled);
         this.mergePolicyConfig = new MergePolicyConfig(logger, this);
-        assert indexNameMatcher.test(indexMetaData.getIndex());
+        assert indexNameMatcher.test(indexMetaData.getIndex().getName());
 
+        scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING, mergePolicyConfig::setNoCFSRatio);
+        scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_MERGE_POLICY_EXPUNGE_DELETES_ALLOWED_SETTING, mergePolicyConfig::setExpungeDeletesAllowed);
+        scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING, mergePolicyConfig::setFloorSegmentSetting);
+        scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING, mergePolicyConfig::setMaxMergesAtOnce);
+        scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_EXPLICIT_SETTING, mergePolicyConfig::setMaxMergesAtOnceExplicit);
+        scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGED_SEGMENT_SETTING, mergePolicyConfig::setMaxMergedSegment);
+        scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING, mergePolicyConfig::setSegmentsPerTier);
+        scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_MERGE_POLICY_RECLAIM_DELETES_WEIGHT_SETTING, mergePolicyConfig::setReclaimDeletesWeight);
+        scopedSettings.addSettingsUpdateConsumer(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING, mergeSchedulerConfig::setMaxThreadCount);
+        scopedSettings.addSettingsUpdateConsumer(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING, mergeSchedulerConfig::setMaxMergeCount);
+        scopedSettings.addSettingsUpdateConsumer(MergeSchedulerConfig.AUTO_THROTTLE_SETTING, mergeSchedulerConfig::setAutoThrottle);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_DURABILITY_SETTING, this::setTranslogDurability);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_TTL_DISABLE_PURGE_SETTING, this::setTTLPurgeDisabled);
+        scopedSettings.addSettingsUpdateConsumer(MAX_RESULT_WINDOW_SETTING, this::setMaxResultWindow);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_WARMER_ENABLED_SETTING, this::setEnableWarmer);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_GC_DELETES_SETTING, this::setGCDeletes);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTTING, this::setTranslogFlushThresholdSize);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_REFRESH_INTERVAL_SETTING, this::setRefreshInterval);
     }
 
     private void setTranslogFlushThresholdSize(ByteSizeValue byteSizeValue) {
@@ -249,7 +255,7 @@ public final class IndexSettings {
      * Returns the indexes UUID
      */
     public String getUUID() {
-        return uuid;
+        return getIndex().getUUID();
     }
 
     /**
@@ -354,7 +360,7 @@ public final class IndexSettings {
         }
         final String newUUID = newSettings.get(IndexMetaData.SETTING_INDEX_UUID, IndexMetaData.INDEX_UUID_NA_VALUE);
         if (newUUID.equals(getUUID()) == false) {
-            throw new IllegalArgumentException("uuid mismatch on settings update expected: " + uuid + " but was: " + newUUID);
+            throw new IllegalArgumentException("uuid mismatch on settings update expected: " + getUUID() + " but was: " + newUUID);
         }
         this.indexMetaData = indexMetaData;
         final Settings existingSettings = this.settings;
@@ -457,5 +463,5 @@ public final class IndexSettings {
     }
 
 
-    public IndexScopedSettings getScopedSettings() { return scopedSettings;}
+    IndexScopedSettings getScopedSettings() { return scopedSettings;}
 }

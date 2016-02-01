@@ -20,255 +20,140 @@
 package org.elasticsearch.search.rescore;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.rescore.QueryRescorer.QueryRescoreContext;
 
 import java.io.IOException;
-import java.util.Locale;
 import java.util.Objects;
 
-public class RescoreBuilder implements ToXContent, Writeable<RescoreBuilder> {
+/**
+ * The abstract base builder for instances of {@link RescoreBuilder}.
+ */
+public abstract class RescoreBuilder<RB extends RescoreBuilder<RB>> implements ToXContent, NamedWriteable<RB> {
 
-    private Rescorer rescorer;
-    private Integer windowSize;
-    public static final RescoreBuilder PROTOYPE = new RescoreBuilder(new QueryRescorer(new MatchAllQueryBuilder()));
+    protected Integer windowSize;
 
-    public RescoreBuilder(Rescorer rescorer) {
-        if (rescorer == null) {
-            throw new IllegalArgumentException("rescorer cannot be null");
-        }
-        this.rescorer = rescorer;
-    }
+    private static ParseField WINDOW_SIZE_FIELD = new ParseField("window_size");
 
-    public Rescorer rescorer() {
-        return this.rescorer;
-    }
-
-    public RescoreBuilder windowSize(int windowSize) {
+    @SuppressWarnings("unchecked")
+    public RB windowSize(int windowSize) {
         this.windowSize = windowSize;
-        return this;
+        return (RB) this;
     }
 
     public Integer windowSize() {
         return windowSize;
     }
 
+    public static RescoreBuilder<?> parseFromXContent(QueryParseContext parseContext) throws IOException {
+        XContentParser parser = parseContext.parser();
+        String fieldName = null;
+        RescoreBuilder<?> rescorer = null;
+        Integer windowSize = null;
+        XContentParser.Token token;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                fieldName = parser.currentName();
+            } else if (token.isValue()) {
+                if (parseContext.parseFieldMatcher().match(fieldName, WINDOW_SIZE_FIELD)) {
+                    windowSize = parser.intValue();
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(), "rescore doesn't support [" + fieldName + "]");
+                }
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                // we only have QueryRescorer at this point
+                if (QueryRescorerBuilder.NAME.equals(fieldName)) {
+                    rescorer = QueryRescorerBuilder.PROTOTYPE.fromXContent(parseContext);
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(), "rescore doesn't support rescorer with name [" + fieldName + "]");
+                }
+            } else {
+                throw new ParsingException(parser.getTokenLocation(), "unexpected token [" + token + "] after [" + fieldName + "]");
+            }
+        }
+        if (rescorer == null) {
+            throw new ParsingException(parser.getTokenLocation(), "missing rescore type");
+        }
+        if (windowSize != null) {
+            rescorer.windowSize(windowSize.intValue());
+        }
+        return rescorer;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
         if (windowSize != null) {
             builder.field("window_size", windowSize);
         }
-        rescorer.toXContent(builder, params);
+        doXContent(builder, params);
+        builder.endObject();
         return builder;
     }
 
-    public static QueryRescorer queryRescorer(QueryBuilder<?> queryBuilder) {
-        return new QueryRescorer(queryBuilder);
+    protected abstract void doXContent(XContentBuilder builder, Params params) throws IOException;
+
+    public abstract QueryRescoreContext build(QueryShardContext context) throws IOException;
+
+    public static QueryRescorerBuilder queryRescorer(QueryBuilder<?> queryBuilder) {
+        return new QueryRescorerBuilder(queryBuilder);
     }
 
     @Override
-    public final int hashCode() {
-        return Objects.hash(windowSize, rescorer);
+    public int hashCode() {
+        return Objects.hash(windowSize);
     }
 
     @Override
-    public final boolean equals(Object obj) {
+    public boolean equals(Object obj) {
         if (this == obj) {
             return true;
         }
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
+        @SuppressWarnings("rawtypes")
         RescoreBuilder other = (RescoreBuilder) obj;
-        return Objects.equals(windowSize, other.windowSize) &&
-               Objects.equals(rescorer, other.rescorer);
+        return Objects.equals(windowSize, other.windowSize);
     }
 
     @Override
-    public RescoreBuilder readFrom(StreamInput in) throws IOException {
-        RescoreBuilder builder = new RescoreBuilder(in.readRescorer());
-        Integer windowSize = in.readOptionalVInt();
-        if (windowSize != null) {
-            builder.windowSize(windowSize);
-        }
+    public RB readFrom(StreamInput in) throws IOException {
+        RB builder = doReadFrom(in);
+        builder.windowSize = in.readOptionalVInt();
         return builder;
     }
 
+    protected abstract RB doReadFrom(StreamInput in) throws IOException;
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeRescorer(rescorer);
+        doWriteTo(out);
         out.writeOptionalVInt(this.windowSize);
     }
+
+    protected abstract void doWriteTo(StreamOutput out) throws IOException;
 
     @Override
     public final String toString() {
         try {
             XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.prettyPrint();
-            builder.startObject();
             toXContent(builder, EMPTY_PARAMS);
-            builder.endObject();
             return builder.string();
         } catch (Exception e) {
             return "{ \"error\" : \"" + ExceptionsHelper.detailedMessage(e) + "\"}";
-        }
-    }
-
-    public static abstract class Rescorer implements ToXContent, NamedWriteable<Rescorer> {
-
-        private String name;
-
-        public Rescorer(String name) {
-            this.name = name;
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject(name);
-            builder = innerToXContent(builder, params);
-            builder.endObject();
-            return builder;
-        }
-
-        protected abstract XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException;
-
-        @Override
-        public abstract int hashCode();
-
-        @Override
-        public abstract boolean equals(Object obj);
-    }
-
-    public static class QueryRescorer extends Rescorer {
-
-        private static final String NAME = "query";
-        public static final QueryRescorer PROTOTYPE = new QueryRescorer(new MatchAllQueryBuilder());
-        public static final float DEFAULT_RESCORE_QUERYWEIGHT = 1.0f;
-        public static final float DEFAULT_QUERYWEIGHT = 1.0f;
-        public static final QueryRescoreMode DEFAULT_SCORE_MODE = QueryRescoreMode.Total;
-        private final QueryBuilder<?> queryBuilder;
-        private float rescoreQueryWeight = DEFAULT_RESCORE_QUERYWEIGHT;
-        private float queryWeight = DEFAULT_QUERYWEIGHT;
-        private QueryRescoreMode scoreMode = DEFAULT_SCORE_MODE;
-
-        /**
-         * Creates a new {@link QueryRescorer} instance
-         * @param builder the query builder to build the rescore query from
-         */
-        public QueryRescorer(QueryBuilder<?> builder) {
-            super(NAME);
-            this.queryBuilder = builder;
-        }
-
-        /**
-         * @return the query used for this rescore query
-         */
-        public QueryBuilder<?> getRescoreQuery() {
-            return this.queryBuilder;
-        }
-
-        /**
-         * Sets the original query weight for rescoring. The default is <tt>1.0</tt>
-         */
-        public QueryRescorer setQueryWeight(float queryWeight) {
-            this.queryWeight = queryWeight;
-            return this;
-        }
-
-
-        /**
-         * Gets the original query weight for rescoring. The default is <tt>1.0</tt>
-         */
-        public float getQueryWeight() {
-            return this.queryWeight;
-        }
-
-        /**
-         * Sets the original query weight for rescoring. The default is <tt>1.0</tt>
-         */
-        public QueryRescorer setRescoreQueryWeight(float rescoreQueryWeight) {
-            this.rescoreQueryWeight = rescoreQueryWeight;
-            return this;
-        }
-
-        /**
-         * Gets the original query weight for rescoring. The default is <tt>1.0</tt>
-         */
-        public float getRescoreQueryWeight() {
-            return this.rescoreQueryWeight;
-        }
-
-        /**
-         * Sets the original query score mode. The default is {@link QueryRescoreMode#Total}.
-         */
-        public QueryRescorer setScoreMode(QueryRescoreMode scoreMode) {
-            this.scoreMode = scoreMode;
-            return this;
-        }
-
-        /**
-         * Gets the original query score mode. The default is <tt>total</tt>
-         */
-        public QueryRescoreMode getScoreMode() {
-            return this.scoreMode;
-        }
-
-        @Override
-        protected XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field("rescore_query", queryBuilder);
-            builder.field("query_weight", queryWeight);
-            builder.field("rescore_query_weight", rescoreQueryWeight);
-            builder.field("score_mode", scoreMode.name().toLowerCase(Locale.ROOT));
-            return builder;
-        }
-
-        @Override
-        public final int hashCode() {
-            return Objects.hash(getClass(), scoreMode, queryWeight, rescoreQueryWeight, queryBuilder);
-        }
-
-        @Override
-        public final boolean equals(Object obj) {
-            if (this == obj) {
-                return true;
-            }
-            if (obj == null || getClass() != obj.getClass()) {
-                return false;
-            }
-            QueryRescorer other = (QueryRescorer) obj;
-            return Objects.equals(scoreMode, other.scoreMode) &&
-                   Objects.equals(queryWeight, other.queryWeight) &&
-                   Objects.equals(rescoreQueryWeight, other.rescoreQueryWeight) &&
-                   Objects.equals(queryBuilder, other.queryBuilder);
-        }
-
-        @Override
-        public QueryRescorer readFrom(StreamInput in) throws IOException {
-            QueryRescorer rescorer = new QueryRescorer(in.readQuery());
-            rescorer.setScoreMode(QueryRescoreMode.PROTOTYPE.readFrom(in));
-            rescorer.setRescoreQueryWeight(in.readFloat());
-            rescorer.setQueryWeight(in.readFloat());
-            return rescorer;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeQuery(queryBuilder);
-            scoreMode.writeTo(out);
-            out.writeFloat(rescoreQueryWeight);
-            out.writeFloat(queryWeight);
-        }
-
-        @Override
-        public String getWriteableName() {
-            return NAME;
         }
     }
 }

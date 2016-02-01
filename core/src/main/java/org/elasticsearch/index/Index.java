@@ -21,31 +21,31 @@ package org.elasticsearch.index;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
 
 /**
  *
  */
-public class Index implements Streamable {
+public class Index implements Writeable<Index> {
 
-    private String name;
+    private final static Index PROTO = new Index("", "");
 
-    private Index() {
+    private final String name;
+    private final String uuid;
 
-    }
-
-    public Index(String name) {
+    public Index(String name, String uuid) {
         this.name = name.intern();
-    }
-
-    public String name() {
-        return this.name;
+        this.uuid = uuid.intern();
     }
 
     public String getName() {
-        return name();
+        return this.name;
+    }
+
+    public String getUUID() {
+        return uuid;
     }
 
     @Override
@@ -55,30 +55,35 @@ public class Index implements Streamable {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null) {
+            return false;
+        }
         Index index1 = (Index) o;
-        return name.equals(index1.name);
+        return uuid.equals(index1.uuid) && name.equals(index1.name); // allow for _na_ uuid
     }
 
     @Override
     public int hashCode() {
-        return name.hashCode();
+        int result = name.hashCode();
+        result = 31 * result + uuid.hashCode();
+        return result;
     }
 
-    public static Index readIndexName(StreamInput in) throws IOException {
-        Index index = new Index();
-        index.readFrom(in);
-        return index;
+    public static Index readIndex(StreamInput in) throws IOException {
+        return PROTO.readFrom(in);
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        name = in.readString().intern();
+    public Index readFrom(StreamInput in) throws IOException {
+        return new Index(in.readString(), in.readString());
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
+        out.writeString(uuid);
     }
 }

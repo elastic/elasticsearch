@@ -45,7 +45,7 @@ public class RestIndicesSegmentsAction extends BaseRestHandler {
 
     @Inject
     public RestIndicesSegmentsAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+        super(settings, client);
         controller.registerHandler(GET, "/_segments", this);
         controller.registerHandler(GET, "/{index}/_segments", this);
     }

@@ -113,7 +113,7 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
 
         @Override
         protected IndexRequest buildIndexRequest(SearchHit doc) {
-            IndexRequest index = new IndexRequest(mainRequest.getDestination(), mainRequest);
+            IndexRequest index = new IndexRequest(mainRequest.getDestination());
 
             // We want the index from the copied request, not the doc.
             index.id(doc.id());

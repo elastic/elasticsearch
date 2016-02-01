@@ -288,7 +288,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
     }
 
     void startNextScrollRequest() {
-        SearchScrollRequest request = new SearchScrollRequest(mainRequest);
+        SearchScrollRequest request = new SearchScrollRequest();
         request.scrollId(scroll.get()).scroll(firstSearchRequest.scroll());
         client.searchScroll(request, new ActionListener<SearchResponse>() {
             @Override
@@ -318,7 +318,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
             finishHim(null);
             return;
         }
-        RefreshRequest refresh = new RefreshRequest(mainRequest);
+        RefreshRequest refresh = new RefreshRequest();
         refresh.indices(destinationIndices.toArray(new String[destinationIndices.size()]));
         client.admin().indices().refresh(refresh, new ActionListener<RefreshResponse>() {
             @Override
@@ -349,7 +349,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
              * Fire off the clear scroll but don't wait for it it return before
              * we send the use their response.
              */
-            ClearScrollRequest clearScrollRequest = new ClearScrollRequest(mainRequest);
+            ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
             clearScrollRequest.addScrollId(scrollId);
             client.clearScroll(clearScrollRequest, new ActionListener<ClearScrollResponse>() {
                 @Override

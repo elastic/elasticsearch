@@ -51,8 +51,8 @@ public class AllocateEmptyPrimaryAllocationCommand extends BasePrimaryAllocation
      * @param node           node id of the node to assign the shard to
      * @param acceptDataLoss whether the user agrees to data loss
      */
-    public AllocateEmptyPrimaryAllocationCommand(ShardId shardId, String node, boolean acceptDataLoss) {
-        super(shardId, node, acceptDataLoss);
+    public AllocateEmptyPrimaryAllocationCommand(String index, int shardId, String node, boolean acceptDataLoss) {
+        super(index, shardId, node, acceptDataLoss);
     }
 
     @Override
@@ -70,7 +70,7 @@ public class AllocateEmptyPrimaryAllocationCommand extends BasePrimaryAllocation
         @Override
         public AllocateEmptyPrimaryAllocationCommand build() {
             validate();
-            return new AllocateEmptyPrimaryAllocationCommand(new ShardId(index, shard), node, acceptDataLoss);
+            return new AllocateEmptyPrimaryAllocationCommand(index, shard, node, acceptDataLoss);
         }
     }
 
@@ -98,17 +98,17 @@ public class AllocateEmptyPrimaryAllocationCommand extends BasePrimaryAllocation
 
         final ShardRouting shardRouting;
         try {
-            shardRouting = allocation.routingTable().shardRoutingTable(shardId).primaryShard();
+            shardRouting = allocation.routingTable().shardRoutingTable(index, shardId).primaryShard();
         } catch (IndexNotFoundException | ShardNotFoundException e) {
             return explainOrThrowRejectedCommand(explain, allocation, e);
         }
         if (shardRouting.unassigned() == false) {
-            return explainOrThrowRejectedCommand(explain, allocation, "primary " + shardId + " is already assigned");
+            return explainOrThrowRejectedCommand(explain, allocation, "primary [" + index + "][" + shardId + "] is already assigned");
         }
 
         if (shardRouting.unassignedInfo().getReason() != UnassignedInfo.Reason.INDEX_CREATED && acceptDataLoss == false) {
             return explainOrThrowRejectedCommand(explain, allocation,
-                "allocating an empty primary for " + shardId + " can result in data loss. Please confirm by setting the accept_data_loss parameter to true");
+                "allocating an empty primary for [" + index + "][" + shardId + "] can result in data loss. Please confirm by setting the accept_data_loss parameter to true");
         }
 
         initializeUnassignedShard(allocation, routingNodes, routingNode, shardRouting,

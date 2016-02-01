@@ -122,11 +122,11 @@ public class BasicBackwardsCompatibilityIT extends ESBackcompatTestCase {
             assertThat(id, client().prepareIndex("test", "type1", id).setRouting(routingKey).setSource("field1", English.intToEnglish(i)).get().isCreated(), is(true));
             GetResponse get = client().prepareGet("test", "type1", id).setRouting(routingKey).setVersion(1).get();
             assertThat("Document with ID " + id + " should exist but doesn't", get.isExists(), is(true));
-            assertThat(get.getVersion(), equalTo(1l));
+            assertThat(get.getVersion(), equalTo(1L));
             client().prepareIndex("test", "type1", id).setRouting(routingKey).setSource("field1", English.intToEnglish(i)).execute().actionGet();
             get = client().prepareGet("test", "type1", id).setRouting(routingKey).setVersion(2).get();
             assertThat("Document with ID " + id + " should exist but doesn't", get.isExists(), is(true));
-            assertThat(get.getVersion(), equalTo(2l));
+            assertThat(get.getVersion(), equalTo(2L));
         }
 
         assertVersionCreated(compatibilityVersion(), "test");
@@ -262,7 +262,7 @@ public class BasicBackwardsCompatibilityIT extends ESBackcompatTestCase {
         for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
             for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
                 for (ShardRouting shardRouting : indexShardRoutingTable) {
-                    if (shardRouting.currentNodeId() != null && index.equals(shardRouting.getIndex())) {
+                    if (shardRouting.currentNodeId() != null && index.equals(shardRouting.getIndexName())) {
                         String name = clusterState.nodes().get(shardRouting.currentNodeId()).name();
                         assertThat("Allocated on new node: " + name, Regex.simpleMatch(pattern, name), is(true));
                     }
@@ -416,30 +416,30 @@ public class BasicBackwardsCompatibilityIT extends ESBackcompatTestCase {
                     client().prepareIndex(indexName, "type1", "4").setSource(jsonBuilder().startObject().startObject("obj2").field("obj2_val", "1").endObject().field("y2", "y_2").field("field3", "value3_4").endObject()));
 
             SearchResponse countResponse = client().prepareSearch().setSize(0).setQuery(existsQuery("field1")).get();
-            assertHitCount(countResponse, 2l);
+            assertHitCount(countResponse, 2L);
 
             countResponse = client().prepareSearch().setSize(0).setQuery(constantScoreQuery(existsQuery("field1"))).get();
-            assertHitCount(countResponse, 2l);
+            assertHitCount(countResponse, 2L);
 
             countResponse = client().prepareSearch().setSize(0).setQuery(queryStringQuery("_exists_:field1")).get();
-            assertHitCount(countResponse, 2l);
+            assertHitCount(countResponse, 2L);
 
             countResponse = client().prepareSearch().setSize(0).setQuery(existsQuery("field2")).get();
-            assertHitCount(countResponse, 2l);
+            assertHitCount(countResponse, 2L);
 
             countResponse = client().prepareSearch().setSize(0).setQuery(existsQuery("field3")).get();
-            assertHitCount(countResponse, 1l);
+            assertHitCount(countResponse, 1L);
 
             // wildcard check
             countResponse = client().prepareSearch().setSize(0).setQuery(existsQuery("x*")).get();
-            assertHitCount(countResponse, 2l);
+            assertHitCount(countResponse, 2L);
 
             // object check
             countResponse = client().prepareSearch().setSize(0).setQuery(existsQuery("obj1")).get();
-            assertHitCount(countResponse, 2l);
+            assertHitCount(countResponse, 2L);
 
             countResponse = client().prepareSearch().setSize(0).setQuery(queryStringQuery("_missing_:field1")).get();
-            assertHitCount(countResponse, 2l);
+            assertHitCount(countResponse, 2L);
 
             if (!backwardsCluster().upgradeOneNode()) {
                 break;
@@ -598,7 +598,7 @@ public class BasicBackwardsCompatibilityIT extends ESBackcompatTestCase {
         assertThat(termVectorsResponse.isExists(), equalTo(true));
         Fields fields = termVectorsResponse.getFields();
         assertThat(fields.size(), equalTo(1));
-        assertThat(fields.terms("field").size(), equalTo(8l));
+        assertThat(fields.terms("field").size(), equalTo(8L));
     }
 
     public void testIndicesStats() {

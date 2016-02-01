@@ -53,8 +53,8 @@ public class AzureMinimumMasterNodesTests extends AbstractAzureComputeServiceTes
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("discovery.zen.minimum_master_nodes", 2)
                 // Make the test run faster
-                .put(ZenDiscovery.SETTING_JOIN_TIMEOUT, "50ms")
-                .put(ZenDiscovery.SETTING_PING_TIMEOUT, "10ms")
+                .put(ZenDiscovery.JOIN_TIMEOUT_SETTING.getKey(), "50ms")
+                .put(ZenDiscovery.PING_TIMEOUT_SETTING.getKey(), "10ms")
                 .put("discovery.initial_state_timeout", "100ms");
         return builder.build();
     }

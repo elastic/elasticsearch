@@ -34,12 +34,12 @@ import static org.hamcrest.Matchers.is;
 public class NodeClientIT extends ESIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return settingsBuilder().put(super.nodeSettings(nodeOrdinal)).put(Client.CLIENT_TYPE_SETTING, "anything").build();
+        return settingsBuilder().put(super.nodeSettings(nodeOrdinal)).put(Client.CLIENT_TYPE_SETTING_S.getKey(), "anything").build();
     }
 
     public void testThatClientTypeSettingCannotBeChanged() {
         for (Settings settings : internalCluster().getInstances(Settings.class)) {
-            assertThat(settings.get(Client.CLIENT_TYPE_SETTING), is("node"));
+            assertThat(Client.CLIENT_TYPE_SETTING_S.get(settings), is("node"));
         }
     }
 }

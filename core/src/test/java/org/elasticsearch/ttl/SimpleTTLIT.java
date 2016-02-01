@@ -65,8 +65,6 @@ public class SimpleTTLIT extends ESIntegTestCase {
         return settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("indices.ttl.interval", PURGE_INTERVAL, TimeUnit.MILLISECONDS)
-                .put("cluster.routing.operation.use_type", false) // make sure we control the shard computation
-                .put("cluster.routing.operation.hash.type", "djb")
                 .build();
     }
 
@@ -113,7 +111,7 @@ public class SimpleTTLIT extends ESIntegTestCase {
             ttl0 = ((Number) getResponse.getField("_ttl").getValue()).longValue();
             assertThat(ttl0, lessThanOrEqualTo(providedTTLValue - (currentTime - now)));
         } else {
-            assertThat(providedTTLValue - (currentTime - now), lessThanOrEqualTo(0l));
+            assertThat(providedTTLValue - (currentTime - now), lessThanOrEqualTo(0L));
         }
         // verify the ttl is still decreasing when going to the replica
         currentTime = System.currentTimeMillis();
@@ -122,7 +120,7 @@ public class SimpleTTLIT extends ESIntegTestCase {
             ttl0 = ((Number) getResponse.getField("_ttl").getValue()).longValue();
             assertThat(ttl0, lessThanOrEqualTo(providedTTLValue - (currentTime - now)));
         } else {
-            assertThat(providedTTLValue - (currentTime - now), lessThanOrEqualTo(0l));
+            assertThat(providedTTLValue - (currentTime - now), lessThanOrEqualTo(0L));
         }
         // non realtime get (stored)
         currentTime = System.currentTimeMillis();
@@ -131,7 +129,7 @@ public class SimpleTTLIT extends ESIntegTestCase {
             ttl0 = ((Number) getResponse.getField("_ttl").getValue()).longValue();
             assertThat(ttl0, lessThanOrEqualTo(providedTTLValue - (currentTime - now)));
         } else {
-            assertThat(providedTTLValue - (currentTime - now), lessThanOrEqualTo(0l));
+            assertThat(providedTTLValue - (currentTime - now), lessThanOrEqualTo(0L));
         }
         // non realtime get going the replica
         currentTime = System.currentTimeMillis();
@@ -140,7 +138,7 @@ public class SimpleTTLIT extends ESIntegTestCase {
             ttl0 = ((Number) getResponse.getField("_ttl").getValue()).longValue();
             assertThat(ttl0, lessThanOrEqualTo(providedTTLValue - (currentTime - now)));
         } else {
-            assertThat(providedTTLValue - (currentTime - now), lessThanOrEqualTo(0l));
+            assertThat(providedTTLValue - (currentTime - now), lessThanOrEqualTo(0L));
         }
 
         // no TTL provided so no TTL fetched

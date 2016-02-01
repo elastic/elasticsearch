@@ -18,10 +18,12 @@
  */
 package org.elasticsearch.env;
 
+import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -41,44 +43,84 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 
 @LuceneTestCase.SuppressFileSystems("ExtrasFS") // TODO: fix test to allow extras
 public class NodeEnvironmentTests extends ESTestCase {
     private final IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("foo", Settings.EMPTY);
 
+    public void testNodeLockSillySettings() {
+        try {
+            NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.get(Settings.builder()
+                    .put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), between(Integer.MIN_VALUE, 0)).build());
+            fail("expected failure");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("must be >= 1"));
+        }
+
+        // Even though its silly MAXINT nodes is a-ok!
+        int value = between(1, Integer.MAX_VALUE);
+        int max = NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.get(
+                Settings.builder().put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), value).build());
+        assertEquals(value, max);
+    }
+
     public void testNodeLockSingleEnvironment() throws IOException {
         NodeEnvironment env = newNodeEnvironment(Settings.builder()
-                .put("node.max_local_storage_nodes", 1).build());
+                .put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), 1).build());
         Settings settings = env.getSettings();
-        String[] dataPaths = env.getSettings().getAsArray("path.data");
+        List<String> dataPaths = Environment.PATH_DATA_SETTING.get(env.getSettings());
 
         try {
+            // Reuse the same location and attempt to lock again
             new NodeEnvironment(settings, new Environment(settings));
-            fail("env is already locked");
+            fail("env has already locked all the data directories it is allowed");
         } catch (IllegalStateException ex) {
-
+            assertThat(ex.getMessage(), containsString("Failed to obtain node lock"));
         }
-        env.close();
 
-        // now can recreate and lock it
+        // Close the environment that holds the lock and make sure we can get the lock after release
+        env.close();
         env = new NodeEnvironment(settings, new Environment(settings));
-        assertEquals(env.nodeDataPaths().length, dataPaths.length);
+        assertThat(env.nodeDataPaths(), arrayWithSize(dataPaths.size()));
 
-        for (int i = 0; i < dataPaths.length; i++) {
-            assertTrue(env.nodeDataPaths()[i].startsWith(PathUtils.get(dataPaths[i])));
+        for (int i = 0; i < dataPaths.size(); i++) {
+            assertTrue(env.nodeDataPaths()[i].startsWith(PathUtils.get(dataPaths.get(i))));
         }
         env.close();
-        assertTrue("LockedShards: " + env.lockedShards(), env.lockedShards().isEmpty());
+        assertThat(env.lockedShards(), empty());
+    }
 
+    @SuppressForbidden(reason = "System.out.*")
+    public void testSegmentInfosTracing() {
+        // Defaults to not hooking up std out
+        assertNull(SegmentInfos.getInfoStream());
+
+        try {
+            // False means don't hook up std out
+            NodeEnvironment.applySegmentInfosTrace(
+                    Settings.builder().put(NodeEnvironment.ENABLE_LUCENE_SEGMENT_INFOS_TRACE_SETTING.getKey(), false).build());
+            assertNull(SegmentInfos.getInfoStream());
+
+            // But true means hook std out up statically
+            NodeEnvironment.applySegmentInfosTrace(
+                    Settings.builder().put(NodeEnvironment.ENABLE_LUCENE_SEGMENT_INFOS_TRACE_SETTING.getKey(), true).build());
+            assertEquals(System.out, SegmentInfos.getInfoStream());
+        } finally {
+            // Clean up after ourselves
+            SegmentInfos.setInfoStream(null);
+        }
     }
 
     public void testNodeLockMultipleEnvironment() throws IOException {
         final NodeEnvironment first = newNodeEnvironment();
-        String[] dataPaths = first.getSettings().getAsArray("path.data");
+        List<String> dataPaths = Environment.PATH_DATA_SETTING.get(first.getSettings());
         NodeEnvironment second = new NodeEnvironment(first.getSettings(), new Environment(first.getSettings()));
-        assertEquals(first.nodeDataPaths().length, dataPaths.length);
-        assertEquals(second.nodeDataPaths().length, dataPaths.length);
-        for (int i = 0; i < dataPaths.length; i++) {
+        assertEquals(first.nodeDataPaths().length, dataPaths.size());
+        assertEquals(second.nodeDataPaths().length, dataPaths.size());
+        for (int i = 0; i < dataPaths.size(); i++) {
             assertEquals(first.nodeDataPaths()[i].getParent(), second.nodeDataPaths()[i].getParent());
         }
         IOUtils.close(first, second);
@@ -87,21 +129,21 @@ public class NodeEnvironmentTests extends ESTestCase {
     public void testShardLock() throws IOException {
         final NodeEnvironment env = newNodeEnvironment();
 
-        ShardLock fooLock = env.shardLock(new ShardId("foo", 0));
-        assertEquals(new ShardId("foo", 0), fooLock.getShardId());
+        ShardLock fooLock = env.shardLock(new ShardId("foo", "_na_", 0));
+        assertEquals(new ShardId("foo", "_na_", 0), fooLock.getShardId());
 
         try {
-            env.shardLock(new ShardId("foo", 0));
+            env.shardLock(new ShardId("foo", "_na_", 0));
             fail("shard is locked");
         } catch (LockObtainFailedException ex) {
             // expected
         }
-        for (Path path : env.indexPaths(new Index("foo"))) {
+        for (Path path : env.indexPaths("foo")) {
             Files.createDirectories(path.resolve("0"));
             Files.createDirectories(path.resolve("1"));
         }
         try {
-            env.lockAllForIndex(new Index("foo"), idxSettings, randomIntBetween(0, 10));
+            env.lockAllForIndex(new Index("foo", "_na_"), idxSettings, randomIntBetween(0, 10));
             fail("shard 0 is locked");
         } catch (LockObtainFailedException ex) {
             // expected
@@ -109,11 +151,11 @@ public class NodeEnvironmentTests extends ESTestCase {
 
         fooLock.close();
         // can lock again?
-        env.shardLock(new ShardId("foo", 0)).close();
+        env.shardLock(new ShardId("foo", "_na_", 0)).close();
 
-        List<ShardLock> locks = env.lockAllForIndex(new Index("foo"), idxSettings, randomIntBetween(0, 10));
+        List<ShardLock> locks = env.lockAllForIndex(new Index("foo", "_na_"), idxSettings, randomIntBetween(0, 10));
         try {
-            env.shardLock(new ShardId("foo", 0));
+            env.shardLock(new ShardId("foo", "_na_", 0));
             fail("shard is locked");
         } catch (LockObtainFailedException ex) {
             // expected
@@ -127,7 +169,7 @@ public class NodeEnvironmentTests extends ESTestCase {
         final NodeEnvironment env = newNodeEnvironment();
         final int numIndices = randomIntBetween(1, 10);
         for (int i = 0; i < numIndices; i++) {
-            for (Path path : env.indexPaths(new Index("foo" + i))) {
+            for (Path path : env.indexPaths("foo" + i)) {
                 Files.createDirectories(path);
             }
         }
@@ -142,44 +184,44 @@ public class NodeEnvironmentTests extends ESTestCase {
 
     public void testDeleteSafe() throws IOException, InterruptedException {
         final NodeEnvironment env = newNodeEnvironment();
-        ShardLock fooLock = env.shardLock(new ShardId("foo", 0));
-        assertEquals(new ShardId("foo", 0), fooLock.getShardId());
+        ShardLock fooLock = env.shardLock(new ShardId("foo", "_na_", 0));
+        assertEquals(new ShardId("foo", "_na_", 0), fooLock.getShardId());
 
 
-        for (Path path : env.indexPaths(new Index("foo"))) {
+        for (Path path : env.indexPaths("foo")) {
             Files.createDirectories(path.resolve("0"));
             Files.createDirectories(path.resolve("1"));
         }
 
         try {
-            env.deleteShardDirectorySafe(new ShardId("foo", 0), idxSettings);
+            env.deleteShardDirectorySafe(new ShardId("foo", "_na_", 0), idxSettings);
             fail("shard is locked");
         } catch (LockObtainFailedException ex) {
             // expected
         }
 
-        for (Path path : env.indexPaths(new Index("foo"))) {
+        for (Path path : env.indexPaths("foo")) {
             assertTrue(Files.exists(path.resolve("0")));
             assertTrue(Files.exists(path.resolve("1")));
 
         }
 
-        env.deleteShardDirectorySafe(new ShardId("foo", 1), idxSettings);
+        env.deleteShardDirectorySafe(new ShardId("foo", "_na_", 1), idxSettings);
 
-        for (Path path : env.indexPaths(new Index("foo"))) {
+        for (Path path : env.indexPaths("foo")) {
             assertTrue(Files.exists(path.resolve("0")));
             assertFalse(Files.exists(path.resolve("1")));
         }
 
         try {
-            env.deleteIndexDirectorySafe(new Index("foo"), randomIntBetween(0, 10), idxSettings);
+            env.deleteIndexDirectorySafe(new Index("foo", "_na_"), randomIntBetween(0, 10), idxSettings);
             fail("shard is locked");
         } catch (LockObtainFailedException ex) {
             // expected
         }
         fooLock.close();
 
-        for (Path path : env.indexPaths(new Index("foo"))) {
+        for (Path path : env.indexPaths("foo")) {
             assertTrue(Files.exists(path));
         }
 
@@ -200,7 +242,7 @@ public class NodeEnvironmentTests extends ESTestCase {
                 @Override
                 protected void doRun() throws Exception {
                     start.await();
-                    try (ShardLock autoCloses = env.shardLock(new ShardId("foo", 0))) {
+                    try (ShardLock autoCloses = env.shardLock(new ShardId("foo", "_na_", 0))) {
                         blockLatch.countDown();
                         Thread.sleep(randomIntBetween(1, 10));
                     }
@@ -215,11 +257,11 @@ public class NodeEnvironmentTests extends ESTestCase {
         start.countDown();
         blockLatch.await();
 
-        env.deleteIndexDirectorySafe(new Index("foo"), 5000, idxSettings);
+        env.deleteIndexDirectorySafe(new Index("foo", "_na_"), 5000, idxSettings);
 
         assertNull(threadException.get());
 
-        for (Path path : env.indexPaths(new Index("foo"))) {
+        for (Path path : env.indexPaths("foo")) {
             assertFalse(Files.exists(path));
         }
         latch.await();
@@ -258,7 +300,7 @@ public class NodeEnvironmentTests extends ESTestCase {
                     for (int i = 0; i < iters; i++) {
                         int shard = randomIntBetween(0, counts.length - 1);
                         try {
-                            try (ShardLock autoCloses = env.shardLock(new ShardId("foo", shard), scaledRandomIntBetween(0, 10))) {
+                            try (ShardLock autoCloses = env.shardLock(new ShardId("foo", "_na_", shard), scaledRandomIntBetween(0, 10))) {
                                 counts[shard].value++;
                                 countsAtomic[shard].incrementAndGet();
                                 assertEquals(flipFlop[shard].incrementAndGet(), 1);
@@ -294,8 +336,8 @@ public class NodeEnvironmentTests extends ESTestCase {
 
         IndexSettings s1 = IndexSettingsModule.newIndexSettings("myindex", Settings.EMPTY);
         IndexSettings s2 = IndexSettingsModule.newIndexSettings("myindex", Settings.builder().put(IndexMetaData.SETTING_DATA_PATH, "/tmp/foo").build());
-        ShardId sid = new ShardId("myindex", 0);
-        Index i = new Index("myindex");
+        Index index = new Index("myindex", "_na_");
+        ShardId sid = new ShardId(index, 0);
 
         assertFalse("no settings should mean no custom data path", s1.hasCustomDataPath());
         assertTrue("settings with path_data should have a custom data path", s2.hasCustomDataPath());
@@ -308,11 +350,11 @@ public class NodeEnvironmentTests extends ESTestCase {
                 equalTo(stringsToPaths(dataPaths, "elasticsearch/nodes/0/indices/myindex/0")));
 
         assertThat("index paths uses the regular template",
-                env.indexPaths(i), equalTo(stringsToPaths(dataPaths, "elasticsearch/nodes/0/indices/myindex")));
+                env.indexPaths(index.getName()), equalTo(stringsToPaths(dataPaths, "elasticsearch/nodes/0/indices/myindex")));
 
         env.close();
         NodeEnvironment env2 = newNodeEnvironment(dataPaths, "/tmp",
-                Settings.builder().put(NodeEnvironment.ADD_NODE_ID_TO_CUSTOM_PATH, false).build());
+                Settings.builder().put(NodeEnvironment.ADD_NODE_ID_TO_CUSTOM_PATH.getKey(), false).build());
 
         assertThat(env2.availableShardPaths(sid), equalTo(env2.availableShardPaths(sid)));
         assertThat(env2.resolveCustomLocation(s2, sid), equalTo(PathUtils.get("/tmp/foo/myindex/0")));
@@ -322,7 +364,7 @@ public class NodeEnvironmentTests extends ESTestCase {
                 equalTo(stringsToPaths(dataPaths, "elasticsearch/nodes/0/indices/myindex/0")));
 
         assertThat("index paths uses the regular template",
-                env2.indexPaths(i), equalTo(stringsToPaths(dataPaths, "elasticsearch/nodes/0/indices/myindex")));
+                env2.indexPaths(index.getName()), equalTo(stringsToPaths(dataPaths, "elasticsearch/nodes/0/indices/myindex")));
 
         env2.close();
     }
@@ -355,25 +397,25 @@ public class NodeEnvironmentTests extends ESTestCase {
     public NodeEnvironment newNodeEnvironment(Settings settings) throws IOException {
         Settings build = Settings.builder()
                 .put(settings)
-                .put("path.home", createTempDir().toAbsolutePath().toString())
-                .putArray("path.data", tmpPaths()).build();
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
+                .putArray(Environment.PATH_DATA_SETTING.getKey(), tmpPaths()).build();
         return new NodeEnvironment(build, new Environment(build));
     }
 
     public NodeEnvironment newNodeEnvironment(String[] dataPaths, Settings settings) throws IOException {
         Settings build = Settings.builder()
                 .put(settings)
-                .put("path.home", createTempDir().toAbsolutePath().toString())
-                .putArray("path.data", dataPaths).build();
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
+                .putArray(Environment.PATH_DATA_SETTING.getKey(), dataPaths).build();
         return new NodeEnvironment(build, new Environment(build));
     }
 
     public NodeEnvironment newNodeEnvironment(String[] dataPaths, String sharedDataPath, Settings settings) throws IOException {
         Settings build = Settings.builder()
                 .put(settings)
-                .put("path.home", createTempDir().toAbsolutePath().toString())
-                .put("path.shared_data", sharedDataPath)
-                .putArray("path.data", dataPaths).build();
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
+                .put(Environment.PATH_SHARED_DATA_SETTING.getKey(), sharedDataPath)
+                .putArray(Environment.PATH_DATA_SETTING.getKey(), dataPaths).build();
         return new NodeEnvironment(build, new Environment(build));
     }
 }

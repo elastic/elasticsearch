@@ -65,7 +65,7 @@ public class RestSearchAction extends BaseRestHandler {
 
     @Inject
     public RestSearchAction(Settings settings, RestController controller, Client client, IndicesQueriesRegistry queryRegistry) {
-        super(settings, controller, client);
+        super(settings, client);
         this.queryRegistry = queryRegistry;
         controller.registerHandler(GET, "/_search", this);
         controller.registerHandler(POST, "/_search", this);

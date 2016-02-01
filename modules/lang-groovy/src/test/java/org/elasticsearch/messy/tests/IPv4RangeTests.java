@@ -146,7 +146,7 @@ public class IPv4RangeTests extends ESIntegTestCase {
         assertThat(bucket.getFromAsString(), nullValue());
         assertThat(bucket.getToAsString(), equalTo("10.0.0.100"));
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
-        assertThat(bucket.getDocCount(), equalTo(100l));
+        assertThat(bucket.getDocCount(), equalTo(100L));
 
         bucket = buckets.get(1);
         assertThat(bucket, notNullValue());
@@ -155,7 +155,7 @@ public class IPv4RangeTests extends ESIntegTestCase {
         assertThat(((Number) bucket.getFrom()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
         assertThat(bucket.getToAsString(), equalTo("10.0.0.200"));
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
-        assertThat(bucket.getDocCount(), equalTo(100l));
+        assertThat(bucket.getDocCount(), equalTo(100L));
 
         bucket = buckets.get(2);
         assertThat(bucket, notNullValue());
@@ -164,7 +164,7 @@ public class IPv4RangeTests extends ESIntegTestCase {
         assertThat(((Number) bucket.getFrom()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo(Double.POSITIVE_INFINITY));
         assertThat(bucket.getToAsString(), nullValue());
-        assertThat(bucket.getDocCount(), equalTo(55l));
+        assertThat(bucket.getDocCount(), equalTo(55L));
     }
 
     public void testSingleValueFieldWithMaskRange() throws Exception {
@@ -191,7 +191,7 @@ public class IPv4RangeTests extends ESIntegTestCase {
         assertThat(bucket.getFromAsString(), equalTo("10.0.0.0"));
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.128")));
         assertThat(bucket.getToAsString(), equalTo("10.0.0.128"));
-        assertThat(bucket.getDocCount(), equalTo(128l));
+        assertThat(bucket.getDocCount(), equalTo(128L));
 
         bucket = buckets.get(1);
         assertThat(bucket, notNullValue());
@@ -200,7 +200,7 @@ public class IPv4RangeTests extends ESIntegTestCase {
         assertThat(bucket.getFromAsString(), equalTo("10.0.0.128"));
         assertThat((long) ((Number) bucket.getTo()).doubleValue(), equalTo(IpFieldMapper.ipToLong("10.0.1.0"))); // range is exclusive on the to side
         assertThat(bucket.getToAsString(), equalTo("10.0.1.0"));
-        assertThat(bucket.getDocCount(), equalTo(127l)); // include 10.0.0.128
+        assertThat(bucket.getDocCount(), equalTo(127L)); // include 10.0.0.128
     }
 
     public void testSingleValueFieldWithCustomKey() throws Exception {
@@ -228,7 +228,7 @@ public class IPv4RangeTests extends ESIntegTestCase {
         assertThat(bucket.getFromAsString(), nullValue());
         assertThat(bucket.getToAsString(), equalTo("10.0.0.100"));
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
-        assertThat(bucket.getDocCount(), equalTo(100l));
+        assertThat(bucket.getDocCount(), equalTo(100L));
 
         bucket = buckets.get(1);
         assertThat(bucket, notNullValue());
@@ -237,7 +237,7 @@ public class IPv4RangeTests extends ESIntegTestCase {
         assertThat(((Number) bucket.getFrom()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
         assertThat(bucket.getToAsString(), equalTo("10.0.0.200"));
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
-        assertThat(bucket.getDocCount(), equalTo(100l));
+        assertThat(bucket.getDocCount(), equalTo(100L));
 
         bucket = buckets.get(2);
         assertThat(bucket, notNullValue());
@@ -246,7 +246,7 @@ public class IPv4RangeTests extends ESIntegTestCase {
         assertThat(((Number) bucket.getFrom()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo(Double.POSITIVE_INFINITY));
         assertThat(bucket.getToAsString(), nullValue());
-        assertThat(bucket.getDocCount(), equalTo(55l));
+        assertThat(bucket.getDocCount(), equalTo(55L));
     }
 
     public void testSingleValuedFieldWithSubAggregation() throws Exception {
@@ -278,12 +278,12 @@ public class IPv4RangeTests extends ESIntegTestCase {
         assertThat(bucket.getFromAsString(), nullValue());
         assertThat(bucket.getToAsString(), equalTo("10.0.0.100"));
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
-        assertThat(bucket.getDocCount(), equalTo(100l));
+        assertThat(bucket.getDocCount(), equalTo(100L));
         Sum sum = bucket.getAggregations().get("sum");
         assertThat(sum, notNullValue());
         assertThat(sum.getValue(), equalTo((double) 100));
         assertThat((String) propertiesKeys[0], equalTo("*-10.0.0.100"));
-        assertThat((long) propertiesDocCounts[0], equalTo(100l));
+        assertThat((long) propertiesDocCounts[0], equalTo(100L));
         assertThat((double) propertiesCounts[0], equalTo((double) 100));
 
         bucket = buckets.get(1);
@@ -293,12 +293,12 @@ public class IPv4RangeTests extends ESIntegTestCase {
         assertThat(((Number) bucket.getFrom()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
         assertThat(bucket.getToAsString(), equalTo("10.0.0.200"));
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
-        assertThat(bucket.getDocCount(), equalTo(100l));
+        assertThat(bucket.getDocCount(), equalTo(100L));
         sum = bucket.getAggregations().get("sum");
         assertThat(sum, notNullValue());
         assertThat(sum.getValue(), equalTo((double) 200));
         assertThat((String) propertiesKeys[1], equalTo("10.0.0.100-10.0.0.200"));
-        assertThat((long) propertiesDocCounts[1], equalTo(100l));
+        assertThat((long) propertiesDocCounts[1], equalTo(100L));
         assertThat((double) propertiesCounts[1], equalTo((double) 200));
 
         bucket = buckets.get(2);
@@ -308,12 +308,12 @@ public class IPv4RangeTests extends ESIntegTestCase {
         assertThat(((Number) bucket.getFrom()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo(Double.POSITIVE_INFINITY));
         assertThat(bucket.getToAsString(), nullValue());
-        assertThat(bucket.getDocCount(), equalTo(55l));
+        assertThat(bucket.getDocCount(), equalTo(55L));
         sum = bucket.getAggregations().get("sum");
         assertThat(sum, notNullValue());
         assertThat(sum.getValue(), equalTo((double) 55*3));
         assertThat((String) propertiesKeys[2], equalTo("10.0.0.200-*"));
-        assertThat((long) propertiesDocCounts[2], equalTo(55l));
+        assertThat((long) propertiesDocCounts[2], equalTo(55L));
         assertThat((double) propertiesCounts[2], equalTo((double) 55 * 3));
     }
 
@@ -343,7 +343,7 @@ public class IPv4RangeTests extends ESIntegTestCase {
         assertThat(bucket.getFromAsString(), nullValue());
         assertThat(bucket.getToAsString(), equalTo("10.0.0.100"));
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
-        assertThat(bucket.getDocCount(), equalTo(100l));
+        assertThat(bucket.getDocCount(), equalTo(100L));
         Max max = bucket.getAggregations().get("max");
         assertThat(max, notNullValue());
         assertThat(max.getValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.99")));
@@ -355,7 +355,7 @@ public class IPv4RangeTests extends ESIntegTestCase {
         assertThat(((Number) bucket.getFrom()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
         assertThat(bucket.getToAsString(), equalTo("10.0.0.200"));
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
-        assertThat(bucket.getDocCount(), equalTo(100l));
+        assertThat(bucket.getDocCount(), equalTo(100L));
         max = bucket.getAggregations().get("max");
         assertThat(max, notNullValue());
         assertThat(max.getValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.199")));
@@ -367,7 +367,7 @@ public class IPv4RangeTests extends ESIntegTestCase {
         assertThat(((Number) bucket.getFrom()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo(Double.POSITIVE_INFINITY));
         assertThat(bucket.getToAsString(), nullValue());
-        assertThat(bucket.getDocCount(), equalTo(55l));
+        assertThat(bucket.getDocCount(), equalTo(55L));
         max = bucket.getAggregations().get("max");
         assertThat(max, notNullValue());
         assertThat(max.getValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.254")));
@@ -395,7 +395,7 @@ public class IPv4RangeTests extends ESIntegTestCase {
         assertThat(bucket.getFromAsString(), nullValue());
         assertThat(bucket.getToAsString(), equalTo("10.0.0.100"));
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
-        assertThat(bucket.getDocCount(), equalTo(100l));
+        assertThat(bucket.getDocCount(), equalTo(100L));
 
         bucket = buckets.get(1);
         assertThat(bucket, notNullValue());
@@ -404,7 +404,7 @@ public class IPv4RangeTests extends ESIntegTestCase {
         assertThat(((Number) bucket.getFrom()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
         assertThat(bucket.getToAsString(), equalTo("10.0.0.200"));
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
-        assertThat(bucket.getDocCount(), equalTo(100l));
+        assertThat(bucket.getDocCount(), equalTo(100L));
 
         bucket = buckets.get(2);
         assertThat(bucket, notNullValue());
@@ -413,7 +413,7 @@ public class IPv4RangeTests extends ESIntegTestCase {
         assertThat(((Number) bucket.getFrom()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo(Double.POSITIVE_INFINITY));
         assertThat(bucket.getToAsString(), nullValue());
-        assertThat(bucket.getDocCount(), equalTo(55l));
+        assertThat(bucket.getDocCount(), equalTo(55L));
     }
 
     /*
@@ -458,7 +458,7 @@ public class IPv4RangeTests extends ESIntegTestCase {
         assertThat(bucket.getFromAsString(), nullValue());
         assertThat(bucket.getToAsString(), equalTo("10.0.0.100"));
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
-        assertThat(bucket.getDocCount(), equalTo(100l));
+        assertThat(bucket.getDocCount(), equalTo(100L));
 
         bucket = buckets.get(1);
         assertThat(bucket, notNullValue());
@@ -467,7 +467,7 @@ public class IPv4RangeTests extends ESIntegTestCase {
         assertThat(((Number) bucket.getFrom()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
         assertThat(bucket.getToAsString(), equalTo("10.0.0.200"));
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
-        assertThat(bucket.getDocCount(), equalTo(101l));
+        assertThat(bucket.getDocCount(), equalTo(101L));
 
         bucket = buckets.get(2);
         assertThat(bucket, notNullValue());
@@ -476,7 +476,7 @@ public class IPv4RangeTests extends ESIntegTestCase {
         assertThat(((Number) bucket.getFrom()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo(Double.POSITIVE_INFINITY));
         assertThat(bucket.getToAsString(), nullValue());
-        assertThat(bucket.getDocCount(), equalTo(56l));
+        assertThat(bucket.getDocCount(), equalTo(56L));
     }
 
     public void testMultiValuedFieldWithValueScript() throws Exception {
@@ -502,7 +502,7 @@ public class IPv4RangeTests extends ESIntegTestCase {
         assertThat(bucket.getFromAsString(), nullValue());
         assertThat(bucket.getToAsString(), equalTo("10.0.0.100"));
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
-        assertThat(bucket.getDocCount(), equalTo(100l));
+        assertThat(bucket.getDocCount(), equalTo(100L));
 
         bucket = buckets.get(1);
         assertThat(bucket, notNullValue());
@@ -511,7 +511,7 @@ public class IPv4RangeTests extends ESIntegTestCase {
         assertThat(((Number) bucket.getFrom()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
         assertThat(bucket.getToAsString(), equalTo("10.0.0.200"));
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
-        assertThat(bucket.getDocCount(), equalTo(101l));
+        assertThat(bucket.getDocCount(), equalTo(101L));
 
         bucket = buckets.get(2);
         assertThat(bucket, notNullValue());
@@ -520,7 +520,7 @@ public class IPv4RangeTests extends ESIntegTestCase {
         assertThat(((Number) bucket.getFrom()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo(Double.POSITIVE_INFINITY));
         assertThat(bucket.getToAsString(), nullValue());
-        assertThat(bucket.getDocCount(), equalTo(56l));
+        assertThat(bucket.getDocCount(), equalTo(56L));
     }
 
     public void testMultiValuedFieldWithValueScriptWithInheritedSubAggregator() throws Exception {
@@ -546,7 +546,7 @@ public class IPv4RangeTests extends ESIntegTestCase {
         assertThat(bucket.getFromAsString(), nullValue());
         assertThat(bucket.getToAsString(), equalTo("10.0.0.100"));
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
-        assertThat(bucket.getDocCount(), equalTo(100l));
+        assertThat(bucket.getDocCount(), equalTo(100L));
         Max max = bucket.getAggregations().get("max");
         assertThat(max, Matchers.notNullValue());
         assertThat((long) max.getValue(), equalTo(IpFieldMapper.ipToLong("10.0.0.100")));
@@ -558,7 +558,7 @@ public class IPv4RangeTests extends ESIntegTestCase {
         assertThat(((Number) bucket.getFrom()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
         assertThat(bucket.getToAsString(), equalTo("10.0.0.200"));
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
-        assertThat(bucket.getDocCount(), equalTo(101l));
+        assertThat(bucket.getDocCount(), equalTo(101L));
         max = bucket.getAggregations().get("max");
         assertThat(max, Matchers.notNullValue());
         assertThat((long) max.getValue(), equalTo(IpFieldMapper.ipToLong("10.0.0.200")));
@@ -570,7 +570,7 @@ public class IPv4RangeTests extends ESIntegTestCase {
         assertThat(((Number) bucket.getFrom()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo(Double.POSITIVE_INFINITY));
         assertThat(bucket.getToAsString(), nullValue());
-        assertThat(bucket.getDocCount(), equalTo(56l));
+        assertThat(bucket.getDocCount(), equalTo(56L));
         max = bucket.getAggregations().get("max");
         assertThat(max, Matchers.notNullValue());
         assertThat((long) max.getValue(), equalTo(IpFieldMapper.ipToLong("10.0.0.255")));
@@ -599,7 +599,7 @@ public class IPv4RangeTests extends ESIntegTestCase {
         assertThat(bucket.getFromAsString(), nullValue());
         assertThat(bucket.getToAsString(), equalTo("10.0.0.100"));
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
-        assertThat(bucket.getDocCount(), equalTo(100l));
+        assertThat(bucket.getDocCount(), equalTo(100L));
 
         bucket = buckets.get(1);
         assertThat(bucket, notNullValue());
@@ -608,7 +608,7 @@ public class IPv4RangeTests extends ESIntegTestCase {
         assertThat(((Number) bucket.getFrom()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
         assertThat(bucket.getToAsString(), equalTo("10.0.0.200"));
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
-        assertThat(bucket.getDocCount(), equalTo(100l));
+        assertThat(bucket.getDocCount(), equalTo(100L));
 
         bucket = buckets.get(2);
         assertThat(bucket, notNullValue());
@@ -617,7 +617,7 @@ public class IPv4RangeTests extends ESIntegTestCase {
         assertThat(((Number) bucket.getFrom()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo(Double.POSITIVE_INFINITY));
         assertThat(bucket.getToAsString(), nullValue());
-        assertThat(bucket.getDocCount(), equalTo(55l));
+        assertThat(bucket.getDocCount(), equalTo(55L));
     }
 
     public void testScriptSingleValueWithSubAggregatorInherited() throws Exception {
@@ -644,7 +644,7 @@ public class IPv4RangeTests extends ESIntegTestCase {
         assertThat(bucket.getFromAsString(), nullValue());
         assertThat(bucket.getToAsString(), equalTo("10.0.0.100"));
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
-        assertThat(bucket.getDocCount(), equalTo(100l));
+        assertThat(bucket.getDocCount(), equalTo(100L));
         Max max = bucket.getAggregations().get("max");
         assertThat(max, notNullValue());
         assertThat(max.getValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.99")));
@@ -656,7 +656,7 @@ public class IPv4RangeTests extends ESIntegTestCase {
         assertThat(((Number) bucket.getFrom()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
         assertThat(bucket.getToAsString(), equalTo("10.0.0.200"));
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
-        assertThat(bucket.getDocCount(), equalTo(100l));
+        assertThat(bucket.getDocCount(), equalTo(100L));
         max = bucket.getAggregations().get("max");
         assertThat(max, notNullValue());
         assertThat(max.getValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.199")));
@@ -668,7 +668,7 @@ public class IPv4RangeTests extends ESIntegTestCase {
         assertThat(((Number) bucket.getFrom()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo(Double.POSITIVE_INFINITY));
         assertThat(bucket.getToAsString(), nullValue());
-        assertThat(bucket.getDocCount(), equalTo(55l));
+        assertThat(bucket.getDocCount(), equalTo(55L));
         max = bucket.getAggregations().get("max");
         assertThat(max, notNullValue());
         assertThat(max.getValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.254")));
@@ -697,7 +697,7 @@ public class IPv4RangeTests extends ESIntegTestCase {
         assertThat(bucket.getFromAsString(), nullValue());
         assertThat(bucket.getToAsString(), equalTo("10.0.0.100"));
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
-        assertThat(bucket.getDocCount(), equalTo(100l));
+        assertThat(bucket.getDocCount(), equalTo(100L));
 
         bucket = buckets.get(1);
         assertThat(bucket, notNullValue());
@@ -706,7 +706,7 @@ public class IPv4RangeTests extends ESIntegTestCase {
         assertThat(((Number) bucket.getFrom()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
         assertThat(bucket.getToAsString(), equalTo("10.0.0.200"));
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
-        assertThat(bucket.getDocCount(), equalTo(101l));
+        assertThat(bucket.getDocCount(), equalTo(101L));
 
         bucket = buckets.get(2);
         assertThat(bucket, notNullValue());
@@ -715,7 +715,7 @@ public class IPv4RangeTests extends ESIntegTestCase {
         assertThat(((Number) bucket.getFrom()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo(Double.POSITIVE_INFINITY));
         assertThat(bucket.getToAsString(), nullValue());
-        assertThat(bucket.getDocCount(), equalTo(56l));
+        assertThat(bucket.getDocCount(), equalTo(56L));
     }
 
     public void testScriptMultiValuedWithAggregatorInherited() throws Exception {
@@ -742,7 +742,7 @@ public class IPv4RangeTests extends ESIntegTestCase {
         assertThat(bucket.getFromAsString(), nullValue());
         assertThat(bucket.getToAsString(), equalTo("10.0.0.100"));
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
-        assertThat(bucket.getDocCount(), equalTo(100l));
+        assertThat(bucket.getDocCount(), equalTo(100L));
         Max max = bucket.getAggregations().get("max");
         assertThat(max, Matchers.notNullValue());
         assertThat((long) max.getValue(), equalTo(IpFieldMapper.ipToLong("10.0.0.100")));
@@ -754,7 +754,7 @@ public class IPv4RangeTests extends ESIntegTestCase {
         assertThat(((Number) bucket.getFrom()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
         assertThat(bucket.getToAsString(), equalTo("10.0.0.200"));
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
-        assertThat(bucket.getDocCount(), equalTo(101l));
+        assertThat(bucket.getDocCount(), equalTo(101L));
         max = bucket.getAggregations().get("max");
         assertThat(max, Matchers.notNullValue());
         assertThat((long) max.getValue(), equalTo(IpFieldMapper.ipToLong("10.0.0.200")));
@@ -766,7 +766,7 @@ public class IPv4RangeTests extends ESIntegTestCase {
         assertThat(((Number) bucket.getFrom()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo(Double.POSITIVE_INFINITY));
         assertThat(bucket.getToAsString(), nullValue());
-        assertThat(bucket.getDocCount(), equalTo(56l));
+        assertThat(bucket.getDocCount(), equalTo(56L));
         max = bucket.getAggregations().get("max");
         assertThat(max, Matchers.notNullValue());
         assertThat((long) max.getValue(), equalTo(IpFieldMapper.ipToLong("10.0.0.255")));
@@ -797,7 +797,7 @@ public class IPv4RangeTests extends ESIntegTestCase {
         assertThat(bucket.getFromAsString(), nullValue());
         assertThat(bucket.getToAsString(), equalTo("10.0.0.100"));
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
-        assertThat(bucket.getDocCount(), equalTo(0l));
+        assertThat(bucket.getDocCount(), equalTo(0L));
 
         bucket = buckets.get(1);
         assertThat(bucket, notNullValue());
@@ -806,7 +806,7 @@ public class IPv4RangeTests extends ESIntegTestCase {
         assertThat(((Number) bucket.getFrom()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
         assertThat(bucket.getToAsString(), equalTo("10.0.0.200"));
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
-        assertThat(bucket.getDocCount(), equalTo(0l));
+        assertThat(bucket.getDocCount(), equalTo(0L));
 
         bucket = buckets.get(2);
         assertThat(bucket, notNullValue());
@@ -815,7 +815,7 @@ public class IPv4RangeTests extends ESIntegTestCase {
         assertThat(((Number) bucket.getFrom()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo(Double.POSITIVE_INFINITY));
         assertThat(bucket.getToAsString(), nullValue());
-        assertThat(bucket.getDocCount(), equalTo(0l));
+        assertThat(bucket.getDocCount(), equalTo(0L));
     }
 
     public void testPartiallyUnmapped() throws Exception {
@@ -843,7 +843,7 @@ public class IPv4RangeTests extends ESIntegTestCase {
         assertThat(bucket.getFromAsString(), nullValue());
         assertThat(bucket.getToAsString(), equalTo("10.0.0.100"));
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
-        assertThat(bucket.getDocCount(), equalTo(100l));
+        assertThat(bucket.getDocCount(), equalTo(100L));
 
         bucket = buckets.get(1);
         assertThat(bucket, notNullValue());
@@ -852,7 +852,7 @@ public class IPv4RangeTests extends ESIntegTestCase {
         assertThat(((Number) bucket.getFrom()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
         assertThat(bucket.getToAsString(), equalTo("10.0.0.200"));
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
-        assertThat(bucket.getDocCount(), equalTo(100l));
+        assertThat(bucket.getDocCount(), equalTo(100L));
 
         bucket = buckets.get(2);
         assertThat(bucket, notNullValue());
@@ -861,17 +861,17 @@ public class IPv4RangeTests extends ESIntegTestCase {
         assertThat(((Number) bucket.getFrom()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo(Double.POSITIVE_INFINITY));
         assertThat(bucket.getToAsString(), nullValue());
-        assertThat(bucket.getDocCount(), equalTo(55l));
+        assertThat(bucket.getDocCount(), equalTo(55L));
     }
 
     public void testEmptyAggregation() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(histogram("histo").field("value").interval(1l).minDocCount(0)
+                .addAggregation(histogram("histo").field("value").interval(1L).minDocCount(0)
                         .subAggregation(ipRange("ip_range").field("ip").addRange("r1", "10.0.0.1", "10.0.0.10")))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2l));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
         Histogram histo = searchResponse.getAggregations().get("histo");
         assertThat(histo, Matchers.notNullValue());
         Histogram.Bucket bucket = histo.getBuckets().get(1);
@@ -886,7 +886,7 @@ public class IPv4RangeTests extends ESIntegTestCase {
         assertThat((String) buckets.get(0).getKey(), equalTo("r1"));
         assertThat(buckets.get(0).getFromAsString(), equalTo("10.0.0.1"));
         assertThat(buckets.get(0).getToAsString(), equalTo("10.0.0.10"));
-        assertThat(buckets.get(0).getDocCount(), equalTo(0l));
+        assertThat(buckets.get(0).getDocCount(), equalTo(0L));
     }
 
     public void testMask0() {
@@ -909,7 +909,7 @@ public class IPv4RangeTests extends ESIntegTestCase {
         assertThat(bucket.getFromAsString(), nullValue());
         assertThat(bucket.getToAsString(), nullValue());
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo(Double.POSITIVE_INFINITY));
-        assertEquals(255l, bucket.getDocCount());
+        assertEquals(255L, bucket.getDocCount());
     }
 
     public void testMask0SpecialIps() {
@@ -929,6 +929,6 @@ public class IPv4RangeTests extends ESIntegTestCase {
         assertThat(range.getBuckets().size(), equalTo(1));
 
         Range.Bucket bucket = buckets.get(0);
-        assertEquals(4l, bucket.getDocCount());
+        assertEquals(4L, bucket.getDocCount());
     }
 }

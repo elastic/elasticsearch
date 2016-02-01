@@ -54,8 +54,8 @@ public class LoggingConfigurationTests extends ESTestCase {
         try {
             Path configDir = getDataPath("config");
             Settings settings = Settings.builder()
-                    .put("path.conf", configDir.toAbsolutePath())
-                    .put("path.home", createTempDir().toString())
+                    .put(Environment.PATH_CONF_SETTING.getKey(), configDir.toAbsolutePath())
+                    .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                     .build();
             LogConfigurator.configure(settings, true);
 
@@ -84,8 +84,8 @@ public class LoggingConfigurationTests extends ESTestCase {
         Files.write(loggingConf, "{\"json\": \"foo\"}".getBytes(StandardCharsets.UTF_8));
         Environment environment = new Environment(
                 Settings.builder()
-                    .put("path.conf", tmpDir.toAbsolutePath())
-                    .put("path.home", createTempDir().toString())
+                    .put(Environment.PATH_CONF_SETTING.getKey(), tmpDir.toAbsolutePath())
+                    .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                     .build());
 
         Settings.Builder builder = Settings.builder();
@@ -101,8 +101,8 @@ public class LoggingConfigurationTests extends ESTestCase {
         Files.write(loggingConf, "key: value".getBytes(StandardCharsets.UTF_8));
         Environment environment = new Environment(
                 Settings.builder()
-                    .put("path.conf", tmpDir.toAbsolutePath())
-                    .put("path.home", createTempDir().toString())
+                    .put(Environment.PATH_CONF_SETTING.getKey(), tmpDir.toAbsolutePath())
+                    .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                     .build());
 
         Settings.Builder builder = Settings.builder();
@@ -120,8 +120,8 @@ public class LoggingConfigurationTests extends ESTestCase {
         Files.write(loggingConf2, "yaml: bar".getBytes(StandardCharsets.UTF_8));
         Environment environment = new Environment(
                 Settings.builder()
-                    .put("path.conf", tmpDir.toAbsolutePath())
-                    .put("path.home", createTempDir().toString())
+                    .put(Environment.PATH_CONF_SETTING.getKey(), tmpDir.toAbsolutePath())
+                    .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                     .build());
 
         Settings.Builder builder = Settings.builder();
@@ -138,8 +138,8 @@ public class LoggingConfigurationTests extends ESTestCase {
         Files.write(invalidSuffix, "yml: bar".getBytes(StandardCharsets.UTF_8));
         Environment environment = new Environment(
                 Settings.builder()
-                    .put("path.conf", invalidSuffix.toAbsolutePath())
-                    .put("path.home", createTempDir().toString())
+                    .put(Environment.PATH_CONF_SETTING.getKey(), invalidSuffix.toAbsolutePath())
+                    .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                     .build());
 
         Settings.Builder builder = Settings.builder();
@@ -157,8 +157,8 @@ public class LoggingConfigurationTests extends ESTestCase {
         Files.write(loggingConf, "appender.file.type: file\n".getBytes(StandardCharsets.UTF_8), StandardOpenOption.APPEND);
         Environment environment = InternalSettingsPreparer.prepareEnvironment(
                 Settings.builder()
-                        .put("path.conf", tmpDir.toAbsolutePath())
-                        .put("path.home", createTempDir().toString())
+                        .put(Environment.PATH_CONF_SETTING.getKey(), tmpDir.toAbsolutePath())
+                        .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                         .put("logger.test_resolve_order", "TRACE, console")
                         .put("appender.console.type", "console")
                         .put("appender.console.layout.type", "consolePattern")
@@ -186,8 +186,8 @@ public class LoggingConfigurationTests extends ESTestCase {
                 StandardCharsets.UTF_8);
         Environment environment = InternalSettingsPreparer.prepareEnvironment(
                 Settings.builder()
-                        .put("path.conf", tmpDir.toAbsolutePath())
-                        .put("path.home", createTempDir().toString())
+                        .put(Environment.PATH_CONF_SETTING.getKey(), tmpDir.toAbsolutePath())
+                        .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                         .build(), new CliToolTestCase.MockTerminal());
         LogConfigurator.configure(environment.settings(), false);
         ESLogger esLogger = Log4jESLoggerFactory.getLogger("test_config_not_read");

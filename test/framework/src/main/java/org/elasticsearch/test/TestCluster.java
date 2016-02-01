@@ -43,7 +43,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
  * Base test cluster that exposes the basis to run tests against any elasticsearch cluster, whose layout
  * (e.g. number of nodes) is predefined and cannot be changed during the tests execution
  */
-public abstract class TestCluster implements Iterable<Client>, Closeable {
+public abstract class TestCluster implements Closeable {
 
     protected final ESLogger logger = Loggers.getLogger(getClass());
     private final long seed;
@@ -147,7 +147,7 @@ public abstract class TestCluster implements Iterable<Client>, Closeable {
                     ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().execute().actionGet();
                     ObjectArrayList<String> concreteIndices = new ObjectArrayList<>();
                     for (IndexMetaData indexMetaData : clusterStateResponse.getState().metaData()) {
-                        concreteIndices.add(indexMetaData.getIndex());
+                        concreteIndices.add(indexMetaData.getIndex().getName());
                     }
                     if (!concreteIndices.isEmpty()) {
                         assertAcked(client().admin().indices().prepareDelete(concreteIndices.toArray(String.class)));
@@ -227,6 +227,11 @@ public abstract class TestCluster implements Iterable<Client>, Closeable {
      * Returns the cluster name
      */
     public abstract String getClusterName();
+
+    /**
+     * Returns an {@link Iterable} over all clients in this test cluster
+     */
+    public abstract Iterable<Client> getClients();
 
 
 }

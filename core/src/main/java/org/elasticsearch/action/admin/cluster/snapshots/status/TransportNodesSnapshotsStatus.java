@@ -20,7 +20,6 @@
 package org.elasticsearch.action.admin.cluster.snapshots.status;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.BaseNodeRequest;
@@ -146,8 +145,8 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<Transpor
         public Request() {
         }
 
-        public Request(ActionRequest<?> request, String[] nodesIds) {
-            super(request, nodesIds);
+        public Request(String[] nodesIds) {
+            super(nodesIds);
         }
 
         public Request snapshotIds(SnapshotId[] snapshotIds) {
@@ -214,7 +213,7 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<Transpor
         }
 
         NodeRequest(String nodeId, TransportNodesSnapshotsStatus.Request request) {
-            super(request, nodeId);
+            super(nodeId);
             snapshotIds = request.snapshotIds;
         }
 

@@ -34,7 +34,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -43,7 +42,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.AsyncShardFetch;
-import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.IndexShard;
@@ -57,7 +55,6 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
@@ -129,7 +126,7 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
     @Override
     protected NodeStoreFilesMetaData nodeOperation(NodeRequest request) {
         if (request.unallocated) {
-            IndexService indexService = indicesService.indexService(request.shardId.index().name());
+            IndexService indexService = indicesService.indexService(request.shardId.getIndexName());
             if (indexService == null) {
                 return new NodeStoreFilesMetaData(clusterService.localNode(), null);
             }
@@ -137,7 +134,7 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
                 return new NodeStoreFilesMetaData(clusterService.localNode(), null);
             }
         }
-        IndexMetaData metaData = clusterService.state().metaData().index(request.shardId.index().name());
+        IndexMetaData metaData = clusterService.state().metaData().index(request.shardId.getIndexName());
         if (metaData == null) {
             return new NodeStoreFilesMetaData(clusterService.localNode(), null);
         }
@@ -153,7 +150,7 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
         long startTimeNS = System.nanoTime();
         boolean exists = false;
         try {
-            IndexService indexService = indicesService.indexService(shardId.index().name());
+            IndexService indexService = indicesService.indexService(shardId.getIndexName());
             if (indexService != null) {
                 IndexShard indexShard = indexService.getShardOrNull(shardId.id());
                 if (indexShard != null) {
@@ -168,7 +165,7 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
                 }
             }
             // try and see if we an list unallocated
-            IndexMetaData metaData = clusterService.state().metaData().index(shardId.index().name());
+            IndexMetaData metaData = clusterService.state().metaData().index(shardId.getIndexName());
             if (metaData == null) {
                 return new StoreFilesMetaData(false, shardId, Store.MetadataSnapshot.EMPTY);
             }
@@ -177,7 +174,7 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
             if (shardPath == null) {
                 return new StoreFilesMetaData(false, shardId, Store.MetadataSnapshot.EMPTY);
             }
-            return new StoreFilesMetaData(false, shardId, Store.readMetadataSnapshot(shardPath.resolveIndex(), logger));
+            return new StoreFilesMetaData(false, shardId, Store.readMetadataSnapshot(shardPath.resolveIndex(), shardId, logger));
         } finally {
             TimeValue took = new TimeValue(System.nanoTime() - startTimeNS, TimeUnit.NANOSECONDS);
             if (exists) {
@@ -341,7 +338,7 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
         }
 
         NodeRequest(String nodeId, TransportNodesListShardStoreMetaData.Request request) {
-            super(request, nodeId);
+            super(nodeId);
             this.shardId = request.shardId;
             this.unallocated = request.unallocated;
         }

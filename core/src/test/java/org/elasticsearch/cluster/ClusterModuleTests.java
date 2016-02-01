@@ -122,7 +122,7 @@ public class ClusterModuleTests extends ModuleTestCase {
     }
 
     public void testRegisterShardsAllocator() {
-        Settings settings = Settings.builder().put(ClusterModule.SHARDS_ALLOCATOR_TYPE_KEY, "custom").build();
+        Settings settings = Settings.builder().put(ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING.getKey(), "custom").build();
         ClusterModule module = new ClusterModule(settings);
         module.registerShardsAllocator("custom", FakeShardsAllocator.class);
         assertBinding(module, ShardsAllocator.class, FakeShardsAllocator.class);
@@ -138,14 +138,14 @@ public class ClusterModuleTests extends ModuleTestCase {
     }
 
     public void testUnknownShardsAllocator() {
-        Settings settings = Settings.builder().put(ClusterModule.SHARDS_ALLOCATOR_TYPE_KEY, "dne").build();
+        Settings settings = Settings.builder().put(ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING.getKey(), "dne").build();
         ClusterModule module = new ClusterModule(settings);
         assertBindingFailure(module, "Unknown [shards_allocator]");
     }
 
     public void testEvenShardsAllocatorBackcompat() {
         Settings settings = Settings.builder()
-            .put(ClusterModule.SHARDS_ALLOCATOR_TYPE_KEY, ClusterModule.EVEN_SHARD_COUNT_ALLOCATOR).build();
+            .put(ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING.getKey(), ClusterModule.EVEN_SHARD_COUNT_ALLOCATOR).build();
         ClusterModule module = new ClusterModule(settings);
         assertBinding(module, ShardsAllocator.class, BalancedShardsAllocator.class);
     }

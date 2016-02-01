@@ -203,8 +203,7 @@ public class SamplerAggregator extends SingleBucketAggregator {
         private int maxDocsPerValue;
         private String executionHint;
 
-        public DiversifiedFactory(String name, int shardSize, String executionHint, ValuesSourceConfig<ValuesSource> vsConfig,
-                int maxDocsPerValue) {
+        public DiversifiedFactory(String name, int shardSize, String executionHint, ValuesSourceConfig vsConfig, int maxDocsPerValue) {
             super(name, InternalSampler.TYPE.name(), vsConfig);
             this.shardSize = shardSize;
             this.maxDocsPerValue = maxDocsPerValue;

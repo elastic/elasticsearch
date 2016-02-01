@@ -159,7 +159,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
                 String[] indexNames = new String[resolvedIndices.size()];
                 int i = 0;
                 for (IndexMetaData indexMetaData : resolvedIndices) {
-                    indexNames[i++] = indexMetaData.getIndex();
+                    indexNames[i++] = indexMetaData.getIndex().getName();
                 }
                 throw new IllegalArgumentException("Alias [" + expression + "] has more than one indices associated with it [" + Arrays.toString(indexNames) + "], can't execute a single index op");
             }
@@ -167,14 +167,14 @@ public class IndexNameExpressionResolver extends AbstractComponent {
             for (IndexMetaData index : resolvedIndices) {
                 if (index.getState() == IndexMetaData.State.CLOSE) {
                     if (failClosed) {
-                        throw new IndexClosedException(new Index(index.getIndex()));
+                        throw new IndexClosedException(index.getIndex());
                     } else {
                         if (options.forbidClosedIndices() == false) {
-                            concreteIndices.add(index.getIndex());
+                            concreteIndices.add(index.getIndex().getName());
                         }
                     }
                 } else if (index.getState() == IndexMetaData.State.OPEN) {
-                    concreteIndices.add(index.getIndex());
+                    concreteIndices.add(index.getIndex().getName());
                 } else {
                     throw new IllegalStateException("index state [" + index.getState() + "] not supported");
                 }
@@ -640,7 +640,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
                     } else {
                         for (IndexMetaData meta : aliasOrIndex.getIndices()) {
                             if (excludeState == null || meta.getState() != excludeState) {
-                                expand.add(meta.getIndex());
+                                expand.add(meta.getIndex().getName());
                             }
                         }
                     }

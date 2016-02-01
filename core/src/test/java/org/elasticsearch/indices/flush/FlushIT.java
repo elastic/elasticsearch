@@ -30,11 +30,11 @@ import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationComman
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -86,11 +86,12 @@ public class FlushIT extends ESIntegTestCase {
         }
     }
 
-    @TestLogging("indices:TRACE")
     public void testSyncedFlush() throws ExecutionException, InterruptedException, IOException {
         internalCluster().ensureAtLeastNumDataNodes(2);
         prepareCreate("test").setSettings(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).get();
         ensureGreen();
+
+        final Index index = client().admin().cluster().prepareState().get().getState().metaData().index("test").getIndex();
 
         IndexStats indexStats = client().admin().indices().prepareStats("test").get().getIndex("test");
         for (ShardStats shardStats : indexStats.getShards()) {
@@ -100,7 +101,7 @@ public class FlushIT extends ESIntegTestCase {
         ShardsSyncedFlushResult result;
         if (randomBoolean()) {
             logger.info("--> sync flushing shard 0");
-            result = SyncedFlushUtil.attemptSyncedFlush(internalCluster(), new ShardId("test", 0));
+            result = SyncedFlushUtil.attemptSyncedFlush(internalCluster(), new ShardId(index, 0));
         } else {
             logger.info("--> sync flushing index [test]");
             SyncedFlushResponse indicesResult = client().admin().indices().prepareSyncedFlush("test").get();
@@ -123,7 +124,7 @@ public class FlushIT extends ESIntegTestCase {
         ShardRouting shardRouting = clusterState.getRoutingTable().index("test").shard(0).iterator().next();
         String currentNodeName = clusterState.nodes().resolveNode(shardRouting.currentNodeId()).name();
         assertFalse(currentNodeName.equals(newNodeName));
-        internalCluster().client().admin().cluster().prepareReroute().add(new MoveAllocationCommand(new ShardId("test", 0), currentNodeName, newNodeName)).get();
+        internalCluster().client().admin().cluster().prepareReroute().add(new MoveAllocationCommand("test", 0, currentNodeName, newNodeName)).get();
 
         client().admin().cluster().prepareHealth()
                 .setWaitForRelocatingShards(0)

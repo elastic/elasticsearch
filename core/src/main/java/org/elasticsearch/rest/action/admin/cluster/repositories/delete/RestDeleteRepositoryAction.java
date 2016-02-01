@@ -40,7 +40,7 @@ public class RestDeleteRepositoryAction extends BaseRestHandler {
 
     @Inject
     public RestDeleteRepositoryAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+        super(settings, client);
         controller.registerHandler(DELETE, "/_snapshot/{repository}", this);
     }
 

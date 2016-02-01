@@ -21,6 +21,7 @@ package org.elasticsearch.plugin.reindex;
 
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.SearchShardTarget;
@@ -39,7 +40,7 @@ public abstract class AbstractAsyncBulkIndexByScrollActionScriptTestCase<Request
         IndexRequest index = new IndexRequest("index", "type", "1").source(singletonMap("foo", "bar"));
         Map<String, SearchHitField> fields = new HashMap<>();
         InternalSearchHit doc = new InternalSearchHit(0, "id", new Text("type"), fields);
-        doc.shardTarget(new SearchShardTarget("nodeid", "index", 1));
+        doc.shardTarget(new SearchShardTarget("nodeid", new Index("index", "uuid"), 1));
         ExecutableScript script = new SimpleExecutableScript(scriptBody);
         action().applyScript(index, doc, script, new HashMap<>());
         return index;

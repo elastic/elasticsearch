@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.internal;
 
+import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
@@ -26,6 +27,9 @@ import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.FieldDoc;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
@@ -45,6 +49,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.ParsedQuery;
@@ -112,6 +117,7 @@ public class DefaultSearchContext extends SearchContext {
     private Sort sort;
     private Float minimumScore;
     private boolean trackScores = false; // when sorting, track scores as well...
+    private FieldDoc searchAfter;
     /**
      * The original query as sent by the user without the types and aliases
      * applied. Putting things in here leaks them into highlighting so don't add
@@ -140,7 +146,6 @@ public class DefaultSearchContext extends SearchContext {
     private volatile long keepAlive;
     private final long originNanoTime = System.nanoTime();
     private volatile long lastAccessTime = -1;
-    private InnerHitsContext innerHitsContext;
     private Profilers profilers;
 
     private final Map<String, FetchSubPhaseContext> subPhaseContexts = new HashMap<>();
@@ -152,7 +157,7 @@ public class DefaultSearchContext extends SearchContext {
                                 BigArrays bigArrays, Counter timeEstimateCounter, ParseFieldMatcher parseFieldMatcher,
                                 TimeValue timeout
     ) {
-        super(parseFieldMatcher, request);
+        super(parseFieldMatcher);
         this.id = id;
         this.request = request;
         this.searchType = request.searchType();
@@ -238,19 +243,37 @@ public class DefaultSearchContext extends SearchContext {
     }
 
     @Override
+    @Nullable
     public Query searchFilter(String[] types) {
-        Query filter = mapperService().searchFilter(types);
-        if (filter == null && aliasFilter == null) {
+        return createSearchFilter(types, aliasFilter, mapperService().hasNested());
+    }
+
+    // extracted to static helper method to make writing unit tests easier:
+    static Query createSearchFilter(String[] types, Query aliasFilter, boolean hasNestedFields) {
+        Query typesFilter = null;
+        if (types != null && types.length >= 1) {
+            BytesRef[] typesBytes = new BytesRef[types.length];
+            for (int i = 0; i < typesBytes.length; i++) {
+                typesBytes[i] = new BytesRef(types[i]);
+            }
+            typesFilter = new TermsQuery(TypeFieldMapper.NAME, typesBytes);
+        }
+
+        if (typesFilter == null && aliasFilter == null && hasNestedFields == false) {
             return null;
         }
+
         BooleanQuery.Builder bq = new BooleanQuery.Builder();
-        if (filter != null) {
-            bq.add(filter, Occur.MUST);
+        if (typesFilter != null) {
+            bq.add(typesFilter, Occur.FILTER);
+        } else if (hasNestedFields) {
+            bq.add(Queries.newNonNestedFilter(), Occur.FILTER);
         }
         if (aliasFilter != null) {
-            bq.add(aliasFilter, Occur.MUST);
+            bq.add(aliasFilter, Occur.FILTER);
         }
-        return new ConstantScoreQuery(bq.build());
+
+        return bq.build();
     }
 
     @Override
@@ -529,6 +552,17 @@ public class DefaultSearchContext extends SearchContext {
     }
 
     @Override
+    public SearchContext searchAfter(FieldDoc searchAfter) {
+        this.searchAfter = searchAfter;
+        return this;
+    }
+
+    @Override
+    public FieldDoc searchAfter() {
+        return searchAfter;
+    }
+
+    @Override
     public SearchContext parsedPostFilter(ParsedQuery postFilter) {
         this.postFilter = postFilter;
         return this;
@@ -724,16 +758,6 @@ public class DefaultSearchContext extends SearchContext {
     @Override
     public Counter timeEstimateCounter() {
         return timeEstimateCounter;
-    }
-
-    @Override
-    public void innerHits(InnerHitsContext innerHitsContext) {
-        this.innerHitsContext = innerHitsContext;
-    }
-
-    @Override
-    public InnerHitsContext innerHits() {
-        return innerHitsContext;
     }
 
     @Override

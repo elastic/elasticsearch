@@ -24,8 +24,10 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.NodeConfigurationSource;
+import org.elasticsearch.transport.TransportSettings;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -35,7 +37,7 @@ import java.util.Set;
 
 public class ClusterDiscoveryConfiguration extends NodeConfigurationSource {
 
-    static Settings DEFAULT_NODE_SETTINGS = Settings.settingsBuilder().put("discovery.type", "zen").build();
+    static Settings DEFAULT_NODE_SETTINGS = Settings.settingsBuilder().put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "zen").build();
     private static final String IP_ADDR = "127.0.0.1";
 
     final int numOfNodes;
@@ -112,10 +114,8 @@ public class ClusterDiscoveryConfiguration extends NodeConfigurationSource {
                 throw new ElasticsearchException("nodeOrdinal [" + nodeOrdinal + "] is greater than the number unicast ports [" + unicastHostPorts.length + "]");
             } else {
                 // we need to pin the node port & host so we'd know where to point things
-                builder.put("transport.tcp.port", unicastHostPorts[nodeOrdinal]);
-                builder.put("transport.host", IP_ADDR); // only bind on one IF we use v4 here by default
-                builder.put("transport.bind_host", IP_ADDR);
-                builder.put("transport.publish_host", IP_ADDR);
+                builder.put(TransportSettings.PORT.getKey(), unicastHostPorts[nodeOrdinal]);
+                builder.put(TransportSettings.HOST.getKey(), IP_ADDR); // only bind on one IF we use v4 here by default
                 builder.put("http.enabled", false);
                 for (int i = 0; i < unicastHostOrdinals.length; i++) {
                     unicastHosts[i] = IP_ADDR + ":" + (unicastHostPorts[unicastHostOrdinals[i]]);

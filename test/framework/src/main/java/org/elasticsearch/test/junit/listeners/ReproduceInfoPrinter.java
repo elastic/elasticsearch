@@ -147,7 +147,7 @@ public class ReproduceInfoPrinter extends RunListener {
             if (System.getProperty("tests.jvm.argline") != null && !System.getProperty("tests.jvm.argline").isEmpty()) {
                 appendOpt("tests.jvm.argline", "\"" + System.getProperty("tests.jvm.argline") + "\"");
             }
-            appendOpt("tests.locale", Locale.getDefault().toString());
+            appendOpt("tests.locale", Locale.getDefault().toLanguageTag());
             appendOpt("tests.timezone", TimeZone.getDefault().getID());
             return this;
         }

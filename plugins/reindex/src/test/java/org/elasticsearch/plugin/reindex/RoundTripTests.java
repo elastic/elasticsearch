@@ -28,6 +28,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService.ScriptType;
@@ -112,9 +113,12 @@ public class RoundTripTests extends ESTestCase {
     }
 
     private List<ShardSearchFailure> randomSearchFailures() {
-        return usually() ? emptyList()
-                : singletonList(new ShardSearchFailure(randomSimpleString(random()), new SearchShardTarget(randomSimpleString(random()),
-                        randomSimpleString(random()), randomInt()), randomFrom(RestStatus.values())));
+        if (usually()) {
+            return emptyList();
+        }
+        Index index = new Index(randomSimpleString(random()), "uuid");
+        return singletonList(new ShardSearchFailure(randomSimpleString(random()),
+                new SearchShardTarget(randomSimpleString(random()), index, randomInt()), randomFrom(RestStatus.values())));
     }
 
 

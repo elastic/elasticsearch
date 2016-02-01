@@ -32,12 +32,12 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexSettings;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -89,9 +89,9 @@ public abstract class PrimaryShardAllocator extends AbstractComponent {
                 continue;
             }
 
-            final IndexMetaData indexMetaData = metaData.index(shard.getIndex());
-            final IndexSettings indexSettings = new IndexSettings(indexMetaData, settings);
-
+            final IndexMetaData indexMetaData = metaData.index(shard.getIndexName());
+            // don't go wild here and create a new IndexSetting object for every shard this could cause a lot of garbage
+            // on cluster restart if we allocate a boat load of shards
             if (shard.allocatedPostIndexCreate(indexMetaData) == false) {
                 // when we create a fresh index
                 continue;
@@ -107,13 +107,13 @@ public abstract class PrimaryShardAllocator extends AbstractComponent {
 
             final Set<String> lastActiveAllocationIds = indexMetaData.activeAllocationIds(shard.id());
             final boolean snapshotRestore = shard.restoreSource() != null;
-            final boolean recoverOnAnyNode = recoverOnAnyNode(indexSettings);
+            final boolean recoverOnAnyNode = recoverOnAnyNode(indexMetaData);
 
             final NodesAndVersions nodesAndVersions;
             final boolean enoughAllocationsFound;
 
             if (lastActiveAllocationIds.isEmpty()) {
-                assert indexSettings.getIndexVersionCreated().before(Version.V_3_0_0) : "trying to allocated a primary with an empty allocation id set, but index is new";
+                assert Version.indexCreated(indexMetaData.getSettings()).before(Version.V_3_0_0) : "trying to allocated a primary with an empty allocation id set, but index is new";
                 // when we load an old index (after upgrading cluster) or restore a snapshot of an old index
                 // fall back to old version-based allocation mode
                 // Note that once the shard has been active, lastActiveAllocationIds will be non-empty
@@ -175,8 +175,8 @@ public abstract class PrimaryShardAllocator extends AbstractComponent {
      */
     protected NodesAndVersions buildAllocationIdBasedNodes(ShardRouting shard, boolean matchAnyShard, Set<String> ignoreNodes,
                                                            Set<String> lastActiveAllocationIds, AsyncShardFetch.FetchResult<TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> shardState) {
-        List<DiscoveryNode> matchingNodes = new ArrayList<>();
-        List<DiscoveryNode> nonMatchingNodes = new ArrayList<>();
+        LinkedList<DiscoveryNode> matchingNodes = new LinkedList<>();
+        LinkedList<DiscoveryNode> nonMatchingNodes = new LinkedList<>();
         long highestVersion = -1;
         for (TransportNodesListGatewayStartedShards.NodeGatewayStartedShards nodeShardState : shardState.getData().values()) {
             DiscoveryNode node = nodeShardState.getNode();
@@ -200,10 +200,18 @@ public abstract class PrimaryShardAllocator extends AbstractComponent {
 
             if (allocationId != null) {
                 if (lastActiveAllocationIds.contains(allocationId)) {
-                    matchingNodes.add(node);
+                    if (nodeShardState.primary()) {
+                        matchingNodes.addFirst(node);
+                    } else {
+                        matchingNodes.addLast(node);
+                    }
                     highestVersion = Math.max(highestVersion, nodeShardState.version());
                 } else if (matchAnyShard) {
-                    nonMatchingNodes.add(node);
+                    if (nodeShardState.primary()) {
+                        nonMatchingNodes.addFirst(node);
+                    } else {
+                        nonMatchingNodes.addLast(node);
+                    }
                     highestVersion = Math.max(highestVersion, nodeShardState.version());
                 }
             }
@@ -347,9 +355,9 @@ public abstract class PrimaryShardAllocator extends AbstractComponent {
      * Return {@code true} if the index is configured to allow shards to be
      * recovered on any node
      */
-    private boolean recoverOnAnyNode(IndexSettings indexSettings) {
-        return indexSettings.isOnSharedFilesystem()
-            && IndexMetaData.INDEX_SHARED_FS_ALLOW_RECOVERY_ON_ANY_NODE_SETTING.get(indexSettings.getSettings());
+    private boolean recoverOnAnyNode(IndexMetaData metaData) {
+        return (IndexMetaData.isOnSharedFilesystem(metaData.getSettings()) || IndexMetaData.isOnSharedFilesystem(this.settings))
+            && IndexMetaData.INDEX_SHARED_FS_ALLOW_RECOVERY_ON_ANY_NODE_SETTING.get(metaData.getSettings(), this.settings);
     }
 
     protected abstract AsyncShardFetch.FetchResult<TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> fetchData(ShardRouting shard, RoutingAllocation allocation);

@@ -20,11 +20,13 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.Term;
+import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -40,6 +42,7 @@ import java.util.HashSet;
 import java.util.concurrent.ExecutionException;
 
 import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 
@@ -103,7 +106,7 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
             fail();
         } catch (Throwable t) {
             if (t instanceof ExecutionException) {
-                t = ((ExecutionException) t).getCause();
+                t = t.getCause();
             }
             final Throwable throwable = ExceptionsHelper.unwrapCause(t);
             if (throwable instanceof IllegalArgumentException) {
@@ -120,7 +123,7 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
             fail();
         } catch (Throwable t) {
             if (t instanceof ExecutionException) {
-                t = ((ExecutionException) t).getCause();
+                t = t.getCause();
             }
             final Throwable throwable = ExceptionsHelper.unwrapCause(t);
             if (throwable instanceof IllegalArgumentException) {
@@ -132,21 +135,4 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
         assertFalse(indexService.mapperService().hasMapping(MapperService.DEFAULT_MAPPING));
     }
 
-    public void testSearchFilter() {
-        IndexService indexService = createIndex("index1", client().admin().indices().prepareCreate("index1")
-            .addMapping("type1", "field1", "type=nested")
-            .addMapping("type2", new Object[0])
-        );
-
-        Query searchFilter = indexService.mapperService().searchFilter("type1", "type3");
-        Query expectedQuery = new BooleanQuery.Builder()
-            .add(new BooleanQuery.Builder()
-                .add(new ConstantScoreQuery(new TermQuery(new Term(TypeFieldMapper.NAME, "type1"))), BooleanClause.Occur.SHOULD)
-                .add(new TermQuery(new Term(TypeFieldMapper.NAME, "type3")), BooleanClause.Occur.SHOULD)
-                .build(), BooleanClause.Occur.MUST
-            )
-            .add(Queries.newNonNestedFilter(), BooleanClause.Occur.MUST)
-            .build();
-        assertThat(searchFilter, equalTo(new ConstantScoreQuery(expectedQuery)));
-    }
 }

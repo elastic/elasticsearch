@@ -39,18 +39,19 @@ import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.MultiDataPathUpgrader;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.MetaDataStateFormat;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.mapper.string.StringFieldMapperPositionIncrementGapTests;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.MergePolicyConfig;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -143,14 +144,14 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
         Path baseTempDir = createTempDir();
         // start single data path node
         Settings.Builder nodeSettings = Settings.builder()
-            .put("path.data", baseTempDir.resolve("single-path").toAbsolutePath())
-            .put("node.master", false); // workaround for dangling index loading issue when node is master
+            .put(Environment.PATH_DATA_SETTING.getKey(), baseTempDir.resolve("single-path").toAbsolutePath())
+            .put(Node.NODE_MASTER_SETTING.getKey(), false); // workaround for dangling index loading issue when node is master
         InternalTestCluster.Async<String> singleDataPathNode = internalCluster().startNodeAsync(nodeSettings.build());
 
         // start multi data path node
         nodeSettings = Settings.builder()
-            .put("path.data", baseTempDir.resolve("multi-path1").toAbsolutePath() + "," + baseTempDir.resolve("multi-path2").toAbsolutePath())
-            .put("node.master", false); // workaround for dangling index loading issue when node is master
+            .put(Environment.PATH_DATA_SETTING.getKey(), baseTempDir.resolve("multi-path1").toAbsolutePath() + "," + baseTempDir.resolve("multi-path2").toAbsolutePath())
+            .put(Node.NODE_MASTER_SETTING.getKey(), false); // workaround for dangling index loading issue when node is master
         InternalTestCluster.Async<String> multiDataPathNode = internalCluster().startNodeAsync(nodeSettings.build());
 
         // find single data path dir
@@ -208,10 +209,6 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
     }
 
     void importIndex(String indexName) throws IOException {
-        final Iterable<NodeEnvironment> instances = internalCluster().getInstances(NodeEnvironment.class);
-        for (NodeEnvironment nodeEnv : instances) { // upgrade multidata path
-            MultiDataPathUpgrader.upgradeMultiDataPath(nodeEnv, logger);
-        }
         // force reloading dangling indices with a cluster state republish
         client().admin().cluster().prepareReroute().get();
         ensureGreen(indexName);
@@ -219,6 +216,7 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
 
     // randomly distribute the files from src over dests paths
     public static void copyIndex(final ESLogger logger, final Path src, final String indexName, final Path... dests) throws IOException {
+        Path destinationDataPath = dests[randomInt(dests.length - 1)];
         for (Path dest : dests) {
             Path indexDir = dest.resolve(indexName);
             assertFalse(Files.exists(indexDir));
@@ -244,7 +242,7 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
                 }
 
                 Path relativeFile = src.relativize(file);
-                Path destFile = dests[randomInt(dests.length - 1)].resolve(indexName).resolve(relativeFile);
+                Path destFile = destinationDataPath.resolve(indexName).resolve(relativeFile);
                 logger.trace("--> Moving " + relativeFile.toString() + " to " + destFile.toString());
                 Files.move(file, destFile);
                 assertFalse(Files.exists(file));
@@ -334,7 +332,7 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
             }
         }
         SearchResponse test = client().prepareSearch(indexName).get();
-        assertThat(test.getHits().getTotalHits(), greaterThanOrEqualTo(1l));
+        assertThat(test.getHits().getTotalHits(), greaterThanOrEqualTo(1L));
     }
 
     void assertBasicSearchWorks(String indexName) {

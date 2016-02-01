@@ -62,8 +62,7 @@ public class GeoHashGridParser implements Aggregator.Parser {
     @Override
     public AggregatorFactory parse(String aggregationName, XContentParser parser, SearchContext context) throws IOException {
 
-        ValuesSourceParser<ValuesSource.GeoPoint> vsParser = ValuesSourceParser.geoPoint(aggregationName, InternalGeoHashGrid.TYPE, context)
-                .build();
+        ValuesSourceParser vsParser = ValuesSourceParser.geoPoint(aggregationName, InternalGeoHashGrid.TYPE, context).build();
 
         int precision = GeoHashGridParams.DEFAULT_PRECISION;
         int requiredSize = GeoHashGridParams.DEFAULT_MAX_NUM_CELLS;
@@ -132,7 +131,6 @@ public class GeoHashGridParser implements Aggregator.Parser {
             final InternalAggregation aggregation = new InternalGeoHashGrid(name, requiredSize,
                     Collections.<InternalGeoHashGrid.Bucket> emptyList(), pipelineAggregators, metaData);
             return new NonCollectingAggregator(name, aggregationContext, parent, pipelineAggregators, metaData) {
-                @Override
                 public InternalAggregation buildEmptyAggregation() {
                     return aggregation;
                 }

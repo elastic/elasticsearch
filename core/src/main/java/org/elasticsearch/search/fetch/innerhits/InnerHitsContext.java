@@ -27,6 +27,7 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreScorer;
 import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.DocValuesTermsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
@@ -55,6 +56,7 @@ import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -62,6 +64,10 @@ import java.util.Map;
 public final class InnerHitsContext {
 
     private final Map<String, BaseInnerHits> innerHits;
+
+    public InnerHitsContext() {
+        this.innerHits = new HashMap<>();
+    }
 
     public InnerHitsContext(Map<String, BaseInnerHits> innerHits) {
         this.innerHits = innerHits;
@@ -72,7 +78,17 @@ public final class InnerHitsContext {
     }
 
     public void addInnerHitDefinition(String name, BaseInnerHits innerHit) {
+        if (innerHits.containsKey(name)) {
+            throw new IllegalArgumentException("inner_hit definition with the name [" + name + "] already exists. Use a different inner_hit name");
+        }
+
         innerHits.put(name, innerHit);
+    }
+
+    public void addInnerHitDefinitions(Map<String, BaseInnerHits> innerHits) {
+        for (Map.Entry<String, BaseInnerHits> entry : innerHits.entrySet()) {
+            addInnerHitDefinition(entry.getKey(), entry.getValue());
+        }
     }
 
     public static abstract class BaseInnerHits extends FilteredSearchContext {
@@ -284,20 +300,18 @@ public final class InnerHitsContext {
 
         @Override
         public TopDocs topDocs(SearchContext context, FetchSubPhase.HitContext hitContext) throws IOException {
-            final String field;
-            final String term;
+            final Query hitQuery;
             if (isParentHit(hitContext.hit())) {
-                field = ParentFieldMapper.NAME;
-                term = Uid.createUid(hitContext.hit().type(), hitContext.hit().id());
+                String field = ParentFieldMapper.joinField(hitContext.hit().type());
+                hitQuery = new DocValuesTermsQuery(field, hitContext.hit().id());
             } else if (isChildHit(hitContext.hit())) {
                 DocumentMapper hitDocumentMapper = mapperService.documentMapper(hitContext.hit().type());
                 final String parentType = hitDocumentMapper.parentFieldMapper().type();
-                field = UidFieldMapper.NAME;
                 SearchHitField parentField = hitContext.hit().field(ParentFieldMapper.NAME);
                 if (parentField == null) {
                     throw new IllegalStateException("All children must have a _parent");
                 }
-                term = Uid.createUid(parentType, (String) parentField.getValue());
+                hitQuery = new TermQuery(new Term(UidFieldMapper.NAME, Uid.createUid(parentType, parentField.getValue())));
             } else {
                 return Lucene.EMPTY_TOP_DOCS;
             }
@@ -305,9 +319,9 @@ public final class InnerHitsContext {
             BooleanQuery q = new BooleanQuery.Builder()
                 .add(query.query(), Occur.MUST)
                 // Only include docs that have the current hit as parent
-                .add(new TermQuery(new Term(field, term)), Occur.MUST)
+                .add(hitQuery, Occur.FILTER)
                 // Only include docs that have this inner hits type
-                .add(documentMapper.typeFilter(), Occur.MUST)
+                .add(documentMapper.typeFilter(), Occur.FILTER)
                 .build();
             if (size() == 0) {
                 final int count = context.searcher().count(q);

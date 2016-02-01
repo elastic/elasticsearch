@@ -199,7 +199,14 @@ public abstract class QueryBuilders {
      *
      * @param name  The name of the field
      * @param value The value of the term
+     *
+     * @deprecated Fuzzy queries are not useful enough and will be removed with Elasticsearch 4.0. In most cases you may want to use
+     * a match query with the fuzziness parameter for strings or range queries for numeric and date fields.
+     *
+     * @see #matchQuery(String, Object)
+     * @see #rangeQuery(String)
      */
+    @Deprecated
     public static FuzzyQueryBuilder fuzzyQuery(String name, String value) {
         return new FuzzyQueryBuilder(name, value);
     }
@@ -209,7 +216,14 @@ public abstract class QueryBuilders {
      *
      * @param name  The name of the field
      * @param value The value of the term
+     *
+     * @deprecated Fuzzy queries are not useful enough and will be removed with Elasticsearch 4.0. In most cases you may want to use
+     * a match query with the fuzziness parameter for strings or range queries for numeric and date fields.
+     *
+     * @see #matchQuery(String, Object)
+     * @see #rangeQuery(String)
      */
+    @Deprecated
     public static FuzzyQueryBuilder fuzzyQuery(String name, Object value) {
         return new FuzzyQueryBuilder(name, value);
     }
@@ -488,6 +502,14 @@ public abstract class QueryBuilders {
      */
     public static HasParentQueryBuilder hasParentQuery(String type, QueryBuilder query) {
         return new HasParentQueryBuilder(type, query);
+    }
+
+    /**
+     * Constructs a new parent id query that returns all child documents of the specified type that
+     * point to the specified id.
+     */
+    public static ParentIdQueryBuilder parentId(String type, String id) {
+        return new ParentIdQueryBuilder(type, id);
     }
 
     public static NestedQueryBuilder nestedQuery(String path, QueryBuilder query) {

@@ -96,7 +96,7 @@ public class MultiPercolatorIT extends ESIntegTestCase {
                 .execute().actionGet();
 
         MultiPercolateResponse.Item item = response.getItems()[0];
-        assertMatchCount(item.getResponse(), 2l);
+        assertMatchCount(item.getResponse(), 2L);
         assertThat(item.getResponse().getMatches(), arrayWithSize(2));
         assertThat(item.getErrorMessage(), nullValue());
         assertThat(convertFromTextArray(item.getResponse().getMatches(), "test"), arrayContainingInAnyOrder("1", "4"));
@@ -104,18 +104,18 @@ public class MultiPercolatorIT extends ESIntegTestCase {
         item = response.getItems()[1];
         assertThat(item.getErrorMessage(), nullValue());
 
-        assertMatchCount(item.getResponse(), 2l);
+        assertMatchCount(item.getResponse(), 2L);
         assertThat(item.getResponse().getMatches(), arrayWithSize(2));
         assertThat(convertFromTextArray(item.getResponse().getMatches(), "test"), arrayContainingInAnyOrder("2", "4"));
 
         item = response.getItems()[2];
         assertThat(item.getErrorMessage(), nullValue());
-        assertMatchCount(item.getResponse(), 4l);
+        assertMatchCount(item.getResponse(), 4L);
         assertThat(convertFromTextArray(item.getResponse().getMatches(), "test"), arrayContainingInAnyOrder("1", "2", "3", "4"));
 
         item = response.getItems()[3];
         assertThat(item.getErrorMessage(), nullValue());
-        assertMatchCount(item.getResponse(), 1l);
+        assertMatchCount(item.getResponse(), 1L);
         assertThat(item.getResponse().getMatches(), arrayWithSize(1));
         assertThat(convertFromTextArray(item.getResponse().getMatches(), "test"), arrayContaining("4"));
 
@@ -175,7 +175,7 @@ public class MultiPercolatorIT extends ESIntegTestCase {
                 .execute().actionGet();
 
         MultiPercolateResponse.Item item = response.getItems()[0];
-        assertMatchCount(item.getResponse(), 2l);
+        assertMatchCount(item.getResponse(), 2L);
         assertThat(item.getResponse().getMatches(), arrayWithSize(2));
         assertThat(item.getErrorMessage(), nullValue());
         assertThat(convertFromTextArray(item.getResponse().getMatches(), "test"), arrayContainingInAnyOrder("1", "4"));
@@ -183,18 +183,18 @@ public class MultiPercolatorIT extends ESIntegTestCase {
         item = response.getItems()[1];
         assertThat(item.getErrorMessage(), nullValue());
 
-        assertMatchCount(item.getResponse(), 2l);
+        assertMatchCount(item.getResponse(), 2L);
         assertThat(item.getResponse().getMatches(), arrayWithSize(2));
         assertThat(convertFromTextArray(item.getResponse().getMatches(), "test"), arrayContainingInAnyOrder("2", "4"));
 
         item = response.getItems()[2];
         assertThat(item.getErrorMessage(), nullValue());
-        assertMatchCount(item.getResponse(), 4l);
+        assertMatchCount(item.getResponse(), 4L);
         assertThat(convertFromTextArray(item.getResponse().getMatches(), "test"), arrayContainingInAnyOrder("1", "2", "3", "4"));
 
         item = response.getItems()[3];
         assertThat(item.getErrorMessage(), nullValue());
-        assertMatchCount(item.getResponse(), 1l);
+        assertMatchCount(item.getResponse(), 1L);
         assertThat(item.getResponse().getMatches(), arrayWithSize(1));
         assertThat(convertFromTextArray(item.getResponse().getMatches(), "test"), arrayContaining("4"));
 

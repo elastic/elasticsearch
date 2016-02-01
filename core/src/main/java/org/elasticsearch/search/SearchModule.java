@@ -19,14 +19,6 @@
 
 package org.elasticsearch.search;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.function.Supplier;
-
 import org.apache.lucene.search.BooleanQuery;
 import org.elasticsearch.common.geo.ShapesAvailability;
 import org.elasticsearch.common.geo.builders.CircleBuilder;
@@ -68,6 +60,7 @@ import org.elasticsearch.index.query.MatchQueryParser;
 import org.elasticsearch.index.query.MoreLikeThisQueryParser;
 import org.elasticsearch.index.query.MultiMatchQueryParser;
 import org.elasticsearch.index.query.NestedQueryParser;
+import org.elasticsearch.index.query.ParentIdQueryParser;
 import org.elasticsearch.index.query.PrefixQueryParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParser;
@@ -218,6 +211,7 @@ import org.elasticsearch.search.fetch.explain.ExplainFetchSubPhase;
 import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsFetchSubPhase;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsFetchSubPhase;
 import org.elasticsearch.search.fetch.matchedqueries.MatchedQueriesFetchSubPhase;
+import org.elasticsearch.search.fetch.parent.ParentFieldSubFetchPhase;
 import org.elasticsearch.search.fetch.script.ScriptFieldsFetchSubPhase;
 import org.elasticsearch.search.fetch.source.FetchSourceSubPhase;
 import org.elasticsearch.search.fetch.version.VersionFetchSubPhase;
@@ -225,8 +219,18 @@ import org.elasticsearch.search.highlight.HighlightPhase;
 import org.elasticsearch.search.highlight.Highlighter;
 import org.elasticsearch.search.highlight.Highlighters;
 import org.elasticsearch.search.query.QueryPhase;
+import org.elasticsearch.search.rescore.QueryRescorerBuilder;
+import org.elasticsearch.search.rescore.RescoreBuilder;
 import org.elasticsearch.search.suggest.Suggester;
 import org.elasticsearch.search.suggest.Suggesters;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Supplier;
 
 /**
  *
@@ -325,6 +329,7 @@ public class SearchModule extends AbstractModule {
         bind(IndicesQueriesRegistry.class).toInstance(buildQueryParserRegistry());
         configureFetchSubPhase();
         configureShapes();
+        configureRescorers();
     }
 
     protected void configureFetchSubPhase() {
@@ -336,6 +341,7 @@ public class SearchModule extends AbstractModule {
         fetchSubPhaseMultibinder.addBinding().to(VersionFetchSubPhase.class);
         fetchSubPhaseMultibinder.addBinding().to(MatchedQueriesFetchSubPhase.class);
         fetchSubPhaseMultibinder.addBinding().to(HighlightPhase.class);
+        fetchSubPhaseMultibinder.addBinding().to(ParentFieldSubFetchPhase.class);
         for (Class<? extends FetchSubPhase> clazz : fetchSubPhases) {
             fetchSubPhaseMultibinder.addBinding().to(clazz);
         }
@@ -464,6 +470,10 @@ public class SearchModule extends AbstractModule {
         }
     }
 
+    private void configureRescorers() {
+        namedWriteableRegistry.registerPrototype(RescoreBuilder.class, QueryRescorerBuilder.PROTOTYPE);
+    }
+
     private void registerBuiltinFunctionScoreParsers() {
         registerFunctionScoreParser(new ScriptScoreFunctionParser());
         registerFunctionScoreParser(new GaussDecayFunctionParser());
@@ -523,6 +533,7 @@ public class SearchModule extends AbstractModule {
         registerQueryParser(GeoPolygonQueryParser::new);
         registerQueryParser(ExistsQueryParser::new);
         registerQueryParser(MatchNoneQueryParser::new);
+        registerQueryParser(ParentIdQueryParser::new);
         if (ShapesAvailability.JTS_AVAILABLE && ShapesAvailability.SPATIAL4J_AVAILABLE) {
             registerQueryParser(GeoShapeQueryParser::new);
         }

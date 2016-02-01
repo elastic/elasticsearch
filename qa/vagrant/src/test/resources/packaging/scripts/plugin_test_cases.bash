@@ -219,10 +219,6 @@ fi
     install_and_check_plugin discovery ec2 aws-java-sdk-core-*.jar
 }
 
-@test "[$GROUP] install multicast discovery plugin" {
-    install_and_check_plugin discovery multicast
-}
-
 @test "[$GROUP] install lang-expression plugin" {
     install_and_check_plugin lang expression
 }
@@ -231,8 +227,8 @@ fi
     install_and_check_plugin lang groovy
 }
 
-@test "[$GROUP] install lang-plan-a plugin" {
-    install_and_check_plugin lang plan-a 
+@test "[$GROUP] install lang-painless plugin" {
+    install_and_check_plugin lang painless
 }
 
 @test "[$GROUP] install javascript plugin" {
@@ -265,12 +261,6 @@ fi
 
 @test "[$GROUP] install repository-s3 plugin" {
     install_and_check_plugin repository s3 aws-java-sdk-core-*.jar
-}
-
-@test "[$GROUP] install site example" {
-    # Doesn't use install_and_check_plugin because this is a site plugin
-    install_plugin site-example $(readlink -m site-example-*.zip)
-    assert_file_exist "$ESHOME/plugins/site-example/_site/index.html"
 }
 
 @test "[$GROUP] install store-smb plugin" {
@@ -335,10 +325,6 @@ fi
     remove_plugin discovery-ec2
 }
 
-@test "[$GROUP] remove multicast discovery plugin" {
-    remove_plugin discovery-multicast
-}
-
 @test "[$GROUP] remove lang-expression plugin" {
     remove_plugin lang-expression
 }
@@ -347,8 +333,8 @@ fi
     remove_plugin lang-groovy
 }
 
-@test "[$GROUP] remove lang-plan-a plugin" {
-    remove_plugin lang-plan-a
+@test "[$GROUP] remove lang-painless plugin" {
+    remove_plugin lang-painless
 }
 
 @test "[$GROUP] remove javascript plugin" {

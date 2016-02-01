@@ -66,7 +66,7 @@ import static org.elasticsearch.index.mapper.core.TypeParsers.parseNumberField;
 public class IpFieldMapper extends NumberFieldMapper {
 
     public static final String CONTENT_TYPE = "ip";
-    public static final long MAX_IP = 4294967296l;
+    public static final long MAX_IP = 4294967296L;
 
     public static String longToIp(long longIp) {
         int octet3 = (int) ((longIp >> 24) % 256);

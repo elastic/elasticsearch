@@ -888,7 +888,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
     private static void setDefaultIndexTypeFields(QueryShardContext context, Item item, List<String> moreLikeFields,
                                                   boolean useDefaultField) {
         if (item.index() == null) {
-            item.index(context.index().name());
+            item.index(context.index().getName());
         }
         if (item.type() == null) {
             if (context.queryTypes().size() > 1) {
@@ -917,7 +917,6 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         for (Item item : unlikeItems) {
             request.add(item.toTermVectorsRequest());
         }
-        request.copyContextAndHeadersFrom(searchContext);
         return client.multiTermVectors(request).actionGet();
     }
 

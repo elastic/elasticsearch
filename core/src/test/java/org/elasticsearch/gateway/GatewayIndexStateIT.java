@@ -32,6 +32,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.indices.IndexClosedException;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
@@ -180,7 +181,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         logger.info("--> cleaning nodes");
 
         logger.info("--> starting 1 master node non data");
-        internalCluster().startNode(settingsBuilder().put("node.data", false).build());
+        internalCluster().startNode(settingsBuilder().put(Node.NODE_DATA_SETTING.getKey(), false).build());
 
         logger.info("--> create an index");
         client().admin().indices().prepareCreate("test").execute().actionGet();
@@ -189,7 +190,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         internalCluster().closeNonSharedNodes(false);
 
         logger.info("--> starting 1 master node non data again");
-        internalCluster().startNode(settingsBuilder().put("node.data", false).build());
+        internalCluster().startNode(settingsBuilder().put(Node.NODE_DATA_SETTING.getKey(), false).build());
 
         logger.info("--> waiting for test index to be created");
         ClusterHealthResponse health = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setIndices("test").execute().actionGet();
@@ -204,8 +205,8 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         logger.info("--> cleaning nodes");
 
         logger.info("--> starting 1 master node non data");
-        internalCluster().startNode(settingsBuilder().put("node.data", false).build());
-        internalCluster().startNode(settingsBuilder().put("node.master", false).build());
+        internalCluster().startNode(settingsBuilder().put(Node.NODE_DATA_SETTING.getKey(), false).build());
+        internalCluster().startNode(settingsBuilder().put(Node.NODE_MASTER_SETTING.getKey(), false).build());
 
         logger.info("--> create an index");
         client().admin().indices().prepareCreate("test").execute().actionGet();
@@ -231,7 +232,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
 
         logger.info("--> verify 1 doc in the index");
         for (int i = 0; i < 10; i++) {
-            assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), 1l);
+            assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), 1L);
         }
 
         logger.info("--> closing test index...");
@@ -249,9 +250,9 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         assertThat(health.isTimedOut(), equalTo(false));
 
         logger.info("--> verify 1 doc in the index");
-        assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), 1l);
+        assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), 1L);
         for (int i = 0; i < 10; i++) {
-            assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), 1l);
+            assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), 1L);
         }
     }
 
@@ -267,7 +268,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
 
         logger.info("--> verify 1 doc in the index");
         for (int i = 0; i < 10; i++) {
-            assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), 1l);
+            assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), 1L);
         }
         assertThat(client().prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(true));
 
@@ -327,7 +328,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
 
         logger.info("--> verify 1 doc in the index");
         for (int i = 0; i < 10; i++) {
-            assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), 1l);
+            assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), 1L);
         }
         assertThat(client().prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(true));
 

@@ -72,7 +72,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
 
         @Override
         protected IndexRequest buildIndexRequest(SearchHit doc) {
-            IndexRequest index = new IndexRequest(mainRequest);
+            IndexRequest index = new IndexRequest();
             index.index(doc.index());
             index.type(doc.type());
             index.id(doc.id());

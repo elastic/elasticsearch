@@ -32,7 +32,7 @@ import static org.hamcrest.Matchers.containsString;
  */
 public class ReindexScriptTests extends AbstractAsyncBulkIndexByScrollActionScriptTestCase<ReindexRequest, ReindexResponse> {
     public void testSetIndex() throws Exception {
-        Object dest = randomFrom(new Object[] {234, 234l, "pancake"});
+        Object dest = randomFrom(new Object[] {234, 234L, "pancake"});
         IndexRequest index = applyScript((Map<String, Object> ctx) -> ctx.put("_index", dest));
         assertEquals(dest.toString(), index.index());
     }
@@ -46,7 +46,7 @@ public class ReindexScriptTests extends AbstractAsyncBulkIndexByScrollActionScri
     }
 
     public void testSetType() throws Exception {
-        Object type = randomFrom(new Object[] {234, 234l, "pancake"});
+        Object type = randomFrom(new Object[] {234, 234L, "pancake"});
         IndexRequest index = applyScript((Map<String, Object> ctx) -> ctx.put("_type", type));
         assertEquals(type.toString(), index.type());
     }
@@ -60,7 +60,7 @@ public class ReindexScriptTests extends AbstractAsyncBulkIndexByScrollActionScri
     }
 
     public void testSetId() throws Exception {
-        Object id = randomFrom(new Object[] {null, 234, 234l, "pancake"});
+        Object id = randomFrom(new Object[] {null, 234, 234L, "pancake"});
         IndexRequest index = applyScript((Map<String, Object> ctx) -> ctx.put("_id", id));
         if (id == null) {
             assertNull(index.id());
@@ -70,7 +70,7 @@ public class ReindexScriptTests extends AbstractAsyncBulkIndexByScrollActionScri
     }
 
     public void testSetVersion() throws Exception {
-        Number version = randomFrom(new Number[] {null, 234, 234l});
+        Number version = randomFrom(new Number[] {null, 234, 234L});
         IndexRequest index = applyScript((Map<String, Object> ctx) -> ctx.put("_version", version));
         if (version == null) {
             assertEquals(Versions.MATCH_ANY, index.version());

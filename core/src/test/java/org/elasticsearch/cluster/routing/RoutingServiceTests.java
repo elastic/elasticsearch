@@ -198,7 +198,7 @@ public class RoutingServiceTests extends ESAllocationTestCase {
             ShardRouting shortDelayUnassignedReplica = null;
             ShardRouting longDelayUnassignedReplica = null;
             for (ShardRouting shr : unassigned) {
-                if (shr.getIndex().equals("short_delay")) {
+                if (shr.getIndexName().equals("short_delay")) {
                     shortDelayUnassignedReplica = shr;
                 } else {
                     longDelayUnassignedReplica = shr;

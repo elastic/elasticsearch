@@ -13,7 +13,6 @@
         nodes.info: {}
 
     - match:  { nodes.$master.plugins.0.name: repository-hdfs  }
-    - match:  { nodes.$master.plugins.0.jvm: true  }
 ---
 #
 # Check that we can't use file:// repositories or anything like that

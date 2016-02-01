@@ -39,6 +39,8 @@ import org.apache.lucene.util.CloseableThreadLocal;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
@@ -76,8 +78,7 @@ class MultiDocumentPercolatorIndex implements PercolatorIndex {
             } else {
                 memoryIndex = new MemoryIndex(true);
             }
-            Analyzer analyzer = context.mapperService().documentMapper(parsedDocument.type()).mappers().indexAnalyzer();
-            memoryIndices[i] = indexDoc(d, analyzer, memoryIndex).createSearcher().getIndexReader();
+            memoryIndices[i] = indexDoc(d, memoryIndex, context, parsedDocument).createSearcher().getIndexReader();
         }
         try {
             MultiReader mReader = new MultiReader(memoryIndices, true);
@@ -101,8 +102,13 @@ class MultiDocumentPercolatorIndex implements PercolatorIndex {
         }
     }
 
-    MemoryIndex indexDoc(ParseContext.Document d, Analyzer analyzer, MemoryIndex memoryIndex) {
+    MemoryIndex indexDoc(ParseContext.Document d, MemoryIndex memoryIndex, PercolateContext context, ParsedDocument parsedDocument) {
         for (IndexableField field : d.getFields()) {
+            Analyzer analyzer = context.analysisService().defaultIndexAnalyzer();
+            DocumentMapper documentMapper = context.mapperService().documentMapper(parsedDocument.type());
+            if (documentMapper != null && documentMapper.mappers().getMapper(field.name()) != null) {
+                analyzer =  documentMapper.mappers().indexAnalyzer();
+            }
             if (field.fieldType().indexOptions() == IndexOptions.NONE && field.name().equals(UidFieldMapper.NAME)) {
                 continue;
             }

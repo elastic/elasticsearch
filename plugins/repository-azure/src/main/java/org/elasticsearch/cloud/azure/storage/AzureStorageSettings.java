@@ -23,8 +23,8 @@ import org.elasticsearch.cloud.azure.storage.AzureStorageService.Storage;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.repositories.RepositorySettings;
 
@@ -34,10 +34,10 @@ import java.util.Map;
 public class AzureStorageSettings {
     private static ESLogger logger = ESLoggerFactory.getLogger(AzureStorageSettings.class.getName());
 
-    private String name;
-    private String account;
-    private String key;
-    private TimeValue timeout;
+    private final String name;
+    private final String account;
+    private final String key;
+    private final TimeValue timeout;
 
     public AzureStorageSettings(String name, String account, String key, TimeValue timeout) {
         this.name = name;
@@ -64,7 +64,7 @@ public class AzureStorageSettings {
 
     @Override
     public String toString() {
-        final StringBuffer sb = new StringBuffer("AzureStorageSettings{");
+        final StringBuilder sb = new StringBuilder("AzureStorageSettings{");
         sb.append("name='").append(name).append('\'');
         sb.append(", account='").append(account).append('\'');
         sb.append(", key='").append(key).append('\'');
@@ -82,7 +82,7 @@ public class AzureStorageSettings {
         AzureStorageSettings primaryStorage = null;
         Map<String, AzureStorageSettings> secondaryStorage = new HashMap<>();
 
-        TimeValue globalTimeout = settings.getAsTime(Storage.TIMEOUT, TimeValue.timeValueMinutes(5));
+        TimeValue globalTimeout = Storage.TIMEOUT_SETTING.get(settings);
 
         Settings storageSettings = settings.getByPrefix(Storage.PREFIX);
         if (storageSettings != null) {
@@ -124,27 +124,23 @@ public class AzureStorageSettings {
         return Tuple.tuple(primaryStorage, secondaryStorage);
     }
 
-    public static String getRepositorySettings(RepositorySettings repositorySettings,
-                                               String repositorySettingName,
-                                               String repositoriesSettingName,
-                                               String defaultValue) {
-        return repositorySettings.settings().get(repositorySettingName,
-            repositorySettings.globalSettings().get(repositoriesSettingName, defaultValue));
+    public static <T> T getValue(RepositorySettings repositorySettings,
+                                 Setting<T> repositorySetting,
+                                 Setting<T> repositoriesSetting) {
+        if (repositorySetting.exists(repositorySettings.settings())) {
+            return repositorySetting.get(repositorySettings.settings());
+        } else {
+            return repositoriesSetting.get(repositorySettings.globalSettings());
+        }
     }
 
-    public static ByteSizeValue getRepositorySettingsAsBytesSize(RepositorySettings repositorySettings,
-                                               String repositorySettingName,
-                                               String repositoriesSettingName,
-                                               ByteSizeValue defaultValue) {
-        return repositorySettings.settings().getAsBytesSize(repositorySettingName,
-            repositorySettings.globalSettings().getAsBytesSize(repositoriesSettingName, defaultValue));
-    }
-
-    public static Boolean getRepositorySettingsAsBoolean(RepositorySettings repositorySettings,
-                                                                 String repositorySettingName,
-                                                                 String repositoriesSettingName,
-                                                         Boolean defaultValue) {
-        return repositorySettings.settings().getAsBoolean(repositorySettingName,
-            repositorySettings.globalSettings().getAsBoolean(repositoriesSettingName, defaultValue));
+    public static <T> Setting<T> getEffectiveSetting(RepositorySettings repositorySettings,
+                                              Setting<T> repositorySetting,
+                                              Setting<T> repositoriesSetting) {
+        if (repositorySetting.exists(repositorySettings.settings())) {
+            return repositorySetting;
+        } else {
+            return repositoriesSetting;
+        }
     }
 }

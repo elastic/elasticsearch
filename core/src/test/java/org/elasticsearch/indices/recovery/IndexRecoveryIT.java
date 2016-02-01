@@ -33,7 +33,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
-import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -50,7 +49,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.store.MockFSDirectoryService;
 import org.elasticsearch.test.store.MockFSIndexStore;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -243,7 +241,6 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         validateIndexRecoveryState(nodeBRecoveryState.getIndex());
     }
 
-    @TestLogging("indices.recovery:TRACE")
     public void testRerouteRecovery() throws Exception {
         logger.info("--> start node A");
         final String nodeA = internalCluster().startNode();
@@ -261,7 +258,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
 
         logger.info("--> move shard from: {} to: {}", nodeA, nodeB);
         client().admin().cluster().prepareReroute()
-                .add(new MoveAllocationCommand(new ShardId(INDEX_NAME, 0), nodeA, nodeB))
+                .add(new MoveAllocationCommand(INDEX_NAME, 0, nodeA, nodeB))
                 .execute().actionGet().getState();
 
         logger.info("--> waiting for recovery to start both on source and target");
@@ -352,10 +349,10 @@ public class IndexRecoveryIT extends ESIntegTestCase {
             assertThat(recoveryStats.currentAsSource(), equalTo(0));
             assertThat(recoveryStats.currentAsTarget(), equalTo(0));
             if (nodeStats.getNode().name().equals(nodeA)) {
-                assertThat("node A throttling should be >0", recoveryStats.throttleTime().millis(), greaterThan(0l));
+                assertThat("node A throttling should be >0", recoveryStats.throttleTime().millis(), greaterThan(0L));
             }
             if (nodeStats.getNode().name().equals(nodeB)) {
-                assertThat("node B throttling should be >0 ", recoveryStats.throttleTime().millis(), greaterThan(0l));
+                assertThat("node B throttling should be >0 ", recoveryStats.throttleTime().millis(), greaterThan(0L));
             }
         }
 
@@ -371,10 +368,10 @@ public class IndexRecoveryIT extends ESIntegTestCase {
             assertThat(recoveryStats.currentAsSource(), equalTo(0));
             assertThat(recoveryStats.currentAsTarget(), equalTo(0));
             if (nodeStats.getNode().name().equals(nodeA)) {
-                assertThat("node A throttling should be >0", recoveryStats.throttleTime().millis(), greaterThan(0l));
+                assertThat("node A throttling should be >0", recoveryStats.throttleTime().millis(), greaterThan(0L));
             }
             if (nodeStats.getNode().name().equals(nodeB)) {
-                assertThat("node B throttling should be >0 ", recoveryStats.throttleTime().millis(), greaterThan(0l));
+                assertThat("node B throttling should be >0 ", recoveryStats.throttleTime().millis(), greaterThan(0L));
             }
         }
 
@@ -387,7 +384,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
 
         logger.info("--> move replica shard from: {} to: {}", nodeA, nodeC);
         client().admin().cluster().prepareReroute()
-                .add(new MoveAllocationCommand(new ShardId(INDEX_NAME, 0), nodeA, nodeC))
+                .add(new MoveAllocationCommand(INDEX_NAME, 0, nodeA, nodeC))
                 .execute().actionGet().getState();
 
         response = client().admin().indices().prepareRecoveries(INDEX_NAME).execute().actionGet();

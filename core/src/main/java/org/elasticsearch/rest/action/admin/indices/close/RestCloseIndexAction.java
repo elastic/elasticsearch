@@ -39,7 +39,7 @@ public class RestCloseIndexAction extends BaseRestHandler {
 
     @Inject
     public RestCloseIndexAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+        super(settings, client);
         controller.registerHandler(RestRequest.Method.POST, "/_close", this);
         controller.registerHandler(RestRequest.Method.POST, "/{index}/_close", this);
     }

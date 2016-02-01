@@ -84,7 +84,7 @@ public class RecoverySource extends AbstractComponent implements IndexEventListe
     }
 
     private RecoveryResponse recover(final StartRecoveryRequest request) throws IOException {
-        final IndexService indexService = indicesService.indexServiceSafe(request.shardId().index().name());
+        final IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex().getName());
         final IndexShard shard = indexService.getShard(request.shardId().id());
 
         // starting recovery from that our (the source) shard state is marking the shard to be in recovery mode as well, otherwise
@@ -111,7 +111,7 @@ public class RecoverySource extends AbstractComponent implements IndexEventListe
             throw new DelayRecoveryException("source node has the state of the target shard to be [" + targetShardRouting.state() + "], expecting to be [initializing]");
         }
 
-        logger.trace("[{}][{}] starting recovery to {}, mark_as_relocated {}", request.shardId().index().name(), request.shardId().id(), request.targetNode(), request.markAsRelocated());
+        logger.trace("[{}][{}] starting recovery to {}, mark_as_relocated {}", request.shardId().getIndex().getName(), request.shardId().id(), request.targetNode(), request.markAsRelocated());
         final RecoverySourceHandler handler;
         if (shard.indexSettings().isOnSharedFilesystem()) {
             handler = new SharedFSRecoverySourceHandler(shard, request, recoverySettings, transportService, logger);

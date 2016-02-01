@@ -20,6 +20,7 @@
 package org.elasticsearch.search.internal;
 
 import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.util.Counter;
@@ -62,7 +63,7 @@ public abstract class FilteredSearchContext extends SearchContext {
 
     public FilteredSearchContext(SearchContext in) {
         //inner_hits in percolator ends up with null inner search context
-        super(in == null ? ParseFieldMatcher.EMPTY : in.parseFieldMatcher(), in);
+        super(in == null ? ParseFieldMatcher.EMPTY : in.parseFieldMatcher());
         this.in = in;
     }
 
@@ -174,11 +175,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     @Override
     public void highlight(SearchContextHighlight highlight) {
         in.highlight(highlight);
-    }
-
-    @Override
-    public void innerHits(InnerHitsContext innerHitsContext) {
-        in.innerHits(innerHitsContext);
     }
 
     @Override
@@ -334,6 +330,16 @@ public abstract class FilteredSearchContext extends SearchContext {
     @Override
     public boolean trackScores() {
         return in.trackScores();
+    }
+
+    @Override
+    public SearchContext searchAfter(FieldDoc searchAfter) {
+        return in.searchAfter(searchAfter);
+    }
+
+    @Override
+    public FieldDoc searchAfter() {
+        return in.searchAfter();
     }
 
     @Override

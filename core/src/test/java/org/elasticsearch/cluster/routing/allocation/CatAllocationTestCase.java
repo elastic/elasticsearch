@@ -98,10 +98,10 @@ public abstract class CatAllocationTestCase extends ESAllocationTestCase {
         for(Idx idx : indices.values()) {
             IndexMetaData idxMeta = IndexMetaData.builder(idx.name).settings(settings(Version.CURRENT)).numberOfShards(idx.numShards()).numberOfReplicas(idx.numReplicas()).build();
             builder.put(idxMeta, false);
-            IndexRoutingTable.Builder tableBuilder = new IndexRoutingTable.Builder(idx.name).initializeAsRecovery(idxMeta);
+            IndexRoutingTable.Builder tableBuilder = new IndexRoutingTable.Builder(idxMeta.getIndex()).initializeAsRecovery(idxMeta);
             Map<Integer, IndexShardRoutingTable> shardIdToRouting = new HashMap<>();
             for (ShardRouting r : idx.routing) {
-                IndexShardRoutingTable refData = new IndexShardRoutingTable.Builder(new ShardId(idx.name, r.id())).addShard(r).build();
+                IndexShardRoutingTable refData = new IndexShardRoutingTable.Builder(r.shardId()).addShard(r).build();
                 if (shardIdToRouting.containsKey(r.getId())) {
                     refData = new IndexShardRoutingTable.Builder(shardIdToRouting.get(r.getId())).addShard(r).build();
                 }

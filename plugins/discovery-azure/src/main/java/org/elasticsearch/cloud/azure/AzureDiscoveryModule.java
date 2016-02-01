@@ -29,7 +29,9 @@ import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.azure.AzureDiscovery;
 
 /**
@@ -73,34 +75,29 @@ public class AzureDiscoveryModule extends AbstractModule {
      */
     public static boolean isDiscoveryReady(Settings settings, ESLogger logger) {
         // User set discovery.type: azure
-        if (!AzureDiscovery.AZURE.equalsIgnoreCase(settings.get("discovery.type"))) {
+        if (!AzureDiscovery.AZURE.equalsIgnoreCase(DiscoveryModule.DISCOVERY_TYPE_SETTING.get(settings))) {
             logger.trace("discovery.type not set to {}", AzureDiscovery.AZURE);
             return false;
         }
 
-        if (isPropertyMissing(settings, Management.SUBSCRIPTION_ID) ||
-                isPropertyMissing(settings, Management.SERVICE_NAME) ||
-                isPropertyMissing(settings, Management.KEYSTORE_PATH) ||
-                isPropertyMissing(settings, Management.KEYSTORE_PASSWORD)
-            ) {
-            logger.debug("one or more azure discovery settings are missing. " +
+        if (isDefined(settings, Management.SUBSCRIPTION_ID_SETTING) &&
+            isDefined(settings, Management.SERVICE_NAME_SETTING) &&
+            isDefined(settings, Management.KEYSTORE_PATH_SETTING) &&
+            isDefined(settings, Management.KEYSTORE_PASSWORD_SETTING)) {
+            logger.trace("All required properties for Azure discovery are set!");
+            return true;
+        } else {
+            logger.debug("One or more Azure discovery settings are missing. " +
                             "Check elasticsearch.yml file. Should have [{}], [{}], [{}] and [{}].",
-                    Management.SUBSCRIPTION_ID,
-                    Management.SERVICE_NAME,
-                    Management.KEYSTORE_PATH,
-                    Management.KEYSTORE_PASSWORD);
+                    Management.SUBSCRIPTION_ID_SETTING.getKey(),
+                    Management.SERVICE_NAME_SETTING.getKey(),
+                    Management.KEYSTORE_PATH_SETTING.getKey(),
+                    Management.KEYSTORE_PASSWORD_SETTING.getKey());
             return false;
         }
-
-        logger.trace("all required properties for azure discovery are set!");
-
-        return true;
     }
 
-    public static boolean isPropertyMissing(Settings settings, String name) throws ElasticsearchException {
-        if (!Strings.hasText(settings.get(name))) {
-            return true;
-        }
-        return false;
+    private static boolean isDefined(Settings settings, Setting<String> property) throws ElasticsearchException {
+        return (property.exists(settings) && Strings.hasText(property.get(settings)));
     }
 }

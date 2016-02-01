@@ -199,13 +199,13 @@ public class KuromojiAnalysisTests extends ESTestCase {
 
         String json = "/org/elasticsearch/index/analysis/kuromoji_analysis.json";
         Settings settings = Settings.settingsBuilder()
-                .put("path.home", home)
+                .put(Environment.PATH_HOME_SETTING.getKey(), home)
                 .loadFromStream(json, getClass().getResourceAsStream(json))
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .build();
         final SettingsModule settingsModule = new SettingsModule(settings, new SettingsFilter(settings));
         settingsModule.registerSetting(InternalSettingsPlugin.VERSION_CREATED);
-        Index index = new Index("test");
+        Index index = new Index("test", "_na_");
 
         AnalysisModule analysisModule = new AnalysisModule(new Environment(settings));
         new AnalysisKuromojiPlugin().onModule(analysisModule);

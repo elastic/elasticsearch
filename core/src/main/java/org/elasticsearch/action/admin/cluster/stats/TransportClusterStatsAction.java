@@ -132,7 +132,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<ClusterSta
         }
 
         ClusterStatsNodeRequest(String nodeId, ClusterStatsRequest request) {
-            super(request, nodeId);
+            super(nodeId);
             this.request = request;
         }
 

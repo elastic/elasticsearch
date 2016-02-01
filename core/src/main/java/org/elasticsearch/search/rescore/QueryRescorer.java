@@ -27,7 +27,7 @@ import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.ParsedQuery;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -120,17 +120,17 @@ public final class QueryRescorer implements Rescorer {
         }
     }
 
-    private static final ObjectParser<QueryRescoreContext, SearchContext> RESCORE_PARSER = new ObjectParser<>("query", null);
+    private static final ObjectParser<QueryRescoreContext, QueryShardContext> RESCORE_PARSER = new ObjectParser<>("query", null);
 
     static {
-        RESCORE_PARSER.declareObject(QueryRescoreContext::setParsedQuery, (p, c) -> c.indexShard().getQueryShardContext().parse(p), new ParseField("rescore_query"));
+        RESCORE_PARSER.declareObject(QueryRescoreContext::setQuery, (p, c) -> c.parse(p).query(), new ParseField("rescore_query"));
         RESCORE_PARSER.declareFloat(QueryRescoreContext::setQueryWeight, new ParseField("query_weight"));
         RESCORE_PARSER.declareFloat(QueryRescoreContext::setRescoreQueryWeight, new ParseField("rescore_query_weight"));
         RESCORE_PARSER.declareString(QueryRescoreContext::setScoreMode, new ParseField("score_mode"));
     }
 
     @Override
-    public RescoreSearchContext parse(XContentParser parser, SearchContext context) throws IOException {
+    public RescoreSearchContext parse(XContentParser parser, QueryShardContext context) throws IOException {
         return RESCORE_PARSER.parse(parser, new QueryRescoreContext(this), context);
     }
 
@@ -178,22 +178,24 @@ public final class QueryRescorer implements Rescorer {
 
     public static class QueryRescoreContext extends RescoreSearchContext {
 
+        static final int DEFAULT_WINDOW_SIZE = 10;
+
         public QueryRescoreContext(QueryRescorer rescorer) {
-            super(NAME, 10, rescorer);
+            super(NAME, DEFAULT_WINDOW_SIZE, rescorer);
             this.scoreMode = QueryRescoreMode.Total;
         }
 
-        private ParsedQuery parsedQuery;
+        private Query query;
         private float queryWeight = 1.0f;
         private float rescoreQueryWeight = 1.0f;
         private QueryRescoreMode scoreMode;
 
-        public void setParsedQuery(ParsedQuery parsedQuery) {
-            this.parsedQuery = parsedQuery;
+        public void setQuery(Query query) {
+            this.query = query;
         }
 
         public Query query() {
-            return parsedQuery.query();
+            return query;
         }
 
         public float queryWeight() {

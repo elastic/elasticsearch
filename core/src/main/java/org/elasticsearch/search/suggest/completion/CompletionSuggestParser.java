@@ -20,7 +20,6 @@ package org.elasticsearch.search.suggest.completion;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.HasContextAndHeaders;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -34,7 +33,10 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
 import org.elasticsearch.index.query.RegexpFlag;
 import org.elasticsearch.search.suggest.SuggestContextParser;
+import org.elasticsearch.search.suggest.SuggestUtils.Fields;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
+import org.elasticsearch.search.suggest.completion.CompletionSuggestionBuilder.FuzzyOptionsBuilder;
+import org.elasticsearch.search.suggest.completion.CompletionSuggestionBuilder.RegexOptionsBuilder;
 import org.elasticsearch.search.suggest.completion.context.ContextMapping;
 import org.elasticsearch.search.suggest.completion.context.ContextMappings;
 
@@ -74,29 +76,29 @@ import java.util.Map;
  */
 public class CompletionSuggestParser implements SuggestContextParser {
 
-    private static ObjectParser<CompletionSuggestionContext, ContextAndSuggest> TLP_PARSER = new ObjectParser<>("completion", null);
-    private static ObjectParser<CompletionSuggestionBuilder.RegexOptionsBuilder, ContextAndSuggest> REGEXP_PARSER = new ObjectParser<>("regexp", CompletionSuggestionBuilder.RegexOptionsBuilder::new);
-    private static ObjectParser<CompletionSuggestionBuilder.FuzzyOptionsBuilder, ContextAndSuggest> FUZZY_PARSER = new ObjectParser<>("fuzzy", CompletionSuggestionBuilder.FuzzyOptionsBuilder::new);
+    private static ObjectParser<CompletionSuggestionContext, ContextAndSuggest> TLP_PARSER = new ObjectParser<>(CompletionSuggestionBuilder.SUGGESTION_NAME, null);
+    private static ObjectParser<CompletionSuggestionBuilder.RegexOptionsBuilder, ContextAndSuggest> REGEXP_PARSER = new ObjectParser<>(RegexOptionsBuilder.REGEX_OPTIONS.getPreferredName(), CompletionSuggestionBuilder.RegexOptionsBuilder::new);
+    private static ObjectParser<CompletionSuggestionBuilder.FuzzyOptionsBuilder, ContextAndSuggest> FUZZY_PARSER = new ObjectParser<>(FuzzyOptionsBuilder.FUZZY_OPTIONS.getPreferredName(), CompletionSuggestionBuilder.FuzzyOptionsBuilder::new);
     static {
-        FUZZY_PARSER.declareInt(CompletionSuggestionBuilder.FuzzyOptionsBuilder::setFuzzyMinLength, new ParseField("min_length"));
-        FUZZY_PARSER.declareInt(CompletionSuggestionBuilder.FuzzyOptionsBuilder::setMaxDeterminizedStates, new ParseField("max_determinized_states"));
-        FUZZY_PARSER.declareBoolean(CompletionSuggestionBuilder.FuzzyOptionsBuilder::setUnicodeAware, new ParseField("unicode_aware"));
-        FUZZY_PARSER.declareInt(CompletionSuggestionBuilder.FuzzyOptionsBuilder::setFuzzyPrefixLength, new ParseField("prefix_length"));
-        FUZZY_PARSER.declareBoolean(CompletionSuggestionBuilder.FuzzyOptionsBuilder::setTranspositions, new ParseField("transpositions"));
+        FUZZY_PARSER.declareInt(CompletionSuggestionBuilder.FuzzyOptionsBuilder::setFuzzyMinLength, FuzzyOptionsBuilder.MIN_LENGTH_FIELD);
+        FUZZY_PARSER.declareInt(CompletionSuggestionBuilder.FuzzyOptionsBuilder::setMaxDeterminizedStates, FuzzyOptionsBuilder.MAX_DETERMINIZED_STATES_FIELD);
+        FUZZY_PARSER.declareBoolean(CompletionSuggestionBuilder.FuzzyOptionsBuilder::setUnicodeAware, FuzzyOptionsBuilder.UNICODE_AWARE_FIELD);
+        FUZZY_PARSER.declareInt(CompletionSuggestionBuilder.FuzzyOptionsBuilder::setFuzzyPrefixLength, FuzzyOptionsBuilder.PREFIX_LENGTH_FIELD);
+        FUZZY_PARSER.declareBoolean(CompletionSuggestionBuilder.FuzzyOptionsBuilder::setTranspositions, FuzzyOptionsBuilder.TRANSPOSITION_FIELD);
         FUZZY_PARSER.declareValue((a, b) -> {
             try {
                 a.setFuzziness(Fuzziness.parse(b).asDistance());
             } catch (IOException e) {
                 throw new ElasticsearchException(e);
             }
-        }, new ParseField("fuzziness"));
-        REGEXP_PARSER.declareInt(CompletionSuggestionBuilder.RegexOptionsBuilder::setMaxDeterminizedStates, new ParseField("max_determinized_states"));
-        REGEXP_PARSER.declareStringOrNull(CompletionSuggestionBuilder.RegexOptionsBuilder::setFlags, new ParseField("flags"));
+        }, Fuzziness.FIELD);
+        REGEXP_PARSER.declareInt(CompletionSuggestionBuilder.RegexOptionsBuilder::setMaxDeterminizedStates, RegexOptionsBuilder.MAX_DETERMINIZED_STATES);
+        REGEXP_PARSER.declareStringOrNull(CompletionSuggestionBuilder.RegexOptionsBuilder::setFlags, RegexOptionsBuilder.FLAGS_VALUE);
 
-        TLP_PARSER.declareStringArray(CompletionSuggestionContext::setPayloadFields, new ParseField("payload"));
-        TLP_PARSER.declareObjectOrDefault(CompletionSuggestionContext::setFuzzyOptionsBuilder, FUZZY_PARSER, CompletionSuggestionBuilder.FuzzyOptionsBuilder::new, new ParseField("fuzzy"));
-        TLP_PARSER.declareObject(CompletionSuggestionContext::setRegexOptionsBuilder, REGEXP_PARSER, new ParseField("regexp"));
-        TLP_PARSER.declareString(SuggestionSearchContext.SuggestionContext::setField, new ParseField("field"));
+        TLP_PARSER.declareStringArray(CompletionSuggestionContext::setPayloadFields, CompletionSuggestionBuilder.PAYLOAD_FIELD);
+        TLP_PARSER.declareObjectOrDefault(CompletionSuggestionContext::setFuzzyOptionsBuilder, FUZZY_PARSER, CompletionSuggestionBuilder.FuzzyOptionsBuilder::new, FuzzyOptionsBuilder.FUZZY_OPTIONS);
+        TLP_PARSER.declareObject(CompletionSuggestionContext::setRegexOptionsBuilder, REGEXP_PARSER, RegexOptionsBuilder.REGEX_OPTIONS);
+        TLP_PARSER.declareString(SuggestionSearchContext.SuggestionContext::setField, Fields.FIELD);
         TLP_PARSER.declareField((p, v, c) -> {
             String analyzerName = p.text();
             Analyzer analyzer = c.mapperService.analysisService().analyzer(analyzerName);
@@ -104,10 +106,9 @@ public class CompletionSuggestParser implements SuggestContextParser {
                 throw new IllegalArgumentException("Analyzer [" + analyzerName + "] doesn't exists");
             }
             v.setAnalyzer(analyzer);
-        }, new ParseField("analyzer"), ObjectParser.ValueType.STRING);
-        TLP_PARSER.declareString(SuggestionSearchContext.SuggestionContext::setField, new ParseField("analyzer"));
-        TLP_PARSER.declareInt(SuggestionSearchContext.SuggestionContext::setSize, new ParseField("size"));
-        TLP_PARSER.declareInt(SuggestionSearchContext.SuggestionContext::setShardSize, new ParseField("size"));
+        }, Fields.ANALYZER, ObjectParser.ValueType.STRING);
+        TLP_PARSER.declareInt(SuggestionSearchContext.SuggestionContext::setSize, Fields.SIZE);
+        TLP_PARSER.declareInt(SuggestionSearchContext.SuggestionContext::setShardSize, Fields.SHARD_SIZE);
         TLP_PARSER.declareField((p, v, c) -> {
             // Copy the current structure. We will parse, once the mapping is provided
             XContentBuilder builder = XContentFactory.contentBuilder(p.contentType());
@@ -115,7 +116,7 @@ public class CompletionSuggestParser implements SuggestContextParser {
             BytesReference bytes = builder.bytes();
             c.contextParser = XContentFactory.xContent(bytes).createParser(bytes);
             p.skipChildren();
-        }, new ParseField("contexts", "context"), ObjectParser.ValueType.OBJECT); // context is deprecated
+        }, CompletionSuggestionBuilder.CONTEXTS_FIELD, ObjectParser.ValueType.OBJECT); // context is deprecated
     }
 
     private static class ContextAndSuggest {
@@ -134,8 +135,7 @@ public class CompletionSuggestParser implements SuggestContextParser {
     }
 
     @Override
-    public SuggestionSearchContext.SuggestionContext parse(XContentParser parser, MapperService mapperService, IndexFieldDataService fieldDataService,
-                                                           HasContextAndHeaders headersContext) throws IOException {
+    public SuggestionSearchContext.SuggestionContext parse(XContentParser parser, MapperService mapperService, IndexFieldDataService fieldDataService) throws IOException {
         final CompletionSuggestionContext suggestion = new CompletionSuggestionContext(completionSuggester, mapperService, fieldDataService);
         final ContextAndSuggest contextAndSuggest = new ContextAndSuggest(mapperService);
         TLP_PARSER.parse(parser, suggestion, contextAndSuggest);

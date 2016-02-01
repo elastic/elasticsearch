@@ -35,15 +35,15 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESAllocationTestCase;
 import org.junit.Before;
 
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.anyOf;
@@ -53,7 +53,7 @@ import static org.hamcrest.Matchers.equalTo;
  */
 public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
 
-    private final ShardId shardId = new ShardId("test", 0);
+    private final ShardId shardId = new ShardId("test", "_na_", 0);
     private final DiscoveryNode node1 = newNode("node1");
     private final DiscoveryNode node2 = newNode("node2");
     private final DiscoveryNode node3 = newNode("node3");
@@ -104,7 +104,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
         } else {
             allocation = routingAllocationWithOnePrimaryNoReplicas(yesAllocationDeciders(), false, Version.V_2_1_0);
         }
-        testAllocator.addData(node1, -1, null);
+        testAllocator.addData(node1, -1, null, randomBoolean());
         boolean changed = testAllocator.allocateUnassigned(allocation);
         assertThat(changed, equalTo(false));
         assertThat(allocation.routingNodes().unassigned().ignored().size(), equalTo(1));
@@ -116,7 +116,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
      */
     public void testNoMatchingAllocationIdFound() {
         RoutingAllocation allocation = routingAllocationWithOnePrimaryNoReplicas(yesAllocationDeciders(), false, Version.CURRENT, "id2");
-        testAllocator.addData(node1, 1, "id1");
+        testAllocator.addData(node1, 1, "id1", randomBoolean());
         boolean changed = testAllocator.allocateUnassigned(allocation);
         assertThat(changed, equalTo(false));
         assertThat(allocation.routingNodes().unassigned().ignored().size(), equalTo(1));
@@ -129,7 +129,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
      */
     public void testNoActiveAllocationIds() {
         RoutingAllocation allocation = routingAllocationWithOnePrimaryNoReplicas(yesAllocationDeciders(), false, Version.V_2_1_1);
-        testAllocator.addData(node1, 1, null);
+        testAllocator.addData(node1, 1, null, randomBoolean());
         boolean changed = testAllocator.allocateUnassigned(allocation);
         assertThat(changed, equalTo(true));
         assertThat(allocation.routingNodes().unassigned().ignored().isEmpty(), equalTo(true));
@@ -144,10 +144,10 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
         final RoutingAllocation allocation;
         if (randomBoolean()) {
             allocation = routingAllocationWithOnePrimaryNoReplicas(yesAllocationDeciders(), false, randomFrom(Version.V_2_0_0, Version.CURRENT), "allocId1");
-            testAllocator.addData(node1, 1, "allocId1", new CorruptIndexException("test", "test"));
+            testAllocator.addData(node1, 1, "allocId1", randomBoolean(), new CorruptIndexException("test", "test"));
         } else {
             allocation = routingAllocationWithOnePrimaryNoReplicas(yesAllocationDeciders(), false, Version.V_2_1_1);
-            testAllocator.addData(node1, 3, null, new CorruptIndexException("test", "test"));
+            testAllocator.addData(node1, 3, null, randomBoolean(), new CorruptIndexException("test", "test"));
         }
         boolean changed = testAllocator.allocateUnassigned(allocation);
         assertThat(changed, equalTo(false));
@@ -162,16 +162,34 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
         final RoutingAllocation allocation;
         if (randomBoolean()) {
             allocation = routingAllocationWithOnePrimaryNoReplicas(yesAllocationDeciders(), false, randomFrom(Version.V_2_0_0, Version.CURRENT), "allocId1");
-            testAllocator.addData(node1, 1, "allocId1");
+            testAllocator.addData(node1, 1, "allocId1", randomBoolean());
         } else {
             allocation = routingAllocationWithOnePrimaryNoReplicas(yesAllocationDeciders(), false, Version.V_2_2_0);
-            testAllocator.addData(node1, 3, null);
+            testAllocator.addData(node1, 3, null, randomBoolean());
         }
         boolean changed = testAllocator.allocateUnassigned(allocation);
         assertThat(changed, equalTo(true));
         assertThat(allocation.routingNodes().unassigned().ignored().isEmpty(), equalTo(true));
         assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING).size(), equalTo(1));
         assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING).get(0).currentNodeId(), equalTo(node1.id()));
+    }
+
+    /**
+     * Tests that when there was a node that previously had the primary, it will be allocated to that same node again.
+     */
+    public void testPreferAllocatingPreviousPrimary() {
+        String primaryAllocId = Strings.randomBase64UUID();
+        String replicaAllocId = Strings.randomBase64UUID();
+        RoutingAllocation allocation = routingAllocationWithOnePrimaryNoReplicas(yesAllocationDeciders(), false, randomFrom(Version.V_2_0_0, Version.CURRENT), primaryAllocId, replicaAllocId);
+        boolean node1HasPrimaryShard = randomBoolean();
+        testAllocator.addData(node1, 1, node1HasPrimaryShard ? primaryAllocId : replicaAllocId, node1HasPrimaryShard);
+        testAllocator.addData(node2, 1, node1HasPrimaryShard ? replicaAllocId : primaryAllocId, !node1HasPrimaryShard);
+        boolean changed = testAllocator.allocateUnassigned(allocation);
+        assertThat(changed, equalTo(true));
+        assertThat(allocation.routingNodes().unassigned().ignored().isEmpty(), equalTo(true));
+        assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING).size(), equalTo(1));
+        DiscoveryNode allocatedNode = node1HasPrimaryShard ? node1 : node2;
+        assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING).get(0).currentNodeId(), equalTo(allocatedNode.id()));
     }
 
     /**
@@ -182,10 +200,10 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
         final RoutingAllocation allocation;
         if (randomBoolean()) {
             allocation = routingAllocationWithOnePrimaryNoReplicas(throttleAllocationDeciders(), false, randomFrom(Version.V_2_0_0, Version.CURRENT), "allocId1");
-            testAllocator.addData(node1, 1, "allocId1");
+            testAllocator.addData(node1, 1, "allocId1", randomBoolean());
         } else {
             allocation = routingAllocationWithOnePrimaryNoReplicas(throttleAllocationDeciders(), false, Version.V_2_2_0);
-            testAllocator.addData(node1, 3, null);
+            testAllocator.addData(node1, 3, null, randomBoolean());
         }
         boolean changed = testAllocator.allocateUnassigned(allocation);
         assertThat(changed, equalTo(false));
@@ -201,10 +219,10 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
         final RoutingAllocation allocation;
         if (randomBoolean()) {
             allocation = routingAllocationWithOnePrimaryNoReplicas(noAllocationDeciders(), false, randomFrom(Version.V_2_0_0, Version.CURRENT), "allocId1");
-            testAllocator.addData(node1, 1, "allocId1");
+            testAllocator.addData(node1, 1, "allocId1", randomBoolean());
         } else {
             allocation = routingAllocationWithOnePrimaryNoReplicas(noAllocationDeciders(), false, Version.V_2_0_0);
-            testAllocator.addData(node1, 3, null);
+            testAllocator.addData(node1, 3, null, randomBoolean());
         }
         boolean changed = testAllocator.allocateUnassigned(allocation);
         assertThat(changed, equalTo(true));
@@ -218,7 +236,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
      */
     public void testAllocateToTheHighestVersionOnLegacyIndex() {
         RoutingAllocation allocation = routingAllocationWithOnePrimaryNoReplicas(yesAllocationDeciders(), false, Version.V_2_0_0);
-        testAllocator.addData(node1, 10, null).addData(node2, 12, null);
+        testAllocator.addData(node1, 10, null, randomBoolean()).addData(node2, 12, null, randomBoolean());
         boolean changed = testAllocator.allocateUnassigned(allocation);
         assertThat(changed, equalTo(true));
         assertThat(allocation.routingNodes().unassigned().ignored().isEmpty(), equalTo(true));
@@ -232,7 +250,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
      */
     public void testRestore() {
         RoutingAllocation allocation = getRestoreRoutingAllocation(yesAllocationDeciders());
-        testAllocator.addData(node1, 1, randomFrom(null, "allocId"));
+        testAllocator.addData(node1, 1, randomFrom(null, "allocId"), randomBoolean());
         boolean changed = testAllocator.allocateUnassigned(allocation);
         assertThat(changed, equalTo(true));
         assertThat(allocation.routingNodes().unassigned().ignored().isEmpty(), equalTo(true));
@@ -245,7 +263,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
      */
     public void testRestoreThrottle() {
         RoutingAllocation allocation = getRestoreRoutingAllocation(throttleAllocationDeciders());
-        testAllocator.addData(node1, 1, randomFrom(null, "allocId"));
+        testAllocator.addData(node1, 1, randomFrom(null, "allocId"), randomBoolean());
         boolean changed = testAllocator.allocateUnassigned(allocation);
         assertThat(changed, equalTo(false));
         assertThat(allocation.routingNodes().unassigned().ignored().isEmpty(), equalTo(false));
@@ -257,7 +275,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
      */
     public void testRestoreForcesAllocateIfShardAvailable() {
         RoutingAllocation allocation = getRestoreRoutingAllocation(noAllocationDeciders());
-        testAllocator.addData(node1, 1, randomFrom(null, "some allocId"));
+        testAllocator.addData(node1, 1, randomFrom(null, "some allocId"), randomBoolean());
         boolean changed = testAllocator.allocateUnassigned(allocation);
         assertThat(changed, equalTo(true));
         assertThat(allocation.routingNodes().unassigned().ignored().isEmpty(), equalTo(true));
@@ -270,7 +288,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
      */
     public void testRestoreDoesNotAssignIfNoShardAvailable() {
         RoutingAllocation allocation = getRestoreRoutingAllocation(yesAllocationDeciders());
-        testAllocator.addData(node1, -1, null);
+        testAllocator.addData(node1, -1, null, false);
         boolean changed = testAllocator.allocateUnassigned(allocation);
         assertThat(changed, equalTo(false));
         assertThat(allocation.routingNodes().unassigned().ignored().isEmpty(), equalTo(true));
@@ -280,12 +298,12 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
     private RoutingAllocation getRestoreRoutingAllocation(AllocationDeciders allocationDeciders) {
         Version version = randomFrom(Version.CURRENT, Version.V_2_0_0);
         MetaData metaData = MetaData.builder()
-            .put(IndexMetaData.builder(shardId.getIndex()).settings(settings(version)).numberOfShards(1).numberOfReplicas(0)
-                .putActiveAllocationIds(0, version == Version.CURRENT ? new HashSet<>(Arrays.asList("allocId")) : Collections.emptySet()))
+            .put(IndexMetaData.builder(shardId.getIndexName()).settings(settings(version)).numberOfShards(1).numberOfReplicas(0)
+                .putActiveAllocationIds(0, version == Version.CURRENT ? Sets.newHashSet("allocId") : Collections.emptySet()))
             .build();
 
         RoutingTable routingTable = RoutingTable.builder()
-            .addAsRestore(metaData.index(shardId.getIndex()), new RestoreSource(new SnapshotId("test", "test"), version, shardId.getIndex()))
+            .addAsRestore(metaData.index(shardId.getIndex()), new RestoreSource(new SnapshotId("test", "test"), version, shardId.getIndexName()))
             .build();
         ClusterState state = ClusterState.builder(org.elasticsearch.cluster.ClusterName.DEFAULT)
             .metaData(metaData)
@@ -300,7 +318,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
      */
     public void testRecoverOnAnyNode() {
         RoutingAllocation allocation = getRecoverOnAnyNodeRoutingAllocation(yesAllocationDeciders());
-        testAllocator.addData(node1, 1, randomFrom(null, "allocId"));
+        testAllocator.addData(node1, 1, randomFrom(null, "allocId"), randomBoolean());
         boolean changed = testAllocator.allocateUnassigned(allocation);
         assertThat(changed, equalTo(true));
         assertThat(allocation.routingNodes().unassigned().ignored().isEmpty(), equalTo(true));
@@ -313,7 +331,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
      */
     public void testRecoverOnAnyNodeThrottle() {
         RoutingAllocation allocation = getRestoreRoutingAllocation(throttleAllocationDeciders());
-        testAllocator.addData(node1, 1, randomFrom(null, "allocId"));
+        testAllocator.addData(node1, 1, randomFrom(null, "allocId"), randomBoolean());
         boolean changed = testAllocator.allocateUnassigned(allocation);
         assertThat(changed, equalTo(false));
         assertThat(allocation.routingNodes().unassigned().ignored().isEmpty(), equalTo(false));
@@ -325,7 +343,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
      */
     public void testRecoverOnAnyNodeForcesAllocateIfShardAvailable() {
         RoutingAllocation allocation = getRecoverOnAnyNodeRoutingAllocation(noAllocationDeciders());
-        testAllocator.addData(node1, 1, randomFrom(null, "allocId"));
+        testAllocator.addData(node1, 1, randomFrom(null, "allocId"), randomBoolean());
         boolean changed = testAllocator.allocateUnassigned(allocation);
         assertThat(changed, equalTo(true));
         assertThat(allocation.routingNodes().unassigned().ignored().isEmpty(), equalTo(true));
@@ -338,7 +356,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
      */
     public void testRecoverOnAnyNodeDoesNotAssignIfNoShardAvailable() {
         RoutingAllocation allocation = getRecoverOnAnyNodeRoutingAllocation(yesAllocationDeciders());
-        testAllocator.addData(node1, -1, null);
+        testAllocator.addData(node1, -1, null, randomBoolean());
         boolean changed = testAllocator.allocateUnassigned(allocation);
         assertThat(changed, equalTo(false));
         assertThat(allocation.routingNodes().unassigned().ignored().isEmpty(), equalTo(true));
@@ -348,14 +366,14 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
     private RoutingAllocation getRecoverOnAnyNodeRoutingAllocation(AllocationDeciders allocationDeciders) {
         Version version = randomFrom(Version.CURRENT, Version.V_2_0_0);
         MetaData metaData = MetaData.builder()
-            .put(IndexMetaData.builder(shardId.getIndex()).settings(settings(version)
+            .put(IndexMetaData.builder(shardId.getIndexName()).settings(settings(version)
                 .put(IndexMetaData.SETTING_SHARED_FILESYSTEM, true)
                 .put(IndexMetaData.SETTING_SHARED_FS_ALLOW_RECOVERY_ON_ANY_NODE, true))
-                .numberOfShards(1).numberOfReplicas(0).putActiveAllocationIds(0, version == Version.CURRENT ? new HashSet<>(Arrays.asList("allocId")) : Collections.emptySet()))
+                .numberOfShards(1).numberOfReplicas(0).putActiveAllocationIds(0, version == Version.CURRENT ? Sets.newHashSet("allocId") : Collections.emptySet()))
             .build();
 
         RoutingTable routingTable = RoutingTable.builder()
-            .addAsRestore(metaData.index(shardId.getIndex()), new RestoreSource(new SnapshotId("test", "test"), Version.CURRENT, shardId.getIndex()))
+            .addAsRestore(metaData.index(shardId.getIndex()), new RestoreSource(new SnapshotId("test", "test"), Version.CURRENT, shardId.getIndexName()))
             .build();
         ClusterState state = ClusterState.builder(org.elasticsearch.cluster.ClusterName.DEFAULT)
             .metaData(metaData)
@@ -370,7 +388,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
      */
     public void testEnoughCopiesFoundForAllocationOnLegacyIndex() {
         MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder(shardId.getIndex()).settings(settings(Version.V_2_0_0)).numberOfShards(1).numberOfReplicas(2))
+                .put(IndexMetaData.builder(shardId.getIndexName()).settings(settings(Version.V_2_0_0)).numberOfShards(1).numberOfReplicas(2))
                 .build();
         RoutingTable routingTable = RoutingTable.builder()
                 .addAsRecovery(metaData.index(shardId.getIndex()))
@@ -387,7 +405,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
         assertThat(allocation.routingNodes().unassigned().ignored().get(0).shardId(), equalTo(shardId));
         assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.UNASSIGNED).size(), equalTo(2)); // replicas
 
-        testAllocator.addData(node1, 1, null);
+        testAllocator.addData(node1, 1, null, randomBoolean());
         allocation = new RoutingAllocation(yesAllocationDeciders(), new RoutingNodes(state, false), state.nodes(), null, System.nanoTime());
         changed = testAllocator.allocateUnassigned(allocation);
         assertThat(changed, equalTo(false));
@@ -395,7 +413,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
         assertThat(allocation.routingNodes().unassigned().ignored().get(0).shardId(), equalTo(shardId));
         assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.UNASSIGNED).size(), equalTo(2)); // replicas
 
-        testAllocator.addData(node2, 1, null);
+        testAllocator.addData(node2, 1, null, randomBoolean());
         allocation = new RoutingAllocation(yesAllocationDeciders(), new RoutingNodes(state, false), state.nodes(), null, System.nanoTime());
         changed = testAllocator.allocateUnassigned(allocation);
         assertThat(changed, equalTo(true));
@@ -411,7 +429,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
      */
     public void testEnoughCopiesFoundForAllocationOnLegacyIndexWithDifferentVersion() {
         MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder(shardId.getIndex()).settings(settings(Version.V_2_0_0)).numberOfShards(1).numberOfReplicas(2))
+                .put(IndexMetaData.builder(shardId.getIndexName()).settings(settings(Version.V_2_0_0)).numberOfShards(1).numberOfReplicas(2))
                 .build();
         RoutingTable routingTable = RoutingTable.builder()
                 .addAsRecovery(metaData.index(shardId.getIndex()))
@@ -428,7 +446,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
         assertThat(allocation.routingNodes().unassigned().ignored().get(0).shardId(), equalTo(shardId));
         assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.UNASSIGNED).size(), equalTo(2)); // replicas
 
-        testAllocator.addData(node1, 1, null);
+        testAllocator.addData(node1, 1, null, randomBoolean());
         allocation = new RoutingAllocation(yesAllocationDeciders(), new RoutingNodes(state, false), state.nodes(), null, System.nanoTime());
         changed = testAllocator.allocateUnassigned(allocation);
         assertThat(changed, equalTo(false));
@@ -436,7 +454,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
         assertThat(allocation.routingNodes().unassigned().ignored().get(0).shardId(), equalTo(shardId));
         assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.UNASSIGNED).size(), equalTo(2)); // replicas
 
-        testAllocator.addData(node2, 2, null);
+        testAllocator.addData(node2, 2, null, randomBoolean());
         allocation = new RoutingAllocation(yesAllocationDeciders(), new RoutingNodes(state, false), state.nodes(), null, System.nanoTime());
         changed = testAllocator.allocateUnassigned(allocation);
         assertThat(changed, equalTo(true));
@@ -448,8 +466,8 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
 
     private RoutingAllocation routingAllocationWithOnePrimaryNoReplicas(AllocationDeciders deciders, boolean asNew, Version version, String... activeAllocationIds) {
         MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder(shardId.getIndex()).settings(settings(version))
-                    .numberOfShards(1).numberOfReplicas(0).putActiveAllocationIds(0, new HashSet<>(Arrays.asList(activeAllocationIds))))
+                .put(IndexMetaData.builder(shardId.getIndexName()).settings(settings(version))
+                    .numberOfShards(1).numberOfReplicas(0).putActiveAllocationIds(0, Sets.newHashSet(activeAllocationIds)))
             .build();
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
         if (asNew) {
@@ -477,15 +495,15 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
             return this;
         }
 
-        public TestAllocator addData(DiscoveryNode node, long version, String allocationId) {
-            return addData(node, version, allocationId, null);
+        public TestAllocator addData(DiscoveryNode node, long version, String allocationId, boolean primary) {
+            return addData(node, version, allocationId, primary, null);
         }
 
-        public TestAllocator addData(DiscoveryNode node, long version, String allocationId, @Nullable Throwable storeException) {
+        public TestAllocator addData(DiscoveryNode node, long version, String allocationId, boolean primary, @Nullable Throwable storeException) {
             if (data == null) {
                 data = new HashMap<>();
             }
-            data.put(node, new TransportNodesListGatewayStartedShards.NodeGatewayStartedShards(node, version, allocationId, storeException));
+            data.put(node, new TransportNodesListGatewayStartedShards.NodeGatewayStartedShards(node, version, allocationId, primary, storeException));
             return this;
         }
 

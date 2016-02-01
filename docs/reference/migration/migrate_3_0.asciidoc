@@ -15,6 +15,10 @@ your application to Elasticsearch 3.0.
 * <<breaking_30_non_loopback>>
 * <<breaking_30_thread_pool>>
 * <<breaking_30_allocation>>
+* <<breaking_30_percolator>>
+* <<breaking_30_packaging>>
+* <<breaking_30_scripting>>
+* <<breaking_30_term_vectors>>
 
 [[breaking_30_search_changes]]
 === Warmers
@@ -181,6 +185,12 @@ When `max_children` was set to `0` on the `has_child` query then there was no up
 are allowed to match. This has changed and `0` now really means to zero child documents are allowed. If no upper limit
 is needed then the `max_children` option shouldn't be defined at all on the `has_child` query.
 
+==== `_parent` field no longer indexed
+
+The join between parent and child documents no longer relies on indexed fields and therefor from `3.0.0` onwards
+the `_parent` indexed field won't be indexed. In order to find documents that referrer to a specific parent id
+the new `parent_id` query can be used. The get response and hits inside the search response remain to include
+the parent id under the `_parent` key.
 
 [[breaking_30_settings_changes]]
 === Settings changes
@@ -224,6 +234,10 @@ The `index.translog.flush_threshold_ops` setting is not supported anymore. In or
 growth use `index.translog.flush_threshold_size` instead. Changing the translog type with `index.translog.fs.type` is not supported
 anymore, the `buffered` implementation is now the only available option and uses a fixed `8kb` buffer.
 
+The translog by default is fsynced on a request basis such that the ability to fsync on every operation is not necessary anymore. In-fact it can
+be a performance bottleneck and it's trappy since it enabled by a special value set on `index.translog.sync_interval`. `index.translog.sync_interval`
+now doesn't accept a value less than `100ms` which prevents fsyncing too often if async durability is enabled. The special value `0` is not supported anymore.
+
 ==== Request Cache Settings
 
 The deprecated settings `index.cache.query.enable` and `indices.cache.query.size` have been removed and are replaced with
@@ -249,6 +263,11 @@ amount of heap as long as the total indexing buffer heap used across all shards 
 [[breaking_30_mapping_changes]]
 === Mapping changes
 
+==== Default doc values settings
+
+Doc values are now also on by default on numeric and boolean fields that are
+not indexed.
+
 ==== Transform removed
 
 The `transform` feature from mappings has been removed. It made issues very hard to debug.
@@ -259,6 +278,12 @@ When a floating-point number is encountered, it is now dynamically mapped as a
 float by default instead of a double. The reasoning is that floats should be
 more than enough for most cases but would decrease storage requirements
 significantly.
+
+==== `index` property
+
+On all types but `string`, the `index` property now only accepts `true`/`false`
+instead of `not_analyzed`/`no`. The `string` field still accepts
+`analyzed`/`not_analyzed`/`no`.
 
 ==== `_source`'s `format` option
 
@@ -280,9 +305,25 @@ values as follows:
 }
 ----
 
+==== `fielddata.format`
+
+Setting `fielddata.format: doc_values` in the mappings used to implicitly
+enable doc values on a field. This no longer works: the only way to enable or
+disable doc values is by using the `doc_values` property of mappings.
+
 
 [[breaking_30_plugins]]
 === Plugin changes
+
+==== Site plugins removed
+
+Site plugins have been removed. It is recommended to migrate site plugins to Kibana plugins.
+
+==== Multicast plugin removed
+
+Multicast has been removed. Use unicast discovery, or one of the cloud discovery plugins.
+
+==== Plugins with custom query implementations
 
 Plugins implementing custom queries need to implement the `fromXContent(QueryParseContext)` method in their
 `QueryParser` subclass rather than `parse`. This method will take care of parsing the query from `XContent` format
@@ -537,6 +578,14 @@ to index a document only if it doesn't already exist.
 
 `InternalLineStringBuilder` is removed in favour of `LineStringBuilder`, `InternalPolygonBuilder` in favour of PolygonBuilder` and `Ring` has been replaced with `LineStringBuilder`. Also the abstract base classes `BaseLineStringBuilder` and `BasePolygonBuilder` haven been merged with their corresponding implementations.
 
+==== RescoreBuilder
+
+`RecoreBuilder.Rescorer` was merged with `RescoreBuilder`, which now is an abstract superclass. QueryRescoreBuilder currently is its only implementation.
+
+==== PhraseSuggestionBuilder
+
+The inner DirectCandidateGenerator class has been moved out to its own class called DirectCandidateGeneratorBuilder.
+
 [[breaking_30_cache_concurrency]]
 === Cache concurrency level settings removed
 
@@ -619,6 +668,7 @@ in the case where shard copies can be found. Previously, a node not holding the 
 holding shard copies were satisfying the allocation deciders. Now, the shard will be assigned to a node having a shard copy,
 even if none of the nodes holding a shard copy satisfy the allocation deciders.
 
+[[breaking_30_percolator]]
 === Percolator
 
 Adding percolator queries and modifications to existing percolator queries are no longer visible in immediately
@@ -634,3 +684,40 @@ The percolate api can no longer accept documents that have fields that don't exi
 
 When percolating an existing document then specifying a document in the source of the percolate request is not allowed
 any more.
+
+The percolate api no longer modifies the mappings. Before the percolate api could be used to dynamically introduce new
+fields to the mappings based on the fields in the document being percolated. This no longer works, because these
+unmapped fields are not persisted in the mapping.
+
+Percolator documents are no longer excluded from the search response.
+
+[[breaking_30_packaging]]
+=== Packaging
+
+==== Default logging using systemd (since Elasticsearch 2.2.0)
+
+In previous versions of Elasticsearch, the default logging
+configuration routed standard output to /dev/null and standard error to
+the journal. However, there are often critical error messages at
+startup that are logged to standard output rather than standard error
+and these error messages would be lost to the nether. The default has
+changed to now route standard output to the journal and standard error
+to inherit this setting (these are the defaults for systemd). These
+settings can be modified by editing the elasticsearch.service file.
+
+[[breaking_30_scripting]]
+=== Scripting
+
+==== Script mode settings
+
+Previously script mode settings (e.g., "script.inline: true",
+"script.engine.groovy.inline.aggs: false", etc.) accepted the values
+`on`, `true`, `1`, and `yes` for enabling a scripting mode, and the
+values `off`, `false`, `0`, and `no` for disabling a scripting mode.
+The variants `on`, `1`, and `yes ` for enabling and `off`, `0`,
+and `no` for disabling are no longer supported.
+
+[[breaking_30_term_vectors]]
+=== Term vectors
+
+The term vectors APIs no longer persist unmapped fields in the mappings.

@@ -64,10 +64,10 @@ public class SynonymsAnalysisTests extends ESTestCase {
         String json = "/org/elasticsearch/index/analysis/synonyms/synonyms.json";
         Settings settings = settingsBuilder().
             loadFromStream(json, getClass().getResourceAsStream(json))
-                .put("path.home", home)
+                .put(Environment.PATH_HOME_SETTING.getKey(), home)
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
 
-        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(new Index("index"), settings);
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
         analysisService = new AnalysisRegistry(null, new Environment(settings)).build(idxSettings);
 
 

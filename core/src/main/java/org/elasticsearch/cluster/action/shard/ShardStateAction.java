@@ -62,6 +62,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -243,36 +244,35 @@ public class ShardStateAction extends AbstractComponent {
 
             // tasks that correspond to non-existent shards are marked
             // as successful
-            if (partition.containsKey(TaskClassification.DOES_NOT_EXIST)) {
-                batchResultBuilder.successes(partition.get(TaskClassification.DOES_NOT_EXIST));
-            }
+            batchResultBuilder.successes(partition.getOrDefault(TaskClassification.DOES_NOT_EXIST, Collections.emptyList()));
 
             ClusterState maybeUpdatedState = currentState;
-            if (partition.containsKey(TaskClassification.EXISTS_LEGAL)) {
-                List<ShardRoutingEntry> tasksToFail = partition.get(TaskClassification.EXISTS_LEGAL);
-                try {
-                    List<FailedRerouteAllocation.FailedShard> failedShards =
-                        tasksToFail
-                            .stream()
-                            .map(task -> new FailedRerouteAllocation.FailedShard(task.shardRouting, task.message, task.failure))
-                            .collect(Collectors.toList());
-                    RoutingAllocation.Result result = applyFailedShards(currentState, failedShards);
-                    if (result.changed()) {
-                        maybeUpdatedState = ClusterState.builder(currentState).routingResult(result).build();
-                    }
-                    batchResultBuilder.successes(tasksToFail);
-                } catch (Throwable t) {
-                    // failures are communicated back to the requester
-                    // cluster state will not be updated in this case
-                    batchResultBuilder.failures(tasksToFail, t);
+            List<ShardRoutingEntry> tasksToFail = partition.getOrDefault(TaskClassification.EXISTS_LEGAL, Collections.emptyList());
+            try {
+                List<FailedRerouteAllocation.FailedShard> failedShards =
+                    tasksToFail
+                        .stream()
+                        .map(task -> new FailedRerouteAllocation.FailedShard(task.shardRouting, task.message, task.failure))
+                        .collect(Collectors.toList());
+                RoutingAllocation.Result result = applyFailedShards(currentState, failedShards);
+                if (result.changed()) {
+                    maybeUpdatedState = ClusterState.builder(currentState).routingResult(result).build();
                 }
+                batchResultBuilder.successes(tasksToFail);
+            } catch (Throwable t) {
+                // failures are communicated back to the requester
+                // cluster state will not be updated in this case
+                batchResultBuilder.failures(tasksToFail, t);
             }
 
-            if (partition.containsKey(TaskClassification.EXISTS_ILLEGAL)) {
-                partition
-                    .get(TaskClassification.EXISTS_ILLEGAL)
-                    .forEach(task -> batchResultBuilder.failure(task, new IllegalShardFailureException(task.getShardRouting().shardId(), "source shard [" + task.sourceShardRouting + "] is neither the local allocation nor the primary allocation")));
-            }
+            partition
+                .getOrDefault(TaskClassification.EXISTS_ILLEGAL, Collections.emptyList())
+                .forEach(task -> batchResultBuilder.failure(
+                    task,
+                    new IllegalShardFailureException(
+                        task.getShardRouting().shardId(),
+                        "source shard [" + task.sourceShardRouting + "] is neither the local allocation nor the primary allocation")
+                ));
 
             return batchResultBuilder.build(maybeUpdatedState);
         }

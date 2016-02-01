@@ -90,8 +90,8 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
                 .setTemplate("te*")
                 .setOrder(0)
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
-                        .startObject("field1").field("type", "string").field("store", "yes").endObject()
-                        .startObject("field2").field("type", "string").field("store", "yes").field("index", "not_analyzed").endObject()
+                        .startObject("field1").field("type", "string").field("store", true).endObject()
+                        .startObject("field2").field("type", "string").field("store", true).field("index", "not_analyzed").endObject()
                         .endObject().endObject().endObject())
                 .get();
 

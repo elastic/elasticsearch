@@ -25,7 +25,6 @@ import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValueType;
-import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParser;
 import org.elasticsearch.search.aggregations.support.format.ValueParser;
 import org.elasticsearch.search.internal.SearchContext;
@@ -47,7 +46,7 @@ public class HistogramParser implements Aggregator.Parser {
     @Override
     public AggregatorFactory parse(String aggregationName, XContentParser parser, SearchContext context) throws IOException {
 
-        ValuesSourceParser<Numeric> vsParser = ValuesSourceParser.numeric(aggregationName, InternalHistogram.TYPE, context)
+        ValuesSourceParser vsParser = ValuesSourceParser.numeric(aggregationName, InternalHistogram.TYPE, context)
                 .targetValueType(ValueType.NUMERIC)
                 .formattable(true)
                 .build();
@@ -128,7 +127,7 @@ public class HistogramParser implements Aggregator.Parser {
 
         Rounding rounding = new Rounding.Interval(interval);
         if (offset != 0) {
-            rounding = new Rounding.OffsetRounding(rounding, offset);
+            rounding = new Rounding.OffsetRounding((Rounding.Interval) rounding, offset);
         }
 
         if (extendedBounds != null) {
@@ -137,7 +136,7 @@ public class HistogramParser implements Aggregator.Parser {
         }
 
         return new HistogramAggregator.Factory(aggregationName, vsParser.config(), rounding, order, keyed, minDocCount, extendedBounds,
-                new InternalHistogram.Factory<>());
+                new InternalHistogram.Factory());
 
     }
 

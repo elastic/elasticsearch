@@ -46,8 +46,6 @@ public class SourceToParse {
 
     private final XContentParser parser;
 
-    private boolean flyweight = false;
-
     private String index;
 
     private String type;
@@ -104,15 +102,6 @@ public class SourceToParse {
     public SourceToParse type(String type) {
         this.type = type;
         return this;
-    }
-
-    public SourceToParse flyweight(boolean flyweight) {
-        this.flyweight = flyweight;
-        return this;
-    }
-
-    public boolean flyweight() {
-        return this.flyweight;
     }
 
     public String id() {

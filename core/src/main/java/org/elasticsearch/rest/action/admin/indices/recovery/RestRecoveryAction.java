@@ -45,7 +45,7 @@ public class RestRecoveryAction extends BaseRestHandler {
 
     @Inject
     public RestRecoveryAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+        super(settings, client);
         controller.registerHandler(GET, "/_recovery", this);
         controller.registerHandler(GET, "/{index}/_recovery", this);
     }

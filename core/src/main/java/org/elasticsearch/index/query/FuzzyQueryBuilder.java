@@ -37,7 +37,11 @@ import java.util.Objects;
 
 /**
  * A Query that does fuzzy matching for a specific value.
+ *
+ * @deprecated Fuzzy queries are not useful enough. This class will be removed with Elasticsearch 4.0. In most cases you may want to use
+ * a match query with the fuzziness parameter for strings or range queries for numeric and date fields.
  */
+@Deprecated
 public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> implements MultiTermQueryBuilder<FuzzyQueryBuilder> {
 
     public static final String NAME = "fuzzy";

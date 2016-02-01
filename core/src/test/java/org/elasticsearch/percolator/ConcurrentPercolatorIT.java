@@ -210,7 +210,7 @@ public class ConcurrentPercolatorIT extends ESIntegTestCase {
                                     throw new IllegalStateException("Illegal x=" + x);
                             }
                             assertThat(response.getId(), equalTo(id));
-                            assertThat(response.getVersion(), equalTo(1l));
+                            assertThat(response.getVersion(), equalTo(1L));
                         }
                     } catch (Throwable t) {
                         exceptionsHolder.add(t);

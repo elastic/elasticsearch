@@ -88,8 +88,8 @@ public class SimpleNodesInfoIT extends ESIntegTestCase {
     public void testAllocatedProcessors() throws Exception {
         List<String> nodesIds = internalCluster().
                 startNodesAsync(
-                        Settings.builder().put(EsExecutors.PROCESSORS, 3).build(),
-                        Settings.builder().put(EsExecutors.PROCESSORS, 6).build()
+                        Settings.builder().put(EsExecutors.PROCESSORS_SETTING.getKey(), 3).build(),
+                        Settings.builder().put(EsExecutors.PROCESSORS_SETTING.getKey(), 6).build()
                 ).get();
 
         final String node_1 = nodesIds.get(0);

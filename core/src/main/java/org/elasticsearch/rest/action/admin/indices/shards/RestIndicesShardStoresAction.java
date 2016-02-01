@@ -46,7 +46,7 @@ public class RestIndicesShardStoresAction extends BaseRestHandler {
 
     @Inject
     public RestIndicesShardStoresAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+        super(settings, client);
         controller.registerHandler(GET, "/_shard_stores", this);
         controller.registerHandler(GET, "/{index}/_shard_stores", this);
     }

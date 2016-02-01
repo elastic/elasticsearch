@@ -85,7 +85,7 @@ import static org.hamcrest.Matchers.startsWith;
 /**
  */
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
-@TestLogging("indices.recovery:TRACE,index.shard.service:TRACE")
+@TestLogging("_root:DEBUG,indices.recovery:TRACE,index.shard.service:TRACE")
 public class RelocationIT extends ESIntegTestCase {
     private final TimeValue ACCEPTABLE_RELOCATION_TIME = new TimeValue(5, TimeUnit.MINUTES);
 
@@ -121,7 +121,7 @@ public class RelocationIT extends ESIntegTestCase {
 
         logger.info("--> verifying count");
         client().admin().indices().prepareRefresh().execute().actionGet();
-        assertThat(client().prepareSearch("test").setSize(0).execute().actionGet().getHits().totalHits(), equalTo(20l));
+        assertThat(client().prepareSearch("test").setSize(0).execute().actionGet().getHits().totalHits(), equalTo(20L));
 
         logger.info("--> start another node");
         final String node_2 = internalCluster().startNode();
@@ -130,7 +130,7 @@ public class RelocationIT extends ESIntegTestCase {
 
         logger.info("--> relocate the shard from node1 to node2");
         client().admin().cluster().prepareReroute()
-                .add(new MoveAllocationCommand(new ShardId("test", 0), node_1, node_2))
+                .add(new MoveAllocationCommand("test", 0, node_1, node_2))
                 .execute().actionGet();
 
         clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForRelocatingShards(0).setTimeout(ACCEPTABLE_RELOCATION_TIME).execute().actionGet();
@@ -140,7 +140,7 @@ public class RelocationIT extends ESIntegTestCase {
 
         logger.info("--> verifying count again...");
         client().admin().indices().prepareRefresh().execute().actionGet();
-        assertThat(client().prepareSearch("test").setSize(0).execute().actionGet().getHits().totalHits(), equalTo(20l));
+        assertThat(client().prepareSearch("test").setSize(0).execute().actionGet().getHits().totalHits(), equalTo(20L));
     }
 
     public void testRelocationWhileIndexingRandom() throws Exception {
@@ -190,7 +190,7 @@ public class RelocationIT extends ESIntegTestCase {
                 indexer.continueIndexing(numDocs);
                 logger.info("--> START relocate the shard from {} to {}", nodes[fromNode], nodes[toNode]);
                 client().admin().cluster().prepareReroute()
-                        .add(new MoveAllocationCommand(new ShardId("test", 0), nodes[fromNode], nodes[toNode]))
+                        .add(new MoveAllocationCommand("test", 0, nodes[fromNode], nodes[toNode]))
                         .get();
                 if (rarely()) {
                     logger.debug("--> flushing");
@@ -319,7 +319,7 @@ public class RelocationIT extends ESIntegTestCase {
 
 
             client().admin().cluster().prepareReroute()
-                    .add(new MoveAllocationCommand(new ShardId("test", 0), nodes[fromNode], nodes[toNode]))
+                    .add(new MoveAllocationCommand("test", 0, nodes[fromNode], nodes[toNode]))
                     .get();
 
 
@@ -406,7 +406,7 @@ public class RelocationIT extends ESIntegTestCase {
         logger.info("--> verifying no temporary recoveries are left");
         for (String node : internalCluster().getNodeNames()) {
             NodeEnvironment nodeEnvironment = internalCluster().getInstance(NodeEnvironment.class, node);
-            for (final Path shardLoc : nodeEnvironment.availableShardPaths(new ShardId(indexName, 0))) {
+            for (final Path shardLoc : nodeEnvironment.availableShardPaths(new ShardId(indexName, "_na_", 0))) {
                 if (Files.exists(shardLoc)) {
                     assertBusy(new Runnable() {
                         @Override

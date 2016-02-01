@@ -236,13 +236,7 @@ public class QueryShardContext {
             throw new QueryShardException(this, "inner_hits unsupported");
         }
 
-        InnerHitsContext innerHitsContext;
-        if (sc.innerHits() == null) {
-            innerHitsContext = new InnerHitsContext(new HashMap<>());
-            sc.innerHits(innerHitsContext);
-        } else {
-            innerHitsContext = sc.innerHits();
-        }
+        InnerHitsContext innerHitsContext = sc.innerHits();
         innerHitsContext.addInnerHitDefinition(name, context);
     }
 
@@ -288,20 +282,14 @@ public class QueryShardContext {
         this.mapUnmappedFieldAsString = mapUnmappedFieldAsString;
     }
 
-    private MappedFieldType failIfFieldMappingNotFound(String name, MappedFieldType fieldMapping) {
-        if (allowUnmappedFields) {
+    MappedFieldType failIfFieldMappingNotFound(String name, MappedFieldType fieldMapping) {
+        if (fieldMapping != null || allowUnmappedFields) {
             return fieldMapping;
         } else if (mapUnmappedFieldAsString) {
             StringFieldMapper.Builder builder = MapperBuilders.stringField(name);
             return builder.build(new Mapper.BuilderContext(indexSettings.getSettings(), new ContentPath(1))).fieldType();
         } else {
-            Version indexCreatedVersion = indexSettings.getIndexVersionCreated();
-            if (fieldMapping == null && indexCreatedVersion.onOrAfter(Version.V_1_4_0_Beta1)) {
-                throw new QueryShardException(this, "Strict field resolution and no field mapping can be found for the field with name ["
-                        + name + "]");
-            } else {
-                return fieldMapping;
-            }
+            throw new QueryShardException(this, "No field mapping can be found for the field with name [{}]", name);
         }
     }
 
@@ -364,8 +352,8 @@ public class QueryShardContext {
     /*
     * Executes the given template, and returns the response.
     */
-    public BytesReference executeQueryTemplate(Template template, SearchContext searchContext) {
-        ExecutableScript executable = getScriptService().executable(template, ScriptContext.Standard.SEARCH, searchContext, Collections.emptyMap());
+    public BytesReference executeQueryTemplate(Template template) {
+        ExecutableScript executable = getScriptService().executable(template, ScriptContext.Standard.SEARCH, Collections.emptyMap());
         return (BytesReference) executable.run();
     }
 

@@ -541,25 +541,23 @@ public class IndexShard extends AbstractIndexShardComponent {
     /** Writes all indexing changes to disk and opens a new searcher reflecting all changes.  This can throw {@link EngineClosedException}. */
     public void refresh(String source) {
         verifyNotClosed();
-        if (getEngine().refreshNeeded()) {
-            if (canIndex()) {
-                long bytes = getEngine().getIndexBufferRAMBytesUsed();
-                writingBytes.addAndGet(bytes);
-                try {
-                    logger.debug("refresh with source [{}] indexBufferRAMBytesUsed [{}]", source, new ByteSizeValue(bytes));
-                    long time = System.nanoTime();
-                    getEngine().refresh(source);
-                    refreshMetric.inc(System.nanoTime() - time);
-                } finally {
-                    logger.debug("remove [{}] writing bytes for shard [{}]", new ByteSizeValue(bytes), shardId());
-                    writingBytes.addAndGet(-bytes);
-                }
-            } else {
-                logger.debug("refresh with source [{}]", source);
+        if (canIndex()) {
+            long bytes = getEngine().getIndexBufferRAMBytesUsed();
+            writingBytes.addAndGet(bytes);
+            try {
+                logger.debug("refresh with source [{}] indexBufferRAMBytesUsed [{}]", source, new ByteSizeValue(bytes));
                 long time = System.nanoTime();
                 getEngine().refresh(source);
                 refreshMetric.inc(System.nanoTime() - time);
+            } finally {
+                logger.debug("remove [{}] writing bytes for shard [{}]", new ByteSizeValue(bytes), shardId());
+                writingBytes.addAndGet(-bytes);
             }
+        } else {
+            logger.debug("refresh with source [{}]", source);
+            long time = System.nanoTime();
+            getEngine().refresh(source);
+            refreshMetric.inc(System.nanoTime() - time);
         }
     }
 
@@ -856,6 +854,10 @@ public class IndexShard extends AbstractIndexShardComponent {
         if (state != IndexShardState.RECOVERING) {
             throw new IndexShardNotRecoveringException(shardId, state);
         }
+        // We set active because we are now writing operations to the engine; this way, if we go idle after some time and become inactive,
+        // we still invoke any onShardInactive listeners ... we won't sync'd flush in this case because we only do that on primary and this
+        // is a replica
+        active.set(true);
         return engineConfig.getTranslogRecoveryPerformer().performBatchRecovery(getEngine(), operations);
     }
 
@@ -885,6 +887,11 @@ public class IndexShard extends AbstractIndexShardComponent {
         // but we need to make sure we don't loose deletes until we are done recovering
         engineConfig.setEnableGcDeletes(false);
         engineConfig.setCreate(indexExists == false);
+        if (skipTranslogRecovery == false) {
+            // We set active because we are now writing operations to the engine; this way, if we go idle after some time and become inactive,
+            // we still give sync'd flush a chance to run:
+            active.set(true);
+        }
         createNewEngine(skipTranslogRecovery, engineConfig);
 
     }
@@ -1043,6 +1050,10 @@ public class IndexShard extends AbstractIndexShardComponent {
             throw new IllegalStateException("Can't delete shard state on an active shard");
         }
         MetaDataStateFormat.deleteMetaState(shardPath().getDataPath());
+    }
+
+    public boolean isActive() {
+        return active.get();
     }
 
     public ShardPath shardPath() {
@@ -1304,6 +1315,15 @@ public class IndexShard extends AbstractIndexShardComponent {
             assert this.currentEngineReference.get() == null;
             this.currentEngineReference.set(newEngine(skipTranslogRecovery, config));
         }
+
+        // time elapses after the engine is created above (pulling the config settings) until we set the engine reference, during which
+        // settings changes could possibly have happened, so here we forcefully push any config changes to the new engine:
+        Engine engine = getEngineOrNull();
+
+        // engine could perhaps be null if we were e.g. concurrently closed:
+        if (engine != null) {
+            engine.onSettingsChanged();
+        }
     }
 
     protected Engine newEngine(boolean skipTranslogRecovery, EngineConfig config) {
@@ -1512,6 +1532,17 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     EngineFactory getEngineFactory() {
         return engineFactory;
+    }
+
+    /**
+     * Returns <code>true</code> iff one or more changes to the engine are not visible to via the current searcher.
+     * Otherwise <code>false</code>.
+     *
+     * @throws EngineClosedException if the engine is already closed
+     * @throws AlreadyClosedException if the internal indexwriter in the engine is already closed
+     */
+    public boolean isRefreshNeeded() {
+        return getEngine().refreshNeeded();
     }
 
 }

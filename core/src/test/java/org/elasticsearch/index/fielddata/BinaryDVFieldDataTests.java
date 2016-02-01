@@ -46,7 +46,7 @@ public class BinaryDVFieldDataTests extends AbstractFieldDataTestCase {
                 .startObject("properties")
                 .startObject("field")
                 .field("type", "binary")
-                .startObject("fielddata").field("format", "doc_values").endObject()
+                .field("doc_values", true)
                 .endObject()
                 .endObject()
                 .endObject().endObject().string();

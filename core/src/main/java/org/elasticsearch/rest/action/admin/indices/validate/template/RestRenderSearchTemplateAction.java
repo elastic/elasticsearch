@@ -52,7 +52,7 @@ public class RestRenderSearchTemplateAction extends BaseRestHandler {
 
     @Inject
     public RestRenderSearchTemplateAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+        super(settings, client);
         controller.registerHandler(GET, "/_render/template", this);
         controller.registerHandler(POST, "/_render/template", this);
         controller.registerHandler(GET, "/_render/template/{id}", this);

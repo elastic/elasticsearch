@@ -48,7 +48,7 @@ public class RestMainAction extends BaseRestHandler {
 
     @Inject
     public RestMainAction(Settings settings, Version version, RestController controller, ClusterName clusterName, Client client, ClusterService clusterService) {
-        super(settings, controller, client);
+        super(settings, client);
         this.version = version;
         this.clusterName = clusterName;
         this.clusterService = clusterService;

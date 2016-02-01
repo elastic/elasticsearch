@@ -223,7 +223,7 @@ public final class ObjectParser<Value, Context> implements BiFunction<XContentPa
             list.add(supplier.get()); // single value
         } else {
             while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                if (parser.currentToken().isValue()) {
+                if (parser.currentToken().isValue() || parser.currentToken() == XContentParser.Token.START_OBJECT) {
                     list.add(supplier.get());
                 } else {
                     throw new IllegalStateException("expected value but got [" + parser.currentToken() + "]");
@@ -236,6 +236,11 @@ public final class ObjectParser<Value, Context> implements BiFunction<XContentPa
     public <T> void declareObject(BiConsumer<Value, T> consumer, BiFunction<XContentParser, Context, T> objectParser, ParseField field) {
         declareField((p, v, c) -> consumer.accept(v, objectParser.apply(p, c)), field, ValueType.OBJECT);
     }
+
+    public <T> void declareObjectArray(BiConsumer<Value, List<T>> consumer, BiFunction<XContentParser, Context, T> objectParser, ParseField field) {
+        declareField((p, v, c) -> consumer.accept(v, parseArray(p, () -> objectParser.apply(p, c))), field, ValueType.OBJECT_ARRAY);
+    }
+
 
     public <T> void declareObjectOrDefault(BiConsumer<Value, T> consumer, BiFunction<XContentParser, Context, T> objectParser, Supplier<T> defaultValue, ParseField field) {
         declareField((p, v, c) -> {
@@ -333,6 +338,7 @@ public final class ObjectParser<Value, Context> implements BiFunction<XContentPa
         INT_ARRAY(EnumSet.of(XContentParser.Token.START_ARRAY, XContentParser.Token.VALUE_NUMBER, XContentParser.Token.VALUE_STRING)),
         BOOLEAN_ARRAY(EnumSet.of(XContentParser.Token.START_ARRAY, XContentParser.Token.VALUE_BOOLEAN)),
         OBJECT(EnumSet.of(XContentParser.Token.START_OBJECT)),
+        OBJECT_ARRAY(EnumSet.of(XContentParser.Token.START_OBJECT, XContentParser.Token.START_ARRAY)),
         OBJECT_OR_BOOLEAN(EnumSet.of(XContentParser.Token.START_OBJECT, XContentParser.Token.VALUE_BOOLEAN)),
         VALUE(EnumSet.of(XContentParser.Token.VALUE_BOOLEAN, XContentParser.Token.VALUE_NULL ,XContentParser.Token.VALUE_EMBEDDED_OBJECT,XContentParser.Token.VALUE_NUMBER,XContentParser.Token.VALUE_STRING));
 

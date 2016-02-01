@@ -57,7 +57,7 @@ public class FullRollingRestartIT extends ESIntegTestCase {
     }
 
     public void testFullRollingRestart() throws Exception {
-        Settings settings = Settings.builder().put(ZenDiscovery.SETTING_JOIN_TIMEOUT, "30s").build();
+        Settings settings = Settings.builder().put(ZenDiscovery.JOIN_TIMEOUT_SETTING.getKey(), "30s").build();
         internalCluster().startNode(settings);
         createIndex("test");
 
@@ -91,7 +91,7 @@ public class FullRollingRestartIT extends ESIntegTestCase {
         logger.info("--> refreshing and checking data");
         refresh();
         for (int i = 0; i < 10; i++) {
-            assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get(), 2000l);
+            assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get(), 2000L);
         }
 
         // now start shutting nodes down
@@ -109,7 +109,7 @@ public class FullRollingRestartIT extends ESIntegTestCase {
         logger.info("--> stopped two nodes, verifying data");
         refresh();
         for (int i = 0; i < 10; i++) {
-            assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get(), 2000l);
+            assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get(), 2000L);
         }
 
         // closing the 3rd node
@@ -127,7 +127,7 @@ public class FullRollingRestartIT extends ESIntegTestCase {
         logger.info("--> one node left, verifying data");
         refresh();
         for (int i = 0; i < 10; i++) {
-            assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get(), 2000l);
+            assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get(), 2000L);
         }
     }
 

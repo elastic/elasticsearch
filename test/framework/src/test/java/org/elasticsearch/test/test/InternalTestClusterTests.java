@@ -26,6 +26,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.NodeConfigurationSource;
+import org.elasticsearch.transport.TransportSettings;
 
 import java.nio.file.Path;
 import java.util.Collections;
@@ -71,9 +72,8 @@ public class InternalTestClusterTests extends ESTestCase {
     final static Set<String> clusterUniqueSettings = new HashSet<>();
 
     static {
-        clusterUniqueSettings.add(ClusterName.SETTING);
-        clusterUniqueSettings.add("transport.tcp.port");
-        clusterUniqueSettings.add("http.port");
+        clusterUniqueSettings.add(ClusterName.CLUSTER_NAME_SETTING.getKey());
+        clusterUniqueSettings.add(TransportSettings.PORT.getKey());
         clusterUniqueSettings.add("http.port");
     }
 
@@ -130,8 +130,8 @@ public class InternalTestClusterTests extends ESTestCase {
                 cluster1.beforeTest(random, random.nextDouble());
             }
             assertArrayEquals(cluster0.getNodeNames(), cluster1.getNodeNames());
-            Iterator<Client> iterator1 = cluster1.iterator();
-            for (Client client : cluster0) {
+            Iterator<Client> iterator1 = cluster1.getClients().iterator();
+            for (Client client : cluster0.getClients()) {
                 assertTrue(iterator1.hasNext());
                 Client other = iterator1.next();
                 assertSettings(client.settings(), other.settings(), false);

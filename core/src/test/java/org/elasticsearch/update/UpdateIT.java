@@ -41,6 +41,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptEngineRegistry;
 import org.elasticsearch.script.ScriptEngineService;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
@@ -92,7 +93,7 @@ public class UpdateIT extends ESIntegTestCase {
         }
 
         public void onModule(ScriptModule module) {
-            module.addScriptEngine(PutFieldValuesScriptEngine.class);
+            module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(PutFieldValuesScriptEngine.class, PutFieldValuesScriptEngine.TYPES));
         }
 
     }
@@ -101,22 +102,24 @@ public class UpdateIT extends ESIntegTestCase {
 
         public static final String NAME = "put_values";
 
+        public static final List<String> TYPES = Collections.singletonList(NAME);
+
         @Override
         public void close() throws IOException {
         }
 
         @Override
-        public String[] types() {
-            return new String[] { NAME };
+        public List<String> getTypes() {
+            return TYPES;
         }
 
         @Override
-        public String[] extensions() {
-            return types();
+        public List<String> getExtensions() {
+            return TYPES;
         }
 
         @Override
-        public boolean sandboxed() {
+        public boolean isSandboxed() {
             return true;
         }
 
@@ -184,7 +187,7 @@ public class UpdateIT extends ESIntegTestCase {
         }
 
         public void onModule(ScriptModule module) {
-            module.addScriptEngine(FieldIncrementScriptEngine.class);
+            module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(FieldIncrementScriptEngine.class, FieldIncrementScriptEngine.TYPES));
         }
 
     }
@@ -193,22 +196,24 @@ public class UpdateIT extends ESIntegTestCase {
 
         public static final String NAME = "field_inc";
 
+        public static final List<String> TYPES = Collections.singletonList(NAME);
+
         @Override
         public void close() throws IOException {
         }
 
         @Override
-        public String[] types() {
-            return new String[] { NAME };
+        public List<String> getTypes() {
+            return TYPES;
         }
 
         @Override
-        public String[] extensions() {
-            return types();
+        public List<String> getExtensions() {
+            return TYPES;
         }
 
         @Override
-        public boolean sandboxed() {
+        public boolean isSandboxed() {
             return true;
         }
 
@@ -269,7 +274,7 @@ public class UpdateIT extends ESIntegTestCase {
         }
 
         public void onModule(ScriptModule module) {
-            module.addScriptEngine(ScriptedUpsertScriptEngine.class);
+            module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(ScriptedUpsertScriptEngine.class, ScriptedUpsertScriptEngine.TYPES));
         }
 
     }
@@ -278,22 +283,24 @@ public class UpdateIT extends ESIntegTestCase {
 
         public static final String NAME = "scripted_upsert";
 
+        public static final List<String> TYPES = Collections.singletonList(NAME);
+
         @Override
         public void close() throws IOException {
         }
 
         @Override
-        public String[] types() {
-            return new String[] { NAME };
+        public List<String> getTypes() {
+            return TYPES;
         }
 
         @Override
-        public String[] extensions() {
-            return types();
+        public List<String> getExtensions() {
+            return TYPES;
         }
 
         @Override
-        public boolean sandboxed() {
+        public boolean isSandboxed() {
             return true;
         }
 
@@ -354,7 +361,7 @@ public class UpdateIT extends ESIntegTestCase {
         }
 
         public void onModule(ScriptModule module) {
-            module.addScriptEngine(ExtractContextInSourceScriptEngine.class);
+            module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(ExtractContextInSourceScriptEngine.class, ExtractContextInSourceScriptEngine.TYPES));
         }
 
     }
@@ -363,22 +370,24 @@ public class UpdateIT extends ESIntegTestCase {
 
         public static final String NAME = "extract_ctx";
 
+        public static final List<String> TYPES = Collections.singletonList(NAME);
+
         @Override
         public void close() throws IOException {
         }
 
         @Override
-        public String[] types() {
-            return new String[] { NAME };
+        public List<String> getTypes() {
+            return TYPES;
         }
 
         @Override
-        public String[] extensions() {
-            return types();
+        public List<String> getExtensions() {
+            return TYPES;
         }
 
         @Override
-        public boolean sandboxed() {
+        public boolean isSandboxed() {
             return true;
         }
 
@@ -589,13 +598,13 @@ public class UpdateIT extends ESIntegTestCase {
 
         client().prepareUpdate(indexOrAlias(), "type", "1")
                 .setScript(new Script("", ScriptService.ScriptType.INLINE, "put_values", Collections.singletonMap("text", "v2"))).setVersion(1).get();
-        assertThat(client().prepareGet("test", "type", "1").get().getVersion(), equalTo(2l));
+        assertThat(client().prepareGet("test", "type", "1").get().getVersion(), equalTo(2L));
 
         // and again with a higher version..
         client().prepareUpdate(indexOrAlias(), "type", "1")
                 .setScript(new Script("", ScriptService.ScriptType.INLINE, "put_values", Collections.singletonMap("text", "v3"))).setVersion(2).get();
 
-        assertThat(client().prepareGet("test", "type", "1").get().getVersion(), equalTo(3l));
+        assertThat(client().prepareGet("test", "type", "1").get().getVersion(), equalTo(3L));
 
         // after delete
         client().prepareDelete("test", "type", "1").get();
@@ -619,7 +628,7 @@ public class UpdateIT extends ESIntegTestCase {
                 .setVersion(10).setVersionType(VersionType.FORCE).get();
 
         GetResponse get = get("test", "type", "2");
-        assertThat(get.getVersion(), equalTo(10l));
+        assertThat(get.getVersion(), equalTo(10L));
         assertThat((String) get.getSource().get("text"), equalTo("v10"));
 
         // upserts - the combination with versions is a bit weird. Test are here to ensure we do not change our behavior unintentionally
@@ -629,7 +638,7 @@ public class UpdateIT extends ESIntegTestCase {
                 .setScript(new Script("", ScriptService.ScriptType.INLINE, "put_values", Collections.singletonMap("text", "v2")))
                 .setVersion(10).setUpsert("{ \"text\": \"v0\" }").get();
         get = get("test", "type", "3");
-        assertThat(get.getVersion(), equalTo(1l));
+        assertThat(get.getVersion(), equalTo(1L));
         assertThat((String) get.getSource().get("text"), equalTo("v0"));
 
         // retry on conflict is rejected:

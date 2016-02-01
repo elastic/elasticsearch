@@ -40,7 +40,7 @@ public class RestRestoreSnapshotAction extends BaseRestHandler {
 
     @Inject
     public RestRestoreSnapshotAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+        super(settings, client);
         controller.registerHandler(POST, "/_snapshot/{repository}/{snapshot}/_restore", this);
     }
 

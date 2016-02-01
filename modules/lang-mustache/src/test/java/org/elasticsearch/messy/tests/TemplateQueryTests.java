@@ -31,6 +31,7 @@ import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TemplateQueryBuilder;
 import org.elasticsearch.index.query.TemplateQueryParser;
@@ -85,7 +86,7 @@ public class TemplateQueryTests extends ESIntegTestCase {
     @Override
     public Settings nodeSettings(int nodeOrdinal) {
         return settingsBuilder().put(super.nodeSettings(nodeOrdinal))
-                .put("path.conf", this.getDataPath("config")).build();
+                .put(Environment.PATH_CONF_SETTING.getKey(), this.getDataPath("config")).build();
     }
 
     public void testTemplateInBody() throws IOException {

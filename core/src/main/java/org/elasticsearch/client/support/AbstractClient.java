@@ -272,6 +272,21 @@ import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptAction;
 import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptRequest;
 import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptRequestBuilder;
 import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptResponse;
+import org.elasticsearch.action.ingest.DeletePipelineAction;
+import org.elasticsearch.action.ingest.DeletePipelineRequest;
+import org.elasticsearch.action.ingest.DeletePipelineRequestBuilder;
+import org.elasticsearch.action.ingest.GetPipelineAction;
+import org.elasticsearch.action.ingest.GetPipelineRequest;
+import org.elasticsearch.action.ingest.GetPipelineRequestBuilder;
+import org.elasticsearch.action.ingest.GetPipelineResponse;
+import org.elasticsearch.action.ingest.PutPipelineAction;
+import org.elasticsearch.action.ingest.PutPipelineRequest;
+import org.elasticsearch.action.ingest.PutPipelineRequestBuilder;
+import org.elasticsearch.action.ingest.SimulatePipelineAction;
+import org.elasticsearch.action.ingest.SimulatePipelineRequest;
+import org.elasticsearch.action.ingest.SimulatePipelineRequestBuilder;
+import org.elasticsearch.action.ingest.SimulatePipelineResponse;
+import org.elasticsearch.action.ingest.WritePipelineResponse;
 import org.elasticsearch.action.percolate.MultiPercolateAction;
 import org.elasticsearch.action.percolate.MultiPercolateRequest;
 import org.elasticsearch.action.percolate.MultiPercolateRequestBuilder;
@@ -317,11 +332,16 @@ import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ClusterAdminClient;
 import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.FilterClient;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.threadpool.ThreadPool;
+
+import java.util.Map;
 
 /**
  *
@@ -330,21 +350,13 @@ public abstract class AbstractClient extends AbstractComponent implements Client
 
     private final ThreadPool threadPool;
     private final Admin admin;
-
-    private final Headers headers;
     private final ThreadedActionListener.Wrapper threadedWrapper;
 
-    public AbstractClient(Settings settings, ThreadPool threadPool, Headers headers) {
+    public AbstractClient(Settings settings, ThreadPool threadPool) {
         super(settings);
         this.threadPool = threadPool;
-        this.headers = headers;
         this.admin = new Admin(this);
         this.threadedWrapper = new ThreadedActionListener.Wrapper(logger, settings, threadPool);
-    }
-
-    @Override
-    public Headers headers() {
-        return this.headers;
     }
 
     @Override
@@ -382,7 +394,6 @@ public abstract class AbstractClient extends AbstractComponent implements Client
     @Override
     public final <Request extends ActionRequest<Request>, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void execute(
             Action<Request, Response, RequestBuilder> action, Request request, ActionListener<Response> listener) {
-        headers.applyTo(request);
         listener = threadedWrapper.wrap(listener);
         doExecute(action, request, listener);
     }
@@ -1173,6 +1184,66 @@ public abstract class AbstractClient extends AbstractComponent implements Client
         public RenderSearchTemplateRequestBuilder prepareRenderSearchTemplate() {
             return new RenderSearchTemplateRequestBuilder(this, RenderSearchTemplateAction.INSTANCE);
         }
+
+        @Override
+        public void putPipeline(PutPipelineRequest request, ActionListener<WritePipelineResponse> listener) {
+            execute(PutPipelineAction.INSTANCE, request, listener);
+        }
+
+        @Override
+        public ActionFuture<WritePipelineResponse> putPipeline(PutPipelineRequest request) {
+            return execute(PutPipelineAction.INSTANCE, request);
+        }
+
+        @Override
+        public PutPipelineRequestBuilder preparePutPipeline(String id, BytesReference source) {
+            return new PutPipelineRequestBuilder(this, PutPipelineAction.INSTANCE, id, source);
+        }
+
+        @Override
+        public void deletePipeline(DeletePipelineRequest request, ActionListener<WritePipelineResponse> listener) {
+            execute(DeletePipelineAction.INSTANCE, request, listener);
+        }
+
+        @Override
+        public ActionFuture<WritePipelineResponse> deletePipeline(DeletePipelineRequest request) {
+            return execute(DeletePipelineAction.INSTANCE, request);
+        }
+
+        @Override
+        public DeletePipelineRequestBuilder prepareDeletePipeline() {
+            return new DeletePipelineRequestBuilder(this, DeletePipelineAction.INSTANCE);
+        }
+
+        @Override
+        public void getPipeline(GetPipelineRequest request, ActionListener<GetPipelineResponse> listener) {
+            execute(GetPipelineAction.INSTANCE, request, listener);
+        }
+
+        @Override
+        public ActionFuture<GetPipelineResponse> getPipeline(GetPipelineRequest request) {
+            return execute(GetPipelineAction.INSTANCE, request);
+        }
+
+        @Override
+        public GetPipelineRequestBuilder prepareGetPipeline(String... ids) {
+            return new GetPipelineRequestBuilder(this, GetPipelineAction.INSTANCE, ids);
+        }
+
+        @Override
+        public void simulatePipeline(SimulatePipelineRequest request, ActionListener<SimulatePipelineResponse> listener) {
+            execute(SimulatePipelineAction.INSTANCE, request, listener);
+        }
+
+        @Override
+        public ActionFuture<SimulatePipelineResponse> simulatePipeline(SimulatePipelineRequest request) {
+            return execute(SimulatePipelineAction.INSTANCE, request);
+        }
+
+        @Override
+        public SimulatePipelineRequestBuilder prepareSimulatePipeline(BytesReference source) {
+            return new SimulatePipelineRequestBuilder(this, SimulatePipelineAction.INSTANCE, source);
+        }
     }
 
     static class IndicesAdmin implements IndicesAdminClient {
@@ -1680,5 +1751,18 @@ public abstract class AbstractClient extends AbstractComponent implements Client
         public void getSettings(GetSettingsRequest request, ActionListener<GetSettingsResponse> listener) {
             execute(GetSettingsAction.INSTANCE, request, listener);
         }
+    }
+
+    @Override
+    public Client filterWithHeader(Map<String, String> headers) {
+        return new FilterClient(this) {
+            @Override
+            protected <Request extends ActionRequest<Request>, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void doExecute(Action<Request, Response, RequestBuilder> action, Request request, ActionListener<Response> listener) {
+                ThreadContext threadContext = threadPool().getThreadContext();
+                try (ThreadContext.StoredContext ctx = threadContext.stashAndMergeHeaders(headers)) {
+                    super.doExecute(action, request, listener);
+                }
+            }
+        };
     }
 }

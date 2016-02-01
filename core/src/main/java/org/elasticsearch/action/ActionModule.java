@@ -149,6 +149,16 @@ import org.elasticsearch.action.indexedscripts.get.GetIndexedScriptAction;
 import org.elasticsearch.action.indexedscripts.get.TransportGetIndexedScriptAction;
 import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptAction;
 import org.elasticsearch.action.indexedscripts.put.TransportPutIndexedScriptAction;
+import org.elasticsearch.action.ingest.IngestActionFilter;
+import org.elasticsearch.action.ingest.IngestProxyActionFilter;
+import org.elasticsearch.action.ingest.DeletePipelineAction;
+import org.elasticsearch.action.ingest.DeletePipelineTransportAction;
+import org.elasticsearch.action.ingest.GetPipelineAction;
+import org.elasticsearch.action.ingest.GetPipelineTransportAction;
+import org.elasticsearch.action.ingest.PutPipelineAction;
+import org.elasticsearch.action.ingest.PutPipelineTransportAction;
+import org.elasticsearch.action.ingest.SimulatePipelineAction;
+import org.elasticsearch.action.ingest.SimulatePipelineTransportAction;
 import org.elasticsearch.action.percolate.MultiPercolateAction;
 import org.elasticsearch.action.percolate.PercolateAction;
 import org.elasticsearch.action.percolate.TransportMultiPercolateAction;
@@ -186,6 +196,8 @@ import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.MapBinder;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.node.NodeModule;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -210,13 +222,13 @@ public class ActionModule extends AbstractModule {
             this.transportAction = transportAction;
             this.supportTransportActions = supportTransportActions;
         }
-
-
     }
 
+    private final boolean ingestEnabled;
     private final boolean proxy;
 
-    public ActionModule(boolean proxy) {
+    public ActionModule(boolean ingestEnabled, boolean proxy) {
+        this.ingestEnabled = ingestEnabled;
         this.proxy = proxy;
     }
 
@@ -240,6 +252,13 @@ public class ActionModule extends AbstractModule {
 
     @Override
     protected void configure() {
+        if (proxy == false) {
+            if (ingestEnabled) {
+                registerFilter(IngestActionFilter.class);
+            } else {
+                registerFilter(IngestProxyActionFilter.class);
+            }
+        }
 
         Multibinder<ActionFilter> actionFilterMultibinder = Multibinder.newSetBinder(binder(), ActionFilter.class);
         for (Class<? extends ActionFilter> actionFilter : actionFilters) {
@@ -339,6 +358,11 @@ public class ActionModule extends AbstractModule {
         registerAction(DeleteIndexedScriptAction.INSTANCE, TransportDeleteIndexedScriptAction.class);
 
         registerAction(FieldStatsAction.INSTANCE, TransportFieldStatsTransportAction.class);
+
+        registerAction(PutPipelineAction.INSTANCE, PutPipelineTransportAction.class);
+        registerAction(GetPipelineAction.INSTANCE, GetPipelineTransportAction.class);
+        registerAction(DeletePipelineAction.INSTANCE, DeletePipelineTransportAction.class);
+        registerAction(SimulatePipelineAction.INSTANCE, SimulatePipelineTransportAction.class);
 
         // register Name -> GenericAction Map that can be injected to instances.
         MapBinder<String, GenericAction> actionsBinder

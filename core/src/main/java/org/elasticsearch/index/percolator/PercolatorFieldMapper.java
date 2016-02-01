@@ -126,9 +126,7 @@ public class PercolatorFieldMapper extends FieldMapper {
     public Mapper parse(ParseContext context) throws IOException {
         QueryShardContext queryShardContext = new QueryShardContext(this.queryShardContext);
         Query query = PercolatorQueriesRegistry.parseQuery(queryShardContext, mapUnmappedFieldAsString, context.parser());
-        if (context.flyweight() == false) {
-            ExtractQueryTermsService.extractQueryTerms(query, context.doc(), queryTermsField.name(), unknownQueryField.name(), queryTermsField.fieldType());
-        }
+        ExtractQueryTermsService.extractQueryTerms(query, context.doc(), queryTermsField.name(), unknownQueryField.name(), queryTermsField.fieldType());
         return null;
     }
 

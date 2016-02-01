@@ -91,7 +91,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 @LuceneTestCase.SuppressFileSystems("ExtrasFS")
 public class TranslogTests extends ESTestCase {
 
-    protected final ShardId shardId = new ShardId(new Index("index"), 1);
+    protected final ShardId shardId = new ShardId("index", "_na_", 1);
 
     protected Translog translog;
     protected Path translogDir;
@@ -141,7 +141,7 @@ public class TranslogTests extends ESTestCase {
                 .put(IndexMetaData.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT)
                 .build();
         ByteSizeValue bufferSize = randomBoolean() ? TranslogConfig.DEFAULT_BUFFER_SIZE : new ByteSizeValue(10 + randomInt(128 * 1024), ByteSizeUnit.BYTES);
-        return new TranslogConfig(shardId, path, IndexSettingsModule.newIndexSettings(shardId.index(), build), BigArrays.NON_RECYCLING_INSTANCE, bufferSize);
+        return new TranslogConfig(shardId, path, IndexSettingsModule.newIndexSettings(shardId.getIndex(), build), BigArrays.NON_RECYCLING_INSTANCE, bufferSize);
     }
 
     protected void addToTranslogAndList(Translog translog, ArrayList<Translog.Operation> list, Translog.Operation op) throws IOException {
@@ -288,7 +288,7 @@ public class TranslogTests extends ESTestCase {
     public void testStats() throws IOException {
         final long firstOperationPosition = translog.getFirstOperationPosition();
         TranslogStats stats = stats();
-        assertThat(stats.estimatedNumberOfOperations(), equalTo(0l));
+        assertThat(stats.estimatedNumberOfOperations(), equalTo(0L));
         long lastSize = stats.getTranslogSizeInBytes();
         assertThat((int) firstOperationPosition, greaterThan(CodecUtil.headerLength(TranslogWriter.TRANSLOG_CODEC)));
         assertThat(lastSize, equalTo(firstOperationPosition));
@@ -296,14 +296,14 @@ public class TranslogTests extends ESTestCase {
         translog.add(new Translog.Index("test", "1", new byte[]{1}));
         stats = stats();
         total.add(stats);
-        assertThat(stats.estimatedNumberOfOperations(), equalTo(1l));
+        assertThat(stats.estimatedNumberOfOperations(), equalTo(1L));
         assertThat(stats.getTranslogSizeInBytes(), greaterThan(lastSize));
         lastSize = stats.getTranslogSizeInBytes();
 
         translog.add(new Translog.Delete(newUid("2")));
         stats = stats();
         total.add(stats);
-        assertThat(stats.estimatedNumberOfOperations(), equalTo(2l));
+        assertThat(stats.estimatedNumberOfOperations(), equalTo(2L));
         assertThat(stats.getTranslogSizeInBytes(), greaterThan(lastSize));
         lastSize = stats.getTranslogSizeInBytes();
 
@@ -311,13 +311,13 @@ public class TranslogTests extends ESTestCase {
         translog.prepareCommit();
         stats = stats();
         total.add(stats);
-        assertThat(stats.estimatedNumberOfOperations(), equalTo(3l));
+        assertThat(stats.estimatedNumberOfOperations(), equalTo(3L));
         assertThat(stats.getTranslogSizeInBytes(), greaterThan(lastSize));
 
         translog.commit();
         stats = stats();
         total.add(stats);
-        assertThat(stats.estimatedNumberOfOperations(), equalTo(0l));
+        assertThat(stats.estimatedNumberOfOperations(), equalTo(0L));
         assertThat(stats.getTranslogSizeInBytes(), equalTo(firstOperationPosition));
         assertEquals(6, total.estimatedNumberOfOperations());
         assertEquals(431, total.getTranslogSizeInBytes());
@@ -896,6 +896,42 @@ public class TranslogTests extends ESTestCase {
         IOUtils.close(writer);
     }
 
+    public void testFailWriterWhileClosing() throws IOException {
+        Path tempDir = createTempDir();
+        final FailSwitch fail = new FailSwitch();
+        fail.failNever();
+        TranslogConfig config = getTranslogConfig(tempDir);
+        try (Translog translog = getFailableTranslog(fail, config)) {
+            final TranslogWriter writer = translog.createWriter(0);
+            final int numOps = randomIntBetween(10, 100);
+            byte[] bytes = new byte[4];
+            ByteArrayDataOutput out = new ByteArrayDataOutput(bytes);
+            for (int i = 0; i < numOps; i++) {
+                out.reset(bytes);
+                out.writeInt(i);
+                writer.add(new BytesArray(bytes));
+            }
+            writer.sync();
+            try {
+                fail.failAlways();
+                writer.closeIntoReader();
+                fail();
+            } catch (MockDirectoryWrapper.FakeIOException ex) {
+            }
+            try (TranslogReader reader = translog.openReader(writer.path(), Checkpoint.read(translog.location().resolve(Translog.CHECKPOINT_FILE_NAME)))) {
+                for (int i = 0; i < numOps; i++) {
+                    ByteBuffer buffer = ByteBuffer.allocate(4);
+                    reader.readBytes(buffer, reader.getFirstOperationOffset() + 4 * i);
+                    buffer.flip();
+                    final int value = buffer.getInt();
+                    assertEquals(i, value);
+                }
+            }
+
+        }
+
+    }
+
     public void testBasicRecovery() throws IOException {
         List<Translog.Location> locations = new ArrayList<>();
         int translogOperations = randomIntBetween(10, 100);
@@ -947,7 +983,7 @@ public class TranslogTests extends ESTestCase {
             if (op == prepareOp) {
                 translogGeneration = translog.getGeneration();
                 translog.prepareCommit();
-                assertEquals("expected this to be the first commit", 1l, translogGeneration.translogFileGeneration);
+                assertEquals("expected this to be the first commit", 1L, translogGeneration.translogFileGeneration);
                 assertNotNull(translogGeneration.translogUUID);
             }
         }
@@ -998,7 +1034,7 @@ public class TranslogTests extends ESTestCase {
             if (op == prepareOp) {
                 translogGeneration = translog.getGeneration();
                 translog.prepareCommit();
-                assertEquals("expected this to be the first commit", 1l, translogGeneration.translogFileGeneration);
+                assertEquals("expected this to be the first commit", 1L, translogGeneration.translogFileGeneration);
                 assertNotNull(translogGeneration.translogUUID);
             }
         }
@@ -1054,7 +1090,7 @@ public class TranslogTests extends ESTestCase {
             if (op == prepareOp) {
                 translogGeneration = translog.getGeneration();
                 translog.prepareCommit();
-                assertEquals("expected this to be the first commit", 1l, translogGeneration.translogFileGeneration);
+                assertEquals("expected this to be the first commit", 1L, translogGeneration.translogFileGeneration);
                 assertNotNull(translogGeneration.translogUUID);
             }
         }
@@ -1357,7 +1393,6 @@ public class TranslogTests extends ESTestCase {
         Path tempDir = createTempDir();
         final FailSwitch fail = new FailSwitch();
         TranslogConfig config = getTranslogConfig(tempDir);
-        assumeFalse("this won't work if we sync on any op", config.isSyncOnEachOperation());
         Translog translog = getFailableTranslog(fail, config, false, true);
         LineFileDocs lineFileDocs = new LineFileDocs(random()); // writes pretty big docs so we cross buffer boarders regularly
         translog.add(new Translog.Index("test", "1", lineFileDocs.nextDoc().toString().getBytes(Charset.forName("UTF-8"))));

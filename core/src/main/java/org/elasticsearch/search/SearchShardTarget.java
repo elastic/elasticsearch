@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.index.Index;
 
 import java.io.IOException;
 
@@ -40,9 +41,9 @@ public class SearchShardTarget implements Streamable, Comparable<SearchShardTarg
 
     }
 
-    public SearchShardTarget(String nodeId, String index, int shardId) {
+    public SearchShardTarget(String nodeId, Index index, int shardId) {
         this.nodeId = nodeId == null ? null : new Text(nodeId);
-        this.index = new Text(index);
+        this.index = new Text(index.getName());
         this.shardId = shardId;
     }
 

@@ -75,7 +75,7 @@ public class TransportRecoveryAction extends TransportBroadcastByNodeAction<Reco
             if (recoveryState == null) {
                 continue;
             }
-            String indexName = recoveryState.getShardId().getIndex();
+            String indexName = recoveryState.getShardId().getIndexName();
             if (!shardResponses.containsKey(indexName)) {
                 shardResponses.put(indexName, new ArrayList<>());
             }

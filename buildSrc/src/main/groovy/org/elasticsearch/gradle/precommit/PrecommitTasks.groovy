@@ -30,9 +30,9 @@ class PrecommitTasks {
 
     /** Adds a precommit task, which depends on non-test verification tasks. */
     public static Task create(Project project, boolean includeDependencyLicenses) {
-
         List<Task> precommitTasks = [
             configureForbiddenApis(project),
+            configureCheckstyle(project),
             project.tasks.create('forbiddenPatterns', ForbiddenPatternsTask.class),
             project.tasks.create('licenseHeaders', LicenseHeadersTask.class),
             project.tasks.create('jarHell', JarHellTask.class),
@@ -82,5 +82,26 @@ class PrecommitTasks {
         Task forbiddenApis = project.tasks.findByName('forbiddenApis')
         forbiddenApis.group = "" // clear group, so this does not show up under verification tasks
         return forbiddenApis
+    }
+
+    private static Task configureCheckstyle(Project project) {
+        Task checkstyleTask = project.tasks.create('checkstyle')
+        // Apply the checkstyle plugin to create `checkstyleMain` and `checkstyleTest`. It only
+        // creates them if there is main or test code to check and it makes `check` depend
+        // on them. But we want `precommit` to depend on `checkstyle` which depends on them so
+        // we have to swap them.
+        project.pluginManager.apply('checkstyle')
+        project.checkstyle {
+            config = project.resources.text.fromFile(
+                PrecommitTasks.getResource('/checkstyle.xml'), 'UTF-8')
+        }
+        for (String taskName : ['checkstyleMain', 'checkstyleTest']) {
+            Task task = project.tasks.findByName(taskName)
+            if (task != null) {
+                project.tasks['check'].dependsOn.remove(task)
+                checkstyleTask.dependsOn(task)
+            }
+        }
+        return checkstyleTask
     }
 }

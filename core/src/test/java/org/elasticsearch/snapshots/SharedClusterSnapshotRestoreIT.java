@@ -52,7 +52,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
 import org.elasticsearch.cluster.metadata.SnapshotId;
-import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
@@ -63,7 +62,6 @@ import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.RepositoryException;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.nio.channels.SeekableByteChannel;
 import java.nio.file.Files;
@@ -1540,7 +1538,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         // Update settings to back to normal
         assertAcked(client.admin().indices().prepareUpdateSettings("test-idx").setSettings(Settings.builder()
-                        .put(IndexStore.INDEX_STORE_THROTTLE_TYPE_SETTING.getKey(), "none")
+                        .put(IndexStore.INDEX_STORE_THROTTLE_TYPE_SETTING.getKey(), "node")
         ));
 
         logger.info("--> wait for snapshot to complete");
@@ -1898,9 +1896,9 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             public ClusterState execute(ClusterState currentState) {
                 // Simulate orphan snapshot
                 ImmutableOpenMap.Builder<ShardId, ShardSnapshotStatus> shards = ImmutableOpenMap.builder();
-                shards.put(new ShardId("test-idx", 0), new ShardSnapshotStatus("unknown-node", State.ABORTED));
-                shards.put(new ShardId("test-idx", 1), new ShardSnapshotStatus("unknown-node", State.ABORTED));
-                shards.put(new ShardId("test-idx", 2), new ShardSnapshotStatus("unknown-node", State.ABORTED));
+                shards.put(new ShardId("test-idx", "_na_", 0), new ShardSnapshotStatus("unknown-node", State.ABORTED));
+                shards.put(new ShardId("test-idx", "_na_", 1), new ShardSnapshotStatus("unknown-node", State.ABORTED));
+                shards.put(new ShardId("test-idx", "_na_", 2), new ShardSnapshotStatus("unknown-node", State.ABORTED));
                 List<Entry> entries = new ArrayList<>();
                 entries.add(new Entry(new SnapshotId("test-repo", "test-snap"), true, State.ABORTED, Collections.singletonList("test-idx"), System.currentTimeMillis(), shards.build()));
                 return ClusterState.builder(currentState).putCustom(SnapshotsInProgress.TYPE, new SnapshotsInProgress(Collections.unmodifiableList(entries))).build();
@@ -1932,7 +1930,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         return awaitBusy(() -> client().admin().cluster().prepareHealth(index).execute().actionGet().getRelocatingShards() > 0, timeout.millis(), TimeUnit.MILLISECONDS);
     }
 
-    @TestLogging("cluster:DEBUG")
     public void testBatchingShardUpdateTask() throws Exception {
         final Client client = client();
 

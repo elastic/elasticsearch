@@ -85,18 +85,6 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
         final MapperService mapperService = queryShardContext().getMapperService();
         final IndexFieldDataService fieldData = indexFieldDataService();
         TestSearchContext testSearchContext = new TestSearchContext() {
-            private InnerHitsContext context;
-
-
-            @Override
-            public void innerHits(InnerHitsContext innerHitsContext) {
-                context = innerHitsContext;
-            }
-
-            @Override
-            public InnerHitsContext innerHits() {
-                return context;
-            }
 
             @Override
             public MapperService mapperService() {
@@ -149,7 +137,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
                 assertEquals(innerHits.sort().getSort().length, 1);
                 assertEquals(innerHits.sort().getSort()[0].getField(), STRING_FIELD_NAME);
             } else {
-                assertNull(SearchContext.current().innerHits());
+                assertThat(SearchContext.current().innerHits().getInnerHits().size(), equalTo(0));
             }
         }
     }

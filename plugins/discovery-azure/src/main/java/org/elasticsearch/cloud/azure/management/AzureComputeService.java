@@ -20,6 +20,11 @@
 package org.elasticsearch.cloud.azure.management;
 
 import com.microsoft.windowsazure.management.compute.models.HostedServiceGetDetailedResponse;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.discovery.azure.AzureUnicastHostsProvider;
+
+import java.util.Locale;
 
 /**
  *
@@ -39,9 +44,11 @@ public interface AzureComputeService {
     }
 
     static public final class Discovery {
-        public static final String REFRESH = "discovery.azure.refresh_interval";
+        public static final Setting<TimeValue> REFRESH_SETTING = Setting.positiveTimeSetting("discovery.azure.refresh_interval", TimeValue.timeValueSeconds(0), false, Setting.Scope.CLUSTER);
 
-        public static final String HOST_TYPE = "discovery.azure.host.type";
+        public static final Setting<AzureUnicastHostsProvider.HostType> HOST_TYPE_SETTING = new Setting<>("discovery.azure.host.type",
+            AzureUnicastHostsProvider.HostType.PRIVATE_IP.name(), AzureUnicastHostsProvider.HostType::fromString, false, Setting.Scope.CLUSTER);
+
         public static final String ENDPOINT_NAME = "discovery.azure.endpoint.name";
         public static final String DEPLOYMENT_NAME = "discovery.azure.deployment.name";
         public static final String DEPLOYMENT_SLOT = "discovery.azure.deployment.slot";

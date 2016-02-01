@@ -61,7 +61,7 @@ public class ListenerActionIT extends ESIntegTestCase {
 
         latch.await();
 
-        boolean shouldBeThreaded = DiscoveryNode.clientNode(client.settings()) || TransportClient.CLIENT_TYPE.equals(client.settings().get(Client.CLIENT_TYPE_SETTING));
+        boolean shouldBeThreaded = DiscoveryNode.clientNode(client.settings()) || TransportClient.CLIENT_TYPE.equals(Client.CLIENT_TYPE_SETTING_S.get(client.settings()));
         if (shouldBeThreaded) {
             assertTrue(threadName.get().contains("listener"));
         } else {

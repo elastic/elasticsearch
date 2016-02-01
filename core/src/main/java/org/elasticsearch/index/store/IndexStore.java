@@ -21,7 +21,6 @@ package org.elasticsearch.index.store;
 
 import org.apache.lucene.store.StoreRateLimiting;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
@@ -30,16 +29,17 @@ import org.elasticsearch.index.shard.ShardPath;
  *
  */
 public class IndexStore extends AbstractIndexComponent {
-    public static final Setting<StoreRateLimiting.Type> INDEX_STORE_THROTTLE_TYPE_SETTING = new Setting<>("index.store.throttle.type", "none", StoreRateLimiting.Type::fromString, true, Setting.Scope.INDEX) ;
+    public static final Setting<IndexRateLimitingType> INDEX_STORE_THROTTLE_TYPE_SETTING = new Setting<>("index.store.throttle.type", "none", IndexRateLimitingType::fromString, true, Setting.Scope.INDEX) ;
     public static final Setting<ByteSizeValue> INDEX_STORE_THROTTLE_MAX_BYTES_PER_SEC_SETTING = Setting.byteSizeSetting("index.store.throttle.max_bytes_per_sec", new ByteSizeValue(0), true, Setting.Scope.INDEX);
 
     protected final IndexStoreConfig indexStoreConfig;
     private final StoreRateLimiting rateLimiting = new StoreRateLimiting();
+    private volatile IndexRateLimitingType type;
 
     public IndexStore(IndexSettings indexSettings, IndexStoreConfig indexStoreConfig) {
         super(indexSettings);
         this.indexStoreConfig = indexStoreConfig;
-        rateLimiting.setType(indexSettings.getValue(INDEX_STORE_THROTTLE_TYPE_SETTING));
+        setType(indexSettings.getValue(INDEX_STORE_THROTTLE_TYPE_SETTING));
         rateLimiting.setMaxRate(indexSettings.getValue(INDEX_STORE_THROTTLE_MAX_BYTES_PER_SEC_SETTING));
         logger.debug("using index.store.throttle.type [{}], with index.store.throttle.max_bytes_per_sec [{}]", rateLimiting.getType(), rateLimiting.getRateLimiter());
     }
@@ -49,7 +49,7 @@ public class IndexStore extends AbstractIndexComponent {
      * the node level one (defaults to the node level one).
      */
     public StoreRateLimiting rateLimiting() {
-        return rateLimiting.getType() == StoreRateLimiting.Type.NONE ? indexStoreConfig.getNodeRateLimiter() : this.rateLimiting;
+        return type.useStoreLimiter() ? indexStoreConfig.getNodeRateLimiter() : this.rateLimiting;
     }
 
     /**
@@ -59,11 +59,44 @@ public class IndexStore extends AbstractIndexComponent {
         return new FsDirectoryService(indexSettings, this, path);
     }
 
-    public void setType(StoreRateLimiting.Type type) {
-        rateLimiting.setType(type);
+    public void setType(IndexRateLimitingType type) {
+        this.type = type;
+        if (type.useStoreLimiter() == false) {
+            rateLimiting.setType(type.type);
+        }
     }
 
     public void setMaxRate(ByteSizeValue rate) {
         rateLimiting.setMaxRate(rate);
     }
+
+    /**
+     * On an index level we can configure all of {@link org.apache.lucene.store.StoreRateLimiting.Type} as well as
+     * <tt>node</tt> which will then use a global rate limiter that has it's own configuration. The global one is
+     * configured in {@link IndexStoreConfig} which is managed by the per-node {@link org.elasticsearch.indices.IndicesService}
+     */
+    public static final class IndexRateLimitingType {
+        private final StoreRateLimiting.Type type;
+
+        private IndexRateLimitingType(StoreRateLimiting.Type type) {
+            this.type = type;
+        }
+
+        private boolean useStoreLimiter() {
+            return type == null;
+        }
+
+        static IndexRateLimitingType fromString(String type) {
+            if ("node".equalsIgnoreCase(type)) {
+                return new IndexRateLimitingType(null);
+            } else {
+                try {
+                    return new IndexRateLimitingType(StoreRateLimiting.Type.fromString(type));
+                } catch (IllegalArgumentException ex) {
+                    throw new IllegalArgumentException("rate limiting type [" + type + "] not valid, can be one of [all|merge|none|node]");
+                }
+            }
+        }
+    }
+
 }

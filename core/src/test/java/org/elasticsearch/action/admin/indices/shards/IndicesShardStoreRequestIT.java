@@ -37,11 +37,8 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalSettingsPlugin;
-import org.elasticsearch.test.MockIndexEventListener;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.store.MockFSIndexStore;
-import org.elasticsearch.test.transport.MockTransportService;
 
 import java.util.Collection;
 import java.util.HashMap;
@@ -61,6 +58,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
+@TestLogging("_root:DEBUG,action.admin.indices.shards:TRACE,cluster.service:TRACE")
 public class IndicesShardStoreRequestIT extends ESIntegTestCase {
 
     @Override
@@ -74,7 +72,6 @@ public class IndicesShardStoreRequestIT extends ESIntegTestCase {
         assertThat(rsp.getStoreStatuses().size(), equalTo(0));
     }
 
-    @TestLogging("action.admin.indices.shards:TRACE,cluster.service:TRACE")
     public void testBasic() throws Exception {
         String index = "test";
         internalCluster().ensureAtLeastNumDataNodes(2);
@@ -96,7 +93,7 @@ public class IndicesShardStoreRequestIT extends ESIntegTestCase {
         assertThat(shardStores.values().size(), equalTo(2));
         for (ObjectCursor<List<IndicesShardStoresResponse.StoreStatus>> shardStoreStatuses : shardStores.values()) {
             for (IndicesShardStoresResponse.StoreStatus storeStatus : shardStoreStatuses.value) {
-                assertThat(storeStatus.getVersion(), greaterThan(-1l));
+                assertThat(storeStatus.getVersion(), greaterThan(-1L));
                 assertThat(storeStatus.getAllocationId(), notNullValue());
                 assertThat(storeStatus.getNode(), notNullValue());
                 assertThat(storeStatus.getStoreException(), nullValue());
@@ -194,10 +191,10 @@ public class IndicesShardStoreRequestIT extends ESIntegTestCase {
             for (IndicesShardStoresResponse.StoreStatus status : shardStatus.value) {
                 if (corruptedShardIDMap.containsKey(shardStatus.key)
                         && corruptedShardIDMap.get(shardStatus.key).contains(status.getNode().name())) {
-                    assertThat(status.getVersion(), greaterThanOrEqualTo(0l));
+                    assertThat(status.getVersion(), greaterThanOrEqualTo(0L));
                     assertThat(status.getStoreException(), notNullValue());
                 } else {
-                    assertThat(status.getVersion(), greaterThanOrEqualTo(0l));
+                    assertThat(status.getVersion(), greaterThanOrEqualTo(0L));
                     assertNull(status.getStoreException());
                 }
             }

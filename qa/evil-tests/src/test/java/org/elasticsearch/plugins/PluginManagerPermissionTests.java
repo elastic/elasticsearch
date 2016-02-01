@@ -70,13 +70,13 @@ public class PluginManagerPermissionTests extends ESTestCase {
     @Before
     public void setup() {
         Path tempDir = createTempDir();
-        Settings.Builder settingsBuilder = settingsBuilder().put("path.home", tempDir);
+        Settings.Builder settingsBuilder = settingsBuilder().put(Environment.PATH_HOME_SETTING.getKey(), tempDir);
         if (randomBoolean()) {
-            settingsBuilder.put("path.plugins", createTempDir());
+            settingsBuilder.put(Environment.PATH_PLUGINS_SETTING.getKey(), createTempDir());
         }
 
         if (randomBoolean()) {
-            settingsBuilder.put("path.conf", createTempDir());
+            settingsBuilder.put(Environment.PATH_CONF_SETTING.getKey(), createTempDir());
         }
 
         environment = new Environment(settingsBuilder.build());

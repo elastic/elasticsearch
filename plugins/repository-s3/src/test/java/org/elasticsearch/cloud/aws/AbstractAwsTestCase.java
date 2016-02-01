@@ -23,6 +23,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugin.repository.s3.S3RepositoryPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ThirdParty;
@@ -40,7 +41,7 @@ public abstract class AbstractAwsTestCase extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
                 Settings.Builder settings = Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put("path.home", createTempDir())
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .extendArray("plugin.types", S3RepositoryPlugin.class.getName(), TestAwsS3Service.TestPlugin.class.getName())
                 .put("cloud.aws.test.random", randomInt())
                 .put("cloud.aws.test.write_failures", 0.1)

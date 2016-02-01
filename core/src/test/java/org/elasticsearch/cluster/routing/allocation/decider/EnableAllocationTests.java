@@ -233,18 +233,18 @@ public class EnableAllocationTests extends ESAllocationTestCase {
             case PRIMARIES:
                 for (ShardRouting routing : mutableShardRoutings) {
                     assertTrue("only primaries are allowed to relocate", routing.primary());
-                    assertThat("only test index can rebalance", routing.getIndex(), equalTo("test"));
+                    assertThat("only test index can rebalance", routing.getIndexName(), equalTo("test"));
                 }
                 break;
             case REPLICAS:
                 for (ShardRouting routing : mutableShardRoutings) {
                     assertFalse("only replicas are allowed to relocate", routing.primary());
-                    assertThat("only test index can rebalance", routing.getIndex(), equalTo("test"));
+                    assertThat("only test index can rebalance", routing.getIndexName(), equalTo("test"));
                 }
                 break;
             case ALL:
                 for (ShardRouting routing : mutableShardRoutings) {
-                    assertThat("only test index can rebalance", routing.getIndex(), equalTo("test"));
+                    assertThat("only test index can rebalance", routing.getIndexName(), equalTo("test"));
                 }
                 break;
             default:

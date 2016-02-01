@@ -51,7 +51,7 @@ public class RestClearIndicesCacheAction extends BaseRestHandler {
 
     @Inject
     public RestClearIndicesCacheAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+        super(settings, client);
         controller.registerHandler(POST, "/_cache/clear", this);
         controller.registerHandler(POST, "/{index}/_cache/clear", this);
 

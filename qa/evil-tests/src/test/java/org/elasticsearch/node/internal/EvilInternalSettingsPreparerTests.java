@@ -72,7 +72,7 @@ public class EvilInternalSettingsPreparerTests extends ESTestCase {
     @Before
     public void createBaseEnvSettings() {
         baseEnvSettings = settingsBuilder()
-            .put("path.home", createTempDir())
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
             .build();
     }
 
@@ -93,7 +93,7 @@ public class EvilInternalSettingsPreparerTests extends ESTestCase {
             assertThat(env.settings().get("node.zone"), equalTo("foo"));
 
             settings = settingsBuilder()
-                .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING, true)
+                .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING.getKey(), true)
                 .put("node.zone", "bar")
                 .put(baseEnvSettings)
                 .build();

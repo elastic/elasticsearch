@@ -35,6 +35,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.test.tasks.MockTaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.RequestHandlerRegistry;
@@ -99,6 +100,15 @@ public class MockTransportService extends TransportService {
         transportAddresses.addAll(Arrays.asList(boundTransportAddress.boundAddresses()));
         transportAddresses.add(boundTransportAddress.publishAddress());
         return transportAddresses.toArray(new TransportAddress[transportAddresses.size()]);
+    }
+
+    @Override
+    protected TaskManager createTaskManager() {
+        if (settings.getAsBoolean(MockTaskManager.USE_MOCK_TASK_MANAGER, false)) {
+            return new MockTaskManager(settings);
+         } else {
+            return super.createTaskManager();
+        }
     }
 
     /**
@@ -283,7 +293,7 @@ public class MockTransportService extends TransportService {
                 }
 
                 // TODO: Replace with proper setting
-                TimeValue connectingTimeout = NetworkService.TcpSettings.TCP_DEFAULT_CONNECT_TIMEOUT;
+                TimeValue connectingTimeout = NetworkService.TcpSettings.TCP_CONNECT_TIMEOUT.getDefault(Settings.EMPTY);
                 try {
                     if (delay.millis() < connectingTimeout.millis()) {
                         Thread.sleep(delay.millis());
@@ -306,7 +316,7 @@ public class MockTransportService extends TransportService {
                 }
 
                 // TODO: Replace with proper setting
-                TimeValue connectingTimeout = NetworkService.TcpSettings.TCP_DEFAULT_CONNECT_TIMEOUT;
+                TimeValue connectingTimeout = NetworkService.TcpSettings.TCP_CONNECT_TIMEOUT.getDefault(Settings.EMPTY);
                 try {
                     if (delay.millis() < connectingTimeout.millis()) {
                         Thread.sleep(delay.millis());

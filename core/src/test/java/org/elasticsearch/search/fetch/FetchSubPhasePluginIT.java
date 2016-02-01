@@ -165,7 +165,7 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
                 hitField = new InternalSearchHitField(NAMES[0], new ArrayList<>(1));
                 hitContext.hit().fields().put(NAMES[0], hitField);
             }
-            TermVectorsResponse termVector = context.indexShard().getTermVectors(new TermVectorsRequest(context.indexShard().shardId().index().getName(), hitContext.hit().type(), hitContext.hit().id()));
+            TermVectorsResponse termVector = context.indexShard().getTermVectors(new TermVectorsRequest(context.indexShard().shardId().getIndex().getName(), hitContext.hit().type(), hitContext.hit().id()));
             try {
                 Map<String, Integer> tv = new HashMap<>();
                 TermsEnum terms = termVector.getFields().terms(field).iterator();

@@ -19,13 +19,6 @@
 
 package org.elasticsearch.search.highlight;
 
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.ParseFieldMatcher;
@@ -63,6 +56,13 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
+
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -275,7 +275,7 @@ public class HighlightBuilderTests extends ESTestCase {
     public void testBuildSearchContextHighlight() throws IOException {
         Settings indexSettings = Settings.settingsBuilder()
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
-        Index index = new Index(randomAsciiOfLengthBetween(1, 10));
+        Index index = new Index(randomAsciiOfLengthBetween(1, 10), "_na_");
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index, indexSettings);
         // shard context will only need indicesQueriesRegistry for building Query objects nested in highlighter
         QueryShardContext mockShardContext = new QueryShardContext(idxSettings, null, null, null, null, null, null, indicesQueriesRegistry) {

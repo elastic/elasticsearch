@@ -330,7 +330,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
     public void testLatLonValuesStored() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", true)
-                .field("store", "yes").endObject().endObject().endObject().endObject().string();
+                .field("store", true).endObject().endObject().endObject().endObject().string();
 
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.CURRENT);
         Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
@@ -357,7 +357,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
     public void testArrayLatLonValues() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", true)
-                .field("store", "yes").endObject().endObject().endObject().endObject().string();
+                .field("store", true).endObject().endObject().endObject().endObject().string();
 
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.CURRENT);
         Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
@@ -416,7 +416,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testLatLonInOneValueStored() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", true).field("store", "yes").endObject().endObject()
+                .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", true).field("store", true).endObject().endObject()
                 .endObject().endObject().string();
 
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.CURRENT);
@@ -443,7 +443,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
     public void testLatLonInOneValueArray() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", true)
-                .field("store", "yes").endObject().endObject().endObject().endObject().string();
+                .field("store", true).endObject().endObject().endObject().endObject().string();
 
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.CURRENT);
         Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
@@ -528,7 +528,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
     public void testLonLatArrayStored() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", true)
-                .field("store", "yes").endObject().endObject().endObject().endObject().string();
+                .field("store", true).endObject().endObject().endObject().endObject().string();
 
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.CURRENT);
         Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
@@ -554,7 +554,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
     public void testLonLatArrayArrayStored() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", true)
-                .field("store", "yes").endObject().endObject().endObject().endObject().string();
+                .field("store", true).endObject().endObject().endObject().endObject().string();
 
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.CURRENT);
         Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();

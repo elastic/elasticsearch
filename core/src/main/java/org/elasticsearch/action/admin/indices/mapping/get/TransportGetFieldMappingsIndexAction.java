@@ -102,7 +102,7 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleShardAc
                     .filter(type -> Regex.simpleMatch(request.types(), type))
                     .collect(Collectors.toCollection(ArrayList::new));
             if (typeIntersection.isEmpty()) {
-                throw new TypeMissingException(shardId.index(), request.types());
+                throw new TypeMissingException(shardId.getIndex(), request.types());
             }
         }
 
@@ -115,7 +115,7 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleShardAc
             }
         }
 
-        return new GetFieldMappingsResponse(singletonMap(shardId.getIndex(), typeMappings.immutableMap()));
+        return new GetFieldMappingsResponse(singletonMap(shardId.getIndexName(), typeMappings.immutableMap()));
     }
 
     @Override

@@ -24,6 +24,7 @@ import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -68,11 +69,11 @@ public interface Rescorer {
      * Parses the {@link RescoreSearchContext} for this impelementation
      *
      * @param parser  the parser to read the context from
-     * @param context the current search context
+     * @param context the current shard context
      * @return the parsed {@link RescoreSearchContext}
      * @throws IOException if an {@link IOException} occurs while parsing the context
      */
-    public RescoreSearchContext parse(XContentParser parser, SearchContext context) throws IOException;
+    public RescoreSearchContext parse(XContentParser parser, QueryShardContext context) throws IOException;
 
     /**
      * Extracts all terms needed to exectue this {@link Rescorer}. This method
@@ -81,7 +82,7 @@ public interface Rescorer {
      * {@link SearchType#DFS_QUERY_THEN_FETCH}
      */
     public void extractTerms(SearchContext context, RescoreSearchContext rescoreContext, Set<Term> termsSet);
-    
+
     /*
      * TODO: At this point we only have one implemenation which modifies the
      * TopDocs given. Future implemenations might return actual resutls that

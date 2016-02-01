@@ -35,10 +35,10 @@ public class StopAnalyzerTests extends ESTokenStreamTestCase {
         String json = "/org/elasticsearch/index/analysis/stop.json";
         Settings settings = settingsBuilder()
             .loadFromStream(json, getClass().getResourceAsStream(json))
-                .put("path.home", createTempDir().toString())
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .build();
-        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(new Index("index"), settings);
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
         AnalysisService analysisService = new AnalysisRegistry(null, new Environment(settings)).build(idxSettings);
 
         NamedAnalyzer analyzer1 = analysisService.analyzer("analyzer1");

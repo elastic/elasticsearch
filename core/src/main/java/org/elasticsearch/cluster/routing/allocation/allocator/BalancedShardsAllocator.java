@@ -42,7 +42,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.PriorityComparator;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
@@ -513,7 +512,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                 final ModelNode sourceNode = nodes.get(node.nodeId());
                 assert sourceNode != null;
                 final NodeSorter sorter = newNodeSorter();
-                sorter.reset(shard.getIndex());
+                sorter.reset(shard.getIndexName());
                 final ModelNode[] nodes = sorter.modelNodes;
                 assert sourceNode.containsShard(shard);
                 /*
@@ -591,24 +590,20 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
              */
             final AllocationDeciders deciders = allocation.deciders();
             final PriorityComparator secondaryComparator = PriorityComparator.getAllocationComparator(allocation);
-            final Comparator<ShardRouting> comparator = new Comparator<ShardRouting>() {
-                @Override
-                public int compare(ShardRouting o1,
-                                   ShardRouting o2) {
-                    if (o1.primary() ^ o2.primary()) {
-                        return o1.primary() ? -1 : o2.primary() ? 1 : 0;
-                    }
-                    final int indexCmp;
-                    if ((indexCmp = o1.index().compareTo(o2.index())) == 0) {
-                        return o1.getId() - o2.getId();
-                    }
-                    // this comparator is more expensive than all the others up there
-                    // that's why it's added last even though it could be easier to read
-                    // if we'd apply it earlier. this comparator will only differentiate across
-                    // indices all shards of the same index is treated equally.
-                    final int secondary = secondaryComparator.compare(o1, o2);
-                    return secondary == 0 ? indexCmp : secondary;
+            final Comparator<ShardRouting> comparator = (o1, o2) -> {
+                if (o1.primary() ^ o2.primary()) {
+                    return o1.primary() ? -1 : o2.primary() ? 1 : 0;
                 }
+                final int indexCmp;
+                if ((indexCmp = o1.getIndexName().compareTo(o2.getIndexName())) == 0) {
+                    return o1.getId() - o2.getId();
+                }
+                // this comparator is more expensive than all the others up there
+                // that's why it's added last even though it could be easier to read
+                // if we'd apply it earlier. this comparator will only differentiate across
+                // indices all shards of the same index is treated equally.
+                final int secondary = secondaryComparator.compare(o1, o2);
+                return secondary == 0 ? indexCmp : secondary;
             };
             /*
              * we use 2 arrays and move replicas to the second array once we allocated an identical
@@ -655,7 +650,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                             }
                             if (!node.containsShard(shard)) {
                                 // simulate weight if we would add shard to node
-                                float currentWeight = weight.weightShardAdded(this, node, shard.index());
+                                float currentWeight = weight.weightShardAdded(this, node, shard.getIndexName());
                                 /*
                                  * Unless the operation is not providing any gains we
                                  * don't check deciders
@@ -678,8 +673,8 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                                              */
                                             if (currentDecision.type() == decision.type()) {
                                                 final int repId = shard.id();
-                                                final int nodeHigh = node.highestPrimary(shard.index());
-                                                final int minNodeHigh = minNode.highestPrimary(shard.index());
+                                                final int nodeHigh = node.highestPrimary(shard.index().getName());
+                                                final int minNodeHigh = minNode.highestPrimary(shard.getIndexName());
                                                 if ((((nodeHigh > repId && minNodeHigh > repId) || (nodeHigh < repId && minNodeHigh < repId)) && (nodeHigh < minNodeHigh))
                                                         || (nodeHigh > minNodeHigh && nodeHigh > repId && minNodeHigh < repId)) {
                                                     minNode = node;
@@ -855,9 +850,9 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
         }
 
         public void addShard(ShardRouting shard, Decision decision) {
-            ModelIndex index = indices.get(shard.index());
+            ModelIndex index = indices.get(shard.getIndexName());
             if (index == null) {
-                index = new ModelIndex(shard.index());
+                index = new ModelIndex(shard.getIndexName());
                 indices.put(index.getIndexId(), index);
             }
             index.addShard(shard, decision);
@@ -865,12 +860,12 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
         }
 
         public Decision removeShard(ShardRouting shard) {
-            ModelIndex index = indices.get(shard.index());
+            ModelIndex index = indices.get(shard.getIndexName());
             Decision removed = null;
             if (index != null) {
                 removed = index.removeShard(shard);
                 if (removed != null && index.numShards() == 0) {
-                    indices.remove(shard.index());
+                    indices.remove(shard.getIndexName());
                 }
             }
             numShards--;
@@ -890,7 +885,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
         }
 
         public boolean containsShard(ShardRouting shard) {
-            ModelIndex index = getIndex(shard.getIndex());
+            ModelIndex index = getIndex(shard.getIndexName());
             return index == null ? false : index.containsShard(shard);
         }
 

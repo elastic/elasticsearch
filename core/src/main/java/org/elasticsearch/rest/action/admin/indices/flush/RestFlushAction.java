@@ -47,7 +47,7 @@ public class RestFlushAction extends BaseRestHandler {
 
     @Inject
     public RestFlushAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+        super(settings, client);
         controller.registerHandler(POST, "/_flush", this);
         controller.registerHandler(POST, "/{index}/_flush", this);
 

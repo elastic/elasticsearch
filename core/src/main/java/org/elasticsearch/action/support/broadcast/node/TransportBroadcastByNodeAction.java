@@ -25,6 +25,7 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ChildTaskRequest;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -44,6 +45,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BaseTransportResponseHandler;
 import org.elasticsearch.transport.NodeShouldNotConnectException;
@@ -118,7 +120,7 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
                 FailedNodeException exception = (FailedNodeException) responses.get(i);
                 totalShards += nodes.get(exception.nodeId()).size();
                 for (ShardRouting shard : nodes.get(exception.nodeId())) {
-                    exceptions.add(new DefaultShardOperationFailedException(shard.getIndex(), shard.getId(), exception));
+                    exceptions.add(new DefaultShardOperationFailedException(shard.getIndexName(), shard.getId(), exception));
                 }
             } else {
                 NodeResponse response = (NodeResponse) responses.get(i);
@@ -127,7 +129,7 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
                 successfulShards += response.getSuccessfulShards();
                 for (BroadcastShardOperationFailedException throwable : response.getExceptions()) {
                     if (!TransportActions.isShardNotAvailableException(throwable)) {
-                        exceptions.add(new DefaultShardOperationFailedException(throwable.getIndex(), throwable.getShardId().getId(), throwable));
+                        exceptions.add(new DefaultShardOperationFailedException(throwable.getShardId().getIndexName(), throwable.getShardId().getId(), throwable));
                     }
                 }
             }
@@ -206,11 +208,17 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
     protected abstract ClusterBlockException checkRequestBlock(ClusterState state, Request request, String[] concreteIndices);
 
     @Override
-    protected void doExecute(Request request, ActionListener<Response> listener) {
-        new AsyncAction(request, listener).start();
+    protected final void doExecute(Request request, ActionListener<Response> listener) {
+        throw new UnsupportedOperationException("the task parameter is required for this operation");
+    }
+
+    @Override
+    protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
+        new AsyncAction(task, request, listener).start();
     }
 
     protected class AsyncAction {
+        private final Task task;
         private final Request request;
         private final ActionListener<Response> listener;
         private final ClusterState clusterState;
@@ -220,7 +228,8 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
         private final AtomicInteger counter = new AtomicInteger();
         private List<NoShardAvailableActionException> unavailableShardExceptions = new ArrayList<>();
 
-        protected AsyncAction(Request request, ActionListener<Response> listener) {
+        protected AsyncAction(Task task, Request request, ActionListener<Response> listener) {
+            this.task = task;
             this.request = request;
             this.listener = listener;
 
@@ -290,6 +299,9 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
         private void sendNodeRequest(final DiscoveryNode node, List<ShardRouting> shards, final int nodeIndex) {
             try {
                 NodeRequest nodeRequest = new NodeRequest(node.getId(), request, shards);
+                if (task != null) {
+                    nodeRequest.setParentTask(clusterService.localNode().id(), task.getId());
+                }
                 transportService.sendRequest(node, transportNodeBroadcastAction, nodeRequest, new BaseTransportResponseHandler<NodeResponse>() {
                     @Override
                     public NodeResponse newInstance() {
@@ -406,7 +418,7 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
                 }
             } catch (Throwable t) {
                 BroadcastShardOperationFailedException e = new BroadcastShardOperationFailedException(shardRouting.shardId(), "operation " + actionName + " failed", t);
-                e.setIndex(shardRouting.getIndex());
+                e.setIndex(shardRouting.getIndexName());
                 e.setShard(shardRouting.shardId());
                 shardResults[shardIndex] = e;
                 if (TransportActions.isShardNotAvailableException(t)) {
@@ -422,7 +434,7 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
         }
     }
 
-    public class NodeRequest extends TransportRequest implements IndicesRequest {
+    public class NodeRequest extends ChildTaskRequest implements IndicesRequest {
         private String nodeId;
 
         private List<ShardRouting> shards;
@@ -433,7 +445,6 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
         }
 
         public NodeRequest(String nodeId, Request request, List<ShardRouting> shards) {
-            super(request);
             this.indicesLevelRequest = request;
             this.shards = shards;
             this.nodeId = nodeId;

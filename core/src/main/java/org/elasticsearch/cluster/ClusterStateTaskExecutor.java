@@ -120,7 +120,7 @@ public interface ClusterStateTaskExecutor<T> {
         }
 
         public boolean isSuccess() {
-            return failure != null;
+            return this == SUCCESS;
         }
 
         /**

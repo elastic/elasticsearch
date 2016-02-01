@@ -24,13 +24,13 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.path.PathTrie;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.support.RestUtils;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -107,12 +107,7 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
         RestFilter[] copy = new RestFilter[filters.length + 1];
         System.arraycopy(filters, 0, copy, 0, filters.length);
         copy[filters.length] = preProcessor;
-        Arrays.sort(copy, new Comparator<RestFilter>() {
-            @Override
-            public int compare(RestFilter o1, RestFilter o2) {
-                return Integer.compare(o1.order(), o2.order());
-            }
-        });
+        Arrays.sort(copy, (o1, o2) -> Integer.compare(o1.order(), o2.order()));
         filters = copy;
     }
 
@@ -163,24 +158,31 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
         return new ControllerFilterChain(executionFilter);
     }
 
-    public void dispatchRequest(final RestRequest request, final RestChannel channel) {
+    public void dispatchRequest(final RestRequest request, final RestChannel channel, ThreadContext threadContext) {
         if (!checkRequestParameters(request, channel)) {
             return;
         }
-
-        if (filters.length == 0) {
-            try {
-                executeHandler(request, channel);
-            } catch (Throwable e) {
-                try {
-                    channel.sendResponse(new BytesRestResponse(channel, e));
-                } catch (Throwable e1) {
-                    logger.error("failed to send failure response for uri [" + request.uri() + "]", e1);
+        try (ThreadContext.StoredContext t = threadContext.stashContext()){
+            for (String key : relevantHeaders) {
+                String httpHeader = request.header(key);
+                if (httpHeader != null) {
+                    threadContext.putHeader(key, httpHeader);
                 }
             }
-        } else {
-            ControllerFilterChain filterChain = new ControllerFilterChain(handlerFilter);
-            filterChain.continueProcessing(request, channel);
+            if (filters.length == 0) {
+                try {
+                    executeHandler(request, channel);
+                } catch (Throwable e) {
+                    try {
+                        channel.sendResponse(new BytesRestResponse(channel, e));
+                    } catch (Throwable e1) {
+                        logger.error("failed to send failure response for uri [" + request.uri() + "]", e1);
+                    }
+                }
+            } else {
+                ControllerFilterChain filterChain = new ControllerFilterChain(handlerFilter);
+                filterChain.continueProcessing(request, channel);
+            }
         }
     }
 

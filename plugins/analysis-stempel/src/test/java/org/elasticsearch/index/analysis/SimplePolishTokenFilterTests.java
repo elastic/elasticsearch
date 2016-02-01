@@ -56,10 +56,10 @@ public class SimplePolishTokenFilterTests extends ESTestCase {
     }
 
     private void testToken(String source, String expected) throws IOException {
-        Index index = new Index("test");
+        Index index = new Index("test", "_na_");
         Settings settings = Settings.settingsBuilder()
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put("path.home", createTempDir())
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .put("index.analysis.filter.myStemmer.type", "polish_stem")
                 .build();
         AnalysisService analysisService = createAnalysisService(index, settings);
@@ -78,10 +78,10 @@ public class SimplePolishTokenFilterTests extends ESTestCase {
     }
 
     private void testAnalyzer(String source, String... expected_terms) throws IOException {
-        Index index = new Index("test");
+        Index index = new Index("test", "_na_");
         Settings settings = Settings.settingsBuilder()
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put("path.home", createTempDir())
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .build();
         AnalysisService analysisService = createAnalysisService(index, settings);
 

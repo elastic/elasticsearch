@@ -38,7 +38,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.lenientNodeBooleanValue;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseStore;
 
 public class SizeFieldMapper extends MetadataFieldMapper {
@@ -92,10 +92,10 @@ public class SizeFieldMapper extends MetadataFieldMapper {
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());
                 Object fieldNode = entry.getValue();
                 if (fieldName.equals("enabled")) {
-                    builder.enabled(nodeBooleanValue(fieldNode) ? EnabledAttributeMapper.ENABLED : EnabledAttributeMapper.DISABLED);
+                    builder.enabled(lenientNodeBooleanValue(fieldNode) ? EnabledAttributeMapper.ENABLED : EnabledAttributeMapper.DISABLED);
                     iterator.remove();
                 } else if (fieldName.equals("store") && parserContext.indexVersionCreated().before(Version.V_2_0_0_beta1)) {
-                    builder.store(parseStore(fieldName, fieldNode.toString()));
+                    builder.store(parseStore(fieldName, fieldNode.toString(), parserContext));
                     iterator.remove();
                 }
             }
@@ -150,7 +150,7 @@ public class SizeFieldMapper extends MetadataFieldMapper {
         if (!enabledState.enabled) {
             return;
         }
-        if (context.flyweight()) {
+        if (context.source() == null) {
             return;
         }
         fields.add(new IntegerFieldMapper.CustomIntegerNumericField(context.source().length(), fieldType()));

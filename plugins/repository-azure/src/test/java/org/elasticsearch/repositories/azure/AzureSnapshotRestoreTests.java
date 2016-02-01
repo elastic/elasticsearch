@@ -35,6 +35,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.repositories.RepositoryVerificationException;
 import org.elasticsearch.repositories.azure.AzureRepository.Repository;
@@ -77,7 +78,7 @@ public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyTestCa
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder().put(super.nodeSettings(nodeOrdinal))
                 // In snapshot tests, we explicitly disable cloud discovery
-                .put("discovery.type", "local")
+                .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "local")
                 .build();
     }
 

@@ -25,6 +25,7 @@ import org.apache.lucene.analysis.en.PorterStemFilter;
 import org.apache.lucene.analysis.snowball.SnowballFilter;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTokenStreamTestCase;
 import org.elasticsearch.test.VersionUtils;
 
@@ -50,7 +51,7 @@ public class StemmerTokenFilterFactoryTests extends ESTokenStreamTestCase {
                     .put("index.analysis.analyzer.my_english.tokenizer","whitespace")
                     .put("index.analysis.analyzer.my_english.filter","my_english")
                     .put(SETTING_VERSION_CREATED,v)
-                    .put("path.home", createTempDir().toString())
+                    .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                     .build();
 
             AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(settings);
@@ -83,7 +84,7 @@ public class StemmerTokenFilterFactoryTests extends ESTokenStreamTestCase {
                     .put("index.analysis.analyzer.my_porter2.tokenizer","whitespace")
                     .put("index.analysis.analyzer.my_porter2.filter","my_porter2")
                     .put(SETTING_VERSION_CREATED,v)
-                    .put("path.home", createTempDir().toString())
+                    .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                     .build();
 
             AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(settings);

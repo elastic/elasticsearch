@@ -100,7 +100,7 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalValueCount(name, 0l, formatter, pipelineAggregators(), metaData());
+        return new InternalValueCount(name, 0L, formatter, pipelineAggregators(), metaData());
     }
 
     @Override

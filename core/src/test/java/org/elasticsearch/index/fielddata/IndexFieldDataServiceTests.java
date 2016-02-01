@@ -33,7 +33,6 @@ import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.fielddata.plain.PagedBytesAtomicFieldData;
 import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
@@ -145,14 +144,14 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         writer.addDocument(doc);
         DirectoryReader open = DirectoryReader.open(writer, true);
         final boolean wrap = randomBoolean();
-        final IndexReader reader = wrap ? ElasticsearchDirectoryReader.wrap(open, new ShardId("test", 1)) : open;
+        final IndexReader reader = wrap ? ElasticsearchDirectoryReader.wrap(open, new ShardId("test", "_na_", 1)) : open;
         final AtomicInteger onCacheCalled = new AtomicInteger();
         final AtomicInteger onRemovalCalled = new AtomicInteger();
         ifdService.setListener(new IndexFieldDataCache.Listener() {
             @Override
             public void onCache(ShardId shardId, String fieldName, FieldDataType fieldDataType, Accountable ramUsage) {
                 if (wrap) {
-                    assertEquals(new ShardId("test", 1), shardId);
+                    assertEquals(new ShardId("test", "_na_", 1), shardId);
                 } else {
                     assertNull(shardId);
                 }
@@ -162,7 +161,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
             @Override
             public void onRemoval(ShardId shardId, String fieldName, FieldDataType fieldDataType, boolean wasEvicted, long sizeInBytes) {
                 if (wrap) {
-                    assertEquals(new ShardId("test", 1), shardId);
+                    assertEquals(new ShardId("test", "_na_", 1), shardId);
                 } else {
                     assertNull(shardId);
                 }
@@ -207,7 +206,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         ThreadPool threadPool = new ThreadPool("random_threadpool_name");
         try {
             IndicesFieldDataCache cache = new IndicesFieldDataCache(Settings.EMPTY, null, threadPool);
-            IndexFieldDataService ifds = new IndexFieldDataService(IndexSettingsModule.newIndexSettings(new Index("test"), Settings.EMPTY), cache, null, null);
+            IndexFieldDataService ifds = new IndexFieldDataService(IndexSettingsModule.newIndexSettings("test", Settings.EMPTY), cache, null, null);
             ft.setName("some_long");
             ft.setHasDocValues(true);
             ifds.getForField(ft); // no exception
@@ -233,5 +232,24 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
 
     public void testRequireDocValuesOnBools() {
         doTestRequireDocValues(new BooleanFieldMapper.BooleanFieldType());
+    }
+
+    public void testDisabled() {
+        ThreadPool threadPool = new ThreadPool("random_threadpool_name");
+        StringFieldMapper.StringFieldType ft = new StringFieldMapper.StringFieldType();
+        try {
+            IndicesFieldDataCache cache = new IndicesFieldDataCache(Settings.EMPTY, null, threadPool);
+            IndexFieldDataService ifds = new IndexFieldDataService(IndexSettingsModule.newIndexSettings("test", Settings.EMPTY), cache, null, null);
+            ft.setName("some_str");
+            ft.setFieldDataType(new FieldDataType("string", Settings.builder().put(FieldDataType.FORMAT_KEY, "disabled").build()));
+            try {
+                ifds.getForField(ft);
+                fail();
+            } catch (IllegalStateException e) {
+                assertThat(e.getMessage(), containsString("Field data loading is forbidden on [some_str]"));
+            }
+        } finally {
+            threadPool.shutdown();
+        }
     }
 }

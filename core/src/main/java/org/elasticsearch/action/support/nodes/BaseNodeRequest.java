@@ -36,8 +36,7 @@ public abstract class BaseNodeRequest extends ChildTaskRequest {
 
     }
 
-    protected BaseNodeRequest(BaseNodesRequest request, String nodeId) {
-        super(request);
+    protected BaseNodeRequest(String nodeId) {
         this.nodeId = nodeId;
     }
 

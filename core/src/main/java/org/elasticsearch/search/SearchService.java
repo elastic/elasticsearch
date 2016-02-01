@@ -23,9 +23,11 @@ import com.carrotsearch.hppc.ObjectFloatHashMap;
 import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.hppc.ObjectSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
@@ -60,7 +62,6 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.Loading;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.search.stats.ShardSearchStats;
@@ -100,6 +101,8 @@ import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.QuerySearchResultProvider;
 import org.elasticsearch.search.query.ScrollQuerySearchResult;
+import org.elasticsearch.search.rescore.RescoreBuilder;
+import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -122,8 +125,9 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
 public class SearchService extends AbstractLifecycleComponent<SearchService> implements IndexEventListener {
 
     public static final Setting<Loading> INDEX_NORMS_LOADING_SETTING = new Setting<>("index.norms.loading", Loading.LAZY.toString(), (s) -> Loading.parse(s, Loading.LAZY), false, Setting.Scope.INDEX);
-    public static final String DEFAULT_KEEPALIVE_KEY = "search.default_keep_alive";
-    public static final String KEEPALIVE_INTERVAL_KEY = "search.keep_alive_interval";
+    // we can have 5 minutes here, since we make sure to clean with search requests and when shard/index closes
+    public static final Setting<TimeValue> DEFAULT_KEEPALIVE_SETTING = Setting.positiveTimeSetting("search.default_keep_alive", timeValueMinutes(5), false, Setting.Scope.CLUSTER);
+    public static final Setting<TimeValue> KEEPALIVE_INTERVAL_SETTING = Setting.positiveTimeSetting("search.keep_alive_interval", timeValueMinutes(1), false, Setting.Scope.CLUSTER);
 
     public static final TimeValue NO_TIMEOUT = timeValueMillis(-1);
     public static final Setting<TimeValue> DEFAULT_SEARCH_TIMEOUT_SETTING = Setting.timeSetting("search.default_search_timeout", NO_TIMEOUT, true, Setting.Scope.CLUSTER);
@@ -183,9 +187,8 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
         this.fetchPhase = fetchPhase;
         this.indicesQueryCache = indicesQueryCache;
 
-        TimeValue keepAliveInterval = settings.getAsTime(KEEPALIVE_INTERVAL_KEY, timeValueMinutes(1));
-        // we can have 5 minutes here, since we make sure to clean with search requests and when shard/index closes
-        this.defaultKeepAlive = settings.getAsTime(DEFAULT_KEEPALIVE_KEY, timeValueMinutes(5)).millis();
+        TimeValue keepAliveInterval = KEEPALIVE_INTERVAL_SETTING.get(settings);
+        this.defaultKeepAlive = DEFAULT_KEEPALIVE_SETTING.get(settings).millis();
 
         Map<String, SearchParseElement> elementParsers = new HashMap<>();
         elementParsers.putAll(dfsPhase.parseElements());
@@ -553,7 +556,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
         IndexService indexService = indicesService.indexServiceSafe(request.index());
         IndexShard indexShard = indexService.getShard(request.shardId());
 
-        SearchShardTarget shardTarget = new SearchShardTarget(clusterService.localNode().id(), request.index(), request.shardId());
+        SearchShardTarget shardTarget = new SearchShardTarget(clusterService.localNode().id(), indexShard.shardId().getIndex(), request.shardId());
 
         Engine.Searcher engineSearcher = searcher == null ? indexShard.acquireSearcher("search") : searcher;
 
@@ -566,7 +569,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
                 context.scrollContext().scroll = request.scroll();
             }
             if (request.template() != null) {
-                ExecutableScript executable = this.scriptService.executable(request.template(), ScriptContext.Standard.SEARCH, context, Collections.emptyMap());
+                ExecutableScript executable = this.scriptService.executable(request.template(), ScriptContext.Standard.SEARCH, Collections.emptyMap());
                 BytesReference run = (BytesReference) executable.run();
                 try (XContentParser parser = XContentFactory.xContent(run).createParser(run)) {
                     QueryParseContext queryParseContext = new QueryParseContext(indicesService.getIndicesQueryRegistry());
@@ -607,7 +610,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
     private void freeAllContextForIndex(Index index) {
         assert index != null;
         for (SearchContext ctx : activeContexts.values()) {
-            if (index.equals(ctx.indexShard().shardId().index())) {
+            if (index.equals(ctx.indexShard().shardId().getIndex())) {
                 freeContext(ctx.id());
             }
         }
@@ -772,33 +775,12 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
             }
         }
         if (source.rescores() != null) {
-            XContentParser completeRescoreParser = null;
             try {
-                XContentBuilder completeRescoreBuilder = XContentFactory.jsonBuilder();
-                completeRescoreBuilder.startObject();
-                completeRescoreBuilder.startArray("rescore");
-                for (BytesReference rescore : source.rescores()) {
-                    XContentParser parser = XContentFactory.xContent(rescore).createParser(rescore);
-                    parser.nextToken();
-                    completeRescoreBuilder.copyCurrentStructure(parser);
+                for (RescoreBuilder<?> rescore : source.rescores()) {
+                    context.addRescore(rescore.build(context.indexShard().getQueryShardContext()));
                 }
-                completeRescoreBuilder.endArray();
-                completeRescoreBuilder.endObject();
-                BytesReference completeRescoreBytes = completeRescoreBuilder.bytes();
-                completeRescoreParser = XContentFactory.xContent(completeRescoreBytes).createParser(completeRescoreBytes);
-                completeRescoreParser.nextToken();
-                completeRescoreParser.nextToken();
-                completeRescoreParser.nextToken();
-                this.elementParsers.get("rescore").parse(completeRescoreParser, context);
-            } catch (Exception e) {
-                String sSource = "_na_";
-                try {
-                    sSource = source.toString();
-                } catch (Throwable e1) {
-                    // ignore
-                }
-                XContentLocation location = completeRescoreParser != null ? completeRescoreParser.getTokenLocation() : null;
-                throw new SearchParseException(context, "failed to parse rescore source [" + sSource + "]", location, e);
+            } catch (IOException e) {
+                throw new SearchContextException(context, "failed to create RescoreSearchContext", e);
             }
         }
         if (source.fields() != null) {
@@ -883,6 +865,16 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
         }
         if (source.stats() != null) {
             context.groupStats(source.stats());
+        }
+        if (source.searchAfter() != null && source.searchAfter().length > 0) {
+            if (context.scrollContext() != null) {
+                throw new SearchContextException(context, "`search_after` cannot be used in a scroll context.");
+            }
+            if (context.from() > 0) {
+                throw new SearchContextException(context, "`from` parameter must be set to 0 when `search_after` is used.");
+            }
+            FieldDoc fieldDoc = SearchAfterBuilder.buildFieldDoc(context.sort(), source.searchAfter());
+            context.searchAfter(fieldDoc);
         }
     }
 
@@ -1033,22 +1025,8 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
             final Map<String, MappedFieldType> warmUp = new HashMap<>();
             for (DocumentMapper docMapper : mapperService.docMappers(false)) {
                 for (FieldMapper fieldMapper : docMapper.mappers()) {
-                    final FieldDataType fieldDataType;
-                    final String indexName;
-                    if (fieldMapper instanceof ParentFieldMapper) {
-                        MappedFieldType joinFieldType = ((ParentFieldMapper) fieldMapper).getChildJoinFieldType();
-                        if (joinFieldType == null) {
-                            continue;
-                        }
-                        fieldDataType = joinFieldType.fieldDataType();
-                        // TODO: this can be removed in 3.0 when the old parent/child impl is removed:
-                        // related to: https://github.com/elastic/elasticsearch/pull/12418
-                        indexName = fieldMapper.fieldType().name();
-                    } else {
-                        fieldDataType = fieldMapper.fieldType().fieldDataType();
-                        indexName = fieldMapper.fieldType().name();
-                    }
-
+                    final FieldDataType fieldDataType = fieldMapper.fieldType().fieldDataType();
+                    final String indexName = fieldMapper.fieldType().name();
                     if (fieldDataType == null) {
                         continue;
                     }
@@ -1101,21 +1079,8 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
             final Map<String, MappedFieldType> warmUpGlobalOrdinals = new HashMap<>();
             for (DocumentMapper docMapper : mapperService.docMappers(false)) {
                 for (FieldMapper fieldMapper : docMapper.mappers()) {
-                    final FieldDataType fieldDataType;
-                    final String indexName;
-                    if (fieldMapper instanceof ParentFieldMapper) {
-                        MappedFieldType joinFieldType = ((ParentFieldMapper) fieldMapper).getChildJoinFieldType();
-                        if (joinFieldType == null) {
-                            continue;
-                        }
-                        fieldDataType = joinFieldType.fieldDataType();
-                        // TODO: this can be removed in 3.0 when the old parent/child impl is removed:
-                        // related to: https://github.com/elastic/elasticsearch/pull/12418
-                        indexName = fieldMapper.fieldType().name();
-                    } else {
-                        fieldDataType = fieldMapper.fieldType().fieldDataType();
-                        indexName = fieldMapper.fieldType().name();
-                    }
+                    final FieldDataType fieldDataType = fieldMapper.fieldType().fieldDataType();
+                    final String indexName = fieldMapper.fieldType().name();
                     if (fieldDataType == null) {
                         continue;
                     }
@@ -1167,7 +1132,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
                 // Use the same value for both checks since lastAccessTime can
                 // be modified by another thread between checks!
                 final long lastAccessTime = context.lastAccessTime();
-                if (lastAccessTime == -1l) { // its being processed or timeout is disabled
+                if (lastAccessTime == -1L) { // its being processed or timeout is disabled
                     continue;
                 }
                 if ((time - lastAccessTime > context.keepAlive())) {

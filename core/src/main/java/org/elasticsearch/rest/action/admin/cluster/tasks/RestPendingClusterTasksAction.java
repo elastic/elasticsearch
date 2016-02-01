@@ -36,7 +36,7 @@ public class RestPendingClusterTasksAction extends BaseRestHandler {
 
     @Inject
     public RestPendingClusterTasksAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+        super(settings, client);
         controller.registerHandler(RestRequest.Method.GET, "/_cluster/pending_tasks", this);
     }
 

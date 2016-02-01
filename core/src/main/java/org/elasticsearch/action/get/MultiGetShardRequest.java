@@ -45,7 +45,7 @@ public class MultiGetShardRequest extends SingleShardRequest<MultiGetShardReques
     }
 
     MultiGetShardRequest(MultiGetRequest multiGetRequest, String index, int shardId) {
-        super(multiGetRequest, index);
+        super(index);
         this.shardId = shardId;
         locations = new IntArrayList();
         items = new ArrayList<>();

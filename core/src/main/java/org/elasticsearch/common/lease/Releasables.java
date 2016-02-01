@@ -19,37 +19,23 @@
 
 package org.elasticsearch.common.lease;
 
+import org.apache.lucene.util.IOUtils;
+
+import java.io.IOException;
 import java.util.Arrays;
 
 /** Utility methods to work with {@link Releasable}s. */
 public enum Releasables {
     ;
 
-    private static void rethrow(Throwable t) {
-        if (t instanceof RuntimeException) {
-            throw (RuntimeException) t;
-        }
-        if (t instanceof Error) {
-            throw (Error) t;
-        }
-        throw new RuntimeException(t);
-    }
-
     private static void close(Iterable<? extends Releasable> releasables, boolean ignoreException) {
-        Throwable th = null;
-        for (Releasable releasable : releasables) {
-            if (releasable != null) {
-                try {
-                    releasable.close();
-                } catch (Throwable t) {
-                    if (th == null) {
-                        th = t;
-                    }
-                }
+        try {
+            // this does the right thing with respect to add suppressed and not wrapping errors etc.
+            IOUtils.close(releasables);
+        } catch (Throwable t) {
+            if (ignoreException == false) {
+                IOUtils.reThrowUnchecked(t);
             }
-        }
-        if (th != null && !ignoreException) {
-            rethrow(th);
         }
     }
 
@@ -99,25 +85,11 @@ public enum Releasables {
      *  </pre>
      */
     public static Releasable wrap(final Iterable<Releasable> releasables) {
-        return new Releasable() {
-
-            @Override
-            public void close() {
-                Releasables.close(releasables);
-            }
-
-        };
+        return () -> close(releasables);
     }
 
     /** @see #wrap(Iterable) */
     public static Releasable wrap(final Releasable... releasables) {
-        return new Releasable() {
-
-            @Override
-            public void close() {
-                Releasables.close(releasables);
-            }
-
-        };
+        return () -> close(releasables);
     }
 }

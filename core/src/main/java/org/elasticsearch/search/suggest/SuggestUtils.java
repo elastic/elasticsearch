@@ -210,15 +210,20 @@ public final class SuggestUtils {
         public static final ParseField MIN_WORD_LENGTH = new ParseField("min_word_length", "min_word_len");
         public static final ParseField MIN_DOC_FREQ = new ParseField("min_doc_freq");
         public static final ParseField SHARD_SIZE = new ParseField("shard_size");
+        public static final ParseField ANALYZER = new ParseField("analyzer");
+        public static final ParseField FIELD = new ParseField("field");
+        public static final ParseField SIZE = new ParseField("size");
+        public static final ParseField SORT = new ParseField("sort");
+        public static final ParseField ACCURACY = new ParseField("accuracy");
    }
 
     public static boolean parseDirectSpellcheckerSettings(XContentParser parser, String fieldName,
                 DirectSpellcheckerSettings suggestion, ParseFieldMatcher parseFieldMatcher) throws IOException {
-            if ("accuracy".equals(fieldName)) {
+            if (parseFieldMatcher.match(fieldName, Fields.ACCURACY)) {
                 suggestion.accuracy(parser.floatValue());
             } else if (parseFieldMatcher.match(fieldName, Fields.SUGGEST_MODE)) {
                 suggestion.suggestMode(SuggestUtils.resolveSuggestMode(parser.text()));
-            } else if ("sort".equals(fieldName)) {
+            } else if (parseFieldMatcher.match(fieldName, Fields.SORT)) {
                 suggestion.sort(SuggestUtils.resolveSort(parser.text()));
             } else if (parseFieldMatcher.match(fieldName, Fields.STRING_DISTANCE)) {
             suggestion.stringDistance(SuggestUtils.resolveDistance(parser.text()));
@@ -246,16 +251,16 @@ public final class SuggestUtils {
     public static boolean parseSuggestContext(XContentParser parser, MapperService mapperService, String fieldName,
             SuggestionSearchContext.SuggestionContext suggestion, ParseFieldMatcher parseFieldMatcher) throws IOException {
 
-        if ("analyzer".equals(fieldName)) {
+        if (parseFieldMatcher.match(fieldName, Fields.ANALYZER)) {
             String analyzerName = parser.text();
             Analyzer analyzer = mapperService.analysisService().analyzer(analyzerName);
             if (analyzer == null) {
                 throw new IllegalArgumentException("Analyzer [" + analyzerName + "] doesn't exists");
             }
             suggestion.setAnalyzer(analyzer);
-        } else if ("field".equals(fieldName)) {
+        } else if (parseFieldMatcher.match(fieldName, Fields.FIELD)) {
             suggestion.setField(parser.text());
-        } else if ("size".equals(fieldName)) {
+        } else if (parseFieldMatcher.match(fieldName, Fields.SIZE)) {
             suggestion.setSize(parser.intValue());
         } else if (parseFieldMatcher.match(fieldName, Fields.SHARD_SIZE)) {
             suggestion.setShardSize(parser.intValue());

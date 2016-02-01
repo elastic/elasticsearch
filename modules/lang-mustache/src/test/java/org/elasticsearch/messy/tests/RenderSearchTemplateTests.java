@@ -25,6 +25,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.script.Template;
@@ -68,7 +69,7 @@ public class RenderSearchTemplateTests extends ESIntegTestCase {
             throw new RuntimeException(e);
         }
         return settingsBuilder().put(super.nodeSettings(nodeOrdinal))
-                .put("path.conf", configDir).build();
+                .put(Environment.PATH_CONF_SETTING.getKey(), configDir).build();
     }
 
     public void testInlineTemplate() {

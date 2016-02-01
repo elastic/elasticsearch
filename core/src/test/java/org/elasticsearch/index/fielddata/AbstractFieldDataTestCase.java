@@ -142,7 +142,7 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
         if (readerContext != null) {
             readerContext.reader().close();
         }
-        topLevelReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer, true), new ShardId("foo", 1));
+        topLevelReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer, true), new ShardId("foo", "_na_", 1));
         LeafReader reader = SlowCompositeReaderWrapper.wrap(topLevelReader);
         readerContext = reader.getContext();
         return readerContext;
@@ -174,7 +174,7 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
         AtomicFieldData previous = null;
         for (int i = 0; i < max; i++) {
             AtomicFieldData current = fieldData.load(readerContext);
-            assertThat(current.ramBytesUsed(), equalTo(0l));
+            assertThat(current.ramBytesUsed(), equalTo(0L));
             if (previous != null) {
                 assertThat(current, not(sameInstance(previous)));
             }

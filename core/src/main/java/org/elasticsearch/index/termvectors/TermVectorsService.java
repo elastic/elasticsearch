@@ -71,18 +71,16 @@ import static org.elasticsearch.index.mapper.SourceToParse.source;
 
 public class TermVectorsService  {
 
-    private final MappingUpdatedAction mappingUpdatedAction;
     private final TransportDfsOnlyAction dfsAction;
 
     @Inject
-    public TermVectorsService(MappingUpdatedAction mappingUpdatedAction, TransportDfsOnlyAction dfsAction) {
-        this.mappingUpdatedAction = mappingUpdatedAction;
+    public TermVectorsService(TransportDfsOnlyAction dfsAction) {
         this.dfsAction = dfsAction;
     }
 
 
     public TermVectorsResponse getTermVectors(IndexShard indexShard, TermVectorsRequest request) {
-        final TermVectorsResponse termVectorsResponse = new TermVectorsResponse(indexShard.shardId().index().name(), request.type(), request.id());
+        final TermVectorsResponse termVectorsResponse = new TermVectorsResponse(indexShard.shardId().getIndex().getName(), request.type(), request.id());
         final Term uidTerm = new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(request.type(), request.id()));
 
         Engine.GetResult get = indexShard.get(new Engine.Get(request.realtime(), uidTerm).version(request.version()).versionType(request.versionType()));
@@ -262,7 +260,7 @@ public class TermVectorsService  {
 
     private Fields generateTermVectorsFromDoc(IndexShard indexShard, TermVectorsRequest request, boolean doAllFields) throws Throwable {
         // parse the document, at the moment we do update the mapping, just like percolate
-        ParsedDocument parsedDocument = parseDocument(indexShard, indexShard.shardId().getIndex(), request.type(), request.doc());
+        ParsedDocument parsedDocument = parseDocument(indexShard, indexShard.shardId().getIndexName(), request.type(), request.doc());
 
         // select the right fields and generate term vectors
         ParseContext.Document doc = parsedDocument.rootDoc();
@@ -293,15 +291,10 @@ public class TermVectorsService  {
 
     private ParsedDocument parseDocument(IndexShard indexShard, String index, String type, BytesReference doc) throws Throwable {
         MapperService mapperService = indexShard.mapperService();
-
-        // TODO: make parsing not dynamically create fields not in the original mapping
         DocumentMapperForType docMapper = mapperService.documentMapperWithAutoCreate(type);
-        ParsedDocument parsedDocument = docMapper.getDocumentMapper().parse(source(doc).index(index).type(type).flyweight(true));
+        ParsedDocument parsedDocument = docMapper.getDocumentMapper().parse(source(doc).index(index).type(type).id("_id_for_tv_api"));
         if (docMapper.getMapping() != null) {
             parsedDocument.addDynamicMappingsUpdate(docMapper.getMapping());
-        }
-        if (parsedDocument.dynamicMappingsUpdate() != null) {
-            mappingUpdatedAction.updateMappingOnMasterSynchronously(index, type, parsedDocument.dynamicMappingsUpdate());
         }
         return parsedDocument;
     }

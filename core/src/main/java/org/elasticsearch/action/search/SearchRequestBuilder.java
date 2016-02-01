@@ -344,6 +344,15 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
+     * Set the sort values that indicates which docs this request should "search after".
+     *
+     */
+    public SearchRequestBuilder searchAfter(Object[] values) {
+        sourceBuilder().searchAfter(values);
+        return this;
+    }
+
+    /**
      * Applies when sorting, and controls if scores will be tracked as well. Defaults to
      * <tt>false</tt>.
      */
@@ -391,27 +400,27 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
 
     /**
      * Clears all rescorers on the builder and sets the first one.  To use multiple rescore windows use
-     * {@link #addRescorer(org.elasticsearch.search.rescore.RescoreBuilder.Rescorer, int)}.
+     * {@link #addRescorer(org.elasticsearch.search.rescore.RescoreBuilder, int)}.
      *
      * @param rescorer rescorer configuration
      * @return this for chaining
      */
-    public SearchRequestBuilder setRescorer(RescoreBuilder.Rescorer rescorer) {
+    public SearchRequestBuilder setRescorer(RescoreBuilder<?> rescorer) {
         sourceBuilder().clearRescorers();
         return addRescorer(rescorer);
     }
 
     /**
      * Clears all rescorers on the builder and sets the first one.  To use multiple rescore windows use
-     * {@link #addRescorer(org.elasticsearch.search.rescore.RescoreBuilder.Rescorer, int)}.
+     * {@link #addRescorer(org.elasticsearch.search.rescore.RescoreBuilder, int)}.
      *
      * @param rescorer rescorer configuration
      * @param window   rescore window
      * @return this for chaining
      */
-    public SearchRequestBuilder setRescorer(RescoreBuilder.Rescorer rescorer, int window) {
+    public SearchRequestBuilder setRescorer(RescoreBuilder rescorer, int window) {
         sourceBuilder().clearRescorers();
-        return addRescorer(rescorer, window);
+        return addRescorer(rescorer.windowSize(window));
     }
 
     /**
@@ -420,8 +429,8 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * @param rescorer rescorer configuration
      * @return this for chaining
      */
-    public SearchRequestBuilder addRescorer(RescoreBuilder.Rescorer rescorer) {
-        sourceBuilder().addRescorer(new RescoreBuilder(rescorer));
+    public SearchRequestBuilder addRescorer(RescoreBuilder<?> rescorer) {
+        sourceBuilder().addRescorer(rescorer);
         return this;
     }
 
@@ -432,8 +441,8 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * @param window   rescore window
      * @return this for chaining
      */
-    public SearchRequestBuilder addRescorer(RescoreBuilder.Rescorer rescorer, int window) {
-        sourceBuilder().addRescorer(new RescoreBuilder(rescorer).windowSize(window));
+    public SearchRequestBuilder addRescorer(RescoreBuilder<?> rescorer, int window) {
+        sourceBuilder().addRescorer(rescorer.windowSize(window));
         return this;
     }
 

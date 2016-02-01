@@ -47,10 +47,10 @@ public class ParentFieldMapperTests extends ESTestCase {
         assertThat(parentFieldMapper.getParentJoinFieldType().hasDocValues(), is(true));
         assertThat(parentFieldMapper.getParentJoinFieldType().docValuesType(), equalTo(DocValuesType.SORTED));
 
-        assertThat(parentFieldMapper.getChildJoinFieldType().name(), equalTo("_parent#parent"));
-        assertThat(parentFieldMapper.getChildJoinFieldType().fieldDataType().getLoading(), equalTo(Loading.LAZY));
-        assertThat(parentFieldMapper.getChildJoinFieldType().hasDocValues(), is(true));
-        assertThat(parentFieldMapper.getChildJoinFieldType().docValuesType(), equalTo(DocValuesType.SORTED));
+        assertThat(parentFieldMapper.fieldType().name(), equalTo("_parent#parent"));
+        assertThat(parentFieldMapper.fieldType().fieldDataType().getLoading(), equalTo(Loading.LAZY));
+        assertThat(parentFieldMapper.fieldType().hasDocValues(), is(true));
+        assertThat(parentFieldMapper.fieldType().docValuesType(), equalTo(DocValuesType.SORTED));
     }
 
     public void testPost2Dot0EagerLoading() {
@@ -65,10 +65,10 @@ public class ParentFieldMapperTests extends ESTestCase {
         assertThat(parentFieldMapper.getParentJoinFieldType().hasDocValues(), is(true));
         assertThat(parentFieldMapper.getParentJoinFieldType().docValuesType(), equalTo(DocValuesType.SORTED));
 
-        assertThat(parentFieldMapper.getChildJoinFieldType().name(), equalTo("_parent#parent"));
-        assertThat(parentFieldMapper.getChildJoinFieldType().fieldDataType().getLoading(), equalTo(Loading.EAGER));
-        assertThat(parentFieldMapper.getChildJoinFieldType().hasDocValues(), is(true));
-        assertThat(parentFieldMapper.getChildJoinFieldType().docValuesType(), equalTo(DocValuesType.SORTED));
+        assertThat(parentFieldMapper.fieldType().name(), equalTo("_parent#parent"));
+        assertThat(parentFieldMapper.fieldType().fieldDataType().getLoading(), equalTo(Loading.EAGER));
+        assertThat(parentFieldMapper.fieldType().hasDocValues(), is(true));
+        assertThat(parentFieldMapper.fieldType().docValuesType(), equalTo(DocValuesType.SORTED));
     }
 
     public void testPost2Dot0EagerGlobalOrdinalsLoading() {
@@ -83,10 +83,10 @@ public class ParentFieldMapperTests extends ESTestCase {
         assertThat(parentFieldMapper.getParentJoinFieldType().hasDocValues(), is(true));
         assertThat(parentFieldMapper.getParentJoinFieldType().docValuesType(), equalTo(DocValuesType.SORTED));
 
-        assertThat(parentFieldMapper.getChildJoinFieldType().name(), equalTo("_parent#parent"));
-        assertThat(parentFieldMapper.getChildJoinFieldType().fieldDataType().getLoading(), equalTo(Loading.EAGER_GLOBAL_ORDINALS));
-        assertThat(parentFieldMapper.getChildJoinFieldType().hasDocValues(), is(true));
-        assertThat(parentFieldMapper.getChildJoinFieldType().docValuesType(), equalTo(DocValuesType.SORTED));
+        assertThat(parentFieldMapper.fieldType().name(), equalTo("_parent#parent"));
+        assertThat(parentFieldMapper.fieldType().fieldDataType().getLoading(), equalTo(Loading.EAGER_GLOBAL_ORDINALS));
+        assertThat(parentFieldMapper.fieldType().hasDocValues(), is(true));
+        assertThat(parentFieldMapper.fieldType().docValuesType(), equalTo(DocValuesType.SORTED));
     }
 
     private static Settings post2Dot0IndexSettings() {

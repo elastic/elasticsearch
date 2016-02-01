@@ -49,7 +49,7 @@ import java.util.Map;
 /** Separate test class from ShardPathTests because we need static (BeforeClass) setup to install mock filesystems... */
 public class NewPathForShardTests extends ESTestCase {
 
-    private static final IndexSettings INDEX_SETTINGS = IndexSettingsModule.newIndexSettings(new Index("index"), Settings.EMPTY);
+    private static final IndexSettings INDEX_SETTINGS = IndexSettingsModule.newIndexSettings("index", Settings.EMPTY);
 
     // Sneakiness to install mock file stores so we can pretend how much free space we have on each path.data:
     private static MockFileStore aFileStore = new MockFileStore("mocka");
@@ -167,8 +167,8 @@ public class NewPathForShardTests extends ESTestCase {
                                        path.resolve("b").toString()};
 
         Settings settings = Settings.builder()
-            .put("path.home", path)
-            .putArray("path.data", paths).build();
+            .put(Environment.PATH_HOME_SETTING.getKey(), path)
+            .putArray(Environment.PATH_DATA_SETTING.getKey(), paths).build();
         NodeEnvironment nodeEnv = new NodeEnvironment(settings, new Environment(settings));
 
         // Make sure all our mocking above actually worked:
@@ -182,7 +182,7 @@ public class NewPathForShardTests extends ESTestCase {
         aFileStore.usableSpace = 100000;
         bFileStore.usableSpace = 1000;
 
-        ShardId shardId = new ShardId("index", 0);
+        ShardId shardId = new ShardId("index", "_na_", 0);
         ShardPath result = ShardPath.selectNewPathForShard(nodeEnv, shardId, INDEX_SETTINGS, 100, Collections.<Path,Integer>emptyMap());
         assertTrue(result.getDataPath().toString().contains(aPathPart));
 
@@ -190,7 +190,7 @@ public class NewPathForShardTests extends ESTestCase {
         aFileStore.usableSpace = 1000;
         bFileStore.usableSpace = 100000;
 
-        shardId = new ShardId("index", 0);
+        shardId = new ShardId("index", "_na_", 0);
         result = ShardPath.selectNewPathForShard(nodeEnv, shardId, INDEX_SETTINGS, 100, Collections.<Path,Integer>emptyMap());
         assertTrue(result.getDataPath().toString().contains(bPathPart));
 

@@ -51,7 +51,7 @@ public class RestSearchScrollAction extends BaseRestHandler {
 
     @Inject
     public RestSearchScrollAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+        super(settings, client);
 
         controller.registerHandler(GET, "/_search/scroll", this);
         controller.registerHandler(POST, "/_search/scroll", this);

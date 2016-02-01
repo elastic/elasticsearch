@@ -117,7 +117,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                         nrReplicasChanged.put(numberOfReplicas, new ArrayList<>());
                     }
 
-                    nrReplicasChanged.get(numberOfReplicas).add(indexMetaData.getIndex());
+                    nrReplicasChanged.get(numberOfReplicas).add(indexMetaData.getIndex().getName());
                 }
             }
         }

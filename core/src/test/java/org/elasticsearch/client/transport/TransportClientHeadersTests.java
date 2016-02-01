@@ -36,6 +36,7 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -83,7 +84,7 @@ public class TransportClientHeadersTests extends AbstractClientHeadersTestCase {
                 .put("node.name", "transport_client_" + this.getTestName() + "_1")
                 .put("client.transport.nodes_sampler_interval", "1s")
                 .put(HEADER_SETTINGS)
-                .put("path.home", createTempDir().toString()).build())
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build())
             .addPlugin(InternalTransportService.TestPlugin.class)
             .build();
 
@@ -134,30 +135,30 @@ public class TransportClientHeadersTests extends AbstractClientHeadersTestCase {
         @Override @SuppressWarnings("unchecked")
         public <T extends TransportResponse> void sendRequest(DiscoveryNode node, String action, TransportRequest request, TransportRequestOptions options, TransportResponseHandler<T> handler) {
             if (TransportLivenessAction.NAME.equals(action)) {
-                assertHeaders(request);
+                assertHeaders(threadPool);
                 ((TransportResponseHandler<LivenessResponse>) handler).handleResponse(new LivenessResponse(ClusterName.DEFAULT, node));
                 return;
             }
             if (ClusterStateAction.NAME.equals(action)) {
-                assertHeaders(request);
+                assertHeaders(threadPool);
                 ClusterName cluster1 = new ClusterName("cluster1");
                 ((TransportResponseHandler<ClusterStateResponse>) handler).handleResponse(new ClusterStateResponse(cluster1, state(cluster1)));
                 clusterStateLatch.countDown();
                 return;
             }
 
-            handler.handleException(new TransportException("", new InternalException(action, request)));
+            handler.handleException(new TransportException("", new InternalException(action)));
         }
 
         @Override
         public boolean nodeConnected(DiscoveryNode node) {
-            assertThat((LocalTransportAddress) node.getAddress(), equalTo(address));
+            assertThat(node.getAddress(), equalTo(address));
             return true;
         }
 
         @Override
         public void connectToNode(DiscoveryNode node) throws ConnectTransportException {
-            assertThat((LocalTransportAddress) node.getAddress(), equalTo(address));
+            assertThat(node.getAddress(), equalTo(address));
         }
     }
 

@@ -39,7 +39,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 public class TransportClientBackwardsCompatibilityIT extends ESBackcompatTestCase {
     public void testSniffMode() throws ExecutionException, InterruptedException {
         Settings settings = Settings.builder().put(requiredSettings()).put("client.transport.nodes_sampler_interval", "1s")
-                .put("name", "transport_client_sniff_mode").put(ClusterName.SETTING, cluster().getClusterName())
+                .put("name", "transport_client_sniff_mode").put(ClusterName.CLUSTER_NAME_SETTING.getKey(), cluster().getClusterName())
                 .put("client.transport.sniff", true).build();
 
         CompositeTestCluster compositeTestCluster = backwardsCluster();

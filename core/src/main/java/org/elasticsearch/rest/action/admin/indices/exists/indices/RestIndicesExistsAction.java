@@ -45,7 +45,7 @@ public class RestIndicesExistsAction extends BaseRestHandler {
 
     @Inject
     public RestIndicesExistsAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+        super(settings, client);
         controller.registerHandler(HEAD, "/{index}", this);
     }
 

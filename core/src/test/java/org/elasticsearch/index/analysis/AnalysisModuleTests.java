@@ -68,8 +68,7 @@ public class AnalysisModuleTests extends ModuleTestCase {
     }
 
     public AnalysisService getAnalysisService(AnalysisRegistry registry, Settings settings) throws IOException {
-        Index index = new Index("test");
-        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index, settings);
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("test", settings);
         return registry.build(idxSettings);
     }
 
@@ -81,7 +80,7 @@ public class AnalysisModuleTests extends ModuleTestCase {
     private Settings loadFromClasspath(String path) {
         return settingsBuilder().loadFromStream(path, getClass().getResourceAsStream(path))
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put("path.home", createTempDir().toString())
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .build();
 
     }
@@ -106,7 +105,7 @@ public class AnalysisModuleTests extends ModuleTestCase {
         String yaml = "/org/elasticsearch/index/analysis/test1.yml";
         Settings settings2 = settingsBuilder()
                 .loadFromStream(yaml, getClass().getResourceAsStream(yaml))
-                .put("path.home", createTempDir().toString())
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_0_90_0)
                 .build();
         AnalysisRegistry newRegistry = getNewRegistry(settings2);
@@ -130,7 +129,7 @@ public class AnalysisModuleTests extends ModuleTestCase {
     private void assertTokenFilter(String name, Class clazz) throws IOException {
         Settings settings = Settings.settingsBuilder()
                                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                               .put("path.home", createTempDir().toString()).build();
+                               .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
         AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(settings);
         TokenFilterFactory tokenFilter = analysisService.tokenFilter(name);
         Tokenizer tokenizer = new WhitespaceTokenizer();
@@ -215,7 +214,7 @@ public class AnalysisModuleTests extends ModuleTestCase {
 
     public void testWordListPath() throws Exception {
         Settings settings = Settings.builder()
-                               .put("path.home", createTempDir().toString())
+                               .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                                .build();
         Environment env = new Environment(settings);
         String[] words = new String[]{"donau", "dampf", "schiff", "spargel", "creme", "suppe"};
@@ -243,7 +242,7 @@ public class AnalysisModuleTests extends ModuleTestCase {
     public void testUnderscoreInAnalyzerName() throws IOException {
         Settings settings = Settings.builder()
                 .put("index.analysis.analyzer._invalid_name.tokenizer", "keyword")
-                .put("path.home", createTempDir().toString())
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .put(IndexMetaData.SETTING_VERSION_CREATED, "1")
                 .build();
         try {
@@ -258,7 +257,7 @@ public class AnalysisModuleTests extends ModuleTestCase {
         Settings settings = Settings.builder()
                 .put("index.analysis.analyzer.valid_name.tokenizer", "keyword")
                 .put("index.analysis.analyzer.valid_name.alias", "_invalid_name")
-                .put("path.home", createTempDir().toString())
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .put(IndexMetaData.SETTING_VERSION_CREATED, "1")
                 .build();
         try {
@@ -275,7 +274,7 @@ public class AnalysisModuleTests extends ModuleTestCase {
                 .put("index.analysis.analyzer.custom1.position_offset_gap", "128")
                 .put("index.analysis.analyzer.custom2.tokenizer", "standard")
                 .put("index.analysis.analyzer.custom2.position_increment_gap", "256")
-                .put("path.home", createTempDir().toString())
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .put(IndexMetaData.SETTING_VERSION_CREATED, VersionUtils.randomVersionBetween(random(), Version.V_1_0_0,
                         Version.V_1_7_1))
                 .build();
@@ -295,7 +294,7 @@ public class AnalysisModuleTests extends ModuleTestCase {
                 .put("index.analysis.analyzer.custom.tokenizer", "standard")
                 .put("index.analysis.analyzer.custom.position_offset_gap", "128")
                 .put("index.analysis.analyzer.custom.position_increment_gap", "256")
-                .put("path.home", createTempDir().toString())
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .put(IndexMetaData.SETTING_VERSION_CREATED, VersionUtils.randomVersionBetween(random(), Version.V_1_0_0,
                         Version.V_1_7_1))
                 .build();
@@ -312,7 +311,7 @@ public class AnalysisModuleTests extends ModuleTestCase {
         Settings settings = settingsBuilder()
                 .put("index.analysis.analyzer.custom.tokenizer", "standard")
                 .put("index.analysis.analyzer.custom.position_offset_gap", "128")
-                .put("path.home", createTempDir().toString())
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .build();
         try {
@@ -326,7 +325,7 @@ public class AnalysisModuleTests extends ModuleTestCase {
 
     public void testRegisterHunspellDictionary() throws Exception {
         Settings settings = settingsBuilder()
-                .put("path.home", createTempDir().toString())
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .build();
         AnalysisModule module = new AnalysisModule(new Environment(settings));

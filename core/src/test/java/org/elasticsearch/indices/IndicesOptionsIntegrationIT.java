@@ -472,19 +472,19 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                 .setQuery(matchAllQuery())
                 .execute().actionGet();
-        assertHitCount(response, 0l);
+        assertHitCount(response, 0L);
 
         response = client().prepareSearch("test2","test3").setQuery(matchAllQuery())
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                 .execute().actionGet();
-        assertHitCount(response, 0l);
+        assertHitCount(response, 0L);
 
         //you should still be able to run empty searches without things blowing up
         response  = client().prepareSearch()
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                 .setQuery(matchAllQuery())
                 .execute().actionGet();
-        assertHitCount(response, 1l);
+        assertHitCount(response, 1L);
     }
 
     public void testAllMissingStrict() throws Exception {

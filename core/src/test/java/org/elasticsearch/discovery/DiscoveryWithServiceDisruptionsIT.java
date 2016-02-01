@@ -45,6 +45,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.math.MathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
@@ -111,6 +112,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, transportClientRatio = 0)
 @ESIntegTestCase.SuppressLocalMode
+@TestLogging("_root:DEBUG,cluster.service:TRACE")
 public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
 
     private static final TimeValue DISRUPTION_HEALING_OVERHEAD = TimeValue.timeValueSeconds(40); // we use 30s as timeout in many places.
@@ -163,12 +165,11 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
     }
 
     final static Settings DEFAULT_SETTINGS = Settings.builder()
-            .put(FaultDetection.SETTING_PING_TIMEOUT, "1s") // for hitting simulated network failures quickly
-            .put(FaultDetection.SETTING_PING_RETRIES, "1") // for hitting simulated network failures quickly
+            .put(FaultDetection.PING_TIMEOUT_SETTING.getKey(), "1s") // for hitting simulated network failures quickly
+            .put(FaultDetection.PING_RETRIES_SETTING.getKey(), "1") // for hitting simulated network failures quickly
             .put("discovery.zen.join_timeout", "10s")  // still long to induce failures but to long so test won't time out
             .put(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(), "1s") // <-- for hitting simulated network failures quickly
             .put("http.enabled", false) // just to make test quicker
-            .put("gateway.local.list_timeout", "10s") // still long to induce failures but to long so test won't time out
             .build();
 
     @Override
@@ -421,7 +422,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
      */
     // NOTE: if you remove the awaitFix, make sure to port the test to the 1.x branch
     @LuceneTestCase.AwaitsFix(bugUrl = "needs some more work to stabilize")
-    @TestLogging("action.index:TRACE,action.get:TRACE,discovery:TRACE,cluster.service:TRACE,indices.recovery:TRACE,indices.cluster:TRACE")
+    @TestLogging("_root:DEBUG,action.index:TRACE,action.get:TRACE,discovery:TRACE,cluster.service:TRACE,indices.recovery:TRACE,indices.cluster:TRACE")
     public void testAckedIndexing() throws Exception {
         // TODO: add node count randomizaion
         final List<String> nodes = startCluster(3);
@@ -465,10 +466,10 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
                                 logger.info("[{}] Acquired semaphore and it has {} permits left", name, semaphore.availablePermits());
                                 try {
                                     id = Integer.toString(idGenerator.incrementAndGet());
-                                    int shard = Murmur3HashFunction.hash(id) % numPrimaries;
+                                    int shard = MathUtils.mod(Murmur3HashFunction.hash(id), numPrimaries);
                                     logger.trace("[{}] indexing id [{}] through node [{}] targeting shard [{}]", name, id, node, shard);
                                     IndexResponse response = client.prepareIndex("test", "type", id).setSource("{}").setTimeout("1s").get();
-                                    assertThat(response.getVersion(), equalTo(1l));
+                                    assertThat(response.getVersion(), equalTo(1L));
                                     ackedDocs.put(id, node);
                                     logger.trace("[{}] indexed id [{}] through node [{}]", name, id, node);
                                 } catch (ElasticsearchException e) {
@@ -704,7 +705,6 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
      * Test that a document which is indexed on the majority side of a partition, is available from the minority side,
      * once the partition is healed
      */
-    @TestLogging(value = "cluster.service:TRACE")
     public void testRejoinDocumentExistsInAllShardCopies() throws Exception {
         List<String> nodes = startCluster(3);
 
@@ -728,14 +728,14 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
 
 
         IndexResponse indexResponse = internalCluster().client(notIsolatedNode).prepareIndex("test", "type").setSource("field", "value").get();
-        assertThat(indexResponse.getVersion(), equalTo(1l));
+        assertThat(indexResponse.getVersion(), equalTo(1L));
 
         logger.info("Verifying if document exists via node[" + notIsolatedNode + "]");
         GetResponse getResponse = internalCluster().client(notIsolatedNode).prepareGet("test", "type", indexResponse.getId())
                 .setPreference("_local")
                 .get();
         assertThat(getResponse.isExists(), is(true));
-        assertThat(getResponse.getVersion(), equalTo(1l));
+        assertThat(getResponse.getVersion(), equalTo(1L));
         assertThat(getResponse.getId(), equalTo(indexResponse.getId()));
 
         scheme.stopDisrupting();
@@ -749,7 +749,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
                     .setPreference("_local")
                     .get();
             assertThat(getResponse.isExists(), is(true));
-            assertThat(getResponse.getVersion(), equalTo(1l));
+            assertThat(getResponse.getVersion(), equalTo(1L));
             assertThat(getResponse.getId(), equalTo(indexResponse.getId()));
         }
     }
@@ -794,7 +794,6 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         assertMaster(masterNode, nodes);
     }
 
-    @TestLogging("discovery.zen:TRACE,cluster.service:TRACE")
     public void testIsolatedUnicastNodes() throws Exception {
         List<String> nodes = startCluster(4, -1, new int[]{0});
         // Figure out what is the elected master node
@@ -961,7 +960,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         // don't wait for initial state, wat want to add the disruption while the cluster is forming..
         internalCluster().startNodesAsync(3,
                 Settings.builder()
-                        .put(DiscoveryService.SETTING_INITIAL_STATE_TIMEOUT, "1ms")
+                        .put(DiscoveryService.INITIAL_STATE_TIMEOUT_SETTING.getKey(), "1ms")
                         .put(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(), "3s")
                         .build()).get();
 
@@ -978,7 +977,6 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
      * sure that the node is removed form the cluster, that the node start pinging and that
      * the cluster reforms when healed.
      */
-    @TestLogging("discovery.zen:TRACE,action:TRACE")
     public void testNodeNotReachableFromMaster() throws Exception {
         startCluster(3);
 
@@ -1044,14 +1042,14 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         CountDownLatch beginRelocationLatch = new CountDownLatch(1);
         CountDownLatch endRelocationLatch = new CountDownLatch(1);
         transportServiceNode2.addTracer(new IndicesStoreIntegrationIT.ReclocationStartEndTracer(logger, beginRelocationLatch, endRelocationLatch));
-        internalCluster().client().admin().cluster().prepareReroute().add(new MoveAllocationCommand(new ShardId("test", 0), node_1, node_2)).get();
+        internalCluster().client().admin().cluster().prepareReroute().add(new MoveAllocationCommand("test", 0, node_1, node_2)).get();
         // wait for relocation to start
         beginRelocationLatch.await();
         disruption.startDisrupting();
         // wait for relocation to finish
         endRelocationLatch.await();
         // now search for the documents and see if we get a reply
-        assertThat(client().prepareSearch().setSize(0).get().getHits().totalHits(), equalTo(100l));
+        assertThat(client().prepareSearch().setSize(0).get().getHits().totalHits(), equalTo(100L));
     }
 
     public void testIndexImportedFromDataOnlyNodesIfMasterLostDataFolder() throws Exception {

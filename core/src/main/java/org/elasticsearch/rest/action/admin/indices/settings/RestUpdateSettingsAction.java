@@ -53,7 +53,7 @@ public class RestUpdateSettingsAction extends BaseRestHandler {
 
     @Inject
     public RestUpdateSettingsAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+        super(settings, client);
         controller.registerHandler(RestRequest.Method.PUT, "/{index}/_settings", this);
         controller.registerHandler(RestRequest.Method.PUT, "/_settings", this);
     }

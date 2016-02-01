@@ -72,6 +72,7 @@ public class RandomQueryGenerator {
         }
     }
 
+    @SuppressWarnings("deprecation") // fuzzy queries will be removed in 4.0
     private static QueryBuilder randomTerminalQuery(List<String> stringFields, List<String> numericFields, int numDocs) {
         switch (randomIntBetween(0,6)) {
             case 0:
@@ -195,6 +196,8 @@ public class RandomQueryGenerator {
         return q;
     }
 
+    @SuppressWarnings("deprecation") // fuzzy queries will be removed in 4.0
+    @Deprecated
     private static QueryBuilder randomFuzzyQuery(List<String> fields) {
 
         QueryBuilder q = QueryBuilders.fuzzyQuery(randomField(fields), randomQueryString(1));

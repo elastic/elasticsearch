@@ -232,7 +232,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         if (this.termsLookup != null) {
             termsLookup = new TermsLookup(this.termsLookup);
             if (termsLookup.index() == null) {
-                termsLookup.index(context.index().name());
+                termsLookup.index(context.index().getName());
             }
             Client client = context.getClient();
             terms = fetch(termsLookup, client);
@@ -249,7 +249,6 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         List<Object> terms = new ArrayList<>();
         GetRequest getRequest = new GetRequest(termsLookup.index(), termsLookup.type(), termsLookup.id())
                 .preference("_local").routing(termsLookup.routing());
-        getRequest.copyContextAndHeadersFrom(SearchContext.current());
         final GetResponse getResponse = client.get(getRequest).actionGet();
         if (getResponse.isExists()) {
             List<Object> extractedValues = XContentMapValues.extractRawValues(termsLookup.path(), getResponse.getSourceAsMap());

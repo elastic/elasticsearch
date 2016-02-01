@@ -21,3 +21,30 @@ fields. The `min_value` and `max_value` elements now return values as number
 and the new `min_value_as_string` and `max_value_as_string` return the values
 as string.
 
+[float]
+=== Default logging using systemd
+
+In previous versions of Elasticsearch using systemd, the default logging
+configuration routed standard output to `/dev/null` and standard error to
+the journal. However, there are often critical error messages at
+startup that are logged to standard output rather than standard error
+and these error messages would be lost to the ether. The default has
+changed to now route standard output to the journal and standard error
+to inherit this setting (these are the defaults for systemd). These
+settings can be modified by editing the `elasticsearch.service` file.
+
+[float]
+=== Cloud AWS Plugin
+
+Proxy settings have been deprecated and renamed:
+
+* from `cloud.aws.proxy_host` to `cloud.aws.proxy.host`
+* from `cloud.aws.ec2.proxy_host` to `cloud.aws.ec2.proxy.host`
+* from `cloud.aws.s3.proxy_host` to `cloud.aws.s3.proxy.host`
+* from `cloud.aws.proxy_port` to `cloud.aws.proxy.port`
+* from `cloud.aws.ec2.proxy_port` to `cloud.aws.ec2.proxy.port`
+* from `cloud.aws.s3.proxy_port` to `cloud.aws.s3.proxy.port`
+
+If you are using proxy settings, update your settings as deprecated ones will
+be removed in next major version.
+

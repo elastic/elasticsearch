@@ -6,13 +6,11 @@
 === Breaking changes
 
 Index APIs::
-* Add Force Merge API, deprecate Optimize API {pull}13778[#13778]
+* Change Field stats API response to include both number and string based min and max values {pull}14674[#14674] (issue: {issue}14404[#14404])
 
-Internal::
-* Forbid changing thread pool types {pull}14367[#14367] (issues: {issue}14294[#14294], {issue}2509[#2509], {issue}2858[#2858], {issue}5152[#5152])
-
-Stats::
-* Add system CPU percent to OS stats {pull}15302[#15302]
+Scripting::
+* Filter classes loaded by scripts {pull}15262[#15262]
+* Lock down javascript and python script engines better {pull}13924[#13924]
 
 
 
@@ -25,7 +23,7 @@ Java API::
 * Deprecates defaultRescoreWindowSize {pull}13995[#13995]
 
 Query DSL::
-* Query DSL: Deprecate the `missing` query {pull}15153[#15153] (issue: {issue}14112[#14112])
+* Deprecate the `missing` query {pull}15153[#15153] (issue: {issue}14112[#14112])
 * Deprecate NotQueryBuilder {pull}14203[#14203] (issue: {issue}13761[#13761])
 
 Search::
@@ -109,14 +107,15 @@ Exceptions::
 * Give a better exception when running from freebsd jail without enforce_statfs=1 {pull}14135[#14135] (issue: {issue}12018[#12018])
 * Make root_cause of field conflicts more obvious {pull}13976[#13976] (issue: {issue}12839[#12839])
 
+Fielddata::
+* Update GeoPoint FieldData for GeoPointV2 {pull}14345[#14345]
+
 Geo::
 * Geo: Fix toString() in GeoDistanceRangeQuery and GeoPolygonQuery {pull}15026[#15026]
 * Enable GeoPointV2 with backward compatibility testing {pull}14667[#14667] (issues: {issue}10761[#10761], {issue}11159[#11159], {issue}9859[#9859])
-* Update GeoPoint FieldData for GeoPointV2 {pull}14345[#14345]
 * Refactor Geo utilities to Lucene 5.4 {pull}14339[#14339]
 
 Index APIs::
-* [Field stats API] Change response to include both number and string based min and max values {pull}14674[#14674] (issue: {issue}14404[#14404])
 * Add option to disable closing indices {pull}14169[#14169] (issue: {issue}14168[#14168])
 
 Index Templates::
@@ -142,7 +141,7 @@ Internal::
 * Refactor retry logic for TransportMasterNodeAction {pull}14222[#14222]
 * Remove MetaDataSerivce and it's semaphores {pull}14159[#14159] (issue: {issue}1296[#1296])
 * Cleanup IndexMetaData {pull}14119[#14119]
-* lock down javascript and python script engines better {pull}13924[#13924]
+* TransportNodesAction shouldn't hold on to cluster state {pull}13948[#13948]
 * Add SpecialPermission to guard exceptions to security policy. {pull}13854[#13854]
 * Clean up scripting permissions. {pull}13844[#13844]
 * Factor groovy out of core into lang-groovy {pull}13834[#13834] (issue: {issue}13725[#13725])
@@ -189,7 +188,6 @@ Packaging::
 
 Plugin Cloud AWS::
 * Add support for proxy authentication for s3 and ec2 {pull}15352[#15352] (issues: {issue}15268[#15268], {issue}15293[#15293])
-* Improved building of disco nodes {pull}14155[#14155]
 
 Plugin Cloud Azure::
 * Add timeout settings (default to 5 minutes) {pull}15950[#15950] (issues: {issue}14277[#14277], {issue}15080[#15080])
@@ -200,7 +198,9 @@ Plugin Cloud GCE::
 * Add `_gce_` network host setting {pull}13612[#13612] (issues: {issue}13590[#13590], {issue}13605[#13605])
 
 Plugin Discovery EC2::
+* Add ap-northeast-2 (seoul) endpoints for EC2 discovery and S3 snapshots {pull}16167[#16167] (issue: {issue}16166[#16166])
 * Adding US-Gov-West {pull}14358[#14358]
+* Improved building of disco nodes {pull}14155[#14155]
 
 Plugin Mapper Attachment::
 * Backport mapper-attachments plugin to 2.x {pull}14902[#14902]
@@ -210,10 +210,10 @@ Plugin Repository S3::
 
 Plugins::
 * Expose http.type setting, and collapse al(most all) modules relating to transport/http {pull}15434[#15434] (issue: {issue}14148[#14148])
-* ban RuntimePermission("getClassLoader") {pull}15253[#15253]
+* Ban RuntimePermission("getClassLoader") {pull}15253[#15253]
 * Add nicer error message when a plugin descriptor is missing {pull}15200[#15200] (issue: {issue}15197[#15197])
 * Don't be lenient in PluginService#processModule(Module) {pull}14306[#14306]
-* check "plugin already installed" before jar hell check. {pull}14207[#14207] (issue: {issue}14205[#14205])
+* Check "plugin already installed" before jar hell check. {pull}14207[#14207] (issue: {issue}14205[#14205])
 * Plugin script to set proper plugin bin dir attributes {pull}14088[#14088] (issue: {issue}11016[#11016])
 * Plugin script to set proper plugin config dir attributes {pull}14048[#14048] (issue: {issue}11016[#11016])
 
@@ -229,7 +229,6 @@ Recovery::
 * Decouple routing and primary operation logic in TransportReplicationAction {pull}14852[#14852]
 
 Scripting::
-* Filter classes loaded by scripts {pull}15262[#15262]
 * Add property permissions so groovy scripts can serialize json {pull}14500[#14500] (issue: {issue}14488[#14488])
 * Remove ScriptEngineService.unwrap. {pull}13958[#13958]
 * Remove ScriptEngineService.execute. {pull}13956[#13956]
@@ -244,6 +243,7 @@ Snapshot/Restore::
 * Add ignore_unavailable parameter to skip unavailable snapshot {pull}14471[#14471] (issue: {issue}13887[#13887])
 
 Stats::
+* Add system CPU percent to OS stats {pull}15302[#15302]
 * Pull Fields instance once from LeafReader in completion stats {pull}15090[#15090] (issue: {issue}6593[#6593])
 * Add os.allocated_processors stats {pull}14409[#14409] (issue: {issue}13917[#13917])
 
@@ -255,7 +255,6 @@ Translog::
 
 Tribe Node::
 * Tribe nodes should apply cluster state updates in batches {pull}14993[#14993] (issues: {issue}14725[#14725], {issue}14899[#14899])
-* TransportNodesAction shouldn't hold on to cluster state {pull}13948[#13948]
 
 
 
@@ -332,6 +331,7 @@ Index APIs::
 * Forbid index name `.` and `..` {pull}13862[#13862] (issue: {issue}13858[#13858])
 
 Internal::
+* Log uncaught exceptions from scheduled once tasks {pull}15824[#15824] (issue: {issue}15814[#15814])
 * Make sure the remaining delay of unassigned shard is updated with every reroute {pull}14890[#14890] (issue: {issue}14808[#14808])
 * Throw a meaningful error when loading metadata and an alias and index have the same name {pull}14842[#14842] (issue: {issue}14706[#14706])
 * fixup issues with 32-bit jvm {pull}14609[#14609]
@@ -345,7 +345,6 @@ Internal::
 * Ban setAccessible from core code, restore monitoring stats under java 9 {pull}13531[#13531] (issue: {issue}13527[#13527])
 
 Logging::
-* Log uncaught exceptions from scheduled once tasks {pull}15824[#15824] (issue: {issue}15814[#15814])
 * Settings in log config file should not overwrite custom parameters {pull}13934[#13934]
 * Plugin cli tool should not create empty log files {pull}13933[#13933]
 
@@ -370,12 +369,12 @@ Packaging::
 * Handle system policy correctly {pull}14704[#14704] (issue: {issue}14690[#14690])
 * Startup script exit status should catch daemonized startup failures {pull}14170[#14170] (issue: {issue}14163[#14163])
 
+Plugin Cloud AWS::
+* Discovery-ec2 plugin should check `discovery.type` {pull}13814[#13814] (issues: {issue}13581[#13581], {issue}13809[#13809])
+
 Plugin Delete By Query::
 * Fix Delete-by-Query with Shield {pull}14658[#14658] (issue: {issue}14527[#14527])
 * Delete by query to not wrap the inner query into an additional query element {pull}14302[#14302] (issue: {issue}13326[#13326])
-
-Plugin Discovery EC2::
-* Discovery-ec2 plugin should check `discovery.type` {pull}13814[#13814] (issues: {issue}13581[#13581], {issue}13809[#13809])
 
 Plugin Mapper Attachment::
 * Fix toXContent() for mapper attachments field {pull}15110[#15110]
@@ -406,6 +405,9 @@ Recovery::
 * sync translog to disk after recovery from primary {pull}15832[#15832]
 * CancellableThreads should also treat ThreadInterruptedException as InterruptedException {pull}15318[#15318]
 
+Scripting::
+* Security permissions for Groovy closures {pull}16196[#16196] (issues: {issue}16194[#16194], {issue}248[#248])
+
 Search::
 * Fix NPE when a segment with an empty cache gets closed. {pull}15202[#15202] (issue: {issue}15043[#15043])
 * Fix the quotes in the explain message for a script score function without parameters {pull}11398[#11398]
@@ -428,6 +430,7 @@ Stats::
 * Omit current* stats for OldShardStats {pull}13801[#13801] (issue: {issue}13386[#13386])
 
 Translog::
+* Make sure IndexShard is active during recovery so it gets its fair share of the indexing buffer {pull}16209[#16209] (issue: {issue}16206[#16206])
 * Avoid circular reference in exception {pull}15952[#15952] (issue: {issue}15941[#15941])
 * Initialize translog before scheduling the sync to disk {pull}15881[#15881]
 * Translog base flushes can be disabled after replication relocation or slow recovery {pull}15830[#15830] (issues: {issue}10624[#10624], {issue}15814[#15814])
@@ -440,6 +443,7 @@ Translog::
 * Translog recovery can repeatedly fail if we run out of disk {pull}14695[#14695]
 
 Tribe Node::
+* Tribe node: pass path.conf to inner tribe clients {pull}16258[#16258] (issue: {issue}16253[#16253])
 * Fix tribe node to load config file for internal client nodes {pull}15300[#15300] (issues: {issue}13383[#13383], {issue}14573[#14573])
 
 
@@ -484,12 +488,13 @@ Geo::
 Network::
 * Upgrade Netty to 3.10.5.final {pull}14105[#14105]
 
-Plugin Cloud Azure::
+Plugin Discovery Azure::
 * Update Azure Service Management API to 0.9.0 {pull}15232[#15232] (issue: {issue}15209[#15209])
+
+Plugin Discovery EC2::
+* Upgrade to aws 1.10.33 {pull}14672[#14672]
 
 Plugin Lang JS::
 * upgrade rhino for plugins/lang-javascript {pull}14466[#14466]
 
-Plugin Repository S3::
-* Upgrade to aws 1.10.33 {pull}14672[#14672]
 

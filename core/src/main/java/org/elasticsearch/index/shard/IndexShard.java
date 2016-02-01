@@ -42,17 +42,17 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.Callback;
-import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
+import org.elasticsearch.common.util.concurrent.SuspendableRefContainer;
 import org.elasticsearch.gateway.MetaDataStateFormat;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
@@ -189,9 +189,17 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     private final ShardPath path;
 
-    private final IndexShardOperationCounter indexShardOperationCounter;
+    private final SuspendableRefContainer suspendableRefContainer;
 
-    private final EnumSet<IndexShardState> readAllowedStates = EnumSet.of(IndexShardState.STARTED, IndexShardState.RELOCATED, IndexShardState.POST_RECOVERY);
+    private static final EnumSet<IndexShardState> readAllowedStates = EnumSet.of(IndexShardState.STARTED, IndexShardState.RELOCATED, IndexShardState.POST_RECOVERY);
+    // for primaries, we only allow to write when actually started (so the cluster has decided we started)
+    // in case we have a relocation of a primary, we also allow to write after phase 2 completed, where the shard may be
+    // in state RECOVERING or POST_RECOVERY. After a primary has been marked as RELOCATED, we only allow writes to the relocation target
+    // which can be either in POST_RECOVERY or already STARTED (this prevents writing concurrently to two primaries).
+    public static final EnumSet<IndexShardState> writeAllowedStatesForPrimary = EnumSet.of(IndexShardState.RECOVERING, IndexShardState.POST_RECOVERY, IndexShardState.STARTED);
+    // replication is also allowed while recovering, since we index also during recovery to replicas and rely on version checks to make sure its consistent
+    // a relocated shard can also be target of a replication if the relocation target has not been marked as active yet and is syncing it's changes back to the relocation source
+    private static final EnumSet<IndexShardState> writeAllowedStatesForReplica = EnumSet.of(IndexShardState.RECOVERING, IndexShardState.POST_RECOVERY, IndexShardState.STARTED, IndexShardState.RELOCATED);
 
     private final IndexSearcherWrapper searcherWrapper;
 
@@ -250,7 +258,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         }
 
         this.engineConfig = newEngineConfig(translogConfig, cachingPolicy);
-        this.indexShardOperationCounter = new IndexShardOperationCounter(logger, shardId);
+        this.suspendableRefContainer = new SuspendableRefContainer();
         this.provider = provider;
         this.searcherWrapper = indexSearcherWrapper;
         this.percolatorQueriesRegistry = new PercolatorQueriesRegistry(shardId, indexSettings, newQueryShardContext());
@@ -321,6 +329,8 @@ public class IndexShard extends AbstractIndexShardComponent {
      * Updates the shards routing entry. This mutate the shards internal state depending
      * on the changes that get introduced by the new routing value. This method will persist shard level metadata
      * unless explicitly disabled.
+     *
+     * @throws IndexShardRelocatedException if shard is marked as relocated and relocation aborted
      */
     public void updateRoutingEntry(final ShardRouting newRouting, final boolean persistState) {
         final ShardRouting currentRouting = this.shardRouting;
@@ -368,6 +378,14 @@ public class IndexShard extends AbstractIndexShardComponent {
                     }
                 }
             }
+
+            if (state == IndexShardState.RELOCATED &&
+                (newRouting.relocating() == false || newRouting.equalsIgnoringMetaData(currentRouting) == false)) {
+                // if the shard is marked as RELOCATED we have to fail when any changes in shard routing occur (e.g. due to recovery
+                // failure / cancellation). The reason is that at the moment we cannot safely move back to STARTED without risking two
+                // active primaries.
+                throw new IndexShardRelocatedException(shardId(), "Shard is marked as relocated, cannot safely move to state " + newRouting.state());
+            }
             this.shardRouting = newRouting;
             indexEventListener.shardRoutingChanged(this, currentRouting, newRouting);
         } finally {
@@ -404,12 +422,16 @@ public class IndexShard extends AbstractIndexShardComponent {
     }
 
     public IndexShard relocated(String reason) throws IndexShardNotStartedException {
-        synchronized (mutex) {
-            if (state != IndexShardState.STARTED) {
-                throw new IndexShardNotStartedException(shardId, state);
+        try (Releasable block = suspendableRefContainer.blockAcquisition()) {
+            // no shard operation locks are being held here, move state from started to relocated
+            synchronized (mutex) {
+                if (state != IndexShardState.STARTED) {
+                    throw new IndexShardNotStartedException(shardId, state);
+                }
+                changeState(IndexShardState.RELOCATED, reason);
             }
-            changeState(IndexShardState.RELOCATED, reason);
         }
+
         return this;
     }
 
@@ -796,7 +818,6 @@ public class IndexShard extends AbstractIndexShardComponent {
                     refreshScheduledFuture = null;
                 }
                 changeState(IndexShardState.CLOSED, reason);
-                indexShardOperationCounter.decRef();
             } finally {
                 final Engine engine = this.currentEngineReference.getAndSet(null);
                 try {
@@ -809,7 +830,6 @@ public class IndexShard extends AbstractIndexShardComponent {
             }
         }
     }
-
 
     public IndexShard postRecovery(String reason) throws IndexShardStartedException, IndexShardRelocatedException, IndexShardClosedException {
         if (mapperService.hasMapping(PercolatorService.TYPE_NAME)) {
@@ -967,16 +987,17 @@ public class IndexShard extends AbstractIndexShardComponent {
         IndexShardState state = this.state; // one time volatile read
 
         if (origin == Engine.Operation.Origin.PRIMARY) {
-            // for primaries, we only allow to write when actually started (so the cluster has decided we started)
-            // otherwise, we need to retry, we also want to still allow to index if we are relocated in case it fails
-            if (state != IndexShardState.STARTED && state != IndexShardState.RELOCATED) {
-                throw new IllegalIndexShardStateException(shardId, state, "operation only allowed when started/recovering, origin [" + origin + "]");
+            if (writeAllowedStatesForPrimary.contains(state) == false) {
+                throw new IllegalIndexShardStateException(shardId, state, "operation only allowed when shard state is one of " + writeAllowedStatesForPrimary + ", origin [" + origin + "]");
+            }
+        } else if (origin == Engine.Operation.Origin.RECOVERY) {
+            if (state != IndexShardState.RECOVERING) {
+                throw new IllegalIndexShardStateException(shardId, state, "operation only allowed when recovering, origin [" + origin + "]");
             }
         } else {
-            // for replicas, we allow to write also while recovering, since we index also during recovery to replicas
-            // and rely on version checks to make sure its consistent
-            if (state != IndexShardState.STARTED && state != IndexShardState.RELOCATED && state != IndexShardState.RECOVERING && state != IndexShardState.POST_RECOVERY) {
-                throw new IllegalIndexShardStateException(shardId, state, "operation only allowed when started/recovering, origin [" + origin + "]");
+            assert origin == Engine.Operation.Origin.REPLICA;
+            if (writeAllowedStatesForReplica.contains(state) == false) {
+                throw new IllegalIndexShardStateException(shardId, state, "operation only allowed when shard state is one of " + writeAllowedStatesForReplica + ", origin [" + origin + "]");
             }
         }
     }
@@ -995,7 +1016,7 @@ public class IndexShard extends AbstractIndexShardComponent {
     private void verifyNotClosed(Throwable suppressed) throws IllegalIndexShardStateException {
         IndexShardState state = this.state; // one time volatile read
         if (state == IndexShardState.CLOSED) {
-            final IllegalIndexShardStateException exc = new IllegalIndexShardStateException(shardId, state, "operation only allowed when not closed");
+            final IllegalIndexShardStateException exc = new IndexShardClosedException(shardId, "operation only allowed when not closed");
             if (suppressed != null) {
                 exc.addSuppressed(suppressed);
             }
@@ -1390,37 +1411,21 @@ public class IndexShard extends AbstractIndexShardComponent {
             idxSettings.getSettings().getAsTime(IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING, IndexingMemoryController.SHARD_DEFAULT_INACTIVE_TIME));
     }
 
-    private static class IndexShardOperationCounter extends AbstractRefCounted {
-        final private ESLogger logger;
-        private final ShardId shardId;
-
-        public IndexShardOperationCounter(ESLogger logger, ShardId shardId) {
-            super("index-shard-operations-counter");
-            this.logger = logger;
-            this.shardId = shardId;
+    public Releasable acquirePrimaryOperationLock() {
+        verifyNotClosed();
+        if (shardRouting.primary() == false) {
+            throw new IllegalIndexShardStateException(shardId, state, "shard is not a primary");
         }
-
-        @Override
-        protected void closeInternal() {
-            logger.debug("operations counter reached 0, will not accept any further writes");
-        }
-
-        @Override
-        protected void alreadyClosed() {
-            throw new IndexShardClosedException(shardId, "could not increment operation counter. shard is closed.");
-        }
+        return suspendableRefContainer.acquireUninterruptibly();
     }
 
-    public void incrementOperationCounter() {
-        indexShardOperationCounter.incRef();
+    public Releasable acquireReplicaOperationLock() {
+        verifyNotClosed();
+        return suspendableRefContainer.acquireUninterruptibly();
     }
 
-    public void decrementOperationCounter() {
-        indexShardOperationCounter.decRef();
-    }
-
-    public int getOperationsCount() {
-        return Math.max(0, indexShardOperationCounter.refCount() - 1); // refCount is incremented on creation and decremented on close
+    public int getActiveOperationsCount() {
+        return suspendableRefContainer.activeRefs(); // refCount is incremented on creation and decremented on close
     }
 
     /**

@@ -57,6 +57,8 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
@@ -108,6 +110,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -125,6 +128,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 /**
  * Simple unit-test IndexShard related operations.
@@ -316,36 +320,41 @@ public class IndexShardTests extends ESSingleNodeTestCase {
 
     }
 
-    public void testDeleteIndexDecreasesCounter() throws InterruptedException, ExecutionException, IOException {
+    public void testDeleteIndexPreventsNewOperations() throws InterruptedException, ExecutionException, IOException {
         assertAcked(client().admin().indices().prepareCreate("test").setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0)).get());
         ensureGreen("test");
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         IndexService indexService = indicesService.indexServiceSafe("test");
         IndexShard indexShard = indexService.getShardOrNull(0);
         client().admin().indices().prepareDelete("test").get();
-        assertThat(indexShard.getOperationsCount(), equalTo(0));
+        assertThat(indexShard.getActiveOperationsCount(), equalTo(0));
         try {
-            indexShard.incrementOperationCounter();
+            indexShard.acquirePrimaryOperationLock();
+            fail("we should not be able to increment anymore");
+        } catch (IndexShardClosedException e) {
+            // expected
+        }
+        try {
+            indexShard.acquireReplicaOperationLock();
             fail("we should not be able to increment anymore");
         } catch (IndexShardClosedException e) {
             // expected
         }
     }
 
-    public void testIndexShardCounter() throws InterruptedException, ExecutionException, IOException {
+    public void testIndexOperationsCounter() throws InterruptedException, ExecutionException, IOException {
         assertAcked(client().admin().indices().prepareCreate("test").setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0)).get());
         ensureGreen("test");
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         IndexService indexService = indicesService.indexServiceSafe("test");
         IndexShard indexShard = indexService.getShardOrNull(0);
-        assertEquals(0, indexShard.getOperationsCount());
-        indexShard.incrementOperationCounter();
-        assertEquals(1, indexShard.getOperationsCount());
-        indexShard.incrementOperationCounter();
-        assertEquals(2, indexShard.getOperationsCount());
-        indexShard.decrementOperationCounter();
-        indexShard.decrementOperationCounter();
-        assertEquals(0, indexShard.getOperationsCount());
+        assertEquals(0, indexShard.getActiveOperationsCount());
+        Releasable operation1 = indexShard.acquirePrimaryOperationLock();
+        assertEquals(1, indexShard.getActiveOperationsCount());
+        Releasable operation2 = indexShard.acquirePrimaryOperationLock();
+        assertEquals(2, indexShard.getActiveOperationsCount());
+        Releasables.close(operation1, operation2);
+        assertEquals(0, indexShard.getActiveOperationsCount());
     }
 
     public void testMarkAsInactiveTriggersSyncedFlush() throws Exception {
@@ -777,6 +786,89 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         assertEquals(total + 1, shard.flushStats().getTotal());
     }
 
+    public void testLockingBeforeAndAfterRelocated() throws Exception {
+        assertAcked(client().admin().indices().prepareCreate("test").setSettings(
+            Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0)
+        ).get());
+        ensureGreen();
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexService test = indicesService.indexService("test");
+        final IndexShard shard = test.getShardOrNull(0);
+        CountDownLatch latch = new CountDownLatch(1);
+        Thread recoveryThread = new Thread(() -> {
+            latch.countDown();
+            shard.relocated("simulated recovery");
+        });
+
+        try (Releasable ignored = shard.acquirePrimaryOperationLock()) {
+            // start finalization of recovery
+            recoveryThread.start();
+            latch.await();
+            // recovery can only be finalized after we release the current primaryOperationLock
+            assertThat(shard.state(), equalTo(IndexShardState.STARTED));
+        }
+        // recovery can be now finalized
+        recoveryThread.join();
+        assertThat(shard.state(), equalTo(IndexShardState.RELOCATED));
+        try (Releasable ignored = shard.acquirePrimaryOperationLock()) {
+            // lock can again be acquired
+            assertThat(shard.state(), equalTo(IndexShardState.RELOCATED));
+        }
+    }
+
+    public void testStressRelocated() throws Exception {
+        assertAcked(client().admin().indices().prepareCreate("test").setSettings(
+            Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0)
+        ).get());
+        ensureGreen();
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexService test = indicesService.indexService("test");
+        final IndexShard shard = test.getShardOrNull(0);
+        final int numThreads = randomIntBetween(2, 4);
+        Thread[] indexThreads = new Thread[numThreads];
+        CountDownLatch somePrimaryOperationLockAcquired = new CountDownLatch(1);
+        CyclicBarrier barrier = new CyclicBarrier(numThreads + 1);
+        for (int i = 0; i < indexThreads.length; i++) {
+            indexThreads[i] = new Thread() {
+                @Override
+                public void run() {
+                    try (Releasable operationLock = shard.acquirePrimaryOperationLock()) {
+                        somePrimaryOperationLockAcquired.countDown();
+                        barrier.await();
+                    } catch (InterruptedException | BrokenBarrierException e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+            };
+            indexThreads[i].start();
+        }
+        AtomicBoolean relocated = new AtomicBoolean();
+        final Thread recoveryThread = new Thread(() -> {
+            shard.relocated("simulated recovery");
+            relocated.set(true);
+        });
+        // ensure we wait for at least one primary operation lock to be acquired
+        somePrimaryOperationLockAcquired.await();
+        // start recovery thread
+        recoveryThread.start();
+        assertThat(relocated.get(), equalTo(false));
+        assertThat(shard.getActiveOperationsCount(), greaterThan(0));
+        // ensure we only transition to RELOCATED state after pending operations completed
+        assertThat(shard.state(), equalTo(IndexShardState.STARTED));
+        // complete pending operations
+        barrier.await();
+        // complete recovery/relocation
+        recoveryThread.join();
+        // ensure relocated successfully once pending operations are done
+        assertThat(relocated.get(), equalTo(true));
+        assertThat(shard.state(), equalTo(IndexShardState.RELOCATED));
+        assertThat(shard.getActiveOperationsCount(), equalTo(0));
+
+        for (Thread indexThread : indexThreads) {
+            indexThread.join();
+        }
+    }
+
     public void testRecoverFromStore() throws IOException {
         createIndex("test");
         ensureGreen();
@@ -855,6 +947,27 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         assertHitCount(response, 0);
         client().prepareIndex("test", "test", "0").setSource("{}").setRefresh(true).get();
         assertHitCount(client().prepareSearch().get(), 1);
+    }
+
+    public void testRecoveryFailsAfterMovingToRelocatedState() throws InterruptedException {
+        createIndex("test");
+        ensureGreen();
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexService test = indicesService.indexService("test");
+        final IndexShard shard = test.getShardOrNull(0);
+        ShardRouting origRouting = shard.routingEntry();
+        assertThat(shard.state(), equalTo(IndexShardState.STARTED));
+        ShardRouting inRecoveryRouting = new ShardRouting(origRouting);
+        ShardRoutingHelper.relocate(inRecoveryRouting, "some_node");
+        shard.updateRoutingEntry(inRecoveryRouting, true);
+        shard.relocated("simulate mark as relocated");
+        assertThat(shard.state(), equalTo(IndexShardState.RELOCATED));
+        ShardRouting failedRecoveryRouting = new ShardRouting(origRouting);
+        try {
+            shard.updateRoutingEntry(failedRecoveryRouting, true);
+            fail("Expected IndexShardRelocatedException");
+        } catch (IndexShardRelocatedException expected) {
+        }
     }
 
     public void testRestoreShard() throws IOException {

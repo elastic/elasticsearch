@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
@@ -110,8 +111,7 @@ public class SyncedFlushSingleNodeTests extends ESSingleNodeTestCase {
 
         SyncedFlushService flushService = getInstanceFromNode(SyncedFlushService.class);
         final ShardId shardId = shard.shardId();
-        shard.incrementOperationCounter();
-        try {
+        try (Releasable operationLock = shard.acquirePrimaryOperationLock()) {
             SyncedFlushUtil.LatchedListener<ShardsSyncedFlushResult> listener = new SyncedFlushUtil.LatchedListener<>();
             flushService.attemptSyncedFlush(shardId, listener);
             listener.latch.await();
@@ -121,8 +121,6 @@ public class SyncedFlushSingleNodeTests extends ESSingleNodeTestCase {
             assertEquals(0, syncedFlushResult.successfulShards());
             assertNotEquals(0, syncedFlushResult.totalShards());
             assertEquals("[1] ongoing operations on primary", syncedFlushResult.failureReason());
-        } finally {
-            shard.decrementOperationCounter();
         }
     }
 

@@ -492,7 +492,11 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                     // shadow replicas do not support primary promotion. The master would reinitialize the shard, giving it a new allocation, meaning we should be there.
                     assert (shardRouting.primary() && currentRoutingEntry.primary() == false) == false || indexShard.allowsPrimaryPromotion() :
                             "shard for doesn't support primary promotion but master promoted it with changing allocation. New routing " + shardRouting + ", current routing " + currentRoutingEntry;
-                    indexShard.updateRoutingEntry(shardRouting, event.state().blocks().disableStatePersistence() == false);
+                    try {
+                        indexShard.updateRoutingEntry(shardRouting, event.state().blocks().disableStatePersistence() == false);
+                    } catch (Throwable e) {
+                        failAndRemoveShard(shardRouting, indexService.indexUUID(), indexService, true, "failed updating shard routing entry", e);
+                    }
                 }
             }
 
@@ -626,7 +630,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 // For primaries: requests in any case are routed to both when its relocating and that way we handle
                 //    the edge case where its mark as relocated, and we might need to roll it back...
                 // For replicas: we are recovering a backup from a primary
-                RecoveryState.Type type = shardRouting.primary() ? RecoveryState.Type.RELOCATION : RecoveryState.Type.REPLICA;
+                RecoveryState.Type type = shardRouting.primary() ? RecoveryState.Type.PRIMARY_RELOCATION : RecoveryState.Type.REPLICA;
                 RecoveryState recoveryState = new RecoveryState(indexShard.shardId(), shardRouting.primary(), type, sourceNode, nodes.localNode());
                 indexShard.markAsRecovering("from " + sourceNode, recoveryState);
                 recoveryTarget.startRecovery(indexShard, type, sourceNode, new PeerRecoveryListener(shardRouting, indexService, indexMetaData));

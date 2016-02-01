@@ -60,7 +60,7 @@ public class TransportShardRefreshAction extends TransportReplicationAction<Basi
     }
 
     @Override
-    protected Tuple<ReplicationResponse, BasicReplicationRequest> shardOperationOnPrimary(MetaData metaData, BasicReplicationRequest shardRequest) throws Throwable {
+    protected Tuple<ReplicationResponse, BasicReplicationRequest> shardOperationOnPrimary(MetaData metaData, BasicReplicationRequest shardRequest) {
         IndexShard indexShard = indicesService.indexServiceSafe(shardRequest.shardId().getIndex()).getShard(shardRequest.shardId().id());
         indexShard.refresh("api");
         logger.trace("{} refresh request executed on primary", indexShard.shardId());

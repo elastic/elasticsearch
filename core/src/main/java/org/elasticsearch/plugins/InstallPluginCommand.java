@@ -107,7 +107,6 @@ class InstallPluginCommand extends CliTool.Command {
         "discovery-azure",
         "discovery-ec2",
         "discovery-gce",
-        "discovery-multicast",
         "lang-javascript",
         "lang-painless",
         "lang-python",

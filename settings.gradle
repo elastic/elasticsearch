@@ -24,7 +24,6 @@ List projects = [
   'plugins:discovery-azure',
   'plugins:discovery-ec2',
   'plugins:discovery-gce',
-  'plugins:discovery-multicast',
   'plugins:ingest-geoip',
   'plugins:lang-javascript',
   'plugins:lang-painless',

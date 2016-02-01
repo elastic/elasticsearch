@@ -132,8 +132,6 @@ public abstract class Terminal {
 
     protected abstract void doPrint(String msg, Object... args);
 
-    public abstract PrintWriter writer();
-
     private static class ConsoleTerminal extends Terminal {
 
         final Console console = System.console();
@@ -156,11 +154,6 @@ public abstract class Terminal {
         @Override
         public char[] readSecret(String text, Object... args) {
             return console.readPassword(text, args);
-        }
-
-        @Override
-        public PrintWriter writer() {
-            return console.writer();
         }
 
         @Override
@@ -198,11 +191,6 @@ public abstract class Terminal {
         @Override
         public void printStackTrace(Throwable t) {
             t.printStackTrace(printWriter);
-        }
-
-        @Override
-        public PrintWriter writer() {
-            return printWriter;
         }
     }
 }

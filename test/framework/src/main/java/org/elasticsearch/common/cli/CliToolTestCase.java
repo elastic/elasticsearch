@@ -64,8 +64,6 @@ public abstract class CliToolTestCase extends ESTestCase {
      */
     public static class MockTerminal extends Terminal {
 
-        private static final PrintWriter DEV_NULL = new PrintWriter(new DevNullWriter());
-
         public MockTerminal() {
             super(Verbosity.NORMAL);
         }
@@ -93,29 +91,7 @@ public abstract class CliToolTestCase extends ESTestCase {
         }
 
         @Override
-        public void printStackTrace(Throwable t) {
-            return;
-        }
-
-        @Override
-        public PrintWriter writer() {
-            return DEV_NULL;
-        }
-
-        private static class DevNullWriter extends Writer {
-
-            @Override
-            public void write(char[] cbuf, int off, int len) throws IOException {
-            }
-
-            @Override
-            public void flush() throws IOException {
-            }
-
-            @Override
-            public void close() throws IOException {
-            }
-        }
+        public void printStackTrace(Throwable t) {}
     }
 
     /**

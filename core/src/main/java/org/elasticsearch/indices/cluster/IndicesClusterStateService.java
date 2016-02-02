@@ -415,6 +415,12 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
 
         RoutingTable routingTable = event.state().routingTable();
         RoutingNodes.RoutingNodeIterator routingNode = event.state().getRoutingNodes().routingNodeIter(event.state().nodes().localNodeId());
+
+        if (routingNode == null) {
+            failedShards.clear();
+            return;
+        }
+
         DiscoveryNodes nodes = event.state().nodes();
 
         for (final ShardRouting shardRouting : routingNode) {

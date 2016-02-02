@@ -23,6 +23,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.AbstractBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Range;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.joda.time.DateTime;
 
 import java.io.IOException;
@@ -239,6 +242,11 @@ public class DateRangeAggregatorBuilder extends AbstractBuilder<DateRangeAggrega
      */
     public DateRangeAggregatorBuilder addUnboundedFrom(DateTime from) {
         return addUnboundedFrom(null, from);
+    }
+
+    @Override
+    protected DateRangeAggregatorFactory doBuild(AggregationContext context, ValuesSourceConfig<Numeric> config) {
+        return new DateRangeAggregatorFactory(name, type, config, ranges, keyed, rangeFactory);
     }
 
     @Override

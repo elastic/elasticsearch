@@ -272,7 +272,7 @@ public class SignificanceHeuristicTests extends ESTestCase {
         assertThat(aggregatorFactory.getBucketCountThresholds().getMinDocCount(), equalTo(200L));
         assertThat(stParser.currentToken(), equalTo(null));
         stParser.close();
-        return aggregatorFactory.getSignificanceHeuristic();
+        return aggregatorFactory.significanceHeuristic();
     }
 
     protected SignificanceHeuristic parseFromString(SignificanceHeuristicParserMapper heuristicParserMapper, SearchContext searchContext, String heuristicString) throws IOException {

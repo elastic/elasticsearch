@@ -42,7 +42,9 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorBuilder;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.format.ValueFormat;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.aggregations.support.format.ValueParser;
@@ -399,11 +401,11 @@ public class RangeAggregator extends BucketsAggregator {
     public static abstract class AbstractBuilder<AB extends AbstractBuilder<AB, R>, R extends Range>
             extends ValuesSourceAggregatorBuilder<ValuesSource.Numeric, AB> {
 
-        private final InternalRange.Factory rangeFactory;
-        private List<R> ranges = new ArrayList<>();
-        private boolean keyed = false;
+        protected final InternalRange.Factory<?, ?> rangeFactory;
+        protected List<R> ranges = new ArrayList<>();
+        protected boolean keyed = false;
 
-        protected AbstractBuilder(String name, InternalRange.Factory rangeFactory) {
+        protected AbstractBuilder(String name, InternalRange.Factory<?, ?> rangeFactory) {
             super(name, rangeFactory.type(), rangeFactory.getValueSourceType(), rangeFactory.getValueType());
             this.rangeFactory = rangeFactory;
         }
@@ -424,18 +426,6 @@ public class RangeAggregator extends BucketsAggregator {
 
         public boolean keyed() {
             return keyed;
-        }
-
-        @Override
-        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
-                Map<String, Object> metaData) throws IOException {
-            return new Unmapped(name, ranges, keyed, config.format(), aggregationContext, parent, rangeFactory, pipelineAggregators, metaData);
-        }
-
-        @Override
-        protected Aggregator doCreateInternal(ValuesSource.Numeric valuesSource, AggregationContext aggregationContext, Aggregator parent,
-                boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-            return new RangeAggregator(name, factories, valuesSource, config.format(), rangeFactory, ranges, keyed, aggregationContext, parent, pipelineAggregators, metaData);
         }
 
         @Override
@@ -547,6 +537,11 @@ public class RangeAggregator extends BucketsAggregator {
          */
         public RangeAggregatorBuilder addUnboundedFrom(double from) {
             return addUnboundedFrom(null, from);
+        }
+
+        @Override
+        protected RangeAggregatorFactory doBuild(AggregationContext context, ValuesSourceConfig<Numeric> config) {
+            return new RangeAggregatorFactory(name, type, config, ranges, keyed, rangeFactory);
         }
 
         @Override

@@ -25,12 +25,12 @@ import org.elasticsearch.common.rounding.DateTimeUnit;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
-import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregator;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
@@ -215,7 +215,7 @@ public class DerivativePipelineAggregator extends PipelineAggregator {
             }
             Long xAxisUnits = null;
             if (units != null) {
-                DateTimeUnit dateTimeUnit = HistogramAggregator.DateHistogramAggregatorBuilder.DATE_FIELD_UNITS.get(units);
+                DateTimeUnit dateTimeUnit = DateHistogramAggregatorFactory.DATE_FIELD_UNITS.get(units);
                 if (dateTimeUnit != null) {
                     xAxisUnits = dateTimeUnit.field().getDurationField().getUnitMillis();
                 } else {

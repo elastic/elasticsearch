@@ -241,7 +241,11 @@ public abstract class AggregatorFactory<AF extends AggregatorFactory<AF>> extend
         return parent;
     }
 
-    protected abstract Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException;
+    // NORELEASE make this abstract when agg refactoring is complete
+    protected Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket,
+            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+        throw new UnsupportedOperationException("THIS SHOULD NEVER BE CALLED");
+    }
 
     /**
      * Creates the aggregator

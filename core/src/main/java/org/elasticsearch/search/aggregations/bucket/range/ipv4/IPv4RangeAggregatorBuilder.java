@@ -28,6 +28,9 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.AbstractBuilder;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -114,6 +117,11 @@ public class IPv4RangeAggregatorBuilder extends AbstractBuilder<IPv4RangeAggrega
      */
     public IPv4RangeAggregatorBuilder addUnboundedFrom(String from) {
         return addUnboundedFrom(null, from);
+    }
+
+    @Override
+    protected Ipv4RangeAggregatorFactory doBuild(AggregationContext context, ValuesSourceConfig<Numeric> config) {
+        return new Ipv4RangeAggregatorFactory(name, type, config, ranges, keyed, rangeFactory);
     }
 
     @Override

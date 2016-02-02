@@ -180,12 +180,17 @@ public abstract class ValuesSourceAggregatorBuilder<VS extends ValuesSource, AB 
 
     @Override
     public final ValuesSourceAggregatorFactory<VS, ?> build(AggregationContext context) {
+        ValuesSourceConfig<VS> config = resolveConfig(context);
+        ValuesSourceAggregatorFactory<VS, ?> factory = doBuild(context, config);
+        return factory;
+    }
+
+    protected ValuesSourceConfig<VS> resolveConfig(AggregationContext context) {
         ValuesSourceConfig<VS> config = config(context);
         if (config == null || !config.valid()) {
             config = resolveValuesSourceConfigFromAncestors(name, this.parent, config.valueSourceType());
         }
-        ValuesSourceAggregatorFactory<VS, ?> factory = doBuild(context, config);
-        return factory;
+        return config;
     }
 
     protected abstract ValuesSourceAggregatorFactory<VS, ?> doBuild(AggregationContext context, ValuesSourceConfig<VS> config);
@@ -233,6 +238,7 @@ public abstract class ValuesSourceAggregatorBuilder<VS extends ValuesSource, AB 
             }
             ValuesSourceConfig<VS> config = new ValuesSourceConfig<VS>(valuesSourceType);
             config.missing = missing;
+            config.timeZone = timeZone;
             config.format = resolveFormat(format, valueType);
             config.script = createScript(script, context.searchContext());
             config.scriptValueType = valueType;
@@ -244,6 +250,7 @@ public abstract class ValuesSourceAggregatorBuilder<VS extends ValuesSource, AB 
             ValuesSourceType valuesSourceType = valueType != null ? valueType.getValuesSourceType() : this.valuesSourceType;
             ValuesSourceConfig<VS> config = new ValuesSourceConfig<>(valuesSourceType);
             config.missing = missing;
+            config.timeZone = timeZone;
             config.format = resolveFormat(format, valueType);
             config.unmapped = true;
             if (valueType != null) {
@@ -270,6 +277,7 @@ public abstract class ValuesSourceAggregatorBuilder<VS extends ValuesSource, AB 
 
         config.fieldContext = new FieldContext(field, indexFieldData, fieldType);
         config.missing = missing;
+        config.timeZone = timeZone;
         config.script = createScript(script, context.searchContext());
         config.format = resolveFormat(format, this.timeZone, fieldType);
         return config;

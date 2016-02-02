@@ -17,48 +17,31 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.support;
+package org.elasticsearch.search.aggregations.bucket.sampler;
 
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.joda.time.DateTimeZone;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-// NORELEASE this needs to extend AggregatorFactory<AF> after refactoring is complete
-public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource, AF extends ValuesSourceAggregatorFactory<VS, AF>>
-        extends AggregatorFactory<AF> {
+public class SamplerAggregatorFactory extends AggregatorFactory<SamplerAggregatorFactory> {
 
-    protected ValuesSourceConfig<VS> config;
+    private final int shardSize;
 
-    public ValuesSourceAggregatorFactory(String name, Type type, ValuesSourceConfig<VS> config) {
+    public SamplerAggregatorFactory(String name, Type type, int shardSize) {
         super(name, type);
-        this.config = config;
-    }
-
-    public DateTimeZone timeZone() {
-        return config.timeZone;
+        this.shardSize = shardSize;
     }
 
     @Override
     public Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-        VS vs = context.valuesSource(config, context.searchContext());
-        if (vs == null) {
-            return createUnmapped(context, parent, pipelineAggregators, metaData);
-        }
-        return doCreateInternal(vs, context, parent, collectsFromSingleBucket, pipelineAggregators, metaData);
+        return new SamplerAggregator(name, shardSize, factories, context, parent, pipelineAggregators, metaData);
     }
-
-    protected abstract Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException;
-
-    protected abstract Aggregator doCreateInternal(VS valuesSource, AggregationContext aggregationContext, Aggregator parent,
-            boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
-                    throws IOException;
 
 }

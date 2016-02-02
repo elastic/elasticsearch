@@ -129,8 +129,12 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     }
 
     public static String blockNodeWithIndex(String index) {
+        return blockNodeWithIndex(index, "test-repo");
+    }
+
+    public static String blockNodeWithIndex(String index, String repo) {
         for(String node : internalCluster().nodesInclude("test-idx")) {
-            ((MockRepository)internalCluster().getInstance(RepositoriesService.class, node).repository("test-repo")).blockOnDataFiles(true);
+            ((MockRepository)internalCluster().getInstance(RepositoriesService.class, node).repository(repo)).blockOnDataFiles(true);
             return node;
         }
         fail("No nodes for the index " + index + " found");
@@ -138,7 +142,11 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     }
 
     public static void unblockNode(String node) {
-        ((MockRepository)internalCluster().getInstance(RepositoriesService.class, node).repository("test-repo")).unblock();
+        unblockNode(node, "test-repo");
+    }
+
+    public static void unblockNode(String node, String repo) {
+        ((MockRepository)internalCluster().getInstance(RepositoriesService.class, node).repository(repo)).unblock();
     }
 
     protected void assertBusyPendingTasks(final String taskPrefix, final int expectedCount) throws Exception {

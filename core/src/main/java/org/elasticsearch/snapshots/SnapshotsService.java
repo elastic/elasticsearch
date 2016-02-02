@@ -886,9 +886,12 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
                 SnapshotsInProgress.Entry snapshot = snapshots.snapshot(snapshotId);
                 if (snapshot == null) {
                     // This snapshot is not running - continue
-                    if (!snapshots.entries().isEmpty()) {
-                        // However other snapshots are running - cannot continue
-                        throw new ConcurrentSnapshotExecutionException(snapshotId, "another snapshot is currently running cannot delete");
+                    for (SnapshotsInProgress.Entry entry : snapshots.entries()) {
+                        if (snapshotId.getRepository().equals(entry.snapshotId().getRepository())) {
+                            // However other snapshots are running - cannot continue
+                            throw new ConcurrentSnapshotExecutionException(snapshotId,
+                                "another snapshot is currently running cannot delete");
+                        }
                     }
                     return currentState;
                 } else {

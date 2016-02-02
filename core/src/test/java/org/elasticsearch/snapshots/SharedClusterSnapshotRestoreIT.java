@@ -62,6 +62,7 @@ import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.RepositoryException;
+import org.elasticsearch.snapshots.mockstore.MockRepository;
 
 import java.nio.channels.SeekableByteChannel;
 import java.nio.file.Files;
@@ -2095,5 +2096,136 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             assertThat(ex.snapshot().getRepository(), equalTo("test-repo"));
             assertThat(ex.snapshot().getSnapshot(), equalTo("test-snap-2"));
         }
+    }
+
+    public void testDeleteWhileSnapshottingInDifferentRepo() throws Exception {
+        Client client = client();
+        String repo1 = "test-repo";
+        String repo2 = "test-repo-2";
+        logger.info("-->  creating repository");
+        PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository(repo1)
+            .setType("mock").setSettings(
+                Settings.settingsBuilder()
+                    .put("location", randomRepoPath())
+                    .put("random", randomAsciiOfLength(10))
+                    .put("wait_after_unblock", 200)
+            ).get();
+        assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
+
+        putRepositoryResponse = client.admin().cluster().preparePutRepository(repo2)
+            .setType("mock").setSettings(
+                Settings.settingsBuilder()
+                    .put("location", randomRepoPath())
+                    .put("random", randomAsciiOfLength(10))
+                    .put("wait_after_unblock", 200)
+            ).get();
+        assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
+
+        // Create index on 2 nodes and make sure each node has a primary by setting no replicas
+        assertAcked(prepareCreate("test-idx", 2, Settings.builder().put("number_of_replicas", 0)));
+
+        logger.info("--> indexing some data");
+        for (int i = 0; i < 100; i++) {
+            index("test-idx", "doc", Integer.toString(i), "foo", "bar" + i);
+        }
+        refresh();
+        assertThat(client.prepareSearch("test-idx").setSize(0).get().getHits().totalHits(), equalTo(100L));
+
+        logger.info("--> creating snapshot in {}", repo1);
+        CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot(repo1, "test-snap")
+                .setWaitForCompletion(true).setIndices("test-idx").get();
+        assertThat(createSnapshotResponse.getSnapshotInfo().state(), equalTo(SnapshotState.SUCCESS));
+
+        // Pick one node and block it
+        String blockedNode = blockNodeWithIndex("test-idx", repo2);
+
+        logger.info("--> creating snapshot in {}", repo2);
+        client.admin().cluster().prepareCreateSnapshot(repo2, "test-snap").setWaitForCompletion(false).setIndices("test-idx").get();
+
+        logger.info("--> waiting for block to kick in");
+        waitForBlock(blockedNode, repo2, TimeValue.timeValueSeconds(60));
+
+        logger.info("--> execution was blocked on node [{}], checking snapshot status with specified repository and snapshot", blockedNode);
+        SnapshotsStatusResponse response = client.admin().cluster().prepareSnapshotStatus(repo2).execute().actionGet();
+        assertThat(response.getSnapshots().size(), equalTo(1));
+        SnapshotStatus snapshotStatus = response.getSnapshots().get(0);
+        assertThat(snapshotStatus.getState(), equalTo(SnapshotsInProgress.State.STARTED));
+        // We blocked the node during data write operation, so at least one shard snapshot should be in STARTED stage
+        assertThat(snapshotStatus.getShardsStats().getStartedShards(), greaterThan(0));
+        for (SnapshotIndexShardStatus shardStatus : snapshotStatus.getIndices().get("test-idx")) {
+            if (shardStatus.getStage() == SnapshotIndexShardStage.STARTED) {
+                assertThat(shardStatus.getNodeId(), notNullValue());
+            }
+        }
+
+        logger.info("--> deleting snapshot in {}", repo1);
+        DeleteSnapshotResponse deleteSnapshotResponse = client.admin().cluster().prepareDeleteSnapshot(repo1, "test-snap").get();
+        assertAcked(deleteSnapshotResponse);
+
+        logger.info("--> unblocking blocked node");
+        unblockNode(blockedNode, repo2);
+
+        SnapshotInfo snapshotInfo = waitForCompletion(repo2, "test-snap", TimeValue.timeValueSeconds(600));
+        logger.info("Number of failed shards [{}]", snapshotInfo.shardFailures().size());
+        logger.info("--> done");
+    }
+
+    public void testDeleteWhileSnapshottingInSameRepo() throws Exception {
+        Client client = client();
+        String repo = "test-repo";
+        String firstSnapshot = "test-snap";
+        String secondSnapshot = "test-snap-2";
+        logger.info("-->  creating repository");
+        PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository(repo)
+            .setType("mock").setSettings(
+                Settings.settingsBuilder()
+                    .put("location", randomRepoPath())
+                    .put("random", randomAsciiOfLength(10))
+                    .put("wait_after_unblock", 200)
+            ).get();
+        assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
+
+        // Create index on 2 nodes and make sure each node has a primary by setting no replicas
+        assertAcked(prepareCreate("test-idx", 2, Settings.builder().put("number_of_replicas", 0)));
+
+        logger.info("--> indexing some data");
+        for (int i = 0; i < 100; i++) {
+            index("test-idx", "doc", Integer.toString(i), "foo", "bar" + i);
+        }
+        refresh();
+        assertThat(client.prepareSearch("test-idx").setSize(0).get().getHits().totalHits(), equalTo(100L));
+
+        logger.info("--> creating {}", firstSnapshot);
+        CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot(repo, firstSnapshot)
+            .setWaitForCompletion(true).setIndices("test-idx").get();
+        assertThat(createSnapshotResponse.getSnapshotInfo().state(), equalTo(SnapshotState.SUCCESS));
+
+        // Pick one node and block it
+        String blockedNode = internalCluster().nodesInclude("test-idx").iterator().next();
+        ((MockRepository) internalCluster().getInstance(RepositoriesService.class, blockedNode)
+            .repository(repo)).blockOnControlFiles(true);
+
+        logger.info("--> creating {}", secondSnapshot);
+        client.admin().cluster().prepareCreateSnapshot(repo, secondSnapshot).setWaitForCompletion(false).setIndices("test-idx").get();
+
+        logger.info("--> waiting for block to kick in");
+        waitForBlock(blockedNode, repo, TimeValue.timeValueSeconds(60));
+
+        logger.info("--> trying concurrent snapshot deletion");
+        try {
+            client.admin().cluster().prepareDeleteSnapshot(repo, firstSnapshot).get();
+            fail("Shouldn't be here");
+        } catch (ConcurrentSnapshotExecutionException e) {
+            // Expected
+        }
+
+        logger.info("--> unblocking blocked node");
+        unblockNode(blockedNode, repo);
+
+        waitForCompletion(repo, secondSnapshot, TimeValue.timeValueSeconds(600));
+
+        logger.info("--> deleting snapshot");
+        DeleteSnapshotResponse deleteSnapshotResponse = client.admin().cluster().prepareDeleteSnapshot(repo, firstSnapshot).get();
+        assertAcked(deleteSnapshotResponse);
     }
 }

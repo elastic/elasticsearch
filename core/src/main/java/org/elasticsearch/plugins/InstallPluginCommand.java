@@ -160,9 +160,9 @@ class InstallPluginCommand extends CliTool.Command {
             return downloadZipAndChecksum(url, tmpDir);
         }
 
-        // now try as maven coordinates, a valid URL would only have a single colon
+        // now try as maven coordinates, a valid URL would only have a colon and slash
         String[] coordinates = pluginId.split(":");
-        if (coordinates.length == 3) {
+        if (coordinates.length == 3 && pluginId.contains("/") == false) {
             String mavenUrl = String.format(Locale.ROOT, "https://repo1.maven.org/maven2/%1$s/%2$s/%3$s/%2$s-%3$s.zip",
                 coordinates[0].replace(".", "/") /* groupId */, coordinates[1] /* artifactId */, coordinates[2] /* version */);
             terminal.println("-> Downloading " + pluginId + " from maven central");

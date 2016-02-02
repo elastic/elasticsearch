@@ -534,27 +534,6 @@ to the requester.
 }
 --------------------------------------------------
 
-==== DeDot Processor
-The DeDot Processor is used to remove dots (".") from field names and
-replace them with a specific `separator` string.
-
-[[dedot-options]]
-.DeDot Options
-[options="header"]
-|======
-| Name         | Required  | Default  | Description
-| `separator`  | yes       | "_"      | The string to replace dots with in all field names
-|======
-
-[source,js]
---------------------------------------------------
-{
-  "dedot": {
-    "separator": "_"
-  }
-}
---------------------------------------------------
-
 
 === Accessing data in pipelines
 

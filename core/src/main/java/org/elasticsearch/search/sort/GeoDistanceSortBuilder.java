@@ -165,7 +165,6 @@ public class GeoDistanceSortBuilder extends SortBuilder implements ToXContent, N
      * 
      * Deprecated - please use points(GeoPoint... points) instead.
      */
-    @Deprecated
     public GeoDistanceSortBuilder geohashes(String... geohashes) {
         for (String geohash : geohashes) {
             this.points.add(GeoPoint.fromGeohash(geohash));

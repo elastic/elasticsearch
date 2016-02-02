@@ -98,18 +98,10 @@ public final class PhraseSuggestParser implements SuggestContextParser {
                     }
                 }
             } else if (token == Token.START_ARRAY) {
-                if ("direct_generator".equals(fieldName) || "directGenerator".equals(fieldName)) {
+                if (parseFieldMatcher.match(fieldName, DirectCandidateGeneratorBuilder.DIRECT_GENERATOR_FIELD)) {
                     // for now we only have a single type of generators
                     while ((token = parser.nextToken()) == Token.START_OBJECT) {
-                        PhraseSuggestionContext.DirectCandidateGenerator generator = new PhraseSuggestionContext.DirectCandidateGenerator();
-                        while ((token = parser.nextToken()) != Token.END_OBJECT) {
-                            if (token == XContentParser.Token.FIELD_NAME) {
-                                fieldName = parser.currentName();
-                            }
-                            if (token.isValue()) {
-                                parseCandidateGenerator(parser, mapperService, fieldName, generator, parseFieldMatcher);
-                            }
-                        }
+                        PhraseSuggestionContext.DirectCandidateGenerator generator = parseCandidateGenerator(parser, mapperService, parseFieldMatcher);
                         verifyGenerator(generator);
                         suggestion.addGenerator(generator);
                     }
@@ -323,34 +315,44 @@ public final class PhraseSuggestParser implements SuggestContextParser {
         }
     }
 
-    private void parseCandidateGenerator(XContentParser parser, MapperService mapperService, String fieldName,
-            PhraseSuggestionContext.DirectCandidateGenerator generator, ParseFieldMatcher parseFieldMatcher) throws IOException {
-        if (!SuggestUtils.parseDirectSpellcheckerSettings(parser, fieldName, generator, parseFieldMatcher)) {
-            if ("field".equals(fieldName)) {
-                generator.setField(parser.text());
-                if (mapperService.fullName(generator.field()) == null) {
-                    throw new IllegalArgumentException("No mapping found for field [" + generator.field() + "]");
+    static PhraseSuggestionContext.DirectCandidateGenerator parseCandidateGenerator(XContentParser parser, MapperService mapperService,
+             ParseFieldMatcher parseFieldMatcher) throws IOException {
+        XContentParser.Token token;
+        String fieldName = null;
+        PhraseSuggestionContext.DirectCandidateGenerator generator = new PhraseSuggestionContext.DirectCandidateGenerator();
+        while ((token = parser.nextToken()) != Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                fieldName = parser.currentName();
+            }
+            if (token.isValue()) {
+                if (!SuggestUtils.parseDirectSpellcheckerSettings(parser, fieldName, generator, parseFieldMatcher)) {
+                    if ("field".equals(fieldName)) {
+                        generator.setField(parser.text());
+                        if (mapperService.fullName(generator.field()) == null) {
+                            throw new IllegalArgumentException("No mapping found for field [" + generator.field() + "]");
+                        }
+                    } else if ("size".equals(fieldName)) {
+                        generator.size(parser.intValue());
+                    } else if ("pre_filter".equals(fieldName) || "preFilter".equals(fieldName)) {
+                        String analyzerName = parser.text();
+                        Analyzer analyzer = mapperService.analysisService().analyzer(analyzerName);
+                        if (analyzer == null) {
+                            throw new IllegalArgumentException("Analyzer [" + analyzerName + "] doesn't exists");
+                        }
+                        generator.preFilter(analyzer);
+                    } else if ("post_filter".equals(fieldName) || "postFilter".equals(fieldName)) {
+                        String analyzerName = parser.text();
+                        Analyzer analyzer = mapperService.analysisService().analyzer(analyzerName);
+                        if (analyzer == null) {
+                            throw new IllegalArgumentException("Analyzer [" + analyzerName + "] doesn't exists");
+                        }
+                        generator.postFilter(analyzer);
+                    } else {
+                        throw new IllegalArgumentException("CandidateGenerator doesn't support [" + fieldName + "]");
+                    }
                 }
-            } else if ("size".equals(fieldName)) {
-                generator.size(parser.intValue());
-            } else if ("pre_filter".equals(fieldName) || "preFilter".equals(fieldName)) {
-                String analyzerName = parser.text();
-                Analyzer analyzer = mapperService.analysisService().analyzer(analyzerName);
-                if (analyzer == null) {
-                    throw new IllegalArgumentException("Analyzer [" + analyzerName + "] doesn't exists");
-                }
-                generator.preFilter(analyzer);
-            } else if ("post_filter".equals(fieldName) || "postFilter".equals(fieldName)) {
-                String analyzerName = parser.text();
-                Analyzer analyzer = mapperService.analysisService().analyzer(analyzerName);
-                if (analyzer == null) {
-                    throw new IllegalArgumentException("Analyzer [" + analyzerName + "] doesn't exists");
-                }
-                generator.postFilter(analyzer);
-            } else {
-                throw new IllegalArgumentException("CandidateGenerator doesn't support [" + fieldName + "]");
             }
         }
+        return generator;
     }
-
 }

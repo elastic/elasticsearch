@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.action.shard;
 
 import org.apache.lucene.index.CorruptIndexException;
+import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
@@ -58,7 +59,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongConsumer;
 
-import static org.elasticsearch.action.support.replication.ClusterStateCreationUtils.stateWithStartedPrimary;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -130,7 +130,7 @@ public class ShardStateActionTests extends ESTestCase {
     public void testSuccess() throws InterruptedException {
         final String index = "test";
 
-        clusterService.setState(stateWithStartedPrimary(index, true, randomInt(5)));
+        clusterService.setState(ClusterStateCreationUtils.stateWithActivePrimary(index, true, randomInt(5)));
 
         AtomicBoolean success = new AtomicBoolean();
         CountDownLatch latch = new CountDownLatch(1);
@@ -170,7 +170,7 @@ public class ShardStateActionTests extends ESTestCase {
     public void testNoMaster() throws InterruptedException {
         final String index = "test";
 
-        clusterService.setState(stateWithStartedPrimary(index, true, randomInt(5)));
+        clusterService.setState(ClusterStateCreationUtils.stateWithActivePrimary(index, true, randomInt(5)));
 
         DiscoveryNodes.Builder noMasterBuilder = DiscoveryNodes.builder(clusterService.state().nodes());
         noMasterBuilder.masterNodeId(null);
@@ -207,7 +207,7 @@ public class ShardStateActionTests extends ESTestCase {
     public void testMasterChannelException() throws InterruptedException {
         final String index = "test";
 
-        clusterService.setState(stateWithStartedPrimary(index, true, randomInt(5)));
+        clusterService.setState(ClusterStateCreationUtils.stateWithActivePrimary(index, true, randomInt(5)));
 
         CountDownLatch latch = new CountDownLatch(1);
         AtomicInteger retries = new AtomicInteger();
@@ -263,7 +263,7 @@ public class ShardStateActionTests extends ESTestCase {
     public void testUnhandledFailure() {
         final String index = "test";
 
-        clusterService.setState(stateWithStartedPrimary(index, true, randomInt(5)));
+        clusterService.setState(ClusterStateCreationUtils.stateWithActivePrimary(index, true, randomInt(5)));
 
         AtomicBoolean failure = new AtomicBoolean();
 
@@ -292,7 +292,7 @@ public class ShardStateActionTests extends ESTestCase {
     public void testShardNotFound() throws InterruptedException {
         final String index = "test";
 
-        clusterService.setState(stateWithStartedPrimary(index, true, randomInt(5)));
+        clusterService.setState(ClusterStateCreationUtils.stateWithActivePrimary(index, true, randomInt(5)));
 
         AtomicBoolean success = new AtomicBoolean();
         CountDownLatch latch = new CountDownLatch(1);
@@ -325,7 +325,7 @@ public class ShardStateActionTests extends ESTestCase {
     public void testIllegalShardFailureException() throws InterruptedException {
         final String index = "test";
 
-        clusterService.setState(stateWithStartedPrimary(index, true, randomInt(5)));
+        clusterService.setState(ClusterStateCreationUtils.stateWithActivePrimary(index, true, randomInt(5)));
 
         ShardRouting failedShard = getRandomShardRouting(index);
 

@@ -99,7 +99,7 @@ public class RecoveryPercolatorIT extends ESIntegTestCase {
                         .field("field1", "value1")
                         .endObject().endObject())
                 .get();
-        assertMatchCount(percolate, 1l);
+        assertMatchCount(percolate, 1L);
         assertThat(percolate.getMatches(), arrayWithSize(1));
     }
 
@@ -116,7 +116,7 @@ public class RecoveryPercolatorIT extends ESIntegTestCase {
                 .setRefresh(true)
                 .get();
 
-        assertThat(client().prepareSearch().setSize(0).setTypes(PercolatorService.TYPE_NAME).setQuery(matchAllQuery()).get().getHits().totalHits(), equalTo(1l));
+        assertThat(client().prepareSearch().setSize(0).setTypes(PercolatorService.TYPE_NAME).setQuery(matchAllQuery()).get().getHits().totalHits(), equalTo(1L));
 
         PercolateResponse percolate = client().preparePercolate()
                 .setIndices("test").setDocumentType("type1")
@@ -124,7 +124,7 @@ public class RecoveryPercolatorIT extends ESIntegTestCase {
                         .field("field1", "value1")
                         .endObject().endObject())
                 .get();
-        assertMatchCount(percolate, 1l);
+        assertMatchCount(percolate, 1L);
         assertThat(percolate.getMatches(), arrayWithSize(1));
 
         internalCluster().rollingRestart();
@@ -134,7 +134,7 @@ public class RecoveryPercolatorIT extends ESIntegTestCase {
         logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         SearchResponse countResponse = client().prepareSearch().setSize(0).setTypes(PercolatorService.TYPE_NAME).setQuery(matchAllQuery()).get();
-        assertHitCount(countResponse, 1l);
+        assertHitCount(countResponse, 1L);
 
         DeleteIndexResponse actionGet = client().admin().indices().prepareDelete("test").get();
         assertThat(actionGet.isAcknowledged(), equalTo(true));
@@ -142,7 +142,7 @@ public class RecoveryPercolatorIT extends ESIntegTestCase {
         clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(1)).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
-        assertThat(client().prepareSearch().setSize(0).setTypes(PercolatorService.TYPE_NAME).setQuery(matchAllQuery()).get().getHits().totalHits(), equalTo(0l));
+        assertThat(client().prepareSearch().setSize(0).setTypes(PercolatorService.TYPE_NAME).setQuery(matchAllQuery()).get().getHits().totalHits(), equalTo(0L));
 
         percolate = client().preparePercolate()
                 .setIndices("test").setDocumentType("type1")
@@ -150,7 +150,7 @@ public class RecoveryPercolatorIT extends ESIntegTestCase {
                         .field("field1", "value1")
                         .endObject().endObject())
                 .get();
-        assertMatchCount(percolate, 0l);
+        assertMatchCount(percolate, 0L);
         assertThat(percolate.getMatches(), emptyArray());
 
         logger.info("--> register a query");
@@ -162,7 +162,7 @@ public class RecoveryPercolatorIT extends ESIntegTestCase {
                 .setRefresh(true)
                 .get();
 
-        assertThat(client().prepareSearch().setSize(0).setTypes(PercolatorService.TYPE_NAME).setQuery(matchAllQuery()).get().getHits().totalHits(), equalTo(1l));
+        assertThat(client().prepareSearch().setSize(0).setTypes(PercolatorService.TYPE_NAME).setQuery(matchAllQuery()).get().getHits().totalHits(), equalTo(1L));
 
         percolate = client().preparePercolate()
                 .setIndices("test").setDocumentType("type1")
@@ -170,7 +170,7 @@ public class RecoveryPercolatorIT extends ESIntegTestCase {
                         .field("field1", "value1")
                         .endObject().endObject())
                 .get();
-        assertMatchCount(percolate, 1l);
+        assertMatchCount(percolate, 1L);
         assertThat(percolate.getMatches(), arrayWithSize(1));
     }
 
@@ -202,7 +202,7 @@ public class RecoveryPercolatorIT extends ESIntegTestCase {
                 .setIndices("test").setDocumentType("type1")
                 .setSource(jsonBuilder().startObject().startObject("doc").field("field1", 95).endObject().endObject())
                 .get();
-        assertMatchCount(response, 6l);
+        assertMatchCount(response, 6L);
         assertThat(response.getMatches(), arrayWithSize(6));
         assertThat(convertFromTextArray(response.getMatches(), "test"), arrayContainingInAnyOrder("95", "96", "97", "98", "99", "100"));
 
@@ -216,7 +216,7 @@ public class RecoveryPercolatorIT extends ESIntegTestCase {
                 .setIndices("test").setDocumentType("type1")
                 .setSource(jsonBuilder().startObject().startObject("doc").field("field1", 100).endObject().endObject()).get();
 
-        assertMatchCount(response, 1l);
+        assertMatchCount(response, 1L);
         assertThat(response.getMatches(), arrayWithSize(1));
         assertThat(response.getMatches()[0].getId().string(), equalTo("100"));
     }

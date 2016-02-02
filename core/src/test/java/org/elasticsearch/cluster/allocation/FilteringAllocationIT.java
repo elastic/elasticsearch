@@ -58,7 +58,7 @@ public class FilteringAllocationIT extends ESIntegTestCase {
             client().prepareIndex("test", "type", Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
         }
         client().admin().indices().prepareRefresh().execute().actionGet();
-        assertThat(client().prepareSearch().setSize(0).setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().totalHits(), equalTo(100l));
+        assertThat(client().prepareSearch().setSize(0).setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().totalHits(), equalTo(100L));
 
         logger.info("--> decommission the second node");
         client().admin().cluster().prepareUpdateSettings()
@@ -77,7 +77,7 @@ public class FilteringAllocationIT extends ESIntegTestCase {
         }
 
         client().admin().indices().prepareRefresh().execute().actionGet();
-        assertThat(client().prepareSearch().setSize(0).setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().totalHits(), equalTo(100l));
+        assertThat(client().prepareSearch().setSize(0).setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().totalHits(), equalTo(100L));
     }
 
     public void testDisablingAllocationFiltering() throws Exception {
@@ -99,7 +99,7 @@ public class FilteringAllocationIT extends ESIntegTestCase {
             client().prepareIndex("test", "type", Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
         }
         client().admin().indices().prepareRefresh().execute().actionGet();
-        assertThat(client().prepareSearch().setSize(0).setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().totalHits(), equalTo(100l));
+        assertThat(client().prepareSearch().setSize(0).setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().totalHits(), equalTo(100L));
         ClusterState clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
         IndexRoutingTable indexRoutingTable = clusterState.routingTable().index("test");
         int numShardsOnNode1 = 0;

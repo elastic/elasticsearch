@@ -33,6 +33,6 @@ public class AzureStorageSettingsFilter extends AbstractComponent {
         // Cloud storage API settings needed to be hidden
         settingsFilter.addFilter(Storage.PREFIX + "*.account");
         settingsFilter.addFilter(Storage.PREFIX + "*.key");
-        settingsFilter.addFilter(Storage.ACCOUNT);
+        settingsFilter.addFilter(Storage.ACCOUNT_SETTING.getKey());
     }
 }

@@ -174,7 +174,7 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
         AtomicFieldData previous = null;
         for (int i = 0; i < max; i++) {
             AtomicFieldData current = fieldData.load(readerContext);
-            assertThat(current.ramBytesUsed(), equalTo(0l));
+            assertThat(current.ramBytesUsed(), equalTo(0L));
             if (previous != null) {
                 assertThat(current, not(sameInstance(previous)));
             }

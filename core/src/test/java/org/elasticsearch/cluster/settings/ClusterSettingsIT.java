@@ -95,7 +95,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
 
         assertAcked(response);
         assertThat(response.getTransientSettings().getAsMap().get(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey()), equalTo("1s"));
-        assertThat(discoverySettings.getPublishTimeout().seconds(), equalTo(1l));
+        assertThat(discoverySettings.getPublishTimeout().seconds(), equalTo(1L));
         assertThat(discoverySettings.getPublishDiff(), equalTo(DiscoverySettings.PUBLISH_DIFF_ENABLE_SETTING.get(Settings.EMPTY)));
 
 
@@ -118,7 +118,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
 
         assertAcked(response);
         assertThat(response.getTransientSettings().getAsMap().get(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey()), equalTo("1s"));
-        assertThat(discoverySettings.getPublishTimeout().seconds(), equalTo(1l));
+        assertThat(discoverySettings.getPublishTimeout().seconds(), equalTo(1L));
         assertFalse(discoverySettings.getPublishDiff());
         response = client().admin().cluster()
                 .prepareUpdateSettings()
@@ -138,7 +138,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
 
         assertAcked(response);
         assertThat(response.getPersistentSettings().getAsMap().get(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey()), equalTo("1s"));
-        assertThat(discoverySettings.getPublishTimeout().seconds(), equalTo(1l));
+        assertThat(discoverySettings.getPublishTimeout().seconds(), equalTo(1L));
         assertThat(discoverySettings.getPublishDiff(), equalTo(DiscoverySettings.PUBLISH_DIFF_ENABLE_SETTING.get(Settings.EMPTY)));
 
 
@@ -162,7 +162,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
 
         assertAcked(response);
         assertThat(response.getPersistentSettings().getAsMap().get(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey()), equalTo("1s"));
-        assertThat(discoverySettings.getPublishTimeout().seconds(), equalTo(1l));
+        assertThat(discoverySettings.getPublishTimeout().seconds(), equalTo(1L));
         assertFalse(discoverySettings.getPublishDiff());
         response = client().admin().cluster()
                 .prepareUpdateSettings()
@@ -254,7 +254,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
 
         assertAcked(response);
         assertThat(response.getTransientSettings().getAsMap().get(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey()), equalTo("1s"));
-        assertThat(discoverySettings.getPublishTimeout().seconds(), equalTo(1l));
+        assertThat(discoverySettings.getPublishTimeout().seconds(), equalTo(1L));
 
         try {
             client().admin().cluster()
@@ -266,7 +266,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
             assertEquals(ex.getMessage(), "Failed to parse setting [discovery.zen.publish_timeout] with value [whatever] as a time value: unit is missing or unrecognized");
         }
 
-        assertThat(discoverySettings.getPublishTimeout().seconds(), equalTo(1l));
+        assertThat(discoverySettings.getPublishTimeout().seconds(), equalTo(1L));
 
         try {
             client().admin().cluster()
@@ -278,7 +278,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
             assertEquals(ex.getMessage(), "Failed to parse value [-1] for setting [discovery.zen.publish_timeout] must be >= 0s");
         }
 
-        assertThat(discoverySettings.getPublishTimeout().seconds(), equalTo(1l));
+        assertThat(discoverySettings.getPublishTimeout().seconds(), equalTo(1L));
     }
 
     public void testClusterUpdateSettingsWithBlocks() {

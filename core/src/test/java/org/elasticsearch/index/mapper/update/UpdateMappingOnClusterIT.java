@@ -167,7 +167,7 @@ public class UpdateMappingOnClusterIT extends ESIntegTestCase {
 
     private void compareMappingOnNodes(GetMappingsResponse previousMapping) {
         // make sure all nodes have same cluster state
-        for (Client client : cluster()) {
+        for (Client client : cluster().getClients()) {
             GetMappingsResponse currentMapping = client.admin().indices().prepareGetMappings(INDEX).addTypes(TYPE).setLocal(true).get();
             assertThat(previousMapping.getMappings().get(INDEX).get(TYPE).source(), equalTo(currentMapping.getMappings().get(INDEX).get(TYPE).source()));
         }

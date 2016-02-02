@@ -20,7 +20,9 @@
 package org.elasticsearch.bootstrap;
 
 import org.apache.lucene.util.Constants;
+import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.StringHelper;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.PidFile;
 import org.elasticsearch.common.SuppressForbidden;
@@ -40,6 +42,7 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.file.Path;
 import java.util.Locale;
@@ -114,7 +117,11 @@ final class Bootstrap {
                 public boolean handle(int code) {
                     if (CTRL_CLOSE_EVENT == code) {
                         logger.info("running graceful exit on windows");
-                        Bootstrap.stop();
+                        try {
+                            Bootstrap.stop();
+                        } catch (IOException e) {
+                            throw new ElasticsearchException("failed to stop node", e);
+                        }
                         return true;
                     }
                     return false;
@@ -153,8 +160,10 @@ final class Bootstrap {
             Runtime.getRuntime().addShutdownHook(new Thread() {
                 @Override
                 public void run() {
-                    if (node != null) {
-                        node.close();
+                    try {
+                        IOUtils.close(node);
+                    } catch (IOException ex) {
+                        throw new ElasticsearchException("failed to stop node", ex);
                     }
                 }
             });
@@ -221,9 +230,9 @@ final class Bootstrap {
         keepAliveThread.start();
     }
 
-    static void stop() {
+    static void stop() throws IOException {
         try {
-            Releasables.close(INSTANCE.node);
+            IOUtils.close(INSTANCE.node);
         } finally {
             INSTANCE.keepAliveLatch.countDown();
         }

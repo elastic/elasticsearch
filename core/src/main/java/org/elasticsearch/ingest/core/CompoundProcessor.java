@@ -32,7 +32,8 @@ import java.util.Objects;
  */
 public class CompoundProcessor implements Processor {
     static final String ON_FAILURE_MESSAGE_FIELD = "on_failure_message";
-    static final String ON_FAILURE_PROCESSOR_FIELD = "on_failure_processor";
+    static final String ON_FAILURE_PROCESSOR_TYPE_FIELD = "on_failure_processor_type";
+    static final String ON_FAILURE_PROCESSOR_TAG_FIELD = "on_failure_processor_tag";
 
     private final List<Processor> processors;
     private final List<Processor> onFailureProcessors;
@@ -74,24 +75,26 @@ public class CompoundProcessor implements Processor {
                 if (onFailureProcessors.isEmpty()) {
                     throw e;
                 } else {
-                    executeOnFailure(ingestDocument, e, processor.getType());
+                    executeOnFailure(ingestDocument, e, processor.getType(), processor.getTag());
                 }
                 break;
             }
         }
     }
 
-    void executeOnFailure(IngestDocument ingestDocument, Exception cause, String failedProcessorType) throws Exception {
+    void executeOnFailure(IngestDocument ingestDocument, Exception cause, String failedProcessorType, String failedProcessorTag) throws Exception {
         Map<String, String> ingestMetadata = ingestDocument.getIngestMetadata();
         try {
             ingestMetadata.put(ON_FAILURE_MESSAGE_FIELD, cause.getMessage());
-            ingestMetadata.put(ON_FAILURE_PROCESSOR_FIELD, failedProcessorType);
+            ingestMetadata.put(ON_FAILURE_PROCESSOR_TYPE_FIELD, failedProcessorType);
+            ingestMetadata.put(ON_FAILURE_PROCESSOR_TAG_FIELD, failedProcessorTag);
             for (Processor processor : onFailureProcessors) {
                 processor.execute(ingestDocument);
             }
         } finally {
             ingestMetadata.remove(ON_FAILURE_MESSAGE_FIELD);
-            ingestMetadata.remove(ON_FAILURE_PROCESSOR_FIELD);
+            ingestMetadata.remove(ON_FAILURE_PROCESSOR_TYPE_FIELD);
+            ingestMetadata.remove(ON_FAILURE_PROCESSOR_TAG_FIELD);
         }
     }
 }

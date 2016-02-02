@@ -456,7 +456,7 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
             if (shardId != null) {
                 final IndexShard shard = indexService.getShardOrNull(shardId.id());
                 if (shard != null) {
-                    long ramBytesUsed = accountable != null ? accountable.ramBytesUsed() : 0l;
+                    long ramBytesUsed = accountable != null ? accountable.ramBytesUsed() : 0L;
                     shard.shardBitsetFilterCache().onCached(ramBytesUsed);
                 }
             }
@@ -467,7 +467,7 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
             if (shardId != null) {
                 final IndexShard shard = indexService.getShardOrNull(shardId.id());
                 if (shard != null) {
-                    long ramBytesUsed = accountable != null ? accountable.ramBytesUsed() : 0l;
+                    long ramBytesUsed = accountable != null ? accountable.ramBytesUsed() : 0L;
                     shard.shardBitsetFilterCache().onRemoval(ramBytesUsed);
                 }
             }

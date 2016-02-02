@@ -319,6 +319,10 @@ disable doc values is by using the `doc_values` property of mappings.
 
 Site plugins have been removed. It is recommended to migrate site plugins to Kibana plugins.
 
+==== Multicast plugin removed
+
+Multicast has been removed. Use unicast discovery, or one of the cloud discovery plugins.
+
 ==== Plugins with custom query implementations
 
 Plugins implementing custom queries need to implement the `fromXContent(QueryParseContext)` method in their
@@ -577,6 +581,10 @@ to index a document only if it doesn't already exist.
 ==== RescoreBuilder
 
 `RecoreBuilder.Rescorer` was merged with `RescoreBuilder`, which now is an abstract superclass. QueryRescoreBuilder currently is its only implementation.
+
+==== PhraseSuggestionBuilder
+
+The inner DirectCandidateGenerator class has been moved out to its own class called DirectCandidateGeneratorBuilder.
 
 [[breaking_30_cache_concurrency]]
 === Cache concurrency level settings removed

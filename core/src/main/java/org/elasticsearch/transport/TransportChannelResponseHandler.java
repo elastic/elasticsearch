@@ -23,6 +23,7 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.function.Supplier;
 
 /**
  * Base class for delegating transport response to a transport channel
@@ -30,7 +31,7 @@ import java.io.IOException;
 public abstract class TransportChannelResponseHandler<T extends TransportResponse> implements TransportResponseHandler<T> {
 
     /**
-     * Convenience method for delegating an empty response to the provided changed
+     * Convenience method for delegating an empty response to the provided transport channel
      */
     public static TransportChannelResponseHandler<TransportResponse.Empty> emptyResponseHandler(ESLogger logger, TransportChannel channel, String extraInfoOnError) {
         return new TransportChannelResponseHandler<TransportResponse.Empty>(logger, channel, extraInfoOnError) {
@@ -40,6 +41,19 @@ public abstract class TransportChannelResponseHandler<T extends TransportRespons
             }
         };
     }
+
+    /**
+     * Convenience method for delegating a response provided by supplier to the provided transport channel
+     */
+    public static <T extends TransportResponse> TransportChannelResponseHandler responseHandler(ESLogger logger, Supplier<T> responseSupplier, TransportChannel channel, String extraInfoOnError) {
+        return new TransportChannelResponseHandler<T>(logger, channel, extraInfoOnError) {
+            @Override
+            public T newInstance() {
+                return responseSupplier.get();
+            }
+        };
+    }
+
 
     private final ESLogger logger;
     private final TransportChannel channel;

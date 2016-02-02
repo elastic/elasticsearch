@@ -58,8 +58,6 @@ still need to use multicast discovery, you can install the plugin with:
 ./bin/plugin install discovery-multicast
 ------------------
 
-See {plugins}/discovery-multicast.html for more information.
-
 ==== `_shutdown` API
 
 The `_shutdown` API has been removed without a replacement. Nodes should be

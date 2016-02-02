@@ -815,7 +815,7 @@ public final class InternalTestCluster extends TestCluster {
             }
         }
 
-        void closeNode() {
+        void closeNode() throws IOException {
             registerDataPath();
             node.close();
         }
@@ -1036,7 +1036,7 @@ public final class InternalTestCluster extends TestCluster {
             IndicesService indexServices = getInstance(IndicesService.class, nodeAndClient.name);
             for (IndexService indexService : indexServices) {
                 for (IndexShard indexShard : indexService) {
-                    assertThat("index shard counter on shard " + indexShard.shardId() + " on node " + nodeAndClient.name + " not 0", indexShard.getOperationsCount(), equalTo(0));
+                    assertThat("index shard counter on shard " + indexShard.shardId() + " on node " + nodeAndClient.name + " not 0", indexShard.getActiveOperationsCount(), equalTo(0));
                 }
             }
         }
@@ -1720,27 +1720,29 @@ public final class InternalTestCluster extends TestCluster {
         return null;
     }
 
-    @Override
-    public synchronized Iterator<Client> iterator() {
+    public synchronized Iterable<Client> getClients() {
         ensureOpen();
-        final Iterator<NodeAndClient> iterator = nodes.values().iterator();
-        return new Iterator<Client>() {
+        return () -> {
+            ensureOpen();
+            final Iterator<NodeAndClient> iterator = nodes.values().iterator();
+            return new Iterator<Client>() {
 
-            @Override
-            public boolean hasNext() {
-                return iterator.hasNext();
-            }
+                @Override
+                public boolean hasNext() {
+                    return iterator.hasNext();
+                }
 
-            @Override
-            public Client next() {
-                return iterator.next().client(random);
-            }
+                @Override
+                public Client next() {
+                    return iterator.next().client(random);
+                }
 
-            @Override
-            public void remove() {
-                throw new UnsupportedOperationException("");
-            }
+                @Override
+                public void remove() {
+                    throw new UnsupportedOperationException("");
+                }
 
+            };
         };
     }
 
@@ -1847,9 +1849,9 @@ public final class InternalTestCluster extends TestCluster {
 
                 NodeService nodeService = getInstanceFromNode(NodeService.class, nodeAndClient.node);
                 NodeStats stats = nodeService.stats(CommonStatsFlags.ALL, false, false, false, false, false, false, false, false, false, false);
-                assertThat("Fielddata size must be 0 on node: " + stats.getNode(), stats.getIndices().getFieldData().getMemorySizeInBytes(), equalTo(0l));
-                assertThat("Query cache size must be 0 on node: " + stats.getNode(), stats.getIndices().getQueryCache().getMemorySizeInBytes(), equalTo(0l));
-                assertThat("FixedBitSet cache size must be 0 on node: " + stats.getNode(), stats.getIndices().getSegments().getBitsetMemoryInBytes(), equalTo(0l));
+                assertThat("Fielddata size must be 0 on node: " + stats.getNode(), stats.getIndices().getFieldData().getMemorySizeInBytes(), equalTo(0L));
+                assertThat("Query cache size must be 0 on node: " + stats.getNode(), stats.getIndices().getQueryCache().getMemorySizeInBytes(), equalTo(0L));
+                assertThat("FixedBitSet cache size must be 0 on node: " + stats.getNode(), stats.getIndices().getSegments().getBitsetMemoryInBytes(), equalTo(0L));
             }
         }
     }

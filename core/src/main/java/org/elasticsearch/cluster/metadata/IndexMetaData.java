@@ -302,7 +302,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
     }
 
     public long getCreationDate() {
-        return settings.getAsLong(SETTING_CREATION_DATE, -1l);
+        return settings.getAsLong(SETTING_CREATION_DATE, -1L);
     }
 
     public State getState() {

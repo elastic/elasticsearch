@@ -63,7 +63,7 @@ public class ThreadPoolSerializationTests extends ESTestCase {
         ThreadPool.Info newInfo = new ThreadPool.Info();
         newInfo.readFrom(input);
 
-        assertThat(newInfo.getQueueSize().singles(), is(10000l));
+        assertThat(newInfo.getQueueSize().singles(), is(10000L));
     }
 
     public void testThatNegativeQueueSizesCanBeSerialized() throws Exception {

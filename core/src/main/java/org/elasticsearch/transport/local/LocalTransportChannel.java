@@ -46,7 +46,8 @@ public class LocalTransportChannel implements TransportChannel {
     private final long requestId;
     private final Version version;
 
-    public LocalTransportChannel(LocalTransport sourceTransport, TransportServiceAdapter sourceTransportServiceAdapter, LocalTransport targetTransport, String action, long requestId, Version version) {
+    public LocalTransportChannel(LocalTransport sourceTransport, TransportServiceAdapter sourceTransportServiceAdapter,
+            LocalTransport targetTransport, String action, long requestId, Version version) {
         this.sourceTransport = sourceTransport;
         this.sourceTransportServiceAdapter = sourceTransportServiceAdapter;
         this.targetTransport = targetTransport;
@@ -94,7 +95,8 @@ public class LocalTransportChannel implements TransportChannel {
     public void sendResponse(Throwable error) throws IOException {
         BytesStreamOutput stream = new BytesStreamOutput();
         writeResponseExceptionHeader(stream);
-        RemoteTransportException tx = new RemoteTransportException(targetTransport.nodeName(), targetTransport.boundAddress().boundAddresses()[0], action, error);
+        RemoteTransportException tx = new RemoteTransportException(targetTransport.nodeName(),
+                targetTransport.boundAddress().boundAddresses()[0], action, error);
         stream.writeThrowable(tx);
 
         final byte[] data = stream.bytes().toBytes();

@@ -130,8 +130,8 @@ public class InternalTestClusterTests extends ESTestCase {
                 cluster1.beforeTest(random, random.nextDouble());
             }
             assertArrayEquals(cluster0.getNodeNames(), cluster1.getNodeNames());
-            Iterator<Client> iterator1 = cluster1.iterator();
-            for (Client client : cluster0) {
+            Iterator<Client> iterator1 = cluster1.getClients().iterator();
+            for (Client client : cluster0.getClients()) {
                 assertTrue(iterator1.hasNext());
                 Client other = iterator1.next();
                 assertSettings(client.settings(), other.settings(), false);

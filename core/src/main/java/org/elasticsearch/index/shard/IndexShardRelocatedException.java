@@ -29,7 +29,11 @@ import java.io.IOException;
 public class IndexShardRelocatedException extends IllegalIndexShardStateException {
 
     public IndexShardRelocatedException(ShardId shardId) {
-        super(shardId, IndexShardState.RELOCATED, "Already relocated");
+        this(shardId, "Already relocated");
+    }
+
+    public IndexShardRelocatedException(ShardId shardId, String reason) {
+        super(shardId, IndexShardState.RELOCATED, reason);
     }
 
     public IndexShardRelocatedException(StreamInput in) throws IOException{

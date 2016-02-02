@@ -141,8 +141,8 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
         Query parsedQuery = parseQuery(query).toQuery(createShardContext());
         assertThat(parsedQuery, instanceOf(NumericRangeQuery.class));
         NumericRangeQuery fuzzyQuery = (NumericRangeQuery) parsedQuery;
-        assertThat(fuzzyQuery.getMin().longValue(), equalTo(7l));
-        assertThat(fuzzyQuery.getMax().longValue(), equalTo(17l));
+        assertThat(fuzzyQuery.getMin().longValue(), equalTo(7L));
+        assertThat(fuzzyQuery.getMax().longValue(), equalTo(17L));
     }
 
     public void testFromJson() throws IOException {

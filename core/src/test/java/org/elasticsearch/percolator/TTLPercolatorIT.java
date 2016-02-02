@@ -148,7 +148,7 @@ public class TTLPercolatorIT extends ESIntegTestCase {
                         .endObject()
                         .endObject()
                 ).execute().actionGet();
-        assertMatchCount(percolateResponse, 0l);
+        assertMatchCount(percolateResponse, 0L);
         assertThat(percolateResponse.getMatches(), emptyArray());
     }
 

@@ -286,12 +286,12 @@ public class ESExceptionTests extends ESTestCase {
     public void testSerializeUnknownException() throws IOException {
         BytesStreamOutput out = new BytesStreamOutput();
         ParsingException ParsingException = new ParsingException(1, 2, "foobar", null);
-        Throwable ex = new Throwable("wtf", ParsingException);
+        Throwable ex = new Throwable("eggplant", ParsingException);
         out.writeThrowable(ex);
 
         StreamInput in = StreamInput.wrap(out.bytes());
         Throwable throwable = in.readThrowable();
-        assertEquals("wtf", throwable.getMessage());
+        assertEquals("throwable: eggplant", throwable.getMessage());
         assertTrue(throwable instanceof ElasticsearchException);
         ParsingException e = (ParsingException)throwable.getCause();
                 assertEquals(ParsingException.getIndex(), e.getIndex());
@@ -329,7 +329,9 @@ public class ESExceptionTests extends ESTestCase {
             StreamInput in = StreamInput.wrap(out.bytes());
             ElasticsearchException e = in.readThrowable();
             assertEquals(e.getMessage(), ex.getMessage());
-            assertEquals(ex.getCause().getClass().getName(), e.getCause().getMessage(), ex.getCause().getMessage());
+            assertTrue("Expected: " + e.getCause().getMessage() + " to contain: " +
+                            ex.getCause().getClass().getName() + " but it didn't",
+                    e.getCause().getMessage().contains(ex.getCause().getMessage()));
             if (ex.getCause().getClass() != Throwable.class) { // throwable is not directly mapped
                 assertEquals(e.getCause().getClass(), ex.getCause().getClass());
             } else {

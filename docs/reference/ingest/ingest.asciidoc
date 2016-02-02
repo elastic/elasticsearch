@@ -725,7 +725,7 @@ the index for which failed documents get sent.
 
 Sometimes you may want to retrieve the actual error message that was thrown 
 by a failed processor. To do so you can access metadata fields called 
-`on_failure_message` and `on_failure_processor`. These fields are only accessible 
+`on_failure_message`, `on_failure_processor_type`, `on_failure_processor_tag`. These fields are only accessible 
 from within the context of an `on_failure` block. Here is an updated version of 
 our first example which leverages these fields to provide the error message instead 
 of manually setting it.

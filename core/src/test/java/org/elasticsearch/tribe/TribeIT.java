@@ -297,8 +297,8 @@ public class TribeIT extends ESIntegTestCase {
         tribeClient.admin().indices().prepareRefresh().get();
 
         logger.info("verify they are there");
-        assertHitCount(tribeClient.prepareSearch().setSize(0).get(), 2l);
-        assertHitCount(tribeClient.prepareSearch().get(), 2l);
+        assertHitCount(tribeClient.prepareSearch().setSize(0).get(), 2L);
+        assertHitCount(tribeClient.prepareSearch().get(), 2L);
         assertBusy(new Runnable() {
             @Override
             public void run() {
@@ -316,8 +316,8 @@ public class TribeIT extends ESIntegTestCase {
 
 
         logger.info("verify they are there");
-        assertHitCount(tribeClient.prepareSearch().setSize(0).get(), 4l);
-        assertHitCount(tribeClient.prepareSearch().get(), 4l);
+        assertHitCount(tribeClient.prepareSearch().setSize(0).get(), 4L);
+        assertHitCount(tribeClient.prepareSearch().get(), 4L);
         assertBusy(new Runnable() {
             @Override
             public void run() {

@@ -111,7 +111,7 @@ public class SimpleTTLIT extends ESIntegTestCase {
             ttl0 = ((Number) getResponse.getField("_ttl").getValue()).longValue();
             assertThat(ttl0, lessThanOrEqualTo(providedTTLValue - (currentTime - now)));
         } else {
-            assertThat(providedTTLValue - (currentTime - now), lessThanOrEqualTo(0l));
+            assertThat(providedTTLValue - (currentTime - now), lessThanOrEqualTo(0L));
         }
         // verify the ttl is still decreasing when going to the replica
         currentTime = System.currentTimeMillis();
@@ -120,7 +120,7 @@ public class SimpleTTLIT extends ESIntegTestCase {
             ttl0 = ((Number) getResponse.getField("_ttl").getValue()).longValue();
             assertThat(ttl0, lessThanOrEqualTo(providedTTLValue - (currentTime - now)));
         } else {
-            assertThat(providedTTLValue - (currentTime - now), lessThanOrEqualTo(0l));
+            assertThat(providedTTLValue - (currentTime - now), lessThanOrEqualTo(0L));
         }
         // non realtime get (stored)
         currentTime = System.currentTimeMillis();
@@ -129,7 +129,7 @@ public class SimpleTTLIT extends ESIntegTestCase {
             ttl0 = ((Number) getResponse.getField("_ttl").getValue()).longValue();
             assertThat(ttl0, lessThanOrEqualTo(providedTTLValue - (currentTime - now)));
         } else {
-            assertThat(providedTTLValue - (currentTime - now), lessThanOrEqualTo(0l));
+            assertThat(providedTTLValue - (currentTime - now), lessThanOrEqualTo(0L));
         }
         // non realtime get going the replica
         currentTime = System.currentTimeMillis();
@@ -138,7 +138,7 @@ public class SimpleTTLIT extends ESIntegTestCase {
             ttl0 = ((Number) getResponse.getField("_ttl").getValue()).longValue();
             assertThat(ttl0, lessThanOrEqualTo(providedTTLValue - (currentTime - now)));
         } else {
-            assertThat(providedTTLValue - (currentTime - now), lessThanOrEqualTo(0l));
+            assertThat(providedTTLValue - (currentTime - now), lessThanOrEqualTo(0L));
         }
 
         // no TTL provided so no TTL fetched

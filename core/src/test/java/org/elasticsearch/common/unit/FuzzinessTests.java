@@ -40,7 +40,7 @@ public class FuzzinessTests extends ESTestCase {
         assertThat(Fuzziness.build(randomFrom(options)).asInt(), equalTo(1));
         assertThat(Fuzziness.build(randomFrom(options)).asFloat(), equalTo(1f));
         assertThat(Fuzziness.build(randomFrom(options)).asDouble(), equalTo(1d));
-        assertThat(Fuzziness.build(randomFrom(options)).asLong(), equalTo(1l));
+        assertThat(Fuzziness.build(randomFrom(options)).asLong(), equalTo(1L));
         assertThat(Fuzziness.build(randomFrom(options)).asShort(), equalTo((short) 1));
     }
 
@@ -143,7 +143,7 @@ public class FuzzinessTests extends ESTestCase {
         assertThat(Fuzziness.AUTO.asInt(), equalTo(1));
         assertThat(Fuzziness.AUTO.asFloat(), equalTo(1f));
         assertThat(Fuzziness.AUTO.asDouble(), equalTo(1d));
-        assertThat(Fuzziness.AUTO.asLong(), equalTo(1l));
+        assertThat(Fuzziness.AUTO.asLong(), equalTo(1L));
         assertThat(Fuzziness.AUTO.asShort(), equalTo((short) 1));
         assertThat(Fuzziness.AUTO.asTimeValue(), equalTo(TimeValue.parseTimeValue("1ms", TimeValue.timeValueMillis(1), "fuzziness")));
 

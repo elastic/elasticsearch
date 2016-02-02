@@ -332,8 +332,7 @@ public class ShardStateActionTests extends ESTestCase {
 
         ShardRouting failedShard = getRandomShardRouting(index);
 
-        Set<String> nodeIds = StreamSupport.stream(clusterService.state().nodes().getNodes().keys().spliterator(), false).map(key -> key.value).collect(Collectors.toSet());
-        String nodeId = randomSubsetOf(1, nodeIds.toArray(new String[nodeIds.size()])).get(0);
+        String nodeId = randomFrom(clusterService.state().nodes().nodes().keys().toArray(String.class));
 
         AtomicReference<Throwable> failure = new AtomicReference<>();
         CountDownLatch latch = new CountDownLatch(1);

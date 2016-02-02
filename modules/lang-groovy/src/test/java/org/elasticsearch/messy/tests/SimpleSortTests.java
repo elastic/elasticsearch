@@ -1759,7 +1759,7 @@ public class SimpleSortTests extends ESIntegTestCase {
 
         SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .addSort(new GeoDistanceSortBuilder("location").points(q).sortMode("min").order(SortOrder.ASC).geoDistance(GeoDistance.PLANE).unit(DistanceUnit.KILOMETERS))
+                .addSort(new GeoDistanceSortBuilder("location", q).sortMode("min").order(SortOrder.ASC).geoDistance(GeoDistance.PLANE).unit(DistanceUnit.KILOMETERS))
                 .execute().actionGet();
         assertOrderedSearchHits(searchResponse, "d1", "d2");
         assertThat((Double)searchResponse.getHits().getAt(0).getSortValues()[0], closeTo(GeoDistance.PLANE.calculate(2, 2, 3, 2, DistanceUnit.KILOMETERS), 0.01d));
@@ -1767,7 +1767,7 @@ public class SimpleSortTests extends ESIntegTestCase {
 
         searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .addSort(new GeoDistanceSortBuilder("location").points(q).sortMode("min").order(SortOrder.DESC).geoDistance(GeoDistance.PLANE).unit(DistanceUnit.KILOMETERS))
+                .addSort(new GeoDistanceSortBuilder("location", q).sortMode("min").order(SortOrder.DESC).geoDistance(GeoDistance.PLANE).unit(DistanceUnit.KILOMETERS))
                 .execute().actionGet();
         assertOrderedSearchHits(searchResponse, "d2", "d1");
         assertThat((Double)searchResponse.getHits().getAt(0).getSortValues()[0], closeTo(GeoDistance.PLANE.calculate(2, 1, 5, 1, DistanceUnit.KILOMETERS), 0.01d));
@@ -1775,7 +1775,7 @@ public class SimpleSortTests extends ESIntegTestCase {
 
         searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .addSort(new GeoDistanceSortBuilder("location").points(q).sortMode("max").order(SortOrder.ASC).geoDistance(GeoDistance.PLANE).unit(DistanceUnit.KILOMETERS))
+                .addSort(new GeoDistanceSortBuilder("location", q).sortMode("max").order(SortOrder.ASC).geoDistance(GeoDistance.PLANE).unit(DistanceUnit.KILOMETERS))
                 .execute().actionGet();
         assertOrderedSearchHits(searchResponse, "d1", "d2");
         assertThat((Double)searchResponse.getHits().getAt(0).getSortValues()[0], closeTo(GeoDistance.PLANE.calculate(2, 2, 4, 1, DistanceUnit.KILOMETERS), 0.01d));
@@ -1783,7 +1783,7 @@ public class SimpleSortTests extends ESIntegTestCase {
 
         searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .addSort(new GeoDistanceSortBuilder("location").points(q).sortMode("max").order(SortOrder.DESC).geoDistance(GeoDistance.PLANE).unit(DistanceUnit.KILOMETERS))
+                .addSort(new GeoDistanceSortBuilder("location", q).sortMode("max").order(SortOrder.DESC).geoDistance(GeoDistance.PLANE).unit(DistanceUnit.KILOMETERS))
                 .execute().actionGet();
         assertOrderedSearchHits(searchResponse, "d2", "d1");
         assertThat((Double)searchResponse.getHits().getAt(0).getSortValues()[0], closeTo(GeoDistance.PLANE.calculate(2, 1, 6, 2, DistanceUnit.KILOMETERS), 0.01d));
@@ -1835,13 +1835,22 @@ public class SimpleSortTests extends ESIntegTestCase {
         List<GeoPoint> qPoints = new ArrayList<>();
         createQPoints(qHashes, qPoints);
 
-        GeoDistanceSortBuilder geoDistanceSortBuilder = new GeoDistanceSortBuilder("location");
+        
+        GeoDistanceSortBuilder geoDistanceSortBuilder = null;
         for (int i = 0; i < 4; i++) {
             int at = randomInt(3 - i);
             if (randomBoolean()) {
-                geoDistanceSortBuilder.geohashes(qHashes.get(at));
+              	if (geoDistanceSortBuilder == null) {
+              	  geoDistanceSortBuilder = new GeoDistanceSortBuilder("location", qHashes.get(at));
+              	} else {
+              	  geoDistanceSortBuilder.geohashes(qHashes.get(at));
+              	}
             } else {
+              if (geoDistanceSortBuilder == null) {
+        	geoDistanceSortBuilder = new GeoDistanceSortBuilder("location", qPoints.get(at));
+              } else {
                 geoDistanceSortBuilder.points(qPoints.get(at));
+              }
             }
             qHashes.remove(at);
             qPoints.remove(at);
@@ -1874,8 +1883,7 @@ public class SimpleSortTests extends ESIntegTestCase {
 
         String hashPoint = "s037ms06g7h0";
 
-        GeoDistanceSortBuilder geoDistanceSortBuilder = new GeoDistanceSortBuilder("location");
-        geoDistanceSortBuilder.geohashes(hashPoint);
+        GeoDistanceSortBuilder geoDistanceSortBuilder = new GeoDistanceSortBuilder("location", hashPoint);
 
         SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
@@ -1883,8 +1891,7 @@ public class SimpleSortTests extends ESIntegTestCase {
                 .execute().actionGet();
         checkCorrectSortOrderForGeoSort(searchResponse);
 
-        geoDistanceSortBuilder = new GeoDistanceSortBuilder("location");
-        geoDistanceSortBuilder.points(new GeoPoint(2, 2));
+        geoDistanceSortBuilder = new GeoDistanceSortBuilder("location", new GeoPoint(2, 2));
 
         searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
@@ -1892,8 +1899,7 @@ public class SimpleSortTests extends ESIntegTestCase {
                 .execute().actionGet();
         checkCorrectSortOrderForGeoSort(searchResponse);
 
-        geoDistanceSortBuilder = new GeoDistanceSortBuilder("location");
-        geoDistanceSortBuilder.point(2, 2);
+        geoDistanceSortBuilder = new GeoDistanceSortBuilder("location", 2, 2);
 
         searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
@@ -1904,21 +1910,21 @@ public class SimpleSortTests extends ESIntegTestCase {
         searchResponse = client()
                 .prepareSearch()
                 .setSource(
-                        new SearchSourceBuilder().sort(SortBuilders.geoDistanceSort("location").point(2.0, 2.0)
+                        new SearchSourceBuilder().sort(SortBuilders.geoDistanceSort("location", 2.0, 2.0)
                                 .unit(DistanceUnit.KILOMETERS).geoDistance(GeoDistance.PLANE))).execute().actionGet();
         checkCorrectSortOrderForGeoSort(searchResponse);
 
         searchResponse = client()
                 .prepareSearch()
                 .setSource(
-                        new SearchSourceBuilder().sort(SortBuilders.geoDistanceSort("location").geohashes("s037ms06g7h0")
+                        new SearchSourceBuilder().sort(SortBuilders.geoDistanceSort("location", "s037ms06g7h0")
                                 .unit(DistanceUnit.KILOMETERS).geoDistance(GeoDistance.PLANE))).execute().actionGet();
         checkCorrectSortOrderForGeoSort(searchResponse);
 
         searchResponse = client()
                 .prepareSearch()
                 .setSource(
-                        new SearchSourceBuilder().sort(SortBuilders.geoDistanceSort("location").point(2.0, 2.0)
+                        new SearchSourceBuilder().sort(SortBuilders.geoDistanceSort("location", 2.0, 2.0)
                                 .unit(DistanceUnit.KILOMETERS).geoDistance(GeoDistance.PLANE))).execute().actionGet();
         checkCorrectSortOrderForGeoSort(searchResponse);
     }

@@ -246,8 +246,8 @@ public class SearchSourceBuilderTests extends ESTestCase {
                     builder.sort(SortBuilders.fieldSort(randomAsciiOfLengthBetween(5, 20)).order(randomFrom(SortOrder.values())));
                     break;
                 case 1:
-                    builder.sort(SortBuilders.geoDistanceSort(randomAsciiOfLengthBetween(5, 20))
-                            .geohashes(AbstractQueryTestCase.randomGeohash(1, 12)).order(randomFrom(SortOrder.values())));
+                    builder.sort(SortBuilders.geoDistanceSort(randomAsciiOfLengthBetween(5, 20),
+                            AbstractQueryTestCase.randomGeohash(1, 12)).order(randomFrom(SortOrder.values())));
                     break;
                 case 2:
                     builder.sort(SortBuilders.scoreSort().order(randomFrom(SortOrder.values())));

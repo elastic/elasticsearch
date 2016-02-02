@@ -43,8 +43,7 @@ public final class SmbDirectoryWrapper extends FilterDirectory {
 
     @Override
     public IndexOutput createOutput(String name, IOContext context) throws IOException {
-        fsDirectory.ensureOpen();
-        fsDirectory.ensureCanWrite(name);
+        this.ensureOpen();
         return new SmbFSIndexOutput(name);
     }
 

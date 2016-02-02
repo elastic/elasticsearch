@@ -816,6 +816,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/16364")
     public void testStressRelocated() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test").setSettings(
             Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0)

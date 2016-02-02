@@ -322,7 +322,7 @@ public class ShardStateActionTests extends ESTestCase {
         assertTrue(success.get());
     }
 
-    public void testIllegalShardFailureException() throws InterruptedException {
+    public void testNoLongerPrimaryShardException() throws InterruptedException {
         final String index = "test";
 
         clusterService.setState(ClusterStateCreationUtils.stateWithActivePrimary(index, true, randomInt(5)));

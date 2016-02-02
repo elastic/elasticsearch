@@ -314,16 +314,7 @@ public class ShardStateAction extends AbstractComponent {
             if (routingNodeIterator != null) {
                 for (ShardRouting maybe : routingNodeIterator) {
                     if (task.getShardRouting().isSameAllocation(maybe)) {
-                        IndexShardRoutingTable indexShard =
-                            currentState.getRoutingTable().shardRoutingTable(task.getShardRouting().index().getName(), task.getShardRouting().getId());
-                        ShardRouting primaryShard = indexShard.primaryShard();
-                        if (task.sourceShardRouting.allocationId().equals(maybe.allocationId())) {
-                            return ValidationResult.VALID;
-                        } else if (primaryShard != null && primaryShard.allocationId().equals(task.sourceShardRouting.allocationId())) {
-                            return ValidationResult.VALID;
-                        } else {
-                            return ValidationResult.SOURCE_INVALID;
-                        }
+                        return ValidationResult.VALID;
                     }
                 }
             }

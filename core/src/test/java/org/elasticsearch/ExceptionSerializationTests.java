@@ -594,7 +594,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         assertSame(status, e.status());
     }
 
-    public void testIllegalShardFailureExceptions() throws IOException {
+    public void testNoLongerPrimaryShardException() throws IOException {
         ShardId shardId = new ShardId(new Index(randomAsciiOfLength(4), randomAsciiOfLength(4)), randomIntBetween(0, Integer.MAX_VALUE));
         String msg = randomAsciiOfLength(4);
         ShardStateAction.NoLongerPrimaryShardException ex = serialize(new ShardStateAction.NoLongerPrimaryShardException(shardId, msg));

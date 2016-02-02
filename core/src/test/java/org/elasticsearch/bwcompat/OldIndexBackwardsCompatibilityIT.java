@@ -279,6 +279,7 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/16373")
     public void testOldIndexes() throws Exception {
         setupCluster();
 

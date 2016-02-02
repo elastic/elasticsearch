@@ -1435,11 +1435,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
         if (!bogusIds.isEmpty()) {
             // delete the bogus types again - it might trigger merges or at least holes in the segments and enforces deleted docs!
             for (Tuple<String, String> doc : bogusIds) {
-                // see https://github.com/elasticsearch/elasticsearch/issues/8706
-                final DeleteResponse deleteResponse = client().prepareDelete(doc.v1(), RANDOM_BOGUS_TYPE, doc.v2()).get();
-                if (deleteResponse.isFound() == false) {
-                    logger.warn("failed to delete a dummy doc [{}][{}]", doc.v1(), doc.v2());
-                }
+                assertTrue("failed to delete a dummy doc [" + doc.v1() + "][" + doc.v2() + "]",
+                    client().prepareDelete(doc.v1(), RANDOM_BOGUS_TYPE, doc.v2()).get().isFound());
             }
         }
         if (forceRefresh) {

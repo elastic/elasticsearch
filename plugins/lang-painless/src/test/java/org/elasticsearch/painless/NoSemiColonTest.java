@@ -46,7 +46,7 @@ public class NoSemiColonTest extends ScriptTestCase {
 
     public void testWhileStatement() {
 
-        assertEquals("aaaaaa", exec("String c = \"a\" int x while (x < 5) { c ..= \"a\" ++x } return c"));
+        assertEquals("aaaaaa", exec("String c = \"a\" int x while (x < 5) { ++x c += \"a\" } return c"));
 
         Object value = exec(
                 " byte[][] b = new byte[5][5]       \n" +
@@ -75,24 +75,24 @@ public class NoSemiColonTest extends ScriptTestCase {
     }
 
     public void testDoWhileStatement() {
-        assertEquals("aaaaaa", exec("String c = \"a\" int x do { c ..= \"a\" ++x } while (x < 5) return c"));
+        assertEquals("aaaaaa", exec("String c = \"a\" int x do { c += \"a\"; ++x } while (x < 5) return c"));
 
         Object value = exec(
-                " long[][] l = new long[5][5]     \n" +
-                " long x = 0, y                   \n" +
-                "                                 \n" +
-                " do {                            \n" +
-                "     y = 0                       \n" +
-                "                                 \n" +
-                "     do {                        \n" +
-                "         l[(int)x][(int)y] = x*y \n" +
-                "         ++y                     \n" +
-                "     } while (y < 5)             \n" +
-                "                                 \n" +
-                "     ++x                         \n" +
-                " } while (x < 5)                 \n" +
-                "                                 \n" +
-                " return l                        \n");
+                " long[][] l = new long[5][5]      \n" +
+                " long x = 0, y                    \n" +
+                "                                  \n" +
+                " do {                             \n" +
+                "     y = 0                        \n" +
+                "                                  \n" +
+                "     do {                         \n" +
+                "         l[(int)x][(int)y] = x*y; \n" +
+                "         ++y                      \n" +
+                "     } while (y < 5)              \n" +
+                "                                  \n" +
+                "     ++x                          \n" +
+                " } while (x < 5)                  \n" +
+                "                                  \n" +
+                " return l                         \n");
 
         long[][] l = (long[][])value;
 
@@ -104,7 +104,7 @@ public class NoSemiColonTest extends ScriptTestCase {
     }
 
     public void testForStatement() {
-        assertEquals("aaaaaa", exec("String c = \"a\" for (int x = 0; x < 5; ++x) c ..= \"a\" return c"));
+        assertEquals("aaaaaa", exec("String c = \"a\" for (int x = 0; x < 5; ++x) c += \"a\" return c"));
 
         Object value = exec(
                 " int[][] i = new int[5][5]         \n" +

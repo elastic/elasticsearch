@@ -56,7 +56,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.query.TemplateQueryParser;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
@@ -531,13 +530,14 @@ public class ScriptService extends AbstractComponent implements Closeable {
 
         @Override
         public void onFileInit(Path file) {
+            if (FileSystemUtils.isHidden(file)) {
+                logger.debug("Hidden script file skipped : [{}]", file);
+                return;
+            }
             if (logger.isTraceEnabled()) {
                 logger.trace("Loading script file : [{}]", file);
             }
-            if (FileSystemUtils.isHidden(file)) {
-                logger.warn("--- Hidden file skipped : [{}]", file);
-                return;
-            }
+
             Tuple<String, String> scriptNameExt = scriptNameExt(file);
             if (scriptNameExt != null) {
                 ScriptEngineService engineService = getScriptEngineServiceForFileExt(scriptNameExt.v2());

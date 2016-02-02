@@ -20,6 +20,7 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -219,7 +220,9 @@ public class IngestClientIT extends ESIntegTestCase {
         try {
             client().admin().cluster().putPipeline(putPipelineRequest).get();
         } catch (ExecutionException e) {
-            assertThat(e.getCause().getCause().getMessage(), equalTo("processor [test] doesn't support one or more provided configuration parameters [unused]"));
+            ElasticsearchParseException ex = (ElasticsearchParseException) ExceptionsHelper.unwrap(e, ElasticsearchParseException.class);
+            assertNotNull(ex);
+            assertThat(ex.getMessage(), equalTo("processor [test] doesn't support one or more provided configuration parameters [unused]"));
         }
     }
 

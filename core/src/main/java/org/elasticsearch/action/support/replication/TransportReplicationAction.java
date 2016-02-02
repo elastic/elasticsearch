@@ -472,6 +472,15 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                 }
                 performAction(node, transportPrimaryAction, true);
             } else {
+                if (state.version() < request.routedBasedOnClusterVersion()) {
+                    logger.trace("failed to find primary [{}] for request [{}] despite sender thinking it would be here. Local cluster state version [{}]] is older than on sending node (version [{}]), scheduling a retry...", request.shardId(), request, state.version(), request.routedBasedOnClusterVersion());
+                    retryBecauseUnavailable(request.shardId(), "failed to find primary as current cluster state with version [" + state.version() + "] is stale (expected at least [" + request.routedBasedOnClusterVersion() + "]");
+                    return;
+                } else {
+                    // chasing the node with the active primary for a second hop requires that we are at least up-to-date with the current cluster state version
+                    // this prevents redirect loops between two nodes when a primary was relocated and the relocation target is not aware that it is the active primary shard already.
+                    request.routedBasedOnClusterVersion(state.version());
+                }
                 if (logger.isTraceEnabled()) {
                     logger.trace("send action [{}] on primary [{}] for request [{}] with cluster state version [{}] to [{}]", actionName, request.shardId(), request, state.version(), primary.currentNodeId());
                 }

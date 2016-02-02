@@ -96,7 +96,6 @@ AOR:    '|=';
 ALSH:   '<<=';
 ARSH:   '>>=';
 AUSH:   '>>>=';
-ACAT:   '..=';
 
 OCTAL: '0' [0-7]+ [lL]?;
 HEX: '0' [xX] [0-9a-fA-F]+ [lL]?;

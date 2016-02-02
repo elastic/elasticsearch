@@ -179,6 +179,18 @@ public abstract class ValuesSourceAggregatorBuilder<VS extends ValuesSource, AB 
     }
 
     @Override
+    public final ValuesSourceAggregatorFactory<VS, ?> build(AggregationContext context) {
+        ValuesSourceConfig<VS> config = config(context);
+        if (config == null || !config.valid()) {
+            config = resolveValuesSourceConfigFromAncestors(name, this.parent, config.valueSourceType());
+        }
+        ValuesSourceAggregatorFactory<VS, ?> factory = doBuild(context, config);
+        return factory;
+    }
+
+    protected abstract ValuesSourceAggregatorFactory<VS, ?> doBuild(AggregationContext context, ValuesSourceConfig<VS> config);
+
+    @Override
     public void doInit(AggregationContext context) {
         this.config = config(context);
         if (config == null || !config.valid()) {
@@ -296,14 +308,20 @@ public abstract class ValuesSourceAggregatorBuilder<VS extends ValuesSource, AB 
         return ValueFormat.RAW;
     }
 
-    protected abstract Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException;
+    // NORELEASE remove this method when agg refactoring is complete
+    protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent,
+            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+        throw new UnsupportedOperationException("This should never be called");
+    }
 
-    protected abstract Aggregator doCreateInternal(VS valuesSource, AggregationContext aggregationContext, Aggregator parent,
+    // NORELEASE remove this method when agg refactoring is complete
+    protected Aggregator doCreateInternal(VS valuesSource, AggregationContext aggregationContext, Aggregator parent,
             boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
-            throws IOException;
+                    throws IOException {
+        throw new UnsupportedOperationException("This should never be called");
+    }
 
-    private void resolveValuesSourceConfigFromAncestors(String aggName, AggregatorFactory<?> parent,
+    private ValuesSourceConfig<VS> resolveValuesSourceConfigFromAncestors(String aggName, AggregatorFactory<?> parent,
             ValuesSourceType requiredValuesSourceType) {
         ValuesSourceConfig config;
         while (parent != null) {
@@ -320,7 +338,7 @@ public abstract class ValuesSourceAggregatorBuilder<VS extends ValuesSource, AB 
                         if (this.config.formatPattern != null && format != null && format instanceof ValueFormat.Patternable) {
                             this.config.format = ((ValueFormat.Patternable) format).create(this.config.formatPattern);
                         }
-                        return;
+                        return this.config;
                     }
                 }
             }

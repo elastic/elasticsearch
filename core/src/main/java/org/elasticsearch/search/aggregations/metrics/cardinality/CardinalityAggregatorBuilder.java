@@ -23,18 +23,13 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorBuilder;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-
 import java.io.IOException;
-import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 
 public final class CardinalityAggregatorBuilder extends ValuesSourceAggregatorBuilder.LeafOnly<ValuesSource, CardinalityAggregatorBuilder> {
@@ -73,21 +68,9 @@ public final class CardinalityAggregatorBuilder extends ValuesSourceAggregatorBu
         // Deprecated all values are already rehashed so do nothing
     }
 
-    private int precision(Aggregator parent) {
-        return precisionThreshold == null ? defaultPrecision(parent) : HyperLogLogPlusPlus.precisionFromThreshold(precisionThreshold);
-    }
-
     @Override
-    protected Aggregator createUnmapped(AggregationContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
-            throws IOException {
-        return new CardinalityAggregator(name, null, precision(parent), config.formatter(), context, parent, pipelineAggregators, metaData);
-    }
-
-    @Override
-    protected Aggregator doCreateInternal(ValuesSource valuesSource, AggregationContext context, Aggregator parent,
-            boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-        return new CardinalityAggregator(name, valuesSource, precision(parent), config.formatter(), context, parent, pipelineAggregators,
-                metaData);
+    protected CardinalityAggregatorFactory doBuild(AggregationContext context, ValuesSourceConfig<ValuesSource> config) {
+        return new CardinalityAggregatorFactory(name, type, config, precisionThreshold);
     }
 
     @Override
@@ -126,25 +109,6 @@ public final class CardinalityAggregatorBuilder extends ValuesSourceAggregatorBu
     protected boolean innerEquals(Object obj) {
         CardinalityAggregatorBuilder other = (CardinalityAggregatorBuilder) obj;
         return Objects.equals(precisionThreshold, other.precisionThreshold);
-    }
-
-    /*
-     * If one of the parent aggregators is a MULTI_BUCKET one, we might want to lower the precision
-     * because otherwise it might be memory-intensive. On the other hand, for top-level aggregators
-     * we try to focus on accuracy.
-     */
-    private static int defaultPrecision(Aggregator parent) {
-        int precision = HyperLogLogPlusPlus.DEFAULT_PRECISION;
-        while (parent != null) {
-            if (parent instanceof SingleBucketAggregator == false) {
-                // if the parent creates buckets, we substract 5 to the precision,
-                // which will effectively divide the memory usage of each counter by 32
-                precision -= 5;
-            }
-            parent = parent.parent();
-        }
-
-        return Math.max(precision, HyperLogLogPlusPlus.MIN_PRECISION);
     }
 
 }

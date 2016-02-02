@@ -44,7 +44,7 @@ public class Script implements ToXContent, Streamable {
     private static final ScriptParser PARSER = new ScriptParser();
 
     private String script;
-    private @Nullable ScriptType type;
+    private ScriptType type;
     private @Nullable String lang;
     private @Nullable Map<String, Object> params;
 

@@ -33,7 +33,6 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import static java.util.Collections.singleton;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -50,10 +49,11 @@ import static org.hamcrest.Matchers.startsWith;
  *
  */
 public class FileRolesStoreTests extends ESTestCase {
+
     public void testParseFile() throws Exception {
         Path path = getDataPath("roles.yml");
-        Map<String, Role> roles = FileRolesStore.parseFile(path, Collections.<Role>emptySet(),
-                logger, Settings.builder().put(ShieldPlugin.DLS_FLS_ENABLED_SETTING, true).build());
+        Map<String, Role> roles = FileRolesStore.parseFile(path, logger,
+                Settings.builder().put(ShieldPlugin.DLS_FLS_ENABLED_SETTING, true).build());
         assertThat(roles, notNullValue());
         assertThat(roles.size(), is(10));
 
@@ -208,7 +208,7 @@ public class FileRolesStoreTests extends ESTestCase {
     public void testParseFileWithFLSAndDLSDisabled() throws Exception {
         Path path = getDataPath("roles.yml");
         CapturingLogger logger = new CapturingLogger(CapturingLogger.Level.ERROR);
-        Map<String, Role> roles = FileRolesStore.parseFile(path, Collections.<Role>emptySet(),
+        Map<String, Role> roles = FileRolesStore.parseFile(path,
                 logger, Settings.builder().put(ShieldPlugin.DLS_FLS_ENABLED_SETTING, false).build());
         assertThat(roles, notNullValue());
         assertThat(roles.size(), is(7));
@@ -228,7 +228,7 @@ public class FileRolesStoreTests extends ESTestCase {
      */
     public void testDefaultRolesFile() throws Exception {
         Path path = getDataPath("default_roles.yml");
-        Map<String, Role> roles = FileRolesStore.parseFile(path, Collections.<Role>emptySet(), logger, Settings.EMPTY);
+        Map<String, Role> roles = FileRolesStore.parseFile(path, logger, Settings.EMPTY);
         assertThat(roles, notNullValue());
         assertThat(roles.size(), is(8));
 
@@ -262,7 +262,7 @@ public class FileRolesStoreTests extends ESTestCase {
             threadPool = new ThreadPool("test");
             watcherService = new ResourceWatcherService(settings, threadPool);
             final CountDownLatch latch = new CountDownLatch(1);
-            FileRolesStore store = new FileRolesStore(settings, env, watcherService, Collections.<Role>emptySet(), new RefreshListener() {
+            FileRolesStore store = new FileRolesStore(settings, env, watcherService, new RefreshListener() {
                 @Override
                 public void onRefresh() {
                     latch.countDown();
@@ -306,14 +306,14 @@ public class FileRolesStoreTests extends ESTestCase {
     public void testThatEmptyFileDoesNotResultInLoop() throws Exception {
         Path file = createTempFile();
         Files.write(file, Collections.singletonList("#"), StandardCharsets.UTF_8);
-        Map<String, Role> roles = FileRolesStore.parseFile(file, Collections.<Role>emptySet(), logger, Settings.EMPTY);
+        Map<String, Role> roles = FileRolesStore.parseFile(file, logger, Settings.EMPTY);
         assertThat(roles.keySet(), is(empty()));
     }
 
     public void testThatInvalidRoleDefinitions() throws Exception {
         Path path = getDataPath("invalid_roles.yml");
         CapturingLogger logger = new CapturingLogger(CapturingLogger.Level.ERROR);
-        Map<String, Role> roles = FileRolesStore.parseFile(path, Collections.<Role>emptySet(), logger, Settings.EMPTY);
+        Map<String, Role> roles = FileRolesStore.parseFile(path, logger, Settings.EMPTY);
         assertThat(roles.size(), is(1));
         assertThat(roles, hasKey("valid_role"));
         Role role = roles.get("valid_role");
@@ -342,56 +342,21 @@ public class FileRolesStoreTests extends ESTestCase {
     }
 
     public void testReservedRoles() throws Exception {
-        Set<Role> reservedRoles = singleton(Role.builder("reserved")
-                        .cluster(ClusterPrivilege.ALL)
-                        .build());
 
         CapturingLogger logger = new CapturingLogger(CapturingLogger.Level.INFO);
 
         Path path = getDataPath("reserved_roles.yml");
-        Map<String, Role> roles = FileRolesStore.parseFile(path, reservedRoles, logger, Settings.EMPTY);
+        Map<String, Role> roles = FileRolesStore.parseFile(path, logger, Settings.EMPTY);
         assertThat(roles, notNullValue());
-        assertThat(roles.size(), is(3));
+        assertThat(roles.size(), is(1));
 
         assertThat(roles, hasKey("admin"));
-        assertThat(roles, hasKey("reserved"));
-        Role reserved = roles.get("reserved");
 
         List<CapturingLogger.Msg> messages = logger.output(CapturingLogger.Level.WARN);
         assertThat(messages, notNullValue());
         assertThat(messages, hasSize(2));
         // the system role will always be checked first
         assertThat(messages.get(0).text, containsString("role [__es_system_role] is reserved"));
-        assertThat(messages.get(1).text, containsString("role [reserved] is reserved"));
-
-        // we overriden the configured reserved role with ALL cluster priv. (was configured to be "monitor" only)
-        assertThat(reserved.cluster().check("cluster:admin/test"), is(true));
-
-        // we overriden the configured reserved role without index privs. (was configured with index priv on "index_a_*" indices)
-        assertThat(reserved.indices().isEmpty(), is(true));
-    }
-
-    public void testReservedRolesNonExistentRolesFile() throws Exception {
-        Set<Role> reservedRoles = singleton(Role.builder("reserved")
-                        .cluster(ClusterPrivilege.ALL)
-                        .build());
-
-        CapturingLogger logger = new CapturingLogger(CapturingLogger.Level.INFO);
-
-        Path path = createTempFile();
-        Files.delete(path);
-        assertThat(Files.exists(path), is(false));
-        Map<String, Role> roles = FileRolesStore.parseFile(path, reservedRoles, logger, Settings.EMPTY);
-        assertThat(roles, notNullValue());
-        assertThat(roles.size(), is(1));
-
-        assertThat(roles, hasKey("reserved"));
-        Role reserved = roles.get("reserved");
-
-        List<CapturingLogger.Msg> messages = logger.output(CapturingLogger.Level.WARN);
-        assertThat(messages, notNullValue());
-        assertThat(messages, hasSize(0));
-        assertThat(reserved.cluster().check("cluster:admin/test"), is(true));
-        assertThat(reserved.indices().isEmpty(), is(true));
+        assertThat(messages.get(1).text, containsString("role [__es_internal_role] is reserved"));
     }
 }

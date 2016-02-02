@@ -50,7 +50,7 @@ public class IndexAuditTrailUpdateMappingTests extends ShieldIntegTestCase {
         Settings settings = Settings.builder().put("shield.audit.index.rollover", rollover.name().toLowerCase(Locale.ENGLISH)).put("path.home", createTempDir()).build();
         Transport transport = mock(Transport.class);
         when(transport.boundAddress()).thenReturn(new BoundTransportAddress(new TransportAddress[] { DummyTransportAddress.INSTANCE }, DummyTransportAddress.INSTANCE));
-        auditor = new IndexAuditTrail(settings, authService, transport, Providers.of(client()), threadPool, mock(ClusterService.class));
+        auditor = new IndexAuditTrail(settings, authService, transport, Providers.of(internalClient()), threadPool, mock(ClusterService.class));
 
         // before starting we add an event
         auditor.authenticationFailed(new FakeRestRequest());

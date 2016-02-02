@@ -7,7 +7,7 @@ package org.elasticsearch.shield.authz;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.shield.InternalSystemUser;
+import org.elasticsearch.shield.SystemUser;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.authc.InternalAuthenticationService;
 import org.elasticsearch.test.ESTestCase;
@@ -33,7 +33,7 @@ public class AuthorizationUtilsTest extends ESTestCase {
 
     public void testSystemUserSwitchWithNullorSystemUser() {
         if (randomBoolean()) {
-            threadContext.putTransient(InternalAuthenticationService.USER_KEY, InternalSystemUser.INSTANCE);
+            threadContext.putTransient(InternalAuthenticationService.USER_KEY, SystemUser.INSTANCE);
         }
         assertThat(AuthorizationUtils.shouldReplaceUserWithSystem(threadContext, "internal:something"), is(true));
     }

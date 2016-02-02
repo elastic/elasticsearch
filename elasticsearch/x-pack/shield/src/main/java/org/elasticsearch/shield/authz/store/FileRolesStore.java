@@ -20,9 +20,9 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.shield.InternalShieldUser;
 import org.elasticsearch.shield.ShieldPlugin;
-import org.elasticsearch.shield.InternalSystemUser;
+import org.elasticsearch.shield.SystemUser;
+import org.elasticsearch.shield.XPackUser;
 import org.elasticsearch.shield.authc.support.RefreshListener;
 import org.elasticsearch.shield.authz.permission.Role;
 import org.elasticsearch.shield.authz.privilege.ClusterPrivilege;
@@ -52,7 +52,6 @@ import java.util.regex.Pattern;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.unmodifiableMap;
-import static java.util.Collections.unmodifiableSet;
 
 /**
  *
@@ -65,22 +64,20 @@ public class FileRolesStore extends AbstractLifecycleComponent<RolesStore> imple
 
     private final Path file;
     private final RefreshListener listener;
-    private final Set<Role> reservedRoles;
     private final ResourceWatcherService watcherService;
 
     private volatile Map<String, Role> permissions;
 
     @Inject
-    public FileRolesStore(Settings settings, Environment env, ResourceWatcherService watcherService, Set<Role> reservedRoles) {
-        this(settings, env, watcherService, reservedRoles, RefreshListener.NOOP);
+    public FileRolesStore(Settings settings, Environment env, ResourceWatcherService watcherService) {
+        this(settings, env, watcherService, RefreshListener.NOOP);
     }
 
-    public FileRolesStore(Settings settings, Environment env, ResourceWatcherService watcherService, Set<Role> reservedRoles, RefreshListener listener) {
+    public FileRolesStore(Settings settings, Environment env, ResourceWatcherService watcherService, RefreshListener listener) {
         super(settings);
         this.file = resolveFile(settings, env);
         this.listener = listener;
         this.watcherService = watcherService;
-        this.reservedRoles = unmodifiableSet(new HashSet<>(reservedRoles));
         permissions = emptyMap();
     }
 
@@ -93,7 +90,7 @@ public class FileRolesStore extends AbstractLifecycleComponent<RolesStore> imple
         } catch (IOException e) {
             throw new ElasticsearchException("failed to setup roles file watcher", e);
         }
-        permissions = parseFile(file, reservedRoles, logger, settings);
+        permissions = parseFile(file, logger, settings);
     }
 
     @Override
@@ -119,18 +116,18 @@ public class FileRolesStore extends AbstractLifecycleComponent<RolesStore> imple
     }
 
     public static Set<String> parseFileForRoleNames(Path path, ESLogger logger) {
-        Map<String, Role> roleMap = parseFile(path, Collections.<Role>emptySet(), logger, false, Settings.EMPTY);
+        Map<String, Role> roleMap = parseFile(path, logger, false, Settings.EMPTY);
         if (roleMap == null) {
             return emptySet();
         }
         return roleMap.keySet();
     }
 
-    public static Map<String, Role> parseFile(Path path, Set<Role> reservedRoles, ESLogger logger, Settings settings) {
-        return parseFile(path, reservedRoles, logger, true, settings);
+    public static Map<String, Role> parseFile(Path path, ESLogger logger, Settings settings) {
+        return parseFile(path, logger, true, settings);
     }
 
-    public static Map<String, Role> parseFile(Path path, Set<Role> reservedRoles, ESLogger logger, boolean resolvePermission, Settings settings) {
+    public static Map<String, Role> parseFile(Path path, ESLogger logger, boolean resolvePermission, Settings settings) {
         if (logger == null) {
             logger = NoOpLogger.INSTANCE;
         }
@@ -143,7 +140,7 @@ public class FileRolesStore extends AbstractLifecycleComponent<RolesStore> imple
                 for (String segment : roleSegments) {
                     Role role = parseRole(segment, path, logger, resolvePermission, settings);
                     if (role != null) {
-                        if (InternalSystemUser.ROLE_NAME.equals(role.name())) {
+                        if (SystemUser.ROLE_NAME.equals(role.name()) || XPackUser.ROLE.name().equals(role.name())) {
                             logger.warn("role [{}] is reserved. the relevant role definition in the mapping file will be ignored", role.name());
                         } else {
                             roles.put(role.name(), role);
@@ -154,14 +151,6 @@ public class FileRolesStore extends AbstractLifecycleComponent<RolesStore> imple
             } catch (IOException ioe) {
                 logger.error("failed to read roles file [{}]. skipping all roles...", ioe, path.toAbsolutePath());
             }
-        }
-
-        // we now add all the fixed roles (overriding any attempts to override the fixed roles in the file)
-        for (Role reservedRole : reservedRoles) {
-            if (roles.containsKey(reservedRole.name())) {
-                logger.warn("role [{}] is reserved to the system. the relevant role definition in the mapping file will be ignored", reservedRole.name());
-            }
-            roles.put(reservedRole.name(), reservedRole);
         }
 
         return unmodifiableMap(roles);
@@ -425,7 +414,7 @@ public class FileRolesStore extends AbstractLifecycleComponent<RolesStore> imple
         public void onFileChanged(Path file) {
             if (file.equals(FileRolesStore.this.file)) {
                 try {
-                    permissions = parseFile(file, reservedRoles, logger, settings);
+                    permissions = parseFile(file, logger, settings);
                     logger.info("updated roles (roles file [{}] changed)", file.toAbsolutePath());
                 } catch (Throwable t) {
                     logger.error("could not reload roles file [{}]. Current roles remain unmodified", t, file.toAbsolutePath());

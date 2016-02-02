@@ -14,16 +14,16 @@ import java.util.function.Predicate;
  * index. Has permission to monitor the cluster as well as all actions that deal
  * with the shield admin index.
  */
-public class InternalSystemUser extends User {
+public class SystemUser extends User {
 
     public static final String NAME = "__es_system_user";
     public static final String ROLE_NAME = "__es_system_role";
 
-    public static final User INSTANCE = new InternalSystemUser();
+    public static final User INSTANCE = new SystemUser();
 
     private static final Predicate<String> PREDICATE = SystemPrivilege.INSTANCE.predicate();
 
-    private InternalSystemUser() {
+    private SystemUser() {
         super(NAME, ROLE_NAME);
     }
 

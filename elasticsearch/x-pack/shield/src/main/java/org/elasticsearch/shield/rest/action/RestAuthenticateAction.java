@@ -17,8 +17,9 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.shield.InternalSystemUser;
+import org.elasticsearch.shield.SystemUser;
 import org.elasticsearch.shield.User;
+import org.elasticsearch.shield.XPackUser;
 import org.elasticsearch.shield.authc.AuthenticationService;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -38,8 +39,8 @@ public class RestAuthenticateAction extends BaseRestHandler {
         // we should be authenticated at this point, but we call the authc service to retrieve the user from the context
         User user = authenticationService.authenticate(request);
         assert user != null;
-        if (InternalSystemUser.is(user)) {
-            throw new ElasticsearchSecurityException("the authenticate API cannot be used for the internal system user");
+        if (SystemUser.is(user) || XPackUser.is(user)) {
+            throw new ElasticsearchSecurityException("the authenticate API cannot be used for the internal users");
         }
         XContentBuilder builder = channel.newBuilder();
         user.toXContent(builder, ToXContent.EMPTY_PARAMS);

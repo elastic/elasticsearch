@@ -20,7 +20,6 @@ import org.elasticsearch.marvel.MarvelPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.shield.ShieldPlugin;
-import org.elasticsearch.shield.authz.AuthorizationModule;
 import org.elasticsearch.watcher.WatcherPlugin;
 
 import java.security.AccessController;
@@ -136,13 +135,6 @@ public class XPackPlugin extends Plugin {
         licensePlugin.onModule(module);
         shieldPlugin.onModule(module);
         watcherPlugin.onModule(module);
-    }
-
-    public void onModule(AuthorizationModule module) {
-        shieldPlugin.onModule(module);
-        // FIXME clean these up
-        watcherPlugin.onModule(module);
-        marvelPlugin.onModule(module);
     }
 
     public void onIndexModule(IndexModule module) {

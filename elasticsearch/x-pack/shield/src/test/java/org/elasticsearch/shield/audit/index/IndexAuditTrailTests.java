@@ -25,10 +25,10 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.shield.InternalShieldUser;
 import org.elasticsearch.shield.ShieldPlugin;
-import org.elasticsearch.shield.InternalSystemUser;
+import org.elasticsearch.shield.SystemUser;
 import org.elasticsearch.shield.User;
+import org.elasticsearch.shield.XPackUser;
 import org.elasticsearch.shield.authc.AuthenticationService;
 import org.elasticsearch.shield.authc.AuthenticationToken;
 import org.elasticsearch.shield.transport.filter.IPFilter;
@@ -193,18 +193,18 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
             }
             settings = builder.build();
 
-            doThrow(new IllegalStateException("indexing user should not be attached when sending remotely")).when(authService).attachUserHeaderIfMissing(eq(InternalShieldUser.INSTANCE));
+            doThrow(new IllegalStateException("indexing user should not be attached when sending remotely")).when(authService).attachUserHeaderIfMissing(eq(XPackUser.INSTANCE));
         }
 
         settings = Settings.builder().put(settings).put("path.home", createTempDir()).build();
         logger.info("--> settings: [{}]", settings.getAsMap().toString());
         when(authService.authenticate(mock(RestRequest.class))).thenThrow(new UnsupportedOperationException(""));
-        when(authService.authenticate("_action", new LocalHostMockMessage(), InternalShieldUser.INSTANCE)).thenThrow(new UnsupportedOperationException(""));
+        when(authService.authenticate("_action", new LocalHostMockMessage(), XPackUser.INSTANCE)).thenThrow(new UnsupportedOperationException(""));
         Transport transport = mock(Transport.class);
         when(transport.boundAddress()).thenReturn(new BoundTransportAddress(new TransportAddress[] { DummyTransportAddress.INSTANCE }, DummyTransportAddress.INSTANCE));
 
         threadPool = new ThreadPool("index audit trail tests");
-        auditor = new IndexAuditTrail(settings, authService, transport, Providers.of(client()), threadPool, mock(ClusterService.class));
+        auditor = new IndexAuditTrail(settings, authService, transport, Providers.of(internalClient()), threadPool, mock(ClusterService.class));
         auditor.start(true);
     }
 
@@ -534,14 +534,14 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
     public void testSystemAccessGranted() throws Exception {
         initialize(new String[] { "system_access_granted" }, null);
         TransportMessage message = randomBoolean() ? new RemoteHostMockMessage() : new LocalHostMockMessage();
-        auditor.accessGranted(InternalSystemUser.INSTANCE, "internal:_action", message);
+        auditor.accessGranted(SystemUser.INSTANCE, "internal:_action", message);
         awaitAuditDocumentCreation(resolveIndexName());
 
         SearchHit hit = getIndexedAuditMessage();
         assertAuditMessage(hit, "transport", "access_granted");
         Map<String, Object> sourceMap = hit.sourceAsMap();
         assertEquals("transport", sourceMap.get("origin_type"));
-        assertEquals(InternalSystemUser.INSTANCE.principal(), sourceMap.get("principal"));
+        assertEquals(SystemUser.INSTANCE.principal(), sourceMap.get("principal"));
         assertEquals("internal:_action", sourceMap.get("action"));
         assertEquals(sourceMap.get("request"), message.getClass().getSimpleName());
     }
@@ -549,7 +549,7 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
     public void testSystemAccessGrantedMuted() throws Exception {
         initialize();
         TransportMessage message = randomBoolean() ? new RemoteHostMockMessage() : new LocalHostMockMessage();
-        auditor.accessGranted(InternalSystemUser.INSTANCE, "internal:_action", message);
+        auditor.accessGranted(SystemUser.INSTANCE, "internal:_action", message);
         try {
             getClient().prepareSearch(resolveIndexName()).setSize(0).setTerminateAfter(1).execute().actionGet();
             fail("Expected IndexNotFoundException");

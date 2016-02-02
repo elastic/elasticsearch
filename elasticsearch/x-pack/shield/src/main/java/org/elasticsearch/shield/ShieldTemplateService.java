@@ -22,8 +22,6 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.gateway.GatewayService;
-import org.elasticsearch.shield.authc.AuthenticationService;
-import org.elasticsearch.shield.support.ClientWithUser;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.ByteArrayOutputStream;
@@ -40,23 +38,20 @@ public class ShieldTemplateService extends AbstractComponent implements ClusterS
     public static final String SHIELD_TEMPLATE_NAME = "shield-index-template";
 
     private final ThreadPool threadPool;
-    private final Provider<Client> clientProvider;
-    private final Provider<AuthenticationService> authProvider;
+    private final Provider<InternalClient> clientProvider;
     private final AtomicBoolean templateCreationPending = new AtomicBoolean(false);
 
     @Inject
     public ShieldTemplateService(Settings settings, ClusterService clusterService,
-            Provider<Client> clientProvider, ThreadPool threadPool,
-            Provider<AuthenticationService> authProvider) {
+            Provider<InternalClient> clientProvider, ThreadPool threadPool) {
         super(settings);
         this.threadPool = threadPool;
         this.clientProvider = clientProvider;
-        this.authProvider = authProvider;
         clusterService.add(this);
     }
 
     private void createShieldTemplate() {
-        final Client client = getClient();
+        final Client client = clientProvider.get();
         try (InputStream is = getClass().getResourceAsStream("/" + SHIELD_TEMPLATE_NAME + ".json")) {
             ByteArrayOutputStream out = new ByteArrayOutputStream();
             Streams.copy(is, out);
@@ -74,11 +69,6 @@ public class ShieldTemplateService extends AbstractComponent implements ClusterS
             throw new IllegalStateException("failed to create shield admin index template [" +
                     SHIELD_ADMIN_INDEX_NAME + "]", e);
         }
-
-    }
-
-    Client getClient() {
-        return new ClientWithUser(clientProvider.get(), authProvider.get(), InternalShieldUser.INSTANCE);
     }
 
     @Override

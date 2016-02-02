@@ -22,6 +22,11 @@ public class ShieldDisabledModule extends AbstractShieldModule {
         if (!clientMode) {
             // required by the shield info rest action (when shield is disabled)
             bind(ShieldLicenseState.class).toProvider(Providers.<ShieldLicenseState>of(null));
+
+            bind(SecurityContext.class).toInstance(SecurityContext.Insecure.INSTANCE);
+
+            bind(InternalClient.Insecure.class).asEagerSingleton();
+            bind(InternalClient.class).to(InternalClient.Insecure.class);
         }
     }
 }

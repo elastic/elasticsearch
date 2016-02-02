@@ -58,20 +58,20 @@ public class UserTests extends ESTestCase {
     public void testSystemReadAndWrite() throws Exception {
         BytesStreamOutput output = new BytesStreamOutput();
 
-        User.writeTo(InternalSystemUser.INSTANCE, output);
+        User.writeTo(SystemUser.INSTANCE, output);
         User readFrom = User.readFrom(ByteBufferStreamInput.wrap(output.bytes()));
 
-        assertThat(readFrom, is(sameInstance(InternalSystemUser.INSTANCE)));
+        assertThat(readFrom, is(sameInstance(SystemUser.INSTANCE)));
         assertThat(readFrom.runAs(), is(nullValue()));
     }
 
     public void testInternalShieldUserReadAndWrite() throws Exception {
         BytesStreamOutput output = new BytesStreamOutput();
 
-        User.writeTo(InternalShieldUser.INSTANCE, output);
+        User.writeTo(XPackUser.INSTANCE, output);
         User readFrom = User.readFrom(ByteBufferStreamInput.wrap(output.bytes()));
 
-        assertThat(readFrom, is(sameInstance(InternalShieldUser.INSTANCE)));
+        assertThat(readFrom, is(sameInstance(XPackUser.INSTANCE)));
     }
 
     public void testFakeInternalUserSerialization() throws Exception {
@@ -89,7 +89,7 @@ public class UserTests extends ESTestCase {
     public void testCreateUserRunningAsSystemUser() throws Exception {
         try {
             new User(randomAsciiOfLengthBetween(3, 10),
-                    generateRandomStringArray(16, 30, false), InternalSystemUser.INSTANCE);
+                    generateRandomStringArray(16, 30, false), SystemUser.INSTANCE);
             fail("should not be able to create a runAs user with the system user");
         } catch (ElasticsearchSecurityException e) {
             assertThat(e.getMessage(), containsString("system"));

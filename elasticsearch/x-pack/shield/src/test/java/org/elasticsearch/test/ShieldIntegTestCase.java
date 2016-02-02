@@ -13,6 +13,7 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.shield.InternalClient;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.test.ESIntegTestCase.SuppressLocalMode;
 import org.elasticsearch.test.transport.AssertingLocalTransport;
@@ -319,5 +320,13 @@ public abstract class ShieldIntegTestCase extends ESIntegTestCase {
         // used for the transport client. If we did not set a default user then the transport client would not even be allowed
         // to connect
         return client -> (client instanceof NodeClient) ? client.filterWithHeader(headers) : client;
+    }
+
+    protected InternalClient internalClient() {
+        return internalCluster().getInstance(InternalClient.class);
+    }
+
+    protected InternalClient internalClient(String node) {
+        return internalCluster().getInstance(InternalClient.class, node);
     }
 }

@@ -19,6 +19,7 @@ import java.util.List;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 public class ShieldActionMapperTests extends ESTestCase {
+
     public void testThatAllOrdinaryActionsRemainTheSame() {
         List<String> actions = new ArrayList<>();
         actions.addAll(KnownActionsTests.loadKnownActions());

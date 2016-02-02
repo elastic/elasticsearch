@@ -22,7 +22,6 @@ import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptEngineRegistry;
 import org.elasticsearch.script.ScriptModule;
-import org.elasticsearch.shield.authz.AuthorizationModule;
 import org.elasticsearch.watcher.actions.WatcherActionModule;
 import org.elasticsearch.watcher.actions.email.service.EmailService;
 import org.elasticsearch.watcher.actions.email.service.InternalEmailService;
@@ -50,8 +49,6 @@ import org.elasticsearch.watcher.rest.action.RestPutWatchAction;
 import org.elasticsearch.watcher.rest.action.RestWatchServiceAction;
 import org.elasticsearch.watcher.rest.action.RestWatcherInfoAction;
 import org.elasticsearch.watcher.rest.action.RestWatcherStatsAction;
-import org.elasticsearch.watcher.shield.InternalWatcherUser;
-import org.elasticsearch.watcher.shield.ShieldIntegration;
 import org.elasticsearch.watcher.shield.WatcherShieldModule;
 import org.elasticsearch.watcher.support.WatcherIndexTemplateRegistry.TemplateConfig;
 import org.elasticsearch.watcher.support.clock.ClockModule;
@@ -225,16 +222,6 @@ public class WatcherPlugin extends Plugin {
             module.registerAction(ActivateWatchAction.INSTANCE, TransportActivateWatchAction.class);
             module.registerAction(WatcherServiceAction.INSTANCE, TransportWatcherServiceAction.class);
             module.registerAction(ExecuteWatchAction.INSTANCE, TransportExecuteWatchAction.class);
-        }
-    }
-
-    // NOTE: The fact this signature takes a module is a hack, and effectively like the previous
-    // processModule in the plugin api. The problem is tight coupling between watcher and shield.
-    // We need to avoid trying to load the AuthorizationModule class unless we know shield integration
-    // is enabled. This is a temporary solution until inter-plugin-communication can be worked out.
-    public void onModule(Module module) {
-        if (enabled && ShieldIntegration.enabled(settings) && module instanceof AuthorizationModule) {
-            ((AuthorizationModule)module).registerReservedRole(InternalWatcherUser.ROLE);
         }
     }
 

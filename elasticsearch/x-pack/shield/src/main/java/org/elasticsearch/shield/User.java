@@ -34,7 +34,7 @@ public class User implements ToXContent {
         this.username = username;
         this.roles = roles == null ? Strings.EMPTY_ARRAY : roles;
         assert (runAs == null || runAs.runAs() == null) : "the runAs user should not be a user that can run as";
-        if (runAs == InternalSystemUser.INSTANCE) {
+        if (runAs == SystemUser.INSTANCE) {
             throw new ElasticsearchSecurityException("the runAs user cannot be the internal system user");
         }
         this.runAs = runAs;
@@ -120,10 +120,10 @@ public class User implements ToXContent {
         if (input.readBoolean()) {
             String name = input.readString();
             switch (name) {
-                case InternalSystemUser.NAME:
-                    return InternalSystemUser.INSTANCE;
-                case InternalShieldUser.NAME:
-                    return InternalShieldUser.INSTANCE;
+                case SystemUser.NAME:
+                    return SystemUser.INSTANCE;
+                case XPackUser.NAME:
+                    return XPackUser.INSTANCE;
                 default:
                     throw new IllegalStateException("invalid internal user");
             }
@@ -139,12 +139,12 @@ public class User implements ToXContent {
     }
 
     public static void writeTo(User user, StreamOutput output) throws IOException {
-        if (InternalSystemUser.is(user)) {
+        if (SystemUser.is(user)) {
             output.writeBoolean(true);
-            output.writeString(InternalSystemUser.NAME);
-        } if (InternalShieldUser.is(user)) {
+            output.writeString(SystemUser.NAME);
+        } if (XPackUser.is(user)) {
             output.writeBoolean(true);
-            output.writeString(InternalShieldUser.NAME);
+            output.writeString(XPackUser.NAME);
         } else {
             output.writeBoolean(false);
             output.writeString(user.principal());

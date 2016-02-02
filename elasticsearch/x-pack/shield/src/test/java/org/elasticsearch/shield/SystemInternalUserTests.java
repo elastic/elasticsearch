@@ -15,13 +15,13 @@ import static org.hamcrest.Matchers.is;
 public class SystemInternalUserTests extends ESTestCase {
 
     public void testIsAuthorized() throws Exception {
-        assertThat(InternalSystemUser.isAuthorized("indices:monitor/whatever"), is(true));
-        assertThat(InternalSystemUser.isAuthorized("cluster:monitor/whatever"), is(true));
-        assertThat(InternalSystemUser.isAuthorized("internal:whatever"), is(true));
-        assertThat(InternalSystemUser.isAuthorized("cluster:admin/reroute"), is(true));
-        assertThat(InternalSystemUser.isAuthorized("cluster:admin/whatever"), is(false));
-        assertThat(InternalSystemUser.isAuthorized("indices:whatever"), is(false));
-        assertThat(InternalSystemUser.isAuthorized("cluster:whatever"), is(false));
-        assertThat(InternalSystemUser.isAuthorized("whatever"), is(false));
+        assertThat(SystemUser.isAuthorized("indices:monitor/whatever"), is(true));
+        assertThat(SystemUser.isAuthorized("cluster:monitor/whatever"), is(true));
+        assertThat(SystemUser.isAuthorized("internal:whatever"), is(true));
+        assertThat(SystemUser.isAuthorized("cluster:admin/reroute"), is(true));
+        assertThat(SystemUser.isAuthorized("cluster:admin/whatever"), is(false));
+        assertThat(SystemUser.isAuthorized("indices:whatever"), is(false));
+        assertThat(SystemUser.isAuthorized("cluster:whatever"), is(false));
+        assertThat(SystemUser.isAuthorized("whatever"), is(false));
     }
 }

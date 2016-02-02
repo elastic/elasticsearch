@@ -115,29 +115,32 @@ public class ShieldPlugin extends Plugin {
 
     @Override
     public Collection<Module> nodeModules() {
-        if (enabled == false) {
-            return Collections.<Module>singletonList(new ShieldDisabledModule(settings));
-        } else if (clientMode) {
+
+        if (!enabled) {
+            return Collections.singletonList(new ShieldDisabledModule(settings));
+        }
+
+        if (clientMode) {
             return Arrays.<Module>asList(
-                    new ShieldTransportModule(settings),
-                    new SSLModule(settings));
-        } else {
-            // we can't load that at construction time since the license plugin might not have been loaded at that point
-            // which might not be the case during Plugin class instantiation. Once nodeModules are pulled
-            // everything should have been loaded
-            shieldLicenseState = new ShieldLicenseState();
-            return Arrays.<Module>asList(
-                    new ShieldModule(settings),
-                    new LicenseModule(settings, shieldLicenseState),
-                    new CryptoModule(settings),
-                    new AuthenticationModule(settings),
-                    new AuthorizationModule(settings),
-                    new AuditTrailModule(settings),
-                    new ShieldRestModule(settings),
-                    new ShieldActionModule(settings),
                     new ShieldTransportModule(settings),
                     new SSLModule(settings));
         }
+
+        // we can't load that at construction time since the license plugin might not have been loaded at that point
+        // which might not be the case during Plugin class instantiation. Once nodeModules are pulled
+        // everything should have been loaded
+        shieldLicenseState = new ShieldLicenseState();
+        return Arrays.<Module>asList(
+                new ShieldModule(settings),
+                new LicenseModule(settings, shieldLicenseState),
+                new CryptoModule(settings),
+                new AuthenticationModule(settings),
+                new AuthorizationModule(settings),
+                new AuditTrailModule(settings),
+                new ShieldRestModule(settings),
+                new ShieldActionModule(settings),
+                new ShieldTransportModule(settings),
+                new SSLModule(settings));
     }
 
     @Override
@@ -247,12 +250,6 @@ public class ShieldPlugin extends Plugin {
             module.registerRestHandler(RestAddRoleAction.class);
             module.registerRestHandler(RestDeleteRoleAction.class);
             module.registerHttpTransport(ShieldPlugin.NAME, ShieldNettyHttpServerTransport.class);
-        }
-    }
-
-    public void onModule(AuthorizationModule module) {
-        if (enabled) {
-            module.registerReservedRole(InternalShieldUser.ROLE);
         }
     }
 

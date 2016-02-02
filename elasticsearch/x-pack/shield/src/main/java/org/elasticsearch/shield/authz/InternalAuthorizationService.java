@@ -22,8 +22,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.search.action.SearchServiceTransportAction;
-import org.elasticsearch.shield.InternalSystemUser;
+import org.elasticsearch.shield.SystemUser;
 import org.elasticsearch.shield.User;
+import org.elasticsearch.shield.XPackUser;
 import org.elasticsearch.shield.audit.AuditTrail;
 import org.elasticsearch.shield.authc.AnonymousService;
 import org.elasticsearch.shield.authc.AuthenticationFailureHandler;
@@ -83,20 +84,25 @@ public class InternalAuthorizationService extends AbstractComponent implements A
 
     @Override
     public List<String> authorizedIndicesAndAliases(User user, String action) {
-        String[] rolesNames = user.roles();
-        if (rolesNames.length == 0) {
-            return Collections.emptyList();
-        }
-        List<Predicate<String>> predicates = new ArrayList<>();
-        for (String roleName : rolesNames) {
-            Role role = rolesStore.role(roleName);
-            if (role != null) {
-                predicates.add(role.indices().allowedIndicesMatcher(action));
+        Predicate<String> predicate;
+        if (XPackUser.is(user)) {
+            predicate = XPackUser.ROLE.indices().allowedIndicesMatcher(action);
+        } else {
+            String[] rolesNames = user.roles();
+            if (rolesNames.length == 0) {
+                return Collections.emptyList();
             }
+            List<Predicate<String>> predicates = new ArrayList<>();
+            for (String roleName : rolesNames) {
+                Role role = rolesStore.role(roleName);
+                if (role != null) {
+                    predicates.add(role.indices().allowedIndicesMatcher(action));
+                }
+            }
+            predicate = predicates.stream().reduce(s -> false, (p1, p2) -> p1.or(p2));
         }
 
         List<String> indicesAndAliases = new ArrayList<>();
-        Predicate<String> predicate = predicates.stream().reduce(s -> false, (p1, p2) -> p1.or(p2));
         MetaData metaData = clusterService.state().metaData();
         // TODO: can this be done smarter? I think there are usually more indices/aliases in the cluster then indices defined a roles?
         for (Map.Entry<String, AliasOrIndex> entry : metaData.getAliasAndIndexLookup().entrySet()) {
@@ -105,6 +111,7 @@ public class InternalAuthorizationService extends AbstractComponent implements A
                 indicesAndAliases.add(aliasOrIndex);
             }
         }
+
         return Collections.unmodifiableList(indicesAndAliases);
     }
 
@@ -114,8 +121,8 @@ public class InternalAuthorizationService extends AbstractComponent implements A
         setOriginatingAction(action);
 
         // first we need to check if the user is the system. If it is, we'll just authorize the system access
-        if (InternalSystemUser.is(user)) {
-            if (InternalSystemUser.isAuthorized(action)) {
+        if (SystemUser.is(user)) {
+            if (SystemUser.isAuthorized(action)) {
                 setIndicesAccessControl(IndicesAccessControl.ALLOW_ALL);
                 grant(user, action, request);
                 return;
@@ -123,7 +130,8 @@ public class InternalAuthorizationService extends AbstractComponent implements A
             throw denial(user, action, request);
         }
 
-        GlobalPermission permission = permission(user.roles());
+        GlobalPermission permission = XPackUser.is(user) ? XPackUser.ROLE : permission(user.roles());
+
         final boolean isRunAs = user.runAs() != null;
         // permission can be null as it might be that the user's role
         // is unknown

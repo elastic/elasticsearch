@@ -588,7 +588,7 @@ public final class InternalTestCluster extends TestCluster {
         Settings finalSettings = settingsBuilder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), baseDir) // allow overriding path.home
                 .put(settings)
-                .put("name", name)
+                .put("node.name", name)
                 .put(DiscoveryService.DISCOVERY_SEED_SETTING.getKey(), seed)
                 .build();
         MockNode node = new MockNode(finalSettings, version, plugins);
@@ -768,7 +768,7 @@ public final class InternalTestCluster extends TestCluster {
             double nextDouble = random.nextDouble();
             if (nextDouble < transportClientRatio) {
                 if (logger.isTraceEnabled()) {
-                    logger.trace("Using transport client for node [{}] sniff: [{}]", node.settings().get("name"), false);
+                    logger.trace("Using transport client for node [{}] sniff: [{}]", node.settings().get("node.name"), false);
                 }
                 return getOrBuildTransportClient();
             } else {
@@ -883,7 +883,7 @@ public final class InternalTestCluster extends TestCluster {
             Builder builder = settingsBuilder()
                     .put("client.transport.nodes_sampler_interval", "1s")
                     .put(Environment.PATH_HOME_SETTING.getKey(), baseDir)
-                    .put("name", TRANSPORT_CLIENT_PREFIX + node.settings().get("name"))
+                    .put("node.name", TRANSPORT_CLIENT_PREFIX + node.settings().get("node.name"))
                     .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), clusterName).put("client.transport.sniff", sniff)
                     .put(Node.NODE_MODE_SETTING.getKey(), Node.NODE_MODE_SETTING.exists(nodeSettings) ? Node.NODE_MODE_SETTING.get(nodeSettings) : nodeMode)
                     .put("logger.prefix", nodeSettings.get("logger.prefix", ""))
@@ -1763,7 +1763,7 @@ public final class InternalTestCluster extends TestCluster {
 
         @Override
         public boolean test(Settings settings) {
-            return nodeNames.contains(settings.get("name"));
+            return nodeNames.contains(settings.get("node.name"));
 
         }
     }

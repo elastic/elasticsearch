@@ -83,7 +83,7 @@ public class SearchSourceBuilderTests extends ESTestCase {
     @BeforeClass
     public static void init() throws IOException {
         Settings settings = Settings.settingsBuilder()
-                .put("name", SearchSourceBuilderTests.class.toString())
+                .put("node.name", SearchSourceBuilderTests.class.toString())
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .build();
         namedWriteableRegistry = new NamedWriteableRegistry();

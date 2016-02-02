@@ -92,7 +92,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     }
 
     public static void stopNode(final String node) throws IOException {
-        internalCluster().stopRandomNode(settings -> settings.get("name").equals(node));
+        internalCluster().stopRandomNode(settings -> settings.get("node.name").equals(node));
     }
 
     public void waitForBlock(String node, String repository, TimeValue timeout) throws InterruptedException {

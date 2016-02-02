@@ -43,7 +43,6 @@ public class RecoveryBackwardsCompatibilityIT extends ESBackcompatTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put("action.admin.cluster.node.shutdown.delay", "10ms")
                 .put("gateway.recover_after_nodes", 2).build();
     }
 

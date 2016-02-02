@@ -74,10 +74,39 @@ public class SettingsModuleTests extends ModuleTestCase {
                 assertInstanceBinding(module, Settings.class, (s) -> s == settings);
                 fail();
             } catch (IllegalArgumentException ex) {
-                assertEquals("Failed to parse value [[2.0]] for setting [cluster.routing.allocation.balance.shard]", ex.getMessage());
+                assertEquals("tribe.t1 validation failed: Failed to parse value [[2.0]] for setting [cluster.routing.allocation.balance.shard]", ex.getMessage());
             }
         }
     }
+
+    public void testSpecialTribeSetting() {
+        {
+            Settings settings = Settings.builder().put("tribe.blocks.write", "false").build();
+            SettingsModule module = new SettingsModule(settings, new SettingsFilter(Settings.EMPTY));
+            assertInstanceBinding(module, Settings.class, (s) -> s == settings);
+        }
+        {
+            Settings settings = Settings.builder().put("tribe.blocks.write", "BOOM").build();
+            SettingsModule module = new SettingsModule(settings, new SettingsFilter(Settings.EMPTY));
+            try {
+                assertInstanceBinding(module, Settings.class, (s) -> s == settings);
+                fail();
+            } catch (IllegalArgumentException ex) {
+                assertEquals("Failed to parse value [BOOM] cannot be parsed to boolean [ true/1/on/yes OR false/0/off/no ]", ex.getMessage());
+            }
+        }
+        {
+            Settings settings = Settings.builder().put("tribe.blocks.wtf", "BOOM").build();
+            SettingsModule module = new SettingsModule(settings, new SettingsFilter(Settings.EMPTY));
+            try {
+                assertInstanceBinding(module, Settings.class, (s) -> s == settings);
+                fail();
+            } catch (IllegalArgumentException ex) {
+                assertEquals("tribe.blocks validation failed: unknown setting [wtf]", ex.getMessage());
+            }
+        }
+    }
+
 
     public void testLoggerSettings() {
         {

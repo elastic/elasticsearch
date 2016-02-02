@@ -37,8 +37,6 @@ import java.util.Objects;
  */
 public class ScriptModule extends AbstractModule {
 
-    private final SettingsModule settingsModule;
-
     private final List<ScriptEngineRegistry.ScriptEngineRegistration> scriptEngineRegistrations = new ArrayList<>();
 
     {
@@ -49,9 +47,6 @@ public class ScriptModule extends AbstractModule {
 
     private final List<ScriptContext.Plugin> customScriptContexts = new ArrayList<>();
 
-    public ScriptModule(SettingsModule settingsModule) {
-        this.settingsModule = settingsModule;
-    }
 
     public void addScriptEngine(ScriptEngineRegistry.ScriptEngineRegistration scriptEngineRegistration) {
         Objects.requireNonNull(scriptEngineRegistration);
@@ -70,6 +65,21 @@ public class ScriptModule extends AbstractModule {
         customScriptContexts.add(scriptContext);
     }
 
+    /**
+     * This method is called after all modules have been processed but before we actually validate all settings. This allwos the
+     * script extensions to add all their settings.
+     */
+    public void prepareSettings(SettingsModule settingsModule) {
+        ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(customScriptContexts);
+        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(scriptEngineRegistrations);
+        ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
+
+        scriptSettings.getScriptTypeSettings().forEach(settingsModule::registerSetting);
+        scriptSettings.getScriptContextSettings().forEach(settingsModule::registerSetting);
+        scriptSettings.getScriptLanguageSettings().forEach(settingsModule::registerSetting);
+        settingsModule.registerSetting(scriptSettings.getDefaultScriptLanguageSetting());
+    }
+
     @Override
     protected void configure() {
         MapBinder<String, NativeScriptFactory> scriptsBinder
@@ -85,15 +95,10 @@ public class ScriptModule extends AbstractModule {
             multibinder.addBinding().to(scriptEngineRegistration.getScriptEngineService()).asEagerSingleton();
         }
 
+
         ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(customScriptContexts);
         ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(scriptEngineRegistrations);
-
         ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
-
-        scriptSettings.getScriptTypeSettings().forEach(settingsModule::registerSetting);
-        scriptSettings.getScriptContextSettings().forEach(settingsModule::registerSetting);
-        scriptSettings.getScriptLanguageSettings().forEach(settingsModule::registerSetting);
-        settingsModule.registerSetting(scriptSettings.getDefaultScriptLanguageSetting());
 
         bind(ScriptContextRegistry.class).toInstance(scriptContextRegistry);
         bind(ScriptEngineRegistry.class).toInstance(scriptEngineRegistry);

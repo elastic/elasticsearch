@@ -314,7 +314,7 @@ final class Bootstrap {
             }
             ESLogger logger = Loggers.getLogger(Bootstrap.class);
             if (INSTANCE.node != null) {
-                logger = Loggers.getLogger(Bootstrap.class, INSTANCE.node.settings().get("name"));
+                logger = Loggers.getLogger(Bootstrap.class, INSTANCE.node.settings().get("node.name"));
             }
             // HACK, it sucks to do this, but we will run users out of disk space otherwise
             if (e instanceof CreationException) {

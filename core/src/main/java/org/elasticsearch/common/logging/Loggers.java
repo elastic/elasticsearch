@@ -99,7 +99,7 @@ public class Loggers {
                 prefixesList.add(addr.getHostName());
             }
         }
-        String name = settings.get("name");
+        String name = settings.get("node.name");
         if (name != null) {
             prefixesList.add(name);
         }

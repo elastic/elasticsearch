@@ -150,12 +150,15 @@ public class NetworkModule extends AbstractModule {
 
     public static final String TRANSPORT_TYPE_KEY = "transport.type";
     public static final String TRANSPORT_SERVICE_TYPE_KEY = "transport.service.type";
-
     public static final String LOCAL_TRANSPORT = "local";
     public static final String NETTY_TRANSPORT = "netty";
 
     public static final String HTTP_TYPE_KEY = "http.type";
     public static final Setting<Boolean> HTTP_ENABLED = Setting.boolSetting("http.enabled", true, false, Scope.CLUSTER);
+    public static final Setting<String> TRANSPORT_SERVICE_TYPE_SETTING = Setting.simpleString("transport.service.type", false, Scope.CLUSTER);
+    public static final Setting<String> TRANSPORT_TYPE_SETTING = Setting.simpleString("transport.type", false, Scope.CLUSTER);
+
+
 
     private static final List<Class<? extends RestHandler>> builtinRestHandlers = Arrays.asList(
         RestMainAction.class,

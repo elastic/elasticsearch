@@ -47,11 +47,12 @@ import static org.hamcrest.Matchers.notNullValue;
 public class NativeScriptTests extends ESTestCase {
     public void testNativeScript() throws InterruptedException {
         Settings settings = Settings.settingsBuilder()
-                .put("name", "testNativeScript")
+                .put("node.name", "testNativeScript")
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .build();
         SettingsModule settingsModule = new SettingsModule(settings, new SettingsFilter(settings));
-        ScriptModule scriptModule = new ScriptModule(settingsModule);
+        ScriptModule scriptModule = new ScriptModule();
+        scriptModule.prepareSettings(settingsModule);
         scriptModule.registerScript("my", MyNativeScriptFactory.class);
         Injector injector = new ModulesBuilder().add(
                 new EnvironmentModule(new Environment(settings)),

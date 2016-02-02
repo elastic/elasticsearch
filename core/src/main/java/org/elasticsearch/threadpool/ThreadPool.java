@@ -206,13 +206,13 @@ public class ThreadPool extends AbstractComponent implements Closeable {
     private final ThreadContext threadContext;
 
     public ThreadPool(String name) {
-        this(Settings.builder().put("name", name).build());
+        this(Settings.builder().put("node.name", name).build());
     }
 
     public ThreadPool(Settings settings) {
         super(settings);
 
-        assert settings.get("name") != null : "ThreadPool's settings should contain a name";
+        assert settings.get("node.name") != null : "ThreadPool's settings should contain a name";
         threadContext = new ThreadContext(settings);
         Map<String, Settings> groupSettings = THREADPOOL_GROUP_SETTING.get(settings).getAsGroups();
         validate(groupSettings);

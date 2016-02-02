@@ -76,9 +76,8 @@ public class RestMainAction extends BaseRestHandler {
         }
 
         builder.startObject();
-        if (settings.get("name") != null) {
-            builder.field("name", settings.get("name"));
-        }
+        assert settings.get("node.name") != null;
+        builder.field("name", settings.get("node.name"));
         builder.field("cluster_name", clusterName.value());
         builder.startObject("version")
                 .field("number", version.number())

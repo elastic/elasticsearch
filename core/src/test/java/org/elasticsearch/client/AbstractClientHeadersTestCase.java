@@ -78,7 +78,7 @@ public abstract class AbstractClientHeadersTestCase extends ESTestCase {
         Settings settings = Settings.builder()
                 .put(HEADER_SETTINGS)
                 .put("path.home", createTempDir().toString())
-                .put("name", "test-" + getTestName())
+                .put("node.name", "test-" + getTestName())
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .build();
         threadPool = new ThreadPool(settings);

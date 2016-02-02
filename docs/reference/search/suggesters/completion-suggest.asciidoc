@@ -31,7 +31,6 @@ this field, which enables the special storage of the field.
 
 [source,js]
 --------------------------------------------------
-curl -X PUT localhost:9200/music
 curl -X PUT localhost:9200/music/song/_mapping -d '{
   "song" : {
         "properties" : {

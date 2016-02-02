@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardIterator;
@@ -310,10 +311,7 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
     }
 
     private static ShardRouting primaryShard(ClusterState currentState, ShardRouting shardRouting) {
-        return Optional
-            .ofNullable(currentState.getRoutingTable().index(shardRouting.index().getName()))
-            .flatMap(irt -> Optional.ofNullable(irt.shard(shardRouting.getId())))
-            .map(is -> is.primaryShard())
-            .orElse(null);
+        IndexShardRoutingTable indexShard = currentState.getRoutingTable().shardRoutingTableOrNull(shardRouting.shardId());
+        return indexShard == null ? null : indexShard.primaryShard();
     }
 }

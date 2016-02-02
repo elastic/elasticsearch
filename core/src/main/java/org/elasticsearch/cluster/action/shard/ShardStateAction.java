@@ -293,14 +293,8 @@ public class ShardStateAction extends AbstractComponent {
 
             // non-local requests
             if (!task.shardRouting.isSameAllocation(task.sourceShardRouting)) {
-                IndexRoutingTable indexRoutingTable = currentState.getRoutingTable().index(task.getShardRouting().index().getName());
-                if (indexRoutingTable == null) {
-                    // the index does not exist anymore
-                    return ValidationResult.SOURCE_INVALID;
-                }
-                IndexShardRoutingTable indexShard = indexRoutingTable.shard(task.getShardRouting().id());
+                IndexShardRoutingTable indexShard = currentState.getRoutingTable().shardRoutingTableOrNull(task.shardRouting.shardId());
                 if (indexShard == null) {
-                    // the shard does not exist anymore
                     return ValidationResult.SOURCE_INVALID;
                 }
                 ShardRouting primaryShard = indexShard.primaryShard();

@@ -17,15 +17,17 @@
  * under the License.
  */
 
-package org.apache.lucene.store;
+package org.elasticsearch.cloud.azure;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.SimpleFSDirectory;
 
-public class SmbMMapDirectoryTests extends ESBaseDirectoryTestCase {
+public class SmbSimpleFSDirectoryTests extends ESBaseDirectoryTestCase {
 
     @Override
     protected Directory getDirectory(Path file) throws IOException {
-        return new SmbDirectoryWrapper(new MMapDirectory(file));
+        return new SmbDirectoryWrapper(new SimpleFSDirectory(file));
     }
 }

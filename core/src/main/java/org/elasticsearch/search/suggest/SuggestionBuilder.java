@@ -28,6 +28,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -192,7 +194,9 @@ public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> extends 
 
     protected abstract SuggestionBuilder<T> innerFromXContent(QueryParseContext parseContext, String name) throws IOException;
 
-    private String getSuggesterName() {
+    protected abstract SuggestionContext build(QueryShardContext context) throws IOException;
+
+    public String getSuggesterName() {
         //default impl returns the same as writeable name, but we keep the distinction between the two just to make sure
         return getWriteableName();
     }

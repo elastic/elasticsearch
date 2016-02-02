@@ -28,8 +28,10 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.RegexpFlag;
 import org.elasticsearch.search.suggest.SuggestionBuilder;
+import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 import org.elasticsearch.search.suggest.completion.context.CategoryQueryContext;
 import org.elasticsearch.search.suggest.completion.context.GeoQueryContext;
 
@@ -372,7 +374,14 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
 
     @Override
     protected CompletionSuggestionBuilder innerFromXContent(QueryParseContext parseContext, String name) throws IOException {
+        // NORELEASE
         return new CompletionSuggestionBuilder(name);
+    }
+
+    @Override
+    protected SuggestionContext build(QueryShardContext context) throws IOException {
+        // NORELEASE
+        throw new UnsupportedOperationException();
     }
 
     @Override

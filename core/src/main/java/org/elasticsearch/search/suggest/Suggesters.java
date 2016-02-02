@@ -54,7 +54,7 @@ public final class Suggesters extends ExtensionPoint.ClassMap<Suggester> {
 
     private static Map<String, Suggester> addBuildIns(Map<String, Suggester> suggesters, ScriptService scriptService, IndicesService indexServices) {
         final Map<String, Suggester> map = new HashMap<>();
-        map.put("phrase", new PhraseSuggester(scriptService, indexServices));
+        map.put("phrase", new PhraseSuggester(scriptService));
         map.put("term", new TermSuggester());
         map.put("completion", new CompletionSuggester());
         map.putAll(suggesters);

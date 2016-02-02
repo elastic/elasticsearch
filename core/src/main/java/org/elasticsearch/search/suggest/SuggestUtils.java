@@ -42,6 +42,7 @@ import org.apache.lucene.util.automaton.LevenshteinAutomata;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.FastCharArrayReader;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.CustomAnalyzer;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -271,9 +272,54 @@ public final class SuggestUtils {
            return false;
         }
         return true;
-
     }
 
+    /**
+     * Transfers the text, prefix, regex, analyzer, fieldname, size and shard size settings from the
+     * original {@link SuggestionBuilder} to the target {@link SuggestionContext}
+     */
+    public static void suggestionToSuggestionContext(SuggestionBuilder suggestionBuilder, MapperService mapperService,
+            SuggestionSearchContext.SuggestionContext suggestionContext) throws IOException {
+        String analyzerName = suggestionBuilder.analyzer();
+        if (analyzerName != null) {
+            Analyzer analyzer = mapperService.analysisService().analyzer(analyzerName);
+            if (analyzer == null) {
+                throw new IllegalArgumentException("Analyzer [" + analyzerName + "] doesn't exists");
+            }
+            suggestionContext.setAnalyzer(analyzer);
+        }
+        if (suggestionBuilder.field() != null) {
+            suggestionContext.setField(suggestionBuilder.field());
+        }
+        if (suggestionBuilder.size() != null) {
+            suggestionContext.setSize(suggestionBuilder.size());
+        }
+        if (suggestionBuilder.shardSize() != null) {
+            suggestionContext.setShardSize(suggestionBuilder.shardSize());
+        } else {
+            // if no shard size is set in builder, use size (or at least 5)
+            suggestionContext.setShardSize(Math.max(suggestionContext.getSize(), 5));
+        }
+        String text = suggestionBuilder.text();
+        if (text != null) {
+            suggestionContext.setText(BytesRefs.toBytesRef(text));
+        }
+        String prefix = suggestionBuilder.prefix();
+        if (prefix != null) {
+            suggestionContext.setText(BytesRefs.toBytesRef(prefix));
+        }
+        String regex = suggestionBuilder.regex();
+        if (regex != null) {
+            suggestionContext.setText(BytesRefs.toBytesRef(regex));
+        }
+        if (text != null && prefix == null) {
+            suggestionContext.setPrefix(BytesRefs.toBytesRef(text));
+        } else if (text == null && prefix != null) {
+            suggestionContext.setText(BytesRefs.toBytesRef(prefix));
+        } else if (text == null && regex != null) {
+            suggestionContext.setText(BytesRefs.toBytesRef(regex));
+        }
+    }
 
     public static void verifySuggestion(MapperService mapperService, BytesRef globalText, SuggestionContext suggestion) {
         // Verify options and set defaults

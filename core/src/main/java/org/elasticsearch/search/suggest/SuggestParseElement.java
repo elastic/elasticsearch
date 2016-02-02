@@ -117,9 +117,6 @@ public final class SuggestParseElement implements SearchParseElement {
         for (Map.Entry<String, SuggestionContext> entry : suggestionContexts.entrySet()) {
             String suggestionName = entry.getKey();
             SuggestionContext suggestionContext = entry.getValue();
-
-            suggestionContext.setShard(shardId);
-            suggestionContext.setIndex(index);
             SuggestUtils.verifySuggestion(mapperService, globalText, suggestionContext);
             suggestionSearchContext.addSuggestion(suggestionName, suggestionContext);
         }

@@ -20,6 +20,7 @@ package org.elasticsearch.search.suggest.phrase;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.search.suggest.DirectSpellcheckerSettings;
 import org.elasticsearch.search.suggest.Suggester;
@@ -53,6 +54,7 @@ class PhraseSuggestionContext extends SuggestionContext {
     private List<DirectCandidateGenerator> generators = new ArrayList<>();
     private Map<String, Object> collateScriptParams = new HashMap<>(1);
     private WordScorer.WordScorerFactory scorer;
+    private QueryShardContext shardContext;
 
     public PhraseSuggestionContext(Suggester<? extends PhraseSuggestionContext> suggester) {
         super(suggester);
@@ -212,6 +214,14 @@ class PhraseSuggestionContext extends SuggestionContext {
 
     boolean collatePrune() {
         return prune;
+    }
+
+    public void setShardContext(QueryShardContext context) {
+        this.shardContext = context;
+    }
+
+    public QueryShardContext getShardContext() {
+        return this.shardContext;
     }
 
 }

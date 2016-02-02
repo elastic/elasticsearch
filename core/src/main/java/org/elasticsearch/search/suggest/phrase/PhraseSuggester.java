@@ -31,9 +31,7 @@ import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.query.ParsedQuery;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptService;
@@ -55,11 +53,12 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
     private final BytesRef SEPARATOR = new BytesRef(" ");
     private static final String SUGGESTION_TEMPLATE_VAR_NAME = "suggestion";
     private final ScriptService scriptService;
-    private final IndicesService indicesService;
 
-    public PhraseSuggester(ScriptService scriptService, IndicesService indicesService) {
+    static PhraseSuggester PROTOTYPE;
+
+    public PhraseSuggester(ScriptService scriptService) {
         this.scriptService = scriptService;
-        this.indicesService = indicesService;
+        PROTOTYPE = this;
     }
 
     /*
@@ -120,8 +119,7 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
                     vars.put(SUGGESTION_TEMPLATE_VAR_NAME, spare.toString());
                     final ExecutableScript executable = scriptService.executable(collateScript, vars);
                     final BytesReference querySource = (BytesReference) executable.run();
-                    IndexService indexService = indicesService.indexService(suggestion.getIndex());
-                    final ParsedQuery parsedQuery = indexService.newQueryShardContext().parse(querySource);
+                    final ParsedQuery parsedQuery = suggestion.getShardContext().parse(querySource);
                     collateMatch = Lucene.exists(searcher, parsedQuery.query());
                 }
                 if (!collateMatch && !collatePrune) {

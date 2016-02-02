@@ -199,9 +199,6 @@ public final class PhraseSuggestParser implements SuggestContextParser {
                 suggestion.addGenerator(generator);
             }
         }
-
-
-
         return suggestion;
     }
 

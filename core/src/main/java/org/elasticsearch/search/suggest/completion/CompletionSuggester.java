@@ -51,6 +51,8 @@ import java.util.Set;
 
 public class CompletionSuggester extends Suggester<CompletionSuggestionContext> {
 
+    static final CompletionSuggester PROTOTYPE = new CompletionSuggester();
+
     @Override
     public SuggestContextParser getContextParser() {
         return new CompletionSuggestParser(this);

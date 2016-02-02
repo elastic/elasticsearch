@@ -751,7 +751,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
         if (source.rescores() != null) {
             try {
                 for (RescoreBuilder<?> rescore : source.rescores()) {
-                    context.addRescore(rescore.build(context.getQueryShardContext()));
+                    context.addRescore(rescore.build(queryShardContext));
                 }
             } catch (IOException e) {
                 throw new SearchContextException(context, "failed to create RescoreSearchContext", e);
@@ -776,7 +776,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
         if (source.highlighter() != null) {
             HighlightBuilder highlightBuilder = source.highlighter();
             try {
-                context.highlight(highlightBuilder.build(context.getQueryShardContext()));
+                context.highlight(highlightBuilder.build(queryShardContext));
             } catch (IOException e) {
                 throw new SearchContextException(context, "failed to create SearchContextHighlighter", e);
             }

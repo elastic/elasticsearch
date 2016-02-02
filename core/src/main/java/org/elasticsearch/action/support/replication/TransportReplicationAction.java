@@ -798,7 +798,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
             // we have to make sure that every operation indexed into the primary after recovery start will also be replicated
             // to the recovery target. If we use an old cluster state, we may miss a relocation that has started since then.
             // If the index gets deleted after primary operation, we skip replication
-            ClusterState state = clusterService.state();
+            final ClusterState state = clusterService.state();
             final IndexRoutingTable index = state.getRoutingTable().index(shardId.getIndex());
             final IndexShardRoutingTable shardRoutingTable = (index != null) ? index.shard(shardId.id()) : null;
             final IndexMetaData indexMetaData = state.getMetaData().index(shardId.getIndex());

@@ -97,10 +97,10 @@ public class SystemKeyTool extends CliTool {
                 }
                 terminal.println(Terminal.Verbosity.VERBOSE, "generating...");
                 byte[] key = InternalCryptoService.generateKey();
-                terminal.println("Storing generated key in [%s]...", path.toAbsolutePath());
+                terminal.println(String.format("Storing generated key in [%s]...", path.toAbsolutePath()));
                 Files.write(path, key, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
             } catch (IOException ioe) {
-                terminal.printError("Cannot generate and save system key file [%s]", path.toAbsolutePath());
+                terminal.printError(String.format("Cannot generate and save system key file [%s]", path.toAbsolutePath()));
                 return ExitStatus.IO_ERROR;
             }
 
@@ -109,7 +109,7 @@ public class SystemKeyTool extends CliTool {
                 try {
                     Files.setPosixFilePermissions(path, PERMISSION_OWNER_READ_WRITE);
                 } catch (IOException ioe) {
-                    terminal.printError("Cannot set owner read/write permissions to generated system key file [%s]", path.toAbsolutePath());
+                    terminal.printError(String.format("Cannot set owner read/write permissions to generated system key file [%s]", path.toAbsolutePath()));
                     return ExitStatus.IO_ERROR;
                 }
                 terminal.println("Ensure the generated key can be read by the user that Elasticsearch runs as, permissions are set to owner read/write only");

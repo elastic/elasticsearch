@@ -406,7 +406,7 @@ Recovery::
 * CancellableThreads should also treat ThreadInterruptedException as InterruptedException {pull}15318[#15318]
 
 Scripting::
-* Security permissions for Groovy closures {pull}16196[#16196] (issues: {issue}16194[#16194], {issue}248[#248])
+* Security permissions for Groovy closures {pull}16196[#16196] (issues: {issue}16194[#16194])
 
 Search::
 * Fix NPE when a segment with an empty cache gets closed. {pull}15202[#15202] (issue: {issue}15043[#15043])

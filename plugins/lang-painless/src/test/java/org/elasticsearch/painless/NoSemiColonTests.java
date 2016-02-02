@@ -22,7 +22,7 @@ package org.elasticsearch.painless;
 import java.util.HashMap;
 import java.util.Map;
 
-public class NoSemiColonTest extends ScriptTestCase {
+public class NoSemiColonTests extends ScriptTestCase {
 
     public void testIfStatement() {
         assertEquals(1, exec("int x = 5 if (x == 5) return 1 return 0"));

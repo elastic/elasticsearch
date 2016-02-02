@@ -47,10 +47,8 @@ import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
@@ -294,15 +292,17 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
     }
 
     private static ShardRouting randomInvalidSourceShard(ClusterState currentState, ShardRouting shardRouting) {
-        Set<ShardRouting> identities = new HashSet<>();
         ShardRouting primaryShard = primaryShard(currentState, shardRouting);
-        for (ShardRouting shard : currentState.routingTable().allShards()) {
-            if (!Objects.equals(primaryShard.allocationId(), shard.allocationId()) && !Objects.equals(shardRouting.allocationId(), shard.allocationId())) {
-                identities.add(shard);
-            }
-        }
-        if (!identities.isEmpty()) {
-            return randomSubsetOf(1, identities.toArray(new ShardRouting[0])).get(0);
+        Set<ShardRouting> shards =
+            currentState
+                .routingTable()
+                .allShards()
+                .stream()
+                .filter(shard -> !shard.isSameAllocation(shardRouting))
+                .filter(shard -> !shard.isSameAllocation(primaryShard))
+                .collect(Collectors.toSet());
+        if (!shards.isEmpty()) {
+            return randomSubsetOf(1, shards.toArray(new ShardRouting[0])).get(0);
         } else {
             return
                 TestShardRouting.newShardRouting(shardRouting.index(), shardRouting.id(), DiscoveryService.generateNodeId(Settings.EMPTY), randomBoolean(), randomFrom(ShardRoutingState.values()), shardRouting.version());

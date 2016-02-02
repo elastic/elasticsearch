@@ -22,6 +22,9 @@ Java API::
 * Deprecate the count api in favour of search with size 0 {pull}14165[#14165] (issue: {issue}13928[#13928])
 * Deprecates defaultRescoreWindowSize {pull}13995[#13995]
 
+Plugin Discovery Multicast::
+* Deprecate the discovery-multicast plugin {pull}16371[#16371] (issues: {issue}16310[#16310], {issue}16326[#16326])
+
 Query DSL::
 * Deprecate the `missing` query {pull}15153[#15153] (issue: {issue}14112[#14112])
 * Deprecate NotQueryBuilder {pull}14203[#14203] (issue: {issue}13761[#13761])

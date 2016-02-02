@@ -783,11 +783,10 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         private final ConcurrentMap<String, Throwable> shardReplicaFailures = ConcurrentCollections.newConcurrentMap();
         private final AtomicInteger pending;
         private final int totalShards;
-        private final Releasable indexShardReference;
-        private final ShardRouting primaryShard;
+        private final IndexShardReference indexShardReference;
 
         public ReplicationPhase(ReplicaRequest replicaRequest, Response finalResponse, ShardId shardId,
-                                TransportChannel channel, Releasable indexShardReference) {
+                                TransportChannel channel, IndexShardReference indexShardReference) {
             this.replicaRequest = replicaRequest;
             this.channel = channel;
             this.finalResponse = finalResponse;
@@ -805,8 +804,6 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
             this.shards = (shardRoutingTable != null) ? shardRoutingTable.shards() : Collections.emptyList();
             this.executeOnReplica = (indexMetaData == null) || shouldExecuteReplication(indexMetaData.getSettings());
             this.nodes = state.getNodes();
-            final IndexShardRoutingTable indexShard = state.getRoutingTable().shardRoutingTable(shardId.getIndexName(), shardId.getId());
-            this.primaryShard = indexShard.primaryShard();
 
             if (shards.isEmpty()) {
                 logger.debug("replication phase for request [{}] on [{}] is skipped due to index deletion after primary operation", replicaRequest, shardId);
@@ -942,7 +939,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                                 logger.warn("[{}] {}", exp, shardId, message);
                                 shardStateAction.shardFailed(
                                     shard,
-                                    primaryShard,
+                                    indexShardReference.routingEntry(),
                                     message,
                                     exp,
                                     new ShardStateAction.Listener() {

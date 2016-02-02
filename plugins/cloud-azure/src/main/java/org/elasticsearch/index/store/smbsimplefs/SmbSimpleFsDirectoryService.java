@@ -22,7 +22,7 @@ package org.elasticsearch.index.store.smbsimplefs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.LockFactory;
 import org.apache.lucene.store.SimpleFSDirectory;
-import org.apache.lucene.store.SmbDirectoryWrapper;
+import org.elasticsearch.cloud.azure.SmbDirectoryWrapper;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.shard.ShardPath;

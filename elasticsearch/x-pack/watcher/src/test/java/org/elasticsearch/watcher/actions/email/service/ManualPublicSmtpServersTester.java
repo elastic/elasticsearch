@@ -18,6 +18,7 @@ import org.elasticsearch.watcher.support.secret.SecretService;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Collections;
+import java.util.Locale;
 
 @AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/379")
 public class ManualPublicSmtpServersTester {
@@ -121,7 +122,7 @@ public class ManualPublicSmtpServersTester {
 
             EmailService.EmailSent sent = service.send(email, null, profile);
 
-            terminal.println(String.format("email sent via account [%s]", sent.account()));
+            terminal.println(String.format(Locale.ROOT, "email sent via account [%s]", sent.account()));
         } finally {
             service.stop();
         }

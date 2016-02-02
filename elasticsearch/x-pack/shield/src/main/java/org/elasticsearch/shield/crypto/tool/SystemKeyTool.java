@@ -22,6 +22,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFilePermission;
+import java.util.Locale;
 import java.util.Set;
 
 import static org.elasticsearch.common.cli.CliToolConfig.Builder.cmd;
@@ -97,10 +98,10 @@ public class SystemKeyTool extends CliTool {
                 }
                 terminal.println(Terminal.Verbosity.VERBOSE, "generating...");
                 byte[] key = InternalCryptoService.generateKey();
-                terminal.println(String.format("Storing generated key in [%s]...", path.toAbsolutePath()));
+                terminal.println(String.format(Locale.ROOT, "Storing generated key in [%s]...", path.toAbsolutePath()));
                 Files.write(path, key, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
             } catch (IOException ioe) {
-                terminal.printError(String.format("Cannot generate and save system key file [%s]", path.toAbsolutePath()));
+                terminal.printError(String.format(Locale.ROOT, "Cannot generate and save system key file [%s]", path.toAbsolutePath()));
                 return ExitStatus.IO_ERROR;
             }
 
@@ -109,7 +110,7 @@ public class SystemKeyTool extends CliTool {
                 try {
                     Files.setPosixFilePermissions(path, PERMISSION_OWNER_READ_WRITE);
                 } catch (IOException ioe) {
-                    terminal.printError(String.format("Cannot set owner read/write permissions to generated system key file [%s]", path.toAbsolutePath()));
+                    terminal.printError(String.format(Locale.ROOT, "Cannot set owner read/write permissions to generated system key file [%s]", path.toAbsolutePath()));
                     return ExitStatus.IO_ERROR;
                 }
                 terminal.println("Ensure the generated key can be read by the user that Elasticsearch runs as, permissions are set to owner read/write only");

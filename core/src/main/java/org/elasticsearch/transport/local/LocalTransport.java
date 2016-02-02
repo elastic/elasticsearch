@@ -97,7 +97,8 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
         int queueSize = this.settings.getAsInt(TRANSPORT_LOCAL_QUEUE, -1);
         logger.debug("creating [{}] workers, queue_size [{}]", workerCount, queueSize);
         final ThreadFactory threadFactory = EsExecutors.daemonThreadFactory(this.settings, LOCAL_TRANSPORT_THREAD_NAME_PREFIX);
-        this.workers = EsExecutors.newFixed(LOCAL_TRANSPORT_THREAD_NAME_PREFIX, workerCount, queueSize, threadFactory, threadPool.getThreadContext());
+        this.workers = EsExecutors.newFixed(LOCAL_TRANSPORT_THREAD_NAME_PREFIX, workerCount, queueSize, threadFactory,
+                threadPool.getThreadContext());
         this.namedWriteableRegistry = namedWriteableRegistry;
     }
 
@@ -199,7 +200,8 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
     }
 
     @Override
-    public void sendRequest(final DiscoveryNode node, final long requestId, final String action, final TransportRequest request, TransportRequestOptions options) throws IOException, TransportException {
+    public void sendRequest(final DiscoveryNode node, final long requestId, final String action, final TransportRequest request,
+            TransportRequestOptions options) throws IOException, TransportException {
         final Version version = Version.smallest(node.version(), this.version);
 
         try (BytesStreamOutput stream = new BytesStreamOutput()) {
@@ -237,7 +239,8 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
         return this.workers;
     }
 
-    protected void messageReceived(byte[] data, String action, LocalTransport sourceTransport, Version version, @Nullable final Long sendRequestId) {
+    protected void messageReceived(byte[] data, String action, LocalTransport sourceTransport, Version version,
+            @Nullable final Long sendRequestId) {
         Transports.assertTransportThread();
         try {
             transportServiceAdapter.received(data.length);
@@ -278,7 +281,8 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
         stream = new NamedWriteableAwareStreamInput(stream, namedWriteableRegistry);
         final String action = stream.readString();
         transportServiceAdapter.onRequestReceived(requestId, action);
-        final LocalTransportChannel transportChannel = new LocalTransportChannel(this, transportServiceAdapter, sourceTransport, action, requestId, version);
+        final LocalTransportChannel transportChannel = new LocalTransportChannel(this, transportServiceAdapter, sourceTransport, action,
+                requestId, version);
         try {
             final RequestHandlerRegistry reg = transportServiceAdapter.getRequestHandler(action);
             if (reg == null) {
@@ -334,7 +338,8 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
         try {
             response.readFrom(buffer);
         } catch (Throwable e) {
-            handleException(handler, new TransportSerializationException("Failed to deserialize response of type [" + response.getClass().getName() + "]", e));
+            handleException(handler, new TransportSerializationException(
+                    "Failed to deserialize response of type [" + response.getClass().getName() + "]", e));
             return;
         }
         handleParsedResponse(response, handler);

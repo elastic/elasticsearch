@@ -116,7 +116,9 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
                 } catch (NotCompressedException ex) {
                     int maxToRead = Math.min(buffer.readableBytes(), 10);
                     int offset = buffer.readerIndex();
-                    StringBuilder sb = new StringBuilder("stream marked as compressed, but no compressor found, first [").append(maxToRead).append("] content bytes out of [").append(buffer.readableBytes()).append("] readable bytes with message size [").append(size).append("] ").append("] are [");
+                    StringBuilder sb = new StringBuilder("stream marked as compressed, but no compressor found, first [").append(maxToRead)
+                            .append("] content bytes out of [").append(buffer.readableBytes())
+                            .append("] readable bytes with message size [").append(size).append("] ").append("] are [");
                     for (int i = 0; i < maxToRead; i++) {
                         sb.append(buffer.getByte(offset + i)).append(",");
                     }
@@ -134,15 +136,17 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
                 final int nextByte = streamIn.read();
                 // calling read() is useful to make sure the message is fully read, even if there some kind of EOS marker
                 if (nextByte != -1) {
-                    throw new IllegalStateException("Message not fully read (request) for requestId [" + requestId + "], action ["
-                            + action + "], readerIndex [" + buffer.readerIndex() + "] vs expected [" + expectedIndexReader + "]; resetting");
+                    throw new IllegalStateException("Message not fully read (request) for requestId [" + requestId + "], action [" + action
+                            + "], readerIndex [" + buffer.readerIndex() + "] vs expected [" + expectedIndexReader + "]; resetting");
                 }
                 if (buffer.readerIndex() < expectedIndexReader) {
-                    throw new IllegalStateException("Message is fully read (request), yet there are " + (expectedIndexReader - buffer.readerIndex()) + " remaining bytes; resetting");
+                    throw new IllegalStateException("Message is fully read (request), yet there are "
+                            + (expectedIndexReader - buffer.readerIndex()) + " remaining bytes; resetting");
                 }
                 if (buffer.readerIndex() > expectedIndexReader) {
-                    throw new IllegalStateException("Message read past expected size (request) for requestId [" + requestId + "], action ["
-                            + action + "], readerIndex [" + buffer.readerIndex() + "] vs expected [" + expectedIndexReader + "]; resetting");
+                    throw new IllegalStateException(
+                            "Message read past expected size (request) for requestId [" + requestId + "], action [" + action
+                                    + "], readerIndex [" + buffer.readerIndex() + "] vs expected [" + expectedIndexReader + "]; resetting");
                 }
 
             } else {
@@ -163,11 +167,12 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
                                 + handler + "], error [" + TransportStatus.isError(status) + "]; resetting");
                     }
                     if (buffer.readerIndex() < expectedIndexReader) {
-                        throw new IllegalStateException("Message is fully read (response), yet there are " + (expectedIndexReader - buffer.readerIndex()) + " remaining bytes; resetting");
+                        throw new IllegalStateException("Message is fully read (response), yet there are "
+                                + (expectedIndexReader - buffer.readerIndex()) + " remaining bytes; resetting");
                     }
                     if (buffer.readerIndex() > expectedIndexReader) {
-                        throw new IllegalStateException("Message read past expected size (response) for requestId [" + requestId + "], handler ["
-                                + handler + "], error [" + TransportStatus.isError(status) + "]; resetting");
+                        throw new IllegalStateException("Message read past expected size (response) for requestId [" + requestId
+                                + "], handler [" + handler + "], error [" + TransportStatus.isError(status) + "]; resetting");
                     }
 
                 }
@@ -193,7 +198,8 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
         try {
             response.readFrom(buffer);
         } catch (Throwable e) {
-            handleException(handler, new TransportSerializationException("Failed to deserialize response of type [" + response.getClass().getName() + "]", e));
+            handleException(handler, new TransportSerializationException(
+                    "Failed to deserialize response of type [" + response.getClass().getName() + "]", e));
             return;
         }
         try {
@@ -247,7 +253,8 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
         buffer = new NamedWriteableAwareStreamInput(buffer, transport.namedWriteableRegistry);
         final String action = buffer.readString();
         transportServiceAdapter.onRequestReceived(requestId, action);
-        final NettyTransportChannel transportChannel = new NettyTransportChannel(transport, transportServiceAdapter, action, channel, requestId, version, profileName);
+        final NettyTransportChannel transportChannel = new NettyTransportChannel(transport, transportServiceAdapter, action, channel,
+                requestId, version, profileName);
         try {
             final RequestHandlerRegistry reg = transportServiceAdapter.getRequestHandler(action);
             if (reg == null) {

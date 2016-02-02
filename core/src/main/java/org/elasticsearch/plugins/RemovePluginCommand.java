@@ -19,18 +19,19 @@
 
 package org.elasticsearch.plugins;
 
+import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.cli.CliTool;
+import org.elasticsearch.common.cli.Terminal;
+import org.elasticsearch.common.cli.UserError;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
+
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
-
-import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.cli.CliTool;
-import org.elasticsearch.common.cli.Terminal;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
 
 import static org.elasticsearch.common.cli.Terminal.Verbosity.VERBOSE;
 
@@ -51,7 +52,7 @@ class RemovePluginCommand extends CliTool.Command {
 
         Path pluginDir = env.pluginsFile().resolve(pluginName);
         if (Files.exists(pluginDir) == false) {
-            throw new IllegalArgumentException("Plugin " + pluginName + " not found. Run 'plugin list' to get list of installed plugins.");
+            throw new UserError(CliTool.ExitStatus.USAGE, "Plugin " + pluginName + " not found. Run 'plugin list' to get list of installed plugins.");
         }
 
         List<Path> pluginPaths = new ArrayList<>();
@@ -59,13 +60,13 @@ class RemovePluginCommand extends CliTool.Command {
         Path pluginBinDir = env.binFile().resolve(pluginName);
         if (Files.exists(pluginBinDir)) {
             if (Files.isDirectory(pluginBinDir) == false) {
-                throw new IllegalStateException("Bin dir for " + pluginName + " is not a directory");
+                throw new UserError(CliTool.ExitStatus.IO_ERROR, "Bin dir for " + pluginName + " is not a directory");
             }
             pluginPaths.add(pluginBinDir);
-            terminal.println(VERBOSE, "Removing: %s", pluginBinDir);
+            terminal.println(VERBOSE, "Removing: " + pluginBinDir);
         }
 
-        terminal.println(VERBOSE, "Removing: %s", pluginDir);
+        terminal.println(VERBOSE, "Removing: " + pluginDir);
         Path tmpPluginDir = env.pluginsFile().resolve(".removing-" + pluginName);
         Files.move(pluginDir, tmpPluginDir, StandardCopyOption.ATOMIC_MOVE);
         pluginPaths.add(tmpPluginDir);

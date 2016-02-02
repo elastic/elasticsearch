@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.action.shard;
 
 import org.apache.lucene.index.CorruptIndexException;
+import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
@@ -33,7 +34,6 @@ import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.Discovery;
-import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.cluster.TestClusterService;
 import org.elasticsearch.test.transport.CapturingTransport;
@@ -55,7 +55,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongConsumer;
 
-import static org.elasticsearch.action.support.replication.ClusterStateCreationUtils.stateWithStartedPrimary;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -127,7 +126,7 @@ public class ShardStateActionTests extends ESTestCase {
     public void testSuccess() throws InterruptedException {
         final String index = "test";
 
-        clusterService.setState(stateWithStartedPrimary(index, true, randomInt(5)));
+        clusterService.setState(ClusterStateCreationUtils.stateWithActivePrimary(index, true, randomInt(5)));
 
         String indexUUID = clusterService.state().metaData().index(index).getIndexUUID();
 
@@ -169,7 +168,7 @@ public class ShardStateActionTests extends ESTestCase {
     public void testNoMaster() throws InterruptedException {
         final String index = "test";
 
-        clusterService.setState(stateWithStartedPrimary(index, true, randomInt(5)));
+        clusterService.setState(ClusterStateCreationUtils.stateWithActivePrimary(index, true, randomInt(5)));
 
         DiscoveryNodes.Builder noMasterBuilder = DiscoveryNodes.builder(clusterService.state().nodes());
         noMasterBuilder.masterNodeId(null);
@@ -207,7 +206,7 @@ public class ShardStateActionTests extends ESTestCase {
     public void testMasterChannelException() throws InterruptedException {
         final String index = "test";
 
-        clusterService.setState(stateWithStartedPrimary(index, true, randomInt(5)));
+        clusterService.setState(ClusterStateCreationUtils.stateWithActivePrimary(index, true, randomInt(5)));
 
         String indexUUID = clusterService.state().metaData().index(index).getIndexUUID();
 
@@ -264,7 +263,7 @@ public class ShardStateActionTests extends ESTestCase {
     public void testUnhandledFailure() {
         final String index = "test";
 
-        clusterService.setState(stateWithStartedPrimary(index, true, randomInt(5)));
+        clusterService.setState(ClusterStateCreationUtils.stateWithActivePrimary(index, true, randomInt(5)));
 
         String indexUUID = clusterService.state().metaData().index(index).getIndexUUID();
 
@@ -294,7 +293,7 @@ public class ShardStateActionTests extends ESTestCase {
     public void testShardNotFound() throws InterruptedException {
         final String index = "test";
 
-        clusterService.setState(stateWithStartedPrimary(index, true, randomInt(5)));
+        clusterService.setState(ClusterStateCreationUtils.stateWithActivePrimary(index, true, randomInt(5)));
 
         String indexUUID = clusterService.state().metaData().index(index).getIndexUUID();
 

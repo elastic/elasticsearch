@@ -87,7 +87,7 @@ class PluginSecurity {
         terminal.println(Verbosity.NORMAL, "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
         // print all permissions:
         for (Permission permission : requested) {
-            terminal.println(Verbosity.NORMAL, "* %s", formatPermission(permission));
+            terminal.println(Verbosity.NORMAL, "* " + formatPermission(permission));
         }
         terminal.println(Verbosity.NORMAL, "See http://docs.oracle.com/javase/8/docs/technotes/guides/security/permissions.html");
         terminal.println(Verbosity.NORMAL, "for descriptions of what these permissions allow and the associated risks.");

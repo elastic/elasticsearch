@@ -17,26 +17,19 @@
  * under the License.
  */
 
-package org.elasticsearch.index.shard;
-
-import org.elasticsearch.common.io.stream.StreamInput;
-
-import java.io.IOException;
+package org.elasticsearch.common.cli;
 
 /**
- *
+ * An exception representing a user fixable problem in {@link CliTool} usage.
  */
-public class IndexShardRelocatedException extends IllegalIndexShardStateException {
+public class UserError extends Exception {
 
-    public IndexShardRelocatedException(ShardId shardId) {
-        this(shardId, "Already relocated");
-    }
+    /** The exist status the cli should use when catching this user error. */
+    public final CliTool.ExitStatus exitStatus;
 
-    public IndexShardRelocatedException(ShardId shardId, String reason) {
-        super(shardId, IndexShardState.RELOCATED, reason);
-    }
-
-    public IndexShardRelocatedException(StreamInput in) throws IOException{
-        super(in);
+    /** Constructs a UserError with an exit status and message to show the user. */
+    public UserError(CliTool.ExitStatus exitStatus, String msg) {
+        super(msg);
+        this.exitStatus = exitStatus;
     }
 }

@@ -816,7 +816,6 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/16364")
     public void testStressRelocated() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test").setSettings(
             Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0)
@@ -827,14 +826,14 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         final IndexShard shard = test.getShardOrNull(0);
         final int numThreads = randomIntBetween(2, 4);
         Thread[] indexThreads = new Thread[numThreads];
-        CountDownLatch somePrimaryOperationLockAcquired = new CountDownLatch(1);
+        CountDownLatch allPrimaryOperationLocksAcquired = new CountDownLatch(numThreads);
         CyclicBarrier barrier = new CyclicBarrier(numThreads + 1);
         for (int i = 0; i < indexThreads.length; i++) {
             indexThreads[i] = new Thread() {
                 @Override
                 public void run() {
                     try (Releasable operationLock = shard.acquirePrimaryOperationLock()) {
-                        somePrimaryOperationLockAcquired.countDown();
+                        allPrimaryOperationLocksAcquired.countDown();
                         barrier.await();
                     } catch (InterruptedException | BrokenBarrierException e) {
                         throw new RuntimeException(e);
@@ -848,8 +847,8 @@ public class IndexShardTests extends ESSingleNodeTestCase {
             shard.relocated("simulated recovery");
             relocated.set(true);
         });
-        // ensure we wait for at least one primary operation lock to be acquired
-        somePrimaryOperationLockAcquired.await();
+        // ensure we wait for all primary operation locks to be acquired
+        allPrimaryOperationLocksAcquired.await();
         // start recovery thread
         recoveryThread.start();
         assertThat(relocated.get(), equalTo(false));

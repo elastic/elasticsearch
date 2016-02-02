@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.RoutingNodes;
@@ -57,7 +56,6 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -142,7 +140,7 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
         List<ShardStateAction.ShardRoutingEntry> failingTasks = createExistingShards(currentState, reason);
         List<ShardStateAction.ShardRoutingEntry> tasks = new ArrayList<>();
         for (ShardStateAction.ShardRoutingEntry failingTask : failingTasks) {
-            tasks.add(new ShardStateAction.ShardRoutingEntry(failingTask.getShardRouting(), randomInvalidIdentity(currentState, failingTask.getShardRouting()), failingTask.message, failingTask.failure));
+            tasks.add(new ShardStateAction.ShardRoutingEntry(failingTask.getShardRouting(), randomInvalidSourceShard(currentState, failingTask.getShardRouting()), failingTask.message, failingTask.failure));
         }
         Map<ShardStateAction.ShardRoutingEntry, ClusterStateTaskExecutor.TaskResult> taskResultMap =
             tasks.stream().collect(Collectors.toMap(
@@ -275,11 +273,11 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
     private static List<ShardStateAction.ShardRoutingEntry> toTasks(ClusterState currentState, List<ShardRouting> shards, String indexUUID, String message) {
         return shards
             .stream()
-            .map(shard -> new ShardStateAction.ShardRoutingEntry(shard, randomValidIdentity(currentState, shard), message, new CorruptIndexException("simulated", indexUUID)))
+            .map(shard -> new ShardStateAction.ShardRoutingEntry(shard, randomValidSourceShard(currentState, shard), message, new CorruptIndexException("simulated", indexUUID)))
             .collect(Collectors.toList());
     }
 
-    private static ShardRouting randomValidIdentity(ClusterState currentState, ShardRouting shardRouting) {
+    private static ShardRouting randomValidSourceShard(ClusterState currentState, ShardRouting shardRouting) {
         // for the request node ID to be valid, either the request is
         // from the node the shard is assigned to, or the request is
         // from the node holding the primary shard
@@ -295,7 +293,7 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
         }
     }
 
-    private static ShardRouting randomInvalidIdentity(ClusterState currentState, ShardRouting shardRouting) {
+    private static ShardRouting randomInvalidSourceShard(ClusterState currentState, ShardRouting shardRouting) {
         Set<ShardRouting> identities = new HashSet<>();
         ShardRouting primaryShard = primaryShard(currentState, shardRouting);
         for (ShardRouting shard : currentState.routingTable().allShards()) {

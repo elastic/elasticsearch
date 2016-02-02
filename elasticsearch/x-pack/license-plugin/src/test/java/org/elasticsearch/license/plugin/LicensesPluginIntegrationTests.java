@@ -121,7 +121,7 @@ public class LicensesPluginIntegrationTests extends AbstractLicensesIntegrationT
         assertLicenseeState(getCurrentFeatureName(), LicenseState.ENABLED);
 
         logger.info(" --> sleep for rest of trailLicense duration");
-        Thread.sleep(trialLicenseDurationInSeconds * 1000l);
+        Thread.sleep(trialLicenseDurationInSeconds * 1000L);
 
         logger.info(" --> check consumer is still enabled [signed license]");
         // consumer plugin should notify onEnabled on all data nodes (signed license)

@@ -121,7 +121,7 @@ public class ManualPublicSmtpServersTester {
 
             EmailService.EmailSent sent = service.send(email, null, profile);
 
-            terminal.println("email sent via account [%s]", sent.account());
+            terminal.println(String.format("email sent via account [%s]", sent.account()));
         } finally {
             service.stop();
         }

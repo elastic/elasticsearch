@@ -63,7 +63,7 @@ public class WatcherStatsTests extends AbstractWatcherIntegrationTestCase {
                 .setSource(watchBuilder()
                         .trigger(schedule(cron("* * * * * ? *")))
                         .input(searchInput(searchRequest))
-                        .condition(compareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 1l))
+                        .condition(compareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 1L))
                 )
                 .get();
 

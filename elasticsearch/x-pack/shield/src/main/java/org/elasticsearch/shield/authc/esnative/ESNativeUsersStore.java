@@ -12,11 +12,7 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectLongCursor;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
@@ -30,7 +26,6 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.FilterClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -44,27 +39,24 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.shield.InternalClient;
+import org.elasticsearch.shield.ShieldTemplateService;
 import org.elasticsearch.shield.User;
-import org.elasticsearch.shield.action.admin.user.AddUserRequest;
-import org.elasticsearch.shield.action.admin.user.DeleteUserRequest;
-import org.elasticsearch.shield.action.authc.cache.ClearRealmCacheRequest;
-import org.elasticsearch.shield.action.authc.cache.ClearRealmCacheResponse;
-import org.elasticsearch.shield.admin.ShieldTemplateService;
-import org.elasticsearch.shield.admin.ShieldInternalUserHolder;
+import org.elasticsearch.shield.action.realm.ClearRealmCacheRequest;
+import org.elasticsearch.shield.action.realm.ClearRealmCacheResponse;
+import org.elasticsearch.shield.action.user.AddUserRequest;
+import org.elasticsearch.shield.action.user.DeleteUserRequest;
 import org.elasticsearch.shield.authc.AuthenticationService;
 import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.client.ShieldClient;
-import org.elasticsearch.shield.support.ClientWithUser;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
@@ -96,9 +88,7 @@ public class ESNativeUsersStore extends AbstractComponent implements ClusterStat
     private final Hasher hasher = Hasher.BCRYPT;
     private final List<ChangeListener> listeners = new CopyOnWriteArrayList<>();
     private final AtomicReference<State> state = new AtomicReference<>(State.INITIALIZED);
-    private final Provider<Client> clientProvider;
-    private final Provider<AuthenticationService> authProvider;
-    private final ShieldInternalUserHolder adminUser;
+    private final Provider<InternalClient> clientProvider;
     private final ThreadPool threadPool;
 
     private ScheduledFuture<?> versionChecker;
@@ -110,13 +100,10 @@ public class ESNativeUsersStore extends AbstractComponent implements ClusterStat
     private volatile boolean shieldIndexExists = false;
 
     @Inject
-    public ESNativeUsersStore(Settings settings, Provider<Client> clientProvider,
-                              ShieldInternalUserHolder userHolder,
+    public ESNativeUsersStore(Settings settings, Provider<InternalClient> clientProvider,
                               Provider<AuthenticationService> authProvider, ThreadPool threadPool) {
         super(settings);
         this.clientProvider = clientProvider;
-        this.authProvider = authProvider;
-        this.adminUser = userHolder;
         this.threadPool = threadPool;
     }
 
@@ -408,8 +395,7 @@ public class ESNativeUsersStore extends AbstractComponent implements ClusterStat
     public void start() {
         try {
             if (state.compareAndSet(State.INITIALIZED, State.STARTING)) {
-                this.authService = authProvider.get();
-                this.client = new ClientWithUser(clientProvider.get(), authService, adminUser.user());
+                this.client = clientProvider.get();
                 this.scrollSize = settings.getAsInt("shield.authc.native.scroll.size", 1000);
                 this.scrollKeepAlive = settings.getAsTime("shield.authc.native.scroll.keep_alive", TimeValue.timeValueSeconds(10L));
 

@@ -9,9 +9,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.shield.ShieldLifecycleService;
 import org.elasticsearch.shield.audit.index.IndexAuditTrail;
-import org.elasticsearch.shield.audit.index.IndexAuditUserHolder;
 import org.elasticsearch.shield.audit.logfile.LoggingAuditTrail;
 import org.elasticsearch.shield.support.AbstractShieldModule;
 
@@ -24,8 +22,6 @@ public class AuditTrailModule extends AbstractShieldModule.Node {
 
     private final boolean enabled;
 
-    private IndexAuditUserHolder indexAuditUser;
-
     public AuditTrailModule(Settings settings) {
         super(settings);
         enabled = auditingEnabled(settings);
@@ -37,7 +33,6 @@ public class AuditTrailModule extends AbstractShieldModule.Node {
             bind(AuditTrail.class).toInstance(AuditTrail.NOOP);
             return;
         }
-        indexAuditUser = new IndexAuditUserHolder();
         String[] outputs = settings.getAsArray("shield.audit.outputs", new String[] { LoggingAuditTrail.NAME });
         if (outputs.length == 0) {
             bind(AuditTrail.class).toInstance(AuditTrail.NOOP);
@@ -54,7 +49,6 @@ public class AuditTrailModule extends AbstractShieldModule.Node {
                     bind(LoggingAuditTrail.class).asEagerSingleton();
                     break;
                 case IndexAuditTrail.NAME:
-                    bind(IndexAuditUserHolder.class).toInstance(indexAuditUser);
                     binder.addBinding().to(IndexAuditTrail.class);
                     bind(IndexAuditTrail.class).asEagerSingleton();
                     break;

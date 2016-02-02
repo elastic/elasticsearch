@@ -5,11 +5,7 @@
  */
 package org.elasticsearch.watcher.support.init.proxy;
 
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
@@ -29,14 +25,12 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.FilterClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.shield.InternalClient;
 import org.elasticsearch.transport.TransportMessage;
-import org.elasticsearch.watcher.shield.ShieldIntegration;
 import org.elasticsearch.watcher.support.init.InitializingService;
 
 /**
@@ -45,44 +39,30 @@ import org.elasticsearch.watcher.support.init.InitializingService;
  */
 public class ClientProxy implements InitializingService.Initializable {
 
-    private final ShieldIntegration shieldIntegration;
     private final TimeValue defaultSearchTimeout;
     private final TimeValue defaultIndexTimeout;
     private final TimeValue defaultBulkTimeout;
-    private Client client;
+    private InternalClient client;
 
     @Inject
-    public ClientProxy(Settings settings, ShieldIntegration shieldIntegration) {
-        this.shieldIntegration = shieldIntegration;
+    public ClientProxy(Settings settings) {
         defaultSearchTimeout = settings.getAsTime("watcher.internal.ops.search.default_timeout", TimeValue.timeValueSeconds(30));
         defaultIndexTimeout = settings.getAsTime("watcher.internal.ops.index.default_timeout", TimeValue.timeValueSeconds(60));
         defaultBulkTimeout = settings.getAsTime("watcher.internal.ops.bulk.default_timeout", TimeValue.timeValueSeconds(120));
     }
 
     /**
-     * Creates a proxy to the given client (can be used for testing)
+     * Creates a proxy to the given internal client (can be used for testing)
      */
     public static ClientProxy of(Client client) {
-        ClientProxy proxy = new ClientProxy(Settings.EMPTY, null);
-        proxy.client = client;
+        ClientProxy proxy = new ClientProxy(Settings.EMPTY);
+        proxy.client = client instanceof InternalClient ? (InternalClient) client : new InternalClient.Insecure(client);
         return proxy;
     }
 
     @Override
     public void init(Injector injector) {
-        if (shieldIntegration != null) {
-            this.client = new FilterClient(injector.getInstance(Client.class)) {
-                @Override
-                protected <Request extends ActionRequest<Request>, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void doExecute(Action<Request, Response, RequestBuilder> action, Request request, ActionListener<Response> listener) {
-                    try (ThreadContext.StoredContext ctx = threadPool().getThreadContext().stashContext()) {
-                        shieldIntegration.setWatcherUser();
-                        super.doExecute(action, request, listener);
-                    }
-                }
-            };
-        } else {
-            this.client = injector.getInstance(Client.class);
-        }
+        this.client = injector.getInstance(InternalClient.class);
     }
 
     public AdminClient admin() {

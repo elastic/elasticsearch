@@ -60,7 +60,7 @@ public class HttpInputIntegrationTests extends AbstractWatcherIntegrationTestCas
                                 .path("/index/_search")
                                 .body(jsonBuilder().startObject().field("size", 1).endObject())
                                 .auth(shieldEnabled() ? new BasicAuth("test", "changeme".toCharArray()) : null)))
-                        .condition(compareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 1l))
+                        .condition(compareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 1L))
                         .addAction("_id", loggingAction("watch [{{ctx.watch_id}}] matched")))
                 .get();
 
@@ -79,7 +79,7 @@ public class HttpInputIntegrationTests extends AbstractWatcherIntegrationTestCas
                         .input(httpInput(HttpRequestTemplate.builder(address.getHostString(), address.getPort())
                                 .path("/_cluster/stats")
                                 .auth(shieldEnabled() ? new BasicAuth("test", "changeme".toCharArray()) : null)))
-                        .condition(compareCondition("ctx.payload.nodes.count.total", CompareCondition.Op.GTE, 1l))
+                        .condition(compareCondition("ctx.payload.nodes.count.total", CompareCondition.Op.GTE, 1L))
                         .addAction("_id", loggingAction("watch [{{ctx.watch_id}}] matched")))
                 .get();
 
@@ -114,7 +114,7 @@ public class HttpInputIntegrationTests extends AbstractWatcherIntegrationTestCas
                 .setSource(watchBuilder()
                         .trigger(schedule(interval(10, IntervalSchedule.Interval.Unit.SECONDS)))
                         .input(httpInput(requestBuilder).extractKeys("hits.total"))
-                        .condition(compareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 1l)))
+                        .condition(compareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 1L)))
                 .get();
 
         // in this watcher the condition will fail, because max_score isn't extracted, only total:
@@ -122,7 +122,7 @@ public class HttpInputIntegrationTests extends AbstractWatcherIntegrationTestCas
                 .setSource(watchBuilder()
                         .trigger(schedule(interval(10, IntervalSchedule.Interval.Unit.SECONDS)))
                         .input(httpInput(requestBuilder).extractKeys("hits.total"))
-                        .condition(compareCondition("ctx.payload.hits.max_score", CompareCondition.Op.GTE, 0l)))
+                        .condition(compareCondition("ctx.payload.hits.max_score", CompareCondition.Op.GTE, 0L)))
                 .get();
 
         if (timeWarped()) {

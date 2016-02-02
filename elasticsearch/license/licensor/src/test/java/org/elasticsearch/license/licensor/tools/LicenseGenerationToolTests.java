@@ -5,20 +5,20 @@
  */
 package org.elasticsearch.license.licensor.tools;
 
-import org.apache.commons.cli.MissingOptionException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+
 import org.elasticsearch.common.cli.CliTool.Command;
 import org.elasticsearch.common.cli.CliTool.ExitStatus;
 import org.elasticsearch.common.cli.CliToolTestCase;
+import org.elasticsearch.common.cli.UserError;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.licensor.TestUtils;
 import org.elasticsearch.license.licensor.tools.LicenseGeneratorTool.LicenseGenerator;
 import org.junit.Before;
-
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -72,15 +72,13 @@ public class LicenseGenerationToolTests extends CliToolTestCase {
         TestUtils.LicenseSpec inputLicenseSpec = TestUtils.generateRandomLicenseSpec(License.VERSION_CURRENT);
         LicenseGeneratorTool licenseGeneratorTool = new LicenseGeneratorTool();
         boolean pubKeyMissing = randomBoolean();
-        try {
+        UserError e = expectThrows(UserError.class, () -> {
             licenseGeneratorTool.parse(LicenseGeneratorTool.NAME,
-                    new String[] { "--license", TestUtils.generateLicenseSpecString(inputLicenseSpec),
-                            ((pubKeyMissing) ? "--privateKeyPath" : "--publicKeyPath"),
-                            ((pubKeyMissing) ? priKeyPath.toString() : pubKeyPath.toString()) });
-            fail("missing argument: " + ((pubKeyMissing) ? "publicKeyPath" : "privateKeyPath") + " should throw an exception");
-        } catch (MissingOptionException e) {
-            assertThat(e.getMessage(), containsString((pubKeyMissing) ? "pub" : "pri"));
-        }
+                new String[]{"--license", TestUtils.generateLicenseSpecString(inputLicenseSpec),
+                    ((pubKeyMissing) ? "--privateKeyPath" : "--publicKeyPath"),
+                    ((pubKeyMissing) ? priKeyPath.toString() : pubKeyPath.toString())});
+        });
+        assertThat(e.getMessage(), containsString((pubKeyMissing) ? "pub" : "pri"));
     }
 
     public void testParsingSimple() throws Exception {

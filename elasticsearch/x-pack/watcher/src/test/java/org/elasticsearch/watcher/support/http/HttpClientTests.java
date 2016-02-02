@@ -35,6 +35,7 @@ import java.security.UnrecoverableKeyException;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.Is.is;
@@ -116,7 +117,7 @@ public class HttpClientTests extends ESTestCase {
         assertThat(recordedRequest.getBody().readUtf8Line(), nullValue());
     }
 
-    public void testUrlEncoding() throws Exception{
+    public void testUrlEncodingWithQueryStrings() throws Exception{
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody("body"));
         HttpRequest.Builder requestBuilder = HttpRequest.builder("localhost", webPort)
                 .method(HttpMethod.GET)
@@ -128,7 +129,7 @@ public class HttpClientTests extends ESTestCase {
         assertThat(response.body().toUtf8(), equalTo("body"));
 
         RecordedRequest recordedRequest = webServer.takeRequest();
-        assertThat(recordedRequest.getPath(), equalTo("/test?key=value%20123:123"));
+        assertThat(recordedRequest.getPath(), equalTo("/test?key=value+123%3A123"));
         assertThat(recordedRequest.getBody().readUtf8Line(), nullValue());
     }
 
@@ -145,6 +146,14 @@ public class HttpClientTests extends ESTestCase {
         RecordedRequest recordedRequest = webServer.takeRequest();
         assertThat(recordedRequest.getPath(), equalTo("/test"));
         assertThat(recordedRequest.getHeader("Authorization"), equalTo("Basic dXNlcjpwYXNz"));
+    }
+
+    public void testNoPathSpecified() throws Exception {
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody("doesntmatter"));
+        HttpRequest.Builder request = HttpRequest.builder("localhost", webPort).method(HttpMethod.GET);
+        httpClient.execute(request.build());
+        RecordedRequest recordedRequest = webServer.takeRequest();
+        assertThat(recordedRequest.getPath(), equalTo("/"));
     }
 
     public void testHttps() throws Exception {
@@ -356,6 +365,21 @@ public class HttpClientTests extends ESTestCase {
         } finally {
             proxyServer.shutdown();
         }
+    }
+
+    public void testThatUrlPathIsNotEncoded() throws Exception {
+        // %2F is a slash that needs to be encoded to not be misinterpreted as a path
+        String path = "/<logstash-{now%2Fd}>/_search";
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody("foo"));
+        HttpRequest request = HttpRequest.builder("localhost", webServer.getPort()).path(path).build();
+        httpClient.execute(request);
+
+        assertThat(webServer.getRequestCount(), is(1));
+
+        RecordedRequest recordedRequest = webServer.takeRequest();
+        // under no circumstances have a double encode of %2F => %25 (percent sign)
+        assertThat(recordedRequest.getPath(), not(containsString("%25")));
+        assertThat(recordedRequest.getPath(), equalTo(path));
     }
 
     private MockWebServer startWebServer(int startPort, int endPort) throws IOException {

@@ -74,6 +74,7 @@ import static org.mockito.Mockito.when;
 /**
  */
 public class WebhookActionTests extends ESTestCase {
+
     static final String TEST_HOST = "test.com";
     static final int TEST_PORT = 8089;
 

@@ -43,19 +43,20 @@ import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.shield.admin.ShieldInternalUserHolder;
-import org.elasticsearch.shield.authz.privilege.SystemPrivilege;
-import org.elasticsearch.shield.support.ClientWithUser;
-import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.shield.InternalClient;
+import org.elasticsearch.shield.SystemUser;
 import org.elasticsearch.shield.User;
+import org.elasticsearch.shield.XPackUser;
 import org.elasticsearch.shield.audit.AuditTrail;
 import org.elasticsearch.shield.authc.AuthenticationService;
 import org.elasticsearch.shield.authc.AuthenticationToken;
+import org.elasticsearch.shield.authz.privilege.SystemPrivilege;
 import org.elasticsearch.shield.rest.RemoteHostHeader;
 import org.elasticsearch.shield.transport.filter.ShieldIpFilterRule;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportMessage;
+import org.elasticsearch.xpack.XPackPlugin;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
@@ -126,8 +127,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
 
     private final AtomicReference<State> state = new AtomicReference<>(State.INITIALIZED);
     private final String nodeName;
-    private final IndexAuditUserHolder auditUser;
-    private final Provider<Client> clientProvider;
+    private final Provider<InternalClient> clientProvider;
     private final AuthenticationService authenticationService;
     private final LinkedBlockingQueue<Message> eventQueue;
     private final QueueConsumer queueConsumer;
@@ -150,11 +150,9 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     }
 
     @Inject
-    public IndexAuditTrail(Settings settings, IndexAuditUserHolder indexingAuditUser,
-                           AuthenticationService authenticationService, Transport transport,
-                           Provider<Client> clientProvider, ThreadPool threadPool, ClusterService clusterService) {
+    public IndexAuditTrail(Settings settings, AuthenticationService authenticationService, Transport transport,
+                           Provider<InternalClient> clientProvider, ThreadPool threadPool, ClusterService clusterService) {
         super(settings);
-        this.auditUser = indexingAuditUser;
         this.authenticationService = authenticationService;
         this.clientProvider = clientProvider;
         this.transport = transport;
@@ -418,7 +416,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     public void accessGranted(User user, String action, TransportMessage<?> message) {
         if (!principalIsAuditor(user.principal())) {
             // special treatment for internal system actions - only log if explicitly told to
-            if ((user.isSystem() && SystemPrivilege.INSTANCE.predicate().test(action)) || ShieldInternalUserHolder.isShieldInternalUser(user)) {
+            if ((SystemUser.is(user) && SystemPrivilege.INSTANCE.predicate().test(action)) || XPackUser.is(user)) {
                 if (events.contains(SYSTEM_ACCESS_GRANTED)) {
                     try {
                         enqueue(message("access_granted", action, user, indices(message), message), "access_granted");
@@ -518,7 +516,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     }
 
     private boolean principalIsAuditor(String principal) {
-        return (principal.equals(auditUser.user().principal()));
+        return principal.equals(XPackUser.INSTANCE.principal());
     }
 
     private Message message(String type, @Nullable String action, @Nullable User user,
@@ -678,7 +676,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     private void initializeClient() {
         if (indexToRemoteCluster == false) {
             // in the absence of client settings for remote indexing, fall back to the client that was passed in.
-            this.client = new ClientWithUser(clientProvider.get(), authenticationService, auditUser.user());
+            this.client = clientProvider.get();
         } else {
             Settings clientSettings = settings.getByPrefix("shield.audit.index.client.");
             String[] hosts = clientSettings.getAsArray("hosts");
@@ -763,9 +761,6 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
 
             assert !Thread.currentThread().isInterrupted() : "current thread has been interrupted before putting index template!!!";
 
-            if (!indexToRemoteCluster) {
-                authenticationService.attachUserHeaderIfMissing(auditUser.user());
-            }
             PutIndexTemplateResponse response = client.admin().indices().putTemplate(request).actionGet();
             if (!response.isAcknowledged()) {
                 throw new IllegalStateException("failed to put index template for audit logging");

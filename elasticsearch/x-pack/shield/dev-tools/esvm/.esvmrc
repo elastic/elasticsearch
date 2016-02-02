@@ -12,7 +12,6 @@
       "discovery": {
         "type": "zen",
         "zen.ping" : {
-          "multicast.enabled": false,
           "unicast.hosts": [ "127.0.0.1:9300", "127.0.0.1:9301" ]
         }
       },

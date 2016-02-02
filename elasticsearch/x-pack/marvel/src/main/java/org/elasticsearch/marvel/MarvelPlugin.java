@@ -23,11 +23,8 @@ import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.marvel.cleaner.CleanerService;
 import org.elasticsearch.marvel.license.LicenseModule;
 import org.elasticsearch.marvel.license.MarvelLicensee;
-import org.elasticsearch.marvel.shield.InternalMarvelUser;
-import org.elasticsearch.marvel.shield.MarvelShieldIntegration;
 import org.elasticsearch.marvel.shield.MarvelShieldModule;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.shield.authz.AuthorizationModule;
 import org.elasticsearch.xpack.XPackPlugin;
 
 import java.util.ArrayList;
@@ -124,16 +121,6 @@ public class MarvelPlugin extends Plugin {
             return true;
         }
         return false;
-    }
-
-    // NOTE: The fact this signature takes a module is a hack, and effectively like the previous
-    // processModule in the plugin api. The problem is tight coupling between marvel and shield.
-    // We need to avoid trying to load the AuthorizationModule class unless we know shield integration
-    // is enabled. This is a temporary solution until inter-plugin-communication can be worked out.
-    public void onModule(Module module) {
-        if (MarvelShieldIntegration.enabled(settings) && module instanceof AuthorizationModule) {
-            ((AuthorizationModule)module).registerReservedRole(InternalMarvelUser.ROLE);
-        }
     }
 
     public void onModule(SettingsModule module) {

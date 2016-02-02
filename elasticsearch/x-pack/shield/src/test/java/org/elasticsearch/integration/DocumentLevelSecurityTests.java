@@ -306,10 +306,10 @@ public class DocumentLevelSecurityTests extends ShieldIntegTestCase {
         assertSearchHits(response, "1", "2");
 
         Global globalAgg = response.getAggregations().get("global");
-        assertThat(globalAgg.getDocCount(), equalTo(2l));
+        assertThat(globalAgg.getDocCount(), equalTo(2L));
         Terms termsAgg = globalAgg.getAggregations().get("field2");
         assertThat(termsAgg.getBuckets().get(0).getKeyAsString(), equalTo("value2"));
-        assertThat(termsAgg.getBuckets().get(0).getDocCount(), equalTo(1l));
+        assertThat(termsAgg.getBuckets().get(0).getDocCount(), equalTo(1L));
 
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
                 .prepareSearch("test")
@@ -319,7 +319,7 @@ public class DocumentLevelSecurityTests extends ShieldIntegTestCase {
         assertSearchHits(response, "1");
 
         globalAgg = response.getAggregations().get("global");
-        assertThat(globalAgg.getDocCount(), equalTo(1l));
+        assertThat(globalAgg.getDocCount(), equalTo(1L));
         termsAgg = globalAgg.getAggregations().get("field2");
         assertThat(termsAgg.getBuckets().size(), equalTo(0));
     }
@@ -346,10 +346,10 @@ public class DocumentLevelSecurityTests extends ShieldIntegTestCase {
         assertSearchHits(response, "1");
 
         Children children = response.getAggregations().get("children");
-        assertThat(children.getDocCount(), equalTo(1l));
+        assertThat(children.getDocCount(), equalTo(1L));
         Terms termsAgg = children.getAggregations().get("field3");
         assertThat(termsAgg.getBuckets().get(0).getKeyAsString(), equalTo("value3"));
-        assertThat(termsAgg.getBuckets().get(0).getDocCount(), equalTo(1l));
+        assertThat(termsAgg.getBuckets().get(0).getDocCount(), equalTo(1L));
 
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
                 .prepareSearch("test")
@@ -361,7 +361,7 @@ public class DocumentLevelSecurityTests extends ShieldIntegTestCase {
         assertSearchHits(response, "1");
 
         children = response.getAggregations().get("children");
-        assertThat(children.getDocCount(), equalTo(0l));
+        assertThat(children.getDocCount(), equalTo(0L));
         termsAgg = children.getAggregations().get("field3");
         assertThat(termsAgg.getBuckets().size(), equalTo(0));
     }
@@ -381,15 +381,15 @@ public class DocumentLevelSecurityTests extends ShieldIntegTestCase {
         SearchResponse searchResponse = client().prepareSearch("test")
                 .setQuery(hasChildQuery("child", matchAllQuery()))
                 .get();
-        assertHitCount(searchResponse, 1l);
-        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+        assertHitCount(searchResponse, 1L);
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1L));
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("p1"));
 
         searchResponse = client().prepareSearch("test")
                 .setQuery(hasParentQuery("parent", matchAllQuery()))
                 .addSort("_id", SortOrder.ASC)
                 .get();
-        assertHitCount(searchResponse, 2l);
+        assertHitCount(searchResponse, 2L);
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("c1"));
         assertThat(searchResponse.getHits().getAt(1).id(), equalTo("c2"));
 
@@ -398,25 +398,25 @@ public class DocumentLevelSecurityTests extends ShieldIntegTestCase {
                 .prepareSearch("test")
                 .setQuery(hasChildQuery("child", matchAllQuery()))
                 .get();
-        assertHitCount(searchResponse, 0l);
+        assertHitCount(searchResponse, 0L);
 
         searchResponse = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
                 .prepareSearch("test")
                 .setQuery(hasChildQuery("child", matchAllQuery()))
                 .get();
-        assertHitCount(searchResponse, 0l);
+        assertHitCount(searchResponse, 0L);
 
         searchResponse = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
                 .prepareSearch("test")
                 .setQuery(hasParentQuery("parent", matchAllQuery()))
                 .get();
-        assertHitCount(searchResponse, 0l);
+        assertHitCount(searchResponse, 0L);
 
         searchResponse = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
                 .prepareSearch("test")
                 .setQuery(hasParentQuery("parent", matchAllQuery()))
                 .get();
-        assertHitCount(searchResponse, 0l);
+        assertHitCount(searchResponse, 0L);
     }
 
     public void testPercolateApi() {
@@ -434,7 +434,7 @@ public class DocumentLevelSecurityTests extends ShieldIntegTestCase {
                 .setDocumentType("type")
                 .setPercolateDoc(new PercolateSourceBuilder.DocBuilder().setDoc("{}"))
                 .get();
-        assertThat(response.getCount(), equalTo(1l));
+        assertThat(response.getCount(), equalTo(1L));
         assertThat(response.getMatches()[0].getId().string(), equalTo("1"));
 
         // Percolator with a query on a document that the current user can see. Percolator will have one query to evaluate, so there is a match:
@@ -444,7 +444,7 @@ public class DocumentLevelSecurityTests extends ShieldIntegTestCase {
                 .setPercolateQuery(termQuery("field1", "value1"))
                 .setPercolateDoc(new PercolateSourceBuilder.DocBuilder().setDoc("{}"))
                 .get();
-        assertThat(response.getCount(), equalTo(1l));
+        assertThat(response.getCount(), equalTo(1L));
         assertThat(response.getMatches()[0].getId().string(), equalTo("1"));
 
         // Percolator with a query on a document that the current user can't see. Percolator will not have queries to evaluate, so there is no match:
@@ -454,7 +454,7 @@ public class DocumentLevelSecurityTests extends ShieldIntegTestCase {
                 .setPercolateQuery(termQuery("field1", "value1"))
                 .setPercolateDoc(new PercolateSourceBuilder.DocBuilder().setDoc("{}"))
                 .get();
-        assertThat(response.getCount(), equalTo(0l));
+        assertThat(response.getCount(), equalTo(0L));
 
         assertAcked(client().admin().indices().prepareClose("test"));
         assertAcked(client().admin().indices().prepareOpen("test"));
@@ -466,7 +466,7 @@ public class DocumentLevelSecurityTests extends ShieldIntegTestCase {
                 .setDocumentType("type")
                 .setPercolateDoc(new PercolateSourceBuilder.DocBuilder().setDoc("{}"))
                 .get();
-        assertThat(response.getCount(), equalTo(1l));
+        assertThat(response.getCount(), equalTo(1L));
         assertThat(response.getMatches()[0].getId().string(), equalTo("1"));
     }
 

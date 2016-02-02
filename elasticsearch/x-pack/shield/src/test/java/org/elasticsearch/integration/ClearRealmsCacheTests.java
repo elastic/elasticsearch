@@ -12,10 +12,9 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.http.HttpServerTransport;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.shield.User;
-import org.elasticsearch.shield.action.authc.cache.ClearRealmCacheRequest;
-import org.elasticsearch.shield.action.authc.cache.ClearRealmCacheResponse;
+import org.elasticsearch.shield.action.realm.ClearRealmCacheRequest;
+import org.elasticsearch.shield.action.realm.ClearRealmCacheResponse;
 import org.elasticsearch.shield.authc.Realm;
 import org.elasticsearch.shield.authc.Realms;
 import org.elasticsearch.shield.authc.support.Hasher;
@@ -107,7 +106,7 @@ public class ClearRealmsCacheTests extends ShieldIntegTestCase {
 
             @Override
             public void executeRequest() throws Exception {
-                executeHttpRequest("/_shield/realm/" + (randomBoolean() ? "*" : "_all") + "/_cache/clear", Collections.<String, String>emptyMap());
+                executeHttpRequest("/_shield/realm/" + (randomBoolean() ? "*" : "_all") + "/_clear_cache", Collections.<String, String>emptyMap());
             }
         },
 
@@ -129,7 +128,7 @@ public class ClearRealmsCacheTests extends ShieldIntegTestCase {
 
             @Override
             public void executeRequest() throws Exception {
-                String path = "/_shield/realm/" + (randomBoolean() ? "*" : "_all") + "/_cache/clear";
+                String path = "/_shield/realm/" + (randomBoolean() ? "*" : "_all") + "/_clear_cache";
                 Map<String, String> params = Collections.singletonMap("usernames", String.join(",", evicted_usernames));
                 executeHttpRequest(path, params);
             }

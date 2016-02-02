@@ -23,6 +23,7 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.junit.BeforeClass;
 
+import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -77,7 +78,7 @@ public class ServerTransportFilterIntegrationTests extends ShieldIntegTestCase {
                 .build();
     }
 
-    public void testThatConnectionToServerTypeConnectionWorks() {
+    public void testThatConnectionToServerTypeConnectionWorks() throws IOException {
         Settings dataNodeSettings = internalCluster().getDataNodeInstance(Settings.class);
         String systemKeyFile = dataNodeSettings.get(InternalCryptoService.FILE_SETTING);
 
@@ -94,7 +95,6 @@ public class ServerTransportFilterIntegrationTests extends ShieldIntegTestCase {
                 .put("node.name", "my-test-node")
                 .put("network.host", "localhost")
                 .put("cluster.name", internalCluster().getClusterName())
-                .put("discovery.zen.ping.multicast.enabled", false)
                 .put("discovery.zen.ping.unicast.hosts", unicastHost)
                 .put("shield.transport.ssl", sslTransportEnabled())
                 .put("shield.audit.enabled", false)
@@ -109,7 +109,7 @@ public class ServerTransportFilterIntegrationTests extends ShieldIntegTestCase {
         }
     }
 
-    public void testThatConnectionToClientTypeConnectionIsRejected() {
+    public void testThatConnectionToClientTypeConnectionIsRejected() throws IOException {
         Settings dataNodeSettings = internalCluster().getDataNodeInstance(Settings.class);
         String systemKeyFile = dataNodeSettings.get(InternalCryptoService.FILE_SETTING);
 
@@ -127,7 +127,6 @@ public class ServerTransportFilterIntegrationTests extends ShieldIntegTestCase {
                 .put("node.name", "my-test-node")
                 .put("shield.user", "test_user:changeme")
                 .put("cluster.name", internalCluster().getClusterName())
-                .put("discovery.zen.ping.multicast.enabled", false)
                 .put("discovery.zen.ping.unicast.hosts", "localhost:" + randomClientPort)
                 .put("shield.transport.ssl", sslTransportEnabled())
                 .put("shield.audit.enabled", false)

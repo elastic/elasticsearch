@@ -19,6 +19,7 @@ import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.shield.SystemUser;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.audit.logfile.CapturingLogger.Level;
 import org.elasticsearch.shield.authc.AuthenticationToken;
@@ -378,7 +379,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
             LoggingAuditTrail auditTrail = new LoggingAuditTrail(settings, transport, logger, threadContext).start();
             TransportMessage message = randomBoolean() ? new MockMessage(threadContext) : new MockIndicesRequest(threadContext);
             String origins = LoggingAuditTrail.originAttributes(message, transport, threadContext);
-            auditTrail.accessGranted(User.SYSTEM, "internal:_action", message);
+            auditTrail.accessGranted(SystemUser.INSTANCE, "internal:_action", message);
             switch (level) {
                 case ERROR:
                 case WARN:
@@ -388,9 +389,9 @@ public class LoggingAuditTrailTests extends ESTestCase {
                     break;
                 case TRACE:
                     if (message instanceof IndicesRequest) {
-                        assertMsg(logger, Level.TRACE, prefix + "[transport] [access_granted]\t" + origins + ", principal=[" + User.SYSTEM.principal() + "], action=[internal:_action], indices=[idx1,idx2], request=[MockIndicesRequest]");
+                        assertMsg(logger, Level.TRACE, prefix + "[transport] [access_granted]\t" + origins + ", principal=[" + SystemUser.INSTANCE.principal() + "], action=[internal:_action], indices=[idx1,idx2], request=[MockIndicesRequest]");
                     } else {
-                        assertMsg(logger, Level.TRACE, prefix + "[transport] [access_granted]\t" + origins + ", principal=[" + User.SYSTEM.principal() + "], action=[internal:_action], request=[MockMessage]");
+                        assertMsg(logger, Level.TRACE, prefix + "[transport] [access_granted]\t" + origins + ", principal=[" + SystemUser.INSTANCE.principal() + "], action=[internal:_action], request=[MockMessage]");
                     }
             }
         }

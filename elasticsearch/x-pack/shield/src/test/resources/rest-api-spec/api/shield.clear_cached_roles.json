@@ -1,0 +1,19 @@
+{
+  "shield.clear_cached_roles": {
+    "documentation": "Clears the internal caches for specified roles",
+    "methods": [ "PUT", "POST" ],
+    "url": {
+      "path": "/_shield/role/{id}/_clear_cache",
+      "paths": [ "/_shield/role/{id}/_clear_cache" ],
+      "parts": {
+        "id": {
+          "type" : "string",
+          "description" : "Role ID",
+          "required" : true
+        }
+      },
+      "params": {}
+    },
+    "body": null
+  }
+}

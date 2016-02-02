@@ -38,18 +38,17 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.shield.action.admin.role.AddRoleRequest;
-import org.elasticsearch.shield.action.admin.role.DeleteRoleRequest;
-import org.elasticsearch.shield.action.authz.cache.ClearRolesCacheRequest;
-import org.elasticsearch.shield.action.authz.cache.ClearRolesCacheResponse;
-import org.elasticsearch.shield.admin.ShieldInternalUserHolder;
-import org.elasticsearch.shield.admin.ShieldTemplateService;
+import org.elasticsearch.shield.InternalClient;
+import org.elasticsearch.shield.ShieldTemplateService;
+import org.elasticsearch.shield.action.role.AddRoleRequest;
+import org.elasticsearch.shield.action.role.ClearRolesCacheRequest;
+import org.elasticsearch.shield.action.role.ClearRolesCacheResponse;
+import org.elasticsearch.shield.action.role.DeleteRoleRequest;
 import org.elasticsearch.shield.authc.AuthenticationService;
-import org.elasticsearch.shield.authz.permission.Role;
 import org.elasticsearch.shield.authz.RoleDescriptor;
+import org.elasticsearch.shield.authz.permission.Role;
 import org.elasticsearch.shield.authz.store.RolesStore;
 import org.elasticsearch.shield.client.ShieldClient;
-import org.elasticsearch.shield.support.ClientWithUser;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
@@ -79,9 +78,7 @@ public class ESNativeRolesStore extends AbstractComponent implements RolesStore,
 
     public static final String INDEX_ROLE_TYPE = "role";
 
-    private final Provider<Client> clientProvider;
-    private final Provider<AuthenticationService> authProvider;
-    private final ShieldInternalUserHolder adminUser;
+    private final Provider<InternalClient> clientProvider;
     private final ThreadPool threadPool;
     private final AtomicReference<State> state = new AtomicReference<>(State.INITIALIZED);
     private final ConcurrentHashMap<String, RoleAndVersion> roleCache = new ConcurrentHashMap<>();
@@ -95,14 +92,10 @@ public class ESNativeRolesStore extends AbstractComponent implements RolesStore,
     private volatile boolean shieldIndexExists = false;
 
     @Inject
-    public ESNativeRolesStore(Settings settings, Provider<Client> clientProvider,
-                              ShieldInternalUserHolder userHolder,
-                              Provider<AuthenticationService> authProvider,
-                              ThreadPool threadPool) {
+    public ESNativeRolesStore(Settings settings, Provider<InternalClient> clientProvider,
+                              Provider<AuthenticationService> authProvider, ThreadPool threadPool) {
         super(settings);
         this.clientProvider = clientProvider;
-        this.authProvider = authProvider;
-        this.adminUser = userHolder;
         this.threadPool = threadPool;
     }
 
@@ -359,7 +352,7 @@ public class ESNativeRolesStore extends AbstractComponent implements RolesStore,
     public void start() {
         try {
             if (state.compareAndSet(State.INITIALIZED, State.STARTING)) {
-                this.client = new ClientWithUser(clientProvider.get(), authProvider.get(), adminUser.user());
+                this.client = clientProvider.get();
                 this.shieldClient = new ShieldClient(client);
                 this.scrollSize = settings.getAsInt("shield.authc.native.scroll.size", 1000);
                 this.scrollKeepAlive = settings.getAsTime("shield.authc.native.scroll.keep_alive", TimeValue.timeValueSeconds(10L));

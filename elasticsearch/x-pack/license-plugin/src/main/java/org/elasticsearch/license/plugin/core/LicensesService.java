@@ -643,7 +643,7 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
             @Override
             public boolean matches(long expirationDate, long now) {
                 long expiryDuration = expirationDate - now;
-                if (expiryDuration > 0l) {
+                if (expiryDuration > 0L) {
                     if (expiryDuration <= max.getMillis()) {
                         return expiryDuration >= min.getMillis();
                     }
@@ -673,7 +673,7 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
             @Override
             public boolean matches(long expirationDate, long now) {
                 long postExpiryDuration = now - expirationDate;
-                if (postExpiryDuration > 0l) {
+                if (postExpiryDuration > 0L) {
                     if (postExpiryDuration <= max.getMillis()) {
                         return postExpiryDuration >= min.getMillis();
                     }
@@ -684,12 +684,12 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
             @Override
             public TimeValue delay(long expiryDuration) {
                 final long delay;
-                if (expiryDuration >= 0l) {
+                if (expiryDuration >= 0L) {
                      delay = expiryDuration + min.getMillis();
                 } else {
-                     delay = (-1l * expiryDuration) - min.getMillis();
+                     delay = (-1L * expiryDuration) - min.getMillis();
                 }
-                if (delay > 0l) {
+                if (delay > 0L) {
                     return TimeValue.timeValueMillis(delay);
                 } else {
                     return null;

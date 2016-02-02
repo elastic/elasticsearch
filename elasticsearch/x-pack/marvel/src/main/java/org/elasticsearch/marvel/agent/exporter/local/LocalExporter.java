@@ -31,7 +31,7 @@ import org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils;
 import org.elasticsearch.marvel.agent.renderer.RendererRegistry;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.marvel.cleaner.CleanerService;
-import org.elasticsearch.marvel.shield.SecuredClient;
+import org.elasticsearch.shield.InternalClient;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
@@ -319,13 +319,13 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
 
     public static class Factory extends Exporter.Factory<LocalExporter> {
 
-        private final SecuredClient client;
+        private final InternalClient client;
         private final RendererRegistry registry;
         private final ClusterService clusterService;
         private final CleanerService cleanerService;
 
         @Inject
-        public Factory(SecuredClient client, ClusterService clusterService, RendererRegistry registry, CleanerService cleanerService) {
+        public Factory(InternalClient client, ClusterService clusterService, RendererRegistry registry, CleanerService cleanerService) {
             super(TYPE, true);
             this.client = client;
             this.clusterService = clusterService;

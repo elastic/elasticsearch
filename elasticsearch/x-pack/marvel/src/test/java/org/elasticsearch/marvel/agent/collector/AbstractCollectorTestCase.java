@@ -24,11 +24,9 @@ import org.elasticsearch.license.plugin.core.Licensee;
 import org.elasticsearch.license.plugin.core.LicenseeRegistry;
 import org.elasticsearch.license.plugin.core.LicensesManagerService;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
-import org.elasticsearch.marvel.shield.MarvelShieldIntegration;
-import org.elasticsearch.marvel.shield.SecuredClient;
 import org.elasticsearch.marvel.test.MarvelIntegTestCase;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.shield.InternalClient;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.xpack.XPackPlugin;
@@ -64,16 +62,12 @@ public class AbstractCollectorTestCase extends MarvelIntegTestCase {
         enableLicense();
     }
 
-    public SecuredClient securedClient() {
-        MarvelShieldIntegration integration = internalCluster().getInstance(MarvelShieldIntegration.class);
-        // we must get the client from the same node!
-        return new SecuredClient(integration.getClient(), integration);
+    public InternalClient securedClient() {
+        return internalCluster().getInstance(InternalClient.class);
     }
 
-    public SecuredClient securedClient(String nodeId) {
-        MarvelShieldIntegration integration = internalCluster().getInstance(MarvelShieldIntegration.class, nodeId);
-        // we must get the client from the same node!
-        return new SecuredClient(integration.getClient(), integration);
+    public InternalClient securedClient(String nodeId) {
+        return internalCluster().getInstance(InternalClient.class, nodeId);
     }
 
     protected void assertCanCollect(AbstractCollector collector) {

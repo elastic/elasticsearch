@@ -7,7 +7,6 @@ package org.elasticsearch.marvel.shield;
 
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.marvel.MarvelPlugin;
 
 /**
  *
@@ -15,19 +14,14 @@ import org.elasticsearch.marvel.MarvelPlugin;
 public class MarvelShieldModule extends AbstractModule {
 
     private final boolean shieldEnabled;
-    private final boolean marvelEnabled;
 
     public MarvelShieldModule(Settings settings) {
         this.shieldEnabled = MarvelShieldIntegration.enabled(settings);
-        this.marvelEnabled = MarvelPlugin.marvelEnabled(settings);;
     }
 
     @Override
     protected void configure() {
         bind(MarvelShieldIntegration.class).asEagerSingleton();
-        if (marvelEnabled) {
-            bind(SecuredClient.class).asEagerSingleton();
-        }
         if (shieldEnabled) {
             bind(MarvelSettingsFilter.Shield.class).asEagerSingleton();
             bind(MarvelSettingsFilter.class).to(MarvelSettingsFilter.Shield.class);

@@ -12,6 +12,7 @@ import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.shield.SystemUser;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.action.interceptor.RequestInterceptor;
 import org.elasticsearch.shield.audit.AuditTrail;
@@ -69,7 +70,7 @@ public class ShieldActionFilterTests extends ESTestCase {
         ActionFilterChain chain = mock(ActionFilterChain.class);
         Task task = mock(Task.class);
         User user = new User("username", "r1", "r2");
-        when(authcService.authenticate("_action", request, User.SYSTEM)).thenReturn(user);
+        when(authcService.authenticate("_action", request, SystemUser.INSTANCE)).thenReturn(user);
         doReturn(request).when(spy(filter)).unsign(user, "_action", request);
         filter.apply(task, "_action", request, listener, chain);
         verify(authzService).authorize(user, "_action", request);
@@ -83,7 +84,7 @@ public class ShieldActionFilterTests extends ESTestCase {
         RuntimeException exception = new RuntimeException("process-error");
         Task task = mock(Task.class);
         User user = new User("username", "r1", "r2");
-        when(authcService.authenticate("_action", request, User.SYSTEM)).thenReturn(user);
+        when(authcService.authenticate("_action", request, SystemUser.INSTANCE)).thenReturn(user);
         doThrow(exception).when(authzService).authorize(user, "_action", request);
         filter.apply(task, "_action", request, listener, chain);
         verify(listener).onFailure(exception);
@@ -96,7 +97,7 @@ public class ShieldActionFilterTests extends ESTestCase {
         ActionFilterChain chain = mock(ActionFilterChain.class);
         User user = mock(User.class);
         Task task = mock(Task.class);
-        when(authcService.authenticate("_action", request, User.SYSTEM)).thenReturn(user);
+        when(authcService.authenticate("_action", request, SystemUser.INSTANCE)).thenReturn(user);
         when(cryptoService.signed("signed_scroll_id")).thenReturn(true);
         when(cryptoService.unsignAndVerify("signed_scroll_id")).thenReturn("scroll_id");
         filter.apply(task, "_action", request, listener, chain);
@@ -112,7 +113,7 @@ public class ShieldActionFilterTests extends ESTestCase {
         IllegalArgumentException sigException = new IllegalArgumentException("bad bad boy");
         User user = mock(User.class);
         Task task = mock(Task.class);
-        when(authcService.authenticate("_action", request, User.SYSTEM)).thenReturn(user);
+        when(authcService.authenticate("_action", request, SystemUser.INSTANCE)).thenReturn(user);
         when(cryptoService.signed("scroll_id")).thenReturn(true);
         doThrow(sigException).when(cryptoService).unsignAndVerify("scroll_id");
         filter.apply(task, "_action", request, listener, chain);

@@ -5,16 +5,16 @@
  */
 package org.elasticsearch.license.licensor.tools;
 
-import org.apache.commons.cli.MissingOptionException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+
 import org.elasticsearch.common.cli.CliTool.Command;
 import org.elasticsearch.common.cli.CliTool.ExitStatus;
 import org.elasticsearch.common.cli.CliToolTestCase;
+import org.elasticsearch.common.cli.UserError;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.licensor.tools.KeyPairGeneratorTool.KeyGenerator;
-
-import java.nio.file.Files;
-import java.nio.file.Path;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -24,20 +24,16 @@ public class KeyPairGenerationToolTests extends CliToolTestCase {
     public void testParsingMissingPath() throws Exception {
         KeyPairGeneratorTool keyPairGeneratorTool = new KeyPairGeneratorTool();
         Path tempFile = createTempFile();
-        try {
+        UserError e = expectThrows(UserError.class, () -> {
             keyPairGeneratorTool.parse(KeyPairGeneratorTool.NAME,
-                    new String[] { "--privateKeyPath", tempFile.toAbsolutePath().toString() });
-            fail("no public key path provided");
-        } catch (MissingOptionException e) {
-            assertThat(e.getMessage(), containsString("pub"));
-        }
-        try {
+                new String[]{"--privateKeyPath", tempFile.toAbsolutePath().toString()});
+        });
+        assertThat(e.getMessage(), containsString("pub"));
+        e = expectThrows(UserError.class, () -> {
             keyPairGeneratorTool.parse(KeyPairGeneratorTool.NAME,
                     new String[] { "--publicKeyPath", tempFile.toAbsolutePath().toString() });
-            fail("no private key path provided");
-        } catch (MissingOptionException e) {
-            assertThat(e.getMessage(), containsString("pri"));
-        }
+        });
+        assertThat(e.getMessage(), containsString("pri"));
     }
 
     public void testParsingNeverOverrideKey() throws Exception {

@@ -50,7 +50,7 @@ public class ESUsersTool extends CliTool {
             .cmds(Useradd.CMD, Userdel.CMD, Passwd.CMD, Roles.CMD, ListUsersAndRoles.CMD)
             .build();
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws Exception {
         ExitStatus exitStatus = new ESUsersTool().execute(args);
         exit(exitStatus.status());
     }
@@ -537,8 +537,8 @@ public class ESUsersTool extends CliTool {
         if (!unknownRoles.isEmpty()) {
             Path rolesFile = FileRolesStore.resolveFile(settings, env);
             terminal.println("Warning: The following roles [%s] are unknown. Make sure to add them to the [%s] file. " +
-                            "Nonetheless the user will still be associated with all specified roles",
-                    Strings.collectionToCommaDelimitedString(unknownRoles), rolesFile.toAbsolutePath());
+                    "Nonetheless the user will still be associated with all specified roles",
+                Strings.collectionToCommaDelimitedString(unknownRoles), rolesFile.toAbsolutePath());
         }
     }
 }

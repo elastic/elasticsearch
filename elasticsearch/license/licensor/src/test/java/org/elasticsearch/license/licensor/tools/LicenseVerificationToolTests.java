@@ -5,10 +5,16 @@
  */
 package org.elasticsearch.license.licensor.tools;
 
-import org.apache.commons.cli.MissingOptionException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+
 import org.elasticsearch.common.cli.CliTool.Command;
 import org.elasticsearch.common.cli.CliTool.ExitStatus;
 import org.elasticsearch.common.cli.CliToolTestCase;
+import org.elasticsearch.common.cli.UserError;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
@@ -17,12 +23,6 @@ import org.elasticsearch.license.licensor.TestUtils;
 import org.elasticsearch.license.licensor.tools.LicenseVerificationTool.LicenseVerifier;
 import org.hamcrest.CoreMatchers;
 import org.junit.Before;
-
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.List;
 
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.containsString;
@@ -52,12 +52,11 @@ public class LicenseVerificationToolTests extends CliToolTestCase {
     public void testParsingMissingPublicKeyPath() throws Exception {
         License inputLicense = TestUtils.generateSignedLicense(TimeValue.timeValueHours(1), pubKeyPath, priKeyPath);
         LicenseVerificationTool licenseVerificationTool = new LicenseVerificationTool();
-        try {
+        UserError e = expectThrows(UserError.class, () -> {
             licenseVerificationTool.parse(LicenseVerificationTool.NAME,
                     new String[] { "--license", TestUtils.dumpLicense(inputLicense) });
-        } catch (MissingOptionException e) {
-            assertThat(e.getMessage(), containsString("pub"));
-        }
+        });
+        assertThat(e.getMessage(), containsString("pub"));
     }
 
     public void testParsingNonExistentPublicKeyPath() throws Exception {

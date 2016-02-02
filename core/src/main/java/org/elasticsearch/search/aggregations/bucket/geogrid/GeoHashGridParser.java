@@ -73,14 +73,14 @@ public class GeoHashGridParser extends GeoPointValuesSourceParser {
     }
     @Override
     public AggregatorBuilder<?> getFactoryPrototypes() {
-        return new GeoGridAggregatorFactory(null);
+        return new GeoGridAggregatorBuilder(null);
     }
 
     @Override
-    protected GeoGridAggregatorFactory createFactory(
+    protected GeoGridAggregatorBuilder createFactory(
             String aggregationName, ValuesSourceType valuesSourceType,
             ValueType targetValueType, Map<ParseField, Object> otherOptions) {
-        GeoGridAggregatorFactory factory = new GeoGridAggregatorFactory(aggregationName);
+        GeoGridAggregatorBuilder factory = new GeoGridAggregatorBuilder(aggregationName);
         Integer precision = (Integer) otherOptions.get(GeoHashGridParams.FIELD_PRECISION);
         if (precision != null) {
             factory.precision(precision);
@@ -114,17 +114,17 @@ public class GeoHashGridParser extends GeoPointValuesSourceParser {
         return false;
         }
 
-    public static class GeoGridAggregatorFactory extends ValuesSourceAggregatorBuilder<ValuesSource.GeoPoint, GeoGridAggregatorFactory> {
+    public static class GeoGridAggregatorBuilder extends ValuesSourceAggregatorBuilder<ValuesSource.GeoPoint, GeoGridAggregatorBuilder> {
 
         private int precision = DEFAULT_PRECISION;
         private int requiredSize = DEFAULT_MAX_NUM_CELLS;
         private int shardSize = -1;
 
-        public GeoGridAggregatorFactory(String name) {
+        public GeoGridAggregatorBuilder(String name) {
             super(name, InternalGeoHashGrid.TYPE, ValuesSourceType.GEOPOINT, ValueType.GEOPOINT);
     }
 
-        public GeoGridAggregatorFactory precision(int precision) {
+        public GeoGridAggregatorBuilder precision(int precision) {
             this.precision = GeoHashGridParams.checkPrecision(precision);
             return this;
         }
@@ -133,7 +133,7 @@ public class GeoHashGridParser extends GeoPointValuesSourceParser {
             return precision;
         }
 
-        public GeoGridAggregatorFactory size(int size) {
+        public GeoGridAggregatorBuilder size(int size) {
             this.requiredSize = size;
             return this;
         }
@@ -142,7 +142,7 @@ public class GeoHashGridParser extends GeoPointValuesSourceParser {
             return requiredSize;
         }
 
-        public GeoGridAggregatorFactory shardSize(int shardSize) {
+        public GeoGridAggregatorBuilder shardSize(int shardSize) {
             this.shardSize = shardSize;
             return this;
         }
@@ -195,10 +195,10 @@ public class GeoHashGridParser extends GeoPointValuesSourceParser {
         }
 
         @Override
-        protected GeoGridAggregatorFactory innerReadFrom(
+        protected GeoGridAggregatorBuilder innerReadFrom(
                 String name, ValuesSourceType valuesSourceType,
                 ValueType targetValueType, StreamInput in) throws IOException {
-            GeoGridAggregatorFactory factory = new GeoGridAggregatorFactory(name);
+            GeoGridAggregatorBuilder factory = new GeoGridAggregatorBuilder(name);
             factory.precision = in.readVInt();
             factory.requiredSize = in.readVInt();
             factory.shardSize = in.readVInt();
@@ -222,7 +222,7 @@ public class GeoHashGridParser extends GeoPointValuesSourceParser {
 
         @Override
         protected boolean innerEquals(Object obj) {
-            GeoGridAggregatorFactory other = (GeoGridAggregatorFactory) obj;
+            GeoGridAggregatorBuilder other = (GeoGridAggregatorBuilder) obj;
             if (precision != other.precision) {
                 return false;
             }

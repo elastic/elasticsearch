@@ -24,6 +24,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.net.MalformedURLException;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
@@ -160,13 +162,15 @@ class InstallPluginCommand extends CliTool.Command {
             return downloadZipAndChecksum(url, tmpDir);
         }
 
-        // now try as maven coordinates, a valid URL would only have a single colon
-        String[] coordinates = pluginId.split(":");
-        if (coordinates.length == 3) {
-            String mavenUrl = String.format(Locale.ROOT, "https://repo1.maven.org/maven2/%1$s/%2$s/%3$s/%2$s-%3$s.zip",
-                coordinates[0].replace(".", "/") /* groupId */, coordinates[1] /* artifactId */, coordinates[2] /* version */);
-            terminal.println("-> Downloading " + pluginId + " from maven central");
-            return downloadZipAndChecksum(mavenUrl, tmpDir);
+        // now try as maven coordinates
+        if (false == isURL(pluginId)) {
+            String[] coordinates = pluginId.split(":");
+            if (coordinates.length == 3) {
+                String mavenUrl = String.format(Locale.ROOT, "https://repo1.maven.org/maven2/%1$s/%2$s/%3$s/%2$s-%3$s.zip",
+                        coordinates[0].replace(".", "/") /* groupId */, coordinates[1] /* artifactId */, coordinates[2] /* version */);
+                terminal.println("-> Downloading " + pluginId + " from maven central");
+                return downloadZipAndChecksum(mavenUrl, tmpDir);
+            }
         }
 
         // fall back to plain old URL
@@ -394,5 +398,14 @@ class InstallPluginCommand extends CliTool.Command {
             }
         }
         IOUtils.rm(tmpConfigDir); // clean up what we just copied
+    }
+
+    private boolean isURL(String s) {
+        try {
+            new URL(s).toURI();
+            return true;
+        } catch (MalformedURLException | URISyntaxException e) {
+            return false;
+        }
     }
 }

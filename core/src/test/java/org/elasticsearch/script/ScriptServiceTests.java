@@ -19,6 +19,7 @@
 package org.elasticsearch.script;
 
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -122,26 +123,21 @@ public class ScriptServiceTests extends ESTestCase {
     }
 
     public void testScriptsWithoutExtensions() throws IOException {
-
         buildScriptService(Settings.EMPTY);
-        logger.info("--> setup two test files one with extension and another without");
         Path testFileNoExt = scriptsFilePath.resolve("test_no_ext");
         Path testFileWithExt = scriptsFilePath.resolve("test_script.tst");
         Streams.copy("test_file_no_ext".getBytes("UTF-8"), Files.newOutputStream(testFileNoExt));
         Streams.copy("test_file".getBytes("UTF-8"), Files.newOutputStream(testFileWithExt));
         resourceWatcherService.notifyNow();
 
-        logger.info("--> verify that file with extension was correctly processed");
         CompiledScript compiledScript = scriptService.compile(new Script("test_script", ScriptType.FILE, "test", null),
                 ScriptContext.Standard.SEARCH, Collections.emptyMap());
         assertThat(compiledScript.compiled(), equalTo((Object) "compiled_test_file"));
 
-        logger.info("--> delete both files");
         Files.delete(testFileNoExt);
         Files.delete(testFileWithExt);
         resourceWatcherService.notifyNow();
 
-        logger.info("--> verify that file with extension was correctly removed");
         try {
             scriptService.compile(new Script("test_script", ScriptType.FILE, "test", null), ScriptContext.Standard.SEARCH,
                     Collections.emptyMap());
@@ -151,29 +147,52 @@ public class ScriptServiceTests extends ESTestCase {
         }
     }
 
-    public void testHiddenScriptFileSkipped() throws IOException {
+    public void testInvalidScriptNames() throws IOException {
         buildScriptService(Settings.EMPTY);
 
         Path testHiddenFile = scriptsFilePath.resolve(".hidden_file");
-        Path testFile = scriptsFilePath.resolve("test_file.tst");
+        assertThat(scriptService.getScriptNameExt(testHiddenFile), org.hamcrest.Matchers.nullValue());
+
+        Path testWithoutName = scriptsFilePath.resolve("");
+        assertThat(scriptService.getScriptNameExt(testWithoutName), org.hamcrest.Matchers.nullValue());
+
+        Path testDotName = scriptsFilePath.resolve(".");
+        assertThat(scriptService.getScriptNameExt(testDotName), org.hamcrest.Matchers.nullValue());
+
+        Path testWithoutExtension = scriptsFilePath.resolve("test.");
+        assertThat(scriptService.getScriptNameExt(testWithoutExtension), org.hamcrest.Matchers.nullValue());
+
+        Path testNameOnly = scriptsFilePath.resolve("test");
+        assertThat(scriptService.getScriptNameExt(testNameOnly), org.hamcrest.Matchers.nullValue());
+    }
+
+    public void testValidScriptName() throws IOException {
+        buildScriptService(Settings.EMPTY);
+
+        Path testTestFile = scriptsFilePath.resolve("test.ext");
+        Tuple<String, String> scriptNameExt = scriptService.getScriptNameExt(testTestFile);
+        assertThat(scriptNameExt.v1(), org.hamcrest.Matchers.equalTo("test"));
+        assertThat(scriptNameExt.v2(), org.hamcrest.Matchers.equalTo("ext"));
+    }
+
+    public void testScriptChangesListenerOnceHiddenFileDetected() throws IOException {
+        buildScriptService(Settings.EMPTY);
+
+        Path testHiddenFile = scriptsFilePath.resolve(".hidden_file");
         Streams.copy("test_hidden_file".getBytes("UTF-8"), Files.newOutputStream(testHiddenFile));
-        Streams.copy("test_file".getBytes("UTF-8"), Files.newOutputStream(testFile));
         resourceWatcherService.notifyNow();
 
         try {
-            scriptService.compile(new Script("hidden_file", ScriptType.FILE, "test", null),
+            String invalidScriptName = "";
+            scriptService.compile(new Script(invalidScriptName, ScriptType.FILE, "test", null),
                     ScriptContext.Standard.SEARCH, Collections.emptyMap());
-            fail("the script hidden_file should not be processed");
+            fail("the script .hidden_file should not be processed");
         } catch (IllegalArgumentException ex) {
-            assertThat(ex.getMessage(), containsString("Unable to find on disk file script [hidden_file] using lang [test]"));
+            //script without name because it is a hidden file
+            assertThat(ex.getMessage(), containsString("Unable to find on disk file script [] using lang [test]"));
         }
 
-        CompiledScript compiledScript = scriptService.compile(new Script("test_file", ScriptType.FILE, "test", null),
-                ScriptContext.Standard.SEARCH, Collections.emptyMap());
-        assertThat(compiledScript.compiled(), equalTo((Object) "compiled_test_file"));
-
         Files.delete(testHiddenFile);
-        Files.delete(testFile);
         resourceWatcherService.notifyNow();
     }
 

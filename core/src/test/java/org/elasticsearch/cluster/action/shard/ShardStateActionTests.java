@@ -52,12 +52,15 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongConsumer;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -329,13 +332,8 @@ public class ShardStateActionTests extends ESTestCase {
 
         ShardRouting failedShard = getRandomShardRouting(index);
 
-        DiscoveryNodes nodes = clusterService.state().nodes();
-        String nodeId = DiscoveryService.generateNodeId(Settings.EMPTY);
-        DiscoveryNode newLocalNode =
-            new DiscoveryNode(nodeId, nodes.localNode().address(), nodes.localNode().version());
-        DiscoveryNodes newNodes = DiscoveryNodes.builder(nodes).put(newLocalNode).build();
-        ClusterState stateWithNewLocalNodeId = ClusterState.builder(clusterService.state()).nodes(newNodes).build();
-        clusterService.setState(stateWithNewLocalNodeId);
+        Set<String> nodeIds = StreamSupport.stream(clusterService.state().nodes().getNodes().keys().spliterator(), false).map(key -> key.value).collect(Collectors.toSet());
+        String nodeId = randomSubsetOf(1, nodeIds.toArray(new String[nodeIds.size()])).get(0);
 
         AtomicReference<Throwable> failure = new AtomicReference<>();
         CountDownLatch latch = new CountDownLatch(1);

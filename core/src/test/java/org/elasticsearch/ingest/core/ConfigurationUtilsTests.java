@@ -19,7 +19,7 @@
 
 package org.elasticsearch.ingest.core;
 
-import org.elasticsearch.ingest.processor.ConfigurationPropertyException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -58,7 +58,7 @@ public class ConfigurationUtilsTests extends ESTestCase {
     public void testReadStringPropertyInvalidType() {
         try {
             ConfigurationUtils.readStringProperty(null, null, config, "arr");
-        } catch (ConfigurationPropertyException e) {
+        } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), equalTo("[arr] property isn't a string, but of type [java.util.Arrays$ArrayList]"));
         }
     }

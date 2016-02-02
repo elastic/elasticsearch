@@ -17,10 +17,7 @@
  * under the License.
  */
 
-
 package org.elasticsearch.ingest.core;
-
-import org.elasticsearch.ingest.processor.ConfigurationPropertyException;
 
 import java.util.Map;
 

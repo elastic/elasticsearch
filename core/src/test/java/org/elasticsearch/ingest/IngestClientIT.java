@@ -19,6 +19,7 @@
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -38,11 +39,13 @@ import org.elasticsearch.ingest.core.IngestDocument;
 import org.elasticsearch.node.NodeModule;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.transport.RemoteTransportException;
 
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
@@ -201,23 +204,7 @@ public class IngestClientIT extends ESIntegTestCase {
         assertThat(getResponse.pipelines().size(), equalTo(0));
     }
 
-    public void testPutWithPipelineError() throws Exception {
-        BytesReference source = jsonBuilder().startObject()
-                .field("description", "my_pipeline")
-                .startArray("processors")
-                .startObject()
-                .startObject("not_found")
-                .endObject()
-                .endObject()
-                .endArray()
-                .endObject().bytes();
-        PutPipelineRequest putPipelineRequest = new PutPipelineRequest("_id", source);
-        WritePipelineResponse response = client().admin().cluster().putPipeline(putPipelineRequest).get();
-        assertThat(response.isAcknowledged(), equalTo(false));
-        assertThat(response.getError().getReason(), equalTo("No processor type exists with name [not_found]"));
-    }
-
-    public void testPutWithProcessorFactoryError() throws Exception {
+    public void testPutWithPipelineFactoryError() throws Exception {
         BytesReference source = jsonBuilder().startObject()
                 .field("description", "my_pipeline")
                 .startArray("processors")
@@ -229,9 +216,11 @@ public class IngestClientIT extends ESIntegTestCase {
                 .endArray()
                 .endObject().bytes();
         PutPipelineRequest putPipelineRequest = new PutPipelineRequest("_id", source);
-        WritePipelineResponse response = client().admin().cluster().putPipeline(putPipelineRequest).get();
-        assertThat(response.isAcknowledged(), equalTo(false));
-        assertThat(response.getError().getReason(), equalTo("processor [test] doesn't support one or more provided configuration parameters [unused]"));
+        try {
+            client().admin().cluster().putPipeline(putPipelineRequest).get();
+        } catch (ExecutionException e) {
+            assertThat(e.getCause().getCause().getMessage(), equalTo("processor [test] doesn't support one or more provided configuration parameters [unused]"));
+        }
     }
 
     @Override

@@ -20,9 +20,8 @@
 package org.elasticsearch.ingest.geoip;
 
 import com.maxmind.geoip2.DatabaseReader;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ingest.core.AbstractProcessorFactory;
-import org.elasticsearch.ingest.core.Processor;
-import org.elasticsearch.ingest.processor.ConfigurationPropertyException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.StreamsUtils;
 import org.junit.AfterClass;
@@ -113,7 +112,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         try {
             factory.create(config);
             fail("Exception expected");
-        } catch (ConfigurationPropertyException e) {
+        } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), equalTo("[database_file] database file [does-not-exist.mmdb] doesn't exist"));
         }
     }
@@ -146,7 +145,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         try {
             factory.create(config);
             fail("exception expected");
-        } catch (ConfigurationPropertyException e) {
+        } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), equalTo("[fields] illegal field option [invalid]. valid values are [[IP, COUNTRY_ISO_CODE, COUNTRY_NAME, CONTINENT_NAME, REGION_NAME, CITY_NAME, TIMEZONE, LATITUDE, LONGITUDE, LOCATION]]"));
         }
 
@@ -156,7 +155,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         try {
             factory.create(config);
             fail("exception expected");
-        } catch (ConfigurationPropertyException e) {
+        } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), equalTo("[fields] property isn't a list, but of type [java.lang.String]"));
         }
     }

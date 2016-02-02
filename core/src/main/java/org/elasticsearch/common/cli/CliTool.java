@@ -20,7 +20,6 @@
 package org.elasticsearch.common.cli;
 
 import org.apache.commons.cli.AlreadySelectedException;
-import org.apache.commons.cli.AmbiguousOptionException;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.DefaultParser;
@@ -31,7 +30,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 
-import java.io.IOException;
 import java.util.Locale;
 
 import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
@@ -127,7 +125,7 @@ public abstract class CliTool {
             String cmdName = args[0];
             cmd = config.cmd(cmdName);
             if (cmd == null) {
-                terminal.printError("unknown command [%s]. Use [-h] option to list available commands", cmdName);
+                terminal.printError("unknown command [" + cmdName + "]. Use [-h] option to list available commands");
                 return ExitStatus.USAGE;
             }
 

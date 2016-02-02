@@ -19,9 +19,6 @@
 
 package org.elasticsearch.common.cli;
 
-import java.nio.file.NoSuchFileException;
-import java.util.List;
-
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -44,6 +41,11 @@ public class TerminalTests extends CliToolTestCase {
         assertPrinted(terminal, Terminal.Verbosity.SILENT, "text");
         assertPrinted(terminal, Terminal.Verbosity.NORMAL, "text");
         assertPrinted(terminal, Terminal.Verbosity.VERBOSE, "text");
+    }
+
+    public void testEscaping() throws Exception {
+        CaptureOutputTerminal terminal = new CaptureOutputTerminal(Terminal.Verbosity.NORMAL);
+        assertPrinted(terminal, Terminal.Verbosity.NORMAL, "This message contains percent like %20n");
     }
 
     private void assertPrinted(CaptureOutputTerminal logTerminal, Terminal.Verbosity verbosity, String text) {

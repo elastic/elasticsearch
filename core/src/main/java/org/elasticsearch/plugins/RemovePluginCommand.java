@@ -19,12 +19,6 @@
 
 package org.elasticsearch.plugins;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
-import java.util.ArrayList;
-import java.util.List;
-
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.cli.CliTool;
@@ -32,6 +26,12 @@ import org.elasticsearch.common.cli.Terminal;
 import org.elasticsearch.common.cli.UserError;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.elasticsearch.common.cli.Terminal.Verbosity.VERBOSE;
 
@@ -63,10 +63,10 @@ class RemovePluginCommand extends CliTool.Command {
                 throw new UserError(CliTool.ExitStatus.IO_ERROR, "Bin dir for " + pluginName + " is not a directory");
             }
             pluginPaths.add(pluginBinDir);
-            terminal.println(VERBOSE, "Removing: %s", pluginBinDir);
+            terminal.println(VERBOSE, "Removing: " + pluginBinDir);
         }
 
-        terminal.println(VERBOSE, "Removing: %s", pluginDir);
+        terminal.println(VERBOSE, "Removing: " + pluginDir);
         Path tmpPluginDir = env.pluginsFile().resolve(".removing-" + pluginName);
         Files.move(pluginDir, tmpPluginDir, StandardCopyOption.ATOMIC_MOVE);
         pluginPaths.add(tmpPluginDir);

@@ -100,8 +100,9 @@ public abstract class CheckFileCommand extends CliTool.Command {
             Set<PosixFilePermission> permissionsBeforeWrite = entry.getValue();
             Set<PosixFilePermission> permissionsAfterWrite = Files.getPosixFilePermissions(entry.getKey());
             if (!permissionsBeforeWrite.equals(permissionsAfterWrite)) {
-                terminal.printWarn("The file permissions of [%s] have changed from [%s] to [%s]",
-                        entry.getKey(), PosixFilePermissions.toString(permissionsBeforeWrite), PosixFilePermissions.toString(permissionsAfterWrite));
+                terminal.printWarn("The file permissions of [" + entry.getKey() + "] have changed "
+                        + "from [" + PosixFilePermissions.toString(permissionsBeforeWrite) + "] "
+                        + "to [" + PosixFilePermissions.toString(permissionsAfterWrite) + "]");
                 terminal.printWarn("Please ensure that the user account running Elasticsearch has read access to this file!");
             }
         }
@@ -115,7 +116,7 @@ public abstract class CheckFileCommand extends CliTool.Command {
             String ownerBeforeWrite = entry.getValue();
             String ownerAfterWrite = Files.getOwner(entry.getKey()).getName();
             if (!ownerAfterWrite.equals(ownerBeforeWrite)) {
-                terminal.printWarn("WARN: Owner of file [%s] used to be [%s], but now is [%s]", entry.getKey(), ownerBeforeWrite, ownerAfterWrite);
+                terminal.printWarn("WARN: Owner of file [" + entry.getKey() + "] used to be [" + ownerBeforeWrite + "], but now is [" + ownerAfterWrite + "]");
             }
         }
 
@@ -128,7 +129,7 @@ public abstract class CheckFileCommand extends CliTool.Command {
             String groupBeforeWrite = entry.getValue();
             String groupAfterWrite = Files.readAttributes(entry.getKey(), PosixFileAttributes.class).group().getName();
             if (!groupAfterWrite.equals(groupBeforeWrite)) {
-                terminal.printWarn("WARN: Group of file [%s] used to be [%s], but now is [%s]", entry.getKey(), groupBeforeWrite, groupAfterWrite);
+                terminal.printWarn("WARN: Group of file [" + entry.getKey() + "] used to be [" + groupBeforeWrite + "], but now is [" + groupAfterWrite + "]");
             }
         }
 

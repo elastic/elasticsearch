@@ -83,7 +83,9 @@ final class BootstrapCLIParser extends CliTool {
 
         @Override
         public ExitStatus execute(Settings settings, Environment env) throws Exception {
-            terminal.println("Version: %s, Build: %s/%s, JVM: %s", org.elasticsearch.Version.CURRENT, Build.CURRENT.shortHash(), Build.CURRENT.date(), JvmInfo.jvmInfo().version());
+            terminal.println("Version: " + org.elasticsearch.Version.CURRENT
+                    + ", Build: " + Build.CURRENT.shortHash() + "/" + Build.CURRENT.date()
+                    + ", JVM: " + JvmInfo.jvmInfo().version());
             return ExitStatus.OK_AND_EXIT;
         }
     }

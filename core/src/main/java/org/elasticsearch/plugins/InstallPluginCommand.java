@@ -48,6 +48,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.JarHell;
 import org.elasticsearch.common.cli.CliTool;
 import org.elasticsearch.common.cli.Terminal;
+import org.elasticsearch.common.cli.UserError;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Settings;
@@ -136,10 +137,6 @@ class InstallPluginCommand extends CliTool.Command {
             Files.createDirectory(env.pluginsFile());
         }
 
-        if (Environment.isWritable(env.pluginsFile()) == false) {
-            throw new IOException("Plugins directory is read only: " + env.pluginsFile());
-        }
-
         Path pluginZip = download(pluginId, env.tmpFile());
         Path extractedZip = unzip(pluginZip, env.pluginsFile());
         install(extractedZip, env);
@@ -148,7 +145,7 @@ class InstallPluginCommand extends CliTool.Command {
     }
 
     /** Downloads the plugin and returns the file it was downloaded to. */
-    private Path download(String pluginId, Path tmpDir) throws IOException {
+    private Path download(String pluginId, Path tmpDir) throws Exception {
         if (OFFICIAL_PLUGINS.contains(pluginId)) {
             final String version = Version.CURRENT.toString();
             final String url;
@@ -189,7 +186,7 @@ class InstallPluginCommand extends CliTool.Command {
     }
 
     /** Downloads a zip from the url, as well as a SHA1 checksum, and checks the checksum. */
-    private Path downloadZipAndChecksum(String urlString, Path tmpDir) throws IOException {
+    private Path downloadZipAndChecksum(String urlString, Path tmpDir) throws Exception {
         Path zip = downloadZip(urlString, tmpDir);
 
         URL checksumUrl = new URL(urlString + ".sha1");
@@ -198,14 +195,14 @@ class InstallPluginCommand extends CliTool.Command {
             BufferedReader checksumReader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
             expectedChecksum = checksumReader.readLine();
             if (checksumReader.readLine() != null) {
-                throw new IllegalArgumentException("Invalid checksum file at " + urlString.toString());
+                throw new UserError(CliTool.ExitStatus.IO_ERROR, "Invalid checksum file at " + checksumUrl);
             }
         }
 
         byte[] zipbytes = Files.readAllBytes(zip);
         String gotChecksum = MessageDigests.toHexString(MessageDigests.sha1().digest(zipbytes));
         if (expectedChecksum.equals(gotChecksum) == false) {
-            throw new IllegalStateException("SHA1 mismatch, expected " + expectedChecksum + " but got " + gotChecksum);
+            throw new UserError(CliTool.ExitStatus.IO_ERROR, "SHA1 mismatch, expected " + expectedChecksum + " but got " + gotChecksum);
         }
 
         return zip;
@@ -250,7 +247,7 @@ class InstallPluginCommand extends CliTool.Command {
         // don't let luser install plugin as a module...
         // they might be unavoidably in maven central and are packaged up the same way)
         if (MODULES.contains(info.getName())) {
-            throw new IOException("plugin '" + info.getName() + "' cannot be installed like this, it is a system module");
+            throw new UserError(CliTool.ExitStatus.USAGE, "plugin '" + info.getName() + "' cannot be installed like this, it is a system module");
         }
 
         // check for jar hell before any copying
@@ -306,7 +303,7 @@ class InstallPluginCommand extends CliTool.Command {
 
             final Path destination = env.pluginsFile().resolve(info.getName());
             if (Files.exists(destination)) {
-                throw new IOException("plugin directory " + destination.toAbsolutePath() + " already exists. To update the plugin, uninstall it first using 'remove " + info.getName() + "' command");
+                throw new UserError(CliTool.ExitStatus.USAGE, "plugin directory " + destination.toAbsolutePath() + " already exists. To update the plugin, uninstall it first using 'remove " + info.getName() + "' command");
             }
 
             Path tmpBinDir = tmpRoot.resolve("bin");
@@ -337,9 +334,9 @@ class InstallPluginCommand extends CliTool.Command {
     }
 
     /** Copies the files from {@code tmpBinDir} into {@code destBinDir}, along with permissions from dest dirs parent. */
-    private void installBin(PluginInfo info, Path tmpBinDir, Path destBinDir) throws IOException {
+    private void installBin(PluginInfo info, Path tmpBinDir, Path destBinDir) throws Exception {
         if (Files.isDirectory(tmpBinDir) == false) {
-            throw new IOException("bin in plugin " + info.getName() + " is not a directory");
+            throw new UserError(CliTool.ExitStatus.IO_ERROR, "bin in plugin " + info.getName() + " is not a directory");
         }
         Files.createDirectory(destBinDir);
 
@@ -357,7 +354,7 @@ class InstallPluginCommand extends CliTool.Command {
         try (DirectoryStream<Path> stream  = Files.newDirectoryStream(tmpBinDir)) {
             for (Path srcFile : stream) {
                 if (Files.isDirectory(srcFile)) {
-                    throw new IOException("Directories not allowed in bin dir for plugin " + info.getName());
+                    throw new UserError(CliTool.ExitStatus.DATA_ERROR, "Directories not allowed in bin dir for plugin " + info.getName() + ", found " + srcFile.getFileName());
                 }
 
                 Path destFile = destBinDir.resolve(tmpBinDir.relativize(srcFile));
@@ -376,9 +373,9 @@ class InstallPluginCommand extends CliTool.Command {
      * Copies the files from {@code tmpConfigDir} into {@code destConfigDir}.
      * Any files existing in both the source and destination will be skipped.
      */
-    private void installConfig(PluginInfo info, Path tmpConfigDir, Path destConfigDir) throws IOException {
+    private void installConfig(PluginInfo info, Path tmpConfigDir, Path destConfigDir) throws Exception {
         if (Files.isDirectory(tmpConfigDir) == false) {
-            throw new IOException("config in plugin " + info.getName() + " is not a directory");
+            throw new UserError(CliTool.ExitStatus.IO_ERROR, "config in plugin " + info.getName() + " is not a directory");
         }
 
         // create the plugin's config dir "if necessary"
@@ -387,7 +384,7 @@ class InstallPluginCommand extends CliTool.Command {
         try (DirectoryStream<Path> stream  = Files.newDirectoryStream(tmpConfigDir)) {
             for (Path srcFile : stream) {
                 if (Files.isDirectory(srcFile)) {
-                    throw new IOException("Directories not allowed in config dir for plugin " + info.getName());
+                    throw new UserError(CliTool.ExitStatus.DATA_ERROR, "Directories not allowed in config dir for plugin " + info.getName());
                 }
 
                 Path destFile = destConfigDir.resolve(tmpConfigDir.relativize(srcFile));

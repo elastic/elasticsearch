@@ -55,7 +55,7 @@ public class PluginCli extends CliTool {
             .cmds(LIST_CMD, INSTALL_CMD, REMOVE_CMD)
             .build();
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws Exception {
         // initialize default for es.logger.level because we will not read the logging.yml
         String loggerLevel = System.getProperty("es.logger.level", "INFO");
         // Set the appender for all potential log files to terminal so that other components that use the logger print out the

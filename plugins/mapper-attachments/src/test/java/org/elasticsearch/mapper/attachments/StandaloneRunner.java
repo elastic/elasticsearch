@@ -139,14 +139,10 @@ public class StandaloneRunner extends CliTool {
         }
 
         public static byte[] copyToBytes(Path path) throws IOException {
-            try (InputStream is = Files.newInputStream(path)) {
-                if (is == null) {
-                    throw new FileNotFoundException("Resource [" + path + "] not found in classpath");
-                }
-                try (BytesStreamOutput out = new BytesStreamOutput()) {
-                    copy(is, out);
-                    return out.bytes().toBytes();
-                }
+            try (InputStream is = Files.newInputStream(path);
+                 BytesStreamOutput out = new BytesStreamOutput()) {
+                copy(is, out);
+                return out.bytes().toBytes();
             }
         }
 
@@ -177,7 +173,7 @@ public class StandaloneRunner extends CliTool {
     }
 
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws Exception {
         StandaloneRunner pluginManager = new StandaloneRunner();
         pluginManager.execute(args);
     }

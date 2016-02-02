@@ -28,6 +28,7 @@ import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.common.cli.CliTool;
 import org.elasticsearch.common.cli.CliToolTestCase;
 import org.elasticsearch.common.cli.Terminal;
+import org.elasticsearch.common.cli.UserError;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
@@ -66,7 +67,7 @@ public class RemovePluginCommandTests extends ESTestCase {
 
     public void testMissing() throws Exception {
         Environment env = createEnv();
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+        UserError e = expectThrows(UserError.class, () -> {
            removePlugin("dne", env);
         });
         assertTrue(e.getMessage(), e.getMessage().contains("Plugin dne not found"));
@@ -101,9 +102,10 @@ public class RemovePluginCommandTests extends ESTestCase {
     public void testBinNotDir() throws Exception {
         Environment env = createEnv();
         Files.createDirectories(env.pluginsFile().resolve("elasticsearch"));
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> {
+        UserError e = expectThrows(UserError.class, () -> {
             removePlugin("elasticsearch", env);
         });
+        assertTrue(e.getMessage(), e.getMessage().contains("not a directory"));
         assertTrue(Files.exists(env.pluginsFile().resolve("elasticsearch"))); // did not remove
         assertTrue(Files.exists(env.binFile().resolve("elasticsearch")));
         assertRemoveCleaned(env);

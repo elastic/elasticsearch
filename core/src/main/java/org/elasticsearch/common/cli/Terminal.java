@@ -35,8 +35,6 @@ import java.util.Locale;
 @SuppressForbidden(reason = "System#out")
 public abstract class Terminal {
 
-    public static final String DEBUG_SYSTEM_PROPERTY = "es.cli.debug";
-
     public static final Terminal DEFAULT = ConsoleTerminal.supported() ? new ConsoleTerminal() : new SystemTerminal();
 
     public static enum Verbosity {
@@ -64,7 +62,6 @@ public abstract class Terminal {
     }
 
     private Verbosity verbosity = Verbosity.NORMAL;
-    private final boolean isDebugEnabled;
 
     public Terminal() {
         this(Verbosity.NORMAL);
@@ -72,7 +69,6 @@ public abstract class Terminal {
 
     public Terminal(Verbosity verbosity) {
         this.verbosity = verbosity;
-        this.isDebugEnabled = "true".equals(System.getProperty(DEBUG_SYSTEM_PROPERTY, "false"));
     }
 
     public void verbosity(Verbosity verbosity) {
@@ -117,13 +113,6 @@ public abstract class Terminal {
 
     public void printError(String msg, Object... args) {
         println(Verbosity.SILENT, "ERROR: " + msg, args);
-    }
-
-    public void printError(Throwable t) {
-        printError("%s", t.toString());
-        if (isDebugEnabled) {
-            printStackTrace(t);
-        }
     }
 
     public void printWarn(String msg, Object... args) {

@@ -19,15 +19,20 @@
 
 package org.elasticsearch.search.suggest;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -191,6 +196,56 @@ public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> extends 
     }
 
     protected abstract SuggestionBuilder<T> innerFromXContent(QueryParseContext parseContext, String name) throws IOException;
+
+    protected abstract SuggestionContext build(QueryShardContext context) throws IOException;
+
+    /**
+     * Transfers the text, prefix, regex, analyzer, fieldname, size and shard size settings from the
+     * original {@link SuggestionBuilder} to the target {@link SuggestionContext}
+     */
+    protected void populateCommonFields(MapperService mapperService,
+            SuggestionSearchContext.SuggestionContext suggestionContext) throws IOException {
+
+        if (analyzer != null) {
+            Analyzer luceneAnalyzer = mapperService.analysisService().analyzer(analyzer);
+            if (luceneAnalyzer == null) {
+                throw new IllegalArgumentException("Analyzer [" + luceneAnalyzer + "] doesn't exists");
+            }
+            suggestionContext.setAnalyzer(luceneAnalyzer);
+        }
+
+        if (fieldname != null) {
+            suggestionContext.setField(fieldname);
+        }
+
+        if (size != null) {
+            suggestionContext.setSize(size);
+        }
+
+        if (shardSize != null) {
+            suggestionContext.setShardSize(shardSize);
+        } else {
+            // if no shard size is set in builder, use size (or at least 5)
+            suggestionContext.setShardSize(Math.max(suggestionContext.getSize(), 5));
+        }
+
+        if (text != null) {
+            suggestionContext.setText(BytesRefs.toBytesRef(text));
+        }
+        if (prefix != null) {
+            suggestionContext.setPrefix(BytesRefs.toBytesRef(prefix));
+        }
+        if (regex != null) {
+            suggestionContext.setRegex(BytesRefs.toBytesRef(regex));
+        }
+        if (text != null && prefix == null) {
+            suggestionContext.setPrefix(BytesRefs.toBytesRef(text));
+        } else if (text == null && prefix != null) {
+            suggestionContext.setText(BytesRefs.toBytesRef(prefix));
+        } else if (text == null && regex != null) {
+            suggestionContext.setText(BytesRefs.toBytesRef(regex));
+        }
+    }
 
     private String getSuggesterName() {
         //default impl returns the same as writeable name, but we keep the distinction between the two just to make sure

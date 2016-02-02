@@ -31,9 +31,7 @@ import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.query.ParsedQuery;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptService;
@@ -44,6 +42,7 @@ import org.elasticsearch.search.suggest.SuggestContextParser;
 import org.elasticsearch.search.suggest.SuggestUtils;
 import org.elasticsearch.search.suggest.Suggester;
 import org.elasticsearch.search.suggest.SuggestionBuilder;
+import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 import org.elasticsearch.search.suggest.phrase.NoisyChannelSpellChecker.Result;
 
 import java.io.IOException;
@@ -54,13 +53,8 @@ import java.util.Map;
 public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
     private final BytesRef SEPARATOR = new BytesRef(" ");
     private static final String SUGGESTION_TEMPLATE_VAR_NAME = "suggestion";
-    private final ScriptService scriptService;
-    private final IndicesService indicesService;
 
-    public PhraseSuggester(ScriptService scriptService, IndicesService indicesService) {
-        this.scriptService = scriptService;
-        this.indicesService = indicesService;
-    }
+    public static final PhraseSuggester PROTOTYPE = new PhraseSuggester();
 
     /*
      * More Ideas:
@@ -118,10 +112,10 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
                     // from the index for a correction, collateMatch is updated
                     final Map<String, Object> vars = suggestion.getCollateScriptParams();
                     vars.put(SUGGESTION_TEMPLATE_VAR_NAME, spare.toString());
+                    ScriptService scriptService = suggestion.getShardContext().getScriptService();
                     final ExecutableScript executable = scriptService.executable(collateScript, vars);
                     final BytesReference querySource = (BytesReference) executable.run();
-                    IndexService indexService = indicesService.indexService(suggestion.getIndex());
-                    final ParsedQuery parsedQuery = indexService.newQueryShardContext().parse(querySource);
+                    final ParsedQuery parsedQuery = suggestion.getShardContext().parse(querySource);
                     collateMatch = Lucene.exists(searcher, parsedQuery.query());
                 }
                 if (!collateMatch && !collatePrune) {
@@ -145,13 +139,9 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
         return response;
     }
 
-    private PhraseSuggestion.Entry buildResultEntry(PhraseSuggestionContext suggestion, CharsRefBuilder spare, double cutoffScore) {
+    private PhraseSuggestion.Entry buildResultEntry(SuggestionContext suggestion, CharsRefBuilder spare, double cutoffScore) {
         spare.copyUTF8Bytes(suggestion.getText());
         return new PhraseSuggestion.Entry(new Text(spare.toString()), 0, spare.length(), cutoffScore);
-    }
-
-    ScriptService scriptService() {
-        return scriptService;
     }
 
     @Override

@@ -20,10 +20,8 @@ package org.elasticsearch.search.suggest.completion;
 
 import org.apache.lucene.search.suggest.document.CompletionQuery;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.index.fielddata.IndexFieldDataService;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
-import org.elasticsearch.search.suggest.Suggester;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 import org.elasticsearch.search.suggest.completion.context.ContextMapping;
 import org.elasticsearch.search.suggest.completion.context.ContextMappings;
@@ -39,19 +37,15 @@ import java.util.Set;
  */
 public class CompletionSuggestionContext extends SuggestionSearchContext.SuggestionContext {
 
+    protected CompletionSuggestionContext(QueryShardContext shardContext) {
+        super(CompletionSuggester.PROTOTYPE, shardContext);
+    }
+
     private CompletionFieldMapper.CompletionFieldType fieldType;
     private CompletionSuggestionBuilder.FuzzyOptionsBuilder fuzzyOptionsBuilder;
     private CompletionSuggestionBuilder.RegexOptionsBuilder regexOptionsBuilder;
     private Map<String, List<ContextMapping.QueryContext>> queryContexts = Collections.emptyMap();
-    private final MapperService mapperService;
-    private final IndexFieldDataService indexFieldDataService;
     private Set<String> payloadFields = Collections.emptySet();
-
-    CompletionSuggestionContext(Suggester suggester, MapperService mapperService, IndexFieldDataService indexFieldDataService) {
-        super(suggester);
-        this.indexFieldDataService = indexFieldDataService;
-        this.mapperService = mapperService;
-    }
 
     CompletionFieldMapper.CompletionFieldType getFieldType() {
         return this.fieldType;
@@ -71,15 +65,6 @@ public class CompletionSuggestionContext extends SuggestionSearchContext.Suggest
 
     void setQueryContexts(Map<String, List<ContextMapping.QueryContext>> queryContexts) {
         this.queryContexts = queryContexts;
-    }
-
-
-    MapperService getMapperService() {
-        return mapperService;
-    }
-
-    IndexFieldDataService getIndexFieldDataService() {
-        return indexFieldDataService;
     }
 
     void setPayloadFields(Set<String> fields) {

@@ -26,9 +26,12 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -135,6 +138,21 @@ public class SuggestBuilder extends ToXContentToBytes implements Writeable<Sugge
             }
         }
         return suggestBuilder;
+    }
+
+    public SuggestionSearchContext build(QueryShardContext context) throws IOException {
+        SuggestionSearchContext suggestionSearchContext = new SuggestionSearchContext();
+        for (SuggestionBuilder<?> suggestionBuilder : suggestions) {
+            SuggestionContext suggestionContext = suggestionBuilder.build(context);
+            if (suggestionContext.getText() == null) {
+                if (globalText == null) {
+                    throw new IllegalArgumentException("The required text option is missing");
+                }
+                suggestionContext.setText(BytesRefs.toBytesRef(globalText));
+            }
+            suggestionSearchContext.addSuggestion(suggestionBuilder.name(), suggestionContext);
+        }
+        return suggestionSearchContext;
     }
 
     @Override

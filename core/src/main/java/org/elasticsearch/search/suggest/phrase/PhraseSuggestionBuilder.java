@@ -19,27 +19,32 @@
 package org.elasticsearch.search.suggest.phrase;
 
 
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.Terms;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.index.analysis.ShingleTokenFilterFactory;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.script.CompiledScript;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.Template;
+import org.elasticsearch.search.suggest.SuggestUtils;
 import org.elasticsearch.search.suggest.SuggestionBuilder;
-import org.elasticsearch.search.suggest.phrase.WordScorer.WordScorerFactory;
+import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
+import org.elasticsearch.search.suggest.phrase.PhraseSuggestionContext.DirectCandidateGenerator;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -239,7 +244,7 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
 
     /**
      * Sets an explicit smoothing model used for this suggester. The default is
-     * {@link PhraseSuggestionBuilder.StupidBackoff}.
+     * {@link StupidBackoff}.
      */
     public PhraseSuggestionBuilder smoothingModel(SmoothingModel model) {
         this.model = model;
@@ -254,6 +259,9 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
     }
 
     public PhraseSuggestionBuilder tokenLimit(int tokenLimit) {
+        if (tokenLimit <= 0) {
+            throw new IllegalArgumentException("token_limit must be >= 1");
+        }
         this.tokenLimit = tokenLimit;
         return this;
     }
@@ -389,413 +397,6 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
         return builder;
     }
 
-    /**
-     * Creates a new {@link DirectCandidateGeneratorBuilder}
-     *
-     * @param field
-     *            the field this candidate generator operates on.
-     */
-    public static DirectCandidateGeneratorBuilder candidateGenerator(String field) {
-        return new DirectCandidateGeneratorBuilder(field);
-    }
-
-    /**
-     * A "stupid-backoff" smoothing model simialr to <a
-     * href="http://en.wikipedia.org/wiki/Katz's_back-off_model"> Katz's
-     * Backoff</a>. This model is used as the default if no model is configured.
-     * <p>
-     * See <a
-     * href="http://en.wikipedia.org/wiki/N-gram#Smoothing_techniques">N-Gram
-     * Smoothing</a> for details.
-     * </p>
-     */
-    public static final class StupidBackoff extends SmoothingModel {
-        /**
-         * Default discount parameter for {@link StupidBackoff} smoothing
-         */
-        public static final double DEFAULT_BACKOFF_DISCOUNT = 0.4;
-        public static final StupidBackoff PROTOTYPE = new StupidBackoff(DEFAULT_BACKOFF_DISCOUNT);
-        private double discount = DEFAULT_BACKOFF_DISCOUNT;
-        private static final String NAME = "stupid_backoff";
-        private static final ParseField DISCOUNT_FIELD = new ParseField("discount");
-        private static final ParseField PARSE_FIELD = new ParseField(NAME);
-
-        /**
-         * Creates a Stupid-Backoff smoothing model.
-         *
-         * @param discount
-         *            the discount given to lower order ngrams if the higher order ngram doesn't exits
-         */
-        public StupidBackoff(double discount) {
-            this.discount = discount;
-        }
-
-        /**
-         * @return the discount parameter of the model
-         */
-        public double getDiscount() {
-            return this.discount;
-        }
-
-        @Override
-        protected XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field(DISCOUNT_FIELD.getPreferredName(), discount);
-            return builder;
-        }
-
-        @Override
-        public String getWriteableName() {
-            return NAME;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeDouble(discount);
-        }
-
-        @Override
-        public StupidBackoff readFrom(StreamInput in) throws IOException {
-            return new StupidBackoff(in.readDouble());
-        }
-
-        @Override
-        protected boolean doEquals(SmoothingModel other) {
-            StupidBackoff otherModel = (StupidBackoff) other;
-            return Objects.equals(discount, otherModel.discount);
-        }
-
-        @Override
-        protected final int doHashCode() {
-            return Objects.hash(discount);
-        }
-
-        @Override
-        public SmoothingModel innerFromXContent(QueryParseContext parseContext) throws IOException {
-            XContentParser parser = parseContext.parser();
-            XContentParser.Token token;
-            String fieldName = null;
-            double discount = DEFAULT_BACKOFF_DISCOUNT;
-            while ((token = parser.nextToken()) != Token.END_OBJECT) {
-                if (token == XContentParser.Token.FIELD_NAME) {
-                    fieldName = parser.currentName();
-                }
-                if (token.isValue() && parseContext.parseFieldMatcher().match(fieldName, DISCOUNT_FIELD)) {
-                    discount = parser.doubleValue();
-                }
-            }
-            return new StupidBackoff(discount);
-        }
-
-        @Override
-        public WordScorerFactory buildWordScorerFactory() {
-            return (IndexReader reader, Terms terms, String field, double realWordLikelyhood, BytesRef separator)
-                    -> new StupidBackoffScorer(reader, terms, field, realWordLikelyhood, separator, discount);
-        }
-    }
-
-    /**
-     * An <a href="http://en.wikipedia.org/wiki/Additive_smoothing">additive
-     * smoothing</a> model.
-     * <p>
-     * See <a
-     * href="http://en.wikipedia.org/wiki/N-gram#Smoothing_techniques">N-Gram
-     * Smoothing</a> for details.
-     * </p>
-     */
-    public static final class Laplace extends SmoothingModel {
-        private double alpha = DEFAULT_LAPLACE_ALPHA;
-        private static final String NAME = "laplace";
-        private static final ParseField ALPHA_FIELD = new ParseField("alpha");
-        private static final ParseField PARSE_FIELD = new ParseField(NAME);
-        /**
-         * Default alpha parameter for laplace smoothing
-         */
-        public static final double DEFAULT_LAPLACE_ALPHA = 0.5;
-        public static final Laplace PROTOTYPE = new Laplace(DEFAULT_LAPLACE_ALPHA);
-
-        /**
-         * Creates a Laplace smoothing model.
-         *
-         */
-        public Laplace(double alpha) {
-            this.alpha = alpha;
-        }
-
-        /**
-         * @return the laplace model alpha parameter
-         */
-        public double getAlpha() {
-            return this.alpha;
-        }
-
-        @Override
-        protected XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field(ALPHA_FIELD.getPreferredName(), alpha);
-            return builder;
-        }
-
-        @Override
-        public String getWriteableName() {
-            return NAME;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeDouble(alpha);
-        }
-
-        @Override
-        public SmoothingModel readFrom(StreamInput in) throws IOException {
-            return new Laplace(in.readDouble());
-        }
-
-        @Override
-        protected boolean doEquals(SmoothingModel other) {
-            Laplace otherModel = (Laplace) other;
-            return Objects.equals(alpha, otherModel.alpha);
-        }
-
-        @Override
-        protected final int doHashCode() {
-            return Objects.hash(alpha);
-        }
-
-        @Override
-        public SmoothingModel innerFromXContent(QueryParseContext parseContext) throws IOException {
-            XContentParser parser = parseContext.parser();
-            XContentParser.Token token;
-            String fieldName = null;
-            double alpha = DEFAULT_LAPLACE_ALPHA;
-            while ((token = parser.nextToken()) != Token.END_OBJECT) {
-                if (token == XContentParser.Token.FIELD_NAME) {
-                    fieldName = parser.currentName();
-                }
-                if (token.isValue() && parseContext.parseFieldMatcher().match(fieldName, ALPHA_FIELD)) {
-                    alpha = parser.doubleValue();
-                }
-            }
-            return new Laplace(alpha);
-        }
-
-        @Override
-        public WordScorerFactory buildWordScorerFactory() {
-            return (IndexReader reader, Terms terms, String field, double realWordLikelyhood, BytesRef separator)
-                    -> new LaplaceScorer(reader, terms,  field, realWordLikelyhood, separator, alpha);
-        }
-    }
-
-
-    public static abstract class SmoothingModel implements NamedWriteable<SmoothingModel>, ToXContent {
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject(getWriteableName());
-            innerToXContent(builder,params);
-            builder.endObject();
-            return builder;
-        }
-
-        @Override
-        public final boolean equals(Object obj) {
-            if (this == obj) {
-                return true;
-            }
-            if (obj == null || getClass() != obj.getClass()) {
-                return false;
-            }
-            SmoothingModel other = (SmoothingModel) obj;
-            return doEquals(other);
-        }
-
-        public static SmoothingModel fromXContent(QueryParseContext parseContext) throws IOException {
-            XContentParser parser = parseContext.parser();
-            ParseFieldMatcher parseFieldMatcher = parseContext.parseFieldMatcher();
-            XContentParser.Token token;
-            String fieldName = null;
-            SmoothingModel model = null;
-            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                if (token == XContentParser.Token.FIELD_NAME) {
-                    fieldName = parser.currentName();
-                } else if (token == XContentParser.Token.START_OBJECT) {
-                    if (parseFieldMatcher.match(fieldName, LinearInterpolation.PARSE_FIELD)) {
-                        model = LinearInterpolation.PROTOTYPE.innerFromXContent(parseContext);
-                    } else if (parseFieldMatcher.match(fieldName, Laplace.PARSE_FIELD)) {
-                        model = Laplace.PROTOTYPE.innerFromXContent(parseContext);
-                    } else if (parseFieldMatcher.match(fieldName, StupidBackoff.PARSE_FIELD)) {
-                        model = StupidBackoff.PROTOTYPE.innerFromXContent(parseContext);
-                    } else {
-                        throw new IllegalArgumentException("suggester[phrase] doesn't support object field [" + fieldName + "]");
-                    }
-                } else {
-                    throw new ParsingException(parser.getTokenLocation(),
-                            "[smoothing] unknown token [" + token + "] after [" + fieldName + "]");
-                }
-            }
-            return model;
-        }
-
-        public abstract SmoothingModel innerFromXContent(QueryParseContext parseContext) throws IOException;
-
-        @Override
-        public final int hashCode() {
-            /*
-             * Override hashCode here and forward to an abstract method to force extensions of this class to override hashCode in the same
-             * way that we force them to override equals. This also prevents false positives in CheckStyle's EqualsHashCode check.
-             */
-            return doHashCode();
-        }
-
-        public abstract WordScorerFactory buildWordScorerFactory();
-
-        /**
-         * subtype specific implementation of "equals".
-         */
-        protected abstract boolean doEquals(SmoothingModel other);
-
-        protected abstract int doHashCode();
-
-        protected abstract XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException;
-    }
-
-    /**
-     * Linear interpolation smoothing model.
-     * <p>
-     * See <a
-     * href="http://en.wikipedia.org/wiki/N-gram#Smoothing_techniques">N-Gram
-     * Smoothing</a> for details.
-     * </p>
-     */
-    public static final class LinearInterpolation extends SmoothingModel {
-        private static final String NAME = "linear";
-        public static final LinearInterpolation PROTOTYPE = new LinearInterpolation(0.8, 0.1, 0.1);
-        private final double trigramLambda;
-        private final double bigramLambda;
-        private final double unigramLambda;
-        private static final ParseField PARSE_FIELD = new ParseField(NAME);
-        private static final ParseField TRIGRAM_FIELD = new ParseField("trigram_lambda");
-        private static final ParseField BIGRAM_FIELD = new ParseField("bigram_lambda");
-        private static final ParseField UNIGRAM_FIELD = new ParseField("unigram_lambda");
-
-        /**
-         * Creates a linear interpolation smoothing model.
-         *
-         * Note: the lambdas must sum up to one.
-         *
-         * @param trigramLambda
-         *            the trigram lambda
-         * @param bigramLambda
-         *            the bigram lambda
-         * @param unigramLambda
-         *            the unigram lambda
-         */
-        public LinearInterpolation(double trigramLambda, double bigramLambda, double unigramLambda) {
-            double sum = trigramLambda + bigramLambda + unigramLambda;
-            if (Math.abs(sum - 1.0) > 0.001) {
-                throw new IllegalArgumentException("linear smoothing lambdas must sum to 1");
-            }
-            this.trigramLambda = trigramLambda;
-            this.bigramLambda = bigramLambda;
-            this.unigramLambda = unigramLambda;
-        }
-
-        public double getTrigramLambda() {
-            return this.trigramLambda;
-        }
-
-        public double getBigramLambda() {
-            return this.bigramLambda;
-        }
-
-        public double getUnigramLambda() {
-            return this.unigramLambda;
-        }
-
-        @Override
-        protected XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field(TRIGRAM_FIELD.getPreferredName(), trigramLambda);
-            builder.field(BIGRAM_FIELD.getPreferredName(), bigramLambda);
-            builder.field(UNIGRAM_FIELD.getPreferredName(), unigramLambda);
-            return builder;
-        }
-
-        @Override
-        public String getWriteableName() {
-            return NAME;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeDouble(trigramLambda);
-            out.writeDouble(bigramLambda);
-            out.writeDouble(unigramLambda);
-        }
-
-        @Override
-        public LinearInterpolation readFrom(StreamInput in) throws IOException {
-            return new LinearInterpolation(in.readDouble(), in.readDouble(), in.readDouble());
-        }
-
-        @Override
-        protected boolean doEquals(SmoothingModel other) {
-            final LinearInterpolation otherModel = (LinearInterpolation) other;
-            return Objects.equals(trigramLambda, otherModel.trigramLambda) &&
-                    Objects.equals(bigramLambda, otherModel.bigramLambda) &&
-                    Objects.equals(unigramLambda, otherModel.unigramLambda);
-        }
-
-        @Override
-        protected final int doHashCode() {
-            return Objects.hash(trigramLambda, bigramLambda, unigramLambda);
-        }
-
-        @Override
-        public LinearInterpolation innerFromXContent(QueryParseContext parseContext) throws IOException {
-            XContentParser parser = parseContext.parser();
-            XContentParser.Token token;
-            String fieldName = null;
-            double trigramLambda = 0.0;
-            double bigramLambda = 0.0;
-            double unigramLambda = 0.0;
-            ParseFieldMatcher matcher = parseContext.parseFieldMatcher();
-            while ((token = parser.nextToken()) != Token.END_OBJECT) {
-                if (token == XContentParser.Token.FIELD_NAME) {
-                    fieldName = parser.currentName();
-                } else if (token.isValue()) {
-                    if (matcher.match(fieldName, TRIGRAM_FIELD)) {
-                        trigramLambda = parser.doubleValue();
-                        if (trigramLambda < 0) {
-                            throw new IllegalArgumentException("trigram_lambda must be positive");
-                        }
-                    } else if (matcher.match(fieldName, BIGRAM_FIELD)) {
-                        bigramLambda = parser.doubleValue();
-                        if (bigramLambda < 0) {
-                            throw new IllegalArgumentException("bigram_lambda must be positive");
-                        }
-                    } else if (matcher.match(fieldName, UNIGRAM_FIELD)) {
-                        unigramLambda = parser.doubleValue();
-                        if (unigramLambda < 0) {
-                            throw new IllegalArgumentException("unigram_lambda must be positive");
-                        }
-                    } else {
-                        throw new IllegalArgumentException(
-                                "suggester[phrase][smoothing][linear] doesn't support field [" + fieldName + "]");
-                    }
-                } else {
-                    throw new ParsingException(parser.getTokenLocation(),
-                            "[" + NAME + "] unknown token [" + token + "] after [" + fieldName + "]");
-                }
-            }
-            return new LinearInterpolation(trigramLambda, bigramLambda, unigramLambda);
-        }
-
-        @Override
-        public WordScorerFactory buildWordScorerFactory() {
-            return (IndexReader reader, Terms terms, String field, double realWordLikelyhood, BytesRef separator) ->
-                        new LinearInterpoatingScorer(reader, terms, field, realWordLikelyhood, separator, trigramLambda, bigramLambda,
-                            unigramLambda);
-        }
-    }
-
     @Override
     protected PhraseSuggestionBuilder innerFromXContent(QueryParseContext parseContext, String suggestionName) throws IOException {
         XContentParser parser = parseContext.parser();
@@ -873,7 +474,6 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
                                         "suggester[phrase][collate] query already set, doesn't support additional [" + fieldName + "]");
                             }
                             Template template = Template.parse(parser, parseFieldMatcher);
-                            // TODO remember to compile script in build() method
                             suggestion.collateQuery(template);
                         } else if (parseFieldMatcher.match(fieldName, PhraseSuggestionBuilder.COLLATE_QUERY_PARAMS)) {
                             suggestion.collateParams(parser.map());
@@ -896,6 +496,98 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
             }
         }
         return suggestion;
+    }
+
+
+    @Override
+    public SuggestionContext build(QueryShardContext context) throws IOException {
+        PhraseSuggestionContext suggestionContext = new PhraseSuggestionContext(context);
+        MapperService mapperService = context.getMapperService();
+        populateCommonFields(mapperService, suggestionContext);
+
+        suggestionContext.setSeparator(BytesRefs.toBytesRef(this.separator));
+        suggestionContext.setRealWordErrorLikelihood(this.realWordErrorLikelihood);
+        suggestionContext.setConfidence(this.confidence);
+        suggestionContext.setMaxErrors(this.maxErrors);
+        suggestionContext.setSeparator(BytesRefs.toBytesRef(this.separator));
+        suggestionContext.setRequireUnigram(this.forceUnigrams);
+        suggestionContext.setTokenLimit(this.tokenLimit);
+        suggestionContext.setPreTag(BytesRefs.toBytesRef(this.preTag));
+        suggestionContext.setPostTag(BytesRefs.toBytesRef(this.postTag));
+
+        if (this.gramSize != null) {
+            suggestionContext.setGramSize(this.gramSize);
+        }
+
+        for (List<CandidateGenerator> candidateGenerators : this.generators.values()) {
+            for (CandidateGenerator candidateGenerator : candidateGenerators) {
+                suggestionContext.addGenerator(candidateGenerator.build(mapperService));
+            }
+        }
+
+        if (this.model != null) {
+            suggestionContext.setModel(this.model.buildWordScorerFactory());
+        }
+
+        if (this.collateQuery != null) {
+            CompiledScript compiledScript = context.getScriptService().compile(this.collateQuery, ScriptContext.Standard.SEARCH,
+                    Collections.emptyMap());
+            suggestionContext.setCollateQueryScript(compiledScript);
+            if (this.collateParams != null) {
+                suggestionContext.setCollateScriptParams(this.collateParams);
+            }
+            suggestionContext.setCollatePrune(this.collatePrune);
+        }
+
+        // TODO remove this when field is mandatory in builder ctor
+        if (suggestionContext.getField() == null) {
+            throw new IllegalArgumentException("The required field option is missing");
+        }
+
+        MappedFieldType fieldType = mapperService.fullName(suggestionContext.getField());
+        if (fieldType == null) {
+            throw new IllegalArgumentException("No mapping found for field [" + suggestionContext.getField() + "]");
+        } else if (suggestionContext.getAnalyzer() == null) {
+            // no analyzer name passed in, so try the field's analyzer, or the default analyzer
+            if (fieldType.searchAnalyzer() == null) {
+                suggestionContext.setAnalyzer(mapperService.searchAnalyzer());
+            } else {
+                suggestionContext.setAnalyzer(fieldType.searchAnalyzer());
+            }
+        }
+
+        if (suggestionContext.model() == null) {
+            suggestionContext.setModel(StupidBackoffScorer.FACTORY);
+        }
+
+        if (this.gramSize == null || suggestionContext.generators().isEmpty()) {
+            final ShingleTokenFilterFactory.Factory shingleFilterFactory = SuggestUtils
+                    .getShingleFilterFactory(suggestionContext.getAnalyzer());
+            if (this.gramSize == null) {
+                // try to detect the shingle size
+                if (shingleFilterFactory != null) {
+                    suggestionContext.setGramSize(shingleFilterFactory.getMaxShingleSize());
+                    if (suggestionContext.getAnalyzer() == null && shingleFilterFactory.getMinShingleSize() > 1
+                            && !shingleFilterFactory.getOutputUnigrams()) {
+                        throw new IllegalArgumentException("The default analyzer for field: [" + suggestionContext.getField()
+                                + "] doesn't emit unigrams. If this is intentional try to set the analyzer explicitly");
+                    }
+                }
+            }
+            if (suggestionContext.generators().isEmpty()) {
+                if (shingleFilterFactory != null && shingleFilterFactory.getMinShingleSize() > 1
+                        && !shingleFilterFactory.getOutputUnigrams() && suggestionContext.getRequireUnigram()) {
+                    throw new IllegalArgumentException("The default candidate generator for phrase suggest can't operate on field: ["
+                            + suggestionContext.getField() + "] since it doesn't emit unigrams. "
+                            + "If this is intentional try to set the candidate generator field explicitly");
+                }
+                // use a default generator on the same field
+                DirectCandidateGenerator generator = new DirectCandidateGenerator();
+                generator.setField(suggestionContext.getField());
+                suggestionContext.addGenerator(generator);
+            }
+        }
+        return suggestionContext;
     }
 
     private static void ensureNoSmoothing(PhraseSuggestionBuilder suggestion) {
@@ -1010,5 +702,7 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
         String getType();
 
         CandidateGenerator fromXContent(QueryParseContext parseContext) throws IOException;
+
+        PhraseSuggestionContext.DirectCandidateGenerator build(MapperService mapperService) throws IOException;
     }
 }

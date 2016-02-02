@@ -20,9 +20,9 @@ package org.elasticsearch.search.suggest.phrase;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.search.suggest.DirectSpellcheckerSettings;
-import org.elasticsearch.search.suggest.Suggester;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 
 import java.util.ArrayList;
@@ -54,8 +54,8 @@ class PhraseSuggestionContext extends SuggestionContext {
     private Map<String, Object> collateScriptParams = new HashMap<>(1);
     private WordScorer.WordScorerFactory scorer;
 
-    public PhraseSuggestionContext(Suggester<? extends PhraseSuggestionContext> suggester) {
-        super(suggester);
+    public PhraseSuggestionContext(QueryShardContext shardContext) {
+        super(PhraseSuggester.PROTOTYPE, shardContext);
     }
 
     public float maxErrors() {
@@ -154,8 +154,6 @@ class PhraseSuggestionContext extends SuggestionContext {
         public void postFilter(Analyzer postFilter) {
             this.postFilter = postFilter;
         }
-
-
     }
 
     public void setRequireUnigram(boolean requireUnigram) {
@@ -213,5 +211,4 @@ class PhraseSuggestionContext extends SuggestionContext {
     boolean collatePrune() {
         return prune;
     }
-
 }

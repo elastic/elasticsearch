@@ -25,7 +25,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
@@ -130,6 +132,12 @@ public class CustomSuggesterSearchIT extends ESIntegTestCase {
                 throws IOException {
             // TODO some parsing
             return new CustomSuggestionBuilder(name, randomField, randomSuffix);
+        }
+
+        @Override
+        protected SuggestionContext build(QueryShardContext context) throws IOException {
+            // NORELEASE
+            return null;
         }
 
     }

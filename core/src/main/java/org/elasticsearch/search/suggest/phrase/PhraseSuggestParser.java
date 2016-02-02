@@ -26,17 +26,16 @@ import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.analysis.ShingleTokenFilterFactory;
-import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.Template;
 import org.elasticsearch.search.suggest.SuggestContextParser;
 import org.elasticsearch.search.suggest.SuggestUtils;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
-import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder.Laplace;
-import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder.StupidBackoff;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionContext.DirectCandidateGenerator;
 
 import java.io.IOException;
@@ -51,8 +50,10 @@ public final class PhraseSuggestParser implements SuggestContextParser {
     }
 
     @Override
-    public SuggestionSearchContext.SuggestionContext parse(XContentParser parser, MapperService mapperService, IndexFieldDataService fieldDataService) throws IOException {
-        PhraseSuggestionContext suggestion = new PhraseSuggestionContext(suggester);
+    public SuggestionSearchContext.SuggestionContext parse(XContentParser parser, QueryShardContext shardContext) throws IOException {
+        MapperService mapperService = shardContext.getMapperService();
+        ScriptService scriptService = shardContext.getScriptService();
+        PhraseSuggestionContext suggestion = new PhraseSuggestionContext(shardContext);
         ParseFieldMatcher parseFieldMatcher = mapperService.getIndexSettings().getParseFieldMatcher();
         XContentParser.Token token;
         String fieldName = null;
@@ -135,7 +136,7 @@ public final class PhraseSuggestParser implements SuggestContextParser {
                                 throw new IllegalArgumentException("suggester[phrase][collate] query already set, doesn't support additional [" + fieldName + "]");
                             }
                             Template template = Template.parse(parser, parseFieldMatcher);
-                            CompiledScript compiledScript = suggester.scriptService().compile(template, ScriptContext.Standard.SEARCH, Collections.emptyMap());
+                            CompiledScript compiledScript = scriptService.compile(template, ScriptContext.Standard.SEARCH, Collections.emptyMap());
                             suggestion.setCollateQueryScript(compiledScript);
                         } else if ("params".equals(fieldName)) {
                             suggestion.setCollateScriptParams(parser.map());
@@ -199,9 +200,6 @@ public final class PhraseSuggestParser implements SuggestContextParser {
                 suggestion.addGenerator(generator);
             }
         }
-
-
-
         return suggestion;
     }
 

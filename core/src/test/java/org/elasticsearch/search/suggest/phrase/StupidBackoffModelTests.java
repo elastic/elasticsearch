@@ -19,9 +19,6 @@
 
 package org.elasticsearch.search.suggest.phrase;
 
-import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder.SmoothingModel;
-import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder.StupidBackoff;
-
 import static org.hamcrest.Matchers.instanceOf;
 
 public class StupidBackoffModelTests extends SmoothingModelTestCase {

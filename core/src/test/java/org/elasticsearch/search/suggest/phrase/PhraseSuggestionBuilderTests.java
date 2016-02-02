@@ -21,15 +21,16 @@ package org.elasticsearch.search.suggest.phrase;
 
 import org.elasticsearch.script.Template;
 import org.elasticsearch.search.suggest.AbstractSuggestionBuilderTestCase;
-import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder.Laplace;
-import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder.LinearInterpolation;
-import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder.SmoothingModel;
-import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder.StupidBackoff;
+import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
+import org.elasticsearch.search.suggest.phrase.PhraseSuggestionContext.DirectCandidateGenerator;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
+
+import static org.hamcrest.Matchers.instanceOf;
 
 public class PhraseSuggestionBuilderTests extends AbstractSuggestionBuilderTestCase<PhraseSuggestionBuilder> {
 
@@ -70,7 +71,7 @@ public class PhraseSuggestionBuilderTests extends AbstractSuggestionBuilderTestC
         }
         maybeSet(testBuilder::gramSize, randomIntBetween(1, 5));
         maybeSet(testBuilder::forceUnigrams, randomBoolean());
-        maybeSet(testBuilder::tokenLimit, randomInt(20));
+        maybeSet(testBuilder::tokenLimit, randomIntBetween(1, 20));
         if (randomBoolean()) {
             testBuilder.smoothingModel(randomSmoothingModel());
         }
@@ -115,7 +116,7 @@ public class PhraseSuggestionBuilderTests extends AbstractSuggestionBuilderTestC
             builder.gramSize(randomValueOtherThan(builder.gramSize(), () -> randomIntBetween(1, 5)));
             break;
         case 4:
-            builder.tokenLimit(randomValueOtherThan(builder.tokenLimit(), () -> randomInt(20)));
+            builder.tokenLimit(randomValueOtherThan(builder.tokenLimit(), () -> randomIntBetween(1, 20)));
             break;
         case 5:
             builder.separator(randomValueOtherThan(builder.separator(), () -> randomAsciiOfLengthBetween(1, 10)));
@@ -155,6 +156,40 @@ public class PhraseSuggestionBuilderTests extends AbstractSuggestionBuilderTestC
         case 12:
             builder.addCandidateGenerator(DirectCandidateGeneratorTests.randomCandidateGenerator());
             break;
+        }
+    }
+
+    @Override
+    protected void assertSuggestionContext(SuggestionContext oldSuggestion, SuggestionContext newSuggestion) {
+        assertThat(oldSuggestion, instanceOf(PhraseSuggestionContext.class));
+        assertThat(newSuggestion, instanceOf(PhraseSuggestionContext.class));
+        PhraseSuggestionContext oldPhraseSuggestion = (PhraseSuggestionContext) oldSuggestion;
+        PhraseSuggestionContext newPhraseSuggestion = (PhraseSuggestionContext) newSuggestion;
+        assertEquals(oldPhraseSuggestion.confidence(), newPhraseSuggestion.confidence(), Float.MIN_VALUE);
+        assertEquals(oldPhraseSuggestion.collatePrune(), newPhraseSuggestion.collatePrune());
+        assertEquals(oldPhraseSuggestion.gramSize(), newPhraseSuggestion.gramSize());
+        assertEquals(oldPhraseSuggestion.realworldErrorLikelyhood(), newPhraseSuggestion.realworldErrorLikelyhood(), Float.MIN_VALUE);
+        assertEquals(oldPhraseSuggestion.maxErrors(), newPhraseSuggestion.maxErrors(), Float.MIN_VALUE);
+        assertEquals(oldPhraseSuggestion.separator(), newPhraseSuggestion.separator());
+        assertEquals(oldPhraseSuggestion.getTokenLimit(), newPhraseSuggestion.getTokenLimit());
+        assertEquals(oldPhraseSuggestion.getRequireUnigram(), newPhraseSuggestion.getRequireUnigram());
+        assertEquals(oldPhraseSuggestion.getPreTag(), newPhraseSuggestion.getPreTag());
+        assertEquals(oldPhraseSuggestion.getPostTag(), newPhraseSuggestion.getPostTag());
+        if (oldPhraseSuggestion.getCollateQueryScript() != null) {
+            // only assert that we have a compiled script on the other side
+            assertNotNull(newPhraseSuggestion.getCollateQueryScript());
+        }
+        if (oldPhraseSuggestion.generators() != null) {
+            assertNotNull(newPhraseSuggestion.generators());
+            assertEquals(oldPhraseSuggestion.generators().size(), newPhraseSuggestion.generators().size());
+            Iterator<DirectCandidateGenerator> secondList = newPhraseSuggestion.generators().iterator();
+            for (DirectCandidateGenerator candidateGenerator : newPhraseSuggestion.generators()) {
+                DirectCandidateGeneratorTests.assertEqualGenerators(candidateGenerator, secondList.next());
+            }
+        }
+        assertEquals(oldPhraseSuggestion.getCollateScriptParams(), newPhraseSuggestion.getCollateScriptParams());
+        if (oldPhraseSuggestion.model() != null) {
+            assertNotNull(newPhraseSuggestion.model());
         }
     }
 

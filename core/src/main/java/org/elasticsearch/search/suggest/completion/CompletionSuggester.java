@@ -34,7 +34,9 @@ import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.SuggestContextParser;
 import org.elasticsearch.search.suggest.Suggester;
@@ -50,6 +52,8 @@ import java.util.Map;
 import java.util.Set;
 
 public class CompletionSuggester extends Suggester<CompletionSuggestionContext> {
+
+    public static final CompletionSuggester PROTOTYPE = new CompletionSuggester();
 
     @Override
     public SuggestContextParser getContextParser() {
@@ -86,9 +90,11 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
                 final LeafReaderContext subReaderContext = leaves.get(readerIndex);
                 final int subDocId = suggestDoc.doc - subReaderContext.docBase;
                 for (String field : payloadFields) {
-                    MappedFieldType payloadFieldType = suggestionContext.getMapperService().fullName(field);
+                    MapperService mapperService = suggestionContext.getShardContext().getMapperService();
+                    MappedFieldType payloadFieldType = mapperService.fullName(field);
                     if (payloadFieldType != null) {
-                        final AtomicFieldData data = suggestionContext.getIndexFieldDataService().getForField(payloadFieldType)
+                        QueryShardContext shardContext = suggestionContext.getShardContext();
+                        final AtomicFieldData data = shardContext.getForField(payloadFieldType)
                                 .load(subReaderContext);
                         final ScriptDocValues scriptValues = data.getScriptValues();
                         scriptValues.setNextDocId(subDocId);

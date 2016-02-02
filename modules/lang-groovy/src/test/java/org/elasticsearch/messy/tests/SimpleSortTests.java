@@ -1840,14 +1840,14 @@ public class SimpleSortTests extends ESIntegTestCase {
         for (int i = 0; i < 4; i++) {
             int at = randomInt(3 - i);
             if (randomBoolean()) {
-                if (geoDistanceSortBuilder == null) {
-                    geoDistanceSortBuilder = new GeoDistanceSortBuilder("location", qHashes.get(at));
-                } else {
-                    geoDistanceSortBuilder.geohashes(qHashes.get(at));
-                }
+              	if (geoDistanceSortBuilder == null) {
+              	  geoDistanceSortBuilder = new GeoDistanceSortBuilder("location", qHashes.get(at));
+              	} else {
+              	  geoDistanceSortBuilder.geohashes(qHashes.get(at));
+              	}
             } else {
               if (geoDistanceSortBuilder == null) {
-                  geoDistanceSortBuilder = new GeoDistanceSortBuilder("location", qPoints.get(at));
+        	geoDistanceSortBuilder = new GeoDistanceSortBuilder("location", qPoints.get(at));
               } else {
                 geoDistanceSortBuilder.points(qPoints.get(at));
               }

@@ -36,6 +36,7 @@ import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
 
@@ -56,6 +57,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 
 import static org.elasticsearch.common.io.FileSystemUtils.isAccessibleDirectory;
 
@@ -69,6 +71,7 @@ public class PluginsService extends AbstractComponent {
      */
     private final List<Tuple<PluginInfo, Plugin>> plugins;
     private final PluginsAndModules info;
+    public static final Setting<List<String>> MANDATORY_SETTING = Setting.listSetting("plugin.mandatory", Collections.emptyList(), Function.identity(), false, Setting.Scope.CLUSTER);
 
     private final Map<Plugin, List<OnModuleReference>> onModuleReferences;
 
@@ -143,8 +146,8 @@ public class PluginsService extends AbstractComponent {
         }
 
         // Checking expected plugins
-        String[] mandatoryPlugins = settings.getAsArray("plugin.mandatory", null);
-        if (mandatoryPlugins != null) {
+        List<String> mandatoryPlugins = MANDATORY_SETTING.get(settings);
+        if (mandatoryPlugins.isEmpty() == false) {
             Set<String> missingPlugins = new HashSet<>();
             for (String mandatoryPlugin : mandatoryPlugins) {
                 if (!pluginsNames.contains(mandatoryPlugin) && !missingPlugins.contains(mandatoryPlugin)) {

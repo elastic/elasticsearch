@@ -66,7 +66,7 @@ public class TasksIT extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
-            .put(MockTaskManager.USE_MOCK_TASK_MANAGER, true)
+            .put(MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING.getKey(), true)
             .build();
     }
 

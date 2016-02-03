@@ -71,6 +71,11 @@ public class AzureDiscoveryPlugin extends Plugin {
 
     public void onModule(SettingsModule settingsModule) {
         settingsModule.registerSetting(AzureComputeService.Discovery.REFRESH_SETTING);
+        settingsModule.registerSetting(AzureComputeService.Management.KEYSTORE_PASSWORD_SETTING);
+        settingsModule.registerSetting(AzureComputeService.Management.KEYSTORE_PATH_SETTING);
+        settingsModule.registerSetting(AzureComputeService.Management.KEYSTORE_TYPE_SETTING);
+        settingsModule.registerSetting(AzureComputeService.Management.SUBSCRIPTION_ID_SETTING);
+        settingsModule.registerSetting(AzureComputeService.Management.SERVICE_NAME_SETTING);
         settingsModule.registerSetting(AzureComputeService.Discovery.HOST_TYPE_SETTING);
     }
 }

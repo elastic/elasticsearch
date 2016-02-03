@@ -118,7 +118,7 @@ public class TransportTasksActionTests extends ESTestCase {
                 threadPool){
                 @Override
                 protected TaskManager createTaskManager() {
-                    if (settings.getAsBoolean(MockTaskManager.USE_MOCK_TASK_MANAGER, false)) {
+                    if (MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING.get(settings)) {
                         return new MockTaskManager(settings);
                     } else {
                         return super.createTaskManager();
@@ -659,7 +659,7 @@ public class TransportTasksActionTests extends ESTestCase {
     }
 
     public void testFailedTasksCount() throws ExecutionException, InterruptedException, IOException {
-        Settings settings = Settings.builder().put(MockTaskManager.USE_MOCK_TASK_MANAGER, true).build();
+        Settings settings = Settings.builder().put(MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING.getKey(), true).build();
         setupTestNodes(settings);
         connectNodes(testNodes);
         TestNodesAction[] actions = new TestNodesAction[nodesCount];

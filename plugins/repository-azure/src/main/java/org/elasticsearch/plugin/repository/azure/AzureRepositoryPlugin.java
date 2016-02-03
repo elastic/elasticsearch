@@ -20,10 +20,12 @@
 package org.elasticsearch.plugin.repository.azure;
 
 import org.elasticsearch.cloud.azure.AzureRepositoryModule;
+import org.elasticsearch.cloud.azure.storage.AzureStorageService;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardRepository;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesModule;
@@ -63,5 +65,14 @@ public class AzureRepositoryPlugin extends Plugin {
     public void onModule(RepositoriesModule module) {
         logger.debug("registering repository type [{}]", AzureRepository.TYPE);
         module.registerRepository(AzureRepository.TYPE, AzureRepository.class, BlobStoreIndexShardRepository.class);
+    }
+
+    public void onModule(SettingsModule module) {
+        module.registerSetting(AzureStorageService.Storage.ACCOUNT_SETTING);
+        module.registerSetting(AzureStorageService.Storage.COMPRESS_SETTING);
+        module.registerSetting(AzureStorageService.Storage.CONTAINER_SETTING);
+        module.registerSetting(AzureStorageService.Storage.BASE_PATH_SETTING);
+        module.registerSetting(AzureStorageService.Storage.CHUNK_SIZE_SETTING);
+        module.registerSetting(AzureStorageService.Storage.LOCATION_MODE_SETTING);
     }
 }

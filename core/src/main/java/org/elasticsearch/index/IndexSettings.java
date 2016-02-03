@@ -182,7 +182,7 @@ public final class IndexSettings {
         this.index = indexMetaData.getIndex();
         version = Version.indexCreated(settings);
         logger = Loggers.getLogger(getClass(), settings, index);
-        nodeName = settings.get("name", "");
+        nodeName = settings.get("node.name", "");
         this.indexMetaData = indexMetaData;
         numberOfShards = settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_SHARDS, null);
         isShadowReplicaIndex = IndexMetaData.isIndexUsingShadowReplicas(settings);

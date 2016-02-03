@@ -133,6 +133,11 @@ public class Node implements Closeable {
     public static final Setting<Boolean> NODE_LOCAL_SETTING = Setting.boolSetting("node.local", false, false, Setting.Scope.CLUSTER);
     public static final Setting<String> NODE_MODE_SETTING = new Setting<>("node.mode", "network", Function.identity(), false, Setting.Scope.CLUSTER);
     public static final Setting<Boolean> NODE_INGEST_SETTING = Setting.boolSetting("node.ingest", true, false, Setting.Scope.CLUSTER);
+    public static final Setting<String> NODE_NAME_SETTING = Setting.simpleString("node.name", false, Setting.Scope.CLUSTER);
+    // this sucks that folks can mistype client etc and get away with it.
+    // TODO: we should move this to node.attribute.${name} = ${value} instead.
+    public static final Setting<Settings> NODE_ATTRIBUTES = Setting.groupSetting("node.", false, Setting.Scope.CLUSTER);
+
 
     private static final String CLIENT_TYPE = "node";
     private final Lifecycle lifecycle = new Lifecycle();
@@ -156,7 +161,7 @@ public class Node implements Closeable {
             .put(Client.CLIENT_TYPE_SETTING_S.getKey(), CLIENT_TYPE).build();
         tmpSettings = TribeService.processSettings(tmpSettings);
 
-        ESLogger logger = Loggers.getLogger(Node.class, tmpSettings.get("name"));
+        ESLogger logger = Loggers.getLogger(Node.class, NODE_NAME_SETTING.get(tmpSettings));
         logger.info("version[{}], pid[{}], build[{}/{}]", version, JvmInfo.jvmInfo().pid(), Build.CURRENT.shortHash(), Build.CURRENT.date());
 
         logger.info("initializing ...");
@@ -197,7 +202,8 @@ public class Node implements Closeable {
             modules.add(new EnvironmentModule(environment));
             modules.add(new NodeModule(this, monitorService));
             modules.add(new NetworkModule(networkService, settings, false, namedWriteableRegistry));
-            modules.add(new ScriptModule(settingsModule));
+            ScriptModule scriptModule = new ScriptModule();
+            modules.add(scriptModule);
             modules.add(new NodeEnvironmentModule(nodeEnvironment));
             modules.add(new ClusterNameModule(this.settings));
             modules.add(new ThreadPoolModule(threadPool));
@@ -215,7 +221,7 @@ public class Node implements Closeable {
             modules.add(new AnalysisModule(environment));
 
             pluginsService.processModules(modules);
-
+            scriptModule.prepareSettings(settingsModule);
             injector = modules.createInjector();
 
             client = injector.getInstance(Client.class);
@@ -262,7 +268,7 @@ public class Node implements Closeable {
             return this;
         }
 
-        ESLogger logger = Loggers.getLogger(Node.class, settings.get("name"));
+        ESLogger logger = Loggers.getLogger(Node.class, NODE_NAME_SETTING.get(settings));
         logger.info("starting ...");
         // hack around dependency injection problem (for now...)
         injector.getInstance(Discovery.class).setRoutingService(injector.getInstance(RoutingService.class));
@@ -316,7 +322,7 @@ public class Node implements Closeable {
         if (!lifecycle.moveToStopped()) {
             return this;
         }
-        ESLogger logger = Loggers.getLogger(Node.class, settings.get("name"));
+        ESLogger logger = Loggers.getLogger(Node.class, NODE_NAME_SETTING.get(settings));
         logger.info("stopping ...");
 
         injector.getInstance(TribeService.class).stop();
@@ -363,7 +369,7 @@ public class Node implements Closeable {
             return;
         }
 
-        ESLogger logger = Loggers.getLogger(Node.class, settings.get("name"));
+        ESLogger logger = Loggers.getLogger(Node.class, NODE_NAME_SETTING.get(settings));
         logger.info("closing ...");
         List<Closeable> toClose = new ArrayList<>();
         StopWatch stopWatch = new StopWatch("node_close");

@@ -19,14 +19,17 @@
 
 package org.elasticsearch.common.cli;
 
+import org.apache.commons.cli.AlreadySelectedException;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.DefaultParser;
+import org.apache.commons.cli.MissingArgumentException;
+import org.apache.commons.cli.MissingOptionException;
+import org.apache.commons.cli.UnrecognizedOptionException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 
-import java.io.IOException;
 import java.util.Locale;
 
 import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
@@ -50,7 +53,7 @@ import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 public abstract class CliTool {
 
     // based on sysexits.h
-    public static enum ExitStatus {
+    public enum ExitStatus {
         OK(0),
         OK_AND_EXIT(0),
         USAGE(64),          /* command line usage error */
@@ -69,22 +72,12 @@ public abstract class CliTool {
 
         final int status;
 
-        private ExitStatus(int status) {
+        ExitStatus(int status) {
             this.status = status;
         }
 
         public int status() {
             return status;
-        }
-
-        public static ExitStatus fromStatus(int status) {
-            for (ExitStatus exitStatus : values()) {
-                if (exitStatus.status() == status) {
-                    return exitStatus;
-                }
-            }
-
-            return null;
         }
     }
 
@@ -108,7 +101,7 @@ public abstract class CliTool {
         settings = env.settings();
     }
 
-    public final ExitStatus execute(String... args) {
+    public final ExitStatus execute(String... args) throws Exception {
 
         // first lets see if the user requests tool help. We're doing it only if
         // this is a multi-command tool. If it's a single command tool, the -h/--help
@@ -132,7 +125,7 @@ public abstract class CliTool {
             String cmdName = args[0];
             cmd = config.cmd(cmdName);
             if (cmd == null) {
-                terminal.printError("unknown command [%s]. Use [-h] option to list available commands", cmdName);
+                terminal.printError("unknown command [" + cmdName + "]. Use [-h] option to list available commands");
                 return ExitStatus.USAGE;
             }
 
@@ -146,23 +139,11 @@ public abstract class CliTool {
             }
         }
 
-        Command command = null;
         try {
-
-            command = parse(cmd, args);
-            return command.execute(settings, env);
-        } catch (IOException ioe) {
-            terminal.printError(ioe);
-            return ExitStatus.IO_ERROR;
-        } catch (IllegalArgumentException ilae) {
-            terminal.printError(ilae);
-            return ExitStatus.USAGE;
-        } catch (Throwable t) {
-            terminal.printError(t);
-            if (command == null) {
-                return ExitStatus.USAGE;
-            }
-            return ExitStatus.CODE_ERROR;
+            return parse(cmd, args).execute(settings, env);
+        } catch (UserError error) {
+            terminal.printError(error.getMessage());
+            return error.exitStatus;
         }
     }
 
@@ -177,7 +158,13 @@ public abstract class CliTool {
         if (cli.hasOption("h")) {
             return helpCmd(cmd);
         }
-        cli = parser.parse(cmd.options(), args, cmd.isStopAtNonOption());
+        try {
+            cli = parser.parse(cmd.options(), args, cmd.isStopAtNonOption());
+        } catch (AlreadySelectedException|MissingArgumentException|MissingOptionException|UnrecognizedOptionException e) {
+            // intentionally drop the stack trace here as these are really user errors,
+            // the stack trace into cli parsing lib is not important
+            throw new UserError(ExitStatus.USAGE, e.toString());
+        }
         Terminal.Verbosity verbosity = Terminal.Verbosity.resolve(cli);
         terminal.verbosity(verbosity);
         return parse(cmd.name(), cli);

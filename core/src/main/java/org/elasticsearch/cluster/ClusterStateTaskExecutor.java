@@ -123,6 +123,11 @@ public interface ClusterStateTaskExecutor<T> {
             return this == SUCCESS;
         }
 
+        public Throwable getFailure() {
+            assert !isSuccess();
+            return failure;
+        }
+
         /**
          * Handle the execution result with the provided consumers
          * @param onSuccess handler to invoke on success

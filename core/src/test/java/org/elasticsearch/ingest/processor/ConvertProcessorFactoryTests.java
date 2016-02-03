@@ -19,6 +19,7 @@
 
 package org.elasticsearch.ingest.processor;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ingest.core.AbstractProcessorFactory;
 import org.elasticsearch.ingest.core.Processor;
 import org.elasticsearch.test.ESTestCase;
@@ -28,6 +29,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class ConvertProcessorFactoryTests extends ESTestCase {
 
@@ -54,8 +56,11 @@ public class ConvertProcessorFactoryTests extends ESTestCase {
         try {
             factory.create(config);
             fail("factory create should have failed");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), Matchers.equalTo("type [" + type + "] not supported, cannot convert field."));
+        } catch (ElasticsearchParseException e) {
+            assertThat(e.getMessage(), Matchers.equalTo("[type] type [" + type + "] not supported, cannot convert field."));
+            assertThat(e.getHeader("processor_type").get(0), equalTo(ConvertProcessor.TYPE));
+            assertThat(e.getHeader("property_name").get(0), equalTo("type"));
+            assertThat(e.getHeader("processor_tag"), nullValue());
         }
     }
 
@@ -67,7 +72,7 @@ public class ConvertProcessorFactoryTests extends ESTestCase {
         try {
             factory.create(config);
             fail("factory create should have failed");
-        } catch (ConfigurationPropertyException e) {
+        } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), Matchers.equalTo("[field] required property is missing"));
         }
     }
@@ -79,7 +84,7 @@ public class ConvertProcessorFactoryTests extends ESTestCase {
         try {
             factory.create(config);
             fail("factory create should have failed");
-        } catch (ConfigurationPropertyException e) {
+        } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), Matchers.equalTo("[type] required property is missing"));
         }
     }

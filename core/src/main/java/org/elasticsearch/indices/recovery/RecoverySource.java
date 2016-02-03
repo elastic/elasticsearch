@@ -61,8 +61,7 @@ public class RecoverySource extends AbstractComponent implements IndexEventListe
 
     private final ClusterService clusterService;
 
-    private final OngoingRecoveres ongoingRecoveries = new OngoingRecoveres();
-
+    private final OngoingRecoveries ongoingRecoveries = new OngoingRecoveries();
 
     @Inject
     public RecoverySource(Settings settings, TransportService transportService, IndicesService indicesService,
@@ -107,11 +106,11 @@ public class RecoverySource extends AbstractComponent implements IndexEventListe
         }
         if (!targetShardRouting.initializing()) {
             logger.debug("delaying recovery of {} as it is not listed as initializing on the target node {}. known shards state is [{}]",
-                    request.shardId(), request.targetNode(), targetShardRouting.state());
+                request.shardId(), request.targetNode(), targetShardRouting.state());
             throw new DelayRecoveryException("source node has the state of the target shard to be [" + targetShardRouting.state() + "], expecting to be [initializing]");
         }
 
-        logger.trace("[{}][{}] starting recovery to {}, mark_as_relocated {}", request.shardId().getIndex().getName(), request.shardId().id(), request.targetNode(), request.markAsRelocated());
+        logger.trace("[{}][{}] starting recovery to {}", request.shardId().getIndex().getName(), request.shardId().id(), request.targetNode());
         final RecoverySourceHandler handler;
         if (shard.indexSettings().isOnSharedFilesystem()) {
             handler = new SharedFSRecoverySourceHandler(shard, request, recoverySettings, transportService, logger);
@@ -134,8 +133,7 @@ public class RecoverySource extends AbstractComponent implements IndexEventListe
         }
     }
 
-
-    private static final class OngoingRecoveres {
+    private static final class OngoingRecoveries {
         private final Map<IndexShard, Set<RecoverySourceHandler>> ongoingRecoveries = new HashMap<>();
 
         synchronized void add(IndexShard shard, RecoverySourceHandler handler) {

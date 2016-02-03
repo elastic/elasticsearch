@@ -28,6 +28,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
@@ -80,6 +81,10 @@ public class MockTransportService extends TransportService {
         public void onModule(NetworkModule module) {
             module.registerTransportService("mock", MockTransportService.class);
         }
+
+        public void onModule(SettingsModule module) {
+            module.registerSetting(MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING);
+        }
         @Override
         public Settings additionalSettings() {
             return Settings.builder().put(NetworkModule.TRANSPORT_SERVICE_TYPE_KEY, "mock").build();
@@ -104,7 +109,7 @@ public class MockTransportService extends TransportService {
 
     @Override
     protected TaskManager createTaskManager() {
-        if (settings.getAsBoolean(MockTaskManager.USE_MOCK_TASK_MANAGER, false)) {
+        if (MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING.get(settings)) {
             return new MockTaskManager(settings);
          } else {
             return super.createTaskManager();

@@ -24,10 +24,10 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 
-import static org.elasticsearch.cloud.azure.management.AzureComputeService.Management.KEYSTORE_PASSWORD;
-import static org.elasticsearch.cloud.azure.management.AzureComputeService.Management.KEYSTORE_PATH;
-import static org.elasticsearch.cloud.azure.management.AzureComputeService.Management.KEYSTORE_TYPE;
-import static org.elasticsearch.cloud.azure.management.AzureComputeService.Management.SUBSCRIPTION_ID;
+import static org.elasticsearch.cloud.azure.management.AzureComputeService.Management.KEYSTORE_PASSWORD_SETTING;
+import static org.elasticsearch.cloud.azure.management.AzureComputeService.Management.KEYSTORE_PATH_SETTING;
+import static org.elasticsearch.cloud.azure.management.AzureComputeService.Management.KEYSTORE_TYPE_SETTING;
+import static org.elasticsearch.cloud.azure.management.AzureComputeService.Management.SUBSCRIPTION_ID_SETTING;
 
 public class AzureComputeSettingsFilter extends AbstractComponent {
 
@@ -35,9 +35,9 @@ public class AzureComputeSettingsFilter extends AbstractComponent {
     public AzureComputeSettingsFilter(Settings settings, SettingsFilter settingsFilter) {
         super(settings);
         // Cloud management API settings we need to hide
-        settingsFilter.addFilter(KEYSTORE_PATH);
-        settingsFilter.addFilter(KEYSTORE_PASSWORD);
-        settingsFilter.addFilter(KEYSTORE_TYPE);
-        settingsFilter.addFilter(SUBSCRIPTION_ID);
+        settingsFilter.addFilter(KEYSTORE_PATH_SETTING.getKey());
+        settingsFilter.addFilter(KEYSTORE_PASSWORD_SETTING.getKey());
+        settingsFilter.addFilter(KEYSTORE_TYPE_SETTING.getKey());
+        settingsFilter.addFilter(SUBSCRIPTION_ID_SETTING.getKey());
     }
 }

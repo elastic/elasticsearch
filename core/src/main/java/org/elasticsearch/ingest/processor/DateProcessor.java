@@ -108,7 +108,7 @@ public final class DateProcessor extends AbstractProcessor {
         return matchFormats;
     }
 
-    public static class Factory extends AbstractProcessorFactory<DateProcessor> {
+    public static final class Factory extends AbstractProcessorFactory<DateProcessor> {
 
         @SuppressWarnings("unchecked")
         public DateProcessor doCreate(String processorTag, Map<String, Object> config) throws Exception {

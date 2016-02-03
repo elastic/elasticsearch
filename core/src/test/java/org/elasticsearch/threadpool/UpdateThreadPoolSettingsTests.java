@@ -55,7 +55,7 @@ public class UpdateThreadPoolSettingsTests extends ESTestCase {
         ThreadPool threadPool = null;
         try {
             threadPool = new ThreadPool(settingsBuilder()
-                    .put("name", "testCorrectThreadPoolTypePermittedInSettings")
+                    .put("node.name", "testCorrectThreadPoolTypePermittedInSettings")
                     .put("threadpool." + threadPoolName + ".type", correctThreadPoolType.getType())
                     .build());
             ThreadPool.Info info = info(threadPool, threadPoolName);
@@ -78,7 +78,7 @@ public class UpdateThreadPoolSettingsTests extends ESTestCase {
         try {
             threadPool = new ThreadPool(
                     settingsBuilder()
-                            .put("name", "testThreadPoolCanNotOverrideThreadPoolType")
+                            .put("node.name", "testThreadPoolCanNotOverrideThreadPoolType")
                             .put("threadpool." + threadPoolName + ".type", incorrectThreadPoolType.getType())
                             .build());
             terminate(threadPool);
@@ -102,7 +102,7 @@ public class UpdateThreadPoolSettingsTests extends ESTestCase {
 
                 // try to create a too-big (maxSize+1) thread pool
                 threadPool = new ThreadPool(settingsBuilder()
-                                               .put("name", "testIndexingThreadPoolsMaxSize")
+                                               .put("node.name", "testIndexingThreadPoolsMaxSize")
                                                .put("threadpool." + name + ".size", maxSize+1)
                                                .build());
 
@@ -143,7 +143,7 @@ public class UpdateThreadPoolSettingsTests extends ESTestCase {
         ThreadPool.ThreadPoolType validThreadPoolType = ThreadPool.THREAD_POOL_TYPES.get(threadPoolName);
         ThreadPool threadPool = null;
         try {
-            threadPool = new ThreadPool(settingsBuilder().put("name", "testUpdateSettingsCanNotChangeThreadPoolType").build());
+            threadPool = new ThreadPool(settingsBuilder().put("node.name", "testUpdateSettingsCanNotChangeThreadPoolType").build());
             ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
             threadPool.setClusterSettings(clusterSettings);
 
@@ -168,7 +168,7 @@ public class UpdateThreadPoolSettingsTests extends ESTestCase {
         ThreadPool threadPool = null;
         try {
             Settings nodeSettings = Settings.settingsBuilder()
-                    .put("name", "testCachedExecutorType").build();
+                    .put("node.name", "testCachedExecutorType").build();
             threadPool = new ThreadPool(nodeSettings);
             ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
             threadPool.setClusterSettings(clusterSettings);
@@ -227,7 +227,7 @@ public class UpdateThreadPoolSettingsTests extends ESTestCase {
 
         try {
             Settings nodeSettings = Settings.settingsBuilder()
-                    .put("name", "testFixedExecutorType").build();
+                    .put("node.name", "testFixedExecutorType").build();
             threadPool = new ThreadPool(nodeSettings);
             ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
             threadPool.setClusterSettings(clusterSettings);
@@ -287,7 +287,7 @@ public class UpdateThreadPoolSettingsTests extends ESTestCase {
         try {
             Settings nodeSettings = settingsBuilder()
                     .put("threadpool." + threadPoolName + ".size", 10)
-                    .put("name", "testScalingExecutorType").build();
+                    .put("node.name", "testScalingExecutorType").build();
             threadPool = new ThreadPool(nodeSettings);
             ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
             threadPool.setClusterSettings(clusterSettings);
@@ -325,7 +325,7 @@ public class UpdateThreadPoolSettingsTests extends ESTestCase {
         try {
             Settings nodeSettings = Settings.settingsBuilder()
                     .put("threadpool." + threadPoolName + ".queue_size", 1000)
-                    .put("name", "testShutdownNowInterrupts").build();
+                    .put("node.name", "testShutdownNowInterrupts").build();
             threadPool = new ThreadPool(nodeSettings);
             ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
             threadPool.setClusterSettings(clusterSettings);
@@ -362,7 +362,7 @@ public class UpdateThreadPoolSettingsTests extends ESTestCase {
                     .put("threadpool.my_pool2.type", "fixed")
                     .put("threadpool.my_pool2.size", "1")
                     .put("threadpool.my_pool2.queue_size", "1")
-                    .put("name", "testCustomThreadPool").build();
+                    .put("node.name", "testCustomThreadPool").build();
             threadPool = new ThreadPool(nodeSettings);
             ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
             threadPool.setClusterSettings(clusterSettings);

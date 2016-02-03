@@ -127,7 +127,7 @@ public class NetworkModuleTests extends ModuleTestCase {
     }
 
     public void testRegisterHttpTransport() {
-        Settings settings = Settings.builder().put(NetworkModule.HTTP_TYPE_KEY, "custom").build();
+        Settings settings = Settings.builder().put(NetworkModule.HTTP_TYPE_SETTING.getKey(), "custom").build();
         NetworkModule module = new NetworkModule(new NetworkService(settings), settings, false, null);
         module.registerHttpTransport("custom", FakeHttpTransport.class);
         assertBinding(module, HttpServerTransport.class, FakeHttpTransport.class);

@@ -64,9 +64,6 @@ public class IndexedScriptTests extends ESIntegTestCase {
         builder.put("script.engine.groovy.indexed.search", "true");
         builder.put("script.engine.groovy.indexed.aggs", "true");
         builder.put("script.engine.groovy.inline.aggs", "false");
-        builder.put("script.engine.expression.indexed.update", "false");
-        builder.put("script.engine.expression.indexed.search", "false");
-        builder.put("script.engine.expression.indexed.mapping", "false");
         return builder.build();
     }
 

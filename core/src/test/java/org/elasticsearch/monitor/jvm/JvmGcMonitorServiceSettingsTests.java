@@ -62,9 +62,9 @@ public class JvmGcMonitorServiceSettingsTests extends ESTestCase {
     public void testMissingSetting() throws InterruptedException {
         String collector = randomAsciiOfLength(5);
         Set<AbstractMap.SimpleEntry<String, String>> entries = new HashSet<>();
-        entries.add(new AbstractMap.SimpleEntry<>("monitor.jvm.gc.collector." + collector + ".warn", randomTimeValue()));
-        entries.add(new AbstractMap.SimpleEntry<>("monitor.jvm.gc.collector." + collector + ".info", randomTimeValue()));
-        entries.add(new AbstractMap.SimpleEntry<>("monitor.jvm.gc.collector." + collector + ".debug", randomTimeValue()));
+        entries.add(new AbstractMap.SimpleEntry<>("monitor.jvm.gc.collector." + collector + ".warn", randomPositiveTimeValue()));
+        entries.add(new AbstractMap.SimpleEntry<>("monitor.jvm.gc.collector." + collector + ".info", randomPositiveTimeValue()));
+        entries.add(new AbstractMap.SimpleEntry<>("monitor.jvm.gc.collector." + collector + ".debug", randomPositiveTimeValue()));
         Settings.Builder builder = Settings.builder();
 
         // drop a random setting or two

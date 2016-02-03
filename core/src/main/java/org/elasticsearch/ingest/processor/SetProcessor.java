@@ -32,7 +32,7 @@ import java.util.Map;
  * Processor that adds new fields with their corresponding values. If the field is already present, its value
  * will be replaced with the provided one.
  */
-public class SetProcessor extends AbstractProcessor {
+public final class SetProcessor extends AbstractProcessor {
 
     public static final String TYPE = "set";
 

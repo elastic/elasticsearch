@@ -41,7 +41,7 @@ public class AzureTwoStartedNodesTests extends AbstractAzureComputeServiceTestCa
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/11533")
     public void testTwoNodesShouldRunUsingPrivateIp() {
         Settings.Builder settings = Settings.settingsBuilder()
-                .put(Management.SERVICE_NAME, "dummy")
+                .put(Management.SERVICE_NAME_SETTING.getKey(), "dummy")
                 .put(Discovery.HOST_TYPE_SETTING.getKey(), "private_ip");
 
         logger.info("--> start first node");
@@ -59,7 +59,7 @@ public class AzureTwoStartedNodesTests extends AbstractAzureComputeServiceTestCa
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/11533")
     public void testTwoNodesShouldRunUsingPublicIp() {
         Settings.Builder settings = Settings.settingsBuilder()
-                .put(Management.SERVICE_NAME, "dummy")
+                .put(Management.SERVICE_NAME_SETTING.getKey(), "dummy")
                 .put(Discovery.HOST_TYPE_SETTING.getKey(), "public_ip");
 
         logger.info("--> start first node");

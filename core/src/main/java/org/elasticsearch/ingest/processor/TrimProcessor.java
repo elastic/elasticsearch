@@ -23,7 +23,7 @@ package org.elasticsearch.ingest.processor;
  * Processor that trims the content of string fields.
  * Throws exception is the field is not of type string.
  */
-public class TrimProcessor extends AbstractStringProcessor {
+public final class TrimProcessor extends AbstractStringProcessor {
 
     public static final String TYPE = "trim";
 
@@ -41,7 +41,7 @@ public class TrimProcessor extends AbstractStringProcessor {
         return TYPE;
     }
 
-    public static class Factory extends AbstractStringProcessor.Factory<TrimProcessor> {
+    public static final class Factory extends AbstractStringProcessor.Factory<TrimProcessor> {
 
         public Factory() {
             super(TYPE);

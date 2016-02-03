@@ -27,6 +27,7 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.cli.CliTool;
 import org.elasticsearch.common.cli.CliToolConfig;
 import org.elasticsearch.common.cli.Terminal;
+import org.elasticsearch.common.cli.UserError;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -82,7 +83,9 @@ final class BootstrapCLIParser extends CliTool {
 
         @Override
         public ExitStatus execute(Settings settings, Environment env) throws Exception {
-            terminal.println("Version: %s, Build: %s/%s, JVM: %s", org.elasticsearch.Version.CURRENT, Build.CURRENT.shortHash(), Build.CURRENT.date(), JvmInfo.jvmInfo().version());
+            terminal.println("Version: " + org.elasticsearch.Version.CURRENT
+                    + ", Build: " + Build.CURRENT.shortHash() + "/" + Build.CURRENT.date()
+                    + ", JVM: " + JvmInfo.jvmInfo().version());
             return ExitStatus.OK_AND_EXIT;
         }
     }
@@ -103,7 +106,7 @@ final class BootstrapCLIParser extends CliTool {
 
         // TODO: don't use system properties as a way to do this, its horrible...
         @SuppressForbidden(reason = "Sets system properties passed as CLI parameters")
-        public static Command parse(Terminal terminal, CommandLine cli) {
+        public static Command parse(Terminal terminal, CommandLine cli) throws UserError {
             if (cli.hasOption("V")) {
                 return Version.parse(terminal, cli);
             }
@@ -132,11 +135,11 @@ final class BootstrapCLIParser extends CliTool {
                 String arg = iterator.next();
                 if (!arg.startsWith("--")) {
                     if (arg.startsWith("-D") || arg.startsWith("-d") || arg.startsWith("-p")) {
-                        throw new IllegalArgumentException(
+                        throw new UserError(ExitStatus.USAGE,
                                 "Parameter [" + arg + "] starting with \"-D\", \"-d\" or \"-p\" must be before any parameters starting with --"
                         );
                     } else {
-                        throw new IllegalArgumentException("Parameter [" + arg + "]does not start with --");
+                        throw new UserError(ExitStatus.USAGE, "Parameter [" + arg + "]does not start with --");
                     }
                 }
                 // if there is no = sign, we have to get the next argu
@@ -150,11 +153,11 @@ final class BootstrapCLIParser extends CliTool {
                     if (iterator.hasNext()) {
                         String value = iterator.next();
                         if (value.startsWith("--")) {
-                            throw new IllegalArgumentException("Parameter [" + arg + "] needs value");
+                            throw new UserError(ExitStatus.USAGE, "Parameter [" + arg + "] needs value");
                         }
                         System.setProperty("es." + arg, value);
                     } else {
-                        throw new IllegalArgumentException("Parameter [" + arg + "] needs value");
+                        throw new UserError(ExitStatus.USAGE, "Parameter [" + arg + "] needs value");
                     }
                 }
             }

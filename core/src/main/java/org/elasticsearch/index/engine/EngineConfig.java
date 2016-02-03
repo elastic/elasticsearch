@@ -67,9 +67,6 @@ public final class EngineConfig {
     private final QueryCache queryCache;
     private final QueryCachingPolicy queryCachingPolicy;
 
-    static {
-
-    }
     /**
      * Index setting to change the low level lucene codec used for writing new segments.
      * This setting is <b>not</b> realtime updateable.

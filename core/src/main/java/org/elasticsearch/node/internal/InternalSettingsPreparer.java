@@ -154,14 +154,6 @@ public class InternalSettingsPreparer {
         }
         output.replacePropertyPlaceholders();
 
-        // check if name is set in settings, if not look for system property and set it
-        if (output.get("name") == null) {
-            String name = System.getProperty("name");
-            if (name != null) {
-                output.put("name", name);
-            }
-        }
-
         // put the cluster name
         if (output.get(ClusterName.CLUSTER_NAME_SETTING.getKey()) == null) {
             output.put(ClusterName.CLUSTER_NAME_SETTING.getKey(), ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY));
@@ -170,12 +162,10 @@ public class InternalSettingsPreparer {
         replacePromptPlaceholders(output, terminal);
         // all settings placeholders have been resolved. resolve the value for the name setting by checking for name,
         // then looking for node.name, and finally generate one if needed
-        if (output.get("name") == null) {
-            String name = output.get("node.name");
-            if (name == null || name.isEmpty()) {
-                name = randomNodeName(configDir);
-            }
-            output.put("name", name);
+        String name = output.get("node.name");
+        if (name == null || name.isEmpty()) {
+            name = randomNodeName(configDir);
+            output.put("node.name", name);
         }
     }
 
@@ -247,8 +237,8 @@ public class InternalSettingsPreparer {
         }
 
         if (secret) {
-            return new String(terminal.readSecret("Enter value for [%s]: ", key));
+            return new String(terminal.readSecret("Enter value for [" + key + "]: ", key));
         }
-        return terminal.readText("Enter value for [%s]: ", key);
+        return terminal.readText("Enter value for [" + key + "]: ", key);
     }
 }

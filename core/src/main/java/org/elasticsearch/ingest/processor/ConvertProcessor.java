@@ -29,11 +29,13 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.elasticsearch.ingest.core.ConfigurationUtils.newConfigurationException;
+
 /**
  * Processor that converts fields content to a different type. Supported types are: integer, float, boolean and string.
  * Throws exception if the field is not there or the conversion fails.
  */
-public class ConvertProcessor extends AbstractProcessor {
+public final class ConvertProcessor extends AbstractProcessor {
 
     enum Type {
         INTEGER {
@@ -80,11 +82,11 @@ public class ConvertProcessor extends AbstractProcessor {
 
         public abstract Object convert(Object value);
 
-        public static Type fromString(String type) {
+        public static Type fromString(String processorTag, String propertyName, String type) {
             try {
                 return Type.valueOf(type.toUpperCase(Locale.ROOT));
             } catch(IllegalArgumentException e) {
-                throw new IllegalArgumentException("type [" + type + "] not supported, cannot convert field.", e);
+                throw newConfigurationException(TYPE, processorTag, propertyName, "type [" + type + "] not supported, cannot convert field.");
             }
         }
     }
@@ -134,11 +136,12 @@ public class ConvertProcessor extends AbstractProcessor {
         return TYPE;
     }
 
-    public static class Factory extends AbstractProcessorFactory<ConvertProcessor> {
+    public static final class Factory extends AbstractProcessorFactory<ConvertProcessor> {
         @Override
         public ConvertProcessor doCreate(String processorTag, Map<String, Object> config) throws Exception {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
-            Type convertType = Type.fromString(ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "type"));
+            String typeProperty = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "type");
+            Type convertType = Type.fromString(processorTag, "type", typeProperty);
             return new ConvertProcessor(processorTag, field, convertType);
         }
     }

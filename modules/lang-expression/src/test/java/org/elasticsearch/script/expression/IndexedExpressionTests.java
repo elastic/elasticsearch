@@ -41,7 +41,6 @@ public class IndexedExpressionTests extends ESIntegTestCase {
         Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal));
         builder.put("script.engine.expression.indexed.update", "false");
         builder.put("script.engine.expression.indexed.search", "false");
-        builder.put("script.engine.expression.indexed.mapping", "false");
         return builder.build();
     }
 

@@ -36,7 +36,6 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.ParseContext;
 
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
@@ -119,7 +118,7 @@ public class StandaloneRunner extends CliTool {
 
             terminal.println("## Extracted text");
             terminal.println("--------------------- BEGIN -----------------------");
-            terminal.println("%s", doc.get("file.content"));
+            terminal.println(doc.get("file.content"));
             terminal.println("---------------------- END ------------------------");
             terminal.println("## Metadata");
             printMetadataContent(doc, AttachmentMapper.FieldNames.AUTHOR);
@@ -135,18 +134,14 @@ public class StandaloneRunner extends CliTool {
         }
 
         private void printMetadataContent(ParseContext.Document doc, String field) {
-            terminal.println("- %s: %s", field, doc.get(docMapper.mappers().getMapper("file." + field).fieldType().name()));
+            terminal.println("- " + field + ":" + doc.get(docMapper.mappers().getMapper("file." + field).fieldType().name()));
         }
 
         public static byte[] copyToBytes(Path path) throws IOException {
-            try (InputStream is = Files.newInputStream(path)) {
-                if (is == null) {
-                    throw new FileNotFoundException("Resource [" + path + "] not found in classpath");
-                }
-                try (BytesStreamOutput out = new BytesStreamOutput()) {
-                    copy(is, out);
-                    return out.bytes().toBytes();
-                }
+            try (InputStream is = Files.newInputStream(path);
+                 BytesStreamOutput out = new BytesStreamOutput()) {
+                copy(is, out);
+                return out.bytes().toBytes();
             }
         }
 
@@ -177,7 +172,7 @@ public class StandaloneRunner extends CliTool {
     }
 
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws Exception {
         StandaloneRunner pluginManager = new StandaloneRunner();
         pluginManager.execute(args);
     }

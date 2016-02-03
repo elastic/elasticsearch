@@ -53,7 +53,8 @@ public class NettyTransportChannel implements TransportChannel {
     private final long requestId;
     private final String profileName;
 
-    public NettyTransportChannel(NettyTransport transport, TransportServiceAdapter transportServiceAdapter, String action, Channel channel, long requestId, Version version, String profileName) {
+    public NettyTransportChannel(NettyTransport transport, TransportServiceAdapter transportServiceAdapter, String action, Channel channel,
+            long requestId, Version version, String profileName) {
         this.transportServiceAdapter = transportServiceAdapter;
         this.version = version;
         this.transport = transport;
@@ -119,7 +120,8 @@ public class NettyTransportChannel implements TransportChannel {
     public void sendResponse(Throwable error) throws IOException {
         BytesStreamOutput stream = new BytesStreamOutput();
         stream.skip(NettyHeader.HEADER_SIZE);
-        RemoteTransportException tx = new RemoteTransportException(transport.nodeName(), transport.wrapAddress(channel.getLocalAddress()), action, error);
+        RemoteTransportException tx = new RemoteTransportException(transport.nodeName(), transport.wrapAddress(channel.getLocalAddress()),
+                action, error);
         stream.writeThrowable(tx);
         byte status = 0;
         status = TransportStatus.setResponse(status);

@@ -286,7 +286,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         assertRecoveryState(nodeARecoveryStates.get(0), 0, Type.STORE, Stage.DONE, nodeA, nodeA, false);
         validateIndexRecoveryState(nodeARecoveryStates.get(0).getIndex());
 
-        assertOnGoingRecoveryState(nodeBRecoveryStates.get(0), 0, Type.RELOCATION, nodeA, nodeB, false);
+        assertOnGoingRecoveryState(nodeBRecoveryStates.get(0), 0, Type.PRIMARY_RELOCATION, nodeA, nodeB, false);
         validateIndexRecoveryState(nodeBRecoveryStates.get(0).getIndex());
 
         logger.info("--> request node recovery stats");
@@ -339,7 +339,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         recoveryStates = response.shardRecoveryStates().get(INDEX_NAME);
         assertThat(recoveryStates.size(), equalTo(1));
 
-        assertRecoveryState(recoveryStates.get(0), 0, Type.RELOCATION, Stage.DONE, nodeA, nodeB, false);
+        assertRecoveryState(recoveryStates.get(0), 0, Type.PRIMARY_RELOCATION, Stage.DONE, nodeA, nodeB, false);
         validateIndexRecoveryState(recoveryStates.get(0).getIndex());
 
         statsResponse = client().admin().cluster().prepareNodesStats().clear().setIndices(new CommonStatsFlags(CommonStatsFlags.Flag.Recovery)).get();
@@ -400,7 +400,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         assertRecoveryState(nodeARecoveryStates.get(0), 0, Type.REPLICA, Stage.DONE, nodeB, nodeA, false);
         validateIndexRecoveryState(nodeARecoveryStates.get(0).getIndex());
 
-        assertRecoveryState(nodeBRecoveryStates.get(0), 0, Type.RELOCATION, Stage.DONE, nodeA, nodeB, false);
+        assertRecoveryState(nodeBRecoveryStates.get(0), 0, Type.PRIMARY_RELOCATION, Stage.DONE, nodeA, nodeB, false);
         validateIndexRecoveryState(nodeBRecoveryStates.get(0).getIndex());
 
         // relocations of replicas are marked as REPLICA and the source node is the node holding the primary (B)
@@ -421,7 +421,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         nodeCRecoveryStates = findRecoveriesForTargetNode(nodeC, recoveryStates);
         assertThat(nodeCRecoveryStates.size(), equalTo(1));
 
-        assertRecoveryState(nodeBRecoveryStates.get(0), 0, Type.RELOCATION, Stage.DONE, nodeA, nodeB, false);
+        assertRecoveryState(nodeBRecoveryStates.get(0), 0, Type.PRIMARY_RELOCATION, Stage.DONE, nodeA, nodeB, false);
         validateIndexRecoveryState(nodeBRecoveryStates.get(0).getIndex());
 
         // relocations of replicas are marked as REPLICA and the source node is the node holding the primary (B)
@@ -503,7 +503,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         final IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
 
         for (int i = 0; i < numDocs; i++) {
-            docs[i] = client().prepareIndex(INDEX_NAME, INDEX_TYPE).
+            docs[i] = client().prepareIndex(name, INDEX_TYPE).
                     setSource("foo-int", randomInt(),
                             "foo-string", randomAsciiOfLength(32),
                             "foo-float", randomFloat());
@@ -511,8 +511,8 @@ public class IndexRecoveryIT extends ESIntegTestCase {
 
         indexRandom(true, docs);
         flush();
-        assertThat(client().prepareSearch(INDEX_NAME).setSize(0).get().getHits().totalHits(), equalTo((long) numDocs));
-        return client().admin().indices().prepareStats(INDEX_NAME).execute().actionGet();
+        assertThat(client().prepareSearch(name).setSize(0).get().getHits().totalHits(), equalTo((long) numDocs));
+        return client().admin().indices().prepareStats(name).execute().actionGet();
     }
 
     private void validateIndexRecoveryState(RecoveryState.Index indexState) {

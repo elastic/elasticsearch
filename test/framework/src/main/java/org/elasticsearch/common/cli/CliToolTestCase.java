@@ -28,11 +28,8 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.io.PrintWriter;
-import java.io.Writer;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
@@ -64,8 +61,6 @@ public abstract class CliToolTestCase extends ESTestCase {
      */
     public static class MockTerminal extends Terminal {
 
-        private static final PrintWriter DEV_NULL = new PrintWriter(new DevNullWriter());
-
         public MockTerminal() {
             super(Verbosity.NORMAL);
         }
@@ -75,7 +70,7 @@ public abstract class CliToolTestCase extends ESTestCase {
         }
 
         @Override
-        protected void doPrint(String msg, Object... args) {
+        protected void doPrint(String msg) {
         }
 
         @Override
@@ -89,33 +84,11 @@ public abstract class CliToolTestCase extends ESTestCase {
         }
 
         @Override
-        public void print(String msg, Object... args) {
+        public void print(String msg) {
         }
 
         @Override
-        public void printStackTrace(Throwable t) {
-            return;
-        }
-
-        @Override
-        public PrintWriter writer() {
-            return DEV_NULL;
-        }
-
-        private static class DevNullWriter extends Writer {
-
-            @Override
-            public void write(char[] cbuf, int off, int len) throws IOException {
-            }
-
-            @Override
-            public void flush() throws IOException {
-            }
-
-            @Override
-            public void close() throws IOException {
-            }
-        }
+        public void printStackTrace(Throwable t) {}
     }
 
     /**
@@ -123,7 +96,7 @@ public abstract class CliToolTestCase extends ESTestCase {
      */
     public static class CaptureOutputTerminal extends MockTerminal {
 
-        List<String> terminalOutput = new ArrayList();
+        List<String> terminalOutput = new ArrayList<>();
 
         public CaptureOutputTerminal() {
             super(Verbosity.NORMAL);
@@ -134,13 +107,13 @@ public abstract class CliToolTestCase extends ESTestCase {
         }
 
         @Override
-        protected void doPrint(String msg, Object... args) {
-            terminalOutput.add(String.format(Locale.ROOT, msg, args));
+        protected void doPrint(String msg) {
+            terminalOutput.add(msg);
         }
 
         @Override
-        public void print(String msg, Object... args) {
-            doPrint(msg, args);
+        public void print(String msg) {
+            doPrint(msg);
         }
 
         @Override

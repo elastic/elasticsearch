@@ -35,8 +35,6 @@ import java.util.Locale;
 @SuppressForbidden(reason = "System#out")
 public abstract class Terminal {
 
-    public static final String DEBUG_SYSTEM_PROPERTY = "es.cli.debug";
-
     public static final Terminal DEFAULT = ConsoleTerminal.supported() ? new ConsoleTerminal() : new SystemTerminal();
 
     public static enum Verbosity {
@@ -64,7 +62,6 @@ public abstract class Terminal {
     }
 
     private Verbosity verbosity = Verbosity.NORMAL;
-    private final boolean isDebugEnabled;
 
     public Terminal() {
         this(Verbosity.NORMAL);
@@ -72,7 +69,6 @@ public abstract class Terminal {
 
     public Terminal(Verbosity verbosity) {
         this.verbosity = verbosity;
-        this.isDebugEnabled = "true".equals(System.getProperty(DEBUG_SYSTEM_PROPERTY, "false"));
     }
 
     public void verbosity(Verbosity verbosity) {
@@ -93,46 +89,37 @@ public abstract class Terminal {
         println(Verbosity.NORMAL);
     }
 
-    public void println(String msg, Object... args) {
-        println(Verbosity.NORMAL, msg, args);
+    public void println(String msg) {
+        println(Verbosity.NORMAL, msg);
     }
 
-    public void print(String msg, Object... args) {
-        print(Verbosity.NORMAL, msg, args);
+    public void print(String msg) {
+        print(Verbosity.NORMAL, msg);
     }
 
     public void println(Verbosity verbosity) {
         println(verbosity, "");
     }
 
-    public void println(Verbosity verbosity, String msg, Object... args) {
-        print(verbosity, msg + System.lineSeparator(), args);
+    public void println(Verbosity verbosity, String msg) {
+        print(verbosity, msg + System.lineSeparator());
     }
 
-    public void print(Verbosity verbosity, String msg, Object... args) {
+    public void print(Verbosity verbosity, String msg) {
         if (this.verbosity.enabled(verbosity)) {
-            doPrint(msg, args);
+            doPrint(msg);
         }
     }
 
-    public void printError(String msg, Object... args) {
-        println(Verbosity.SILENT, "ERROR: " + msg, args);
+    public void printError(String msg) {
+        println(Verbosity.SILENT, "ERROR: " + msg);
     }
 
-    public void printError(Throwable t) {
-        printError("%s", t.toString());
-        if (isDebugEnabled) {
-            printStackTrace(t);
-        }
+    public void printWarn(String msg) {
+        println(Verbosity.SILENT, "WARN: " + msg);
     }
 
-    public void printWarn(String msg, Object... args) {
-        println(Verbosity.SILENT, "WARN: " + msg, args);
-    }
-
-    protected abstract void doPrint(String msg, Object... args);
-
-    public abstract PrintWriter writer();
+    protected abstract void doPrint(String msg);
 
     private static class ConsoleTerminal extends Terminal {
 
@@ -143,8 +130,8 @@ public abstract class Terminal {
         }
 
         @Override
-        public void doPrint(String msg, Object... args) {
-            console.printf(msg, args);
+        public void doPrint(String msg) {
+            console.printf("%s", msg);
             console.flush();
         }
 
@@ -159,11 +146,6 @@ public abstract class Terminal {
         }
 
         @Override
-        public PrintWriter writer() {
-            return console.writer();
-        }
-
-        @Override
         public void printStackTrace(Throwable t) {
             t.printStackTrace(console.writer());
         }
@@ -175,13 +157,13 @@ public abstract class Terminal {
         private final PrintWriter printWriter = new PrintWriter(System.out);
 
         @Override
-        public void doPrint(String msg, Object... args) {
-            System.out.print(String.format(Locale.ROOT, msg, args));
+        public void doPrint(String msg) {
+            System.out.print(msg);
         }
 
         @Override
         public String readText(String text, Object... args) {
-            print(text, args);
+            print(text);
             BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
             try {
                 return reader.readLine();
@@ -198,11 +180,6 @@ public abstract class Terminal {
         @Override
         public void printStackTrace(Throwable t) {
             t.printStackTrace(printWriter);
-        }
-
-        @Override
-        public PrintWriter writer() {
-            return printWriter;
         }
     }
 }

@@ -24,6 +24,7 @@ import org.elasticsearch.action.TimestampParsingException;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.AbstractClientHeadersTestCase;
+import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.SnapshotId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -81,7 +82,6 @@ import org.elasticsearch.transport.ActionTransportException;
 import org.elasticsearch.transport.ConnectTransportException;
 
 import java.io.IOException;
-import java.lang.reflect.Modifier;
 import java.net.URISyntaxException;
 import java.nio.file.AccessDeniedException;
 import java.nio.file.AtomicMoveNotSupportedException;
@@ -102,6 +102,8 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
+import static java.lang.reflect.Modifier.isAbstract;
+import static java.lang.reflect.Modifier.isInterface;
 import static java.util.Collections.singleton;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
@@ -109,12 +111,13 @@ public class ExceptionSerializationTests extends ESTestCase {
 
     public void testExceptionRegistration()
             throws ClassNotFoundException, IOException, URISyntaxException {
-        final Set<Class> notRegistered = new HashSet<>();
-        final Set<Class> hasDedicatedWrite = new HashSet<>();
-        final Set<Class> registered = new HashSet<>();
+        final Set<Class<?>> notRegistered = new HashSet<>();
+        final Set<Class<?>> hasDedicatedWrite = new HashSet<>();
+        final Set<Class<?>> registered = new HashSet<>();
         final String path = "/org/elasticsearch";
-        final Path startPath = PathUtils.get(ElasticsearchException.class.getProtectionDomain().getCodeSource().getLocation().toURI()).resolve("org").resolve("elasticsearch");
-        final Set<? extends Class> ignore = Sets.newHashSet(
+        final Path startPath = PathUtils.get(ElasticsearchException.class.getProtectionDomain().getCodeSource().getLocation().toURI())
+                .resolve("org").resolve("elasticsearch");
+        final Set<? extends Class<?>> ignore = Sets.newHashSet(
                 org.elasticsearch.test.rest.parser.RestTestParseException.class,
                 org.elasticsearch.test.rest.client.RestException.class,
                 CancellableThreadsTests.CustomException.class,
@@ -135,33 +138,41 @@ public class ExceptionSerializationTests extends ESTestCase {
 
             @Override
             public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                checkFile(file.getFileName().toString());
+                return FileVisitResult.CONTINUE;
+            }
+
+            private void checkFile(String filename) {
+                if (filename.endsWith(".class") == false) {
+                    return;
+                }
                 try {
-                    String filename = file.getFileName().toString();
-                    if (filename.endsWith(".class")) {
-                        Class<?> clazz = loadClass(filename);
-                        if (ignore.contains(clazz) == false) {
-                            if (Modifier.isAbstract(clazz.getModifiers()) == false && Modifier.isInterface(clazz.getModifiers()) == false && isEsException(clazz)) {
-                                if (ElasticsearchException.isRegistered((Class<? extends Throwable>) clazz) == false && ElasticsearchException.class.equals(clazz.getEnclosingClass()) == false) {
-                                    notRegistered.add(clazz);
-                                } else if (ElasticsearchException.isRegistered((Class<? extends Throwable>) clazz)) {
-                                    registered.add(clazz);
-                                    try {
-                                        if (clazz.getMethod("writeTo", StreamOutput.class) != null) {
-                                            hasDedicatedWrite.add(clazz);
-                                        }
-                                    } catch (Exception e) {
-                                        // fair enough
-                                    }
-
-                                }
-                            }
-                        }
-
-                    }
+                    checkClass(loadClass(filename));
                 } catch (ClassNotFoundException e) {
                     throw new RuntimeException(e);
                 }
-                return FileVisitResult.CONTINUE;
+            }
+
+            private void checkClass(Class<?> clazz) {
+                if (ignore.contains(clazz) || isAbstract(clazz.getModifiers()) || isInterface(clazz.getModifiers())) {
+                    return;
+                }
+                if (isEsException(clazz) == false) {
+                    return;
+                }
+                if (ElasticsearchException.isRegistered(clazz.asSubclass(Throwable.class)) == false
+                        && ElasticsearchException.class.equals(clazz.getEnclosingClass()) == false) {
+                    notRegistered.add(clazz);
+                } else if (ElasticsearchException.isRegistered(clazz.asSubclass(Throwable.class))) {
+                    registered.add(clazz);
+                    try {
+                        if (clazz.getMethod("writeTo", StreamOutput.class) != null) {
+                            hasDedicatedWrite.add(clazz);
+                        }
+                    } catch (Exception e) {
+                        // fair enough
+                    }
+                }
             }
 
             private boolean isEsException(Class<?> clazz) {
@@ -217,7 +228,8 @@ public class ExceptionSerializationTests extends ESTestCase {
     public void testIllegalShardRoutingStateException() throws IOException {
         final ShardRouting routing = TestShardRouting.newShardRouting("test", 0, "xyz", "def", false, ShardRoutingState.STARTED, 0);
         final String routingAsString = routing.toString();
-        IllegalShardRoutingStateException serialize = serialize(new IllegalShardRoutingStateException(routing, "foo", new NullPointerException()));
+        IllegalShardRoutingStateException serialize = serialize(
+                new IllegalShardRoutingStateException(routing, "foo", new NullPointerException()));
         assertNotNull(serialize.shard());
         assertEquals(routing, serialize.shard());
         assertEquals(routingAsString + ": foo", serialize.getMessage());
@@ -291,7 +303,8 @@ public class ExceptionSerializationTests extends ESTestCase {
     }
 
     public void testSnapshotException() throws IOException {
-        SnapshotException ex = serialize(new SnapshotException(new SnapshotId("repo", "snap"), "no such snapshot", new NullPointerException()));
+        SnapshotException ex = serialize(
+                new SnapshotException(new SnapshotId("repo", "snap"), "no such snapshot", new NullPointerException()));
         assertEquals(ex.snapshot(), new SnapshotId("repo", "snap"));
         assertEquals(ex.getMessage(), "[repo:snap] no such snapshot");
         assertTrue(ex.getCause() instanceof NullPointerException);
@@ -332,7 +345,8 @@ public class ExceptionSerializationTests extends ESTestCase {
 
     public void testBatchOperationException() throws IOException {
         ShardId id = new ShardId("foo", "_na_", 1);
-        TranslogRecoveryPerformer.BatchOperationException ex = serialize(new TranslogRecoveryPerformer.BatchOperationException(id, "batched the fucker", 666, null));
+        TranslogRecoveryPerformer.BatchOperationException ex = serialize(
+                new TranslogRecoveryPerformer.BatchOperationException(id, "batched the fucker", 666, null));
         assertEquals(ex.getShardId(), id);
         assertEquals(666, ex.completedOperations());
         assertEquals("batched the fucker", ex.getMessage());
@@ -355,7 +369,8 @@ public class ExceptionSerializationTests extends ESTestCase {
     }
 
     public void testActionTransportException() throws IOException {
-        ActionTransportException ex = serialize(new ActionTransportException("name?", new LocalTransportAddress("dead.end:666"), "ACTION BABY!", "message?", null));
+        ActionTransportException ex = serialize(
+                new ActionTransportException("name?", new LocalTransportAddress("dead.end:666"), "ACTION BABY!", "message?", null));
         assertEquals("ACTION BABY!", ex.action());
         assertEquals(new LocalTransportAddress("dead.end:666"), ex.address());
         assertEquals("[name?][local[dead.end:666]][ACTION BABY!] message?", ex.getMessage());
@@ -591,7 +606,14 @@ public class ExceptionSerializationTests extends ESTestCase {
         assertEquals("foo", e.getHeader("foo").get(0));
         assertEquals("bar", e.getHeader("foo").get(1));
         assertSame(status, e.status());
+    }
 
+    public void testNoLongerPrimaryShardException() throws IOException {
+        ShardId shardId = new ShardId(new Index(randomAsciiOfLength(4), randomAsciiOfLength(4)), randomIntBetween(0, Integer.MAX_VALUE));
+        String msg = randomAsciiOfLength(4);
+        ShardStateAction.NoLongerPrimaryShardException ex = serialize(new ShardStateAction.NoLongerPrimaryShardException(shardId, msg));
+        assertEquals(shardId, ex.getShardId());
+        assertEquals(msg, ex.getMessage());
     }
 
     public static class UnknownHeaderException extends ElasticsearchException {
@@ -776,6 +798,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(139, null);
         ids.put(140, org.elasticsearch.discovery.Discovery.FailedToCommitClusterStateException.class);
         ids.put(141, org.elasticsearch.index.query.QueryShardException.class);
+        ids.put(142, ShardStateAction.NoLongerPrimaryShardException.class);
 
         Map<Class<? extends ElasticsearchException>, Integer> reverse = new HashMap<>();
         for (Map.Entry<Integer, Class<? extends ElasticsearchException>> entry : ids.entrySet()) {

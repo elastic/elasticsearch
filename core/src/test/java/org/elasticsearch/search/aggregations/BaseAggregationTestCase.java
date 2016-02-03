@@ -19,12 +19,16 @@
 
 package org.elasticsearch.search.aggregations;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
+import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -38,17 +42,28 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.query.AbstractQueryTestCase;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
+import org.elasticsearch.script.MockScriptEngine;
+import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.ScriptContextRegistry;
+import org.elasticsearch.script.ScriptEngineRegistry;
+import org.elasticsearch.script.ScriptEngineService;
 import org.elasticsearch.script.ScriptModule;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptSettings;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.TestSearchContext;
+import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.cluster.TestClusterService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
 import org.junit.After;
@@ -57,6 +72,11 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -93,19 +113,57 @@ public abstract class BaseAggregationTestCase<AF extends AggregatorFactory> exte
      */
     @BeforeClass
     public static void init() throws IOException {
+        // we have to prefer CURRENT since with the range of versions we support it's rather unlikely to get the current actually.
+        Version version = randomBoolean() ? Version.CURRENT
+                : VersionUtils.randomVersionBetween(random(), Version.V_2_0_0_beta1, Version.CURRENT);
         Settings settings = Settings.settingsBuilder()
-                .put("name", BaseAggregationTestCase.class.toString())
-                .put("path.home", createTempDir())
+                .put("node.name", AbstractQueryTestCase.class.toString())
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+                .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING.getKey(), false)
                 .build();
 
         namedWriteableRegistry =  new NamedWriteableRegistry();
         index = new Index(randomAsciiOfLengthBetween(1, 10), "_na_");
+        Settings indexSettings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
+        final TestClusterService clusterService = new TestClusterService();
+        clusterService.setState(new ClusterState.Builder(clusterService.state()).metaData(new MetaData.Builder()
+                .put(new IndexMetaData.Builder(index.getName()).settings(indexSettings).numberOfShards(1).numberOfReplicas(0))));
         SettingsModule settingsModule = new SettingsModule(settings, new SettingsFilter(settings));
+        settingsModule.registerSetting(InternalSettingsPlugin.VERSION_CREATED);
+        ScriptModule scriptModule = new ScriptModule() {
+            @Override
+            protected void configure() {
+                Settings settings = Settings.builder()
+                    .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+                    // no file watching, so we don't need a ResourceWatcherService
+                    .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING.getKey(), false)
+                    .build();
+                MockScriptEngine mockScriptEngine = new MockScriptEngine();
+                Multibinder<ScriptEngineService> multibinder = Multibinder.newSetBinder(binder(), ScriptEngineService.class);
+                multibinder.addBinding().toInstance(mockScriptEngine);
+                Set<ScriptEngineService> engines = new HashSet<>();
+                engines.add(mockScriptEngine);
+                List<ScriptContext.Plugin> customContexts = new ArrayList<>();
+                ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections.singletonList(new ScriptEngineRegistry.ScriptEngineRegistration(MockScriptEngine.class, MockScriptEngine.TYPES)));
+                bind(ScriptEngineRegistry.class).toInstance(scriptEngineRegistry);
+                ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(customContexts);
+                bind(ScriptContextRegistry.class).toInstance(scriptContextRegistry);
+                ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
+                bind(ScriptSettings.class).toInstance(scriptSettings);
+                try {
+                    ScriptService scriptService = new ScriptService(settings, new Environment(settings), engines, null, scriptEngineRegistry, scriptContextRegistry, scriptSettings);
+                    bind(ScriptService.class).toInstance(scriptService);
+                } catch(IOException e) {
+                    throw new IllegalStateException("error while binding ScriptService", e);
+                }
+            }
+        };
+        scriptModule.prepareSettings(settingsModule);
         injector = new ModulesBuilder().add(
                 new EnvironmentModule(new Environment(settings)),
                 settingsModule,
                 new ThreadPoolModule(new ThreadPool(settings)),
-                new ScriptModule(settingsModule),
+                scriptModule,
                 new IndicesModule() {
 
                     @Override
@@ -127,7 +185,7 @@ public abstract class BaseAggregationTestCase<AF extends AggregatorFactory> exte
                 new AbstractModule() {
                     @Override
                     protected void configure() {
-                        bind(ClusterService.class).toProvider(Providers.of((ClusterService) null));
+                        bind(ClusterService.class).toProvider(Providers.of(clusterService));
                         bind(CircuitBreakerService.class).to(NoneCircuitBreakerService.class);
                         bind(NamedWriteableRegistry.class).toInstance(namedWriteableRegistry);
                     }

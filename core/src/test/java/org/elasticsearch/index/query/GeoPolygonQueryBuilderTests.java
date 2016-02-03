@@ -110,6 +110,7 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
      * explicitly mapped
      */
     @Override
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/16399")
     public void testToQuery() throws IOException {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         super.testToQuery();

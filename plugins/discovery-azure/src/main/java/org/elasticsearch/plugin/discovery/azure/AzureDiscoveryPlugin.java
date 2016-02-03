@@ -34,14 +34,6 @@ import org.elasticsearch.plugins.Plugin;
 import java.util.Collection;
 import java.util.Collections;
 
-import static org.elasticsearch.cloud.azure.management.AzureComputeService.Management.KEYSTORE_PASSWORD_SETTING;
-import static org.elasticsearch.cloud.azure.management.AzureComputeService.Management.KEYSTORE_PATH_SETTING;
-import static org.elasticsearch.cloud.azure.management.AzureComputeService.Management.KEYSTORE_TYPE_SETTING;
-import static org.elasticsearch.cloud.azure.management.AzureComputeService.Management.SUBSCRIPTION_ID_SETTING;
-
-/**
- *
- */
 public class AzureDiscoveryPlugin extends Plugin {
 
     private final Settings settings;
@@ -83,9 +75,9 @@ public class AzureDiscoveryPlugin extends Plugin {
         settingsModule.registerSetting(AzureComputeService.Management.SERVICE_NAME_SETTING);
         settingsModule.registerSetting(AzureComputeService.Discovery.HOST_TYPE_SETTING);
         // Cloud management API settings we need to hide
-        settingsModule.registerSettingsFilter(KEYSTORE_PATH_SETTING.getKey());
-        settingsModule.registerSettingsFilter(KEYSTORE_PASSWORD_SETTING.getKey());
-        settingsModule.registerSettingsFilter(KEYSTORE_TYPE_SETTING.getKey());
-        settingsModule.registerSettingsFilter(SUBSCRIPTION_ID_SETTING.getKey());
+        settingsModule.registerSettingsFilter(AzureComputeService.Management.KEYSTORE_PATH_SETTING.getKey());
+        settingsModule.registerSettingsFilter(AzureComputeService.Management.KEYSTORE_PASSWORD_SETTING.getKey());
+        settingsModule.registerSettingsFilter(AzureComputeService.Management.KEYSTORE_TYPE_SETTING.getKey());
+        settingsModule.registerSettingsFilter(AzureComputeService.Management.SUBSCRIPTION_ID_SETTING.getKey());
     }
 }

@@ -116,7 +116,7 @@ public class TDigestPercentileRanksTests extends AbstractNumericTestCase {
         SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(histogram("histo").field("value").interval(1L).minDocCount(0)
-                        .subAggregation(randomCompression(percentileRanks("percentile_ranks"))
+                        .subAggregation(randomCompression(percentileRanks("percentile_ranks").field("value"))
                                 .values(10, 15)))
                 .execute().actionGet();
 
@@ -405,7 +405,7 @@ public class TDigestPercentileRanksTests extends AbstractNumericTestCase {
                 .setQuery(matchAllQuery())
                 .addAggregation(
                         histogram("histo").field("value").interval(2L)
-                            .subAggregation(randomCompression(percentileRanks("percentile_ranks").values(99)))
+                            .subAggregation(randomCompression(percentileRanks("percentile_ranks").field("value").values(99)))
                             .order(Order.aggregation("percentile_ranks", "99", asc)))
                 .execute().actionGet();
 

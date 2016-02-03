@@ -121,7 +121,7 @@ public class HDRPercentileRanksTests extends AbstractNumericTestCase {
                                 .interval(1L)
                                 .minDocCount(0)
                                 .subAggregation(
-                                        percentileRanks("percentile_ranks").method(PercentilesMethod.HDR)
+                                        percentileRanks("percentile_ranks").field("value").method(PercentilesMethod.HDR)
                                         .numberOfSignificantValueDigits(sigDigits).values(10, 15)))
                 .execute().actionGet();
 
@@ -443,7 +443,7 @@ public class HDRPercentileRanksTests extends AbstractNumericTestCase {
                 .addAggregation(
                         histogram("histo").field("value").interval(2L)
                                 .subAggregation(
-                                        percentileRanks("percentile_ranks").method(PercentilesMethod.HDR)
+                                        percentileRanks("percentile_ranks").field("value").method(PercentilesMethod.HDR)
                                 .numberOfSignificantValueDigits(sigDigits).values(99))
                                 .order(Order.aggregation("percentile_ranks", "99", asc))).execute().actionGet();
 

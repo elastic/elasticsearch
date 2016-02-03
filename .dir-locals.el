@@ -85,4 +85,4 @@
    (c-comment-only-line-offset . (0 . 0))
    (fill-column . 140)
    (fci-rule-column . 140)
-   (compile-command . "gradle compileJava compileTestJava"))))
+   (compile-command . "gradle compileTestJava"))))

@@ -38,9 +38,8 @@ import org.elasticsearch.common.settings.Settings;
  * @see DFRSimilarity For more information about configuration
  */
 public class DFRSimilarityProvider extends AbstractSimilarityProvider {
-
-    private static final ImmutableMap<String, BasicModel> MODEL_CACHE;
-    private static final ImmutableMap<String, AfterEffect> EFFECT_CACHE;
+    private static final ImmutableMap<String, BasicModel> BASIC_MODELS;
+    private static final ImmutableMap<String, AfterEffect> AFTER_EFFECTS;
 
     static {
         MapBuilder<String, BasicModel> models = MapBuilder.newMapBuilder();
@@ -51,13 +50,13 @@ public class DFRSimilarityProvider extends AbstractSimilarityProvider {
         models.put("in", new BasicModelIn());
         models.put("ine", new BasicModelIne());
         models.put("p", new BasicModelP());
-        MODEL_CACHE = models.immutableMap();
+        BASIC_MODELS = models.immutableMap();
 
         MapBuilder<String, AfterEffect> effects = MapBuilder.newMapBuilder();
         effects.put("no", new AfterEffect.NoAfterEffect());
         effects.put("b", new AfterEffectB());
         effects.put("l", new AfterEffectL());
-        EFFECT_CACHE = effects.immutableMap();
+        AFTER_EFFECTS = effects.immutableMap();
     }
 
     private final DFRSimilarity similarity;
@@ -79,7 +78,7 @@ public class DFRSimilarityProvider extends AbstractSimilarityProvider {
      */
     protected BasicModel parseBasicModel(Settings settings) {
         String basicModel = settings.get("basic_model");
-        BasicModel model = MODEL_CACHE.get(basicModel);
+        BasicModel model = BASIC_MODELS.get(basicModel);
         if (model == null) {
             throw new IllegalArgumentException("Unsupported BasicModel [" + basicModel + "]");
         }
@@ -94,7 +93,7 @@ public class DFRSimilarityProvider extends AbstractSimilarityProvider {
      */
     protected AfterEffect parseAfterEffect(Settings settings) {
         String afterEffect = settings.get("after_effect");
-        AfterEffect effect = EFFECT_CACHE.get(afterEffect);
+        AfterEffect effect = AFTER_EFFECTS.get(afterEffect);
         if (effect == null) {
             throw new IllegalArgumentException("Unsupported AfterEffect [" + afterEffect + "]");
         }

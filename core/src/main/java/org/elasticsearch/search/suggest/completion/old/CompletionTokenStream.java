@@ -48,7 +48,7 @@ public final class CompletionTokenStream extends TokenStream {
     private static final int MAX_PATHS = 256;
     private CharTermAttribute charTermAttribute;
 
-    public CompletionTokenStream(TokenStream input, BytesRef payload, ToFiniteStrings toFiniteStrings) throws IOException {
+    public CompletionTokenStream(TokenStream input, BytesRef payload, ToFiniteStrings toFiniteStrings) {
         // Don't call the super(input) ctor - this is a true delegate and has a new attribute source since we consume
         // the input stream entirely in toFiniteStrings(input)
         this.input = input;

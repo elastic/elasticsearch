@@ -513,7 +513,7 @@ public class OldCompletionFieldMapper extends FieldMapper {
         }
 
         @Override
-        public TokenStream tokenStream(Analyzer analyzer, TokenStream previous) throws IOException {
+        public TokenStream tokenStream(Analyzer analyzer, TokenStream previous) {
             TokenStream ts = ctx.wrapTokenStream(super.tokenStream(analyzer, previous));
             return new CompletionTokenStream(ts, payload, toFiniteStrings);
         }

@@ -28,6 +28,7 @@ import org.junit.Test;
 
 import static org.elasticsearch.http.netty.NettyHttpServerTransport.SETTING_CORS_ALLOW_ORIGIN;
 import static org.elasticsearch.http.netty.NettyHttpServerTransport.SETTING_CORS_ALLOW_CREDENTIALS;
+import static org.elasticsearch.http.netty.NettyHttpServerTransport.SETTING_CORS_ALLOW_METHODS;
 import static org.elasticsearch.http.netty.NettyHttpServerTransport.SETTING_CORS_ENABLED;
 import static org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import static org.elasticsearch.test.ESIntegTestCase.Scope;
@@ -35,7 +36,7 @@ import static org.hamcrest.Matchers.*;
 import static org.hamcrest.Matchers.is;
 
 /**
- *
+ * Test CORS where the allow origin value is a regular expression.
  */
 @ClusterScope(scope = Scope.SUITE, numDataNodes = 1)
 public class CorsRegexIT extends ESIntegTestCase {
@@ -48,6 +49,7 @@ public class CorsRegexIT extends ESIntegTestCase {
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(SETTING_CORS_ALLOW_ORIGIN, "/https?:\\/\\/localhost(:[0-9]+)?/")
                 .put(SETTING_CORS_ALLOW_CREDENTIALS, true)
+                .put(SETTING_CORS_ALLOW_METHODS, "get, options, post")
                 .put(SETTING_CORS_ENABLED, true)
                 .put(Node.HTTP_ENABLED, true)
                 .build();
@@ -66,10 +68,11 @@ public class CorsRegexIT extends ESIntegTestCase {
         assertThat(response.getHeaders().get("Access-Control-Allow-Credentials"), is("true"));
     }
 
-    @Test
-    public void testThatRegularExpressionReturnsNullOnNonMatch() throws Exception {
+    public void testThatRegularExpressionReturnsForbiddenOnNonMatch() throws Exception {
         HttpResponse response = httpClient().method("GET").path("/").addHeader("User-Agent", "Mozilla Bar").addHeader("Origin", "http://evil-host:9200").execute();
-        assertResponseWithOriginheader(response, "null");
+        // a rejected origin gets a FORBIDDEN - 403
+        assertThat(response.getStatusCode(), is(403));
+        assertThat(response.getHeaders(), not(hasKey("Access-Control-Allow-Origin")));
     }
 
     @Test
@@ -89,19 +92,34 @@ public class CorsRegexIT extends ESIntegTestCase {
     @Test
     public void testThatPreFlightRequestWorksOnMatch() throws Exception {
         String corsValue = "http://localhost:9200";
-        HttpResponse response = httpClient().method("OPTIONS").path("/").addHeader("User-Agent", "Mozilla Bar").addHeader("Origin", corsValue).execute();
+        HttpResponse response = httpClient().method("OPTIONS")
+                                    .path("/")
+                                    .addHeader("User-Agent", "Mozilla Bar")
+                                    .addHeader("Origin", corsValue)
+                                    .addHeader("Access-Control-Request-Method", "GET")
+                                    .execute();
         assertResponseWithOriginheader(response, corsValue);
+        assertThat(response.getHeaders(), hasKey("Access-Control-Allow-Methods"));
     }
 
     @Test
     public void testThatPreFlightRequestReturnsNullOnNonMatch() throws Exception {
-        HttpResponse response = httpClient().method("OPTIONS").path("/").addHeader("User-Agent", "Mozilla Bar").addHeader("Origin", "http://evil-host:9200").execute();
-        assertResponseWithOriginheader(response, "null");
+        HttpResponse response = httpClient().method("OPTIONS")
+                                    .path("/")
+                                    .addHeader("User-Agent", "Mozilla Bar")
+                                    .addHeader("Origin", "http://evil-host:9200")
+                                    .addHeader("Access-Control-Request-Method", "GET")
+                                    .execute();
+        // a rejected origin gets a FORBIDDEN - 403
+        assertThat(response.getStatusCode(), is(403));
+        assertThat(response.getHeaders(), not(hasKey("Access-Control-Allow-Origin")));
+        assertThat(response.getHeaders(), not(hasKey("Access-Control-Allow-Methods")));
     }
 
-    public static void assertResponseWithOriginheader(HttpResponse response, String expectedCorsHeader) {
+    protected static void assertResponseWithOriginheader(HttpResponse response, String expectedCorsHeader) {
         assertThat(response.getStatusCode(), is(200));
         assertThat(response.getHeaders(), hasKey("Access-Control-Allow-Origin"));
         assertThat(response.getHeaders().get("Access-Control-Allow-Origin"), is(expectedCorsHeader));
     }
+
 }

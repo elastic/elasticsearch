@@ -21,6 +21,7 @@ package org.elasticsearch.rest.support;
 
 import com.google.common.base.Charsets;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.path.PathTrie;
 
 import java.nio.charset.Charset;
@@ -237,5 +238,23 @@ public class RestUtils {
         }
 
         return null;
+    }
+
+    /**
+     * Return the CORS setting as an array of origins.
+     *
+     * @param corsSetting the CORS allow origin setting as configured by the user;
+     *                    should never pass null, but we check for it anyway.
+     * @return an array of origins if set, otherwise {@code null}.
+     */
+    public static String[] corsSettingAsArray(String corsSetting) {
+        if (Strings.isNullOrEmpty(corsSetting)) {
+            return new String[0];
+        }
+        String[] arr = corsSetting.split(",");
+        for (int i = 0; i < arr.length; i++) {
+            arr[i] = arr[i].trim();
+        }
+        return arr;
     }
 }

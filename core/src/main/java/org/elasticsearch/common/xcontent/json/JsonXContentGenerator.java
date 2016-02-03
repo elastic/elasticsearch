@@ -72,10 +72,10 @@ public class JsonXContentGenerator implements XContentGenerator {
     private boolean prettyPrint = false;
 
     public JsonXContentGenerator(JsonGenerator jsonGenerator, OutputStream os, String... filters) {
-        this(jsonGenerator, os, true, filters);
+        this(jsonGenerator, os, filters, true);
     }
 
-    public JsonXContentGenerator(JsonGenerator jsonGenerator, OutputStream os, boolean inclusive, String... filters) {
+    public JsonXContentGenerator(JsonGenerator jsonGenerator, OutputStream os, String[] filters, boolean inclusive) {
         if (jsonGenerator instanceof GeneratorBase) {
             this.base = (GeneratorBase) jsonGenerator;
         } else {

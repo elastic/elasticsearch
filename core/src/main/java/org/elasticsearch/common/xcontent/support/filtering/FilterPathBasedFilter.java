@@ -45,7 +45,7 @@ public class FilterPathBasedFilter extends TokenFilter {
 
     private final boolean inclusive;
 
-    public FilterPathBasedFilter(boolean inclusive, FilterPath[] filters) {
+    public FilterPathBasedFilter(FilterPath[] filters, boolean inclusive) {
         if (CollectionUtils.isEmpty(filters)) {
             throw new IllegalArgumentException("filters cannot be null or empty");
         }
@@ -54,7 +54,7 @@ public class FilterPathBasedFilter extends TokenFilter {
     }
 
     public FilterPathBasedFilter(boolean inclusive, String[] filters) {
-        this(inclusive, FilterPath.compile(filters));
+        this(FilterPath.compile(filters), inclusive);
     }
 
     /**
@@ -82,7 +82,7 @@ public class FilterPathBasedFilter extends TokenFilter {
             }
 
             if ((nextFilters != null) && (nextFilters.isEmpty() == false)) {
-                return new FilterPathBasedFilter(inclusive, nextFilters.toArray(new FilterPath[nextFilters.size()]));
+                return new FilterPathBasedFilter(nextFilters.toArray(new FilterPath[nextFilters.size()]), inclusive);
             }
         }
         return NO_MATCHING;

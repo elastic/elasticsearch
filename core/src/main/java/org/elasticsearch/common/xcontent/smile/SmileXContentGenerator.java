@@ -32,11 +32,11 @@ import java.io.OutputStream;
 public class SmileXContentGenerator extends JsonXContentGenerator {
 
     public SmileXContentGenerator(JsonGenerator jsonGenerator, OutputStream os, String... filters) {
-        this(jsonGenerator, os, true, filters);
+        this(jsonGenerator, os, filters, true);
     }
 
-    public SmileXContentGenerator(JsonGenerator jsonGenerator, OutputStream os, boolean inclusive, String[] filters) {
-        super(jsonGenerator, os, inclusive, filters);
+    public SmileXContentGenerator(JsonGenerator jsonGenerator, OutputStream os, String[] filters, boolean inclusive) {
+        super(jsonGenerator, os, filters, inclusive);
     }
 
     @Override

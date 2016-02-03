@@ -32,11 +32,11 @@ import java.io.OutputStream;
 public class CborXContentGenerator extends JsonXContentGenerator {
 
     public CborXContentGenerator(JsonGenerator jsonGenerator, OutputStream os, String... filters) {
-        this(jsonGenerator, os, true, filters);
+        this(jsonGenerator, os, filters, true);
     }
 
-    public CborXContentGenerator(JsonGenerator jsonGenerator, OutputStream os, boolean inclusive, String[] filters) {
-        super(jsonGenerator, os, inclusive, filters);
+    public CborXContentGenerator(JsonGenerator jsonGenerator, OutputStream os, String[] filters, boolean inclusive) {
+        super(jsonGenerator, os, filters, inclusive);
     }
 
     @Override

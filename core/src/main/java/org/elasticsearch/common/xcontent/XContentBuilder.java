@@ -84,7 +84,7 @@ public final class XContentBuilder implements BytesStream, Releasable {
     }
 
     public static XContentBuilder builder(XContent xContent, String[] filters, boolean inclusive) throws IOException {
-        return new XContentBuilder(xContent, new BytesStreamOutput(), inclusive, filters);
+        return new XContentBuilder(xContent, new BytesStreamOutput(), filters, inclusive);
     }
 
     private XContentGenerator generator;
@@ -112,7 +112,7 @@ public final class XContentBuilder implements BytesStream, Releasable {
      * {@link #close()} when the builder is done with.
      */
     public XContentBuilder(XContent xContent, OutputStream bos, String[] filters) throws IOException {
-        this(xContent, bos, true, filters);
+        this(xContent, bos, filters, true);
     }
 
     /**
@@ -122,9 +122,9 @@ public final class XContentBuilder implements BytesStream, Releasable {
      * inclusiveFilters is false, those matching will be excluded. Make sure to
      * call {@link #close()} when the builder is done with.
      */
-    public XContentBuilder(XContent xContent, OutputStream bos, boolean inclusiveFilters, String[] filters) throws IOException {
+    public XContentBuilder(XContent xContent, OutputStream bos, String[] filters, boolean inclusive) throws IOException {
         this.bos = bos;
-        this.generator = xContent.createGenerator(bos, filters, inclusiveFilters);
+        this.generator = xContent.createGenerator(bos, filters, inclusive);
     }
 
     public XContentBuilder fieldCaseConversion(FieldCaseConversion fieldCaseConversion) {

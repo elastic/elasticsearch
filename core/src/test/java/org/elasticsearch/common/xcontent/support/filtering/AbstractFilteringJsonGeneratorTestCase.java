@@ -83,7 +83,15 @@ public abstract class AbstractFilteringJsonGeneratorTestCase extends ESTestCase 
         }
     }
 
-    private XContentBuilder newXContentBuilder(boolean inclusive, String... filters) throws IOException {
+    private XContentBuilder newXContentBuilder() throws IOException {
+        return XContentBuilder.builder(getXContentType().xContent());
+    }
+
+    private XContentBuilder newXContentBuilder(String filter, boolean inclusive) throws IOException {
+        return XContentBuilder.builder(getXContentType().xContent(), new String[] { filter }, inclusive);
+    }
+
+    private XContentBuilder newXContentBuilder(String[] filters, boolean inclusive) throws IOException {
         return XContentBuilder.builder(getXContentType().xContent(), filters, inclusive);
     }
 
@@ -169,39 +177,46 @@ public abstract class AbstractFilteringJsonGeneratorTestCase extends ESTestCase 
     /**
      * Instanciates a new XContentBuilder with the given filters and builds a
      * sample with it.
-     *
      * @param inclusive
      *            Specifies if filters are inclusive or exclusive
      */
-    private XContentBuilder sample(boolean inclusive, String... filters) throws IOException {
-        return sample(newXContentBuilder(inclusive, filters));
+    private XContentBuilder sample(String filter, boolean inclusive) throws IOException {
+        return sample(newXContentBuilder(filter, inclusive));
+    }
+
+    private XContentBuilder sample(String[] filters, boolean inclusive) throws IOException {
+        return sample(newXContentBuilder(filters, inclusive));
+    }
+
+    private XContentBuilder sample() throws IOException {
+        return sample(newXContentBuilder());
     }
 
     public void testNoFiltering() throws Exception {
-        XContentBuilder expected = sample(true);
+        XContentBuilder expected = sample();
 
-        assertXContentBuilder(expected, sample(true));
-        assertXContentBuilder(expected, sample(true, "*"));
-        assertXContentBuilder(expected, sample(true, "**"));
-        assertXContentBuilder(expected, sample(false, "xyz"));
+        assertXContentBuilder(expected, sample());
+        assertXContentBuilder(expected, sample("*", true));
+        assertXContentBuilder(expected, sample("**", true));
+        assertXContentBuilder(expected, sample("xyz", false));
     }
 
     public void testNoMatch() throws Exception {
-        XContentBuilder expected = newXContentBuilder(true).startObject().endObject();
+        XContentBuilder expected = newXContentBuilder().startObject().endObject();
 
-        assertXContentBuilder(expected, sample(true, "xyz"));
-        assertXContentBuilder(expected, sample(false, "*"));
-        assertXContentBuilder(expected, sample(false, "**"));
+        assertXContentBuilder(expected, sample("xyz", true));
+        assertXContentBuilder(expected, sample("*", false));
+        assertXContentBuilder(expected, sample("**", false));
     }
 
     public void testSimpleFieldInclusive() throws Exception {
-        XContentBuilder expected = newXContentBuilder(true).startObject().field("title", "My awesome book").endObject();
+        XContentBuilder expected = newXContentBuilder().startObject().field("title", "My awesome book").endObject();
 
-        assertXContentBuilder(expected, sample(true, "title"));
+        assertXContentBuilder(expected, sample("title", true));
     }
 
     public void testSimpleFieldExclusive() throws Exception {
-        XContentBuilder expected = newXContentBuilder(true).startObject()
+        XContentBuilder expected = newXContentBuilder().startObject()
                                                                 .field("pages", 456)
                                                                 .field("price", 27.99)
                                                                 .field("timestamp", 1428582942867L)
@@ -272,12 +287,12 @@ public abstract class AbstractFilteringJsonGeneratorTestCase extends ESTestCase 
                                                                 .endObject()
                                                             .endObject();
 
-        assertXContentBuilder(expected, sample(false, "title"));
+        assertXContentBuilder(expected, sample("title", false));
     }
 
 
     public void testSimpleFieldWithWildcardInclusive() throws Exception {
-        XContentBuilder expected = newXContentBuilder(true).startObject()
+        XContentBuilder expected = newXContentBuilder().startObject()
                                                             .field("price", 27.99)
                                                             .startObject("properties")
                                                                 .field("weight", 0.8d)
@@ -329,11 +344,11 @@ public abstract class AbstractFilteringJsonGeneratorTestCase extends ESTestCase 
                                                             .endObject()
                                                         .endObject();
 
-        assertXContentBuilder(expected, sample(true, "pr*"));
+        assertXContentBuilder(expected, sample("pr*", true));
     }
 
     public void testSimpleFieldWithWildcardExclusive() throws Exception {
-        XContentBuilder expected = newXContentBuilder(true).startObject()
+        XContentBuilder expected = newXContentBuilder().startObject()
                                                                 .field("title", "My awesome book")
                                                                 .field("pages", 456)
                                                                 .field("timestamp", 1428582942867L)
@@ -356,20 +371,20 @@ public abstract class AbstractFilteringJsonGeneratorTestCase extends ESTestCase 
                                                                 .endArray()
                                                             .endObject();
 
-        assertXContentBuilder(expected, sample(false, "pr*"));
+        assertXContentBuilder(expected, sample("pr*", false));
     }
 
     public void testMultipleFieldsInclusive() throws Exception {
-        XContentBuilder expected = newXContentBuilder(true).startObject()
+        XContentBuilder expected = newXContentBuilder().startObject()
                                                             .field("title", "My awesome book")
                                                             .field("pages", 456)
                                                         .endObject();
 
-        assertXContentBuilder(expected, sample(true, "title", "pages"));
+        assertXContentBuilder(expected, sample(new String[] { "title", "pages" }, true));
     }
 
     public void testMultipleFieldsExclusive() throws Exception {
-        XContentBuilder expected = newXContentBuilder(true).startObject()
+        XContentBuilder expected = newXContentBuilder().startObject()
                                                                 .field("price", 27.99)
                                                                 .field("timestamp", 1428582942867L)
                                                                 .nullField("default")
@@ -439,23 +454,23 @@ public abstract class AbstractFilteringJsonGeneratorTestCase extends ESTestCase 
                                                                 .endObject()
                                                             .endObject();
 
-        assertXContentBuilder(expected, sample(false, "title", "pages"));
+        assertXContentBuilder(expected, sample(new String[] { "title", "pages" }, false));
     }
 
 
     public void testSimpleArrayInclusive() throws Exception {
-        XContentBuilder expected = newXContentBuilder(true).startObject()
+        XContentBuilder expected = newXContentBuilder().startObject()
                                                         .startArray("tags")
                                                             .value("elasticsearch")
                                                             .value("java")
                                                         .endArray()
                                                     .endObject();
 
-        assertXContentBuilder(expected, sample(true, "tags"));
+        assertXContentBuilder(expected, sample("tags", true));
     }
 
     public void testSimpleArrayExclusive() throws Exception {
-        XContentBuilder expected = newXContentBuilder(true).startObject()
+        XContentBuilder expected = newXContentBuilder().startObject()
                                                                 .field("title", "My awesome book")
                                                                 .field("pages", 456)
                                                                 .field("price", 27.99)
@@ -523,12 +538,12 @@ public abstract class AbstractFilteringJsonGeneratorTestCase extends ESTestCase 
                                                                 .endObject()
                                                             .endObject();
 
-        assertXContentBuilder(expected, sample(false, "tags"));
+        assertXContentBuilder(expected, sample("tags", false));
     }
 
 
     public void testSimpleArrayOfObjectsInclusive() throws Exception {
-        XContentBuilder expected = newXContentBuilder(true).startObject()
+        XContentBuilder expected = newXContentBuilder().startObject()
                                                         .startArray("authors")
                                                             .startObject()
                                                                 .field("name", "John Doe")
@@ -543,13 +558,13 @@ public abstract class AbstractFilteringJsonGeneratorTestCase extends ESTestCase 
                                                         .endArray()
                                                     .endObject();
 
-        assertXContentBuilder(expected, sample(true, "authors"));
-        assertXContentBuilder(expected, sample(true, "authors.*"));
-        assertXContentBuilder(expected, sample(true, "authors.*name"));
+        assertXContentBuilder(expected, sample("authors", true));
+        assertXContentBuilder(expected, sample("authors.*", true));
+        assertXContentBuilder(expected, sample("authors.*name", true));
     }
 
     public void testSimpleArrayOfObjectsExclusive() throws Exception {
-        XContentBuilder expected = newXContentBuilder(true).startObject()
+        XContentBuilder expected = newXContentBuilder().startObject()
                                                                 .field("title", "My awesome book")
                                                                 .field("pages", 456)
                                                                 .field("price", 27.99)
@@ -609,13 +624,13 @@ public abstract class AbstractFilteringJsonGeneratorTestCase extends ESTestCase 
                                                                 .endObject()
                                                            .endObject();
 
-        assertXContentBuilder(expected, sample(false, "authors"));
-        assertXContentBuilder(expected, sample(false, "authors.*"));
-        assertXContentBuilder(expected, sample(false, "authors.*name"));
+        assertXContentBuilder(expected, sample("authors", false));
+        assertXContentBuilder(expected, sample("authors.*", false));
+        assertXContentBuilder(expected, sample("authors.*name", false));
     }
 
     public void testSimpleArrayOfObjectsPropertyInclusive() throws Exception {
-        XContentBuilder expected = newXContentBuilder(true).startObject()
+        XContentBuilder expected = newXContentBuilder().startObject()
                                                             .startArray("authors")
                                                                 .startObject()
                                                                     .field("lastname", "John")
@@ -626,12 +641,12 @@ public abstract class AbstractFilteringJsonGeneratorTestCase extends ESTestCase 
                                                             .endArray()
                                                         .endObject();
 
-        assertXContentBuilder(expected, sample(true, "authors.lastname"));
-        assertXContentBuilder(expected, sample(true, "authors.l*"));
+        assertXContentBuilder(expected, sample("authors.lastname", true));
+        assertXContentBuilder(expected, sample("authors.l*", true));
     }
 
     public void testSimpleArrayOfObjectsPropertyExclusive() throws Exception {
-        XContentBuilder expected = newXContentBuilder(true).startObject()
+        XContentBuilder expected = newXContentBuilder().startObject()
                 .field("title", "My awesome book")
                 .field("pages", 456)
                 .field("price", 27.99)
@@ -701,12 +716,12 @@ public abstract class AbstractFilteringJsonGeneratorTestCase extends ESTestCase 
                 .endObject()
             .endObject();
 
-        assertXContentBuilder(expected, sample(false, "authors.lastname"));
-        assertXContentBuilder(expected, sample(false, "authors.l*"));
+        assertXContentBuilder(expected, sample("authors.lastname", false));
+        assertXContentBuilder(expected, sample("authors.l*", false));
     }
 
     public void testRecurseField1Inclusive() throws Exception {
-        XContentBuilder expected = newXContentBuilder(true).startObject()
+        XContentBuilder expected = newXContentBuilder().startObject()
                                                             .startArray("authors")
                                                                 .startObject()
                                                                     .field("name", "John Doe")
@@ -754,11 +769,11 @@ public abstract class AbstractFilteringJsonGeneratorTestCase extends ESTestCase 
                                                             .endObject()
                                                         .endObject();
 
-        assertXContentBuilder(expected, sample(true, "**.name"));
+        assertXContentBuilder(expected, sample("**.name", true));
     }
 
     public void testRecurseField1Exclusive() throws Exception {
-        XContentBuilder expected = newXContentBuilder(true).startObject()
+        XContentBuilder expected = newXContentBuilder().startObject()
                                                                 .field("title", "My awesome book")
                                                                 .field("pages", 456)
                                                                 .field("price", 27.99)
@@ -817,11 +832,11 @@ public abstract class AbstractFilteringJsonGeneratorTestCase extends ESTestCase 
                                                                 .endObject()
                                                            .endObject();
 
-        assertXContentBuilder(expected, sample(false, "**.name"));
+        assertXContentBuilder(expected, sample("**.name", false));
     }
 
     public void testRecurseField2Inclusive() throws Exception {
-        XContentBuilder expected = newXContentBuilder(true).startObject()
+        XContentBuilder expected = newXContentBuilder().startObject()
                                                             .startObject("properties")
                                                                 .startObject("language")
                                                                     .startObject("en")
@@ -861,11 +876,11 @@ public abstract class AbstractFilteringJsonGeneratorTestCase extends ESTestCase 
                                                             .endObject()
                                                         .endObject();
 
-        assertXContentBuilder(expected, sample(true, "properties.**.name"));
+        assertXContentBuilder(expected, sample("properties.**.name", true));
     }
 
     public void testRecurseField2Exclusive() throws Exception {
-        XContentBuilder expected = newXContentBuilder(true).startObject()
+        XContentBuilder expected = newXContentBuilder().startObject()
                                                                 .field("title", "My awesome book")
                                                                 .field("pages", 456)
                                                                 .field("price", 27.99)
@@ -926,12 +941,12 @@ public abstract class AbstractFilteringJsonGeneratorTestCase extends ESTestCase 
                                                                 .endObject()
                                                            .endObject();
 
-        assertXContentBuilder(expected, sample(false, "properties.**.name"));
+        assertXContentBuilder(expected, sample("properties.**.name", false));
     }
 
 
     public void testRecurseField3Inclusive() throws Exception {
-        XContentBuilder expected = newXContentBuilder(true).startObject()
+        XContentBuilder expected = newXContentBuilder().startObject()
                                                         .startObject("properties")
                                                             .startObject("language")
                                                                 .startObject("en")
@@ -956,11 +971,11 @@ public abstract class AbstractFilteringJsonGeneratorTestCase extends ESTestCase 
                                                         .endObject()
                                                     .endObject();
 
-        assertXContentBuilder(expected, sample(true, "properties.*.en.**.name"));
+        assertXContentBuilder(expected, sample("properties.*.en.**.name", true));
     }
 
     public void testRecurseField3Exclusive() throws Exception {
-        XContentBuilder expected = newXContentBuilder(true).startObject()
+        XContentBuilder expected = newXContentBuilder().startObject()
                                                                 .field("title", "My awesome book")
                                                                 .field("pages", 456)
                                                                 .field("price", 27.99)
@@ -1026,12 +1041,12 @@ public abstract class AbstractFilteringJsonGeneratorTestCase extends ESTestCase 
                                                                 .endObject()
                                                            .endObject();
 
-        assertXContentBuilder(expected, sample(false, "properties.*.en.**.name"));
+        assertXContentBuilder(expected, sample("properties.*.en.**.name", false));
     }
 
 
     public void testRecurseField4Inclusive() throws Exception {
-        XContentBuilder expected = newXContentBuilder(true).startObject()
+        XContentBuilder expected = newXContentBuilder().startObject()
                                                             .startObject("properties")
                                                                 .startObject("language")
                                                                     .startObject("en")
@@ -1058,11 +1073,11 @@ public abstract class AbstractFilteringJsonGeneratorTestCase extends ESTestCase 
                                                             .endObject()
                                                         .endObject();
 
-        assertXContentBuilder(expected, sample(true, "properties.**.distributors.name"));
+        assertXContentBuilder(expected, sample("properties.**.distributors.name", true));
     }
 
     public void testRecurseField4Exclusive() throws Exception {
-        XContentBuilder expected = newXContentBuilder(true).startObject()
+        XContentBuilder expected = newXContentBuilder().startObject()
                                                                 .field("title", "My awesome book")
                                                                 .field("pages", 456)
                                                                 .field("price", 27.99)
@@ -1126,59 +1141,88 @@ public abstract class AbstractFilteringJsonGeneratorTestCase extends ESTestCase 
                                                                 .endObject()
                                                            .endObject();
 
-        assertXContentBuilder(expected, sample(false, "properties.**.distributors.name"));
+        assertXContentBuilder(expected, sample("properties.**.distributors.name", false));
     }
 
     public void testRawField() throws Exception {
+        XContentBuilder expectedRawField = newXContentBuilder().startObject().field("foo", 0).startObject("raw")
+                .field("content", "hello world!").endObject().endObject();
+        XContentBuilder expectedRawFieldFiltered = newXContentBuilder().startObject().field("foo", 0).endObject();
+        XContentBuilder expectedRawFieldNotFiltered = newXContentBuilder().startObject().startObject("raw").field("content", "hello world!")
+                .endObject().endObject();
 
-        XContentBuilder expectedRawField = newXContentBuilder(true).startObject().field("foo", 0).startObject("raw").field("content", "hello world!").endObject().endObject();
-        XContentBuilder expectedRawFieldFiltered = newXContentBuilder(true).startObject().field("foo", 0).endObject();
-        XContentBuilder expectedRawFieldNotFiltered = newXContentBuilder(true).startObject().startObject("raw").field("content", "hello world!").endObject().endObject();
-
-        BytesReference raw = newXContentBuilder(true).startObject().field("content", "hello world!").endObject().bytes();
+        BytesReference raw = newXContentBuilder().startObject().field("content", "hello world!").endObject().bytes();
 
         // Test method: rawField(String fieldName, BytesReference content)
-        assertXContentBuilder(expectedRawField, newXContentBuilder(true).startObject().field("foo", 0).rawField("raw", raw).endObject());
-        assertXContentBuilder(expectedRawFieldFiltered, newXContentBuilder(true, "f*").startObject().field("foo", 0).rawField("raw", raw).endObject());
-        assertXContentBuilder(expectedRawFieldFiltered, newXContentBuilder(false, "r*").startObject().field("foo", 0).rawField("raw", raw).endObject());
-        assertXContentBuilder(expectedRawFieldNotFiltered, newXContentBuilder(true, "r*").startObject().field("foo", 0).rawField("raw", raw).endObject());
-        assertXContentBuilder(expectedRawFieldNotFiltered, newXContentBuilder(false, "f*").startObject().field("foo", 0).rawField("raw", raw).endObject());
+        assertXContentBuilder(expectedRawField, newXContentBuilder().startObject().field("foo", 0).rawField("raw", raw).endObject());
+        assertXContentBuilder(expectedRawFieldFiltered,
+                newXContentBuilder("f*", true).startObject().field("foo", 0).rawField("raw", raw).endObject());
+        assertXContentBuilder(expectedRawFieldFiltered,
+                newXContentBuilder("r*", false).startObject().field("foo", 0).rawField("raw", raw).endObject());
+        assertXContentBuilder(expectedRawFieldNotFiltered,
+                newXContentBuilder("r*", true).startObject().field("foo", 0).rawField("raw", raw).endObject());
+        assertXContentBuilder(expectedRawFieldNotFiltered,
+                newXContentBuilder("f*", false).startObject().field("foo", 0).rawField("raw", raw).endObject());
 
         // Test method: rawField(String fieldName, InputStream content)
-        assertXContentBuilder(expectedRawField, newXContentBuilder(true).startObject().field("foo", 0).rawField("raw", new ByteArrayInputStream(raw.toBytes())).endObject());
-        assertXContentBuilder(expectedRawFieldFiltered, newXContentBuilder(true, "f*").startObject().field("foo", 0).rawField("raw", new ByteArrayInputStream(raw.toBytes())).endObject());
-        assertXContentBuilder(expectedRawFieldFiltered, newXContentBuilder(false, "r*").startObject().field("foo", 0).rawField("raw", new ByteArrayInputStream(raw.toBytes())).endObject());
-        assertXContentBuilder(expectedRawFieldNotFiltered, newXContentBuilder(true, "r*").startObject().field("foo", 0).rawField("raw", new ByteArrayInputStream(raw.toBytes())).endObject());
-        assertXContentBuilder(expectedRawFieldNotFiltered, newXContentBuilder(false, "f*").startObject().field("foo", 0).rawField("raw", new ByteArrayInputStream(raw.toBytes())).endObject());
+        assertXContentBuilder(expectedRawField,
+                newXContentBuilder().startObject().field("foo", 0).rawField("raw", new ByteArrayInputStream(raw.toBytes())).endObject());
+        assertXContentBuilder(expectedRawFieldFiltered, newXContentBuilder("f*", true).startObject().field("foo", 0)
+                .rawField("raw", new ByteArrayInputStream(raw.toBytes())).endObject());
+        assertXContentBuilder(expectedRawFieldFiltered, newXContentBuilder("r*", false).startObject().field("foo", 0)
+                .rawField("raw", new ByteArrayInputStream(raw.toBytes())).endObject());
+        assertXContentBuilder(expectedRawFieldNotFiltered, newXContentBuilder("r*", true).startObject().field("foo", 0)
+                .rawField("raw", new ByteArrayInputStream(raw.toBytes())).endObject());
+        assertXContentBuilder(expectedRawFieldNotFiltered, newXContentBuilder("f*", false).startObject().field("foo", 0)
+                .rawField("raw", new ByteArrayInputStream(raw.toBytes())).endObject());
     }
-
 
     public void testArrays() throws Exception {
         // Test: Array of values (no filtering)
-        XContentBuilder expected = newXContentBuilder(true).startObject().startArray("tags").value("lorem").value("ipsum").value("dolor").endArray().endObject();
-        assertXContentBuilder(expected, newXContentBuilder(true, "t*").startObject().startArray("tags").value("lorem").value("ipsum").value("dolor").endArray().endObject());
-        assertXContentBuilder(expected, newXContentBuilder(true, "tags").startObject().startArray("tags").value("lorem").value("ipsum").value("dolor").endArray().endObject());
-        assertXContentBuilder(expected, newXContentBuilder(false, "a").startObject().startArray("tags").value("lorem").value("ipsum").value("dolor").endArray().endObject());
+        XContentBuilder expected = newXContentBuilder().startObject().startArray("tags").value("lorem").value("ipsum").value("dolor")
+                .endArray().endObject();
+        assertXContentBuilder(expected, newXContentBuilder("t*", true).startObject().startArray("tags").value("lorem").value("ipsum")
+                .value("dolor").endArray().endObject());
+        assertXContentBuilder(expected, newXContentBuilder("tags", true).startObject().startArray("tags").value("lorem").value("ipsum")
+                .value("dolor").endArray().endObject());
+        assertXContentBuilder(expected, newXContentBuilder("a", false).startObject().startArray("tags").value("lorem").value("ipsum")
+                .value("dolor").endArray().endObject());
 
         // Test: Array of values (with filtering)
-        assertXContentBuilder(newXContentBuilder(true).startObject().endObject(), newXContentBuilder(true, "foo").startObject().startArray("tags").value("lorem").value("ipsum").value("dolor").endArray().endObject());
-        assertXContentBuilder(newXContentBuilder(true).startObject().endObject(), newXContentBuilder(false, "t*").startObject().startArray("tags").value("lorem").value("ipsum").value("dolor").endArray().endObject());
-        assertXContentBuilder(newXContentBuilder(true).startObject().endObject(), newXContentBuilder(false, "tags").startObject().startArray("tags").value("lorem").value("ipsum").value("dolor").endArray().endObject());
+        assertXContentBuilder(newXContentBuilder().startObject().endObject(), newXContentBuilder("foo", true).startObject()
+                .startArray("tags").value("lorem").value("ipsum").value("dolor").endArray().endObject());
+        assertXContentBuilder(newXContentBuilder().startObject().endObject(), newXContentBuilder("t*", false).startObject()
+                .startArray("tags").value("lorem").value("ipsum").value("dolor").endArray().endObject());
+        assertXContentBuilder(newXContentBuilder().startObject().endObject(), newXContentBuilder("tags", false).startObject()
+                .startArray("tags").value("lorem").value("ipsum").value("dolor").endArray().endObject());
 
         // Test: Array of objects (no filtering)
-        expected = newXContentBuilder(true).startObject().startArray("tags").startObject().field("lastname", "lorem").endObject().startObject().field("firstname", "ipsum").endObject().endArray().endObject();
-        assertXContentBuilder(expected, newXContentBuilder(true, "t*").startObject().startArray("tags").startObject().field("lastname", "lorem").endObject().startObject().field("firstname", "ipsum").endObject().endArray().endObject());
-        assertXContentBuilder(expected, newXContentBuilder(true, "tags").startObject().startArray("tags").startObject().field("lastname", "lorem").endObject().startObject().field("firstname", "ipsum").endObject().endArray().endObject());
-        assertXContentBuilder(expected, newXContentBuilder(false, "a").startObject().startArray("tags").startObject().field("lastname", "lorem").endObject().startObject().field("firstname", "ipsum").endObject().endArray().endObject());
+        expected = newXContentBuilder().startObject().startArray("tags").startObject().field("lastname", "lorem").endObject().startObject()
+                .field("firstname", "ipsum").endObject().endArray().endObject();
+        assertXContentBuilder(expected, newXContentBuilder("t*", true).startObject().startArray("tags").startObject()
+                .field("lastname", "lorem").endObject().startObject().field("firstname", "ipsum").endObject().endArray().endObject());
+        assertXContentBuilder(expected, newXContentBuilder("tags", true).startObject().startArray("tags").startObject()
+                .field("lastname", "lorem").endObject().startObject().field("firstname", "ipsum").endObject().endArray().endObject());
+        assertXContentBuilder(expected, newXContentBuilder("a", false).startObject().startArray("tags").startObject()
+                .field("lastname", "lorem").endObject().startObject().field("firstname", "ipsum").endObject().endArray().endObject());
 
         // Test: Array of objects (with filtering)
-        assertXContentBuilder(newXContentBuilder(true).startObject().endObject(), newXContentBuilder(true, "foo").startObject().startArray("tags").startObject().field("lastname", "lorem").endObject().startObject().field("firstname", "ipsum").endObject().endArray().endObject());
-        assertXContentBuilder(newXContentBuilder(true).startObject().endObject(), newXContentBuilder(false, "t*").startObject().startArray("tags").startObject().field("lastname", "lorem").endObject().startObject().field("firstname", "ipsum").endObject().endArray().endObject());
-        assertXContentBuilder(newXContentBuilder(true).startObject().endObject(), newXContentBuilder(false, "tags").startObject().startArray("tags").startObject().field("lastname", "lorem").endObject().startObject().field("firstname", "ipsum").endObject().endArray().endObject());
+        assertXContentBuilder(newXContentBuilder().startObject().endObject(),
+                newXContentBuilder("foo", true).startObject().startArray("tags").startObject().field("lastname", "lorem").endObject()
+                        .startObject().field("firstname", "ipsum").endObject().endArray().endObject());
+        assertXContentBuilder(newXContentBuilder().startObject().endObject(),
+                newXContentBuilder("t*", false).startObject().startArray("tags").startObject().field("lastname", "lorem").endObject()
+                        .startObject().field("firstname", "ipsum").endObject().endArray().endObject());
+        assertXContentBuilder(newXContentBuilder().startObject().endObject(),
+                newXContentBuilder("tags", false).startObject().startArray("tags").startObject().field("lastname", "lorem").endObject()
+                        .startObject().field("firstname", "ipsum").endObject().endArray().endObject());
 
         // Test: Array of objects (with partial filtering)
-        expected = newXContentBuilder(true).startObject().startArray("tags").startObject().field("firstname", "ipsum").endObject().endArray().endObject();
-        assertXContentBuilder(expected, newXContentBuilder(true, "t*.firstname").startObject().startArray("tags").startObject().field("lastname", "lorem").endObject().startObject().field("firstname", "ipsum").endObject().endArray().endObject());
-        assertXContentBuilder(expected, newXContentBuilder(false, "t*.lastname").startObject().startArray("tags").startObject().field("lastname", "lorem").endObject().startObject().field("firstname", "ipsum").endObject().endArray().endObject());
+        expected = newXContentBuilder().startObject().startArray("tags").startObject().field("firstname", "ipsum").endObject().endArray()
+                .endObject();
+        assertXContentBuilder(expected, newXContentBuilder("t*.firstname", true).startObject().startArray("tags").startObject()
+                .field("lastname", "lorem").endObject().startObject().field("firstname", "ipsum").endObject().endArray().endObject());
+        assertXContentBuilder(expected, newXContentBuilder("t*.lastname", false).startObject().startArray("tags").startObject()
+                .field("lastname", "lorem").endObject().startObject().field("firstname", "ipsum").endObject().endArray().endObject());
     }
 }

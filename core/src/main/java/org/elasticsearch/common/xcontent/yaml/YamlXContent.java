@@ -66,8 +66,8 @@ public class YamlXContent implements XContent {
     }
 
     @Override
-    public XContentGenerator createGenerator(OutputStream os, String[] filters, boolean inclusiveFilters) throws IOException {
-        return new YamlXContentGenerator(yamlFactory.createGenerator(os, JsonEncoding.UTF8), os, inclusiveFilters, filters);
+    public XContentGenerator createGenerator(OutputStream os, String[] filters, boolean inclusive) throws IOException {
+        return new YamlXContentGenerator(yamlFactory.createGenerator(os, JsonEncoding.UTF8), os, filters, inclusive);
     }
 
     @Override

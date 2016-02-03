@@ -97,6 +97,18 @@ public class SentMessages implements ToXContent, Iterable<SentMessages.SentMessa
             return failureReason == null;
         }
 
+        public HttpRequest getRequest() {
+            return request;
+        }
+
+        public HttpResponse getResponse() {
+            return response;
+        }
+
+        public String getFailureReason() {
+            return failureReason;
+        }
+
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();

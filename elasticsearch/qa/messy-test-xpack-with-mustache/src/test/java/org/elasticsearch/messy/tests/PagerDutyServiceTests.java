@@ -3,15 +3,26 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.watcher.actions.pagerduty.service;
+package org.elasticsearch.messy.tests;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.MockMustacheScriptEngine;
+import org.elasticsearch.script.mustache.MustachePlugin;
 import org.elasticsearch.test.junit.annotations.Network;
 import org.elasticsearch.watcher.actions.pagerduty.PagerDutyAction;
+import org.elasticsearch.watcher.actions.pagerduty.service.IncidentEvent;
+import org.elasticsearch.watcher.actions.pagerduty.service.IncidentEventContext;
+import org.elasticsearch.watcher.actions.pagerduty.service.PagerDutyAccount;
+import org.elasticsearch.watcher.actions.pagerduty.service.PagerDutyService;
+import org.elasticsearch.watcher.actions.pagerduty.service.SentEvent;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchResponse;
 import org.elasticsearch.watcher.watch.Payload;
+
+import java.util.Collection;
+import java.util.List;
 
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
@@ -44,6 +55,20 @@ public class PagerDutyServiceTests extends AbstractWatcherIntegrationTestCase {
     }
 
     @Override
+    protected Collection<Class<? extends Plugin>> getMockPlugins() {
+        Collection<Class<? extends Plugin>> mockPlugins = super.getMockPlugins();
+        mockPlugins.remove(MockMustacheScriptEngine.TestPlugin.class);
+        return mockPlugins;
+    }
+
+    @Override
+    protected List<Class<? extends Plugin>> pluginTypes() {
+        List<Class<? extends Plugin>> types = super.pluginTypes();
+        types.add(MustachePlugin.class);
+        return types;
+    }
+
+    @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
@@ -66,15 +91,15 @@ public class PagerDutyServiceTests extends AbstractWatcherIntegrationTestCase {
         SentEvent sentEvent = account.send(event, payload);
         assertThat(sentEvent, notNullValue());
         assertThat(sentEvent.successful(), is(true));
-        assertThat(sentEvent.request, notNullValue());
-        assertThat(sentEvent.response, notNullValue());
-        assertThat(sentEvent.response.status(), lessThan(300));
+        assertThat(sentEvent.getRequest(), notNullValue());
+        assertThat(sentEvent.getResponse(), notNullValue());
+        assertThat(sentEvent.getResponse().status(), lessThan(300));
     }
 
     public void testWatchWithPagerDutyAction() throws Exception {
         String account = "test_account";
         PagerDutyAction.Builder actionBuilder = pagerDutyAction(IncidentEvent
-                .templateBuilder("pager duty integration test `testWatchWithPagerDutyAction()`").setAccount(account));
+                .templateBuilder("pager duty integration test `{{ctx.payload.ref}}`").setAccount(account));
 
         PutWatchResponse putWatchResponse = watcherClient().preparePutWatch("1").setSource(watchBuilder()
                 .trigger(schedule(interval("10m")))

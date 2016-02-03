@@ -59,7 +59,7 @@ public abstract class HipChatAccount  {
 
     public abstract SentMessages send(HipChatMessage message);
 
-    enum Profile implements ToXContent {
+    public enum Profile implements ToXContent {
 
         V1() {
             @Override

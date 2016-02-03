@@ -59,8 +59,6 @@ public class AzureDiscoveryModule extends AbstractModule {
     @Override
     protected void configure() {
         logger.debug("starting azure services");
-        bind(AzureComputeSettingsFilter.class).asEagerSingleton();
-
         // If we have set discovery to azure, let's start the azure compute service
         if (isDiscoveryReady(settings, logger)) {
             logger.debug("starting azure discovery service");

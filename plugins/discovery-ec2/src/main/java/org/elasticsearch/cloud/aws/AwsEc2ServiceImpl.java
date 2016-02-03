@@ -43,7 +43,6 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
 
 import java.util.Locale;
 import java.util.Random;
@@ -58,15 +57,8 @@ public class AwsEc2ServiceImpl extends AbstractLifecycleComponent<AwsEc2Service>
     private AmazonEC2Client client;
 
     @Inject
-    public AwsEc2ServiceImpl(Settings settings, SettingsFilter settingsFilter, NetworkService networkService, DiscoveryNodeService discoveryNodeService) {
+    public AwsEc2ServiceImpl(Settings settings, NetworkService networkService, DiscoveryNodeService discoveryNodeService) {
         super(settings);
-        // Filter global settings
-        settingsFilter.addFilter(CLOUD_AWS.KEY);
-        settingsFilter.addFilter(CLOUD_AWS.SECRET);
-        settingsFilter.addFilter(CLOUD_AWS.PROXY_PASSWORD);
-        settingsFilter.addFilter(CLOUD_EC2.KEY);
-        settingsFilter.addFilter(CLOUD_EC2.SECRET);
-        settingsFilter.addFilter(CLOUD_EC2.PROXY_PASSWORD);
         // add specific ec2 name resolver
         networkService.addCustomNameResolver(new Ec2NameResolver(settings));
         discoveryNodeService.addCustomAttributeProvider(new Ec2CustomNodeAttributes(settings));

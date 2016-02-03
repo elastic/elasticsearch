@@ -35,6 +35,7 @@ import org.elasticsearch.cluster.routing.allocation.FailedRerouteAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -301,7 +302,14 @@ public class ShardStateAction extends AbstractComponent {
 
         @Override
         public String toString() {
-            return "" + shardRouting + ", indexUUID [" + indexUUID + "], message [" + message + "], failure [" + ExceptionsHelper.detailedMessage(failure) + "]";
+            List<String> components = new ArrayList(4);
+            components.add("target shard [" + shardRouting +"]");
+            components.add("indexUUID [" + indexUUID + "]");
+            components.add("message [" + message +"]");
+            if (failure != null) {
+                components.add("failure [" + ExceptionsHelper.detailedMessage(failure) + "]");
+            }
+            return Strings.collectionToDelimitedString(components, ", ");
         }
     }
 }

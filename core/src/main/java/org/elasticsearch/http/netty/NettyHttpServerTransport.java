@@ -19,6 +19,7 @@
 
 package org.elasticsearch.http.netty;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -44,10 +45,13 @@ import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.http.HttpServerAdapter;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.HttpStats;
-import org.elasticsearch.http.HttpTransportSettings;
+import org.elasticsearch.http.netty.cors.CorsConfig;
+import org.elasticsearch.http.netty.cors.CorsConfigBuilder;
+import org.elasticsearch.http.netty.cors.CorsHandler;
 import org.elasticsearch.http.netty.pipelining.HttpPipeliningHandler;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.rest.support.RestUtils;
 import org.elasticsearch.transport.BindTransportException;
 import org.jboss.netty.bootstrap.ServerBootstrap;
 import org.jboss.netty.channel.AdaptiveReceiveBufferSizePredictorFactory;
@@ -63,6 +67,7 @@ import org.jboss.netty.channel.socket.nio.NioServerSocketChannelFactory;
 import org.jboss.netty.channel.socket.oio.OioServerSocketChannelFactory;
 import org.jboss.netty.handler.codec.http.HttpChunkAggregator;
 import org.jboss.netty.handler.codec.http.HttpContentCompressor;
+import org.jboss.netty.handler.codec.http.HttpMethod;
 import org.jboss.netty.handler.codec.http.HttpRequestDecoder;
 import org.jboss.netty.handler.timeout.ReadTimeoutException;
 
@@ -74,13 +79,34 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.regex.Pattern;
+
+import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
 import static org.elasticsearch.common.network.NetworkService.TcpSettings.TCP_BLOCKING;
 import static org.elasticsearch.common.network.NetworkService.TcpSettings.TCP_KEEP_ALIVE;
 import static org.elasticsearch.common.network.NetworkService.TcpSettings.TCP_NO_DELAY;
 import static org.elasticsearch.common.network.NetworkService.TcpSettings.TCP_RECEIVE_BUFFER_SIZE;
 import static org.elasticsearch.common.network.NetworkService.TcpSettings.TCP_REUSE_ADDRESS;
 import static org.elasticsearch.common.network.NetworkService.TcpSettings.TCP_SEND_BUFFER_SIZE;
-import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_CREDENTIALS;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_HEADERS;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_METHODS;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_ORIGIN;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ENABLED;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_MAX_AGE;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_COMPRESSION;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_COMPRESSION_LEVEL;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_DETAILED_ERRORS_ENABLED;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_CHUNK_SIZE;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_CONTENT_LENGTH;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_HEADER_SIZE;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_INITIAL_LINE_LENGTH;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_PORT;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_PUBLISH_PORT;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_RESET_COOKIES;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_PIPELINING;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_PIPELINING_MAX_EVENTS;
+import static org.elasticsearch.http.netty.cors.CorsHandler.ANY_ORIGIN;
 
 /**
  *
@@ -146,6 +172,8 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
 
     protected volatile HttpServerAdapter httpServerAdapter;
 
+    private final CorsConfig corsConfig;
+
     @Inject
     @SuppressForbidden(reason = "sets org.jboss.netty.epollBugWorkaround based on netty.epollBugWorkaround")
     // TODO: why be confusing like this? just let the user do it with the netty parameter instead!
@@ -158,25 +186,25 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
         if (settings.getAsBoolean("netty.epollBugWorkaround", false)) {
             System.setProperty("org.jboss.netty.epollBugWorkaround", "true");
         }
-        ByteSizeValue maxContentLength = HttpTransportSettings.SETTING_HTTP_MAX_CONTENT_LENGTH.get(settings);
-        this.maxChunkSize = HttpTransportSettings.SETTING_HTTP_MAX_CHUNK_SIZE.get(settings);
-        this.maxHeaderSize = HttpTransportSettings.SETTING_HTTP_MAX_HEADER_SIZE.get(settings);
-        this.maxInitialLineLength = HttpTransportSettings.SETTING_HTTP_MAX_INITIAL_LINE_LENGTH.get(settings);
-        this.resetCookies = HttpTransportSettings.SETTING_HTTP_RESET_COOKIES.get(settings);
+        ByteSizeValue maxContentLength = SETTING_HTTP_MAX_CONTENT_LENGTH.get(settings);
+        this.maxChunkSize = SETTING_HTTP_MAX_CHUNK_SIZE.get(settings);
+        this.maxHeaderSize = SETTING_HTTP_MAX_HEADER_SIZE.get(settings);
+        this.maxInitialLineLength = SETTING_HTTP_MAX_INITIAL_LINE_LENGTH.get(settings);
+        this.resetCookies = SETTING_HTTP_RESET_COOKIES.get(settings);
         this.maxCumulationBufferCapacity = settings.getAsBytesSize("http.netty.max_cumulation_buffer_capacity", null);
         this.maxCompositeBufferComponents = settings.getAsInt("http.netty.max_composite_buffer_components", -1);
         this.workerCount = settings.getAsInt("http.netty.worker_count", EsExecutors.boundedNumberOfProcessors(settings) * 2);
         this.blockingServer = settings.getAsBoolean("http.netty.http.blocking_server", TCP_BLOCKING.get(settings));
-        this.port = HttpTransportSettings.SETTING_HTTP_PORT.get(settings);
+        this.port = SETTING_HTTP_PORT.get(settings);
         this.bindHosts = settings.getAsArray("http.netty.bind_host", settings.getAsArray("http.bind_host", settings.getAsArray("http.host", null)));
         this.publishHosts = settings.getAsArray("http.netty.publish_host", settings.getAsArray("http.publish_host", settings.getAsArray("http.host", null)));
-        this.publishPort = HttpTransportSettings.SETTING_HTTP_PUBLISH_PORT.get(settings);
+        this.publishPort = SETTING_HTTP_PUBLISH_PORT.get(settings);
         this.tcpNoDelay = settings.getAsBoolean("http.netty.tcp_no_delay", TCP_NO_DELAY.get(settings));
         this.tcpKeepAlive = settings.getAsBoolean("http.netty.tcp_keep_alive", TCP_KEEP_ALIVE.get(settings));
         this.reuseAddress = settings.getAsBoolean("http.netty.reuse_address", TCP_REUSE_ADDRESS.get(settings));
         this.tcpSendBufferSize = settings.getAsBytesSize("http.netty.tcp_send_buffer_size", TCP_SEND_BUFFER_SIZE.get(settings));
         this.tcpReceiveBufferSize = settings.getAsBytesSize("http.netty.tcp_receive_buffer_size", TCP_RECEIVE_BUFFER_SIZE.get(settings));
-        this.detailedErrorsEnabled = HttpTransportSettings.SETTING_HTTP_DETAILED_ERRORS_ENABLED.get(settings);
+        this.detailedErrorsEnabled = SETTING_HTTP_DETAILED_ERRORS_ENABLED.get(settings);
 
         long defaultReceiverPredictor = 512 * 1024;
         if (JvmInfo.jvmInfo().getMem().getDirectMemoryMax().bytes() > 0) {
@@ -194,10 +222,11 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
             receiveBufferSizePredictorFactory = new AdaptiveReceiveBufferSizePredictorFactory((int) receivePredictorMin.bytes(), (int) receivePredictorMin.bytes(), (int) receivePredictorMax.bytes());
         }
 
-        this.compression = HttpTransportSettings.SETTING_HTTP_COMPRESSION.get(settings);
-        this.compressionLevel = HttpTransportSettings.SETTING_HTTP_COMPRESSION_LEVEL.get(settings);
-        this.pipelining = HttpTransportSettings.SETTING_PIPELINING.get(settings);
-        this.pipeliningMaxEvents = HttpTransportSettings.SETTING_PIPELINING_MAX_EVENTS.get(settings);
+        this.compression = SETTING_HTTP_COMPRESSION.get(settings);
+        this.compressionLevel = SETTING_HTTP_COMPRESSION_LEVEL.get(settings);
+        this.pipelining = SETTING_PIPELINING.get(settings);
+        this.pipeliningMaxEvents = SETTING_PIPELINING_MAX_EVENTS.get(settings);
+        this.corsConfig = buildCorsConfig(settings);
 
         // validate max content length
         if (maxContentLength.bytes() > Integer.MAX_VALUE) {
@@ -290,6 +319,39 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
         this.boundAddress = new BoundTransportAddress(boundAddresses.toArray(new TransportAddress[boundAddresses.size()]), new InetSocketTransportAddress(publishAddress));
     }
 
+    private CorsConfig buildCorsConfig(Settings settings) {
+        if (SETTING_CORS_ENABLED.get(settings) == false) {
+            return CorsConfigBuilder.forOrigins().disable().build();
+        }
+        String origin = SETTING_CORS_ALLOW_ORIGIN.get(settings);
+        final CorsConfigBuilder builder;
+        if (Strings.isNullOrEmpty(origin)) {
+            builder = CorsConfigBuilder.forOrigins();
+        } else if (origin.equals(ANY_ORIGIN)) {
+            builder = CorsConfigBuilder.forAnyOrigin();
+        } else {
+            Pattern p = RestUtils.checkCorsSettingForRegex(origin);
+            if (p == null) {
+                builder = CorsConfigBuilder.forOrigins(RestUtils.corsSettingAsArray(origin));
+            } else {
+                builder = CorsConfigBuilder.forPattern(p);
+            }
+        }
+        if (SETTING_CORS_ALLOW_CREDENTIALS.get(settings)) {
+            builder.allowCredentials();
+        }
+        String[] strMethods = settings.getAsArray(SETTING_CORS_ALLOW_METHODS.get(settings), new String[0]);
+        HttpMethod[] methods = Arrays.asList(strMethods)
+                                     .stream()
+                                     .map(HttpMethod::valueOf)
+                                     .toArray(size -> new HttpMethod[size]);
+        return builder.allowedRequestMethods(methods)
+                      .maxAge(SETTING_CORS_MAX_AGE.get(settings))
+                      .allowedRequestHeaders(settings.getAsArray(SETTING_CORS_ALLOW_HEADERS.get(settings), new String[0]))
+                      .shortCircuit()
+                      .build();
+    }
+
     private InetSocketTransportAddress bindAddress(final InetAddress hostAddress) {
         final AtomicReference<Exception> lastException = new AtomicReference<>();
         final AtomicReference<InetSocketAddress> boundSocket = new AtomicReference<>();
@@ -365,6 +427,10 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
         return new HttpStats(channels == null ? 0 : channels.numberOfOpenChannels(), channels == null ? 0 : channels.totalChannels());
     }
 
+    public CorsConfig getCorsConfig() {
+        return corsConfig;
+    }
+
     protected void dispatchRequest(HttpRequest request, HttpChannel channel) {
         httpServerAdapter.dispatchRequest(request, channel, threadPool.getThreadContext());
     }
@@ -430,6 +496,9 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
                 httpChunkAggregator.setMaxCumulationBufferComponents(transport.maxCompositeBufferComponents);
             }
             pipeline.addLast("aggregator", httpChunkAggregator);
+            if (SETTING_CORS_ENABLED.get(transport.settings())) {
+                pipeline.addLast("cors", new CorsHandler(transport.getCorsConfig()));
+            }
             pipeline.addLast("encoder", new ESHttpResponseEncoder());
             if (transport.compression) {
                 pipeline.addLast("encoder_compress", new HttpContentCompressor(transport.compressionLevel));

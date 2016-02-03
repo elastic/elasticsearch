@@ -78,15 +78,17 @@ class BuildPlugin implements Plugin<Project> {
         if (project.rootProject.ext.has('buildChecksDone') == false) {
             String javaHome = findJavaHome()
             File gradleJavaHome = Jvm.current().javaHome
-            String gradleJavaVersionDetails = "${System.getProperty('java.vendor')} ${System.getProperty('java.version')}" +
+            String javaVendor = System.getProperty('java.vendor')
+            String javaVersion = System.getProperty('java.version')
+            String gradleJavaVersionDetails = "${javaVendor} ${javaVersion}" +
                 " [${System.getProperty('java.vm.name')} ${System.getProperty('java.vm.version')}]"
 
             String javaVersionDetails = gradleJavaVersionDetails
-            String javaVersion = System.getProperty('java.version')
             JavaVersion javaVersionEnum = JavaVersion.current()
             if (new File(javaHome).canonicalPath != gradleJavaHome.canonicalPath) {
                 javaVersionDetails = findJavaVersionDetails(project, javaHome)
                 javaVersionEnum = JavaVersion.toVersion(findJavaSpecificationVersion(project, javaHome))
+                javaVendor = findJavaVendor(project, javaHome)
                 javaVersion = findJavaVersion(project, javaHome)
             }
 
@@ -112,6 +114,17 @@ class BuildPlugin implements Plugin<Project> {
             // enforce Java version
             if (javaVersionEnum < minimumJava) {
                 throw new GradleException("Java ${minimumJava} or above is required to build Elasticsearch")
+            }
+
+            // TODO: remove when the build requires Java 9
+            if (javaVersionEnum.compareTo(JavaVersion.VERSION_1_8) == 0) {
+                if (Objects.equals("Oracle Corporation", javaVendor)) {
+                    def matcher = javaVersion =~ /1\.8\.0_(\d+)/
+                    int update = matcher[0][1].toInteger()
+                    if (update < 40) {
+                        throw new GradleException("JDK ${javaVendor} ${javaVersion} has compiler bug JDK-8052388, update your JDK to at least 8u40")
+                    }
+                }
             }
 
             project.rootProject.ext.javaHome = javaHome
@@ -151,6 +164,11 @@ class BuildPlugin implements Plugin<Project> {
     private static String findJavaSpecificationVersion(Project project, String javaHome) {
         String versionScript = 'print(java.lang.System.getProperty("java.specification.version"));'
         return runJavascript(project, javaHome, versionScript)
+    }
+
+    private static String findJavaVendor(Project project, String javaHome) {
+        String vendorScript = 'print(java.lang.System.getProperty("java.vendor"));'
+        return runJavascript(project, javaHome, vendorScript)
     }
 
     /** Finds the parsable java specification version */

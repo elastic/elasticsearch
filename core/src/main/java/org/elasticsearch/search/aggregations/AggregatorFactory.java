@@ -52,6 +52,111 @@ public abstract class AggregatorFactory<AF extends AggregatorFactory<AF>> extend
     private AggregationContext context;
 
     /**
+     * Constructs a new aggregator factory.
+     *
+     * @param name
+     *            The aggregation name
+     * @param type
+     *            The aggregation type
+     */
+    public AggregatorFactory(String name, Type type) {
+        this.name = name;
+        this.type = type;
+    }
+
+    /**
+     * Initializes this factory with the given {@link AggregationContext} ready
+     * to create {@link Aggregator}s
+     */
+    public final void init(AggregationContext context) {
+        this.context = context;
+        doInit(context);
+        this.factories.init(context);
+    }
+
+    /**
+     * Allows the {@link AggregatorFactory} to initialize any state prior to
+     * using it to create {@link Aggregator}s.
+     *
+     * @param context
+     *            the {@link AggregationContext} to use during initialization.
+     */
+    protected void doInit(AggregationContext context) {
+    }
+
+    /**
+     * Registers sub-factories with this factory. The sub-factory will be
+     * responsible for the creation of sub-aggregators under the aggregator
+     * created by this factory.
+     *
+     * @param subFactories
+     *            The sub-factories
+     * @return this factory (fluent interface)
+     */
+    public AF subFactories(AggregatorFactories subFactories) {
+        this.factories = subFactories;
+        this.factories.setParent(this);
+        return (AF) this;
+    }
+
+    public String name() {
+        return name;
+    }
+
+    /**
+     * Validates the state of this factory (makes sure the factory is properly
+     * configured)
+     */
+    public final void validate() {
+        doValidate();
+        factories.validate();
+    }
+
+    /**
+     * @return The parent factory if one exists (will always return {@code null}
+     *         for top level aggregator factories).
+     */
+    public AggregatorFactory<?> parent() {
+        return parent;
+    }
+
+    // NORELEASE make this abstract when agg refactoring is complete
+    protected Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket,
+            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+        throw new UnsupportedOperationException("THIS SHOULD NEVER BE CALLED");
+    }
+
+    /**
+     * Creates the aggregator
+     *
+     * @param parent
+     *            The parent aggregator (if this is a top level factory, the
+     *            parent will be {@code null})
+     * @param collectsFromSingleBucket
+     *            If true then the created aggregator will only be collected
+     *            with <tt>0</tt> as a bucket ordinal. Some factories can take
+     *            advantage of this in order to return more optimized
+     *            implementations.
+     *
+     * @return The created aggregator
+     */
+    public final Aggregator create(Aggregator parent, boolean collectsFromSingleBucket) throws IOException {
+        return createInternal(context, parent, collectsFromSingleBucket, this.factories.createPipelineAggregators(), this.metaData);
+    }
+
+    public void doValidate() {
+    }
+
+    public AF setMetaData(Map<String, Object> metaData) {
+        this.metaData = metaData;
+        return (AF) this;
+    }
+
+    public String getType() {
+        return type.name();
+    }
+
+    /**
      * Utility method. Given an {@link AggregatorFactory} that creates
      * {@link Aggregator}s that only know how to collect bucket <tt>0</tt>, this
      * returns an aggregator that can collect any bucket.
@@ -174,102 +279,6 @@ public abstract class AggregatorFactory<AF extends AggregatorFactory<AF>> extend
                 Releasables.close(aggregators, collectors);
             }
         };
-    }
-
-    /**
-     * Constructs a new aggregator factory.
-     *
-     * @param name
-     *            The aggregation name
-     * @param type
-     *            The aggregation type
-     */
-    public AggregatorFactory(String name, Type type) {
-        this.name = name;
-        this.type = type;
-    }
-
-    /**
-     * Initializes this factory with the given {@link AggregationContext} ready
-     * to create {@link Aggregator}s
-     */
-    public final void init(AggregationContext context) {
-        this.context = context;
-        doInit(context);
-        this.factories.init(context);
-    }
-
-    /**
-     * Allows the {@link AggregatorFactory} to initialize any state prior to
-     * using it to create {@link Aggregator}s.
-     *
-     * @param context
-     *            the {@link AggregationContext} to use during initialization.
-     */
-    protected void doInit(AggregationContext context) {
-    }
-
-    /**
-     * Registers sub-factories with this factory. The sub-factory will be responsible for the creation of sub-aggregators under the
-     * aggregator created by this factory.
-     *
-     * @param subFactories  The sub-factories
-     * @return  this factory (fluent interface)
-     */
-    public AF subFactories(AggregatorFactories subFactories) {
-        this.factories = subFactories;
-        this.factories.setParent(this);
-        return (AF) this;
-    }
-
-    public String name() {
-        return name;
-    }
-
-    /**
-     * Validates the state of this factory (makes sure the factory is properly configured)
-     */
-    public final void validate() {
-        doValidate();
-        factories.validate();
-    }
-
-    /**
-     * @return  The parent factory if one exists (will always return {@code null} for top level aggregator factories).
-     */
-    public AggregatorFactory<?> parent() {
-        return parent;
-    }
-
-    // NORELEASE make this abstract when agg refactoring is complete
-    protected Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-        throw new UnsupportedOperationException("THIS SHOULD NEVER BE CALLED");
-    }
-
-    /**
-     * Creates the aggregator
-     *
-     * @param parent                The parent aggregator (if this is a top level factory, the parent will be {@code null})
-     * @param collectsFromSingleBucket  If true then the created aggregator will only be collected with <tt>0</tt> as a bucket ordinal.
-     *                              Some factories can take advantage of this in order to return more optimized implementations.
-     *
-     * @return                      The created aggregator
-     */
-    public final Aggregator create(Aggregator parent, boolean collectsFromSingleBucket) throws IOException {
-        return createInternal(context, parent, collectsFromSingleBucket, this.factories.createPipelineAggregators(), this.metaData);
-    }
-
-    public void doValidate() {
-    }
-
-    public AF setMetaData(Map<String, Object> metaData) {
-        this.metaData = metaData;
-        return (AF) this;
-    }
-
-    public String getType() {
-        return type.name();
     }
 
 }

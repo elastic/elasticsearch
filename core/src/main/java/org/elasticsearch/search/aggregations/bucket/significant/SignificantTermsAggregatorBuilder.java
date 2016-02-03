@@ -167,7 +167,8 @@ public class SignificantTermsAggregatorBuilder extends ValuesSourceAggregatorBui
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory<ValuesSource, ?> doBuild(AggregationContext context, ValuesSourceConfig<ValuesSource> config) {
+    protected ValuesSourceAggregatorFactory<ValuesSource, ?> innerBuild(AggregationContext context,
+            ValuesSourceConfig<ValuesSource> config) {
         return new SignificantTermsAggregatorFactory(name, type, config, includeExclude, executionHint, filterBuilder,
                 bucketCountThresholds, significanceHeuristic, context);
     }

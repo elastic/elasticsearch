@@ -126,7 +126,7 @@ public class AvgAggregator extends NumericMetricsAggregator.SingleValue {
         }
 
         @Override
-        protected AvgAggregatorFactory doBuild(AggregationContext context, ValuesSourceConfig<Numeric> config) {
+        protected AvgAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig<Numeric> config) {
             return new AvgAggregatorFactory(name, type, config);
         }
 

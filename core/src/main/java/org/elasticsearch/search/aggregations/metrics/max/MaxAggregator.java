@@ -127,7 +127,7 @@ public class MaxAggregator extends NumericMetricsAggregator.SingleValue {
         }
 
         @Override
-        protected MaxAggregatorFactory doBuild(AggregationContext context, ValuesSourceConfig<Numeric> config) {
+        protected MaxAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig<Numeric> config) {
             return new MaxAggregatorFactory(name, type, config);
         }
 

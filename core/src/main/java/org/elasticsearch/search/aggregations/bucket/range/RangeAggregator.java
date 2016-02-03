@@ -540,7 +540,7 @@ public class RangeAggregator extends BucketsAggregator {
         }
 
         @Override
-        protected RangeAggregatorFactory doBuild(AggregationContext context, ValuesSourceConfig<Numeric> config) {
+        protected RangeAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig<Numeric> config) {
             return new RangeAggregatorFactory(name, type, config, ranges, keyed, rangeFactory);
         }
 

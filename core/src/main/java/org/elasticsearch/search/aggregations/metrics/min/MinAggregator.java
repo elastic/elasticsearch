@@ -126,7 +126,7 @@ public class MinAggregator extends NumericMetricsAggregator.SingleValue {
         }
 
         @Override
-        protected MinAggregatorFactory doBuild(AggregationContext context, ValuesSourceConfig<Numeric> config) {
+        protected MinAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig<Numeric> config) {
             return new MinAggregatorFactory(name, type, config);
         }
 

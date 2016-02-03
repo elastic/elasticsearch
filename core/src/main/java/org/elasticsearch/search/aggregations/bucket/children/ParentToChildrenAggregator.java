@@ -209,7 +209,7 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator {
         }
 
         @Override
-        protected ValuesSourceAggregatorFactory<ParentChild, ?> doBuild(AggregationContext context,
+        protected ValuesSourceAggregatorFactory<ParentChild, ?> innerBuild(AggregationContext context,
                 ValuesSourceConfig<ParentChild> config) {
             return new ChildrenAggregatorFactory(name, type, config, parentType, childFilter, parentFilter);
         }

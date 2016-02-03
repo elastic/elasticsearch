@@ -94,7 +94,7 @@ public class MissingAggregator extends SingleBucketAggregator {
         }
 
         @Override
-        protected ValuesSourceAggregatorFactory<ValuesSource, ?> doBuild(AggregationContext context,
+        protected ValuesSourceAggregatorFactory<ValuesSource, ?> innerBuild(AggregationContext context,
                 ValuesSourceConfig<ValuesSource> config) {
             return new MissingAggregatorFactory(name, type, config);
         }

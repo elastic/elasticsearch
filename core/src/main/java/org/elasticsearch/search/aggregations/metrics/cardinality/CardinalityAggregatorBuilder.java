@@ -69,7 +69,7 @@ public final class CardinalityAggregatorBuilder extends ValuesSourceAggregatorBu
     }
 
     @Override
-    protected CardinalityAggregatorFactory doBuild(AggregationContext context, ValuesSourceConfig<ValuesSource> config) {
+    protected CardinalityAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig<ValuesSource> config) {
         return new CardinalityAggregatorFactory(name, type, config, precisionThreshold);
     }
 

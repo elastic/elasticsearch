@@ -199,8 +199,9 @@ public class TermsAggregatorBuilder extends ValuesSourceAggregatorBuilder<Values
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory<ValuesSource, ?> doBuild(AggregationContext context, ValuesSourceConfig<ValuesSource> config) {
-        return new TermsAggregatorFactory(executionHint, type, config, order, includeExclude, executionHint, collectMode,
+    protected ValuesSourceAggregatorFactory<ValuesSource, ?> innerBuild(AggregationContext context,
+            ValuesSourceConfig<ValuesSource> config) {
+        return new TermsAggregatorFactory(name, type, config, order, includeExclude, executionHint, collectMode,
                 bucketCountThresholds, showTermDocCountError);
     }
 

@@ -199,7 +199,7 @@ public final class GeoBoundsAggregator extends MetricsAggregator {
         }
 
         @Override
-        protected GeoBoundsAggregatorFactory doBuild(AggregationContext context,
+        protected GeoBoundsAggregatorFactory innerBuild(AggregationContext context,
                 ValuesSourceConfig<ValuesSource.GeoPoint> config) {
             return new GeoBoundsAggregatorFactory(name, type, config, wrapLongitude);
         }

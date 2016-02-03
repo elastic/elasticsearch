@@ -31,7 +31,6 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
-import org.elasticsearch.search.aggregations.metrics.sum.SumAggregatorFactory;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
@@ -39,7 +38,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.io.IOException;
@@ -122,7 +120,7 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
         }
 
         @Override
-        protected ValueCountAggregatorFactory doBuild(AggregationContext context, ValuesSourceConfig<ValuesSource> config) {
+        protected ValueCountAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig<ValuesSource> config) {
             return new ValueCountAggregatorFactory(name, type, config);
         }
 

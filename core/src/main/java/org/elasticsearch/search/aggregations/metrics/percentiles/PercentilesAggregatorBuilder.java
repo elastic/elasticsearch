@@ -126,7 +126,7 @@ public class PercentilesAggregatorBuilder extends LeafOnly<ValuesSource.Numeric,
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory<Numeric, ?> doBuild(AggregationContext context, ValuesSourceConfig<Numeric> config) {
+    protected ValuesSourceAggregatorFactory<Numeric, ?> innerBuild(AggregationContext context, ValuesSourceConfig<Numeric> config) {
         switch (method) {
         case TDIGEST:
             return new TDigestPercentilesAggregatorFactory(name, type, config, percents, compression, keyed);

@@ -217,7 +217,7 @@ public class SamplerAggregator extends SingleBucketAggregator {
         }
 
         @Override
-        public AggregatorFactory<?> build(AggregationContext context) {
+        protected AggregatorFactory<?> doBuild(AggregationContext context) {
             return new SamplerAggregatorFactory(name, type, shardSize);
         }
 
@@ -314,7 +314,7 @@ public class SamplerAggregator extends SingleBucketAggregator {
         }
 
         @Override
-        protected ValuesSourceAggregatorFactory<ValuesSource, ?> doBuild(AggregationContext context,
+        protected ValuesSourceAggregatorFactory<ValuesSource, ?> innerBuild(AggregationContext context,
                 ValuesSourceConfig<ValuesSource> config) {
             return new DiversifiedAggregatorFactory(name, TYPE, config, shardSize, maxDocsPerValue, executionHint);
         }

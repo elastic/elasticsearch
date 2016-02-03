@@ -216,7 +216,7 @@ public class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue
         }
 
         @Override
-        protected ExtendedStatsAggregatorFactory doBuild(AggregationContext context, ValuesSourceConfig<Numeric> config) {
+        protected ExtendedStatsAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig<Numeric> config) {
             return new ExtendedStatsAggregatorFactory(name, type, config, sigma);
         }
 

@@ -179,9 +179,9 @@ public abstract class ValuesSourceAggregatorBuilder<VS extends ValuesSource, AB 
     }
 
     @Override
-    public final ValuesSourceAggregatorFactory<VS, ?> build(AggregationContext context) {
+    protected final ValuesSourceAggregatorFactory<VS, ?> doBuild(AggregationContext context) {
         ValuesSourceConfig<VS> config = resolveConfig(context);
-        ValuesSourceAggregatorFactory<VS, ?> factory = doBuild(context, config);
+        ValuesSourceAggregatorFactory<VS, ?> factory = innerBuild(context, config);
         return factory;
     }
 
@@ -193,7 +193,7 @@ public abstract class ValuesSourceAggregatorBuilder<VS extends ValuesSource, AB 
         return config;
     }
 
-    protected abstract ValuesSourceAggregatorFactory<VS, ?> doBuild(AggregationContext context, ValuesSourceConfig<VS> config);
+    protected abstract ValuesSourceAggregatorFactory<VS, ?> innerBuild(AggregationContext context, ValuesSourceConfig<VS> config);
 
     @Override
     public void doInit(AggregationContext context) {

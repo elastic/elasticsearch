@@ -120,7 +120,7 @@ public class IPv4RangeAggregatorBuilder extends AbstractBuilder<IPv4RangeAggrega
     }
 
     @Override
-    protected Ipv4RangeAggregatorFactory doBuild(AggregationContext context, ValuesSourceConfig<Numeric> config) {
+    protected Ipv4RangeAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig<Numeric> config) {
         return new Ipv4RangeAggregatorFactory(name, type, config, ranges, keyed, rangeFactory);
     }
 

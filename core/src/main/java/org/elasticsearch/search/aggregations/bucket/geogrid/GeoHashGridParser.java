@@ -148,9 +148,8 @@ public class GeoHashGridParser extends GeoPointValuesSourceParser {
         }
 
         @Override
-        protected ValuesSourceAggregatorFactory<org.elasticsearch.search.aggregations.support.ValuesSource.GeoPoint, ?> doBuild(
-                AggregationContext context,
-                ValuesSourceConfig<org.elasticsearch.search.aggregations.support.ValuesSource.GeoPoint> config) {
+        protected ValuesSourceAggregatorFactory<ValuesSource.GeoPoint, ?> innerBuild(AggregationContext context,
+                ValuesSourceConfig<ValuesSource.GeoPoint> config) {
             int shardSize = this.shardSize;
             if (shardSize == 0) {
                 shardSize = Integer.MAX_VALUE;

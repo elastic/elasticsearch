@@ -118,7 +118,7 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue {
         }
 
         @Override
-        protected SumAggregatorFactory doBuild(AggregationContext context, ValuesSourceConfig<Numeric> config) {
+        protected SumAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig<Numeric> config) {
             return new SumAggregatorFactory(name, type, config);
         }
 

@@ -168,7 +168,7 @@ public class StatsAggregator extends NumericMetricsAggregator.MultiValue {
         }
 
         @Override
-        protected StatsAggregatorFactory doBuild(AggregationContext context, ValuesSourceConfig<Numeric> config) {
+        protected StatsAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig<Numeric> config) {
             return new StatsAggregatorFactory(name, type, config);
         }
 

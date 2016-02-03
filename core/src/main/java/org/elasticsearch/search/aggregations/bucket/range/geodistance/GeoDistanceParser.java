@@ -317,7 +317,7 @@ public class GeoDistanceParser extends GeoPointValuesSourceParser {
         }
 
         @Override
-        protected ValuesSourceAggregatorFactory<ValuesSource.GeoPoint, ?> doBuild(AggregationContext context,
+        protected ValuesSourceAggregatorFactory<ValuesSource.GeoPoint, ?> innerBuild(AggregationContext context,
                 ValuesSourceConfig<ValuesSource.GeoPoint> config) {
             return new GeoDistanceRangeAggregatorFactory(name, type, config, origin, ranges, unit, distanceType, keyed);
         }

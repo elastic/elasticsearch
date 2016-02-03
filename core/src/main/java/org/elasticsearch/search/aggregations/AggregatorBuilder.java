@@ -82,11 +82,16 @@ public abstract class AggregatorBuilder<AB extends AggregatorBuilder<AB>> extend
         return (AB) this;
     }
 
-    // NORELEASE make this method abstract when agg refactoring is complete
-    public AggregatorFactory<?> build(AggregationContext context) {
+    public final AggregatorFactory<?> build(AggregationContext context) {
+        AggregatorFactory<?> factory = doBuild(context);
         if (factoriesBuilder != null && factoriesBuilder.count() > 0) {
-            subFactories(factoriesBuilder.build(context));
+            factory.subFactories(factoriesBuilder.build(context));
         }
+        return factory;
+    }
+
+    // NORELEASE make this method abstract when agg refactoring is complete
+    protected AggregatorFactory<?> doBuild(AggregationContext context) {
         return this;
     }
 

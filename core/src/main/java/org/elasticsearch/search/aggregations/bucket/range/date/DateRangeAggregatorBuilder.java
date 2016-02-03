@@ -245,7 +245,7 @@ public class DateRangeAggregatorBuilder extends AbstractBuilder<DateRangeAggrega
     }
 
     @Override
-    protected DateRangeAggregatorFactory doBuild(AggregationContext context, ValuesSourceConfig<Numeric> config) {
+    protected DateRangeAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig<Numeric> config) {
         return new DateRangeAggregatorFactory(name, type, config, ranges, keyed, rangeFactory);
     }
 

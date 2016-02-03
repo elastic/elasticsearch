@@ -170,7 +170,7 @@ public class HistogramAggregator extends BucketsAggregator {
         }
 
         @Override
-        protected HistogramAggregatorFactory doBuild(AggregationContext context, ValuesSourceConfig<Numeric> config) {
+        protected HistogramAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig<Numeric> config) {
             return new HistogramAggregatorFactory(name, type, config, interval, offset, order, keyed, minDocCount, extendedBounds);
         }
 
@@ -373,7 +373,7 @@ public class HistogramAggregator extends BucketsAggregator {
         }
 
         @Override
-        protected DateHistogramAggregatorFactory doBuild(AggregationContext context, ValuesSourceConfig<Numeric> config) {
+        protected DateHistogramAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig<Numeric> config) {
             return new DateHistogramAggregatorFactory(name, type, config, interval, dateHistogramInterval, offset, order, keyed,
                     minDocCount, extendedBounds);
         }

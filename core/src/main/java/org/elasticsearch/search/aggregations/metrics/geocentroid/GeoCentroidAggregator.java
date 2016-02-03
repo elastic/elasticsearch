@@ -132,7 +132,7 @@ public final class GeoCentroidAggregator extends MetricsAggregator {
         }
 
         @Override
-        protected GeoCentroidAggregatorFactory doBuild(AggregationContext context, ValuesSourceConfig<ValuesSource.GeoPoint> config) {
+        protected GeoCentroidAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig<ValuesSource.GeoPoint> config) {
             return new GeoCentroidAggregatorFactory(name, type, config);
         }
 

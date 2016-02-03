@@ -38,7 +38,7 @@ public class SettingsModule extends AbstractModule {
     private final SettingsFilter settingsFilter;
     private final Map<String, Setting<?>> clusterSettings = new HashMap<>();
     private final Map<String, Setting<?>> indexSettings = new HashMap<>();
-    private static final Predicate<String> NO_TRIBE_PREDICATE =  (s) -> s.startsWith("tribe.") == false || TribeService.TRIBE_SETTING_KEYS.contains(s);
+    private static final Predicate<String> TRIBE_CLIENT_NODE_SETTINGS_PREDICATE =  (s) -> s.startsWith("tribe.") && TribeService.TRIBE_SETTING_KEYS.contains(s) == false;
 
 
     public SettingsModule(Settings settings, SettingsFilter settingsFilter) {
@@ -58,8 +58,8 @@ public class SettingsModule extends AbstractModule {
         final ClusterSettings clusterSettings = new ClusterSettings(settings, new HashSet<>(this.clusterSettings.values()));
         // by now we are fully configured, lets check node level settings for unregistered index settings
         indexScopedSettings.validate(settings.filter(IndexScopedSettings.INDEX_SETTINGS_KEY_PREDICATE));
-        Predicate<String> noIndexSettingPredicate = IndexScopedSettings.INDEX_SETTINGS_KEY_PREDICATE.negate();
-        clusterSettings.validate(settings.filter(NO_TRIBE_PREDICATE.and(noIndexSettingPredicate)));
+        final Predicate<String> acceptOnlyClusterSettings = TRIBE_CLIENT_NODE_SETTINGS_PREDICATE.or(IndexScopedSettings.INDEX_SETTINGS_KEY_PREDICATE).negate();
+        clusterSettings.validate(settings.filter(acceptOnlyClusterSettings));
         validateTribeSettings(settings, clusterSettings);
         bind(Settings.class).toInstance(settings);
         bind(SettingsFilter.class).toInstance(settingsFilter);
@@ -86,7 +86,7 @@ public class SettingsModule extends AbstractModule {
     }
 
     public void validateTribeSettings(Settings settings, ClusterSettings clusterSettings) {
-        Map<String, Settings> groups = settings.filter(NO_TRIBE_PREDICATE.negate()).getGroups("tribe.", true);
+        Map<String, Settings> groups = settings.filter(TRIBE_CLIENT_NODE_SETTINGS_PREDICATE).getGroups("tribe.", true);
         for (Map.Entry<String, Settings>  tribeSettings : groups.entrySet()) {
             Settings thisTribesSettings = tribeSettings.getValue();
             for (Map.Entry<String, String> entry : thisTribesSettings.getAsMap().entrySet()) {

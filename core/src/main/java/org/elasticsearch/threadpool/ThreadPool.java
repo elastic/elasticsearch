@@ -40,6 +40,7 @@ import org.elasticsearch.common.util.concurrent.XRejectedExecutionHandler;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
+import org.elasticsearch.node.Node;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -206,13 +207,13 @@ public class ThreadPool extends AbstractComponent implements Closeable {
     private final ThreadContext threadContext;
 
     public ThreadPool(String name) {
-        this(Settings.builder().put("node.name", name).build());
+        this(Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), name).build());
     }
 
     public ThreadPool(Settings settings) {
         super(settings);
 
-        assert settings.get("node.name") != null : "ThreadPool's settings should contain a name";
+        assert Node.NODE_NAME_SETTING.exists(settings) : "ThreadPool's settings should contain a name";
         threadContext = new ThreadContext(settings);
         Map<String, Settings> groupSettings = THREADPOOL_GROUP_SETTING.get(settings).getAsGroups();
         validate(groupSettings);

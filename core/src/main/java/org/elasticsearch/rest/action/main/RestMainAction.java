@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
@@ -77,7 +78,7 @@ public class RestMainAction extends BaseRestHandler {
 
         builder.startObject();
         assert settings.get("node.name") != null;
-        builder.field("name", settings.get("node.name"));
+        builder.field("name", Node.NODE_NAME_SETTING.get(settings));
         builder.field("cluster_name", clusterName.value());
         builder.startObject("version")
                 .field("number", version.number())

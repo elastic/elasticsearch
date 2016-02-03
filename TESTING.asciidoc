@@ -382,8 +382,8 @@ what you want.
 
 Whichever snippet you run mvn will build the tar, zip and deb packages. If you
 have rpmbuild installed it'll build the rpm package as well. Then mvn will
-spin up trusty and verify the tar, zip, and deb package. If you have rpmbuild
-installed it'll spin up centos-7 and verify the tar, zip and rpm packages. We
+spin up trusty and verify the tar and deb package. If you have rpmbuild
+installed it'll spin up centos-7 and verify the tar and rpm packages. We
 chose those two distributions as the default because they cover deb and rpm
 packaging and SyvVinit and systemd.
 

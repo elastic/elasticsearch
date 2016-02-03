@@ -53,6 +53,13 @@ setup() {
     [ "$count" -eq 1 ]
 }
 
+@test "[DEB] deb is signed by our dummy key" {
+    # dpkg-sig verifies the signature against some user's .gnupg directory
+    # and its simpler to have that directory be the vagrant user's directory
+    # rather than root's.
+    sudo -u vagrant dpkg-sig --verify elasticsearch*.deb | grep 'GOODSIG'
+}
+
 @test "[DEB] package is not installed" {
     run dpkg -s 'elasticsearch'
     [ "$status" -eq 1 ]

@@ -116,7 +116,8 @@ class BuildPlugin implements Plugin<Project> {
                 throw new GradleException("Java ${minimumJava} or above is required to build Elasticsearch")
             }
 
-            // TODO: remove when the build requires Java 9
+            // this block of code detecting buggy JDK 8 compiler versions can be removed when minimum Java version is incremented
+            assert minimumJava == JavaVersion.VERSION_1_8 : "Remove JDK compiler bug detection only applicable to JDK 8"
             if (javaVersionEnum == JavaVersion.VERSION_1_8) {
                 if (Objects.equals("Oracle Corporation", javaVendor)) {
                     def matcher = javaVersion =~ /1\.8\.0(?:_(\d+))?/

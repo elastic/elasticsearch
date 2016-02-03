@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.action.shard;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -28,8 +29,9 @@ import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.MasterNodeChangePredicate;
 import org.elasticsearch.cluster.NotMasterException;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -46,6 +48,7 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.Discovery;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
@@ -60,6 +63,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -125,15 +129,20 @@ public class ShardStateAction extends AbstractComponent {
         return ExceptionsHelper.unwrap(exp, MASTER_CHANNEL_EXCEPTIONS) != null;
     }
 
-    public void shardFailed(final ShardRouting shardRouting, final String indexUUID, final String message, @Nullable final Throwable failure, Listener listener) {
+    /**
+     * Send a shard failed request to the master node to update the
+     * cluster state.
+     *
+     * @param shardRouting       the shard to fail
+     * @param sourceShardRouting the source shard requesting the failure (must be the shard itself, or the primary shard)
+     * @param message            the reason for the failure
+     * @param failure            the underlying cause of the failure
+     * @param listener           callback upon completion of the request
+     */
+    public void shardFailed(final ShardRouting shardRouting, ShardRouting sourceShardRouting, final String message, @Nullable final Throwable failure, Listener listener) {
         ClusterStateObserver observer = new ClusterStateObserver(clusterService, null, logger, threadPool.getThreadContext());
-        ShardRoutingEntry shardRoutingEntry = new ShardRoutingEntry(shardRouting, indexUUID, message, failure);
+        ShardRoutingEntry shardRoutingEntry = new ShardRoutingEntry(shardRouting, sourceShardRouting, message, failure);
         sendShardAction(SHARD_FAILED_ACTION_NAME, observer, shardRoutingEntry, listener);
-    }
-
-    public void resendShardFailed(final ShardRouting shardRouting, final String indexUUID, final String message, @Nullable final Throwable failure, Listener listener) {
-        logger.trace("{} re-sending failed shard [{}], index UUID [{}], reason [{}]", shardRouting.shardId(), failure, shardRouting, indexUUID, message);
-        shardFailed(shardRouting, indexUUID, message, failure, listener);
     }
 
     // visible for testing
@@ -231,15 +240,15 @@ public class ShardStateAction extends AbstractComponent {
 
             // partition tasks into those that correspond to shards
             // that exist versus do not exist
-            Map<Boolean, List<ShardRoutingEntry>> partition =
-                tasks.stream().collect(Collectors.partitioningBy(task -> shardExists(currentState, task)));
+            Map<ValidationResult, List<ShardRoutingEntry>> partition =
+                tasks.stream().collect(Collectors.groupingBy(task -> validateTask(currentState, task)));
 
             // tasks that correspond to non-existent shards are marked
             // as successful
-            batchResultBuilder.successes(partition.get(false));
+            batchResultBuilder.successes(partition.getOrDefault(ValidationResult.SHARD_MISSING, Collections.emptyList()));
 
             ClusterState maybeUpdatedState = currentState;
-            List<ShardRoutingEntry> tasksToFail = partition.get(true);
+            List<ShardRoutingEntry> tasksToFail = partition.getOrDefault(ValidationResult.VALID, Collections.emptyList());
             try {
                 List<FailedRerouteAllocation.FailedShard> failedShards =
                     tasksToFail
@@ -257,6 +266,15 @@ public class ShardStateAction extends AbstractComponent {
                 batchResultBuilder.failures(tasksToFail, t);
             }
 
+            partition
+                .getOrDefault(ValidationResult.SOURCE_INVALID, Collections.emptyList())
+                .forEach(task -> batchResultBuilder.failure(
+                    task,
+                    new NoLongerPrimaryShardException(
+                        task.getShardRouting().shardId(),
+                        "source shard [" + task.sourceShardRouting + "] is neither the local allocation nor the primary allocation")
+                ));
+
             return batchResultBuilder.build(maybeUpdatedState);
         }
 
@@ -265,17 +283,36 @@ public class ShardStateAction extends AbstractComponent {
             return allocationService.applyFailedShards(currentState, failedShards);
         }
 
-        private boolean shardExists(ClusterState currentState, ShardRoutingEntry task) {
+        private enum ValidationResult {
+            VALID,
+            SOURCE_INVALID,
+            SHARD_MISSING
+        }
+
+        private ValidationResult validateTask(ClusterState currentState, ShardRoutingEntry task) {
+
+            // non-local requests
+            if (!task.shardRouting.isSameAllocation(task.sourceShardRouting)) {
+                IndexShardRoutingTable indexShard = currentState.getRoutingTable().shardRoutingTableOrNull(task.shardRouting.shardId());
+                if (indexShard == null) {
+                    return ValidationResult.SOURCE_INVALID;
+                }
+                ShardRouting primaryShard = indexShard.primaryShard();
+                if (primaryShard == null || !primaryShard.isSameAllocation(task.sourceShardRouting)) {
+                    return ValidationResult.SOURCE_INVALID;
+                }
+            }
+
             RoutingNodes.RoutingNodeIterator routingNodeIterator =
                 currentState.getRoutingNodes().routingNodeIter(task.getShardRouting().currentNodeId());
             if (routingNodeIterator != null) {
                 for (ShardRouting maybe : routingNodeIterator) {
                     if (task.getShardRouting().isSameAllocation(maybe)) {
-                        return true;
+                        return ValidationResult.VALID;
                     }
                 }
             }
-            return false;
+            return ValidationResult.SHARD_MISSING;
         }
 
         @Override
@@ -291,9 +328,9 @@ public class ShardStateAction extends AbstractComponent {
         }
     }
 
-    public void shardStarted(final ShardRouting shardRouting, String indexUUID, final String message, Listener listener) {
+    public void shardStarted(final ShardRouting shardRouting, final String message, Listener listener) {
         ClusterStateObserver observer = new ClusterStateObserver(clusterService, null, logger, threadPool.getThreadContext());
-        ShardRoutingEntry shardRoutingEntry = new ShardRoutingEntry(shardRouting, indexUUID, message, null);
+        ShardRoutingEntry shardRoutingEntry = new ShardRoutingEntry(shardRouting, shardRouting, message, null);
         sendShardAction(SHARD_STARTED_ACTION_NAME, observer, shardRoutingEntry, listener);
     }
 
@@ -360,16 +397,16 @@ public class ShardStateAction extends AbstractComponent {
 
     public static class ShardRoutingEntry extends TransportRequest {
         ShardRouting shardRouting;
-        String indexUUID = IndexMetaData.INDEX_UUID_NA_VALUE;
+        ShardRouting sourceShardRouting;
         String message;
         Throwable failure;
 
         public ShardRoutingEntry() {
         }
 
-        ShardRoutingEntry(ShardRouting shardRouting, String indexUUID, String message, @Nullable Throwable failure) {
+        ShardRoutingEntry(ShardRouting shardRouting, ShardRouting sourceShardRouting, String message, @Nullable Throwable failure) {
             this.shardRouting = shardRouting;
-            this.indexUUID = indexUUID;
+            this.sourceShardRouting = sourceShardRouting;
             this.message = message;
             this.failure = failure;
         }
@@ -382,7 +419,7 @@ public class ShardStateAction extends AbstractComponent {
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             shardRouting = readShardRoutingEntry(in);
-            indexUUID = in.readString();
+            sourceShardRouting = readShardRoutingEntry(in);
             message = in.readString();
             failure = in.readThrowable();
         }
@@ -391,18 +428,25 @@ public class ShardStateAction extends AbstractComponent {
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             shardRouting.writeTo(out);
-            out.writeString(indexUUID);
+            sourceShardRouting.writeTo(out);
             out.writeString(message);
             out.writeThrowable(failure);
         }
 
         @Override
         public String toString() {
-            return "" + shardRouting + ", indexUUID [" + indexUUID + "], message [" + message + "], failure [" + ExceptionsHelper.detailedMessage(failure) + "]";
+            return String.format(
+                Locale.ROOT,
+                "failed shard [%s], source shard [%s], message [%s], failure [%s]",
+                shardRouting,
+                sourceShardRouting,
+                message,
+                ExceptionsHelper.detailedMessage(failure));
         }
     }
 
     public interface Listener {
+
         default void onSuccess() {
         }
 
@@ -423,6 +467,20 @@ public class ShardStateAction extends AbstractComponent {
          */
         default void onFailure(final Throwable t) {
         }
+
+    }
+
+    public static class NoLongerPrimaryShardException extends ElasticsearchException {
+
+        public NoLongerPrimaryShardException(ShardId shardId, String msg) {
+            super(msg);
+            setShard(shardId);
+        }
+
+        public NoLongerPrimaryShardException(StreamInput in) throws IOException {
+            super(in);
+        }
+
     }
 
 }

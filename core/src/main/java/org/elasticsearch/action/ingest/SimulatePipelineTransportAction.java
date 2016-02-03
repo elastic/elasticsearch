@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.ingest;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -27,8 +28,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.ingest.PipelineStore;
-import org.elasticsearch.ingest.core.PipelineFactoryError;
-import org.elasticsearch.ingest.processor.ConfigurationPropertyException;
 import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -58,9 +57,6 @@ public class SimulatePipelineTransportAction extends HandledTransportAction<Simu
             } else {
                 simulateRequest = SimulatePipelineRequest.parse(source, request.isVerbose(), pipelineStore);
             }
-        } catch (ConfigurationPropertyException e) {
-            listener.onResponse(new SimulatePipelineResponse(new PipelineFactoryError(e)));
-            return;
         } catch (Exception e) {
             listener.onFailure(e);
             return;

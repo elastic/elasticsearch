@@ -80,20 +80,6 @@ import static org.hamcrest.Matchers.sameInstance;
 @ESIntegTestCase.SuppressLocalMode
 @TestLogging("_root:DEBUG")
 public class ZenDiscoveryIT extends ESIntegTestCase {
-    public void testChangeRejoinOnMasterOptionIsDynamic() throws Exception {
-        Settings nodeSettings = Settings.settingsBuilder()
-                .put("discovery.type", "zen") // <-- To override the local setting if set externally
-                .build();
-        String nodeName = internalCluster().startNode(nodeSettings);
-        ZenDiscovery zenDiscovery = (ZenDiscovery) internalCluster().getInstance(Discovery.class, nodeName);
-        assertThat(zenDiscovery.isRejoinOnMasterGone(), is(true));
-
-        client().admin().cluster().prepareUpdateSettings()
-                .setTransientSettings(Settings.builder().put(ZenDiscovery.REJOIN_ON_MASTER_GONE_SETTING.getKey(), false))
-                .get();
-
-        assertThat(zenDiscovery.isRejoinOnMasterGone(), is(false));
-    }
 
     public void testNoShardRelocationsOccurWhenElectedMasterNodeFails() throws Exception {
         Settings defaultSettings = Settings.builder()

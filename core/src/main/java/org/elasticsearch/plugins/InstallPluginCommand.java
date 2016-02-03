@@ -19,6 +19,18 @@
 
 package org.elasticsearch.plugins;
 
+import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.Build;
+import org.elasticsearch.Version;
+import org.elasticsearch.bootstrap.JarHell;
+import org.elasticsearch.common.cli.CliTool;
+import org.elasticsearch.common.cli.Terminal;
+import org.elasticsearch.common.cli.UserError;
+import org.elasticsearch.common.hash.MessageDigests;
+import org.elasticsearch.common.io.FileSystemUtils;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -41,18 +53,6 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
-
-import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.Build;
-import org.elasticsearch.Version;
-import org.elasticsearch.bootstrap.JarHell;
-import org.elasticsearch.common.cli.CliTool;
-import org.elasticsearch.common.cli.Terminal;
-import org.elasticsearch.common.cli.UserError;
-import org.elasticsearch.common.hash.MessageDigests;
-import org.elasticsearch.common.io.FileSystemUtils;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
 
 import static java.util.Collections.unmodifiableSet;
 import static org.elasticsearch.common.cli.Terminal.Verbosity.VERBOSE;
@@ -133,7 +133,7 @@ class InstallPluginCommand extends CliTool.Command {
 
         // TODO: remove this leniency!! is it needed anymore?
         if (Files.exists(env.pluginsFile()) == false) {
-            terminal.println("Plugins directory [%s] does not exist. Creating...", env.pluginsFile());
+            terminal.println("Plugins directory [" + env.pluginsFile() + "] does not exist. Creating...");
             Files.createDirectory(env.pluginsFile());
         }
 
@@ -160,9 +160,9 @@ class InstallPluginCommand extends CliTool.Command {
             return downloadZipAndChecksum(url, tmpDir);
         }
 
-        // now try as maven coordinates, a valid URL would only have a single colon
+        // now try as maven coordinates, a valid URL would only have a colon and slash
         String[] coordinates = pluginId.split(":");
-        if (coordinates.length == 3) {
+        if (coordinates.length == 3 && pluginId.contains("/") == false) {
             String mavenUrl = String.format(Locale.ROOT, "https://repo1.maven.org/maven2/%1$s/%2$s/%3$s/%2$s-%3$s.zip",
                 coordinates[0].replace(".", "/") /* groupId */, coordinates[1] /* artifactId */, coordinates[2] /* version */);
             terminal.println("-> Downloading " + pluginId + " from maven central");
@@ -242,7 +242,7 @@ class InstallPluginCommand extends CliTool.Command {
     private PluginInfo verify(Path pluginRoot, Environment env) throws Exception {
         // read and validate the plugin descriptor
         PluginInfo info = PluginInfo.readFromProperties(pluginRoot);
-        terminal.println(VERBOSE, "%s", info);
+        terminal.println(VERBOSE, info.toString());
 
         // don't let luser install plugin as a module...
         // they might be unavoidably in maven central and are packaged up the same way)

@@ -472,6 +472,15 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                 }
                 performAction(node, transportPrimaryAction, true);
             } else {
+                if (state.version() < request.routedBasedOnClusterVersion()) {
+                    logger.trace("failed to find primary [{}] for request [{}] despite sender thinking it would be here. Local cluster state version [{}]] is older than on sending node (version [{}]), scheduling a retry...", request.shardId(), request, state.version(), request.routedBasedOnClusterVersion());
+                    retryBecauseUnavailable(request.shardId(), "failed to find primary as current cluster state with version [" + state.version() + "] is stale (expected at least [" + request.routedBasedOnClusterVersion() + "]");
+                    return;
+                } else {
+                    // chasing the node with the active primary for a second hop requires that we are at least up-to-date with the current cluster state version
+                    // this prevents redirect loops between two nodes when a primary was relocated and the relocation target is not aware that it is the active primary shard already.
+                    request.routedBasedOnClusterVersion(state.version());
+                }
                 if (logger.isTraceEnabled()) {
                     logger.trace("send action [{}] on primary [{}] for request [{}] with cluster state version [{}] to [{}]", actionName, request.shardId(), request, state.version(), primary.currentNodeId());
                 }
@@ -769,16 +778,15 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         private final List<ShardRouting> shards;
         private final DiscoveryNodes nodes;
         private final boolean executeOnReplica;
-        private final String indexUUID;
         private final AtomicBoolean finished = new AtomicBoolean();
         private final AtomicInteger success = new AtomicInteger(1); // We already wrote into the primary shard
         private final ConcurrentMap<String, Throwable> shardReplicaFailures = ConcurrentCollections.newConcurrentMap();
         private final AtomicInteger pending;
         private final int totalShards;
-        private final Releasable indexShardReference;
+        private final IndexShardReference indexShardReference;
 
         public ReplicationPhase(ReplicaRequest replicaRequest, Response finalResponse, ShardId shardId,
-                                TransportChannel channel, Releasable indexShardReference) {
+                                TransportChannel channel, IndexShardReference indexShardReference) {
             this.replicaRequest = replicaRequest;
             this.channel = channel;
             this.finalResponse = finalResponse;
@@ -795,7 +803,6 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
             final IndexMetaData indexMetaData = state.getMetaData().index(shardId.getIndex());
             this.shards = (shardRoutingTable != null) ? shardRoutingTable.shards() : Collections.emptyList();
             this.executeOnReplica = (indexMetaData == null) || shouldExecuteReplication(indexMetaData.getSettings());
-            this.indexUUID = (indexMetaData != null) ? indexMetaData.getIndexUUID() : null;
             this.nodes = state.getNodes();
 
             if (shards.isEmpty()) {
@@ -931,22 +938,22 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                                 String message = String.format(Locale.ROOT, "failed to perform %s on replica on node %s", transportReplicaAction, node);
                                 logger.warn("[{}] {}", exp, shardId, message);
                                 shardStateAction.shardFailed(
-                                        shard,
-                                        indexUUID,
-                                        message,
-                                        exp,
-                                        new ShardStateAction.Listener() {
-                                            @Override
-                                            public void onSuccess() {
-                                                onReplicaFailure(nodeId, exp);
-                                            }
-
-                                            @Override
-                                            public void onFailure(Throwable t) {
-                                                // TODO: handle catastrophic non-channel failures
-                                                onReplicaFailure(nodeId, exp);
-                                            }
+                                    shard,
+                                    indexShardReference.routingEntry(),
+                                    message,
+                                    exp,
+                                    new ShardStateAction.Listener() {
+                                        @Override
+                                        public void onSuccess() {
+                                            onReplicaFailure(nodeId, exp);
                                         }
+
+                                        @Override
+                                        public void onFailure(Throwable t) {
+                                            // TODO: handle catastrophic non-channel failures
+                                            onReplicaFailure(nodeId, exp);
+                                        }
+                                    }
                                 );
                             }
                         }

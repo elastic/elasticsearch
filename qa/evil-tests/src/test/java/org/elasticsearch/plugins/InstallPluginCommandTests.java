@@ -20,6 +20,7 @@
 package org.elasticsearch.plugins;
 
 import java.io.IOException;
+import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.DirectoryStream;
@@ -203,6 +204,14 @@ public class InstallPluginCommandTests extends ESTestCase {
         Files.copy(new URL(pluginZip).openStream(), pluginZipWithSpaces, StandardCopyOption.REPLACE_EXISTING);
         installPlugin(pluginZipWithSpaces.toUri().toURL().toString(), env);
         assertPlugin("fake", pluginDir, env);
+    }
+
+    public void testMalformedUrlNotMaven() throws Exception {
+        // has two colons, so it appears similar to maven coordinates
+        MalformedURLException e = expectThrows(MalformedURLException.class, () -> {
+            installPlugin("://host:1234", createEnv());
+        });
+        assertTrue(e.getMessage(), e.getMessage().contains("no protocol"));
     }
 
     public void testPluginsDirMissing() throws Exception {

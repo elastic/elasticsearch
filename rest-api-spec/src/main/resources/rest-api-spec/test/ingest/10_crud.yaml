@@ -53,6 +53,7 @@
 ---
 "Test invalid processor config":
   - do:
+      catch: request
       ingest.put_pipeline:
         id: "my_pipeline"
         body:  >
@@ -66,12 +67,11 @@
               }
             ]
           }
-  - match: { "acknowledged": false }
-  - length: { "error": 4 }
-  - match: { "error.reason": "[field] required property is missing" }
-  - match: { "error.property_name": "field" }
-  - match: { "error.type": "set" }
-  - match: { "error.tag": "fritag" }
+  - match: { error.root_cause.0.type: "parse_exception" }
+  - match: { error.root_cause.0.reason: "[field] required property is missing" }
+  - match: { error.root_cause.0.header.processor_tag: "fritag" }
+  - match: { error.root_cause.0.header.processor_type: "set" }
+  - match: { error.root_cause.0.header.property_name: "field" }
 
 ---
 "Test basic pipeline with on_failure in processor":

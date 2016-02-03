@@ -89,12 +89,12 @@ public class S3RepositoryPlugin extends Plugin {
     }
 
     public void onModule(SettingsModule module) {
-        module.registerSettingsFilter(AwsS3Service.CLOUD_AWS.KEY);
-        module.registerSettingsFilter(AwsS3Service.CLOUD_AWS.SECRET);
-        module.registerSettingsFilter(AwsS3Service.CLOUD_AWS.PROXY_PASSWORD);
-        module.registerSettingsFilter(AwsS3Service.CLOUD_S3.KEY);
-        module.registerSettingsFilter(AwsS3Service.CLOUD_S3.SECRET);
-        module.registerSettingsFilter(AwsS3Service.CLOUD_S3.PROXY_PASSWORD);
+        module.registerSettingsFilterIfMissing(AwsS3Service.CLOUD_AWS.KEY);
+        module.registerSettingsFilterIfMissing(AwsS3Service.CLOUD_AWS.SECRET);
+        module.registerSettingsFilterIfMissing(AwsS3Service.CLOUD_AWS.PROXY_PASSWORD);
+        module.registerSettingsFilterIfMissing(AwsS3Service.CLOUD_S3.KEY);
+        module.registerSettingsFilterIfMissing(AwsS3Service.CLOUD_S3.SECRET);
+        module.registerSettingsFilterIfMissing(AwsS3Service.CLOUD_S3.PROXY_PASSWORD);
         module.registerSettingsFilter("access_key"); // WTF is this?
         module.registerSettingsFilter("secret_key"); // WTF is this?
     }

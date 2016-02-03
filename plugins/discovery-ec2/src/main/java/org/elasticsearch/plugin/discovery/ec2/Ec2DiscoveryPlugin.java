@@ -105,11 +105,11 @@ public class Ec2DiscoveryPlugin extends Plugin {
 
     public void onModule(SettingsModule settingsModule) {
         // Filter global settings
-        settingsModule.registerSettingsFilter(AwsEc2Service.CLOUD_AWS.KEY);
-        settingsModule.registerSettingsFilter(AwsEc2Service.CLOUD_AWS.SECRET);
-        settingsModule.registerSettingsFilter(AwsEc2Service.CLOUD_AWS.PROXY_PASSWORD);
-        settingsModule.registerSettingsFilter(AwsEc2Service.CLOUD_EC2.KEY);
-        settingsModule.registerSettingsFilter(AwsEc2Service.CLOUD_EC2.SECRET);
-        settingsModule.registerSettingsFilter(AwsEc2Service.CLOUD_EC2.PROXY_PASSWORD);
+        settingsModule.registerSettingsFilterIfMissing(AwsEc2Service.CLOUD_AWS.KEY);
+        settingsModule.registerSettingsFilterIfMissing(AwsEc2Service.CLOUD_AWS.SECRET);
+        settingsModule.registerSettingsFilterIfMissing(AwsEc2Service.CLOUD_AWS.PROXY_PASSWORD);
+        settingsModule.registerSettingsFilterIfMissing(AwsEc2Service.CLOUD_EC2.KEY);
+        settingsModule.registerSettingsFilterIfMissing(AwsEc2Service.CLOUD_EC2.SECRET);
+        settingsModule.registerSettingsFilterIfMissing(AwsEc2Service.CLOUD_EC2.PROXY_PASSWORD);
     }
 }

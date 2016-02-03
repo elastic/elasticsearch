@@ -96,6 +96,12 @@ public class SettingsModule extends AbstractModule {
         settingsFilterPattern.add(filter);
     }
 
+    public void registerSettingsFilterIfMissing(String filter) {
+        if (settingsFilterPattern.contains(filter)) {
+            registerSettingsFilter(filter);
+        }
+    }
+
 
     public void validateTribeSettings(Settings settings, ClusterSettings clusterSettings) {
         Map<String, Settings> groups = settings.filter(TRIBE_CLIENT_NODE_SETTINGS_PREDICATE).getGroups("tribe.", true);

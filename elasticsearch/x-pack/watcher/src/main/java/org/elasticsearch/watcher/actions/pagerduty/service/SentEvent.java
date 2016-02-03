@@ -52,6 +52,14 @@ public class SentEvent implements ToXContent {
         return failureReason == null;
     }
 
+    public HttpRequest getRequest() {
+        return request;
+    }
+
+    public HttpResponse getResponse() {
+        return response;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;

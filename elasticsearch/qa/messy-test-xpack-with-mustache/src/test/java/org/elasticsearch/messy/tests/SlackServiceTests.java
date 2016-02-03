@@ -3,16 +3,25 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.watcher.actions.slack.service;
+package org.elasticsearch.messy.tests;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.MockMustacheScriptEngine;
+import org.elasticsearch.script.mustache.MustachePlugin;
 import org.elasticsearch.test.junit.annotations.Network;
 import org.elasticsearch.watcher.actions.slack.SlackAction;
+import org.elasticsearch.watcher.actions.slack.service.SentMessages;
+import org.elasticsearch.watcher.actions.slack.service.SlackAccount;
+import org.elasticsearch.watcher.actions.slack.service.SlackService;
 import org.elasticsearch.watcher.actions.slack.service.message.Attachment;
 import org.elasticsearch.watcher.actions.slack.service.message.SlackMessage;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchResponse;
+
+import java.util.Collection;
+import java.util.List;
 
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
@@ -43,6 +52,20 @@ public class SlackServiceTests extends AbstractWatcherIntegrationTestCase {
     }
 
     @Override
+    protected Collection<Class<? extends Plugin>> getMockPlugins() {
+        Collection<Class<? extends Plugin>> mockPlugins = super.getMockPlugins();
+        mockPlugins.remove(MockMustacheScriptEngine.TestPlugin.class);
+        return mockPlugins;
+    }
+
+    @Override
+    protected List<Class<? extends Plugin>> pluginTypes() {
+        List<Class<? extends Plugin>> types = super.pluginTypes();
+        types.add(MustachePlugin.class);
+        return types;
+    }
+
+    @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
@@ -69,16 +92,16 @@ public class SlackServiceTests extends AbstractWatcherIntegrationTestCase {
         assertThat(messages.count(), is(2));
         for (SentMessages.SentMessage sentMessage : messages) {
             assertThat(sentMessage.successful(), is(true));
-            assertThat(sentMessage.request, notNullValue());
-            assertThat(sentMessage.response, notNullValue());
-            assertThat(sentMessage.response.status(), lessThan(300));
+            assertThat(sentMessage.getRequest(), notNullValue());
+            assertThat(sentMessage.getResponse(), notNullValue());
+            assertThat(sentMessage.getResponse().status(), lessThan(300));
         }
     }
 
     public void testWatchWithSlackAction() throws Exception {
         String account = "test_account";
         SlackAction.Builder actionBuilder = slackAction(account, SlackMessage.Template.builder()
-                .setText("slack integration test `testWatchWithSlackAction()`")
+                .setText("slack integration test `{{ctx.payload.ref}}`")
                 .addTo("#watcher-test", "#watcher-test-2"));
 
         PutWatchResponse putWatchResponse = watcherClient().preparePutWatch("1").setSource(watchBuilder()

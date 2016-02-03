@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.tasks.Task;
 
 import java.io.IOException;
 
@@ -48,20 +49,23 @@ public class TaskInfo implements Writeable<TaskInfo>, ToXContent {
 
     private final String description;
 
+    private final Task.Status status;
+
     private final String parentNode;
 
     private final long parentId;
 
-    public TaskInfo(DiscoveryNode node, long id, String type, String action, String description) {
-        this(node, id, type, action, description, null, -1L);
+    public TaskInfo(DiscoveryNode node, long id, String type, String action, String description, Task.Status status) {
+        this(node, id, type, action, description, status, null, -1L);
     }
 
-    public TaskInfo(DiscoveryNode node, long id, String type, String action, String description, String parentNode, long parentId) {
+    public TaskInfo(DiscoveryNode node, long id, String type, String action, String description, Task.Status status, String parentNode, long parentId) {
         this.node = node;
         this.id = id;
         this.type = type;
         this.action = action;
         this.description = description;
+        this.status = status;
         this.parentNode = parentNode;
         this.parentId = parentId;
     }
@@ -72,6 +76,11 @@ public class TaskInfo implements Writeable<TaskInfo>, ToXContent {
         type = in.readString();
         action = in.readString();
         description = in.readOptionalString();
+        if (in.readBoolean()) {
+            status = in.readTaskStatus();
+        } else {
+            status = null;
+        }
         parentNode = in.readOptionalString();
         parentId = in.readLong();
     }
@@ -96,6 +105,14 @@ public class TaskInfo implements Writeable<TaskInfo>, ToXContent {
         return description;
     }
 
+    /**
+     * The status of the running task. Only available if TaskInfos were build
+     * with the detailed flag.
+     */
+    public Task.Status getStatus() {
+        return status;
+    }
+
     public String getParentNode() {
         return parentNode;
     }
@@ -116,6 +133,12 @@ public class TaskInfo implements Writeable<TaskInfo>, ToXContent {
         out.writeString(type);
         out.writeString(action);
         out.writeOptionalString(description);
+        if (status != null) {
+            out.writeBoolean(true);
+            out.writeTaskStatus(status);
+        } else {
+            out.writeBoolean(false);
+        }
         out.writeOptionalString(parentNode);
         out.writeLong(parentId);
     }
@@ -127,6 +150,9 @@ public class TaskInfo implements Writeable<TaskInfo>, ToXContent {
         builder.field("id", id);
         builder.field("type", type);
         builder.field("action", action);
+        if (status != null) {
+            builder.field("status", status, params);
+        }
         if (description != null) {
             builder.field("description", description);
         }

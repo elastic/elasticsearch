@@ -94,6 +94,9 @@ class PrecommitTasks {
         project.checkstyle {
             config = project.resources.text.fromFile(
                 PrecommitTasks.getResource('/checkstyle.xml'), 'UTF-8')
+            configProperties = [
+                suppressions: PrecommitTasks.getResource('/checkstyle_suppressions.xml')
+            ]
         }
         for (String taskName : ['checkstyleMain', 'checkstyleTest']) {
             Task task = project.tasks.findByName(taskName)

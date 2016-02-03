@@ -119,10 +119,19 @@ class BuildPlugin implements Plugin<Project> {
             // TODO: remove when the build requires Java 9
             if (javaVersionEnum == JavaVersion.VERSION_1_8) {
                 if (Objects.equals("Oracle Corporation", javaVendor)) {
-                    def matcher = javaVersion =~ /1\.8\.0_(\d+)/
-                    int update = matcher[0][1].toInteger()
-                    if (update < 40) {
-                        throw new GradleException("JDK ${javaVendor} ${javaVersion} has compiler bug JDK-8052388, update your JDK to at least 8u40")
+                    def matcher = javaVersion =~ /1\.8\.0(?:_(\d+))?/
+                    if (matcher.matches()) {
+                        int update;
+                        if (matcher.group(1) == null) {
+                            update = 0
+                        } else {
+                            update = matcher.group(1).toInteger()
+                        }
+                        if (update < 40) {
+                            throw new GradleException("JDK ${javaVendor} ${javaVersion} has compiler bug JDK-8052388, update your JDK to at least 8u40")
+                        }
+                    } else {
+                        println "Unable to detect JDK update version for JDK ${javaVendor} ${javaVersion}; your JDK might be subject to compiler bug JDK-8052388!"
                     }
                 }
             }

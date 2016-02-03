@@ -90,6 +90,17 @@ public class SettingsFilterTests extends ESTestCase {
                         .put("baz", "baz_test")
                         .build()
         );
+
+        testFiltering(Settings.builder()
+                .put("a.b.something.d", "foo_test")
+                .put("a.b.something.c", "foo1_test")
+                .build(),
+            Settings.builder()
+                .put("a.b.something.c", "foo1_test")
+                .build(),
+            "a.b.*.d"
+        );
+
     }
 
     private void testFiltering(Settings source, Settings filtered, String... patterns) throws IOException {

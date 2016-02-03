@@ -87,7 +87,7 @@ public class JsonXContentGenerator implements XContentGenerator {
             this.filter = null;
         } else {
             this.filter = new FilteringGeneratorDelegate(jsonGenerator,
-                    new FilterPathBasedFilter(inclusive, filters), true, true);
+                    new FilterPathBasedFilter(filters, inclusive), true, true);
             this.generator = this.filter;
         }
 

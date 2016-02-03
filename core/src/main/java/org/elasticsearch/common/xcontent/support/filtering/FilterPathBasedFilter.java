@@ -53,7 +53,7 @@ public class FilterPathBasedFilter extends TokenFilter {
         this.filters = filters;
     }
 
-    public FilterPathBasedFilter(boolean inclusive, String[] filters) {
+    public FilterPathBasedFilter(String[] filters, boolean inclusive) {
         this(FilterPath.compile(filters), inclusive);
     }
 

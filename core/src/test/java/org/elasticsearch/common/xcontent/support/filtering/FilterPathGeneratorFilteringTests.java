@@ -135,7 +135,7 @@ public class FilterPathGeneratorFilteringTests extends ESTestCase {
     private void assertResult(String input, String filter, boolean inclusive, String expected) throws Exception {
         try (BytesStreamOutput os = new BytesStreamOutput()) {
             try (FilteringGeneratorDelegate generator = new FilteringGeneratorDelegate(JSON_FACTORY.createGenerator(os),
-                    new FilterPathBasedFilter(inclusive, new String[] { filter }), true, true)) {
+                    new FilterPathBasedFilter(new String[] { filter }, inclusive), true, true)) {
                 try (JsonParser parser = JSON_FACTORY.createParser(replaceQuotes(input))) {
                     while (parser.nextToken() != null) {
                         generator.copyCurrentStructure(parser);

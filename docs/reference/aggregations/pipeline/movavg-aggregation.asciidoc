@@ -351,7 +351,7 @@ you can disable this behavior with `pad: false`
 All the moving average model support a "prediction" mode, which will attempt to extrapolate into the future given the
 current smoothed, moving average.  Depending on the model and parameter, these predictions may or may not be accurate.
 
-Predictions are enabled by adding a `predict` parameter to any moving average aggregation, specifying the nubmer of
+Predictions are enabled by adding a `predict` parameter to any moving average aggregation, specifying the number of
 predictions you would like appended to the end of the series.  These predictions will be spaced out at the same interval
 as your buckets:
 

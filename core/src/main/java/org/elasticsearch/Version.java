@@ -283,11 +283,11 @@ public class Version {
     public static final int V_2_1_3_ID = 2010399;
     public static final Version V_2_1_3 = new Version(V_2_1_3_ID, true, org.apache.lucene.util.Version.LUCENE_5_3_1);
     public static final int V_2_2_0_ID = 2020099;
-    public static final Version V_2_2_0 = new Version(V_2_2_0_ID, false, org.apache.lucene.util.Version.LUCENE_5_4_0);
+    public static final Version V_2_2_0 = new Version(V_2_2_0_ID, false, org.apache.lucene.util.Version.LUCENE_5_4_1);
     public static final int V_2_2_1_ID = 2020199;
-    public static final Version V_2_2_1 = new Version(V_2_2_1_ID, true, org.apache.lucene.util.Version.LUCENE_5_4_0);
+    public static final Version V_2_2_1 = new Version(V_2_2_1_ID, true, org.apache.lucene.util.Version.LUCENE_5_4_1);
     public static final int V_2_3_0_ID = 2030099;
-    public static final Version V_2_3_0 = new Version(V_2_3_0_ID, true, org.apache.lucene.util.Version.LUCENE_5_4_0);
+    public static final Version V_2_3_0 = new Version(V_2_3_0_ID, true, org.apache.lucene.util.Version.LUCENE_5_5_0);
     public static final int V_3_0_0_ID = 3000099;
     public static final Version V_3_0_0 = new Version(V_3_0_0_ID, true, org.apache.lucene.util.Version.LUCENE_5_5_0);
     public static final Version CURRENT = V_3_0_0;

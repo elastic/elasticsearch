@@ -27,6 +27,7 @@ import org.apache.lucene.search.similarities.BasicModelG;
 import org.apache.lucene.search.similarities.DFRSimilarity;
 import org.apache.lucene.search.similarities.DistributionSPL;
 import org.apache.lucene.search.similarities.IBSimilarity;
+import org.apache.lucene.search.similarities.IndependenceChiSquared;
 import org.apache.lucene.search.similarities.LMDirichletSimilarity;
 import org.apache.lucene.search.similarities.LMJelinekMercerSimilarity;
 import org.apache.lucene.search.similarities.LambdaTTF;
@@ -167,12 +168,14 @@ public class SimilarityTests extends ESSingleNodeTestCase {
 
         Settings indexSettings = Settings.settingsBuilder()
             .put("index.similarity.my_similarity.type", "DFI")
+            .put("index.similarity.my_similarity.independence_measure", "chisquared")
             .build();
         IndexService indexService = createIndex("foo", indexSettings);
         DocumentMapper documentMapper = indexService.mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
         MappedFieldType fieldType = documentMapper.mappers().getMapper("field1").fieldType();
         assertThat(fieldType.similarity(), instanceOf(DFISimilarityProvider.class));
-        assertThat(fieldType.similarity().get(), instanceOf(DFISimilarity.class));
+        DFISimilarity similarity = (DFISimilarity) fieldType.similarity().get();
+        assertThat(similarity.getIndependence(), instanceOf(IndependenceChiSquared.class));
     }
 
     public void testResolveSimilaritiesFromMapping_LMDirichlet() throws IOException {

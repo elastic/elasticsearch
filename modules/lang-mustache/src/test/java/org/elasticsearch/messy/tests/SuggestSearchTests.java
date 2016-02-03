@@ -27,8 +27,6 @@ import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.search.suggest.SuggestBuilders.phraseSuggestion;
 import static org.elasticsearch.search.suggest.SuggestBuilders.termSuggestion;
 import static org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder.candidateGenerator;
-import static org.elasticsearch.search.suggest.SuggestionBuilder.SortBy;
-import static org.elasticsearch.search.suggest.SuggestionBuilder.SuggestMode;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSuggestion;
@@ -75,6 +73,8 @@ import org.elasticsearch.search.suggest.SuggestionBuilder;
 import org.elasticsearch.search.suggest.phrase.DirectCandidateGeneratorBuilder;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
+import org.elasticsearch.search.suggest.term.TermSuggestionBuilder.SortBy;
+import org.elasticsearch.search.suggest.term.TermSuggestionBuilder.SuggestMode;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 
@@ -102,7 +102,7 @@ public class SuggestSearchTests extends ESIntegTestCase {
         refresh();
 
         TermSuggestionBuilder termSuggest = termSuggestion("test")
-                .suggestMode(SuggestMode.ALWAYS) // Always, otherwise the results can vary between requests.
+                .suggestMode(TermSuggestionBuilder.SuggestMode.ALWAYS) // Always, otherwise the results can vary between requests.
                 .text("abcd")
                 .field("text");
         logger.info("--> run suggestions with one index");

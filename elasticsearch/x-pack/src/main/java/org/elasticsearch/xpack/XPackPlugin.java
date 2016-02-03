@@ -123,6 +123,7 @@ public class XPackPlugin extends Plugin {
         shieldPlugin.onModule(module);
         marvelPlugin.onModule(module);
         watcherPlugin.onModule(module);
+        licensePlugin.onModule(module);
     }
 
     public void onModule(NetworkModule module) {

@@ -63,7 +63,6 @@ public class ClusterPrivilegeTests extends AbstractPrivilegeTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder().put(super.nodeSettings(nodeOrdinal))
                 .put(NetworkModule.HTTP_ENABLED.getKey(), true)
-                .put("action.disable_shutdown", true)
                 .put("path.repo", repositoryLocation)
                 .build();
     }

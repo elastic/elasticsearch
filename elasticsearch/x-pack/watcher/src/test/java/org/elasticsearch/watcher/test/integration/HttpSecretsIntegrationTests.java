@@ -86,10 +86,13 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestC
         if (encryptSensitiveData == null) {
             encryptSensitiveData = shieldEnabled() && randomBoolean();
         }
-        return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
-                .put("watcher.shield.encrypt_sensitive_data", encryptSensitiveData)
-                .build();
+        if (encryptSensitiveData) {
+            return Settings.builder()
+                    .put(super.nodeSettings(nodeOrdinal))
+                    .put("watcher.shield.encrypt_sensitive_data", encryptSensitiveData)
+                    .build();
+        }
+        return super.nodeSettings(nodeOrdinal);
     }
 
     public void testHttpInput() throws Exception {

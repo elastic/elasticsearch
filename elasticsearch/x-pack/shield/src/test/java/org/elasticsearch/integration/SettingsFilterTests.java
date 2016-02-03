@@ -8,12 +8,15 @@ package org.elasticsearch.integration;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.elasticsearch.common.network.NetworkModule;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.shield.ssl.AbstractSSLService;
@@ -25,8 +28,10 @@ import org.elasticsearch.test.rest.client.http.HttpResponse;
 import org.junit.After;
 
 import java.io.IOException;
+import java.lang.reflect.Array;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -43,6 +48,36 @@ public class SettingsFilterTests extends ShieldIntegTestCase {
     @After
     public void cleanup() throws IOException {
         httpClient.close();
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        Collection<Class<? extends Plugin>> classes = super.nodePlugins();
+        ArrayList<Class<? extends Plugin>> newClasses = new ArrayList<>(classes);
+        newClasses.add(TestPlugin.class);
+        return newClasses;
+    }
+
+    public static class TestPlugin extends Plugin {
+
+        public TestPlugin() {}
+
+        @Override
+        public String name() {
+            return "test_settings_adder";
+        }
+
+        @Override
+        public String description() {
+            return "adds some settings this test uses";
+        }
+
+        public void onModule(SettingsModule module) {
+            module.registerSetting(Setting.simpleString("foo.bar", false, Setting.Scope.CLUSTER));
+            module.registerSetting(Setting.simpleString("foo.baz", false, Setting.Scope.CLUSTER));
+            module.registerSetting(Setting.simpleString("bar.baz", false, Setting.Scope.CLUSTER));
+            module.registerSetting(Setting.simpleString("baz.foo", false, Setting.Scope.CLUSTER));
+        }
     }
 
     @Override

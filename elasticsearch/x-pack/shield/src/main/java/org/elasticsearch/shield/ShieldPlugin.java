@@ -10,6 +10,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.network.NetworkModule;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -168,7 +169,7 @@ public class ShieldPlugin extends Plugin {
         Settings.Builder settingsBuilder = Settings.settingsBuilder();
         settingsBuilder.put(NetworkModule.TRANSPORT_TYPE_KEY, ShieldPlugin.NAME);
         settingsBuilder.put(NetworkModule.TRANSPORT_SERVICE_TYPE_KEY, ShieldPlugin.NAME);
-        settingsBuilder.put(NetworkModule.HTTP_TYPE_KEY, ShieldPlugin.NAME);
+        settingsBuilder.put(NetworkModule.HTTP_TYPE_SETTING.getKey(), ShieldPlugin.NAME);
         addUserSettings(settingsBuilder);
         addTribeSettings(settingsBuilder);
         addQueryCacheSettings(settingsBuilder);
@@ -182,6 +183,9 @@ public class ShieldPlugin extends Plugin {
         settingsModule.registerSetting(IPFilter.HTTP_FILTER_DENY_SETTING);
         settingsModule.registerSetting(IPFilter.TRANSPORT_FILTER_ALLOW_SETTING);
         settingsModule.registerSetting(IPFilter.TRANSPORT_FILTER_DENY_SETTING);
+        settingsModule.registerSetting(Setting.boolSetting("plugins.load_classpath_plugins", true, false, Setting.Scope.CLUSTER));
+        // TODO add real settings for this wildcard here
+        settingsModule.registerSetting(Setting.groupSetting("shield.", false, Setting.Scope.CLUSTER));
     }
 
     @Override

@@ -17,10 +17,10 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.logging.support.LoggerMessageFormat;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.script.ScriptEngineRegistry;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.watcher.actions.WatcherActionModule;
 import org.elasticsearch.watcher.actions.email.service.EmailService;
@@ -49,6 +49,7 @@ import org.elasticsearch.watcher.rest.action.RestPutWatchAction;
 import org.elasticsearch.watcher.rest.action.RestWatchServiceAction;
 import org.elasticsearch.watcher.rest.action.RestWatcherInfoAction;
 import org.elasticsearch.watcher.rest.action.RestWatcherStatsAction;
+import org.elasticsearch.watcher.shield.ShieldSecretService;
 import org.elasticsearch.watcher.shield.WatcherShieldModule;
 import org.elasticsearch.watcher.support.WatcherIndexTemplateRegistry.TemplateConfig;
 import org.elasticsearch.watcher.support.clock.ClockModule;
@@ -191,6 +192,31 @@ public class WatcherPlugin extends Plugin {
         module.registerSetting(InternalEmailService.EMAIL_ACCOUNT_SETTING);
         module.registerSetting(InternalHipChatService.HIPCHAT_ACCOUNT_SETTING);
         module.registerSetting(InternalPagerDutyService.PAGERDUTY_ACCOUNT_SETTING);
+        module.registerSetting(Setting.intSetting("watcher.execution.scroll.size", 0, false, Setting.Scope.CLUSTER));
+        module.registerSetting(Setting.intSetting("watcher.watch.scroll.size", 0, false, Setting.Scope.CLUSTER));
+        module.registerSetting(Setting.boolSetting("watcher.enabled", false, false, Setting.Scope.CLUSTER));
+        module.registerSetting(ShieldSecretService.ENCRYPT_SENSITIVE_DATA_SETTING);
+        // TODO add real settings for these
+        module.registerSetting(Setting.simpleString("resource.reload.interval", false, Setting.Scope.CLUSTER));
+        module.registerSetting(Setting.simpleString("resource.reload.enabled", false, Setting.Scope.CLUSTER));
+        module.registerSetting(Setting.simpleString("resource.reload.interval.low", false, Setting.Scope.CLUSTER));
+        module.registerSetting(Setting.simpleString("resource.reload.interval.medium", false, Setting.Scope.CLUSTER));
+        module.registerSetting(Setting.simpleString("watcher.internal.ops.search.default_timeout", false, Setting.Scope.CLUSTER));
+        module.registerSetting(Setting.simpleString("watcher.internal.ops.bulk.default_timeout", false, Setting.Scope.CLUSTER));
+        module.registerSetting(Setting.simpleString("watcher.internal.ops.index.default_timeout", false, Setting.Scope.CLUSTER));
+        module.registerSetting(Setting.simpleString("watcher.execution.default_throttle_period", false, Setting.Scope.CLUSTER));
+        module.registerSetting(Setting.simpleString("watcher.http.default_read_timeout", false, Setting.Scope.CLUSTER));
+        module.registerSetting(Setting.groupSetting("watcher.http.ssl.", false, Setting.Scope.CLUSTER));
+        module.registerSetting(Setting.groupSetting("watcher.http.proxy.", false, Setting.Scope.CLUSTER));
+        module.registerSetting(Setting.simpleString("watcher.actions.index.default_timeout", false, Setting.Scope.CLUSTER));
+        module.registerSetting(Setting.simpleString("watcher.index.rest.direct_access", false, Setting.Scope.CLUSTER));
+        module.registerSetting(Setting.simpleString("watcher.trigger.schedule.engine", false, Setting.Scope.CLUSTER));
+        module.registerSetting(Setting.simpleString("watcher.input.search.default_timeout", false, Setting.Scope.CLUSTER));
+        module.registerSetting(Setting.simpleString("watcher.transform.search.default_timeout", false, Setting.Scope.CLUSTER));
+        module.registerSetting(Setting.simpleString("watcher.trigger.schedule.ticker.tick_interval", false, Setting.Scope.CLUSTER));
+        module.registerSetting(Setting.simpleString("watcher.execution.scroll.timeout", false, Setting.Scope.CLUSTER));
+        module.registerSetting(Setting.simpleString("watcher.start_immediately", false, Setting.Scope.CLUSTER));
+        module.registerSetting(Setting.simpleString("watcher.http.default_connection_timeout", false, Setting.Scope.CLUSTER));
     }
 
     public void onModule(NetworkModule module) {

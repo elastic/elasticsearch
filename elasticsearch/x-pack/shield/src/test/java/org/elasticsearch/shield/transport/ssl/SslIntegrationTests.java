@@ -28,6 +28,7 @@ import org.elasticsearch.shield.transport.netty.ShieldNettyHttpServerTransport;
 import org.elasticsearch.test.ShieldIntegTestCase;
 import org.elasticsearch.test.ShieldSettingsSource;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.xpack.XPackPlugin;
 
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLHandshakeException;
@@ -58,9 +59,9 @@ public class SslIntegrationTests extends ShieldIntegTestCase {
 
     // no SSL exception as this is the exception is returned when connecting
     public void testThatUnconfiguredCiphersAreRejected() {
-        try (TransportClient transportClient = TransportClient.builder().settings(settingsBuilder()
+        try (TransportClient transportClient = TransportClient.builder().addPlugin(XPackPlugin.class).settings(settingsBuilder()
                 .put(transportClientSettings())
-                .put("name", "programmatic_transport_client")
+                .put("node.name", "programmatic_transport_client")
                 .put("cluster.name", internalCluster().getClusterName())
                 .putArray("shield.ssl.ciphers", new String[]{"TLS_ECDH_anon_WITH_RC4_128_SHA", "SSL_RSA_WITH_3DES_EDE_CBC_SHA"})
                 .build()).build()) {
@@ -77,9 +78,9 @@ public class SslIntegrationTests extends ShieldIntegTestCase {
 
     // no SSL exception as this is the exception is returned when connecting
     public void testThatTransportClientUsingSSLv3ProtocolIsRejected() {
-        try(TransportClient transportClient = TransportClient.builder().settings(settingsBuilder()
+        try(TransportClient transportClient = TransportClient.builder().addPlugin(XPackPlugin.class).settings(settingsBuilder()
                 .put(transportClientSettings())
-                .put("name", "programmatic_transport_client")
+                .put("node.name", "programmatic_transport_client")
                 .put("cluster.name", internalCluster().getClusterName())
                 .putArray("shield.ssl.supported_protocols", new String[]{"SSLv3"})
                 .build()).build()) {

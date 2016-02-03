@@ -60,7 +60,6 @@ public class LicensesServiceClusterTests extends AbstractLicensesIntegrationTest
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("plugins.load_classpath_plugins", false)
                 .put("node.data", true)
-                .put("format", "json")
                 // this setting is only used in tests
                 .put("_trial_license_duration_in_seconds", 9)
                 // this setting is only used in tests

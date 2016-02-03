@@ -10,6 +10,7 @@ import org.elasticsearch.common.inject.Guice;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
@@ -34,7 +35,9 @@ public class AuditTrailModuleTests extends ESTestCase {
                 .put("client.type", "node")
                 .put("shield.audit.enabled", false)
                 .build();
-        Injector injector = Guice.createInjector(new SettingsModule(settings, new SettingsFilter(settings)), new AuditTrailModule(settings));
+        SettingsModule settingsModule = new SettingsModule(settings, new SettingsFilter(settings));
+        settingsModule.registerSetting(Setting.boolSetting("shield.audit.enabled", true, false, Setting.Scope.CLUSTER));
+        Injector injector = Guice.createInjector(settingsModule, new AuditTrailModule(settings));
         AuditTrail auditTrail = injector.getInstance(AuditTrail.class);
         assertThat(auditTrail, is(AuditTrail.NOOP));
     }
@@ -54,8 +57,10 @@ public class AuditTrailModuleTests extends ESTestCase {
                 .build();
         ThreadPool pool = new ThreadPool("testLogFile");
         try {
+            SettingsModule settingsModule = new SettingsModule(settings, new SettingsFilter(settings));
+            settingsModule.registerSetting(Setting.boolSetting("shield.audit.enabled", true, false, Setting.Scope.CLUSTER));
             Injector injector = Guice.createInjector(
-                    new SettingsModule(settings, new SettingsFilter(settings)),
+                    settingsModule,
                     new NetworkModule(new NetworkService(settings), settings, false, null) {
                         @Override
                         protected void configure() {
@@ -84,8 +89,11 @@ public class AuditTrailModuleTests extends ESTestCase {
                 .put("shield.audit.outputs" , "foo")
                 .put("client.type", "node")
                 .build();
+        SettingsModule settingsModule = new SettingsModule(settings, new SettingsFilter(settings));
+        settingsModule.registerSetting(Setting.boolSetting("shield.audit.enabled", true, false, Setting.Scope.CLUSTER));
+        settingsModule.registerSetting(Setting.simpleString("shield.audit.outputs", false, Setting.Scope.CLUSTER));
         try {
-            Guice.createInjector(new SettingsModule(settings, new SettingsFilter(settings)), new AuditTrailModule(settings));
+            Guice.createInjector(settingsModule, new AuditTrailModule(settings));
             fail("Expect initialization to fail when an unknown audit trail output is configured");
         } catch (Throwable t) {
             // expected

@@ -127,12 +127,12 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         logger.info("using schedule engine [" + scheduleImplName + "]");
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-
                 //TODO: for now lets isolate watcher tests from marvel (randomize this later)
                 .put("marvel.enabled", false)
                 // we do this by default in core, but for watcher this isn't needed and only adds noise.
                 .put("index.store.mock.check_index_on_close", false)
-                .put("scroll.size", randomIntBetween(1, 100))
+                .put("watcher.execution.scroll.size", randomIntBetween(1, 100))
+                .put("watcher.watch.scroll.size", randomIntBetween(1, 100))
                 .put(ShieldSettings.settings(shieldEnabled))
                 .put("watcher.trigger.schedule.engine", scheduleImplName)
                 .build();

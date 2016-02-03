@@ -42,6 +42,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.shield.InternalClient;
 import org.elasticsearch.shield.SystemUser;
@@ -703,11 +704,11 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
             if (hostPortPairs.size() == 0) {
                 throw new ElasticsearchException("no valid host:port pairs specified for setting [shield.audit.index.client.hosts]");
             }
-
+            final Settings theClientSetting = clientSettings.filter((s) -> s.startsWith("hosts") == false); // hosts is not a valid setting
             final TransportClient transportClient = TransportClient.builder()
                     .settings(Settings.builder()
-                            .put("name", DEFAULT_CLIENT_NAME + "-" + settings.get("name"))
-                            .put(clientSettings))
+                            .put("node.name", DEFAULT_CLIENT_NAME + "-" + Node.NODE_NAME_SETTING.get(settings))
+                            .put(theClientSetting))
                     .addPlugin(XPackPlugin.class)
                     .build();
             for (Tuple<String, Integer> pair : hostPortPairs) {

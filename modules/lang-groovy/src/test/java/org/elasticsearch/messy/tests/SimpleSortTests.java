@@ -24,18 +24,13 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestUtil;
 import org.apache.lucene.util.UnicodeUtil;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.geo.GeoDistance;
-import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.Uid;
@@ -46,15 +41,12 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.groovy.GroovyPlugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
-import org.elasticsearch.search.sort.GeoDistanceSortBuilder;
 import org.elasticsearch.search.sort.ScriptSortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
-import org.elasticsearch.test.VersionUtils;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -77,7 +69,6 @@ import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.fieldValueFactorFunction;
-import static org.elasticsearch.search.sort.SortBuilders.fieldSort;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFirstHit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -85,7 +76,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertOrderedSearchHits;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSecondHit;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSortValues;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
@@ -1718,258 +1708,4 @@ public class SimpleSortTests extends ESIntegTestCase {
             assertThat(multiShardResponse.getHits().getAt(i).id(), equalTo(singleShardResponse.getHits().getAt(i).id()));
         }
     }
-
-    public void testManyToManyGeoPoints() throws ExecutionException, InterruptedException, IOException {
-        /**
-         * | q  |  d1    |   d2
-         * |    |        |
-         * |    |        |
-         * |    |        |
-         * |2  o|  x     |     x
-         * |    |        |
-         * |1  o|      x | x
-         * |___________________________
-         * 1   2   3   4   5   6   7
-         */
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.CURRENT);
-        Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
-        assertAcked(prepareCreate("index").setSettings(settings).addMapping("type", "location", "type=geo_point"));
-        XContentBuilder d1Builder = jsonBuilder();
-        GeoPoint[] d1Points = {new GeoPoint(3, 2), new GeoPoint(4, 1)};
-        createShuffeldJSONArray(d1Builder, d1Points);
-
-        XContentBuilder d2Builder = jsonBuilder();
-        GeoPoint[] d2Points = {new GeoPoint(5, 1), new GeoPoint(6, 2)};
-        createShuffeldJSONArray(d2Builder, d2Points);
-
-        logger.info(d1Builder.string());
-        logger.info(d2Builder.string());
-        indexRandom(true,
-                client().prepareIndex("index", "type", "d1").setSource(d1Builder),
-                client().prepareIndex("index", "type", "d2").setSource(d2Builder));
-        ensureYellow();
-        GeoPoint[] q = new GeoPoint[2];
-        if (randomBoolean()) {
-            q[0] = new GeoPoint(2, 1);
-            q[1] = new GeoPoint(2, 2);
-        } else {
-            q[1] = new GeoPoint(2, 2);
-            q[0] = new GeoPoint(2, 1);
-        }
-
-        SearchResponse searchResponse = client().prepareSearch()
-                .setQuery(matchAllQuery())
-                .addSort(new GeoDistanceSortBuilder("location").points(q).sortMode("min").order(SortOrder.ASC).geoDistance(GeoDistance.PLANE).unit(DistanceUnit.KILOMETERS))
-                .execute().actionGet();
-        assertOrderedSearchHits(searchResponse, "d1", "d2");
-        assertThat((Double)searchResponse.getHits().getAt(0).getSortValues()[0], closeTo(GeoDistance.PLANE.calculate(2, 2, 3, 2, DistanceUnit.KILOMETERS), 0.01d));
-        assertThat((Double)searchResponse.getHits().getAt(1).getSortValues()[0], closeTo(GeoDistance.PLANE.calculate(2, 1, 5, 1, DistanceUnit.KILOMETERS), 0.01d));
-
-        searchResponse = client().prepareSearch()
-                .setQuery(matchAllQuery())
-                .addSort(new GeoDistanceSortBuilder("location").points(q).sortMode("min").order(SortOrder.DESC).geoDistance(GeoDistance.PLANE).unit(DistanceUnit.KILOMETERS))
-                .execute().actionGet();
-        assertOrderedSearchHits(searchResponse, "d2", "d1");
-        assertThat((Double)searchResponse.getHits().getAt(0).getSortValues()[0], closeTo(GeoDistance.PLANE.calculate(2, 1, 5, 1, DistanceUnit.KILOMETERS), 0.01d));
-        assertThat((Double)searchResponse.getHits().getAt(1).getSortValues()[0], closeTo(GeoDistance.PLANE.calculate(2, 2, 3, 2, DistanceUnit.KILOMETERS), 0.01d));
-
-        searchResponse = client().prepareSearch()
-                .setQuery(matchAllQuery())
-                .addSort(new GeoDistanceSortBuilder("location").points(q).sortMode("max").order(SortOrder.ASC).geoDistance(GeoDistance.PLANE).unit(DistanceUnit.KILOMETERS))
-                .execute().actionGet();
-        assertOrderedSearchHits(searchResponse, "d1", "d2");
-        assertThat((Double)searchResponse.getHits().getAt(0).getSortValues()[0], closeTo(GeoDistance.PLANE.calculate(2, 2, 4, 1, DistanceUnit.KILOMETERS), 0.01d));
-        assertThat((Double)searchResponse.getHits().getAt(1).getSortValues()[0], closeTo(GeoDistance.PLANE.calculate(2, 1, 6, 2, DistanceUnit.KILOMETERS), 0.01d));
-
-        searchResponse = client().prepareSearch()
-                .setQuery(matchAllQuery())
-                .addSort(new GeoDistanceSortBuilder("location").points(q).sortMode("max").order(SortOrder.DESC).geoDistance(GeoDistance.PLANE).unit(DistanceUnit.KILOMETERS))
-                .execute().actionGet();
-        assertOrderedSearchHits(searchResponse, "d2", "d1");
-        assertThat((Double)searchResponse.getHits().getAt(0).getSortValues()[0], closeTo(GeoDistance.PLANE.calculate(2, 1, 6, 2, DistanceUnit.KILOMETERS), 0.01d));
-        assertThat((Double)searchResponse.getHits().getAt(1).getSortValues()[0], closeTo(GeoDistance.PLANE.calculate(2, 2, 4, 1, DistanceUnit.KILOMETERS), 0.01d));
-    }
-
-    protected void createShuffeldJSONArray(XContentBuilder builder, GeoPoint[] pointsArray) throws IOException {
-        List<GeoPoint> points = new ArrayList<>();
-        points.addAll(Arrays.asList(pointsArray));
-        builder.startObject();
-        builder.startArray("location");
-        int numPoints = points.size();
-        for (int i = 0; i < numPoints; i++) {
-            builder.value(points.remove(randomInt(points.size() - 1)));
-        }
-        builder.endArray();
-        builder.endObject();
-    }
-
-    public void testManyToManyGeoPointsWithDifferentFormats() throws ExecutionException, InterruptedException, IOException {
-        /**   q     d1       d2
-         * |4  o|   x    |   x
-         * |    |        |
-         * |3  o|  x     |  x
-         * |    |        |
-         * |2  o| x      | x
-         * |    |        |
-         * |1  o|x       |x
-         * |______________________
-         * 1   2   3   4   5   6
-         */
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.CURRENT);
-        Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
-        assertAcked(prepareCreate("index").setSettings(settings).addMapping("type", "location", "type=geo_point"));
-        XContentBuilder d1Builder = jsonBuilder();
-        GeoPoint[] d1Points = {new GeoPoint(2.5, 1), new GeoPoint(2.75, 2), new GeoPoint(3, 3), new GeoPoint(3.25, 4)};
-        createShuffeldJSONArray(d1Builder, d1Points);
-
-        XContentBuilder d2Builder = jsonBuilder();
-        GeoPoint[] d2Points = {new GeoPoint(4.5, 1), new GeoPoint(4.75, 2), new GeoPoint(5, 3), new GeoPoint(5.25, 4)};
-        createShuffeldJSONArray(d2Builder, d2Points);
-
-        indexRandom(true,
-                client().prepareIndex("index", "type", "d1").setSource(d1Builder),
-                client().prepareIndex("index", "type", "d2").setSource(d2Builder));
-        ensureYellow();
-
-        List<String> qHashes = new ArrayList<>();
-        List<GeoPoint> qPoints = new ArrayList<>();
-        createQPoints(qHashes, qPoints);
-
-        GeoDistanceSortBuilder geoDistanceSortBuilder = new GeoDistanceSortBuilder("location");
-        for (int i = 0; i < 4; i++) {
-            int at = randomInt(3 - i);
-            if (randomBoolean()) {
-                geoDistanceSortBuilder.geohashes(qHashes.get(at));
-            } else {
-                geoDistanceSortBuilder.points(qPoints.get(at));
-            }
-            qHashes.remove(at);
-            qPoints.remove(at);
-        }
-
-        SearchResponse searchResponse = client().prepareSearch()
-                .setQuery(matchAllQuery())
-                .addSort(geoDistanceSortBuilder.sortMode("min").order(SortOrder.ASC).geoDistance(GeoDistance.PLANE).unit(DistanceUnit.KILOMETERS))
-                .execute().actionGet();
-        assertOrderedSearchHits(searchResponse, "d1", "d2");
-        assertThat((Double) searchResponse.getHits().getAt(0).getSortValues()[0], closeTo(GeoDistance.PLANE.calculate(2.5, 1, 2, 1, DistanceUnit.KILOMETERS), 1.e-4));
-        assertThat((Double) searchResponse.getHits().getAt(1).getSortValues()[0], closeTo(GeoDistance.PLANE.calculate(4.5, 1, 2, 1, DistanceUnit.KILOMETERS), 1.e-4));
-
-        searchResponse = client().prepareSearch()
-                .setQuery(matchAllQuery())
-                .addSort(geoDistanceSortBuilder.sortMode("max").order(SortOrder.ASC).geoDistance(GeoDistance.PLANE).unit(DistanceUnit.KILOMETERS))
-                .execute().actionGet();
-        assertOrderedSearchHits(searchResponse, "d1", "d2");
-        assertThat((Double) searchResponse.getHits().getAt(0).getSortValues()[0], closeTo(GeoDistance.PLANE.calculate(3.25, 4, 2, 1, DistanceUnit.KILOMETERS), 1.e-4));
-        assertThat((Double) searchResponse.getHits().getAt(1).getSortValues()[0], closeTo(GeoDistance.PLANE.calculate(5.25, 4, 2, 1, DistanceUnit.KILOMETERS), 1.e-4));
-
-    }
-
-    public void testSinglePointGeoDistanceSort() throws ExecutionException, InterruptedException, IOException {
-        assertAcked(prepareCreate("index").addMapping("type", "location", "type=geo_point"));
-        indexRandom(true,
-                client().prepareIndex("index", "type", "d1").setSource(jsonBuilder().startObject().startObject("location").field("lat", 1).field("lon", 1).endObject().endObject()),
-                client().prepareIndex("index", "type", "d2").setSource(jsonBuilder().startObject().startObject("location").field("lat", 1).field("lon", 2).endObject().endObject()));
-        ensureYellow();
-
-        String hashPoint = "s037ms06g7h0";
-
-        GeoDistanceSortBuilder geoDistanceSortBuilder = new GeoDistanceSortBuilder("location");
-        geoDistanceSortBuilder.geohashes(hashPoint);
-
-        SearchResponse searchResponse = client().prepareSearch()
-                .setQuery(matchAllQuery())
-                .addSort(geoDistanceSortBuilder.sortMode("min").order(SortOrder.ASC).geoDistance(GeoDistance.PLANE).unit(DistanceUnit.KILOMETERS))
-                .execute().actionGet();
-        checkCorrectSortOrderForGeoSort(searchResponse);
-
-        geoDistanceSortBuilder = new GeoDistanceSortBuilder("location");
-        geoDistanceSortBuilder.points(new GeoPoint(2, 2));
-
-        searchResponse = client().prepareSearch()
-                .setQuery(matchAllQuery())
-                .addSort(geoDistanceSortBuilder.sortMode("min").order(SortOrder.ASC).geoDistance(GeoDistance.PLANE).unit(DistanceUnit.KILOMETERS))
-                .execute().actionGet();
-        checkCorrectSortOrderForGeoSort(searchResponse);
-
-        geoDistanceSortBuilder = new GeoDistanceSortBuilder("location");
-        geoDistanceSortBuilder.point(2, 2);
-
-        searchResponse = client().prepareSearch()
-                .setQuery(matchAllQuery())
-                .addSort(geoDistanceSortBuilder.sortMode("min").order(SortOrder.ASC).geoDistance(GeoDistance.PLANE).unit(DistanceUnit.KILOMETERS))
-                .execute().actionGet();
-        checkCorrectSortOrderForGeoSort(searchResponse);
-
-        searchResponse = client()
-                .prepareSearch()
-                .setSource(
-                        new SearchSourceBuilder().sort(SortBuilders.geoDistanceSort("location").point(2.0, 2.0)
-                                .unit(DistanceUnit.KILOMETERS).geoDistance(GeoDistance.PLANE))).execute().actionGet();
-        checkCorrectSortOrderForGeoSort(searchResponse);
-
-        searchResponse = client()
-                .prepareSearch()
-                .setSource(
-                        new SearchSourceBuilder().sort(SortBuilders.geoDistanceSort("location").geohashes("s037ms06g7h0")
-                                .unit(DistanceUnit.KILOMETERS).geoDistance(GeoDistance.PLANE))).execute().actionGet();
-        checkCorrectSortOrderForGeoSort(searchResponse);
-
-        searchResponse = client()
-                .prepareSearch()
-                .setSource(
-                        new SearchSourceBuilder().sort(SortBuilders.geoDistanceSort("location").point(2.0, 2.0)
-                                .unit(DistanceUnit.KILOMETERS).geoDistance(GeoDistance.PLANE))).execute().actionGet();
-        checkCorrectSortOrderForGeoSort(searchResponse);
-    }
-
-    private void checkCorrectSortOrderForGeoSort(SearchResponse searchResponse) {
-        assertOrderedSearchHits(searchResponse, "d2", "d1");
-        assertThat((Double) searchResponse.getHits().getAt(0).getSortValues()[0], closeTo(GeoDistance.PLANE.calculate(2, 2, 1, 2, DistanceUnit.KILOMETERS), 1.e-4));
-        assertThat((Double) searchResponse.getHits().getAt(1).getSortValues()[0], closeTo(GeoDistance.PLANE.calculate(2, 2, 1, 1, DistanceUnit.KILOMETERS), 1.e-4));
-    }
-
-    protected void createQPoints(List<String> qHashes, List<GeoPoint> qPoints) {
-        GeoPoint[] qp = {new GeoPoint(2, 1), new GeoPoint(2, 2), new GeoPoint(2, 3), new GeoPoint(2, 4)};
-        qPoints.addAll(Arrays.asList(qp));
-        String[] qh = {"s02equ04ven0", "s037ms06g7h0", "s065kk0dc540", "s06g7h0dyg00"};
-        qHashes.addAll(Arrays.asList(qh));
-    }
-
-    public void testCrossIndexIgnoreUnmapped() throws Exception {
-        assertAcked(prepareCreate("test1").addMapping(
-                "type", "str_field1", "type=string",
-                "long_field", "type=long",
-                "double_field", "type=double").get());
-        assertAcked(prepareCreate("test2").get());
-
-        indexRandom(true,
-                client().prepareIndex("test1", "type").setSource("str_field", "bcd", "long_field", 3, "double_field", 0.65),
-                client().prepareIndex("test2", "type").setSource());
-
-        ensureYellow("test1", "test2");
-
-        SearchResponse resp = client().prepareSearch("test1", "test2")
-                .addSort(fieldSort("str_field").order(SortOrder.ASC).unmappedType("string"))
-                .addSort(fieldSort("str_field2").order(SortOrder.DESC).unmappedType("string")).get();
-
-        assertSortValues(resp,
-                new Object[] {new Text("bcd"), null},
-                new Object[] {null, null});
-
-        resp = client().prepareSearch("test1", "test2")
-                .addSort(fieldSort("long_field").order(SortOrder.ASC).unmappedType("long"))
-                .addSort(fieldSort("long_field2").order(SortOrder.DESC).unmappedType("long")).get();
-        assertSortValues(resp,
-                new Object[] {3L, Long.MIN_VALUE},
-                new Object[] {Long.MAX_VALUE, Long.MIN_VALUE});
-
-        resp = client().prepareSearch("test1", "test2")
-                .addSort(fieldSort("double_field").order(SortOrder.ASC).unmappedType("double"))
-                .addSort(fieldSort("double_field2").order(SortOrder.DESC).unmappedType("double")).get();
-        assertSortValues(resp,
-                new Object[] {0.65, Double.NEGATIVE_INFINITY},
-                new Object[] {Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY});
-    }
-
 }

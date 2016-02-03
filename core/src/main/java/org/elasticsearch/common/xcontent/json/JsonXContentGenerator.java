@@ -72,6 +72,10 @@ public class JsonXContentGenerator implements XContentGenerator {
     private boolean prettyPrint = false;
 
     public JsonXContentGenerator(JsonGenerator jsonGenerator, OutputStream os, String... filters) {
+        this(jsonGenerator, os, filters, true);
+    }
+
+    public JsonXContentGenerator(JsonGenerator jsonGenerator, OutputStream os, String[] filters, boolean inclusive) {
         if (jsonGenerator instanceof GeneratorBase) {
             this.base = (GeneratorBase) jsonGenerator;
         } else {
@@ -82,7 +86,8 @@ public class JsonXContentGenerator implements XContentGenerator {
             this.generator = jsonGenerator;
             this.filter = null;
         } else {
-            this.filter = new FilteringGeneratorDelegate(jsonGenerator, new FilterPathBasedFilter(filters), true, true);
+            this.filter = new FilteringGeneratorDelegate(jsonGenerator,
+                    new FilterPathBasedFilter(filters, inclusive), true, true);
             this.generator = this.filter;
         }
 
@@ -375,6 +380,7 @@ public class JsonXContentGenerator implements XContentGenerator {
         }
     }
 
+    @Override
     public final void writeRawValue(BytesReference content) throws IOException {
         XContentType contentType = XContentFactory.xContentType(content);
         if (contentType == null) {
@@ -450,4 +456,5 @@ public class JsonXContentGenerator implements XContentGenerator {
         }
         generator.close();
     }
+
 }

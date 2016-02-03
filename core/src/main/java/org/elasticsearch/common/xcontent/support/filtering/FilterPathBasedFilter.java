@@ -92,18 +92,11 @@ public class FilterPathBasedFilter extends TokenFilter {
     @Override
     public TokenFilter includeProperty(String name) {
         TokenFilter filter = evaluate(name, filters);
-        if (inclusive) {
-            if (filter == MATCHING) {
-                return TokenFilter.INCLUDE_ALL;
-            } else if (filter == NO_MATCHING) {
-                return null;
-            }
-        } else {
-            if (filter == MATCHING) {
-                return null;
-            } else if (filter == NO_MATCHING) {
-                return TokenFilter.INCLUDE_ALL;
-            }
+        if (filter == MATCHING) {
+            return inclusive ? TokenFilter.INCLUDE_ALL : null;
+        }
+        if (filter == NO_MATCHING) {
+            return inclusive ? null : TokenFilter.INCLUDE_ALL;
         }
         return filter;
     }

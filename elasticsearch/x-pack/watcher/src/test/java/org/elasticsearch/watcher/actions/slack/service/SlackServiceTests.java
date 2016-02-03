@@ -78,7 +78,7 @@ public class SlackServiceTests extends AbstractWatcherIntegrationTestCase {
     public void testWatchWithSlackAction() throws Exception {
         String account = "test_account";
         SlackAction.Builder actionBuilder = slackAction(account, SlackMessage.Template.builder()
-                .setText("slack integration test `{{ctx.payload.ref}}`")
+                .setText("slack integration test `testWatchWithSlackAction()`")
                 .addTo("#watcher-test", "#watcher-test-2"));
 
         PutWatchResponse putWatchResponse = watcherClient().preparePutWatch("1").setSource(watchBuilder()

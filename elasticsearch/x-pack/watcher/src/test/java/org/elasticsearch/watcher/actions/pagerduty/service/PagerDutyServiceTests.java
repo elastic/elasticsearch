@@ -74,7 +74,7 @@ public class PagerDutyServiceTests extends AbstractWatcherIntegrationTestCase {
     public void testWatchWithPagerDutyAction() throws Exception {
         String account = "test_account";
         PagerDutyAction.Builder actionBuilder = pagerDutyAction(IncidentEvent
-                .templateBuilder("pager duty integration test `{{ctx.payload.ref}}`").setAccount(account));
+                .templateBuilder("pager duty integration test `testWatchWithPagerDutyAction()`").setAccount(account));
 
         PutWatchResponse putWatchResponse = watcherClient().preparePutWatch("1").setSource(watchBuilder()
                 .trigger(schedule(interval("10m")))

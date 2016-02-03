@@ -82,7 +82,7 @@ public abstract class AggregatorBuilder<AB extends AggregatorBuilder<AB>> extend
         return (AB) this;
     }
 
-    public final AggregatorFactory<?> build(AggregationContext context) {
+    public final AggregatorFactory<?> build(AggregationContext context) throws IOException {
         AggregatorFactory<?> factory = doBuild(context);
         if (factoriesBuilder != null && factoriesBuilder.count() > 0) {
             factory.subFactories(factoriesBuilder.build(context));
@@ -92,7 +92,7 @@ public abstract class AggregatorBuilder<AB extends AggregatorBuilder<AB>> extend
     }
 
     // NORELEASE make this method abstract when agg refactoring is complete
-    protected AggregatorFactory<?> doBuild(AggregationContext context) {
+    protected AggregatorFactory<?> doBuild(AggregationContext context) throws IOException {
         return this;
     }
 

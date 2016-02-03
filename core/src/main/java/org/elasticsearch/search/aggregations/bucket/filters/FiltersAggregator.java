@@ -20,8 +20,6 @@
 package org.elasticsearch.search.aggregations.bucket.filters;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.ParseField;
@@ -34,6 +32,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -269,31 +268,9 @@ public class FiltersAggregator extends BucketsAggregator {
             return otherBucketKey;
         }
 
-        // TODO: refactor in order to initialize the factory once with its parent,
-        // the context, etc. and then have a no-arg lightweight create method
-        // (since create may be called thousands of times)
-
-        private IndexSearcher searcher;
-        private String[] keys;
-        private Weight[] weights;
-
         @Override
-        public Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket,
-                List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-            IndexSearcher contextSearcher = context.searchContext().searcher();
-            if (searcher != contextSearcher) {
-                searcher = contextSearcher;
-                weights = new Weight[filters.size()];
-                keys = new String[filters.size()];
-                for (int i = 0; i < filters.size(); ++i) {
-                    KeyedFilter keyedFilter = filters.get(i);
-                    this.keys[i] = keyedFilter.key;
-                    Query filter = keyedFilter.filter.toFilter(context.searchContext().indexShard().getQueryShardContext());
-                    this.weights[i] = contextSearcher.createNormalizedWeight(filter, false);
-                }
-            }
-            return new FiltersAggregator(name, factories, keys, weights, keyed, otherBucket ? otherBucketKey : null, context, parent,
-                    pipelineAggregators, metaData);
+        protected AggregatorFactory<?> doBuild(AggregationContext context) throws IOException {
+            return new FiltersAggregatorFactory(name, type, filters, keyed, otherBucket, otherBucketKey, context);
         }
 
         @Override

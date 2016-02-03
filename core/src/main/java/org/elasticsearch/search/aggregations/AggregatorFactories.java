@@ -168,7 +168,7 @@ public class AggregatorFactories {
             return this;
         }
 
-        public AggregatorFactories build(AggregationContext context) {
+        public AggregatorFactories build(AggregationContext context) throws IOException {
             if (aggregatorBuilders.isEmpty() && pipelineAggregatorFactories.isEmpty()) {
                 return EMPTY;
             }

@@ -129,7 +129,6 @@ public class TransportClient extends AbstractClient {
 
             final ThreadPool threadPool = new ThreadPool(settings);
             final NetworkService networkService = new NetworkService(settings);
-            final SettingsFilter settingsFilter = new SettingsFilter(settings);
             NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
             boolean success = false;
             try {
@@ -140,7 +139,7 @@ public class TransportClient extends AbstractClient {
                     modules.add(pluginModule);
                 }
                 modules.add(new PluginsModule(pluginsService));
-                modules.add(new SettingsModule(settings, settingsFilter));
+                modules.add(new SettingsModule(settings));
                 modules.add(new NetworkModule(networkService, settings, true, namedWriteableRegistry));
                 modules.add(new ClusterNameModule(settings));
                 modules.add(new ThreadPoolModule(threadPool));

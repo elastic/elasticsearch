@@ -36,7 +36,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 
 public class ClusterModuleTests extends ModuleTestCase {
@@ -74,8 +73,7 @@ public class ClusterModuleTests extends ModuleTestCase {
     }
 
     public void testRegisterClusterDynamicSettingDuplicate() {
-        final SettingsFilter settingsFilter = new SettingsFilter(Settings.EMPTY);
-        SettingsModule module = new SettingsModule(Settings.EMPTY, settingsFilter);
+        SettingsModule module = new SettingsModule(Settings.EMPTY);
         try {
             module.registerSetting(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING);
         } catch (IllegalArgumentException e) {
@@ -84,14 +82,13 @@ public class ClusterModuleTests extends ModuleTestCase {
     }
 
     public void testRegisterClusterDynamicSetting() {
-        final SettingsFilter settingsFilter = new SettingsFilter(Settings.EMPTY);
-        SettingsModule module = new SettingsModule(Settings.EMPTY, settingsFilter);
+        SettingsModule module = new SettingsModule(Settings.EMPTY);
         module.registerSetting(Setting.boolSetting("foo.bar", false, true, Setting.Scope.CLUSTER));
         assertInstanceBinding(module, ClusterSettings.class, service -> service.hasDynamicSetting("foo.bar"));
     }
 
     public void testRegisterIndexDynamicSettingDuplicate() {
-        SettingsModule module = new SettingsModule(Settings.EMPTY, new SettingsFilter(Settings.EMPTY));
+        SettingsModule module = new SettingsModule(Settings.EMPTY);
         try {
             module.registerSetting(EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING);
         } catch (IllegalArgumentException e) {
@@ -100,8 +97,7 @@ public class ClusterModuleTests extends ModuleTestCase {
     }
 
     public void testRegisterIndexDynamicSetting() {
-        final SettingsFilter settingsFilter = new SettingsFilter(Settings.EMPTY);
-        SettingsModule module = new SettingsModule(Settings.EMPTY, settingsFilter);
+        SettingsModule module = new SettingsModule(Settings.EMPTY);
         module.registerSetting(Setting.boolSetting("foo.bar", false, true, Setting.Scope.INDEX));
         assertInstanceBinding(module, IndexScopedSettings.class, service -> service.hasDynamicSetting("foo.bar"));
     }

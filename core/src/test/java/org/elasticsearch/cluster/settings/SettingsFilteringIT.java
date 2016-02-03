@@ -66,27 +66,8 @@ public class SettingsFilteringIT extends ESIntegTestCase {
 
         public void onModule(SettingsModule module) {
             module.registerSetting(Setting.groupSetting("index.filter_test.", false, Setting.Scope.INDEX));
-        }
-
-        @Override
-        public Collection<Module> nodeModules() {
-            return Collections.<Module>singletonList(new SettingsFilteringModule());
-        }
-    }
-
-    public static class SettingsFilteringModule extends AbstractModule {
-
-        @Override
-        protected void configure() {
-            bind(SettingsFilteringService.class).asEagerSingleton();
-        }
-    }
-
-    public static class SettingsFilteringService {
-        @Inject
-        public SettingsFilteringService(SettingsFilter settingsFilter) {
-            settingsFilter.addFilter("index.filter_test.foo");
-            settingsFilter.addFilter("index.filter_test.bar*");
+            module.registerSettingsFilter("index.filter_test.foo");
+            module.registerSettingsFilter("index.filter_test.bar*");
         }
     }
 

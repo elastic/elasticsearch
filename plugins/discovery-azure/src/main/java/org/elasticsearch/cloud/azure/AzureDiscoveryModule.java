@@ -23,7 +23,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cloud.azure.management.AzureComputeService;
 import org.elasticsearch.cloud.azure.management.AzureComputeService.Management;
 import org.elasticsearch.cloud.azure.management.AzureComputeServiceImpl;
-import org.elasticsearch.cloud.azure.management.AzureComputeSettingsFilter;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Inject;

@@ -20,9 +20,11 @@
 package org.elasticsearch.plugin.repository.s3;
 
 import org.elasticsearch.SpecialPermission;
+import org.elasticsearch.cloud.aws.AwsS3Service;
 import org.elasticsearch.cloud.aws.S3Module;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardRepository;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesModule;
@@ -84,5 +86,16 @@ public class S3RepositoryPlugin extends Plugin {
 
     public void onModule(RepositoriesModule repositoriesModule) {
         repositoriesModule.registerRepository(S3Repository.TYPE, S3Repository.class, BlobStoreIndexShardRepository.class);
+    }
+
+    public void onModule(SettingsModule module) {
+        module.registerSettingsFilter(AwsS3Service.CLOUD_AWS.KEY);
+        module.registerSettingsFilter(AwsS3Service.CLOUD_AWS.SECRET);
+        module.registerSettingsFilter(AwsS3Service.CLOUD_AWS.PROXY_PASSWORD);
+        module.registerSettingsFilter(AwsS3Service.CLOUD_S3.KEY);
+        module.registerSettingsFilter(AwsS3Service.CLOUD_S3.SECRET);
+        module.registerSettingsFilter(AwsS3Service.CLOUD_S3.PROXY_PASSWORD);
+        module.registerSettingsFilter("access_key"); // WTF is this?
+        module.registerSettingsFilter("secret_key"); // WTF is this?
     }
 }

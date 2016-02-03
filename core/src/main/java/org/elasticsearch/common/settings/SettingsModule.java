@@ -20,11 +20,13 @@
 package org.elasticsearch.common.settings;
 
 import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.tribe.TribeService;
 
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Predicate;
 
 /**
@@ -35,15 +37,14 @@ import java.util.function.Predicate;
 public class SettingsModule extends AbstractModule {
 
     private final Settings settings;
-    private final SettingsFilter settingsFilter;
+    private final Set<String> settingsFilterPattern = new HashSet<>();
     private final Map<String, Setting<?>> clusterSettings = new HashMap<>();
     private final Map<String, Setting<?>> indexSettings = new HashMap<>();
     private static final Predicate<String> TRIBE_CLIENT_NODE_SETTINGS_PREDICATE =  (s) -> s.startsWith("tribe.") && TribeService.TRIBE_SETTING_KEYS.contains(s) == false;
 
 
-    public SettingsModule(Settings settings, SettingsFilter settingsFilter) {
+    public SettingsModule(Settings settings) {
         this.settings = settings;
-        this.settingsFilter = settingsFilter;
         for (Setting<?> setting : ClusterSettings.BUILT_IN_CLUSTER_SETTINGS) {
             registerSetting(setting);
         }
@@ -62,7 +63,7 @@ public class SettingsModule extends AbstractModule {
         clusterSettings.validate(settings.filter(acceptOnlyClusterSettings));
         validateTribeSettings(settings, clusterSettings);
         bind(Settings.class).toInstance(settings);
-        bind(SettingsFilter.class).toInstance(settingsFilter);
+        bind(SettingsFilter.class).toInstance(new SettingsFilter(settings, settingsFilterPattern));
 
         bind(ClusterSettings.class).toInstance(clusterSettings);
         bind(IndexScopedSettings.class).toInstance(indexScopedSettings);
@@ -84,6 +85,17 @@ public class SettingsModule extends AbstractModule {
                 break;
         }
     }
+
+    public void registerSettingsFilter(String filter) {
+        if (SettingsFilter.isValidPattern(filter) == false) {
+            throw new IllegalArgumentException("filter [" + filter +"] is invalid must be either a key or a regex pattern");
+        }
+        if (settingsFilterPattern.contains(filter)) {
+            throw new IllegalArgumentException("filter [" + filter + "] has already been registered");
+        }
+        settingsFilterPattern.add(filter);
+    }
+
 
     public void validateTribeSettings(Settings settings, ClusterSettings clusterSettings) {
         Map<String, Settings> groups = settings.filter(TRIBE_CLIENT_NODE_SETTINGS_PREDICATE).getGroups("tribe.", true);

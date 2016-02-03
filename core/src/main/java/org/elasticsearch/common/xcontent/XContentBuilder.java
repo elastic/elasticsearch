@@ -117,10 +117,10 @@ public final class XContentBuilder implements BytesStream, Releasable {
 
     /**
      * Constructs a new builder using the provided xcontent, an OutputStream and
-     * some filters. If filters are specified and inclusiveFilters is true, only
-     * those values matching a filter will be written to the output stream. If
-     * inclusiveFilters is false, those matching will be excluded. Make sure to
-     * call {@link #close()} when the builder is done with.
+     * some filters. If {@code filters} are specified and {@code inclusive} is
+     * true, only those values matching a filter will be written to the output
+     * stream. If {@code inclusive} is false, those matching will be excluded.
+     * Make sure to call {@link #close()} when the builder is done with.
      */
     public XContentBuilder(XContent xContent, OutputStream bos, String[] filters, boolean inclusive) throws IOException {
         this.bos = bos;

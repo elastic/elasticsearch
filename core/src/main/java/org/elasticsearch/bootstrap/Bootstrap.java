@@ -263,6 +263,9 @@ final class Bootstrap {
         INSTANCE = new Bootstrap();
 
         boolean foreground = !"false".equals(System.getProperty("es.foreground", System.getProperty("es-foreground")));
+        // Clear these properties because we are done with them. No need to let them leak into the Settings.
+        System.clearProperty("es.foreground");
+        System.clearProperty("es-foreground");
         // handle the wrapper system property, if its a service, don't run as a service
         if (System.getProperty("wrapper.service", "XXX").equalsIgnoreCase("true")) {
             foreground = false;

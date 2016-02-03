@@ -436,7 +436,7 @@ public class ShardStateAction extends AbstractComponent {
         @Override
         public String toString() {
             List<String> components = new ArrayList<>(4);
-            components.add("failed shard [" + shardRouting + "]");
+            components.add("target shard [" + shardRouting + "]");
             components.add("source shard [" + sourceShardRouting + "]");
             components.add("message [" + message + "]");
             if (failure != null) {

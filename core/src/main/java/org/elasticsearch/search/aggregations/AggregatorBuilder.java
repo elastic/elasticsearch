@@ -87,6 +87,7 @@ public abstract class AggregatorBuilder<AB extends AggregatorBuilder<AB>> extend
         if (factoriesBuilder != null && factoriesBuilder.count() > 0) {
             factory.subFactories(factoriesBuilder.build(context));
         }
+        factory.setMetaData(metaData);
         return factory;
     }
 

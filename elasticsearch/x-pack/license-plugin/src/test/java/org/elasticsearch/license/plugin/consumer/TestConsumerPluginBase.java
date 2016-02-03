@@ -8,7 +8,9 @@ package org.elasticsearch.license.plugin.consumer;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.LifecycleComponent;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.plugins.Plugin;
 
 import java.util.ArrayList;
@@ -45,6 +47,15 @@ public abstract class TestConsumerPluginBase extends Plugin {
             services.add(service());
         }
         return services;
+    }
+
+    public void onModule(SettingsModule module) {
+        try {
+            module.registerSetting(Setting.simpleString("_trial_license_duration_in_seconds", false, Setting.Scope.CLUSTER));
+            module.registerSetting(Setting.simpleString("_grace_duration_in_seconds", false, Setting.Scope.CLUSTER));
+        } catch (IllegalArgumentException ex) {
+            // already loaded
+        }
     }
 
     public abstract Class<? extends TestPluginServiceBase> service();

@@ -7,6 +7,7 @@ package org.elasticsearch.watcher.shield;
 
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.crypto.CryptoService;
 import org.elasticsearch.watcher.support.secret.SecretService;
@@ -18,11 +19,11 @@ public class ShieldSecretService extends AbstractComponent implements SecretServ
 
     private final CryptoService cryptoService;
     private final boolean encryptSensitiveData;
-
+    public static final Setting<Boolean> ENCRYPT_SENSITIVE_DATA_SETTING = Setting.boolSetting("watcher.shield.encrypt_sensitive_data", false, false, Setting.Scope.CLUSTER);
     @Inject
     public ShieldSecretService(Settings settings, CryptoService cryptoService) {
         super(settings);
-        this.encryptSensitiveData = settings.getAsBoolean("watcher.shield.encrypt_sensitive_data", false);
+        this.encryptSensitiveData = ENCRYPT_SENSITIVE_DATA_SETTING.get(settings);
         this.cryptoService = cryptoService;
     }
 

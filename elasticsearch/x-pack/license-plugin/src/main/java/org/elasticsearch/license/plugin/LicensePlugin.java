@@ -13,7 +13,9 @@ import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.network.NetworkModule;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.license.plugin.action.delete.DeleteLicenseAction;
 import org.elasticsearch.license.plugin.action.delete.TransportDeleteLicenseAction;
 import org.elasticsearch.license.plugin.action.get.GetLicenseAction;
@@ -92,5 +94,10 @@ public class LicensePlugin extends Plugin {
             return Collections.<Module>singletonList(new LicenseModule());
         }
         return Collections.emptyList();
+    }
+
+    public void onModule(SettingsModule module) {
+        // TODO convert this wildcard to a real setting
+        module.registerSetting(Setting.groupSetting("license.", false, Setting.Scope.CLUSTER));
     }
 }

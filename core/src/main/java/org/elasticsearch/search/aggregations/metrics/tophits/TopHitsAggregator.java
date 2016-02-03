@@ -31,7 +31,6 @@ import org.apache.lucene.search.TopFieldCollector;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TopScoreDocCollector;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -41,15 +40,13 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.LongObjectPagedHashMap;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
@@ -61,9 +58,6 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSearchResult;
-import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsContext;
-import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsContext.FieldDataField;
-import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsFetchSubPhase;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.internal.InternalSearchHit;
@@ -72,8 +66,6 @@ import org.elasticsearch.search.internal.SubSearchContext;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.search.sort.SortParseElement;
-
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -211,7 +203,6 @@ public class TopHitsAggregator extends MetricsAggregator {
 
     public static class TopHitsAggregatorBuilder extends AggregatorBuilder<TopHitsAggregatorBuilder> {
 
-        private static final SortParseElement sortParseElement = new SortParseElement();
         private int from = 0;
         private int size = 3;
         private boolean explain = false;
@@ -567,70 +558,14 @@ public class TopHitsAggregator extends MetricsAggregator {
         }
 
         @Override
-        public Aggregator createInternal(AggregationContext aggregationContext, Aggregator parent, boolean collectsFromSingleBucket,
-                List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-            SubSearchContext subSearchContext = new SubSearchContext(aggregationContext.searchContext());
-            subSearchContext.explain(explain);
-            subSearchContext.version(version);
-            subSearchContext.trackScores(trackScores);
-            subSearchContext.from(from);
-            subSearchContext.size(size);
-            if (sorts != null) {
-                XContentParser completeSortParser = null;
-                try {
-                    XContentBuilder completeSortBuilder = XContentFactory.jsonBuilder();
-                    completeSortBuilder.startObject();
-                    completeSortBuilder.startArray("sort");
-                    for (BytesReference sort : sorts) {
-                        XContentParser parser = XContentFactory.xContent(sort).createParser(sort);
-                        parser.nextToken();
-                        completeSortBuilder.copyCurrentStructure(parser);
-                    }
-                    completeSortBuilder.endArray();
-                    completeSortBuilder.endObject();
-                    BytesReference completeSortBytes = completeSortBuilder.bytes();
-                    completeSortParser = XContentFactory.xContent(completeSortBytes).createParser(completeSortBytes);
-                    completeSortParser.nextToken();
-                    completeSortParser.nextToken();
-                    completeSortParser.nextToken();
-                    sortParseElement.parse(completeSortParser, subSearchContext);
-                } catch (Exception e) {
-                    XContentLocation location = completeSortParser != null ? completeSortParser.getTokenLocation() : null;
-                    throw new ParsingException(location, "failed to parse sort source in aggregation [" + name + "]", e);
-                }
-            }
-            if (fieldNames != null) {
-                subSearchContext.fieldNames().addAll(fieldNames);
-            }
-            if (fieldDataFields != null) {
-                FieldDataFieldsContext fieldDataFieldsContext = subSearchContext
-                        .getFetchSubPhaseContext(FieldDataFieldsFetchSubPhase.CONTEXT_FACTORY);
-                for (String field : fieldDataFields) {
-                    fieldDataFieldsContext.add(new FieldDataField(field));
-                }
-                fieldDataFieldsContext.setHitExecutionNeeded(true);
-            }
-            if (scriptFields != null) {
-                for (ScriptField field : scriptFields) {
-                    SearchScript searchScript = subSearchContext.scriptService().search(subSearchContext.lookup(), field.script(),
-                            ScriptContext.Standard.SEARCH, Collections.emptyMap());
-                    subSearchContext.scriptFields().add(new org.elasticsearch.search.fetch.script.ScriptFieldsContext.ScriptField(
-                            field.fieldName(), searchScript, field.ignoreFailure()));
-                }
-            }
-            if (fetchSourceContext != null) {
-                subSearchContext.fetchSourceContext(fetchSourceContext);
-            }
-            if (highlightBuilder != null) {
-                subSearchContext.highlight(highlightBuilder.build(aggregationContext.searchContext().indexShard().getQueryShardContext()));
-            }
-            return new TopHitsAggregator(aggregationContext.searchContext().fetchPhase(), subSearchContext, name, aggregationContext,
-                    parent, pipelineAggregators, metaData);
+        public TopHitsAggregatorBuilder subFactories(AggregatorFactories subFactories) {
+            throw new AggregationInitializationException("Aggregator [" + name + "] of type [" + type + "] cannot accept sub-aggregations");
         }
 
         @Override
-        public TopHitsAggregatorBuilder subFactories(AggregatorFactories subFactories) {
-            throw new AggregationInitializationException("Aggregator [" + name + "] of type [" + type + "] cannot accept sub-aggregations");
+        protected AggregatorFactory<?> doBuild(AggregationContext context) {
+            return new TopHitsAggregatorFactory(name, type, from, size, explain, version, trackScores, sorts, highlightBuilder, fieldNames,
+                    fieldDataFields, scriptFields, fetchSourceContext);
         }
 
         @Override

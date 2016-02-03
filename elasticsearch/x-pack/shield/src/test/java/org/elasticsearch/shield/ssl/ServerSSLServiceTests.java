@@ -9,7 +9,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.shield.ShieldSettingsFilter;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -37,13 +36,11 @@ import static org.mockito.Mockito.mock;
 
 public class ServerSSLServiceTests extends ESTestCase {
     Path testnodeStore;
-    ShieldSettingsFilter settingsFilter;
     Environment env;
 
     @Before
     public void setup() throws Exception {
         testnodeStore = getDataPath("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.jks");
-        settingsFilter = mock(ShieldSettingsFilter.class);
         env = new Environment(settingsBuilder().put("path.home", createTempDir()).build());
     }
 
@@ -56,7 +53,7 @@ public class ServerSSLServiceTests extends ESTestCase {
                 .put("shield.ssl.truststore.password", "testnode")
                 .build();
         try {
-            new ServerSSLService(settings, settingsFilter, env).createSSLEngine();
+            new ServerSSLService(settings, env).createSSLEngine();
             fail("expected an exception");
         } catch (ElasticsearchException e) {
             assertThat(e.getMessage(), containsString("failed to initialize the SSLContext"));
@@ -70,7 +67,7 @@ public class ServerSSLServiceTests extends ESTestCase {
                 .put("shield.ssl.keystore.path", testnodeStore)
                 .put("shield.ssl.keystore.password", "testnode")
                 .build();
-        ServerSSLService sslService = new ServerSSLService(settings, settingsFilter, env);
+        ServerSSLService sslService = new ServerSSLService(settings, env);
 
         Settings.Builder settingsBuilder = settingsBuilder()
                 .put("truststore.path", testClientStore)
@@ -87,7 +84,7 @@ public class ServerSSLServiceTests extends ESTestCase {
         ServerSSLService sslService = new ServerSSLService(settingsBuilder()
             .put("shield.ssl.keystore.path", testnodeStore)
             .put("shield.ssl.keystore.password", "testnode")
-            .build(), settingsFilter, env);
+            .build(), env);
 
         SSLContext sslContext = sslService.sslContext();
         SSLContext cachedSslContext = sslService.sslContext();
@@ -101,7 +98,7 @@ public class ServerSSLServiceTests extends ESTestCase {
                 .put("shield.ssl.keystore.path", differentPasswordsStore)
                 .put("shield.ssl.keystore.password", "testnode")
                 .put("shield.ssl.keystore.key_password", "testnode1")
-                .build(), settingsFilter, env).createSSLEngine();
+                .build(), env).createSSLEngine();
     }
 
     public void testIncorrectKeyPasswordThrowsException() throws Exception {
@@ -110,7 +107,7 @@ public class ServerSSLServiceTests extends ESTestCase {
             new ServerSSLService(settingsBuilder()
                     .put("shield.ssl.keystore.path", differentPasswordsStore)
                     .put("shield.ssl.keystore.password", "testnode")
-                    .build(), settingsFilter, env).createSSLEngine();
+                    .build(), env).createSSLEngine();
             fail("expected an exception");
         } catch (ElasticsearchException e) {
             assertThat(e.getMessage(), containsString("failed to initialize a KeyManagerFactory"));
@@ -121,7 +118,7 @@ public class ServerSSLServiceTests extends ESTestCase {
         ServerSSLService sslService = new ServerSSLService(settingsBuilder()
                 .put("shield.ssl.keystore.path", testnodeStore)
                 .put("shield.ssl.keystore.password", "testnode")
-                .build(), settingsFilter, env);
+                .build(), env);
         SSLEngine engine = sslService.createSSLEngine();
         assertThat(Arrays.asList(engine.getEnabledProtocols()), not(hasItem("SSLv3")));
     }
@@ -130,7 +127,7 @@ public class ServerSSLServiceTests extends ESTestCase {
         ServerSSLService sslService = new ServerSSLService(settingsBuilder()
                 .put("shield.ssl.keystore.path", testnodeStore)
                 .put("shield.ssl.keystore.password", "testnode")
-                .build(), settingsFilter, env);
+                .build(), env);
         SSLSessionContext context = sslService.sslContext().getServerSessionContext();
         assertThat(context.getSessionCacheSize(), equalTo(1000));
         assertThat(context.getSessionTimeout(), equalTo((int) TimeValue.timeValueHours(24).seconds()));
@@ -142,14 +139,14 @@ public class ServerSSLServiceTests extends ESTestCase {
                 .put("shield.ssl.keystore.password", "testnode")
                 .put("shield.ssl.session.cache_size", "300")
                 .put("shield.ssl.session.cache_timeout", "600s")
-                .build(), settingsFilter, env);
+                .build(), env);
         SSLSessionContext context = sslService.sslContext().getServerSessionContext();
         assertThat(context.getSessionCacheSize(), equalTo(300));
         assertThat(context.getSessionTimeout(), equalTo(600));
     }
 
     public void testThatCreateSSLEngineWithoutAnySettingsDoesNotWork() throws Exception {
-        ServerSSLService sslService = new ServerSSLService(Settings.EMPTY, settingsFilter, env);
+        ServerSSLService sslService = new ServerSSLService(Settings.EMPTY, env);
         try {
             sslService.createSSLEngine();
             fail("Expected IllegalArgumentException");
@@ -162,7 +159,7 @@ public class ServerSSLServiceTests extends ESTestCase {
         ServerSSLService sslService = new ServerSSLService(settingsBuilder()
                 .put("shield.ssl.truststore.path", testnodeStore)
                 .put("shield.ssl.truststore.password", "testnode")
-                .build(), settingsFilter, env);
+                .build(), env);
         try {
             sslService.createSSLEngine();
             fail("Expected IllegalArgumentException");
@@ -176,7 +173,7 @@ public class ServerSSLServiceTests extends ESTestCase {
                 .put("shield.ssl.keystore.path", testnodeStore)
                 .put("shield.ssl.keystore.password", "testnode")
                 .put("shield.ssl.truststore.path", testnodeStore)
-                .build(), settingsFilter, env);
+                .build(), env);
         try {
             sslService.sslContext();
             fail("Expected IllegalArgumentException");
@@ -188,7 +185,7 @@ public class ServerSSLServiceTests extends ESTestCase {
     public void testThatKeystorePasswordIsRequired() throws Exception {
         ServerSSLService sslService = new ServerSSLService(settingsBuilder()
                 .put("shield.ssl.keystore.path", testnodeStore)
-                .build(), settingsFilter, env);
+                .build(), env);
         try {
             sslService.sslContext();
             fail("Expected IllegalArgumentException");
@@ -205,7 +202,7 @@ public class ServerSSLServiceTests extends ESTestCase {
                 .put("shield.ssl.keystore.path", testnodeStore)
                 .put("shield.ssl.keystore.password", "testnode")
                 .putArray("shield.ssl.ciphers", ciphers.toArray(new String[ciphers.size()]))
-                .build(), settingsFilter, env);
+                .build(), env);
         SSLEngine engine = sslService.createSSLEngine();
         assertThat(engine, is(notNullValue()));
         String[] enabledCiphers = engine.getEnabledCipherSuites();
@@ -217,7 +214,7 @@ public class ServerSSLServiceTests extends ESTestCase {
                 .put("shield.ssl.keystore.path", testnodeStore)
                 .put("shield.ssl.keystore.password", "testnode")
                 .putArray("shield.ssl.ciphers", new String[] { "foo", "bar" })
-                .build(), settingsFilter, env);
+                .build(), env);
         try {
             sslService.createSSLEngine();
             fail("Expected IllegalArgumentException");
@@ -231,7 +228,7 @@ public class ServerSSLServiceTests extends ESTestCase {
         ServerSSLService sslService = new ServerSSLService(settingsBuilder()
                 .put("shield.ssl.keystore.path", testnodeStore)
                 .put("shield.ssl.keystore.password", "testnode")
-                .build(), settingsFilter, env);
+                .build(), env);
         SSLSocketFactory factory = sslService.sslSocketFactory();
         assertThat(factory.getDefaultCipherSuites(), is(sslService.ciphers()));
 

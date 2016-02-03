@@ -11,7 +11,6 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.netty.NettyHttpMockUtil;
-import org.elasticsearch.shield.ShieldSettingsFilter;
 import org.elasticsearch.shield.ssl.ServerSSLService;
 import org.elasticsearch.shield.transport.SSLClientAuth;
 import org.elasticsearch.shield.transport.filter.IPFilter;
@@ -40,8 +39,7 @@ public class ShieldNettyHttpServerTransportTests extends ESTestCase {
                 .put("shield.ssl.keystore.password", "testnode")
                 .build();
         Environment env = new Environment(settingsBuilder().put("path.home", createTempDir()).build());
-        ShieldSettingsFilter settingsFilter = new ShieldSettingsFilter(settings, new SettingsFilter(settings));
-        serverSSLService = new ServerSSLService(settings, settingsFilter, env);
+        serverSSLService = new ServerSSLService(settings, env);
     }
 
     public void testDefaultClientAuth() throws Exception {

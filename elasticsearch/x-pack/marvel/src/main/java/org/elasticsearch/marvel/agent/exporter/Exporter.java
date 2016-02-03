@@ -12,7 +12,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
-import org.elasticsearch.marvel.shield.MarvelSettingsFilter;
 import org.joda.time.format.DateTimeFormat;
 import org.joda.time.format.DateTimeFormatter;
 
@@ -121,9 +120,6 @@ public abstract class Exporter  {
 
         public boolean singleton() {
             return singleton;
-        }
-
-        public void filterOutSensitiveSettings(String prefix, MarvelSettingsFilter filter) {
         }
 
         public abstract E create(Config config);

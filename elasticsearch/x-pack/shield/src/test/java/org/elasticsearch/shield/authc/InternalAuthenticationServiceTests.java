@@ -13,7 +13,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.shield.ShieldSettingsFilter;
 import org.elasticsearch.shield.SystemUser;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.audit.AuditTrail;
@@ -86,7 +85,7 @@ public class InternalAuthenticationServiceTests extends ESTestCase {
         Settings settings = Settings.builder().put("path.home", createTempDir()).build();
         ShieldLicenseState shieldLicenseState = mock(ShieldLicenseState.class);
         when(shieldLicenseState.customRealmsEnabled()).thenReturn(true);
-        realms = new Realms(Settings.EMPTY, new Environment(settings), Collections.<String, Realm.Factory>emptyMap(), mock(ShieldSettingsFilter.class), shieldLicenseState) {
+        realms = new Realms(Settings.EMPTY, new Environment(settings), Collections.<String, Realm.Factory>emptyMap(), shieldLicenseState) {
 
             @Override
             protected void doStart() {

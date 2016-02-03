@@ -10,7 +10,6 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.shield.ShieldSettingsFilter;
 import org.elasticsearch.shield.authc.esnative.ESNativeRealm;
 import org.elasticsearch.shield.authc.esusers.ESUsersRealm;
 import org.elasticsearch.shield.license.ShieldLicenseState;
@@ -30,7 +29,6 @@ public class Realms extends AbstractLifecycleComponent<Realms> implements Iterab
 
     private final Environment env;
     private final Map<String, Realm.Factory> factories;
-    private final ShieldSettingsFilter settingsFilter;
     private final ShieldLicenseState shieldLicenseState;
 
     protected List<Realm> realms = Collections.emptyList();
@@ -38,12 +36,10 @@ public class Realms extends AbstractLifecycleComponent<Realms> implements Iterab
     protected List<Realm> internalRealmsOnly = Collections.emptyList();
 
     @Inject
-    public Realms(Settings settings, Environment env, Map<String, Realm.Factory> factories,
-                  ShieldSettingsFilter settingsFilter, ShieldLicenseState shieldLicenseState) {
+    public Realms(Settings settings, Environment env, Map<String, Realm.Factory> factories, ShieldLicenseState shieldLicenseState) {
         super(settings);
         this.env = env;
         this.factories = factories;
-        this.settingsFilter = settingsFilter;
         this.shieldLicenseState = shieldLicenseState;
     }
 
@@ -108,7 +104,6 @@ public class Realms extends AbstractLifecycleComponent<Realms> implements Iterab
             if (factory == null) {
                 throw new IllegalArgumentException("unknown realm type [" + type + "] set for realm [" + name + "]");
             }
-            factory.filterOutSensitiveSettings(name, settingsFilter);
             RealmConfig config = new RealmConfig(name, realmSettings, settings, env);
             if (!config.enabled()) {
                 if (logger.isDebugEnabled()) {

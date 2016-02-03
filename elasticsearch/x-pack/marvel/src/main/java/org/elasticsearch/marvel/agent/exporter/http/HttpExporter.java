@@ -28,7 +28,6 @@ import org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils;
 import org.elasticsearch.marvel.agent.renderer.Renderer;
 import org.elasticsearch.marvel.agent.renderer.RendererRegistry;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
-import org.elasticsearch.marvel.shield.MarvelSettingsFilter;
 import org.elasticsearch.marvel.support.VersionUtils;
 
 import javax.net.ssl.HostnameVerifier;
@@ -728,11 +727,6 @@ public class HttpExporter extends Exporter {
         @Override
         public HttpExporter create(Config config) {
             return new HttpExporter(config, env, rendererRegistry);
-        }
-
-        @Override
-        public void filterOutSensitiveSettings(String prefix, MarvelSettingsFilter filter) {
-            filter.filterOut(prefix + AUTH_PASSWORD_SETTING);
         }
     }
 }

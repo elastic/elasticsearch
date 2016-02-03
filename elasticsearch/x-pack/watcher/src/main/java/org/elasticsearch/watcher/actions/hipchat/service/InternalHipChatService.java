@@ -10,7 +10,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.watcher.shield.WatcherSettingsFilter;
 import org.elasticsearch.watcher.support.http.HttpClient;
 
 /**
@@ -23,10 +22,9 @@ public class InternalHipChatService extends AbstractLifecycleComponent<HipChatSe
     public static final Setting<Settings> HIPCHAT_ACCOUNT_SETTING = Setting.groupSetting("watcher.actions.hipchat.service.", true, Setting.Scope.CLUSTER);
 
     @Inject
-    public InternalHipChatService(Settings settings, HttpClient httpClient, ClusterSettings clusterSettings, WatcherSettingsFilter settingsFilter) {
+    public InternalHipChatService(Settings settings, HttpClient httpClient, ClusterSettings clusterSettings) {
         super(settings);
         this.httpClient = httpClient;
-        settingsFilter.filterOut("watcher.actions.hipchat.service.account.*.auth_token");
         clusterSettings.addSettingsUpdateConsumer(HIPCHAT_ACCOUNT_SETTING, this::setHipchatAccountSetting);
     }
 

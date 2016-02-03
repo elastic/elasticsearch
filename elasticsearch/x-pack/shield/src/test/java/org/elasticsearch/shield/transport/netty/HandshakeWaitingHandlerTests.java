@@ -9,7 +9,6 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.shield.ShieldSettingsFilter;
 import org.elasticsearch.shield.ssl.ServerSSLService;
 import org.elasticsearch.test.ESTestCase;
 import org.jboss.netty.bootstrap.ClientBootstrap;
@@ -77,8 +76,7 @@ public class HandshakeWaitingHandlerTests extends ESTestCase {
                 .put("shield.ssl.keystore.password", "testnode")
                 .build();
         Environment env = new Environment(settingsBuilder().put("path.home", createTempDir()).build());
-        ShieldSettingsFilter settingsFilter = new ShieldSettingsFilter(settings, new SettingsFilter(settings));
-        ServerSSLService sslService = new ServerSSLService(settings, settingsFilter, env);
+        ServerSSLService sslService = new ServerSSLService(settings, env);
 
         sslContext = sslService.sslContext();
 

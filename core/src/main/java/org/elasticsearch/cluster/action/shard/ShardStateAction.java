@@ -302,7 +302,7 @@ public class ShardStateAction extends AbstractComponent {
 
         @Override
         public String toString() {
-            List<String> components = new ArrayList(4);
+            List<String> components = new ArrayList<>(4);
             components.add("target shard [" + shardRouting +"]");
             components.add("indexUUID [" + indexUUID + "]");
             components.add("message [" + message +"]");

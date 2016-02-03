@@ -1,4 +1,4 @@
-package org.apache.lucene.store;
+package org.elastiscearch.index.store;
 
 /*
  * Licensed to Elasticsearch under one or more contributor
@@ -21,6 +21,7 @@ package org.apache.lucene.store;
 
 import com.carrotsearch.randomizedtesting.annotations.Listeners;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
+import org.apache.lucene.store.BaseDirectoryTestCase;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.bootstrap.BootstrapForTesting;

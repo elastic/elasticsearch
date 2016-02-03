@@ -19,9 +19,12 @@
 
 package org.elasticsearch.ingest.core;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.ingest.ProcessorsRegistry;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -177,5 +180,35 @@ public final class ConfigurationUtils {
             exception.addHeader("property_name", propertyName);
         }
         return exception;
+    }
+
+    public static List<Processor> readProcessorConfigs(List<Map<String, Map<String, Object>>> processorConfigs, ProcessorsRegistry processorRegistry) throws Exception {
+        List<Processor> processors = new ArrayList<>();
+        if (processorConfigs != null) {
+            for (Map<String, Map<String, Object>> processorConfigWithKey : processorConfigs) {
+                for (Map.Entry<String, Map<String, Object>> entry : processorConfigWithKey.entrySet()) {
+                    processors.add(readProcessor(processorRegistry, entry.getKey(), entry.getValue()));
+                }
+            }
+        }
+        return processors;
+    }
+
+    private static Processor readProcessor(ProcessorsRegistry processorRegistry, String type, Map<String, Object> config) throws Exception {
+        Processor.Factory factory = processorRegistry.getProcessorFactory(type);
+        if (factory != null) {
+            List<Map<String, Map<String, Object>>> onFailureProcessorConfigs = ConfigurationUtils.readOptionalList(null, null, config, Pipeline.ON_FAILURE_KEY);
+            List<Processor> onFailureProcessors = readProcessorConfigs(onFailureProcessorConfigs, processorRegistry);
+            Processor processor;
+            processor = factory.create(config);
+            if (!config.isEmpty()) {
+                throw new ElasticsearchParseException("processor [" + type + "] doesn't support one or more provided configuration parameters " + Arrays.toString(config.keySet().toArray()));
+            }
+            if (onFailureProcessors.isEmpty()) {
+                return processor;
+            }
+            return new CompoundProcessor(Collections.singletonList(processor), onFailureProcessors);
+        }
+        throw new ElasticsearchParseException("No processor type exists with name [" + type + "]");
     }
 }

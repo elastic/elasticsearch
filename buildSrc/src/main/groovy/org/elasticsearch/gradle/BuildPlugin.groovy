@@ -117,7 +117,7 @@ class BuildPlugin implements Plugin<Project> {
             }
 
             // TODO: remove when the build requires Java 9
-            if (javaVersionEnum.compareTo(JavaVersion.VERSION_1_8) == 0) {
+            if (javaVersionEnum == JavaVersion.VERSION_1_8) {
                 if (Objects.equals("Oracle Corporation", javaVendor)) {
                     def matcher = javaVersion =~ /1\.8\.0_(\d+)/
                     int update = matcher[0][1].toInteger()

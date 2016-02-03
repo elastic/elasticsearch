@@ -171,6 +171,7 @@ public final class SuggestUtils {
     }
 
     public static Suggest.Suggestion.Sort resolveSort(String sortVal) {
+        sortVal = sortVal.toLowerCase(Locale.US);
         if ("score".equals(sortVal)) {
             return Suggest.Suggestion.Sort.SCORE;
         } else if ("frequency".equals(sortVal)) {
@@ -181,6 +182,7 @@ public final class SuggestUtils {
     }
 
     public static StringDistance resolveDistance(String distanceVal) {
+        distanceVal = distanceVal.toLowerCase(Locale.US);
         if ("internal".equals(distanceVal)) {
             return DirectSpellChecker.INTERNAL_LEVENSHTEIN;
         } else if ("damerau_levenshtein".equals(distanceVal) || "damerauLevenshtein".equals(distanceVal)) {

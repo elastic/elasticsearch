@@ -84,8 +84,4 @@ public class SharedFSRecoverySourceHandler extends RecoverySourceHandler {
         return 0;
     }
 
-    private boolean isPrimaryRelocation() {
-        return request.recoveryType() == RecoveryState.Type.RELOCATION && shard.routingEntry().primary();
-    }
-
 }

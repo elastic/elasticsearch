@@ -140,7 +140,7 @@ public class TransportIndexAction extends TransportReplicationAction<IndexReques
     }
 
     @Override
-    protected Tuple<IndexResponse, IndexRequest> shardOperationOnPrimary(MetaData metaData, IndexRequest request) throws Throwable {
+    protected Tuple<IndexResponse, IndexRequest> shardOperationOnPrimary(MetaData metaData, IndexRequest request) throws Exception {
 
         // validate, if routing is required, that we got routing
         IndexMetaData indexMetaData = metaData.index(request.shardId().getIndex());
@@ -200,7 +200,7 @@ public class TransportIndexAction extends TransportReplicationAction<IndexReques
      * Execute the given {@link IndexRequest} on a primary shard, throwing a
      * {@link RetryOnPrimaryException} if the operation needs to be re-tried.
      */
-    public static WriteResult<IndexResponse> executeIndexRequestOnPrimary(IndexRequest request, IndexShard indexShard, MappingUpdatedAction mappingUpdatedAction) throws Throwable {
+    public static WriteResult<IndexResponse> executeIndexRequestOnPrimary(IndexRequest request, IndexShard indexShard, MappingUpdatedAction mappingUpdatedAction) throws Exception {
         Engine.Index operation = prepareIndexOperationOnPrimary(request, indexShard);
         Mapping update = operation.parsedDoc().dynamicMappingsUpdate();
         final ShardId shardId = indexShard.shardId();

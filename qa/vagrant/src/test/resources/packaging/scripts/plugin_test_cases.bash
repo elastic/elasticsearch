@@ -219,10 +219,6 @@ fi
     install_and_check_plugin discovery ec2 aws-java-sdk-core-*.jar
 }
 
-@test "[$GROUP] install multicast discovery plugin" {
-    install_and_check_plugin discovery multicast
-}
-
 @test "[$GROUP] install lang-expression plugin" {
     install_and_check_plugin lang expression
 }
@@ -323,10 +319,6 @@ fi
 
 @test "[$GROUP] remove discovery-ec2 plugin" {
     remove_plugin discovery-ec2
-}
-
-@test "[$GROUP] remove multicast discovery plugin" {
-    remove_plugin discovery-multicast
 }
 
 @test "[$GROUP] remove lang-expression plugin" {

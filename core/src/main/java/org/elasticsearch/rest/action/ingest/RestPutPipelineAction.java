@@ -20,13 +20,9 @@
 package org.elasticsearch.rest.action.ingest;
 
 import org.elasticsearch.action.ingest.PutPipelineRequest;
-import org.elasticsearch.action.ingest.WritePipelineResponse;
-import org.elasticsearch.action.ingest.WritePipelineResponseRestListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
@@ -34,7 +30,6 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
 import org.elasticsearch.rest.action.support.RestActions;
 
-import java.io.IOException;
 
 public class RestPutPipelineAction extends BaseRestHandler {
 
@@ -49,7 +44,7 @@ public class RestPutPipelineAction extends BaseRestHandler {
         PutPipelineRequest request = new PutPipelineRequest(restRequest.param("id"), RestActions.getRestContent(restRequest));
         request.masterNodeTimeout(restRequest.paramAsTime("master_timeout", request.masterNodeTimeout()));
         request.timeout(restRequest.paramAsTime("timeout", request.timeout()));
-        client.admin().cluster().putPipeline(request, new WritePipelineResponseRestListener(channel));
+        client.admin().cluster().putPipeline(request, new AcknowledgedRestListener<>(channel));
     }
 
 }

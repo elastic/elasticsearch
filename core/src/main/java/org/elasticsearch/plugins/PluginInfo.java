@@ -82,7 +82,6 @@ public class PluginInfo implements Streamable, ToXContent {
         if (name == null || name.isEmpty()) {
             throw new IllegalArgumentException("Property [name] is missing in [" + descriptor + "]");
         }
-        PluginManager.checkForForbiddenName(name);
         String description = props.getProperty("description");
         if (description == null) {
             throw new IllegalArgumentException("Property [description] is missing for plugin [" + name + "]");

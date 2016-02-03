@@ -393,9 +393,11 @@ public class RecoverySourceHandler {
             }
         });
 
-
-        if (request.markAsRelocated()) {
-            // TODO what happens if the recovery process fails afterwards, we need to mark this back to started
+        if (isPrimaryRelocation()) {
+            /**
+             * if the recovery process fails after setting the shard state to RELOCATED, both relocation source and
+             * target are failed (see {@link IndexShard#updateRoutingEntry}).
+             */
             try {
                 shard.relocated("to " + request.targetNode());
             } catch (IllegalIndexShardStateException e) {
@@ -406,7 +408,11 @@ public class RecoverySourceHandler {
         }
         stopWatch.stop();
         logger.trace("[{}][{}] finalizing recovery to {}: took [{}]",
-                indexName, shardId, request.targetNode(), stopWatch.totalTime());
+            indexName, shardId, request.targetNode(), stopWatch.totalTime());
+    }
+
+    protected boolean isPrimaryRelocation() {
+        return request.recoveryType() == RecoveryState.Type.PRIMARY_RELOCATION;
     }
 
     /**

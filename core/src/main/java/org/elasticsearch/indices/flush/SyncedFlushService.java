@@ -435,7 +435,7 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
         if (indexShard.routingEntry().primary() == false) {
             throw new IllegalStateException("[" + request.shardId() +"] expected a primary shard");
         }
-        int opCount = indexShard.getOperationsCount();
+        int opCount = indexShard.getActiveOperationsCount();
         logger.trace("{} in flight operations sampled at [{}]", request.shardId(), opCount);
         return new InFlightOpsResponse(opCount);
     }

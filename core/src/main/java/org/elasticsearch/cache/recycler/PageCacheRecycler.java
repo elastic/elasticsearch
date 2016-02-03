@@ -25,7 +25,9 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.recycler.AbstractRecyclerC;
 import org.elasticsearch.common.recycler.Recycler;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -41,9 +43,13 @@ import static org.elasticsearch.common.recycler.Recyclers.none;
 /** A recycler of fixed-size pages. */
 public class PageCacheRecycler extends AbstractComponent implements Releasable {
 
-    public static final String TYPE = "recycler.page.type";
-    public static final String LIMIT_HEAP = "recycler.page.limit.heap";
-    public static final String WEIGHT = "recycler.page.weight";
+    public static final Setting<Type> TYPE_SETTING = new Setting<>("cache.recycler.page.type", Type.CONCURRENT.name(), Type::parse, false, Setting.Scope.CLUSTER);
+    public static final Setting<ByteSizeValue> LIMIT_HEAP_SETTING  = Setting.byteSizeSetting("cache.recycler.page.limit.heap", "10%", false, Setting.Scope.CLUSTER);
+    public static final Setting<Double> WEIGHT_BYTES_SETTING  = Setting.doubleSetting("cache.recycler.page.weight.bytes", 1d, 0d, false, Setting.Scope.CLUSTER);
+    public static final Setting<Double> WEIGHT_LONG_SETTING  = Setting.doubleSetting("cache.recycler.page.weight.longs", 1d, 0d, false, Setting.Scope.CLUSTER);
+    public static final Setting<Double> WEIGHT_INT_SETTING  = Setting.doubleSetting("cache.recycler.page.weight.ints", 1d, 0d, false, Setting.Scope.CLUSTER);
+    // object pages are less useful to us so we give them a lower weight by default
+    public static final Setting<Double> WEIGHT_OBJECTS_SETTING  = Setting.doubleSetting("cache.recycler.page.weight.objects", 0.1d, 0d, false, Setting.Scope.CLUSTER);
 
     private final Recycler<byte[]> bytePage;
     private final Recycler<int[]> intPage;
@@ -73,8 +79,8 @@ public class PageCacheRecycler extends AbstractComponent implements Releasable {
     @Inject
     public PageCacheRecycler(Settings settings, ThreadPool threadPool) {
         super(settings);
-        final Type type = Type.parse(settings.get(TYPE));
-        final long limit = settings.getAsMemory(LIMIT_HEAP, "10%").bytes();
+        final Type type = TYPE_SETTING .get(settings);
+        final long limit = LIMIT_HEAP_SETTING .get(settings).bytes();
         final int availableProcessors = EsExecutors.boundedNumberOfProcessors(settings);
         final int searchThreadPoolSize = maximumSearchThreadPoolSize(threadPool, settings);
 
@@ -91,11 +97,10 @@ public class PageCacheRecycler extends AbstractComponent implements Releasable {
         // to direct ByteBuffers or sun.misc.Unsafe on a byte[] but this would have other issues
         // that would need to be addressed such as garbage collection of native memory or safety
         // of Unsafe writes.
-        final double bytesWeight = settings.getAsDouble(WEIGHT + ".bytes", 1d);
-        final double intsWeight = settings.getAsDouble(WEIGHT + ".ints", 1d);
-        final double longsWeight = settings.getAsDouble(WEIGHT + ".longs", 1d);
-        // object pages are less useful to us so we give them a lower weight by default
-        final double objectsWeight = settings.getAsDouble(WEIGHT + ".objects", 0.1d);
+        final double bytesWeight = WEIGHT_BYTES_SETTING .get(settings);
+        final double intsWeight = WEIGHT_INT_SETTING .get(settings);
+        final double longsWeight = WEIGHT_LONG_SETTING .get(settings);
+        final double objectsWeight = WEIGHT_OBJECTS_SETTING .get(settings);
 
         final double totalWeight = bytesWeight + intsWeight + longsWeight + objectsWeight;
         final int maxPageCount = (int) Math.min(Integer.MAX_VALUE, limit / BigArrays.PAGE_SIZE_IN_BYTES);
@@ -190,7 +195,7 @@ public class PageCacheRecycler extends AbstractComponent implements Releasable {
         return recycler;
     }
 
-    public static enum Type {
+    public enum Type {
         QUEUE {
             @Override
             <T> Recycler<T> build(Recycler.C<T> c, int limit, int estimatedThreadPoolSize, int availableProcessors) {
@@ -211,9 +216,6 @@ public class PageCacheRecycler extends AbstractComponent implements Releasable {
         };
 
         public static Type parse(String type) {
-            if (Strings.isNullOrEmpty(type)) {
-                return CONCURRENT;
-            }
             try {
                 return Type.valueOf(type.toUpperCase(Locale.ROOT));
             } catch (IllegalArgumentException e) {

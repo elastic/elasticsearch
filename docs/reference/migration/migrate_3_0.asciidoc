@@ -166,7 +166,7 @@ with `_parent` field mapping created before version `2.0.0`. The data of these i
 
 The format of the join between parent and child documents have changed with the `2.0.0` release. The old
 format can't read from version `3.0.0` and onwards. The new format allows for a much more efficient and
-scalable join between parent and child documents and the join data structures are stored on on disk
+scalable join between parent and child documents and the join data structures are stored on disk
 data structures as opposed as before the join data structures were stored in the jvm heap space.
 
 ==== `score_type` has been removed
@@ -318,6 +318,10 @@ disable doc values is by using the `doc_values` property of mappings.
 ==== Site plugins removed
 
 Site plugins have been removed. It is recommended to migrate site plugins to Kibana plugins.
+
+==== Multicast plugin removed
+
+Multicast has been removed. Use unicast discovery, or one of the cloud discovery plugins.
 
 ==== Plugins with custom query implementations
 

@@ -330,31 +330,4 @@ public class Environment {
     public static FileStore getFileStore(Path path) throws IOException {
         return ESFileStore.getMatchingFileStore(path, fileStores);
     }
-
-    /**
-     * Returns true if the path is writable.
-     * Acts just like {@link Files#isWritable(Path)}, except won't
-     * falsely return false for paths on SUBST'd drive letters
-     * See https://bugs.openjdk.java.net/browse/JDK-8034057
-     * Note this will set the file modification time (to its already-set value)
-     * to test access.
-     */
-    @SuppressForbidden(reason = "works around https://bugs.openjdk.java.net/browse/JDK-8034057")
-    public static boolean isWritable(Path path) throws IOException {
-        boolean v = Files.isWritable(path);
-        if (v || Constants.WINDOWS == false) {
-            return v;
-        }
-
-        // isWritable returned false on windows, the hack begins!!!!!!
-        // resetting the modification time is the least destructive/simplest
-        // way to check for both files and directories, and fails early just
-        // in getting the current value if file doesn't exist, etc
-        try {
-            Files.setLastModifiedTime(path, Files.getLastModifiedTime(path));
-            return true;
-        } catch (Throwable e) {
-            return false;
-        }
-    }
 }

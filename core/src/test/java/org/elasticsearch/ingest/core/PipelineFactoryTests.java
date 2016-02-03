@@ -19,8 +19,8 @@
 
 package org.elasticsearch.ingest.core;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ingest.TestProcessor;
-import org.elasticsearch.ingest.processor.ConfigurationPropertyException;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
@@ -59,7 +59,7 @@ public class PipelineFactoryTests extends ESTestCase {
         try {
             factory.create("_id", pipelineConfig, Collections.emptyMap());
             fail("should fail, missing required [processors] field");
-        } catch (ConfigurationPropertyException e) {
+        } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), equalTo("[processors] required property is missing"));
         }
     }
@@ -91,7 +91,7 @@ public class PipelineFactoryTests extends ESTestCase {
         Map<String, Processor.Factory> processorRegistry = Collections.singletonMap("test", new TestProcessor.Factory());
         try {
             factory.create("_id", pipelineConfig, processorRegistry);
-        } catch (ConfigurationPropertyException e) {
+        } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), equalTo("processor [test] doesn't support one or more provided configuration parameters [unused]"));
         }
     }

@@ -36,11 +36,6 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 
-import static org.elasticsearch.cloud.azure.management.AzureComputeService.Management.KEYSTORE_PASSWORD;
-import static org.elasticsearch.cloud.azure.management.AzureComputeService.Management.KEYSTORE_PATH;
-import static org.elasticsearch.cloud.azure.management.AzureComputeService.Management.KEYSTORE_TYPE;
-import static org.elasticsearch.cloud.azure.management.AzureComputeService.Management.SUBSCRIPTION_ID;
-
 /**
  *
  */
@@ -57,20 +52,12 @@ public class AzureComputeServiceImpl extends AbstractLifecycleComponent<AzureCom
     @Inject
     public AzureComputeServiceImpl(Settings settings) {
         super(settings);
-        String subscriptionId = settings.get(SUBSCRIPTION_ID);
+        String subscriptionId = Management.SUBSCRIPTION_ID_SETTING.get(settings);
 
-        serviceName = settings.get(Management.SERVICE_NAME);
-        String keystorePath = settings.get(KEYSTORE_PATH);
-        String keystorePassword = settings.get(KEYSTORE_PASSWORD);
-        String strKeyStoreType = settings.get(KEYSTORE_TYPE, KeyStoreType.pkcs12.name());
-        KeyStoreType tmpKeyStoreType = KeyStoreType.pkcs12;
-        try {
-            tmpKeyStoreType = KeyStoreType.fromString(strKeyStoreType);
-        } catch (Exception e) {
-            logger.warn("wrong value for [{}]: [{}]. falling back to [{}]...", KEYSTORE_TYPE,
-                    strKeyStoreType, KeyStoreType.pkcs12.name());
-        }
-        KeyStoreType keystoreType = tmpKeyStoreType;
+        serviceName = Management.SERVICE_NAME_SETTING.get(settings);
+        String keystorePath = Management.KEYSTORE_PATH_SETTING.get(settings);
+        String keystorePassword = Management.KEYSTORE_PASSWORD_SETTING.get(settings);
+        KeyStoreType keystoreType = Management.KEYSTORE_TYPE_SETTING.get(settings);
 
         // Check that we have all needed properties
         Configuration configuration;

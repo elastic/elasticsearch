@@ -69,7 +69,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         StartRecoveryRequest request = new StartRecoveryRequest(shardId,
                 new DiscoveryNode("b", DummyTransportAddress.INSTANCE, Version.CURRENT),
                 new DiscoveryNode("b", DummyTransportAddress.INSTANCE, Version.CURRENT),
-                randomBoolean(), null, RecoveryState.Type.STORE, randomLong());
+            null, RecoveryState.Type.STORE, randomLong());
         Store store = newStore(createTempDir());
         RecoverySourceHandler handler = new RecoverySourceHandler(null, request, recoverySettings, null, logger);
         Directory dir = store.directory();
@@ -118,7 +118,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         StartRecoveryRequest request = new StartRecoveryRequest(shardId,
                 new DiscoveryNode("b", DummyTransportAddress.INSTANCE, Version.CURRENT),
                 new DiscoveryNode("b", DummyTransportAddress.INSTANCE, Version.CURRENT),
-                randomBoolean(), null, RecoveryState.Type.STORE, randomLong());
+            null, RecoveryState.Type.STORE, randomLong());
         Path tempDir = createTempDir();
         Store store = newStore(tempDir, false);
         AtomicBoolean failedEngine = new AtomicBoolean(false);
@@ -181,7 +181,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         StartRecoveryRequest request = new StartRecoveryRequest(shardId,
                 new DiscoveryNode("b", DummyTransportAddress.INSTANCE, Version.CURRENT),
                 new DiscoveryNode("b", DummyTransportAddress.INSTANCE, Version.CURRENT),
-                randomBoolean(), null, RecoveryState.Type.STORE, randomLong());
+            null, RecoveryState.Type.STORE, randomLong());
         Path tempDir = createTempDir();
         Store store = newStore(tempDir, false);
         AtomicBoolean failedEngine = new AtomicBoolean(false);

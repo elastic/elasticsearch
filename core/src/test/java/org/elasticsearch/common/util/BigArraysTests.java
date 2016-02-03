@@ -37,8 +37,8 @@ import java.util.Arrays;
 
 public class BigArraysTests extends ESSingleNodeTestCase {
 
-    public static BigArrays randombigArrays() {
-        final PageCacheRecycler recycler = randomBoolean() ? null : ESSingleNodeTestCase.getInstanceFromNode(PageCacheRecycler.class);
+    private BigArrays randombigArrays() {
+        final PageCacheRecycler recycler = randomBoolean() ? null : getInstanceFromNode(PageCacheRecycler.class);
         return new MockBigArrays(recycler, new NoneCircuitBreakerService());
     }
 

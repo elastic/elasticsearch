@@ -1,0 +1,9 @@
+File checkstyleSuppressions = file('checkstyle_suppressions.xml')
+subprojects {
+  tasks.withType(Checkstyle) {
+    // Use x-pack specific suppressions file rather than the open source one.
+    configProperties = [
+      suppressions: checkstyleSuppressions
+    ]
+  }
+}

@@ -12,7 +12,7 @@
 
   - do:
       headers:
-        Content-Type: application/yaml
+        Accept: application/yaml
       get:
         index: test_1
         type: _all

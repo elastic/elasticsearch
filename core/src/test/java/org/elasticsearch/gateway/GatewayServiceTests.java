@@ -22,6 +22,7 @@ package org.elasticsearch.gateway;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.NoopDiscovery;
 import org.elasticsearch.test.cluster.NoopClusterService;
 import org.hamcrest.Matchers;
 
@@ -32,7 +33,8 @@ public class GatewayServiceTests extends ESTestCase {
         return new GatewayService(Settings.builder()
                 .put("http.enabled", "false")
                 .put("discovery.type", "local")
-                .put(settings.build()).build(), null, null, new NoopClusterService(), null, null);
+                .put(settings.build()).build(),
+                null, new NoopClusterService(), null, null, null, null, null, new NoopDiscovery());
 
     }
 

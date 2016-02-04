@@ -45,8 +45,8 @@ public class TestAwsS3Service extends InternalAwsS3Service {
     IdentityHashMap<AmazonS3, TestAmazonS3> clients = new IdentityHashMap<AmazonS3, TestAmazonS3>();
 
     @Inject
-    public TestAwsS3Service(Settings settings, SettingsFilter settingsFilter) {
-        super(settings, settingsFilter);
+    public TestAwsS3Service(Settings settings) {
+        super(settings);
     }
 
 

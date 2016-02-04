@@ -19,7 +19,6 @@
 
 package org.elasticsearch.ingest.processor;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ingest.core.AbstractProcessor;
 import org.elasticsearch.ingest.core.AbstractProcessorFactory;
 import org.elasticsearch.ingest.core.IngestDocument;
@@ -36,7 +35,7 @@ import static org.elasticsearch.ingest.core.ConfigurationUtils.newConfigurationE
  * Processor that converts fields content to a different type. Supported types are: integer, float, boolean and string.
  * Throws exception if the field is not there or the conversion fails.
  */
-public class ConvertProcessor extends AbstractProcessor {
+public final class ConvertProcessor extends AbstractProcessor {
 
     enum Type {
         INTEGER {
@@ -137,7 +136,7 @@ public class ConvertProcessor extends AbstractProcessor {
         return TYPE;
     }
 
-    public static class Factory extends AbstractProcessorFactory<ConvertProcessor> {
+    public static final class Factory extends AbstractProcessorFactory<ConvertProcessor> {
         @Override
         public ConvertProcessor doCreate(String processorTag, Map<String, Object> config) throws Exception {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");

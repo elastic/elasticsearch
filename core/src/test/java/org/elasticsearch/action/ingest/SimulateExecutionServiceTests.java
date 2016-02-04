@@ -54,7 +54,7 @@ public class SimulateExecutionServiceTests extends ESTestCase {
     public void setup() {
         threadPool = new ThreadPool(
                 Settings.builder()
-                        .put("name", getClass().getName())
+                        .put("node.name", getClass().getName())
                         .build()
         );
         executionService = new SimulateExecutionService(threadPool);

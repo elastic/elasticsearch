@@ -31,6 +31,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
@@ -54,13 +55,15 @@ import static org.elasticsearch.rest.RestStatus.OK;
 public class RestGetIndicesAction extends BaseRestHandler {
 
     private final IndexScopedSettings indexScopedSettings;
+    private final SettingsFilter settingsFilter;
 
     @Inject
-    public RestGetIndicesAction(Settings settings, RestController controller, Client client, IndexScopedSettings indexScopedSettings) {
+    public RestGetIndicesAction(Settings settings, RestController controller, Client client, IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter) {
         super(settings, client);
         this.indexScopedSettings = indexScopedSettings;
         controller.registerHandler(GET, "/{index}", this);
         controller.registerHandler(GET, "/{index}/{type}", this);
+        this.settingsFilter = settingsFilter;
     }
 
     @Override
@@ -143,7 +146,7 @@ public class RestGetIndicesAction extends BaseRestHandler {
                 builder.endObject();
                 if (renderDefaults) {
                     builder.startObject("defaults");
-                    indexScopedSettings.diff(settings, settings).toXContent(builder, request);
+                    settingsFilter.filter(indexScopedSettings.diff(settings, RestGetIndicesAction.this.settings)).toXContent(builder, request);
                     builder.endObject();
                 }
             }

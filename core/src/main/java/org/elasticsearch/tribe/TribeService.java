@@ -46,6 +46,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.env.Environment;
@@ -61,6 +62,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Function;
+import java.util.function.Predicate;
 
 import static java.util.Collections.unmodifiableMap;
 
@@ -119,7 +121,7 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
     }
 
     // internal settings only
-    private static final Setting<String> TRIBE_NAME_SETTING = Setting.simpleString("tribe.name", false, Setting.Scope.CLUSTER);
+    public static final Setting<String> TRIBE_NAME_SETTING = Setting.simpleString("tribe.name", false, Setting.Scope.CLUSTER);
     private final ClusterService clusterService;
     private final String[] blockIndicesWrite;
     private final String[] blockIndicesRead;
@@ -127,11 +129,17 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
     private static final String ON_CONFLICT_ANY = "any", ON_CONFLICT_DROP = "drop", ON_CONFLICT_PREFER = "prefer_";
 
     public static final Setting<String> ON_CONFLICT_SETTING = new Setting<>("tribe.on_conflict", ON_CONFLICT_ANY, (s) -> {
-        if (ON_CONFLICT_ANY.equals(s) || ON_CONFLICT_DROP.equals(s) || s.startsWith(ON_CONFLICT_PREFER)) {
-            return s;
+        switch (s) {
+            case ON_CONFLICT_ANY:
+            case ON_CONFLICT_DROP:
+                return s;
+            default:
+                if (s.startsWith(ON_CONFLICT_PREFER) && s.length() > ON_CONFLICT_PREFER.length()) {
+                    return s;
+                }
+                throw new IllegalArgumentException(
+                    "Invalid value for [tribe.on_conflict] must be either [any, drop or start with prefer_] but was: [" + s + "]");
         }
-        throw new IllegalArgumentException(
-                "Invalid value for [tribe.on_conflict] must be either [any, drop or start with prefer_] but was: " + s);
     }, false, Setting.Scope.CLUSTER);
 
     public static final Setting<Boolean> BLOCKS_METADATA_SETTING = Setting.boolSetting("tribe.blocks.metadata", false, false,
@@ -144,6 +152,9 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
             Collections.emptyList(), Function.identity(), false, Setting.Scope.CLUSTER);
     public static final Setting<List<String>> BLOCKS_METADATA_INDICES_SETTING = Setting.listSetting("tribe.blocks.metadata.indices",
             Collections.emptyList(), Function.identity(), false, Setting.Scope.CLUSTER);
+
+    public static final Set<String> TRIBE_SETTING_KEYS = Sets.newHashSet(TRIBE_NAME_SETTING.getKey(), ON_CONFLICT_SETTING.getKey(),
+        BLOCKS_METADATA_INDICES_SETTING.getKey(), BLOCKS_METADATA_SETTING.getKey(), BLOCKS_READ_INDICES_SETTING.getKey(), BLOCKS_WRITE_INDICES_SETTING.getKey(), BLOCKS_WRITE_SETTING.getKey());
 
     private final String onConflict;
     private final Set<String> droppedIndices = ConcurrentCollections.newConcurrentSet();
@@ -159,7 +170,7 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
         nodesSettings.remove("on_conflict"); // remove prefix settings that don't indicate a client
         for (Map.Entry<String, Settings> entry : nodesSettings.entrySet()) {
             Settings.Builder sb = Settings.builder().put(entry.getValue());
-            sb.put("name", settings.get("name") + "/" + entry.getKey());
+            sb.put("node.name", settings.get("node.name") + "/" + entry.getKey());
             sb.put(Environment.PATH_HOME_SETTING.getKey(), Environment.PATH_HOME_SETTING.get(settings)); // pass through ES home dir
             if (Environment.PATH_CONF_SETTING.exists(settings)) {
                 sb.put(Environment.PATH_CONF_SETTING.getKey(), Environment.PATH_CONF_SETTING.get(settings));

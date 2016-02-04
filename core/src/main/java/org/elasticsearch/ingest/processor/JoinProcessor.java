@@ -32,7 +32,7 @@ import java.util.stream.Collectors;
  * Processor that joins the different items of an array into a single string value using a separator between each item.
  * Throws exception is the specified field is not an array.
  */
-public class JoinProcessor extends AbstractProcessor {
+public final class JoinProcessor extends AbstractProcessor {
 
     public static final String TYPE = "join";
 
@@ -70,7 +70,7 @@ public class JoinProcessor extends AbstractProcessor {
         return TYPE;
     }
 
-    public static class Factory extends AbstractProcessorFactory<JoinProcessor> {
+    public final static class Factory extends AbstractProcessorFactory<JoinProcessor> {
         @Override
         public JoinProcessor doCreate(String processorTag, Map<String, Object> config) throws Exception {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");

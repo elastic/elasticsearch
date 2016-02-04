@@ -29,7 +29,7 @@ import java.util.Map;
 /**
  * Processor that allows to rename existing fields. Will throw exception if the field is not present.
  */
-public class RenameProcessor extends AbstractProcessor {
+public final class RenameProcessor extends AbstractProcessor {
 
     public static final String TYPE = "rename";
 
@@ -75,7 +75,7 @@ public class RenameProcessor extends AbstractProcessor {
         return TYPE;
     }
 
-    public static class Factory extends AbstractProcessorFactory<RenameProcessor> {
+    public static final class Factory extends AbstractProcessorFactory<RenameProcessor> {
         @Override
         public RenameProcessor doCreate(String processorTag, Map<String, Object> config) throws Exception {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");

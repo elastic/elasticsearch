@@ -83,6 +83,10 @@ public final class XContentBuilder implements BytesStream, Releasable {
         return new XContentBuilder(xContent, new BytesStreamOutput(), filters);
     }
 
+    public static XContentBuilder builder(XContent xContent, String[] filters, boolean inclusive) throws IOException {
+        return new XContentBuilder(xContent, new BytesStreamOutput(), filters, inclusive);
+    }
+
     private XContentGenerator generator;
 
     private final OutputStream bos;
@@ -102,13 +106,25 @@ public final class XContentBuilder implements BytesStream, Releasable {
     }
 
     /**
-     * Constructs a new builder using the provided xcontent, an OutputStream and some filters. The
-     * filters are used to filter fields that won't be written to the OutputStream. Make sure
-     * to call {@link #close()} when the builder is done with.
+     * Constructs a new builder using the provided xcontent, an OutputStream and
+     * some filters. If filters are specified, only those values matching a
+     * filter will be written to the output stream. Make sure to call
+     * {@link #close()} when the builder is done with.
      */
     public XContentBuilder(XContent xContent, OutputStream bos, String[] filters) throws IOException {
+        this(xContent, bos, filters, true);
+    }
+
+    /**
+     * Constructs a new builder using the provided xcontent, an OutputStream and
+     * some filters. If {@code filters} are specified and {@code inclusive} is
+     * true, only those values matching a filter will be written to the output
+     * stream. If {@code inclusive} is false, those matching will be excluded.
+     * Make sure to call {@link #close()} when the builder is done with.
+     */
+    public XContentBuilder(XContent xContent, OutputStream bos, String[] filters, boolean inclusive) throws IOException {
         this.bos = bos;
-        this.generator = xContent.createGenerator(bos, filters);
+        this.generator = xContent.createGenerator(bos, filters, inclusive);
     }
 
     public XContentBuilder fieldCaseConversion(FieldCaseConversion fieldCaseConversion) {

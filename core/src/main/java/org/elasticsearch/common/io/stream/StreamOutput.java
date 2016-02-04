@@ -39,6 +39,7 @@ import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.elasticsearch.search.rescore.RescoreBuilder;
 import org.elasticsearch.search.suggest.SuggestionBuilder;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder.SmoothingModel;
+import org.elasticsearch.tasks.Task;
 import org.joda.time.ReadableInstant;
 
 import java.io.EOFException;
@@ -676,6 +677,13 @@ public abstract class StreamOutput extends OutputStream {
      */
     public void writePhraseSuggestionSmoothingModel(SmoothingModel smoothinModel) throws IOException {
         writeNamedWriteable(smoothinModel);
+    }
+    
+    /**
+     * Writes a {@link Task.Status} to the current stream.
+     */
+    public void writeTaskStatus(Task.Status status) throws IOException {
+        writeNamedWriteable(status);
     }
 
     /**

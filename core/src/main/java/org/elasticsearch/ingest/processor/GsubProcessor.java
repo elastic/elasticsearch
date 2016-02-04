@@ -32,7 +32,7 @@ import java.util.regex.Pattern;
  * Processor that allows to search for patterns in field content and replace them with corresponding string replacement.
  * Support fields of string type only, throws exception if a field is of a different type.
  */
-public class GsubProcessor extends AbstractProcessor {
+public final class GsubProcessor extends AbstractProcessor {
 
     public static final String TYPE = "gsub";
 
@@ -76,7 +76,7 @@ public class GsubProcessor extends AbstractProcessor {
         return TYPE;
     }
 
-    public static class Factory extends AbstractProcessorFactory<GsubProcessor> {
+    public static final class Factory extends AbstractProcessorFactory<GsubProcessor> {
         @Override
         public GsubProcessor doCreate(String processorTag, Map<String, Object> config) throws Exception {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");

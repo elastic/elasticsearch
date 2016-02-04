@@ -33,7 +33,6 @@ import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -91,7 +90,7 @@ public class TemplateQueryParserTests extends ESTestCase {
         Settings settings = Settings.settingsBuilder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .put(Environment.PATH_CONF_SETTING.getKey(), this.getDataPath("config"))
-                .put("name", getClass().getName())
+                .put("node.name", getClass().getName())
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .build();
         final Client proxy = (Client) Proxy.newProxyInstance(
@@ -101,8 +100,9 @@ public class TemplateQueryParserTests extends ESTestCase {
                 });
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("test", settings);
         Index index = idxSettings.getIndex();
-        SettingsModule settingsModule = new SettingsModule(settings, new SettingsFilter(settings));
-        ScriptModule scriptModule = new ScriptModule(settingsModule);
+        SettingsModule settingsModule = new SettingsModule(settings);
+        ScriptModule scriptModule = new ScriptModule();
+        scriptModule.prepareSettings(settingsModule);
         // TODO: make this use a mock engine instead of mustache and it will no longer be messy!
         scriptModule.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(MustacheScriptEngineService.class, MustacheScriptEngineService.TYPES));
         settingsModule.registerSetting(InternalSettingsPlugin.VERSION_CREATED);

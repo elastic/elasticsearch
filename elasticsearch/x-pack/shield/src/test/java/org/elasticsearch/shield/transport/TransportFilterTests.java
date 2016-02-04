@@ -10,6 +10,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.network.NetworkModule;
@@ -300,8 +301,11 @@ public class TransportFilterTests extends ESIntegTestCase {
         }
 
         @Inject
-        public InternalPluginServerTransportService(Settings settings, Transport transport, ThreadPool threadPool, AuthenticationService authcService, AuthorizationService authzService, ShieldActionMapper actionMapper, ClientTransportFilter clientTransportFilter) {
-            super(settings, transport, threadPool, authcService, authzService, actionMapper, clientTransportFilter, mock(ShieldLicenseState.class));
+        public InternalPluginServerTransportService(Settings settings, Transport transport, ThreadPool threadPool,
+                AuthenticationService authcService, AuthorizationService authzService, ShieldActionMapper actionMapper,
+                ClientTransportFilter clientTransportFilter, NamedWriteableRegistry namedWriteableRegistry) {
+            super(settings, transport, threadPool, authcService, authzService, actionMapper, clientTransportFilter,
+                    mock(ShieldLicenseState.class), namedWriteableRegistry);
             when(licenseState.securityEnabled()).thenReturn(true);
         }
 

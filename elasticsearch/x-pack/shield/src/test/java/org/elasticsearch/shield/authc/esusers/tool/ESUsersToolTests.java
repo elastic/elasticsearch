@@ -97,7 +97,7 @@ public class ESUsersToolTests extends CliToolTestCase {
     public void testUseraddParseNoPassword() throws Exception {
         ESUsersTool tool = new ESUsersTool(new MockTerminal() {
             @Override
-            public char[] readSecret(String text, Object... args) {
+            public char[] readSecret(String text) {
                 return "changeme".toCharArray();
             }
         });
@@ -391,7 +391,7 @@ public class ESUsersToolTests extends CliToolTestCase {
         final AtomicReference<Boolean> secretRequested = new AtomicReference<>(false);
         Terminal terminal = new MockTerminal() {
             @Override
-            public char[] readSecret(String text, Object... args) {
+            public char[] readSecret(String text) {
                 secretRequested.set(true);
                 return "changeme".toCharArray();
             }

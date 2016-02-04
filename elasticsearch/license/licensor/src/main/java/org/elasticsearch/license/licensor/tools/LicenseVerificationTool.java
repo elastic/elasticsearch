@@ -100,7 +100,7 @@ public class LicenseVerificationTool extends CliTool {
             builder.endObject();
             builder.endObject();
             builder.flush();
-            terminal.print(builder.string());
+            terminal.println(builder.string());
             return ExitStatus.OK;
         }
     }

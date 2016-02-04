@@ -32,6 +32,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -41,14 +42,16 @@ public class TransportShardMultiTermsVectorAction extends TransportSingleShardAc
     private final IndicesService indicesService;
 
     private static final String ACTION_NAME = MultiTermVectorsAction.NAME + "[shard]";
+    private final TermVectorsService termVectorsService;
 
     @Inject
     public TransportShardMultiTermsVectorAction(Settings settings, ClusterService clusterService, TransportService transportService,
                                                 IndicesService indicesService, ThreadPool threadPool, ActionFilters actionFilters,
-                                                IndexNameExpressionResolver indexNameExpressionResolver) {
+                                                IndexNameExpressionResolver indexNameExpressionResolver, TermVectorsService termVectorsService) {
         super(settings, ACTION_NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
                 MultiTermVectorsShardRequest::new, ThreadPool.Names.GET);
         this.indicesService = indicesService;
+        this.termVectorsService = termVectorsService;
     }
 
     @Override
@@ -80,7 +83,7 @@ public class TransportShardMultiTermsVectorAction extends TransportSingleShardAc
             try {
                 IndexService indexService = indicesService.indexServiceSafe(request.index());
                 IndexShard indexShard = indexService.getShard(shardId.id());
-                TermVectorsResponse termVectorsResponse = indexShard.getTermVectors(termVectorsRequest);
+                TermVectorsResponse termVectorsResponse = termVectorsService.getTermVectors(indexShard, termVectorsRequest);
                 termVectorsResponse.updateTookInMillis(termVectorsRequest.startTime());
                 response.add(request.locations.get(i), termVectorsResponse);
             } catch (Throwable t) {

@@ -32,6 +32,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -42,6 +43,7 @@ import org.elasticsearch.transport.TransportService;
 public class TransportTermVectorsAction extends TransportSingleShardAction<TermVectorsRequest, TermVectorsResponse> {
 
     private final IndicesService indicesService;
+    private final TermVectorsService termVectorsService;
 
     @Override
     protected void doExecute(TermVectorsRequest request, ActionListener<TermVectorsResponse> listener) {
@@ -52,10 +54,12 @@ public class TransportTermVectorsAction extends TransportSingleShardAction<TermV
     @Inject
     public TransportTermVectorsAction(Settings settings, ClusterService clusterService, TransportService transportService,
                                       IndicesService indicesService, ThreadPool threadPool, ActionFilters actionFilters,
-                                      IndexNameExpressionResolver indexNameExpressionResolver) {
+                                      IndexNameExpressionResolver indexNameExpressionResolver, TermVectorsService termVectorsService) {
         super(settings, TermVectorsAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
                 TermVectorsRequest::new, ThreadPool.Names.GET);
         this.indicesService = indicesService;
+        this.termVectorsService = termVectorsService;
+
     }
 
     @Override
@@ -83,7 +87,7 @@ public class TransportTermVectorsAction extends TransportSingleShardAction<TermV
     protected TermVectorsResponse shardOperation(TermVectorsRequest request, ShardId shardId) {
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         IndexShard indexShard = indexService.getShard(shardId.id());
-        TermVectorsResponse response = indexShard.getTermVectors(request);
+        TermVectorsResponse response = termVectorsService.getTermVectors(indexShard, request);
         response.updateTookInMillis(request.startTime());
         return response;
     }

@@ -129,11 +129,6 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
                 return new TermVectorsFetchContext();
             }
         };
-        private final TermVectorsService termVectorsService;
-
-        public TermVectorsFetchSubPhase(TermVectorsService termVectorsService) {
-            this.termVectorsService = termVectorsService;
-        }
 
         public static final String[] NAMES = {"term_vectors_fetch"};
 
@@ -168,7 +163,7 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
                 hitField = new InternalSearchHitField(NAMES[0], new ArrayList<>(1));
                 hitContext.hit().fields().put(NAMES[0], hitField);
             }
-            TermVectorsResponse termVector =  termVectorsService.getTermVectors(context.indexShard(), new TermVectorsRequest(context.indexShard().shardId().getIndex().getName(), hitContext.hit().type(), hitContext.hit().id()));
+            TermVectorsResponse termVector = TermVectorsService.getTermVectors(context.indexShard(), new TermVectorsRequest(context.indexShard().shardId().getIndex().getName(), hitContext.hit().type(), hitContext.hit().id()));
             try {
                 Map<String, Integer> tv = new HashMap<>();
                 TermsEnum terms = termVector.getFields().terms(field).iterator();

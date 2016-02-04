@@ -66,7 +66,10 @@ import static org.elasticsearch.index.mapper.SourceToParse.source;
 
 public class TermVectorsService  {
 
-    public TermVectorsResponse getTermVectors(IndexShard indexShard, TermVectorsRequest request) {
+
+    private TermVectorsService() {}
+
+    public static TermVectorsResponse getTermVectors(IndexShard indexShard, TermVectorsRequest request) {
         final TermVectorsResponse termVectorsResponse = new TermVectorsResponse(indexShard.shardId().getIndex().getName(), request.type(), request.id());
         final Term uidTerm = new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(request.type(), request.id()));
 
@@ -145,7 +148,7 @@ public class TermVectorsService  {
         return termVectorsResponse;
     }
 
-    private void handleFieldWildcards(IndexShard indexShard, TermVectorsRequest request) {
+    private static void handleFieldWildcards(IndexShard indexShard, TermVectorsRequest request) {
         Set<String> fieldNames = new HashSet<>();
         for (String pattern : request.selectedFields()) {
             fieldNames.addAll(indexShard.mapperService().simpleMatchToIndexNames(pattern));
@@ -153,7 +156,7 @@ public class TermVectorsService  {
         request.selectedFields(fieldNames.toArray(Strings.EMPTY_ARRAY));
     }
 
-    private boolean isValidField(MappedFieldType fieldType) {
+    private static boolean isValidField(MappedFieldType fieldType) {
         // must be a string
         if (!(fieldType instanceof StringFieldMapper.StringFieldType)) {
             return false;
@@ -165,7 +168,7 @@ public class TermVectorsService  {
         return true;
     }
 
-    private Fields addGeneratedTermVectors(IndexShard indexShard, Engine.GetResult get, Fields termVectorsByField, TermVectorsRequest request, Set<String> selectedFields) throws IOException {
+    private static Fields addGeneratedTermVectors(IndexShard indexShard, Engine.GetResult get, Fields termVectorsByField, TermVectorsRequest request, Set<String> selectedFields) throws IOException {
         /* only keep valid fields */
         Set<String> validFields = new HashSet<>();
         for (String field : selectedFields) {
@@ -198,7 +201,7 @@ public class TermVectorsService  {
         }
     }
 
-    private Analyzer getAnalyzerAtField(IndexShard indexShard, String field, @Nullable Map<String, String> perFieldAnalyzer) {
+    private static Analyzer getAnalyzerAtField(IndexShard indexShard, String field, @Nullable Map<String, String> perFieldAnalyzer) {
         MapperService mapperService = indexShard.mapperService();
         Analyzer analyzer;
         if (perFieldAnalyzer != null && perFieldAnalyzer.containsKey(field)) {
@@ -212,7 +215,7 @@ public class TermVectorsService  {
         return analyzer;
     }
 
-    private Set<String> getFieldsToGenerate(Map<String, String> perAnalyzerField, Fields fieldsObject) {
+    private static Set<String> getFieldsToGenerate(Map<String, String> perAnalyzerField, Fields fieldsObject) {
         Set<String> selectedFields = new HashSet<>();
         for (String fieldName : fieldsObject) {
             if (perAnalyzerField.containsKey(fieldName)) {
@@ -222,7 +225,7 @@ public class TermVectorsService  {
         return selectedFields;
     }
 
-    private Fields generateTermVectors(IndexShard indexShard, Collection<GetField> getFields, boolean withOffsets, @Nullable Map<String, String> perFieldAnalyzer, Set<String> fields)
+    private static Fields generateTermVectors(IndexShard indexShard, Collection<GetField> getFields, boolean withOffsets, @Nullable Map<String, String> perFieldAnalyzer, Set<String> fields)
             throws IOException {
         /* store document in memory index */
         MemoryIndex index = new MemoryIndex(withOffsets);
@@ -241,7 +244,7 @@ public class TermVectorsService  {
         return MultiFields.getFields(index.createSearcher().getIndexReader());
     }
 
-    private Fields generateTermVectorsFromDoc(IndexShard indexShard, TermVectorsRequest request, boolean doAllFields) throws Throwable {
+    private static Fields generateTermVectorsFromDoc(IndexShard indexShard, TermVectorsRequest request, boolean doAllFields) throws Throwable {
         // parse the document, at the moment we do update the mapping, just like percolate
         ParsedDocument parsedDocument = parseDocument(indexShard, indexShard.shardId().getIndexName(), request.type(), request.doc());
 
@@ -272,7 +275,7 @@ public class TermVectorsService  {
         return generateTermVectors(indexShard, getFields, request.offsets(), request.perFieldAnalyzer(), seenFields);
     }
 
-    private ParsedDocument parseDocument(IndexShard indexShard, String index, String type, BytesReference doc) throws Throwable {
+    private static ParsedDocument parseDocument(IndexShard indexShard, String index, String type, BytesReference doc) throws Throwable {
         MapperService mapperService = indexShard.mapperService();
         DocumentMapperForType docMapper = mapperService.documentMapperWithAutoCreate(type);
         ParsedDocument parsedDocument = docMapper.getDocumentMapper().parse(source(doc).index(index).type(type).id("_id_for_tv_api"));
@@ -282,7 +285,7 @@ public class TermVectorsService  {
         return parsedDocument;
     }
 
-    private Fields mergeFields(Fields fields1, Fields fields2) throws IOException {
+    private static Fields mergeFields(Fields fields1, Fields fields2) throws IOException {
         ParallelFields parallelFields = new ParallelFields();
         for (String fieldName : fields2) {
             Terms terms = fields2.terms(fieldName);

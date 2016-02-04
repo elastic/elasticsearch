@@ -42,16 +42,14 @@ public class TransportShardMultiTermsVectorAction extends TransportSingleShardAc
     private final IndicesService indicesService;
 
     private static final String ACTION_NAME = MultiTermVectorsAction.NAME + "[shard]";
-    private final TermVectorsService termVectorsService;
 
     @Inject
     public TransportShardMultiTermsVectorAction(Settings settings, ClusterService clusterService, TransportService transportService,
                                                 IndicesService indicesService, ThreadPool threadPool, ActionFilters actionFilters,
-                                                IndexNameExpressionResolver indexNameExpressionResolver, TermVectorsService termVectorsService) {
+                                                IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, ACTION_NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
                 MultiTermVectorsShardRequest::new, ThreadPool.Names.GET);
         this.indicesService = indicesService;
-        this.termVectorsService = termVectorsService;
     }
 
     @Override
@@ -83,7 +81,7 @@ public class TransportShardMultiTermsVectorAction extends TransportSingleShardAc
             try {
                 IndexService indexService = indicesService.indexServiceSafe(request.index());
                 IndexShard indexShard = indexService.getShard(shardId.id());
-                TermVectorsResponse termVectorsResponse = termVectorsService.getTermVectors(indexShard, termVectorsRequest);
+                TermVectorsResponse termVectorsResponse = TermVectorsService.getTermVectors(indexShard, termVectorsRequest);
                 termVectorsResponse.updateTookInMillis(termVectorsRequest.startTime());
                 response.add(request.locations.get(i), termVectorsResponse);
             } catch (Throwable t) {

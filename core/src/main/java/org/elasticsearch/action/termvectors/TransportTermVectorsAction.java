@@ -43,7 +43,6 @@ import org.elasticsearch.transport.TransportService;
 public class TransportTermVectorsAction extends TransportSingleShardAction<TermVectorsRequest, TermVectorsResponse> {
 
     private final IndicesService indicesService;
-    private final TermVectorsService termVectorsService;
 
     @Override
     protected void doExecute(TermVectorsRequest request, ActionListener<TermVectorsResponse> listener) {
@@ -54,11 +53,10 @@ public class TransportTermVectorsAction extends TransportSingleShardAction<TermV
     @Inject
     public TransportTermVectorsAction(Settings settings, ClusterService clusterService, TransportService transportService,
                                       IndicesService indicesService, ThreadPool threadPool, ActionFilters actionFilters,
-                                      IndexNameExpressionResolver indexNameExpressionResolver, TermVectorsService termVectorsService) {
+                                      IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, TermVectorsAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
                 TermVectorsRequest::new, ThreadPool.Names.GET);
         this.indicesService = indicesService;
-        this.termVectorsService = termVectorsService;
 
     }
 
@@ -87,7 +85,7 @@ public class TransportTermVectorsAction extends TransportSingleShardAction<TermV
     protected TermVectorsResponse shardOperation(TermVectorsRequest request, ShardId shardId) {
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         IndexShard indexShard = indexService.getShard(shardId.id());
-        TermVectorsResponse response = termVectorsService.getTermVectors(indexShard, request);
+        TermVectorsResponse response = TermVectorsService.getTermVectors(indexShard, request);
         response.updateTookInMillis(request.startTime());
         return response;
     }

@@ -4,9 +4,11 @@ if (project.projectDir.name != 'x-plugins') {
 
 subprojects {
   // we must not publish to sonatype until we have set up x-plugins to only publish the parts we want to publish!
-  if (project.plugins.hasPlugin('com.bmuschko.nexus')) {
-    install.enabled = false
-    uploadArchives.enabled = false
+  project.afterEvaluate {
+    if (project.plugins.hasPlugin('com.bmuschko.nexus')) {
+      install.enabled = false
+      uploadArchives.enabled = false
+    }
   }
 }
 

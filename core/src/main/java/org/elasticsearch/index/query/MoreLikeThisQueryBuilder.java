@@ -287,8 +287,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
                     .offsets(false)
                     .payloads(false)
                     .fieldStatistics(false)
-                    .termStatistics(false)
-                    .dfs(false);
+                    .termStatistics(false);
             // for artificial docs to make sure that the id has changed in the item too
             if (doc != null) {
                 termVectorsRequest.doc(doc, true);

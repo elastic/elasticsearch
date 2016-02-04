@@ -100,8 +100,6 @@ internal:index/shard/recovery/finalize
 internal:index/shard/recovery/prepare_translog
 internal:index/shard/recovery/start_recovery
 internal:index/shard/recovery/translog_ops
-internal:index/termvectors/dfs
-internal:index/termvectors/dfs[s]
 internal:indices/admin/upgrade
 internal:indices/flush/synced/in_flight
 internal:indices/flush/synced/pre

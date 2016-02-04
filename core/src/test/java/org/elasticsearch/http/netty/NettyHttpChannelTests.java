@@ -23,8 +23,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.MockBigArrays;
-import org.elasticsearch.http.netty.cors.CorsHandler;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -44,18 +42,9 @@ import java.net.SocketAddress;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.http.netty.NettyHttpServerTransport.SETTING_CORS_ALLOW_CREDENTIALS;
-import static org.elasticsearch.http.netty.NettyHttpServerTransport.SETTING_CORS_ALLOW_METHODS;
-import static org.elasticsearch.http.netty.NettyHttpServerTransport.SETTING_CORS_ALLOW_ORIGIN;
-import static org.elasticsearch.http.netty.NettyHttpServerTransport.SETTING_CORS_ENABLED;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.*;
 
 public class NettyHttpChannelTests extends ESTestCase {
-
-    private static final String ORIGIN = "remote-host";
 
     private NetworkService networkService;
     private ThreadPool threadPool;
@@ -86,57 +75,6 @@ public class NettyHttpChannelTests extends ESTestCase {
         Settings settings = Settings.builder()
                 .put(NettyHttpServerTransport.SETTING_CORS_ENABLED, true)
                 .build();
-        HttpResponse response = execRequestWithCors(settings, ORIGIN);
-        // inspect response and validate
-        assertThat(response.headers().get(HttpHeaders.Names.ACCESS_CONTROL_ALLOW_ORIGIN), nullValue());
-    }
-
-    public void testCorsEnabledWithAllowOrigins() {
-        final String originValue = ORIGIN;
-        // create a http transport with CORS enabled and allow origin configured
-        Settings settings = Settings.builder()
-                .put(SETTING_CORS_ENABLED, true)
-                .put(SETTING_CORS_ALLOW_ORIGIN, originValue)
-                .build();
-        HttpResponse response = execRequestWithCors(settings, originValue);
-        // inspect response and validate
-        assertThat(response.headers().get(HttpHeaders.Names.ACCESS_CONTROL_ALLOW_ORIGIN), notNullValue());
-        String allowedOrigins = response.headers().get(HttpHeaders.Names.ACCESS_CONTROL_ALLOW_ORIGIN);
-        assertThat(allowedOrigins, is(originValue));
-    }
-
-    public void testThatStringLiteralWorksOnMatch() {
-        final String originValue = ORIGIN;
-        Settings settings = Settings.builder()
-                                .put(SETTING_CORS_ENABLED, true)
-                                .put(SETTING_CORS_ALLOW_ORIGIN, originValue)
-                                .put(SETTING_CORS_ALLOW_METHODS, "get, options, post")
-                                .put(SETTING_CORS_ALLOW_CREDENTIALS, true)
-                                .build();
-        HttpResponse response = execRequestWithCors(settings, originValue);
-        // inspect response and validate
-        assertThat(response.headers().get(HttpHeaders.Names.ACCESS_CONTROL_ALLOW_ORIGIN), notNullValue());
-        String allowedOrigins = response.headers().get(HttpHeaders.Names.ACCESS_CONTROL_ALLOW_ORIGIN);
-        assertThat(allowedOrigins, is(originValue));
-        assertThat(response.headers().get(HttpHeaders.Names.ACCESS_CONTROL_ALLOW_CREDENTIALS), equalTo("true"));
-    }
-
-    public void testThatAnyOriginWorks() {
-        final String originValue = CorsHandler.ANY_ORIGIN;
-        Settings settings = Settings.builder()
-                                .put(SETTING_CORS_ENABLED, true)
-                                .put(SETTING_CORS_ALLOW_ORIGIN, originValue)
-                                .build();
-        HttpResponse response = execRequestWithCors(settings, originValue);
-        // inspect response and validate
-        assertThat(response.headers().get(HttpHeaders.Names.ACCESS_CONTROL_ALLOW_ORIGIN), notNullValue());
-        String allowedOrigins = response.headers().get(HttpHeaders.Names.ACCESS_CONTROL_ALLOW_ORIGIN);
-        assertThat(allowedOrigins, is(originValue));
-        assertThat(response.headers().get(HttpHeaders.Names.ACCESS_CONTROL_ALLOW_CREDENTIALS), nullValue());
-    }
-
-    public void testHeadersSet() {
-        Settings settings = Settings.builder().build();
         httpServerTransport = new NettyHttpServerTransport(settings, networkService, bigArrays);
         HttpRequest httpRequest = new TestHttpRequest();
         httpRequest.headers().add(HttpHeaders.Names.ORIGIN, "remote");
@@ -146,27 +84,25 @@ public class NettyHttpChannelTests extends ESTestCase {
 
         // send a response
         NettyHttpChannel channel = new NettyHttpChannel(httpServerTransport, request, null, randomBoolean());
-        TestReponse resp = new TestReponse();
-        final String customHeader = "custom-header";
-        final String customHeaderValue = "xyz";
-        resp.addHeader(customHeader, customHeaderValue);
-        channel.sendResponse(resp);
+        channel.sendResponse(new TestReponse());
 
         // inspect what was written
         List<Object> writtenObjects = writeCapturingChannel.getWrittenObjects();
         assertThat(writtenObjects.size(), is(1));
         HttpResponse response = (HttpResponse) writtenObjects.get(0);
-        assertThat(response.headers().get("non-existent-header"), nullValue());
-        assertThat(response.headers().get(customHeader), equalTo(customHeaderValue));
-        assertThat(response.headers().get(HttpHeaders.Names.CONTENT_LENGTH), equalTo(Integer.toString(resp.content().length())));
-        assertThat(response.headers().get(HttpHeaders.Names.CONTENT_TYPE), equalTo(resp.contentType()));
+        assertThat(response.headers().get(HttpHeaders.Names.ACCESS_CONTROL_ALLOW_ORIGIN), nullValue());
     }
 
-    private HttpResponse execRequestWithCors(final Settings settings, final String originValue) {
-        // construct request and send it over the transport layer
+    @Test
+    public void testCorsEnabledWithAllowOrigins() {
+        // create a http transport with CORS enabled and allow origin configured
+        Settings settings = Settings.builder()
+                .put(NettyHttpServerTransport.SETTING_CORS_ENABLED, true)
+                .put(NettyHttpServerTransport.SETTING_CORS_ALLOW_ORIGIN, "remote-host")
+                .build();
         httpServerTransport = new NettyHttpServerTransport(settings, networkService, bigArrays);
         HttpRequest httpRequest = new TestHttpRequest();
-        httpRequest.headers().add(HttpHeaders.Names.ORIGIN, ORIGIN);
+        httpRequest.headers().add(HttpHeaders.Names.ORIGIN, "remote");
         httpRequest.headers().add(HttpHeaders.Names.USER_AGENT, "Mozilla fake");
         WriteCapturingChannel writeCapturingChannel = new WriteCapturingChannel();
         NettyHttpRequest request = new NettyHttpRequest(httpRequest, writeCapturingChannel);
@@ -174,10 +110,13 @@ public class NettyHttpChannelTests extends ESTestCase {
         NettyHttpChannel channel = new NettyHttpChannel(httpServerTransport, request, null, randomBoolean());
         channel.sendResponse(new TestReponse());
 
-        // get the response
+        // inspect what was written
         List<Object> writtenObjects = writeCapturingChannel.getWrittenObjects();
         assertThat(writtenObjects.size(), is(1));
-        return (HttpResponse) writtenObjects.get(0);
+        HttpResponse response = (HttpResponse) writtenObjects.get(0);
+        assertThat(response.headers().get(HttpHeaders.Names.ACCESS_CONTROL_ALLOW_ORIGIN), notNullValue());
+        String allowedOrigins = response.headers().get(HttpHeaders.Names.ACCESS_CONTROL_ALLOW_ORIGIN);
+        assertThat(allowedOrigins, is("remote-host"));
     }
 
     private static class WriteCapturingChannel implements Channel {

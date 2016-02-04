@@ -460,4 +460,15 @@
   <suppress files="elasticsearch/qa/shield-audit-tests/src/test/java/org/elasticsearch/shield/audit/IndexAuditIT.java" checks="LineLength" />
   <suppress files="elasticsearch/qa/shield-client-tests/src/test/java/org/elasticsearch/shield/qa/ShieldTransportClientIT.java" checks="LineLength" />
   <suppress files="elasticsearch/qa/shield-example-realm/src/test/java/org/elasticsearch/example/realm/CustomRealmTests.java" checks="LineLength" />
+
+  <suppress files="elasticsearch/x-pack/watcher/src/main/java/org/elasticsearch/watcher/shield/ShieldSecretService.java" checks="LineLength" />
+  <suppress files="elasticsearch/x-pack/watcher/src/main/java/org/elasticsearch/watcher/support/init/proxy/ScriptServiceProxy.java" checks="LineLength" />
+  <suppress files="elasticsearch/x-pack/watcher/src/main/java/org/elasticsearch/watcher/support/text/DefaultTextTemplateEngine.java" checks="LineLength" />
+  <suppress files="elasticsearch/x-pack/watcher/src/main/java/org/elasticsearch/watcher/trigger/schedule/tool/CronEvalTool.java" checks="LineLength" />
+  <suppress files="x-plugins/elasticsearch/x-pack/watcher/src/test/java/org/elasticsearch/script/MockMustacheScriptEngine.java" checks="LineLength" />
+  <suppress files="elasticsearch/x-pack/watcher/src/test/java/org/elasticsearch/watcher/actions/email/EmailAttachmentTests.java" checks="LineLength" />
+  <suppress files="elasticsearch/x-pack/watcher/src/test/java/org/elasticsearch/watcher/test/integration/BasicWatcherTests.java" checks="LineLength" />
+  <suppress files="elasticsearch/qa/messy-test-xpack-with-mustache/src/test/java/org/elasticsearch/messy/tests/PagerDutyServiceTests.java" checks="LineLength" />
+  <suppress files="elasticsearch/qa/messy-test-xpack-with-mustache/src/test/java/org/elasticsearch/messy/tests/SlackServiceTests.java" checks="LineLength" />
+  <suppress files="x-plugins/elasticsearch/qa/smoke-test-watcher-with-mustache/src/test/java/org/elasticsearch/smoketest/WatcherTemplateIT.java" checks="LineLength" />
 </suppressions>

@@ -954,7 +954,6 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
 
                                         @Override
                                         public void onFailure(Throwable shardFailedError) {
-                                            logger.error("[{}] catastrophic error while failing replica shard [{}] for [{}]", shardFailedError, shardId, shard, exp);
                                             if (shardFailedError instanceof ShardStateAction.NoLongerPrimaryShardException) {
                                                 // we are no longer the primary, fail ourselves and start over
                                                 ShardRouting primaryShard = indexShardReference.routingEntry();

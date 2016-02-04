@@ -15,7 +15,6 @@
   <suppress files="core/src/main/java/org/apache/lucene/queryparser/classic/MapperQueryParser.java" checks="LineLength" />
   <suppress files="core/src/main/java/org/apache/lucene/search/postingshighlight/CustomPostingsHighlighter.java" checks="LineLength" />
   <suppress files="core/src/main/java/org/apache/lucene/search/vectorhighlight/CustomFieldQuery.java" checks="LineLength" />
-  <suppress files="core/src/main/java/org/elasticsearch/ElasticsearchException.java" checks="LineLength" />
   <suppress files="core/src/main/java/org/elasticsearch/Version.java" checks="LineLength" />
   <suppress files="core/src/main/java/org/elasticsearch/action/Action.java" checks="LineLength" />
   <suppress files="core/src/main/java/org/elasticsearch/action/ActionModule.java" checks="LineLength" />
@@ -947,7 +946,6 @@
   <suppress files="core/src/test/java/org/apache/lucene/queries/BlendedTermQueryTests.java" checks="LineLength" />
   <suppress files="core/src/test/java/org/apache/lucene/search/postingshighlight/CustomPostingsHighlighterTests.java" checks="LineLength" />
   <suppress files="core/src/test/java/org/elasticsearch/ESExceptionTests.java" checks="LineLength" />
-  <suppress files="core/src/test/java/org/elasticsearch/ExceptionSerializationTests.java" checks="LineLength" />
   <suppress files="core/src/test/java/org/elasticsearch/NamingConventionTests.java" checks="LineLength" />
   <suppress files="core/src/test/java/org/elasticsearch/VersionTests.java" checks="LineLength" />
   <suppress files="core/src/test/java/org/elasticsearch/action/ListenerActionIT.java" checks="LineLength" />
@@ -1701,4 +1699,17 @@
   <suppress files="test/framework/src/test/java/org/elasticsearch/test/rest/test/JsonPathTests.java" checks="LineLength" />
   <suppress files="test/framework/src/test/java/org/elasticsearch/test/rest/test/RestTestParserTests.java" checks="LineLength" />
   <suppress files="test/framework/src/test/java/org/elasticsearch/test/test/InternalTestClusterTests.java" checks="LineLength" />
+
+  <suppress files="core/src/main/java/org/elasticsearch/action/admin/cluster/node/tasks/list/TaskInfo.java" checks="LineLength" />
+  <suppress files="core/src/main/java/org/elasticsearch/common/cli/CliTool.java" checks="LineLength" />
+  <suppress files="core/src/main/java/org/elasticsearch/common/settings/SettingsModule.java" checks="LineLength" />
+  <suppress files="core/src/main/java/org/elasticsearch/rest/action/admin/indices/settings/RestGetSettingsAction.java" checks="LineLength" />
+  <suppress files="core/src/main/java/org/elasticsearch/tribe/TribeService.java" checks="LineLength" />
+  <suppress files="core/src/test/java/org/elasticsearch/transport/TransportModuleTests.java" checks="LineLength" />
+  <suppress files="core/src/test/java/org/elasticsearch/search/sort/GeoDistanceSortBuilderIT.java" checks="LineLength" />
+  <suppress files="core/src/test/java/org/elasticsearch/rest/CorsNotSetIT.java" checks="LineLength" />
+  <suppress files="core/src/test/java/org/elasticsearch/common/settings/SettingsModuleTests.java" checks="LineLength" />
+  <suppress files="plugins/store-smb/src/main/java/org/elasticsearch/index/store/SmbDirectoryWrapper.java" checks="LineLength" />
+  <suppress files="test/framework/src/main/java/org/elasticsearch/test/tasks/MockTaskManager.java" checks="LineLength" />
+  <suppress files="test/framework/src/main/java/org/elasticsearch/common/inject/ModuleTestCase.java" checks="LineLength" />
 </suppressions>

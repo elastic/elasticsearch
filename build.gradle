@@ -2,6 +2,14 @@ if (project.projectDir.name != 'x-plugins') {
   throw new GradleException('You must checkout x-plugins in a directory named x-plugins next to elasticsearch')
 }
 
+subprojects {
+  // we must not publish to sonatype until we have set up x-plugins to only publish the parts we want to publish!
+  if (project.plugins.hasPlugin('com.bmuschko.nexus')) {
+    install.enabled = false
+    uploadArchives.enabled = false
+  }
+}
+
 /*
         <repository>
             <id>elasticsearch-releases</id>

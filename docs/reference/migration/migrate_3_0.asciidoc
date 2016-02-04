@@ -6,6 +6,7 @@ your application to Elasticsearch 3.0.
 
 * <<breaking_30_search_changes>>
 * <<breaking_30_rest_api_changes>>
+* <<breaking_30_cat_api>>
 * <<breaking_30_parent_child_changes>>
 * <<breaking_30_settings_changes>>
 * <<breaking_30_mapping_changes>>
@@ -157,6 +158,14 @@ Removed support for the undocumented `query_binary` and `filter_binary` sections
 ==== `span_near`'s' `collect_payloads` deprecated
 
 Payloads are now loaded when needed.
+
+[[breaking_30_cat_api]]
+=== REST API changes
+
+==== Replace use of Content-Type header in _cat API in favour of the Accept header
+
+Before we would mistakenly use the Content-Type of the request to establish the response media type, that's the
+role of the Accept header as per HTTP spec.
 
 [[breaking_30_parent_child_changes]]
 === Parent/Child changes

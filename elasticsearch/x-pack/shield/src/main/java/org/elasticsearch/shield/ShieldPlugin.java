@@ -39,6 +39,7 @@ import org.elasticsearch.shield.audit.AuditTrailModule;
 import org.elasticsearch.shield.audit.logfile.LoggingAuditTrail;
 import org.elasticsearch.shield.authc.AuthenticationModule;
 import org.elasticsearch.shield.authc.Realms;
+import org.elasticsearch.shield.authc.ldap.support.SessionFactory;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.shield.authz.AuthorizationModule;
@@ -186,6 +187,19 @@ public class ShieldPlugin extends Plugin {
         settingsModule.registerSetting(Setting.boolSetting("plugins.load_classpath_plugins", true, false, Setting.Scope.CLUSTER));
         // TODO add real settings for this wildcard here
         settingsModule.registerSetting(Setting.groupSetting("shield.", false, Setting.Scope.CLUSTER));
+        String[] asArray = settings.getAsArray("shield.hide_settings");
+        for (String pattern : asArray) {
+            settingsModule.registerSettingsFilter(pattern);
+        }
+        settingsModule.registerSettingsFilter("shield.hide_settings");
+        settingsModule.registerSettingsFilter("shield.ssl.*");
+        settingsModule.registerSettingsFilter("shield.authc.realms.*.bind_dn");
+        settingsModule.registerSettingsFilter("shield.authc.realms.*.bind_password");
+        settingsModule.registerSettingsFilter("shield.authc.realms.*." + SessionFactory.HOSTNAME_VERIFICATION_SETTING);
+        settingsModule.registerSettingsFilter("shield.authc.realms.*.truststore.password");
+        settingsModule.registerSettingsFilter("shield.authc.realms.*.truststore.path");
+        settingsModule.registerSettingsFilter("shield.authc.realms.*.truststore.algorithm");
+        settingsModule.registerSettingsFilter("transport.profiles.*.shield.*");
     }
 
     @Override

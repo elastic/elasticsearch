@@ -23,7 +23,6 @@ import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.marvel.cleaner.CleanerService;
 import org.elasticsearch.marvel.license.LicenseModule;
 import org.elasticsearch.marvel.license.MarvelLicensee;
-import org.elasticsearch.marvel.shield.MarvelShieldModule;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.XPackPlugin;
 
@@ -69,13 +68,6 @@ public class MarvelPlugin extends Plugin {
     @Override
     public Collection<Module> nodeModules() {
         List<Module> modules = new ArrayList<>();
-
-        // Always load the security integration for tribe nodes.
-        // This is useful if the tribe node is connected to a
-        // protected monitored cluster: __marvel_user operations must be allowed.
-        if (enabled || isTribeNode(settings) || isTribeClientNode(settings)) {
-            modules.add(new MarvelShieldModule(settings));
-        }
 
         if (enabled) {
             modules.add(new MarvelModule());
@@ -141,5 +133,6 @@ public class MarvelPlugin extends Plugin {
         module.registerSetting(Setting.simpleString("marvel.agent.exporter.es.ssl.truststore.password", false, Setting.Scope.CLUSTER));
         module.registerSetting(Setting.simpleString("marvel.agent.exporter.es.ssl.truststore.path", false, Setting.Scope.CLUSTER));
         module.registerSetting(Setting.boolSetting("marvel.enabled", false, false, Setting.Scope.CLUSTER));
+        module.registerSettingsFilter("marvel.agent.exporters.*.auth.password");
     }
 }

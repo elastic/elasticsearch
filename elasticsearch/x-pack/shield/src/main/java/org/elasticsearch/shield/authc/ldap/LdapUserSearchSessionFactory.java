@@ -17,7 +17,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.shield.ShieldSettingsFilter;
 import org.elasticsearch.shield.authc.RealmConfig;
 import org.elasticsearch.shield.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.shield.authc.ldap.support.LdapSession;
@@ -71,12 +70,6 @@ public class LdapUserSearchSessionFactory extends SessionFactory {
         }
 
         return connectionPool;
-    }
-
-    static void filterOutSensitiveSettings(String realmName, ShieldSettingsFilter filter) {
-        filter.filterOut("shield.authc.realms." + realmName + ".bind_dn");
-        filter.filterOut("shield.authc.realms." + realmName + ".bind_password");
-        filter.filterOut("shield.authc.realms." + realmName + "." + HOSTNAME_VERIFICATION_SETTING);
     }
 
     static LDAPConnectionPool createConnectionPool(RealmConfig config, ServerSet serverSet, TimeValue timeout, ESLogger logger) {

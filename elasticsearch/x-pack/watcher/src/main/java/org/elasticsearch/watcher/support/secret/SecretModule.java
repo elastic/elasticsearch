@@ -7,7 +7,7 @@ package org.elasticsearch.watcher.support.secret;
 
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.watcher.shield.ShieldIntegration;
+import org.elasticsearch.shield.ShieldPlugin;
 import org.elasticsearch.watcher.shield.ShieldSecretService;
 
 /**
@@ -18,7 +18,7 @@ public class SecretModule extends AbstractModule {
     private final boolean shieldEnabled;
 
     public SecretModule(Settings settings) {
-        shieldEnabled = ShieldIntegration.enabled(settings);
+        shieldEnabled = ShieldPlugin.shieldEnabled(settings);
     }
 
     @Override

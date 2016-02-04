@@ -9,6 +9,7 @@ import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.shield.ShieldPlugin;
 import org.elasticsearch.shield.authz.privilege.ClusterPrivilege;
 
 /**
@@ -18,12 +19,9 @@ public class WatcherShieldModule extends AbstractModule {
 
     private final ESLogger logger;
 
-    private final boolean enabled;
-
     public WatcherShieldModule(Settings settings) {
         this.logger = Loggers.getLogger(WatcherShieldModule.class, settings);
-        this.enabled = ShieldIntegration.enabled(settings);
-        if (enabled) {
+        if (ShieldPlugin.shieldEnabled(settings)) {
             registerClusterPrivilege("manage_watcher", "cluster:admin/watcher/*", "cluster:monitor/watcher/*");
             registerClusterPrivilege("monitor_watcher", "cluster:monitor/watcher/*");
         }
@@ -43,12 +41,5 @@ public class WatcherShieldModule extends AbstractModule {
 
     @Override
     protected void configure() {
-        bind(ShieldIntegration.class).asEagerSingleton();
-        if (enabled) {
-            bind(WatcherSettingsFilter.Shield.class).asEagerSingleton();
-            bind(WatcherSettingsFilter.class).to(WatcherSettingsFilter.Shield.class);
-        } else {
-            bind(WatcherSettingsFilter.class).toInstance(WatcherSettingsFilter.Noop.INSTANCE);
-        }
     }
 }

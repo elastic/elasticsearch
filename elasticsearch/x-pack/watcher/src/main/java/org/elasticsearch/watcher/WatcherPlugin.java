@@ -28,6 +28,7 @@ import org.elasticsearch.watcher.actions.email.service.InternalEmailService;
 import org.elasticsearch.watcher.actions.hipchat.service.HipChatService;
 import org.elasticsearch.watcher.actions.hipchat.service.InternalHipChatService;
 import org.elasticsearch.watcher.actions.pagerduty.service.InternalPagerDutyService;
+import org.elasticsearch.watcher.actions.pagerduty.service.PagerDutyAccount;
 import org.elasticsearch.watcher.actions.pagerduty.service.PagerDutyService;
 import org.elasticsearch.watcher.actions.slack.service.InternalSlackService;
 import org.elasticsearch.watcher.actions.slack.service.SlackService;
@@ -217,6 +218,13 @@ public class WatcherPlugin extends Plugin {
         module.registerSetting(Setting.simpleString("watcher.execution.scroll.timeout", false, Setting.Scope.CLUSTER));
         module.registerSetting(Setting.simpleString("watcher.start_immediately", false, Setting.Scope.CLUSTER));
         module.registerSetting(Setting.simpleString("watcher.http.default_connection_timeout", false, Setting.Scope.CLUSTER));
+
+        module.registerSettingsFilter("watcher.actions.email.service.account.*.smtp.password");
+        module.registerSettingsFilter("watcher.actions.slack.service.account.*.url");
+        module.registerSettingsFilter("watcher.actions.pagerduty.service.account.*.url");
+        module.registerSettingsFilter("watcher.actions.pagerduty.service." + PagerDutyAccount.SERVICE_KEY_SETTING);
+        module.registerSettingsFilter("watcher.actions.pagerduty.service.account.*." + PagerDutyAccount.SERVICE_KEY_SETTING);
+        module.registerSettingsFilter("watcher.actions.hipchat.service.account.*.auth_token");
     }
 
     public void onModule(NetworkModule module) {

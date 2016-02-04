@@ -59,11 +59,7 @@ public class WatcherSettingsFilterTests extends AbstractWatcherIntegrationTestCa
         for (Object node : nodes.values()) {
             Map<String, Object> settings = (Map<String, Object>) ((Map<String, Object>) node).get("settings");
             assertThat(XContentMapValues.extractValue("watcher.actions.email.service.account._email.smtp.user", settings), is((Object) "_user"));
-            if (shieldEnabled()) {
-                assertThat(XContentMapValues.extractValue("watcher.actions.email.service.account._email.smtp.password", settings), nullValue());
-            } else {
-                assertThat(XContentMapValues.extractValue("watcher.actions.email.service.account._email.smtp.password", settings), is((Object) "_passwd"));
-            }
+            assertThat(XContentMapValues.extractValue("watcher.actions.email.service.account._email.smtp.password", settings), nullValue());
         }
     }
 

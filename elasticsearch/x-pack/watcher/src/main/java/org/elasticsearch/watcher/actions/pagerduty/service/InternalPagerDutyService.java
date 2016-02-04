@@ -10,7 +10,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.watcher.shield.WatcherSettingsFilter;
 import org.elasticsearch.watcher.support.http.HttpClient;
 
 /**
@@ -24,14 +23,9 @@ public class InternalPagerDutyService extends AbstractLifecycleComponent<PagerDu
     private volatile PagerDutyAccounts accounts;
 
     @Inject
-    public InternalPagerDutyService(Settings settings, HttpClient httpClient, ClusterSettings clusterSettings,
-                                    WatcherSettingsFilter settingsFilter) {
+    public InternalPagerDutyService(Settings settings, HttpClient httpClient, ClusterSettings clusterSettings) {
         super(settings);
         this.httpClient = httpClient;
-        settingsFilter.filterOut(
-                "watcher.actions.pagerduty.service." + PagerDutyAccount.SERVICE_KEY_SETTING,
-                "watcher.actions.pagerduty.service.account.*." + PagerDutyAccount.SERVICE_KEY_SETTING
-        );
         clusterSettings.addSettingsUpdateConsumer(PAGERDUTY_ACCOUNT_SETTING, this::setPagerDutyAccountSetting);
     }
 

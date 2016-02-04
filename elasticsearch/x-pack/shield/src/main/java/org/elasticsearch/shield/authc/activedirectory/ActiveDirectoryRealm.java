@@ -7,7 +7,6 @@ package org.elasticsearch.shield.authc.activedirectory;
 
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.rest.RestController;
-import org.elasticsearch.shield.ShieldSettingsFilter;
 import org.elasticsearch.shield.authc.RealmConfig;
 import org.elasticsearch.shield.authc.ldap.support.AbstractLdapRealm;
 import org.elasticsearch.shield.authc.support.DnRoleMapper;
@@ -38,11 +37,6 @@ public class ActiveDirectoryRealm extends AbstractLdapRealm {
             super(ActiveDirectoryRealm.TYPE, restController);
             this.watcherService = watcherService;
             this.clientSSLService = clientSSLService;
-        }
-
-        @Override
-        public void filterOutSensitiveSettings(String realmName, ShieldSettingsFilter filter) {
-            ActiveDirectorySessionFactory.filterOutSensitiveSettings(realmName, filter);
         }
 
         @Override

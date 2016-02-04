@@ -7,7 +7,6 @@ package org.elasticsearch.shield.authc;
 
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.shield.ShieldSettingsFilter;
 import org.elasticsearch.shield.User;
 
 /**
@@ -120,9 +119,6 @@ public abstract class Realm<T extends AuthenticationToken> implements Comparable
 
         public boolean internal() {
             return internal;
-        }
-
-        public void filterOutSensitiveSettings(String realmName, ShieldSettingsFilter filter) {
         }
 
         /**

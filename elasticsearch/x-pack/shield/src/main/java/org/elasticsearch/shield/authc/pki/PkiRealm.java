@@ -11,7 +11,6 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.shield.ShieldSettingsFilter;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.authc.AuthenticationToken;
 import org.elasticsearch.shield.authc.Realm;
@@ -183,12 +182,6 @@ public class PkiRealm extends Realm<X509AuthenticationToken> {
         return trustManagerList.toArray(new X509TrustManager[trustManagerList.size()]);
     }
 
-    static void filterOutSensitiveSettings(String realmName, ShieldSettingsFilter filter) {
-        filter.filterOut("shield.authc.realms." + realmName + "." + "truststore.password");
-        filter.filterOut("shield.authc.realms." + realmName + "." + "truststore.path");
-        filter.filterOut("shield.authc.realms." + realmName + "." + "truststore.algorithm");
-    }
-
     /**
      * Checks to see if both SSL and Client authentication are enabled on at least one network communication layer. If
      * not an error message will be logged
@@ -232,11 +225,6 @@ public class PkiRealm extends Realm<X509AuthenticationToken> {
         public Factory(ResourceWatcherService watcherService) {
             super(TYPE, false);
             this.watcherService = watcherService;
-        }
-
-        @Override
-        public void filterOutSensitiveSettings(String realmName, ShieldSettingsFilter filter) {
-            PkiRealm.filterOutSensitiveSettings(realmName, filter);
         }
 
         @Override

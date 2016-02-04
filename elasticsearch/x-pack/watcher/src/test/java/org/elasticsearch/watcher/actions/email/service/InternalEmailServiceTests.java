@@ -9,7 +9,6 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.watcher.shield.WatcherSettingsFilter;
 import org.elasticsearch.watcher.support.secret.Secret;
 import org.elasticsearch.watcher.support.secret.SecretService;
 import org.junit.After;
@@ -34,7 +33,7 @@ public class InternalEmailServiceTests extends ESTestCase {
     @Before
     public void init() throws Exception {
         accounts = mock(Accounts.class);
-        service = new InternalEmailService(Settings.EMPTY, new SecretService.PlainText(), new ClusterSettings(Settings.EMPTY, Collections.singleton(InternalEmailService.EMAIL_ACCOUNT_SETTING)), WatcherSettingsFilter.Noop.INSTANCE) {
+        service = new InternalEmailService(Settings.EMPTY, new SecretService.PlainText(), new ClusterSettings(Settings.EMPTY, Collections.singleton(InternalEmailService.EMAIL_ACCOUNT_SETTING))) {
             @Override
             protected Accounts createAccounts(Settings settings, ESLogger logger) {
                 return accounts;

@@ -12,7 +12,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.watcher.shield.WatcherSettingsFilter;
 import org.elasticsearch.watcher.support.secret.SecretService;
 
 import java.io.IOException;
@@ -130,7 +129,7 @@ public class ManualPublicSmtpServersTester {
 
     static InternalEmailService startEmailService(Settings.Builder builder) {
         Settings settings = builder.build();
-        InternalEmailService service = new InternalEmailService(settings, new SecretService.PlainText(), new ClusterSettings(settings, Collections.singleton(InternalEmailService.EMAIL_ACCOUNT_SETTING)), WatcherSettingsFilter.Noop.INSTANCE);
+        InternalEmailService service = new InternalEmailService(settings, new SecretService.PlainText(), new ClusterSettings(settings, Collections.singleton(InternalEmailService.EMAIL_ACCOUNT_SETTING)));
         service.start();
         return service;
     }

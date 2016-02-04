@@ -12,7 +12,6 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.watcher.shield.WatcherSettingsFilter;
 import org.elasticsearch.watcher.support.secret.SecretService;
 
 import javax.mail.MessagingException;
@@ -30,11 +29,10 @@ public class InternalEmailService extends AbstractLifecycleComponent<EmailServic
 
 
     @Inject
-    public InternalEmailService(Settings settings, SecretService secretService, ClusterSettings clusterSettings, WatcherSettingsFilter settingsFilter) {
+    public InternalEmailService(Settings settings, SecretService secretService, ClusterSettings clusterSettings) {
         super(settings);
         this.secretService = secretService;
         clusterSettings.addSettingsUpdateConsumer(EMAIL_ACCOUNT_SETTING, this::setEmailAccountSettings);
-        settingsFilter.filterOut("watcher.actions.email.service.account.*.smtp.password");
         setEmailAccountSettings(EMAIL_ACCOUNT_SETTING.get(settings));
     }
 

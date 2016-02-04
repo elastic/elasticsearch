@@ -10,7 +10,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.watcher.shield.WatcherSettingsFilter;
 import org.elasticsearch.watcher.support.http.HttpClient;
 
 /**
@@ -23,10 +22,9 @@ public class InternalSlackService extends AbstractLifecycleComponent<SlackServic
     private volatile SlackAccounts accounts;
 
     @Inject
-    public InternalSlackService(Settings settings, HttpClient httpClient, ClusterSettings clusterSettings, WatcherSettingsFilter settingsFilter) {
+    public InternalSlackService(Settings settings, HttpClient httpClient, ClusterSettings clusterSettings) {
         super(settings);
         this.httpClient = httpClient;
-        settingsFilter.filterOut("watcher.actions.slack.service.account.*.url");
         clusterSettings.addSettingsUpdateConsumer(SLACK_ACCOUNT_SETTING, this::setSlackAccountSetting);
     }
 

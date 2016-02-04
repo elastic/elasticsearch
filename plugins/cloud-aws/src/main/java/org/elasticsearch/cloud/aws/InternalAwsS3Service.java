@@ -57,16 +57,16 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent<AwsS3Servic
         String endpoint = getDefaultEndpoint();
         String account = settings.get(CLOUD_S3.KEY, settings.get(CLOUD_AWS.KEY));
         String key = settings.get(CLOUD_S3.SECRET, settings.get(CLOUD_AWS.SECRET));
-        return getClient(endpoint, null, account, key, null);
+        return getClient(endpoint, null, account, key, null, null);
     }
 
     @Override
     public AmazonS3 client(String endpoint, String protocol, String region, String account, String key) {
-        return client(endpoint, protocol, region, account, key, null);
+        return client(endpoint, protocol, region, account, key, null, null);
     }
 
     @Override
-    public synchronized AmazonS3 client(String endpoint, String protocol, String region, String account, String key, Integer maxRetries) {
+    public synchronized AmazonS3 client(String endpoint, String protocol, String region, String account, String key, String token, Integer maxRetries) {
         if (region != null && endpoint == null) {
             endpoint = getEndpoint(region);
             logger.debug("using s3 region [{}], with endpoint [{}]", region, endpoint);
@@ -78,11 +78,11 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent<AwsS3Servic
             key = settings.get(CLOUD_S3.SECRET, settings.get(CLOUD_AWS.SECRET));
         }
 
-        return getClient(endpoint, protocol, account, key, maxRetries);
+        return getClient(endpoint, protocol, account, key, token, maxRetries);
     }
 
 
-    private synchronized AmazonS3 getClient(String endpoint, String protocol, String account, String key, Integer maxRetries) {
+    private synchronized AmazonS3 getClient(String endpoint, String protocol, String account, String key, String token, Integer maxRetries) {
         Tuple<String, String> clientDescriptor = new Tuple<String, String>(endpoint, account);
         AmazonS3Client client = clients.get(clientDescriptor);
         if (client != null) {
@@ -149,7 +149,7 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent<AwsS3Servic
             );
         } else {
             credentials = new AWSCredentialsProviderChain(
-                    new StaticCredentialsProvider(new BasicAWSCredentials(account, key))
+                    new StaticCredentialsProvider(getCredentials(account, key, token))
             );
         }
         client = new AmazonS3Client(credentials, clientConfiguration);
@@ -159,6 +159,13 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent<AwsS3Servic
         }
         clients.put(clientDescriptor, client);
         return client;
+    }
+
+    private AWSCredentials getCredentials(String account, String key, String token) {
+        return token == null ?
+            new BasicAWSCredentials(account, key)
+            :
+            new BasicSessionCredentials(account, key, token);
     }
 
     private String getDefaultEndpoint() {

@@ -69,6 +69,11 @@ public class SettingsModule extends AbstractModule {
         bind(IndexScopedSettings.class).toInstance(indexScopedSettings);
     }
 
+    /**
+     * Registers a new setting. This method should be used by plugins in order to expose any custom settings the plugin defines.
+     * Unless a setting is registered the setting is unusable. If a setting is never the less specified the node will reject
+     * the setting during startup.
+     */
     public void registerSetting(Setting<?> setting) {
         switch (setting.getScope()) {
             case CLUSTER:
@@ -86,6 +91,10 @@ public class SettingsModule extends AbstractModule {
         }
     }
 
+    /**
+     * Registers a settings filter pattern that allows to filter out certain settings that for instance contain sensitive information
+     * or if a setting is for internal purposes only. The given patter must either be a valid settings key or a simple regesp pattern.
+     */
     public void registerSettingsFilter(String filter) {
         if (SettingsFilter.isValidPattern(filter) == false) {
             throw new IllegalArgumentException("filter [" + filter +"] is invalid must be either a key or a regex pattern");

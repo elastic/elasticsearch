@@ -746,3 +746,6 @@ and `no` for disabling are no longer supported.
 === Term vectors
 
 The term vectors APIs no longer persist unmapped fields in the mappings.
+
+The `dfs` parameter has been removed completely, term vectors don't support
+distributed document frequencies anymore.

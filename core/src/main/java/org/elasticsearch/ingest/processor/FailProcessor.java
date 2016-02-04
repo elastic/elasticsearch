@@ -31,7 +31,7 @@ import java.util.Map;
  * Processor that raises a runtime exception with a provided
  * error message.
  */
-public class FailProcessor extends AbstractProcessor {
+public final class FailProcessor extends AbstractProcessor {
 
     public static final String TYPE = "fail";
 
@@ -56,7 +56,7 @@ public class FailProcessor extends AbstractProcessor {
         return TYPE;
     }
 
-    public static class Factory extends AbstractProcessorFactory<FailProcessor> {
+    public static final class Factory extends AbstractProcessorFactory<FailProcessor> {
 
         private final TemplateService templateService;
 

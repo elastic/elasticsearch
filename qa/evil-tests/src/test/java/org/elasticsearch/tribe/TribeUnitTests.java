@@ -117,7 +117,9 @@ public class TribeUnitTests extends ESTestCase {
         //they can find their corresponding tribes using the proper transport
         Settings settings = Settings.builder().put("http.enabled", false).put("node.name", "tribe_node")
                 .put("tribe.t1.node.mode", NODE_MODE).put("tribe.t2.node.mode", NODE_MODE)
-                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).put(extraSettings).build();
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+                .put(Node.NODE_MODE_SETTING.getKey(), NODE_MODE)
+                .put(extraSettings).build();
 
         try (Node node = new Node(settings).start()) {
             try (Client client = node.client()) {

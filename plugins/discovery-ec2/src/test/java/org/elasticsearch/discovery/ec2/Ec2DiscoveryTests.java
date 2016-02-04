@@ -20,11 +20,11 @@
 package org.elasticsearch.discovery.ec2;
 
 import com.amazonaws.services.ec2.model.Tag;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.cloud.aws.AwsEc2Service;
 import org.elasticsearch.cloud.aws.AwsEc2Service.DISCOVERY_EC2;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -32,7 +32,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.transport.local.LocalTransport;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -67,9 +66,7 @@ public class Ec2DiscoveryTests extends ESTestCase {
 
     @Before
     public void createTransportService() {
-        transportService = new MockTransportService(
-                Settings.EMPTY,
-                new LocalTransport(Settings.EMPTY, threadPool, Version.CURRENT, new NamedWriteableRegistry()), threadPool);
+        transportService = MockTransportService.local(Settings.EMPTY, Version.CURRENT, threadPool);
     }
 
     protected List<DiscoveryNode> buildDynamicNodes(Settings nodeSettings, int nodes) {

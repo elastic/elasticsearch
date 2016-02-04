@@ -25,7 +25,7 @@ import java.util.Locale;
  * Processor that converts the content of string fields to uppercase.
  * Throws exception is the field is not of type string.
  */
-public class UppercaseProcessor extends AbstractStringProcessor {
+public final class UppercaseProcessor extends AbstractStringProcessor {
 
     public static final String TYPE = "uppercase";
 
@@ -43,7 +43,7 @@ public class UppercaseProcessor extends AbstractStringProcessor {
         return TYPE;
     }
 
-    public static class Factory extends AbstractStringProcessor.Factory<UppercaseProcessor> {
+    public static final class Factory extends AbstractStringProcessor.Factory<UppercaseProcessor> {
 
         public Factory() {
             super(TYPE);

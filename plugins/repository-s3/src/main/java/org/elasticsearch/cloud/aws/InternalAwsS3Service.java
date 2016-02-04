@@ -21,9 +21,11 @@ package org.elasticsearch.cloud.aws;
 
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.Protocol;
+import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.auth.AWSCredentialsProviderChain;
 import com.amazonaws.auth.BasicAWSCredentials;
+import com.amazonaws.auth.BasicSessionCredentials;
 import com.amazonaws.auth.EnvironmentVariableCredentialsProvider;
 import com.amazonaws.auth.InstanceProfileCredentialsProvider;
 import com.amazonaws.auth.SystemPropertiesCredentialsProvider;
@@ -61,6 +63,7 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent<AwsS3Servic
         settingsFilter.addFilter(CLOUD_AWS.PROXY_PASSWORD);
         settingsFilter.addFilter(CLOUD_S3.KEY);
         settingsFilter.addFilter(CLOUD_S3.SECRET);
+        settingsFilter.addFilter(CLOUD_S3.TOKEN);
         settingsFilter.addFilter(CLOUD_S3.PROXY_PASSWORD);
         settingsFilter.addFilter("access_key");
         settingsFilter.addFilter("secret_key");
@@ -162,7 +165,7 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent<AwsS3Servic
             );
         } else {
             credentials = new AWSCredentialsProviderChain(
-                    new StaticCredentialsProvider(new BasicAWSCredentials(account, key))
+                    new StaticCredentialsProvider(getCredentials(account, key))
             );
         }
         client = new AmazonS3Client(credentials, clientConfiguration);
@@ -172,6 +175,13 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent<AwsS3Servic
         }
         clients.put(clientDescriptor, client);
         return client;
+    }
+
+    private AWSCredentials getCredentials(String account, String key) {
+        return settings.get(CLOUD_S3.TOKEN) == null ?
+            new BasicAWSCredentials(account, key)
+            :
+            new BasicSessionCredentials(account, key, settings.get(CLOUD_S3.TOKEN));
     }
 
     private String getDefaultEndpoint() {

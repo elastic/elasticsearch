@@ -43,6 +43,7 @@ public interface AwsS3Service extends LifecycleComponent<AwsS3Service> {
     final class CLOUD_S3 {
         public static final String KEY = "cloud.aws.s3.access_key";
         public static final String SECRET = "cloud.aws.s3.secret_key";
+        public static final String TOKEN = "cloud.aws.s3.security_token";
         public static final String PROTOCOL = "cloud.aws.s3.protocol";
         public static final String PROXY_HOST = "cloud.aws.s3.proxy.host";
         public static final String PROXY_PORT = "cloud.aws.s3.proxy.port";

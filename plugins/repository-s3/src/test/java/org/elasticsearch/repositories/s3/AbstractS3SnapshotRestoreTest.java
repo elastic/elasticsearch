@@ -285,6 +285,24 @@ abstract public class AbstractS3SnapshotRestoreTest extends AbstractAwsTestCase 
         assertRepositoryIsOperational(client, "test-repo");
     }
 
+    public void testRepositoryWithCustomCredentialsAndToken() {
+        Client client = client();
+        Settings bucketSettings = internalCluster().getInstance(Settings.class).getByPrefix("repositories.s3.private-bucket.");
+        logger.info("-->  creating s3 repository with bucket[{}] and path [{}]", bucketSettings.get("bucket"), basePath);
+        PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
+                .setType("s3").setSettings(Settings.settingsBuilder()
+                        .put("base_path", basePath)
+                        .put("region", bucketSettings.get("region"))
+                        .put("access_key", bucketSettings.get("access_key"))
+                        .put("secret_key", bucketSettings.get("secret_key"))
+                        .put("security_token", bucketSettings.get("security_token"))
+                        .put("bucket", bucketSettings.get("bucket"))
+                        ).get();
+        assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
+
+        assertRepositoryIsOperational(client, "test-repo");
+    }
+
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-cloud-aws/issues/211")
     public void testRepositoryWithCustomEndpointProtocol() {
         Client client = client();

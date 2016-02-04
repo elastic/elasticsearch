@@ -215,13 +215,17 @@ public class CorsHandler extends SimpleChannelUpstreamHandler {
 
     private void setAllowMethods(final HttpResponse response) {
         Set<HttpMethod> methods = config.allowedRequestMethods();
-        String[] strMethods = new String[methods.size()];
         Iterator<HttpMethod> iter = methods.iterator();
+        final int size = methods.size();
         int count = 0;
+        StringBuilder buf = new StringBuilder();
         while (iter.hasNext()) {
-            strMethods[count++] = iter.next().getName();
+            buf.append(iter.next().getName().trim());
+            if (++count < size) {
+                buf.append(", ");
+            }
         }
-        response.headers().set(ACCESS_CONTROL_ALLOW_METHODS, String.join(", ", strMethods).trim());
+        response.headers().set(ACCESS_CONTROL_ALLOW_METHODS, buf.toString());
     }
 
     private void setAllowHeaders(final HttpResponse response) {

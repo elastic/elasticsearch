@@ -21,6 +21,7 @@ package org.elasticsearch.cloud.aws;
 
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.auth.SignerFactory;
+import com.amazonaws.services.s3.internal.S3Signer;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 
@@ -29,7 +30,7 @@ public class AwsSigner {
     private static final ESLogger logger = Loggers.getLogger(AwsSigner.class);
 
     private AwsSigner() {
-
+        SignerFactory.registerSigner("S3SignerType", S3Signer.class);
     }
 
     protected static void validateSignerType(String signer, String endpoint) {

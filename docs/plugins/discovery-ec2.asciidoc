@@ -11,7 +11,7 @@ This plugin can be installed using the plugin manager:
 
 [source,sh]
 ----------------------------------------------------------------
-sudo bin/plugin install discovery-ec2
+sudo bin/elasticsearch-plugin install discovery-ec2
 ----------------------------------------------------------------
 
 The plugin must be installed on every node in the cluster, and each node must
@@ -25,7 +25,7 @@ The plugin can be removed with the following command:
 
 [source,sh]
 ----------------------------------------------------------------
-sudo bin/plugin remove discovery-ec2
+sudo bin/elasticsearch-plugin remove discovery-ec2
 ----------------------------------------------------------------
 
 The node must be stopped before removing the plugin.

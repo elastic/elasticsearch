@@ -331,6 +331,8 @@ disable doc values is by using the `doc_values` property of mappings.
 [[breaking_30_plugins]]
 === Plugin changes
 
+The command `bin/plugin` has been renamed to `bin/elasticsearch-plugin`.
+
 ==== Site plugins removed
 
 Site plugins have been removed. It is recommended to migrate site plugins to Kibana plugins.

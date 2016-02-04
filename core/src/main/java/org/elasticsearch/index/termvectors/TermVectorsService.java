@@ -31,14 +31,9 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.termvectors.TermVectorsFilter;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.action.termvectors.TermVectorsResponse;
-import org.elasticsearch.action.termvectors.dfs.DfsOnlyRequest;
-import org.elasticsearch.action.termvectors.dfs.DfsOnlyResponse;
-import org.elasticsearch.action.termvectors.dfs.TransportDfsOnlyAction;
-import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.get.GetField;
@@ -70,14 +65,6 @@ import static org.elasticsearch.index.mapper.SourceToParse.source;
  */
 
 public class TermVectorsService  {
-
-    private final TransportDfsOnlyAction dfsAction;
-
-    @Inject
-    public TermVectorsService(TransportDfsOnlyAction dfsAction) {
-        this.dfsAction = dfsAction;
-    }
-
 
     public TermVectorsResponse getTermVectors(IndexShard indexShard, TermVectorsRequest request) {
         final TermVectorsResponse termVectorsResponse = new TermVectorsResponse(indexShard.shardId().getIndex().getName(), request.type(), request.id());
@@ -137,10 +124,6 @@ public class TermVectorsService  {
             }
             /* if there are term vectors, optional compute dfs and/or terms filtering */
             if (termVectorsByField != null) {
-                if (useDfs(request)) {
-                    dfs = getAggregatedDfs(termVectorsByField, request);
-                }
-
                 if (request.filterSettings() != null) {
                     termVectorsFilter = new TermVectorsFilter(termVectorsByField, topLevelFields, request.selectedFields(), dfs);
                     termVectorsFilter.setSettings(request.filterSettings());
@@ -346,14 +329,4 @@ public class TermVectorsService  {
         }
     }
 
-    private boolean useDfs(TermVectorsRequest request) {
-        return request.dfs() && (request.fieldStatistics() || request.termStatistics());
-    }
-
-    private AggregatedDfs getAggregatedDfs(Fields termVectorsFields, TermVectorsRequest request) throws IOException {
-        DfsOnlyRequest dfsOnlyRequest = new DfsOnlyRequest(termVectorsFields, new String[]{request.index()},
-                new String[]{request.type()}, request.selectedFields());
-        DfsOnlyResponse response = dfsAction.execute(dfsOnlyRequest).actionGet();
-        return response.getDfs();
-    }
 }

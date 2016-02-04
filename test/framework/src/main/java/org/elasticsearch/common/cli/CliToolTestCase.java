@@ -65,12 +65,12 @@ public abstract class CliToolTestCase extends ESTestCase {
         protected void doPrint(String msg) {}
 
         @Override
-        public String readText(String text, Object... args) {
+        public String readText(String prompt) {
             return null;
         }
 
         @Override
-        public char[] readSecret(String text, Object... args) {
+        public char[] readSecret(String prompt) {
             return new char[0];
         }
     }

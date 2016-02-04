@@ -52,6 +52,6 @@ public class HelpPrinter {
         } catch (IOException ioe) {
             throw new RuntimeException(ioe);
         }
-        terminal.println("");
+        terminal.println(Terminal.Verbosity.SILENT, "");
     }
 }

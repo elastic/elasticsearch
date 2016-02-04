@@ -22,9 +22,7 @@ package org.elasticsearch.common.cli;
 import java.io.BufferedReader;
 import java.io.Console;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.io.PrintStream;
 import java.nio.charset.Charset;
 
 import org.elasticsearch.common.SuppressForbidden;
@@ -60,10 +58,10 @@ public abstract class Terminal {
     }
 
     /** Reads clear text from the terminal input. See {@link Console#readLine()}. */
-    public abstract String readText(String text, Object... args);
+    public abstract String readText(String prompt);
 
     /** Reads password text from the terminal input. See {@link Console#readPassword()}}. */
-    public abstract char[] readSecret(String text, Object... args);
+    public abstract char[] readSecret(String prompt);
 
     /** Print a message directly to the terminal. */
     protected abstract void doPrint(String msg);
@@ -75,7 +73,7 @@ public abstract class Terminal {
 
     /** Prints a line to the terminal at {@code verbosity} level. */
     public final void println(Verbosity verbosity, String msg) {
-        if (verbosity.ordinal() >= this.verbosity.ordinal()) {
+        if (this.verbosity.ordinal() >= verbosity.ordinal()) {
             doPrint(msg + System.lineSeparator());
         }
     }
@@ -95,13 +93,13 @@ public abstract class Terminal {
         }
 
         @Override
-        public String readText(String text, Object... args) {
-            return console.readLine(text, args);
+        public String readText(String prompt) {
+            return console.readLine("%s", prompt);
         }
 
         @Override
-        public char[] readSecret(String text, Object... args) {
-            return console.readPassword(text, args);
+        public char[] readSecret(String prompt) {
+            return console.readPassword("%s", prompt);
         }
     }
 
@@ -115,7 +113,7 @@ public abstract class Terminal {
         }
 
         @Override
-        public String readText(String text, Object... args) {
+        public String readText(String text) {
             doPrint(text);
             BufferedReader reader = new BufferedReader(new InputStreamReader(System.in, Charset.defaultCharset()));
             try {
@@ -126,8 +124,8 @@ public abstract class Terminal {
         }
 
         @Override
-        public char[] readSecret(String text, Object... args) {
-            return readText(text, args).toCharArray();
+        public char[] readSecret(String text) {
+            return readText(text).toCharArray();
         }
     }
 }

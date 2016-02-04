@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.ModuleTestCase;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.env.NodeEnvironment;
 
 public class GatewayModuleTests extends ModuleTestCase {
@@ -41,8 +42,9 @@ public class GatewayModuleTests extends ModuleTestCase {
     public static class MockGateway extends Gateway {
 
         @Inject
-        public MockGateway(Settings settings, ClusterService clusterService, NodeEnvironment nodeEnv, GatewayMetaState metaState, TransportNodesListGatewayMetaState listGatewayMetaState, ClusterName clusterName) {
-            super(settings, clusterService, nodeEnv, metaState, listGatewayMetaState, clusterName);
+        public MockGateway(Settings settings, ClusterService clusterService, NodeEnvironment nodeEnv, GatewayMetaState metaState,
+                           TransportNodesListGatewayMetaState listGatewayMetaState, ClusterName clusterName, Discovery discovery) {
+            super(settings, clusterService, nodeEnv, metaState, listGatewayMetaState, clusterName, discovery);
         }
     }
 }

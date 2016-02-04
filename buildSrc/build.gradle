@@ -78,7 +78,7 @@ extraArchive {
 
 eclipse {
   classpath {
-    defaultOutputDir = new File(file('build'), 'eclipse')
+    defaultOutputDir = file('build-eclipse')
   }
 }
 

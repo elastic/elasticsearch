@@ -75,8 +75,9 @@ subprojects {
 allprojects {
   // injecting groovy property variables into all projects
   project.ext {
-    // for eclipse hacks...
+    // for ide hacks...
     isEclipse = System.getProperty("eclipse.launcher") != null || gradle.startParameter.taskNames.contains('eclipse') || gradle.startParameter.taskNames.contains('cleanEclipse')
+    isIdea = System.getProperty("idea.active") != null || gradle.startParameter.taskNames.contains('idea') || gradle.startParameter.taskNames.contains('cleanIdea')
   }
 }
 
@@ -170,12 +171,15 @@ gradle.projectsEvaluated {
 allprojects {
   apply plugin: 'idea'
 
+  if (isIdea) {
+    project.buildDir = file('build-idea')
+  }
   idea {
     module {
       // same as for the IntelliJ Gradle tooling integration
       inheritOutputDirs = false
-      outputDir = file('build/classes/main')
-      testOutputDir = file('build/classes/test')
+      outputDir = file('build-idea/classes/main')
+      testOutputDir = file('build-idea/classes/test')
 
       iml {
         // fix so that Gradle idea plugin properly generates support for resource folders
@@ -222,14 +226,19 @@ allprojects {
   apply plugin: 'eclipse'
 
   plugins.withType(JavaBasePlugin) {
-    eclipse.classpath.defaultOutputDir = new File(project.buildDir, 'eclipse')
+    File eclipseBuild = project.file('build-eclipse')
+    eclipse.classpath.defaultOutputDir = eclipseBuild
+    if (isEclipse) {
+      // set this so generated dirs will be relative to eclipse build
+      project.buildDir = eclipseBuild
+    }
     eclipse.classpath.file.whenMerged { classpath ->
       // give each source folder a unique corresponding output folder
       int i = 0;
       classpath.entries.findAll { it instanceof SourceFolder }.each { folder ->
         i++;
         // this is *NOT* a path or a file.
-        folder.output = "build/eclipse/" + i
+        folder.output = "build-eclipse/" + i
       }
     }
   }

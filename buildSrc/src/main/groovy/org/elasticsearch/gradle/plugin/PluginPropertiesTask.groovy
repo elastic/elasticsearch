@@ -29,7 +29,7 @@ import org.gradle.api.tasks.Copy
 class PluginPropertiesTask extends Copy {
 
     PluginPropertiesExtension extension
-    File generatedResourcesDir = new File(project.projectDir, 'generated-resources')
+    File generatedResourcesDir = new File(project.buildDir, 'generated-resources')
 
     PluginPropertiesTask() {
         File templateFile = new File(project.buildDir, 'templates/plugin-descriptor.properties')

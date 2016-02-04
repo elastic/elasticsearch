@@ -420,7 +420,6 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
      * This test is a superset of tests run in the Jepsen test suite, with the exception of versioned updates
      */
     // NOTE: if you remove the awaitFix, make sure to port the test to the 1.x branch
-    @LuceneTestCase.AwaitsFix(bugUrl = "needs some more work to stabilize")
     @TestLogging("_root:DEBUG,action.index:TRACE,action.get:TRACE,discovery:TRACE,cluster.service:TRACE,indices.recovery:TRACE,indices.cluster:TRACE")
     public void testAckedIndexing() throws Exception {
         // TODO: add node count randomizaion

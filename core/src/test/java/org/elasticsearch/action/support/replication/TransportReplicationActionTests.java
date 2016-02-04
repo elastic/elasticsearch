@@ -19,9 +19,9 @@
 package org.elasticsearch.action.support.replication;
 
 import org.apache.lucene.index.CorruptIndexException;
-import org.elasticsearch.ElasticsearchCorruptionException;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ReplicationResponse;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.WriteConsistencyLevel;
@@ -46,10 +46,12 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.IndexShardNotStartedException;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -61,7 +63,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.cluster.TestClusterService;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseOptions;
@@ -69,6 +70,7 @@ import org.elasticsearch.transport.TransportService;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import sun.security.krb5.internal.PAForUserEnc;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -677,7 +679,7 @@ public class TransportReplicationActionTests extends ESTestCase {
                     // the shard the request was sent to and the shard to be failed should be the same
                     assertEquals(shardRoutingEntry.getShardRouting(), routing);
                     failures.add(shardFailedRequest);
-                    int ternary = randomIntBetween(0, 2);
+                    int ternary = 1;
                     if (ternary == 0) {
                         // simulate master left and test that the shard failure is retried
                         int numberOfRetries = randomIntBetween(1, 4);
@@ -693,50 +695,14 @@ public class TransportReplicationActionTests extends ESTestCase {
                         // now simulate that the last retry succeeded
                         transport.handleResponse(currentRequest.requestId, TransportResponse.Empty.INSTANCE);
                     } else if (ternary == 1) {
-                        // simulate we have been forced down as the primary
+                        // simulate the primary has been demoted
                         transport.handleRemoteError(shardFailedRequest.requestId, new ShardStateAction.NoLongerPrimaryShardException(shardRoutingEntry.getShardRouting().shardId(), "shard-failed-test"));
-                        // we should fail ourselves
-                        CapturingTransport.CapturedRequest[] primaryShardFailureRequests = transport.getCapturedRequestsAndClear();
-                        assertEquals(1, primaryShardFailureRequests.length);
-                        CapturingTransport.CapturedRequest capturedPrimaryShardFailure = primaryShardFailureRequests[0];
-                        assertThat(capturedPrimaryShardFailure.action, equalTo(ShardStateAction.SHARD_FAILED_ACTION_NAME));
-                        assertThat(capturedPrimaryShardFailure.request, instanceOf(ShardStateAction.ShardRoutingEntry.class));
-                        ShardStateAction.ShardRoutingEntry primaryShardFailure = (ShardStateAction.ShardRoutingEntry)capturedPrimaryShardFailure.request;
-                        assertTrue(primaryShardFailure.getShardRouting().primary());
-                        assertEquals(primaryShard, primaryShardFailure.getShardRouting());
-                        // simulate the primary shard was successfully failed
-                        transport.handleResponse(capturedPrimaryShardFailure.requestId, TransportResponse.Empty.INSTANCE);
-                        // we should see a new reroute phase
-                        CapturingTransport.CapturedRequest[] retryRequests = transport.getCapturedRequestsAndClear();
-                        assertEquals(1, retryRequests.length);
-                        assertThat(retryRequests[0].request, instanceOf(ReplicationRequest.class));
-                        if (rarely()) {
-                            transport.handleRemoteError(retryRequests[0].requestId, new ElasticsearchCorruptionException("simulated-exception-on-reroute"));
-                            assertTrue(listener.isDone());
-                            try {
-                                listener.get();
-                                fail();
-                            } catch (ExecutionException e) {
-                                ElasticsearchCorruptionException ex = (ElasticsearchCorruptionException) ExceptionsHelper.unwrap(e, ElasticsearchCorruptionException.class);
-                                assertNotNull(ex);
-                                assertThat(ex.getMessage(), equalTo(("simulated-exception-on-reroute")));
-                            }
-                            assertThat(error.get(), instanceOf(RemoteTransportException.class));
-                            assertThat(error.get().getCause(), instanceOf(ElasticsearchCorruptionException.class));
-                            assertThat(error.get().getCause().getMessage(), equalTo(("simulated-exception-on-reroute")));
-                            // force finish as failed, and saw the exception as the response
-                            return;
-                        } else {
-                            // simulate this attempt succeeded
-                            Response simulatedResponse = new Response();
-                            simulatedResponse.setShardInfo(new ReplicationResponse.ShardInfo(totalShards, totalShards, ReplicationResponse.EMPTY));
-                            transport.handleResponse(retryRequests[0].requestId, simulatedResponse);
-                            // since we are simulating success, reset expectations, break out of the loop, and assert
-                            criticalFailures = 0;
-                            successful = totalShards;
-                            failures.clear();
-                            break;
-                        }
+                        // the primary should fail itself
+                        assertShardIsFailed();
+                        // we should see a retry on primary exception
+                        assertNotNull(error.get());
+                        assertThat(error.get(), instanceOf(TransportReplicationAction.RetryOnPrimaryException.class));
+                        return;
                     } else if (ternary == 2) {
                         transport.handleResponse(shardFailedRequest.requestId, TransportResponse.Empty.INSTANCE);
                     } else {
@@ -890,13 +856,53 @@ public class TransportReplicationActionTests extends ESTestCase {
         assertIndexShardCounter(1);
     }
 
+    public void testReroutePhaseRetriedAfterDemotedPrimary() {
+        final String index = "test";
+        final ShardId shardId = new ShardId(index, "_na_", 0);
+        clusterService.setState(state(index, true,
+                ShardRoutingState.STARTED, ShardRoutingState.STARTED));
+        Action action = new Action(Settings.EMPTY, "testAction", transportService, clusterService, threadPool) {
+            @Override
+            protected void resolveRequest(MetaData metaData, String concreteIndex, Request request) {
+                request.setShardId(shardId);
+            }
+        };
+        Request request = new Request();
+        PlainActionFuture<Response> listener = new PlainActionFuture<>();
+
+        TransportReplicationAction.ReroutePhase reroutePhase = action.new ReroutePhase(null, request, listener);
+        reroutePhase.run();
+        CapturingTransport.CapturedRequest[] primaryRequests = transport.getCapturedRequestsAndClear();
+        assertThat(primaryRequests.length, equalTo(1));
+        assertThat(primaryRequests[0].action, equalTo("testAction[p]"));
+        TransportChannel channel = createTransportChannel(listener);
+        TransportReplicationAction.PrimaryPhase primaryPhase = action.new PrimaryPhase(request, channel);
+        primaryPhase.run();
+        CapturingTransport.CapturedRequest[] replicaRequests = transport.getCapturedRequestsAndClear();
+        assertThat(replicaRequests.length, equalTo(1));
+        assertThat(replicaRequests[0].action, equalTo("testAction[r]"));
+        indexShardRouting.set(clusterService.state().getRoutingTable().shardRoutingTable(shardId).primaryShard());
+        transport.handleRemoteError(replicaRequests[0].requestId, new Exception(""));
+        CapturingTransport.CapturedRequest[] replicaFailures = transport.getCapturedRequestsAndClear();
+        assertThat(replicaFailures.length, equalTo(1));
+        assertThat(replicaFailures[0].action, equalTo(ShardStateAction.SHARD_FAILED_ACTION_NAME));
+        transport.handleRemoteError(replicaFailures[0].requestId, new ShardStateAction.NoLongerPrimaryShardException(shardId, ""));
+        assertTrue(isShardFailed.get());
+    }
+
     private void assertIndexShardCounter(int expected) {
         assertThat(count.get(), equalTo(expected));
+    }
+
+    private void assertShardIsFailed() {
+        assertTrue(isShardFailed.get());
     }
 
     private final AtomicInteger count = new AtomicInteger(0);
 
     private final AtomicBoolean isRelocated = new AtomicBoolean(false);
+
+    private final AtomicBoolean isShardFailed = new AtomicBoolean();
 
     private final AtomicReference<ShardRouting> indexShardRouting = new AtomicReference<>();
 
@@ -909,6 +915,11 @@ public class TransportReplicationActionTests extends ESTestCase {
             @Override
             public boolean isRelocated() {
                 return isRelocated.get();
+            }
+
+            @Override
+            public void failShard(String reason, @Nullable Throwable e) {
+                isShardFailed.set(true);
             }
 
             @Override

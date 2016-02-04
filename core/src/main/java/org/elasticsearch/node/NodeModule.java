@@ -29,6 +29,7 @@ import org.elasticsearch.ingest.processor.AppendProcessor;
 import org.elasticsearch.ingest.processor.ConvertProcessor;
 import org.elasticsearch.ingest.processor.DateProcessor;
 import org.elasticsearch.ingest.processor.FailProcessor;
+import org.elasticsearch.ingest.processor.ForEachProcessor;
 import org.elasticsearch.ingest.processor.GsubProcessor;
 import org.elasticsearch.ingest.processor.JoinProcessor;
 import org.elasticsearch.ingest.processor.LowercaseProcessor;
@@ -41,7 +42,7 @@ import org.elasticsearch.ingest.processor.UppercaseProcessor;
 import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.node.service.NodeService;
 
-import java.util.function.Function;
+import java.util.function.BiFunction;
 
 /**
  *
@@ -50,7 +51,7 @@ public class NodeModule extends AbstractModule {
 
     private final Node node;
     private final MonitorService monitorService;
-    private final ProcessorsRegistry processorsRegistry;
+    private final ProcessorsRegistry.Builder processorsRegistryBuilder;
 
     // pkg private so tests can mock
     Class<? extends PageCacheRecycler> pageCacheRecyclerImpl = PageCacheRecycler.class;
@@ -59,21 +60,22 @@ public class NodeModule extends AbstractModule {
     public NodeModule(Node node, MonitorService monitorService) {
         this.node = node;
         this.monitorService = monitorService;
-        this.processorsRegistry = new ProcessorsRegistry();
+        this.processorsRegistryBuilder = new ProcessorsRegistry.Builder();
 
-        registerProcessor(DateProcessor.TYPE, (templateService) -> new DateProcessor.Factory());
-        registerProcessor(SetProcessor.TYPE, SetProcessor.Factory::new);
-        registerProcessor(AppendProcessor.TYPE, AppendProcessor.Factory::new);
-        registerProcessor(RenameProcessor.TYPE, (templateService) -> new RenameProcessor.Factory());
-        registerProcessor(RemoveProcessor.TYPE, RemoveProcessor.Factory::new);
-        registerProcessor(SplitProcessor.TYPE, (templateService) -> new SplitProcessor.Factory());
-        registerProcessor(JoinProcessor.TYPE, (templateService) -> new JoinProcessor.Factory());
-        registerProcessor(UppercaseProcessor.TYPE, (templateService) -> new UppercaseProcessor.Factory());
-        registerProcessor(LowercaseProcessor.TYPE, (templateService) -> new LowercaseProcessor.Factory());
-        registerProcessor(TrimProcessor.TYPE, (templateService) -> new TrimProcessor.Factory());
-        registerProcessor(ConvertProcessor.TYPE, (templateService) -> new ConvertProcessor.Factory());
-        registerProcessor(GsubProcessor.TYPE, (templateService) -> new GsubProcessor.Factory());
-        registerProcessor(FailProcessor.TYPE, FailProcessor.Factory::new);
+        registerProcessor(DateProcessor.TYPE, (templateService, registry) -> new DateProcessor.Factory());
+        registerProcessor(SetProcessor.TYPE, (templateService, registry) -> new SetProcessor.Factory(templateService));
+        registerProcessor(AppendProcessor.TYPE, (templateService, registry) -> new AppendProcessor.Factory(templateService));
+        registerProcessor(RenameProcessor.TYPE, (templateService, registry) -> new RenameProcessor.Factory());
+        registerProcessor(RemoveProcessor.TYPE, (templateService, registry) -> new RemoveProcessor.Factory(templateService));
+        registerProcessor(SplitProcessor.TYPE, (templateService, registry) -> new SplitProcessor.Factory());
+        registerProcessor(JoinProcessor.TYPE, (templateService, registry) -> new JoinProcessor.Factory());
+        registerProcessor(UppercaseProcessor.TYPE, (templateService, registry) -> new UppercaseProcessor.Factory());
+        registerProcessor(LowercaseProcessor.TYPE, (templateService, registry) -> new LowercaseProcessor.Factory());
+        registerProcessor(TrimProcessor.TYPE, (templateService, registry) -> new TrimProcessor.Factory());
+        registerProcessor(ConvertProcessor.TYPE, (templateService, registry) -> new ConvertProcessor.Factory());
+        registerProcessor(GsubProcessor.TYPE, (templateService, registry) -> new GsubProcessor.Factory());
+        registerProcessor(FailProcessor.TYPE, (templateService, registry) -> new FailProcessor.Factory(templateService));
+        registerProcessor(ForEachProcessor.TYPE, (templateService, registry) -> new ForEachProcessor.Factory(registry));
     }
 
     @Override
@@ -92,7 +94,7 @@ public class NodeModule extends AbstractModule {
         bind(Node.class).toInstance(node);
         bind(MonitorService.class).toInstance(monitorService);
         bind(NodeService.class).asEagerSingleton();
-        bind(ProcessorsRegistry.class).toInstance(processorsRegistry);
+        bind(ProcessorsRegistry.Builder.class).toInstance(processorsRegistryBuilder);
     }
 
     /**
@@ -105,7 +107,7 @@ public class NodeModule extends AbstractModule {
     /**
      * Adds a processor factory under a specific type name.
      */
-    public void registerProcessor(String type, Function<TemplateService, Processor.Factory<?>> processorFactoryProvider) {
-        processorsRegistry.registerProcessor(type, processorFactoryProvider);
+    public void registerProcessor(String type, BiFunction<TemplateService, ProcessorsRegistry, Processor.Factory<?>> provider) {
+        processorsRegistryBuilder.registerProcessor(type, provider);
     }
 }

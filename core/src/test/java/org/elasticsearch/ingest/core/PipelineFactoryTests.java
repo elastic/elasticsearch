@@ -20,13 +20,16 @@
 package org.elasticsearch.ingest.core;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.ingest.ProcessorsRegistry;
 import org.elasticsearch.ingest.TestProcessor;
+import org.elasticsearch.ingest.TestTemplateService;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.prefs.PreferencesFactory;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -41,7 +44,7 @@ public class PipelineFactoryTests extends ESTestCase {
         pipelineConfig.put(Pipeline.DESCRIPTION_KEY, "_description");
         pipelineConfig.put(Pipeline.PROCESSORS_KEY, Arrays.asList(Collections.singletonMap("test", processorConfig0), Collections.singletonMap("test", processorConfig1)));
         Pipeline.Factory factory = new Pipeline.Factory();
-        Map<String, Processor.Factory> processorRegistry = Collections.singletonMap("test", new TestProcessor.Factory());
+        ProcessorsRegistry processorRegistry = createProcessorRegistry(Collections.singletonMap("test", new TestProcessor.Factory()));
         Pipeline pipeline = factory.create("_id", pipelineConfig, processorRegistry);
         assertThat(pipeline.getId(), equalTo("_id"));
         assertThat(pipeline.getDescription(), equalTo("_description"));
@@ -57,7 +60,7 @@ public class PipelineFactoryTests extends ESTestCase {
         pipelineConfig.put(Pipeline.DESCRIPTION_KEY, "_description");
         Pipeline.Factory factory = new Pipeline.Factory();
         try {
-            factory.create("_id", pipelineConfig, Collections.emptyMap());
+            factory.create("_id", pipelineConfig, createProcessorRegistry(Collections.emptyMap()));
             fail("should fail, missing required [processors] field");
         } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), equalTo("[processors] required property is missing"));
@@ -71,7 +74,7 @@ public class PipelineFactoryTests extends ESTestCase {
         pipelineConfig.put(Pipeline.PROCESSORS_KEY, Collections.singletonList(Collections.singletonMap("test", processorConfig)));
         pipelineConfig.put(Pipeline.ON_FAILURE_KEY, Collections.singletonList(Collections.singletonMap("test", processorConfig)));
         Pipeline.Factory factory = new Pipeline.Factory();
-        Map<String, Processor.Factory> processorRegistry = Collections.singletonMap("test", new TestProcessor.Factory());
+        ProcessorsRegistry processorRegistry = createProcessorRegistry(Collections.singletonMap("test", new TestProcessor.Factory()));
         Pipeline pipeline = factory.create("_id", pipelineConfig, processorRegistry);
         assertThat(pipeline.getId(), equalTo("_id"));
         assertThat(pipeline.getDescription(), equalTo("_description"));
@@ -88,7 +91,7 @@ public class PipelineFactoryTests extends ESTestCase {
         pipelineConfig.put(Pipeline.DESCRIPTION_KEY, "_description");
         pipelineConfig.put(Pipeline.PROCESSORS_KEY, Collections.singletonList(Collections.singletonMap("test", processorConfig)));
         Pipeline.Factory factory = new Pipeline.Factory();
-        Map<String, Processor.Factory> processorRegistry = Collections.singletonMap("test", new TestProcessor.Factory());
+        ProcessorsRegistry processorRegistry = createProcessorRegistry(Collections.singletonMap("test", new TestProcessor.Factory()));
         try {
             factory.create("_id", pipelineConfig, processorRegistry);
         } catch (ElasticsearchParseException e) {
@@ -104,11 +107,19 @@ public class PipelineFactoryTests extends ESTestCase {
         pipelineConfig.put(Pipeline.DESCRIPTION_KEY, "_description");
         pipelineConfig.put(Pipeline.PROCESSORS_KEY, Collections.singletonList(Collections.singletonMap("test", processorConfig)));
         Pipeline.Factory factory = new Pipeline.Factory();
-        Map<String, Processor.Factory> processorRegistry = Collections.singletonMap("test", new TestProcessor.Factory());
+        ProcessorsRegistry processorRegistry = createProcessorRegistry(Collections.singletonMap("test", new TestProcessor.Factory()));
         Pipeline pipeline = factory.create("_id", pipelineConfig, processorRegistry);
         assertThat(pipeline.getId(), equalTo("_id"));
         assertThat(pipeline.getDescription(), equalTo("_description"));
         assertThat(pipeline.getProcessors().size(), equalTo(1));
         assertThat(pipeline.getProcessors().get(0).getType(), equalTo("compound"));
+    }
+
+    private ProcessorsRegistry createProcessorRegistry(Map<String, Processor.Factory> processorRegistry) {
+        ProcessorsRegistry.Builder builder = new ProcessorsRegistry.Builder();
+        for (Map.Entry<String, Processor.Factory> entry : processorRegistry.entrySet()) {
+            builder.registerProcessor(entry.getKey(), ((templateService, registry) -> entry.getValue()));
+        }
+        return builder.build(TestTemplateService.instance());
     }
 }

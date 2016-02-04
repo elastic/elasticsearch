@@ -98,7 +98,7 @@ public class IndicesStoreTests extends ESTestCase {
                 if (state == ShardRoutingState.UNASSIGNED) {
                     unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null);
                 }
-                routingTable.addShard(TestShardRouting.newShardRouting("test", i, "xyz", null, null, j == 0, state, 0, unassignedInfo));
+                routingTable.addShard(TestShardRouting.newShardRouting("test", i, "xyz", null, null, j == 0, state, unassignedInfo));
             }
         }
         assertFalse(indicesStore.shardCanBeDeleted(clusterState.build(), routingTable.build()));
@@ -116,9 +116,9 @@ public class IndicesStoreTests extends ESTestCase {
         for (int i = 0; i < numShards; i++) {
             String nodeId = i == localShardId ? localNode.getId() : randomBoolean() ? "abc" : "xyz";
             String relocationNodeId = randomBoolean() ? null : randomBoolean() ? localNode.getId() : "xyz";
-            routingTable.addShard(TestShardRouting.newShardRouting("test", i, nodeId, relocationNodeId, true, ShardRoutingState.STARTED, 0));
+            routingTable.addShard(TestShardRouting.newShardRouting("test", i, nodeId, relocationNodeId, true, ShardRoutingState.STARTED));
             for (int j = 0; j < numReplicas; j++) {
-                routingTable.addShard(TestShardRouting.newShardRouting("test", i, nodeId, relocationNodeId, false, ShardRoutingState.STARTED, 0));
+                routingTable.addShard(TestShardRouting.newShardRouting("test", i, nodeId, relocationNodeId, false, ShardRoutingState.STARTED));
             }
         }
 
@@ -136,9 +136,9 @@ public class IndicesStoreTests extends ESTestCase {
         IndexShardRoutingTable.Builder routingTable = new IndexShardRoutingTable.Builder(new ShardId("test", "_na_", 1));
         for (int i = 0; i < numShards; i++) {
             String relocatingNodeId = randomBoolean() ? null : "def";
-            routingTable.addShard(TestShardRouting.newShardRouting("test", i, "xyz", relocatingNodeId, true, ShardRoutingState.STARTED, 0));
+            routingTable.addShard(TestShardRouting.newShardRouting("test", i, "xyz", relocatingNodeId, true, ShardRoutingState.STARTED));
             for (int j = 0; j < numReplicas; j++) {
-                routingTable.addShard(TestShardRouting.newShardRouting("test", i, "xyz", relocatingNodeId, false, ShardRoutingState.STARTED, 0));
+                routingTable.addShard(TestShardRouting.newShardRouting("test", i, "xyz", relocatingNodeId, false, ShardRoutingState.STARTED));
             }
         }
 
@@ -157,9 +157,9 @@ public class IndicesStoreTests extends ESTestCase {
         clusterState.nodes(DiscoveryNodes.builder().localNodeId(localNode.id()).put(localNode).put(new DiscoveryNode("xyz", new LocalTransportAddress("xyz"), nodeVersion)));
         IndexShardRoutingTable.Builder routingTable = new IndexShardRoutingTable.Builder(new ShardId("test", "_na_", 1));
         for (int i = 0; i < numShards; i++) {
-            routingTable.addShard(TestShardRouting.newShardRouting("test", i, "xyz", null, true, ShardRoutingState.STARTED, 0));
+            routingTable.addShard(TestShardRouting.newShardRouting("test", i, "xyz", null, true, ShardRoutingState.STARTED));
             for (int j = 0; j < numReplicas; j++) {
-                routingTable.addShard(TestShardRouting.newShardRouting("test", i, "xyz", null, false, ShardRoutingState.STARTED, 0));
+                routingTable.addShard(TestShardRouting.newShardRouting("test", i, "xyz", null, false, ShardRoutingState.STARTED));
             }
         }
 
@@ -182,9 +182,9 @@ public class IndicesStoreTests extends ESTestCase {
                 ));
         IndexShardRoutingTable.Builder routingTable = new IndexShardRoutingTable.Builder(new ShardId("test", "_na_", 1));
         for (int i = 0; i < numShards; i++) {
-            routingTable.addShard(TestShardRouting.newShardRouting("test", i, "xyz", "def", true, ShardRoutingState.STARTED, 0));
+            routingTable.addShard(TestShardRouting.newShardRouting("test", i, "xyz", "def", true, ShardRoutingState.STARTED));
             for (int j = 0; j < numReplicas; j++) {
-                routingTable.addShard(TestShardRouting.newShardRouting("test", i, "xyz", "def", false, ShardRoutingState.STARTED, 0));
+                routingTable.addShard(TestShardRouting.newShardRouting("test", i, "xyz", "def", false, ShardRoutingState.STARTED));
             }
         }
 

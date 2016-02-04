@@ -19,6 +19,8 @@
 
 package org.elasticsearch.cluster.settings;
 
+import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Inject;
@@ -64,8 +66,16 @@ public class SettingsFilteringIT extends ESIntegTestCase {
             return "Settings Filtering Plugin";
         }
 
+        @Override
+        public Settings additionalSettings() {
+            return Settings.builder().put("some.node.setting", true).put("some.other.node.setting", true).build();
+        }
+
         public void onModule(SettingsModule module) {
             module.registerSetting(Setting.groupSetting("index.filter_test.", false, Setting.Scope.INDEX));
+            module.registerSetting(Setting.boolSetting("some.node.setting", false,  false, Setting.Scope.CLUSTER));
+            module.registerSetting(Setting.boolSetting("some.other.node.setting", false,  false, Setting.Scope.CLUSTER));
+            module.registerSettingsFilter("some.node.setting");
             module.registerSettingsFilter("index.filter_test.foo");
             module.registerSettingsFilter("index.filter_test.bar*");
         }
@@ -87,5 +97,16 @@ public class SettingsFilteringIT extends ESIntegTestCase {
         assertThat(settings.get("index.filter_test.bar2"), nullValue());
         assertThat(settings.get("index.filter_test.notbar"), equalTo("test"));
         assertThat(settings.get("index.filter_test.notfoo"), equalTo("test"));
+    }
+
+    public void testNodeInfoIsFiltered() {
+        NodesInfoResponse nodeInfos = client().admin().cluster().prepareNodesInfo().clear().setSettings(true).get();
+        for(NodeInfo info : nodeInfos.getNodes()) {
+            Settings settings = info.getSettings();
+            assertNotNull(settings);
+            assertNull(settings.get("some.node.setting"));
+            assertTrue(settings.getAsBoolean("some.other.node.setting", false));
+            assertEquals(settings.get("node.name"), info.getNode().getName());
+        }
     }
 }

@@ -22,9 +22,6 @@ package org.elasticsearch.common.cli;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 
-/**
- *
- */
 public class TerminalTests extends CliToolTestCase {
     public void testVerbosity() throws Exception {
         CaptureOutputTerminal terminal = new CaptureOutputTerminal(Terminal.Verbosity.SILENT);
@@ -49,14 +46,14 @@ public class TerminalTests extends CliToolTestCase {
     }
 
     private void assertPrinted(CaptureOutputTerminal logTerminal, Terminal.Verbosity verbosity, String text) {
-        logTerminal.print(verbosity, text);
-        assertThat(logTerminal.getTerminalOutput(), hasSize(1));
-        assertThat(logTerminal.getTerminalOutput(), hasItem(text));
+        logTerminal.println(verbosity, text);
+        assertEquals(1, logTerminal.getTerminalOutput().size());
+        assertTrue(logTerminal.getTerminalOutput().get(0).contains(text));
         logTerminal.terminalOutput.clear();
     }
 
     private void assertNotPrinted(CaptureOutputTerminal logTerminal, Terminal.Verbosity verbosity, String text) {
-        logTerminal.print(verbosity, text);
+        logTerminal.println(verbosity, text);
         assertThat(logTerminal.getTerminalOutput(), hasSize(0));
     }
 }

@@ -19,42 +19,30 @@
 
 package org.elasticsearch.ingest;
 
-import org.elasticsearch.ingest.core.Processor;
-import org.elasticsearch.ingest.core.TemplateService;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.Map;
-import java.util.Set;
-import java.util.function.Function;
-
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.sameInstance;
 
 public class ProcessorsRegistryTests extends ESTestCase {
 
-    public void testAddProcessor() {
-        ProcessorsRegistry processorsRegistry = new ProcessorsRegistry();
+    public void testBuildProcessorRegistry() {
+        ProcessorsRegistry.Builder builder = new ProcessorsRegistry.Builder();
         TestProcessor.Factory factory1 = new TestProcessor.Factory();
-        processorsRegistry.registerProcessor("1", (templateService) -> factory1);
+        builder.registerProcessor("1", (templateService, registry) -> factory1);
         TestProcessor.Factory factory2 = new TestProcessor.Factory();
-        processorsRegistry.registerProcessor("2", (templateService) -> factory2);
+        builder.registerProcessor("2", (templateService, registry) -> factory2);
         TestProcessor.Factory factory3 = new TestProcessor.Factory();
         try {
-            processorsRegistry.registerProcessor("1", (templateService) -> factory3);
+            builder.registerProcessor("1", (templateService, registry) -> factory3);
             fail("addProcessor should have failed");
         } catch(IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("Processor factory already registered for name [1]"));
         }
 
-        Set<Map.Entry<String, Function<TemplateService, Processor.Factory<?>>>> entrySet = processorsRegistry.entrySet();
-        assertThat(entrySet.size(), equalTo(2));
-        for (Map.Entry<String, Function<TemplateService, Processor.Factory<?>>> entry : entrySet) {
-            if (entry.getKey().equals("1")) {
-                assertThat(entry.getValue().apply(null), equalTo(factory1));
-            } else if (entry.getKey().equals("2")) {
-                assertThat(entry.getValue().apply(null), equalTo(factory2));
-            } else {
-                fail("unexpected processor id [" + entry.getKey() + "]");
-            }
-        }
+        ProcessorsRegistry registry = builder.build(TestTemplateService.instance());
+        assertThat(registry.getProcessorFactories().size(), equalTo(2));
+        assertThat(registry.getProcessorFactory("1"), sameInstance(factory1));
+        assertThat(registry.getProcessorFactory("2"), sameInstance(factory2));
     }
 }

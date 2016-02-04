@@ -11,11 +11,12 @@
   </module>
 
   <module name="TreeWalker">
-    <!-- ~3500 violations
+    <!-- Its our official line length! See checkstyle_suppressions.xml for the files that don't pass this. For now we
+      suppress the check there but enforce it everywhere else. This prevents the list from getting longer even if it is
+      unfair. -->
     <module name="LineLength">
       <property name="max" value="140"/>
     </module>
-    -->
 
     <module name="AvoidStarImport" />
     <!-- Doesn't pass but we could make it pass pretty quick.

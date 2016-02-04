@@ -176,7 +176,6 @@ allprojects {
   }
   idea {
     module {
-      // same as for the IntelliJ Gradle tooling integration
       inheritOutputDirs = false
       outputDir = file('build-idea/classes/main')
       testOutputDir = file('build-idea/classes/test')

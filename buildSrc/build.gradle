@@ -76,6 +76,14 @@ extraArchive {
   tests = false
 }
 
+idea {
+  module {
+    inheritOutputDirs = false
+    outputDir = file('build-idea/classes/main')
+    testOutputDir = file('build-idea/classes/test')
+  }
+}
+
 eclipse {
   classpath {
     defaultOutputDir = file('build-eclipse')

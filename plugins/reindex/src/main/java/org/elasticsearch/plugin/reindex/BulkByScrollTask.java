@@ -65,66 +65,17 @@ public class BulkByScrollTask extends Task {
     }
 
     /**
-     * Count of documents updated.
-     */
-    public long updated() {
-        return updated.get();
-    }
-
-    /**
-     * Count of documents created.
-     */
-    public long created() {
-        return created.get();
-    }
-
-    /**
-     * Count of successful delete operations.
-     */
-    public long deleted() {
-        return deleted.get();
-    }
-
-    /**
-     * Number of scan responses this request has processed.
-     */
-    public int batches() {
-        return batch.get();
-    }
-
-    /**
-     * Number of noops (skipped bulk items) as part of this request.
-     */
-    public long noops() {
-        return noops.get();
-    }
-
-    /**
-     * Number of version conflicts this request has hit.
-     */
-    public long versionConflicts() {
-        return versionConflicts.get();
-    }
-
-    /**
      * Total number of successfully processed documents.
      */
-    public long successfullyProcessed() {
+    public long getSuccessfullyProcessed() {
         return updated.get() + created.get() + deleted.get();
     }
 
     /**
      * All indexing failures.
      */
-    public List<Failure> indexingFailures() {
+    public List<Failure> getIndexingFailures() {
         return unmodifiableList(indexingFailures);
-    }
-
-    /**
-     * All search failures.
-     */
-    public List<ShardSearchFailure> searchFailures() {
-        return unmodifiableList(searchFailures);
     }
 
     public static class Status implements Task.Status {
@@ -268,26 +219,44 @@ public class BulkByScrollTask extends Task {
             return total;
         }
 
+        /**
+         * Count of documents updated.
+         */
         public long getUpdated() {
             return updated;
         }
 
+        /**
+         * Count of documents created.
+         */
         public long getCreated() {
             return created;
         }
 
+        /**
+         * Count of successful delete operations.
+         */
         public long getDeleted() {
             return deleted;
         }
 
+        /**
+         * Number of scan responses this request has processed.
+         */
         public int getBatches() {
             return batches;
         }
 
+        /**
+         * Number of version conflicts this request has hit.
+         */
         public long getVersionConflicts() {
             return versionConflicts;
         }
 
+        /**
+         * Number of noops (skipped bulk items) as part of this request.
+         */
         public long getNoops() {
             return noops;
         }
@@ -296,6 +265,9 @@ public class BulkByScrollTask extends Task {
             return indexingFailures;
         }
 
+        /**
+         * All search failures.
+         */
         public List<ShardSearchFailure> getSearchFailures() {
             return searchFailures;
         }

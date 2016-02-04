@@ -155,7 +155,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
                     List<SearchHit> docsIterable = Arrays.asList(docs);
                     if (mainRequest.getSize() != SIZE_ALL_MATCHES) {
                         // Truncate the docs if we have more than the request size
-                        long remaining = max(0, mainRequest.getSize() - task.successfullyProcessed());
+                        long remaining = max(0, mainRequest.getSize() - task.getSuccessfullyProcessed());
                         if (remaining < docs.length) {
                             docsIterable = docsIterable.subList(0, (int) remaining);
                         }
@@ -229,12 +229,12 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
             }
             destinationIndices.addAll(destinationIndicesThisBatch);
 
-            if (false == task.indexingFailures().isEmpty()) {
+            if (false == task.getIndexingFailures().isEmpty()) {
                 startNormalTermination();
                 return;
             }
 
-            if (mainRequest.getSize() != SIZE_ALL_MATCHES && task.successfullyProcessed() >= mainRequest.getSize()) {
+            if (mainRequest.getSize() != SIZE_ALL_MATCHES && task.getSuccessfullyProcessed() >= mainRequest.getSize()) {
                 // We've processed all the requested docs.
                 startNormalTermination();
                 return;

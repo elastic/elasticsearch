@@ -221,7 +221,6 @@ public class WatcherPlugin extends Plugin {
 
         module.registerSettingsFilter("watcher.actions.email.service.account.*.smtp.password");
         module.registerSettingsFilter("watcher.actions.slack.service.account.*.url");
-        module.registerSettingsFilter("watcher.actions.hipchat.service.account.*.url");
         module.registerSettingsFilter("watcher.actions.pagerduty.service.account.*.url");
         module.registerSettingsFilter("watcher.actions.pagerduty.service." + PagerDutyAccount.SERVICE_KEY_SETTING);
         module.registerSettingsFilter("watcher.actions.pagerduty.service.account.*." + PagerDutyAccount.SERVICE_KEY_SETTING);

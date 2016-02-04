@@ -133,6 +133,6 @@ public class MarvelPlugin extends Plugin {
         module.registerSetting(Setting.simpleString("marvel.agent.exporter.es.ssl.truststore.password", false, Setting.Scope.CLUSTER));
         module.registerSetting(Setting.simpleString("marvel.agent.exporter.es.ssl.truststore.path", false, Setting.Scope.CLUSTER));
         module.registerSetting(Setting.boolSetting("marvel.enabled", false, false, Setting.Scope.CLUSTER));
-        module.registerSettingsFilter("marvel.agent.exporters.auth.password");
+        module.registerSettingsFilter("marvel.agent.exporters.*.auth.password");
     }
 }

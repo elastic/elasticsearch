@@ -16,11 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.rest;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
 import org.junit.Test;
 
@@ -29,7 +31,8 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class CorsRegexDefaultIT extends ESIntegTestCase {
+@ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 1)
+public class CorsNotSetIT extends ESIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {

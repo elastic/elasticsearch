@@ -539,7 +539,7 @@
                             <configuration>
                                 <rules>
                                     <requireJavaVersion>
-                                        <version>[1.7, 1.8)</version>
+                                        <version>[${maven.compiler.source},)</version>
                                     </requireJavaVersion>
                                 </rules>
                             </configuration>

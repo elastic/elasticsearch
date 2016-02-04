@@ -19,10 +19,18 @@
 
 package org.elasticsearch.search.suggest.term;
 
+import org.apache.lucene.search.spell.DirectSpellChecker;
+import org.apache.lucene.search.spell.JaroWinklerDistance;
+import org.apache.lucene.search.spell.LevensteinDistance;
+import org.apache.lucene.search.spell.LuceneLevenshteinDistance;
+import org.apache.lucene.search.spell.NGramDistance;
+import org.apache.lucene.search.spell.StringDistance;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.suggest.SuggestionBuilder;
 
@@ -37,6 +45,16 @@ import static org.elasticsearch.search.suggest.DirectSpellcheckerSettings.DEFAUL
 import static org.elasticsearch.search.suggest.DirectSpellcheckerSettings.DEFAULT_MIN_DOC_FREQ;
 import static org.elasticsearch.search.suggest.DirectSpellcheckerSettings.DEFAULT_MIN_WORD_LENGTH;
 import static org.elasticsearch.search.suggest.DirectSpellcheckerSettings.DEFAULT_PREFIX_LENGTH;
+import static org.elasticsearch.search.suggest.SuggestUtils.Fields.ACCURACY;
+import static org.elasticsearch.search.suggest.SuggestUtils.Fields.MAX_EDITS;
+import static org.elasticsearch.search.suggest.SuggestUtils.Fields.MAX_INSPECTIONS;
+import static org.elasticsearch.search.suggest.SuggestUtils.Fields.MAX_TERM_FREQ;
+import static org.elasticsearch.search.suggest.SuggestUtils.Fields.MIN_DOC_FREQ;
+import static org.elasticsearch.search.suggest.SuggestUtils.Fields.MIN_WORD_LENGTH;
+import static org.elasticsearch.search.suggest.SuggestUtils.Fields.PREFIX_LENGTH;
+import static org.elasticsearch.search.suggest.SuggestUtils.Fields.SORT;
+import static org.elasticsearch.search.suggest.SuggestUtils.Fields.STRING_DISTANCE;
+import static org.elasticsearch.search.suggest.SuggestUtils.Fields.SUGGEST_MODE;
 
 /**
  * Defines the actual suggest command. Each command uses the global options
@@ -309,42 +327,64 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
 
     @Override
     public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
-        if (suggestMode != null) {
-            builder.field("suggest_mode", suggestMode);
-        }
-        if (accuracy != null) {
-            builder.field("accuracy", accuracy);
-        }
-        if (sort != null) {
-            builder.field("sort", sort);
-        }
-        if (stringDistance != null) {
-            builder.field("string_distance", stringDistance);
-        }
-        if (maxEdits != null) {
-            builder.field("max_edits", maxEdits);
-        }
-        if (maxInspections != null) {
-            builder.field("max_inspections", maxInspections);
-        }
-        if (maxTermFreq != null) {
-            builder.field("max_term_freq", maxTermFreq);
-        }
-        if (prefixLength != null) {
-            builder.field("prefix_length", prefixLength);
-        }
-        if (minWordLength != null) {
-            builder.field("min_word_length", minWordLength);
-        }
-        if (minDocFreq != null) {
-            builder.field("min_doc_freq", minDocFreq);
-        }
+        builder.field(SUGGEST_MODE.getPreferredName(), suggestMode);
+        builder.field(ACCURACY.getPreferredName(), accuracy);
+        builder.field(SORT.getPreferredName(), sort);
+        builder.field(STRING_DISTANCE.getPreferredName(), stringDistance);
+        builder.field(MAX_EDITS.getPreferredName(), maxEdits);
+        builder.field(MAX_INSPECTIONS.getPreferredName(), maxInspections);
+        builder.field(MAX_TERM_FREQ.getPreferredName(), maxTermFreq);
+        builder.field(PREFIX_LENGTH.getPreferredName(), prefixLength);
+        builder.field(MIN_WORD_LENGTH.getPreferredName(), minWordLength);
+        builder.field(MIN_DOC_FREQ.getPreferredName(), minDocFreq);
         return builder;
     }
 
     @Override
     protected TermSuggestionBuilder innerFromXContent(QueryParseContext parseContext, String name) throws IOException {
-        return null;
+        XContentParser parser = parseContext.parser();
+        TermSuggestionBuilder suggestion = new TermSuggestionBuilder(name);
+        ParseFieldMatcher parseFieldMatcher = parseContext.parseFieldMatcher();
+        XContentParser.Token token;
+        String fieldName = null;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                fieldName = parser.currentName();
+            } else if (token.isValue()) {
+                if (parseFieldMatcher.match(fieldName, SuggestionBuilder.ANALYZER_FIELD)) {
+                    suggestion.analyzer(parser.text());
+                } else if (parseFieldMatcher.match(fieldName, SuggestionBuilder.FIELDNAME_FIELD)) {
+                    suggestion.field(parser.text());
+                } else if (parseFieldMatcher.match(fieldName, SuggestionBuilder.SIZE_FIELD)) {
+                    suggestion.size(parser.intValue());
+                } else if (parseFieldMatcher.match(fieldName, SuggestionBuilder.SHARDSIZE_FIELD)) {
+                    suggestion.shardSize(parser.intValue());
+                } else if (parseFieldMatcher.match(fieldName, SUGGEST_MODE)) {
+                    suggestion.suggestMode(SuggestMode.resolve(parser.text()));
+                } else if (parseFieldMatcher.match(fieldName, ACCURACY)) {
+                    suggestion.accuracy(parser.floatValue());
+                } else if (parseFieldMatcher.match(fieldName, SORT)) {
+                    suggestion.sort(SortBy.resolve(parser.text()));
+                } else if (parseFieldMatcher.match(fieldName, STRING_DISTANCE)) {
+                    suggestion.stringDistance(StringDistanceImpl.resolve(parser.text()));
+                } else if (parseFieldMatcher.match(fieldName, MAX_EDITS)) {
+                    suggestion.maxEdits(parser.intValue());
+                } else if (parseFieldMatcher.match(fieldName, MAX_INSPECTIONS)) {
+                    suggestion.maxInspections(parser.intValue());
+                } else if (parseFieldMatcher.match(fieldName, MAX_TERM_FREQ)) {
+                    suggestion.maxTermFreq(parser.floatValue());
+                } else if (parseFieldMatcher.match(fieldName, PREFIX_LENGTH)) {
+                    suggestion.prefixLength(parser.intValue());
+                } else if (parseFieldMatcher.match(fieldName, MIN_WORD_LENGTH)) {
+                    suggestion.minWordLength(parser.intValue());
+                } else if (parseFieldMatcher.match(fieldName, MIN_DOC_FREQ)) {
+                    suggestion.minDocFreq(parser.floatValue());
+                }
+            } else {
+                throw new IllegalArgumentException("suggester[term] doesn't support field [" + fieldName + "]");
+            }
+        }
+        return suggestion;
     }
 
     @Override
@@ -402,7 +442,6 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
                             maxTermFreq, prefixLength, minWordLength, minDocFreq);
     }
 
-
     /** An enum representing the valid suggest modes. */
     public enum SuggestMode implements Writeable<SuggestMode> {
         /** Only suggest terms in the suggest text that aren't in the index. This is the default. */
@@ -428,7 +467,7 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
             return values()[ordinal];
         }
 
-        public static SuggestMode fromString(final String str) {
+        public static SuggestMode resolve(final String str) {
             Objects.requireNonNull(str, "Input string is null");
             return valueOf(str.toUpperCase(Locale.ROOT));
         }
@@ -457,7 +496,7 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
             return values()[ordinal];
         }
 
-        public static SortBy fromString(final String str) {
+        public static SortBy resolve(final String str) {
             Objects.requireNonNull(str, "Input string is null");
             return valueOf(str.toUpperCase(Locale.ROOT));
         }
@@ -493,9 +532,21 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
             return values()[ordinal];
         }
 
-        public static StringDistanceImpl fromString(final String str) {
+        public static StringDistanceImpl resolve(final String str) {
             Objects.requireNonNull(str, "Input string is null");
-            return valueOf(str.toUpperCase(Locale.ROOT));
+            final String distanceVal = str.toLowerCase(Locale.US);
+            switch (distanceVal) {
+                case "internal":
+                    return INTERNAL;
+                case "damerau_levenshtein":
+                case "damerauLevenshtein":
+                    return DAMERAU_LEVENSHTEIN;
+                case "levenstein":
+                    return LEVENSTEIN;
+                case "ngram":
+                    return NGRAM;
+                default: throw new IllegalArgumentException("Illegal distance option " + str);
+            }
         }
     }
 

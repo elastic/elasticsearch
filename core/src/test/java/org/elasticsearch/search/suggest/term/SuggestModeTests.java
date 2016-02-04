@@ -40,18 +40,18 @@ public class SuggestModeTests extends AbstractWriteableEnumTestCase {
 
     @Override
     public void testFromString() {
-        assertThat(SuggestMode.fromString("missing"), equalTo(SuggestMode.MISSING));
-        assertThat(SuggestMode.fromString("popular"), equalTo(SuggestMode.POPULAR));
-        assertThat(SuggestMode.fromString("always"), equalTo(SuggestMode.ALWAYS));
+        assertThat(SuggestMode.resolve("missing"), equalTo(SuggestMode.MISSING));
+        assertThat(SuggestMode.resolve("popular"), equalTo(SuggestMode.POPULAR));
+        assertThat(SuggestMode.resolve("always"), equalTo(SuggestMode.ALWAYS));
         final String doesntExist = "doesnt_exist";
         try {
-            SuggestMode.fromString(doesntExist);
+            SuggestMode.resolve(doesntExist);
             fail("SuggestMode should not have an element " + doesntExist);
         } catch (IllegalArgumentException e) {
         }
         try {
-            SuggestMode.fromString(null);
-            fail("SuggestMode.fromString on a null value should throw an exception.");
+            SuggestMode.resolve(null);
+            fail("SuggestMode.resolve on a null value should throw an exception.");
         } catch (NullPointerException e) {
             assertThat(e.getMessage(), equalTo("Input string is null"));
         }

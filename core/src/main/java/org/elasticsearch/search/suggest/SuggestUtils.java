@@ -49,6 +49,7 @@ import org.elasticsearch.index.analysis.ShingleTokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
+import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 
 import java.io.IOException;
 import java.util.Comparator;

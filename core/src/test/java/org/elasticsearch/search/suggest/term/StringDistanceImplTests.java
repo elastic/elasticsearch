@@ -42,20 +42,20 @@ public class StringDistanceImplTests extends AbstractWriteableEnumTestCase {
 
     @Override
     public void testFromString() {
-        assertThat(StringDistanceImpl.fromString("internal"), equalTo(StringDistanceImpl.INTERNAL));
-        assertThat(StringDistanceImpl.fromString("damerau_levenshtein"), equalTo(StringDistanceImpl.DAMERAU_LEVENSHTEIN));
-        assertThat(StringDistanceImpl.fromString("levenstein"), equalTo(StringDistanceImpl.LEVENSTEIN));
-        assertThat(StringDistanceImpl.fromString("jarowinkler"), equalTo(StringDistanceImpl.JAROWINKLER));
-        assertThat(StringDistanceImpl.fromString("ngram"), equalTo(StringDistanceImpl.NGRAM));
+        assertThat(StringDistanceImpl.resolve("internal"), equalTo(StringDistanceImpl.INTERNAL));
+        assertThat(StringDistanceImpl.resolve("damerau_levenshtein"), equalTo(StringDistanceImpl.DAMERAU_LEVENSHTEIN));
+        assertThat(StringDistanceImpl.resolve("levenstein"), equalTo(StringDistanceImpl.LEVENSTEIN));
+        assertThat(StringDistanceImpl.resolve("jarowinkler"), equalTo(StringDistanceImpl.JAROWINKLER));
+        assertThat(StringDistanceImpl.resolve("ngram"), equalTo(StringDistanceImpl.NGRAM));
         final String doesntExist = "doesnt_exist";
         try {
-            StringDistanceImpl.fromString(doesntExist);
+            StringDistanceImpl.resolve(doesntExist);
             fail("StringDistanceImpl should not have an element " + doesntExist);
         } catch (IllegalArgumentException e) {
         }
         try {
-            StringDistanceImpl.fromString(null);
-            fail("StringDistanceImpl.fromString on a null value should throw an exception.");
+            StringDistanceImpl.resolve(null);
+            fail("StringDistanceImpl.resolve on a null value should throw an exception.");
         } catch (NullPointerException e) {
             assertThat(e.getMessage(), equalTo("Input string is null"));
         }

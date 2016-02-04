@@ -39,17 +39,17 @@ public class SortByTests extends AbstractWriteableEnumTestCase {
 
     @Override
     public void testFromString() {
-        assertThat(SortBy.fromString("score"), equalTo(SortBy.SCORE));
-        assertThat(SortBy.fromString("frequency"), equalTo(SortBy.FREQUENCY));
+        assertThat(SortBy.resolve("score"), equalTo(SortBy.SCORE));
+        assertThat(SortBy.resolve("frequency"), equalTo(SortBy.FREQUENCY));
         final String doesntExist = "doesnt_exist";
         try {
-            SortBy.fromString(doesntExist);
+            SortBy.resolve(doesntExist);
             fail("SortBy should not have an element " + doesntExist);
         } catch (IllegalArgumentException e) {
         }
         try {
-            SortBy.fromString(null);
-            fail("SortBy.fromString on a null value should throw an exception.");
+            SortBy.resolve(null);
+            fail("SortBy.resolve on a null value should throw an exception.");
         } catch (NullPointerException e) {
             assertThat(e.getMessage(), equalTo("Input string is null"));
         }

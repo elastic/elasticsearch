@@ -31,8 +31,6 @@ import java.util.function.Predicate;
 
 /**
  * A module that binds the provided settings to the {@link Settings} interface.
- *
- *
  */
 public class SettingsModule extends AbstractModule {
 
@@ -41,7 +39,6 @@ public class SettingsModule extends AbstractModule {
     private final Map<String, Setting<?>> clusterSettings = new HashMap<>();
     private final Map<String, Setting<?>> indexSettings = new HashMap<>();
     private static final Predicate<String> TRIBE_CLIENT_NODE_SETTINGS_PREDICATE =  (s) -> s.startsWith("tribe.") && TribeService.TRIBE_SETTING_KEYS.contains(s) == false;
-
 
     public SettingsModule(Settings settings) {
         this.settings = settings;
@@ -112,7 +109,7 @@ public class SettingsModule extends AbstractModule {
     }
 
 
-    public void validateTribeSettings(Settings settings, ClusterSettings clusterSettings) {
+    private void validateTribeSettings(Settings settings, ClusterSettings clusterSettings) {
         Map<String, Settings> groups = settings.filter(TRIBE_CLIENT_NODE_SETTINGS_PREDICATE).getGroups("tribe.", true);
         for (Map.Entry<String, Settings>  tribeSettings : groups.entrySet()) {
             Settings thisTribesSettings = tribeSettings.getValue();

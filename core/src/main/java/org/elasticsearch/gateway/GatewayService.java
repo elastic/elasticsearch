@@ -39,7 +39,9 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoveryService;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -92,9 +94,12 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
     private final AtomicBoolean scheduledRecovery = new AtomicBoolean();
 
     @Inject
-    public GatewayService(Settings settings, Gateway gateway, AllocationService allocationService, ClusterService clusterService, DiscoveryService discoveryService, ThreadPool threadPool) {
+    public GatewayService(Settings settings, AllocationService allocationService, ClusterService clusterService,
+                          DiscoveryService discoveryService, ThreadPool threadPool,
+                          NodeEnvironment nodeEnvironment, GatewayMetaState metaState,
+                          TransportNodesListGatewayMetaState listGatewayMetaState, Discovery discovery) {
         super(settings);
-        this.gateway = gateway;
+        this.gateway = new Gateway(settings, clusterService, nodeEnvironment, metaState, listGatewayMetaState, discovery);
         this.allocationService = allocationService;
         this.clusterService = clusterService;
         this.discoveryService = discoveryService;
@@ -231,6 +236,10 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
                 threadPool.generic().execute(() -> gateway.performStateRecovery(recoveryListener));
             }
         }
+    }
+
+    public Gateway getGateway() {
+        return gateway;
     }
 
     class GatewayRecoveryListener implements Gateway.GatewayStateRecoveredListener {

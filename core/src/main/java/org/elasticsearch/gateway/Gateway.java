@@ -25,14 +25,12 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.env.NodeEnvironment;
@@ -53,19 +51,15 @@ public class Gateway extends AbstractComponent implements ClusterStateListener {
 
     private final TransportNodesListGatewayMetaState listGatewayMetaState;
 
-    private final ClusterName clusterName;
-
     private final Supplier<Integer> minimumMasterNodesProvider;
 
-    @Inject
     public Gateway(Settings settings, ClusterService clusterService, NodeEnvironment nodeEnv, GatewayMetaState metaState,
-                   TransportNodesListGatewayMetaState listGatewayMetaState, ClusterName clusterName, Discovery discovery) {
+                   TransportNodesListGatewayMetaState listGatewayMetaState, Discovery discovery) {
         super(settings);
         this.clusterService = clusterService;
         this.nodeEnv = nodeEnv;
         this.metaState = metaState;
         this.listGatewayMetaState = listGatewayMetaState;
-        this.clusterName = clusterName;
         this.minimumMasterNodesProvider = discovery::getMinimumMasterNodes;
         clusterService.addLast(this);
     }
@@ -139,7 +133,7 @@ public class Gateway extends AbstractComponent implements ClusterStateListener {
                 }
             }
         }
-        ClusterState.Builder builder = ClusterState.builder(clusterName);
+        ClusterState.Builder builder = ClusterState.builder(clusterService.state().getClusterName());
         builder.metaData(metaDataBuilder);
         listener.onSuccess(builder.build());
     }

@@ -74,5 +74,9 @@ public class AzureRepositoryPlugin extends Plugin {
         module.registerSetting(AzureStorageService.Storage.BASE_PATH_SETTING);
         module.registerSetting(AzureStorageService.Storage.CHUNK_SIZE_SETTING);
         module.registerSetting(AzureStorageService.Storage.LOCATION_MODE_SETTING);
+        // Cloud storage API settings needed to be hidden
+        module.registerSettingsFilter(AzureStorageService.Storage.PREFIX + "*.account");
+        module.registerSettingsFilter(AzureStorageService.Storage.PREFIX + "*.key");
+        module.registerSettingsFilter(AzureStorageService.Storage.ACCOUNT_SETTING.getKey());
     }
 }

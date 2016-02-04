@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.EnvironmentModule;
@@ -59,7 +58,7 @@ public class SimplePhoneticAnalysisTests extends ESTestCase {
         Index index = new Index("test", "_na_");
         AnalysisModule analysisModule = new AnalysisModule(new Environment(settings));
         new AnalysisPhoneticPlugin().onModule(analysisModule);
-        SettingsModule settingsModule = new SettingsModule(settings, new SettingsFilter(settings));
+        SettingsModule settingsModule = new SettingsModule(settings);
         settingsModule.registerSetting(InternalSettingsPlugin.VERSION_CREATED);
         Injector parentInjector = new ModulesBuilder().add(settingsModule,
                 new EnvironmentModule(new Environment(settings)), analysisModule)

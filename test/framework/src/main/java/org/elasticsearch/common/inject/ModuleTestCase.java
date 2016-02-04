@@ -174,6 +174,28 @@ public abstract class ModuleTestCase extends ESTestCase {
     }
 
     /**
+     * Configures the module, and returns an instance  bound to the "to" class.
+     */
+    public static <T> T bindAndGetInstance(Module module, Class<T> to) {
+        List<Element> elements = Elements.getElements(module);
+        for (Element element : elements) {
+            if (element instanceof InstanceBinding) {
+                InstanceBinding binding = (InstanceBinding) element;
+                if (to.equals(binding.getKey().getTypeLiteral().getType())) {
+                    return to.cast(binding.getInstance());
+                }
+            } else  if (element instanceof ProviderInstanceBinding) {
+                ProviderInstanceBinding binding = (ProviderInstanceBinding) element;
+                if (to.equals(binding.getKey().getTypeLiteral().getType())) {
+                    return to.cast(binding.getProviderInstance().get());
+                }
+            }
+        }
+        fail("can't get instance for class " + to);
+        return null; // won't happen ;)
+    }
+
+    /**
      * Like {@link #assertInstanceBinding(Module, Class, Predicate)}, but filters the
      * classes checked by the given annotation.
      */

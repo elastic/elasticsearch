@@ -354,6 +354,11 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         return new DiscoveryStats(queueStats);
     }
 
+    @Override
+    public int getMinimumMasterNodes() {
+        return electMaster.minimumMasterNodes();
+    }
+
     /**
      * returns true if zen discovery is started and there is a currently a background thread active for (re)joining
      * the cluster used for testing.

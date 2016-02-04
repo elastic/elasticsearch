@@ -94,19 +94,6 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
         return index;
     }
 
-    /**
-     * creates a new {@link IndexRoutingTable} with all shard versions normalized
-     *
-     * @return new {@link IndexRoutingTable}
-     */
-    public IndexRoutingTable normalizeVersions() {
-        IndexRoutingTable.Builder builder = new Builder(this.index);
-        for (IntObjectCursor<IndexShardRoutingTable> cursor : shards) {
-            builder.addIndexShard(cursor.value.normalizeVersions());
-        }
-        return builder.build();
-    }
-
     public void validate(RoutingTableValidation validation, MetaData metaData) {
         if (!metaData.hasIndex(index.getName())) {
             validation.addIndexFailure(index.getName(), "Exists in routing does not exists in metadata");

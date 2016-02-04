@@ -340,9 +340,8 @@ public class IndexShard extends AbstractIndexShardComponent {
                 if (!newRouting.primary() && currentRouting.primary()) {
                     logger.warn("suspect illegal state: trying to move shard from primary mode to replica mode");
                 }
-                // if its the same routing except for some metadata info, return
-                if (currentRouting.equalsIgnoringMetaData(newRouting)) {
-                    this.shardRouting = newRouting; // might have a new version
+                // if its the same routing, return
+                if (currentRouting.equals(newRouting)) {
                     return;
                 }
             }
@@ -1356,21 +1355,16 @@ public class IndexShard extends AbstractIndexShardComponent {
             try {
                 final String writeReason;
                 if (currentRouting == null) {
-                    writeReason = "freshly started, version [" + newRouting.version() + "]";
-                } else if (currentRouting.version() < newRouting.version()) {
-                    writeReason = "version changed from [" + currentRouting.version() + "] to [" + newRouting.version() + "]";
+                    writeReason = "freshly started, allocation id [" + newRouting.allocationId() + "]";
                 } else if (currentRouting.equals(newRouting) == false) {
                     writeReason = "routing changed from " + currentRouting + " to " + newRouting;
                 } else {
-                    logger.trace("skip writing shard state, has been written before; previous version:  [" +
-                        currentRouting.version() + "] current version [" + newRouting.version() + "]");
-                    assert currentRouting.version() <= newRouting.version() : "version should not go backwards for shardID: " + shardId +
-                        " previous version:  [" + currentRouting.version() + "] current version [" + newRouting.version() + "]";
+                    logger.trace("{} skip writing shard state, has been written before", shardId);
                     return;
                 }
-                final ShardStateMetaData newShardStateMetadata = new ShardStateMetaData(newRouting.version(), newRouting.primary(), getIndexUUID(), newRouting.allocationId());
+                final ShardStateMetaData newShardStateMetadata = new ShardStateMetaData(newRouting.primary(), getIndexUUID(), newRouting.allocationId());
                 logger.trace("{} writing shard state, reason [{}]", shardId, writeReason);
-                ShardStateMetaData.FORMAT.write(newShardStateMetadata, newShardStateMetadata.version, shardPath().getShardStatePath());
+                ShardStateMetaData.FORMAT.write(newShardStateMetadata, newShardStateMetadata.legacyVersion, shardPath().getShardStatePath());
             } catch (IOException e) { // this is how we used to handle it.... :(
                 logger.warn("failed to write shard state", e);
                 // we failed to write the shard state, we will try and write

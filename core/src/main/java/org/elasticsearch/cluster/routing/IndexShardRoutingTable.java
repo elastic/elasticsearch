@@ -120,40 +120,6 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
     }
 
     /**
-     * Normalizes all shard routings to the same version.
-     */
-    public IndexShardRoutingTable normalizeVersions() {
-        if (shards.isEmpty()) {
-            return this;
-        }
-        if (shards.size() == 1) {
-            return this;
-        }
-        long highestVersion = shards.get(0).version();
-        boolean requiresNormalization = false;
-        for (int i = 1; i < shards.size(); i++) {
-            if (shards.get(i).version() != highestVersion) {
-                requiresNormalization = true;
-            }
-            if (shards.get(i).version() > highestVersion) {
-                highestVersion = shards.get(i).version();
-            }
-        }
-        if (!requiresNormalization) {
-            return this;
-        }
-        List<ShardRouting> shardRoutings = new ArrayList<>(shards.size());
-        for (int i = 0; i < shards.size(); i++) {
-            if (shards.get(i).version() == highestVersion) {
-                shardRoutings.add(shards.get(i));
-            } else {
-                shardRoutings.add(new ShardRouting(shards.get(i), highestVersion));
-            }
-        }
-        return new IndexShardRoutingTable(shardId, Collections.unmodifiableList(shardRoutings));
-    }
-
-    /**
      * Returns the shards id
      *
      * @return id of the shard

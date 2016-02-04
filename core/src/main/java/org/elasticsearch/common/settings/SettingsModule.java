@@ -20,30 +20,28 @@
 package org.elasticsearch.common.settings;
 
 import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.tribe.TribeService;
 
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Predicate;
 
 /**
  * A module that binds the provided settings to the {@link Settings} interface.
- *
- *
  */
 public class SettingsModule extends AbstractModule {
 
     private final Settings settings;
-    private final SettingsFilter settingsFilter;
+    private final Set<String> settingsFilterPattern = new HashSet<>();
     private final Map<String, Setting<?>> clusterSettings = new HashMap<>();
     private final Map<String, Setting<?>> indexSettings = new HashMap<>();
     private static final Predicate<String> TRIBE_CLIENT_NODE_SETTINGS_PREDICATE =  (s) -> s.startsWith("tribe.") && TribeService.TRIBE_SETTING_KEYS.contains(s) == false;
 
-
-    public SettingsModule(Settings settings, SettingsFilter settingsFilter) {
+    public SettingsModule(Settings settings) {
         this.settings = settings;
-        this.settingsFilter = settingsFilter;
         for (Setting<?> setting : ClusterSettings.BUILT_IN_CLUSTER_SETTINGS) {
             registerSetting(setting);
         }
@@ -62,12 +60,17 @@ public class SettingsModule extends AbstractModule {
         clusterSettings.validate(settings.filter(acceptOnlyClusterSettings));
         validateTribeSettings(settings, clusterSettings);
         bind(Settings.class).toInstance(settings);
-        bind(SettingsFilter.class).toInstance(settingsFilter);
+        bind(SettingsFilter.class).toInstance(new SettingsFilter(settings, settingsFilterPattern));
 
         bind(ClusterSettings.class).toInstance(clusterSettings);
         bind(IndexScopedSettings.class).toInstance(indexScopedSettings);
     }
 
+    /**
+     * Registers a new setting. This method should be used by plugins in order to expose any custom settings the plugin defines.
+     * Unless a setting is registered the setting is unusable. If a setting is never the less specified the node will reject
+     * the setting during startup.
+     */
     public void registerSetting(Setting<?> setting) {
         switch (setting.getScope()) {
             case CLUSTER:
@@ -85,7 +88,28 @@ public class SettingsModule extends AbstractModule {
         }
     }
 
-    public void validateTribeSettings(Settings settings, ClusterSettings clusterSettings) {
+    /**
+     * Registers a settings filter pattern that allows to filter out certain settings that for instance contain sensitive information
+     * or if a setting is for internal purposes only. The given patter must either be a valid settings key or a simple regesp pattern.
+     */
+    public void registerSettingsFilter(String filter) {
+        if (SettingsFilter.isValidPattern(filter) == false) {
+            throw new IllegalArgumentException("filter [" + filter +"] is invalid must be either a key or a regex pattern");
+        }
+        if (settingsFilterPattern.contains(filter)) {
+            throw new IllegalArgumentException("filter [" + filter + "] has already been registered");
+        }
+        settingsFilterPattern.add(filter);
+    }
+
+    public void registerSettingsFilterIfMissing(String filter) {
+        if (settingsFilterPattern.contains(filter)) {
+            registerSettingsFilter(filter);
+        }
+    }
+
+
+    private void validateTribeSettings(Settings settings, ClusterSettings clusterSettings) {
         Map<String, Settings> groups = settings.filter(TRIBE_CLIENT_NODE_SETTINGS_PREDICATE).getGroups("tribe.", true);
         for (Map.Entry<String, Settings>  tribeSettings : groups.entrySet()) {
             Settings thisTribesSettings = tribeSettings.getValue();

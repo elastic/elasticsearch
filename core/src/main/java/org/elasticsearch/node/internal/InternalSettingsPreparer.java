@@ -237,8 +237,8 @@ public class InternalSettingsPreparer {
         }
 
         if (secret) {
-            return new String(terminal.readSecret("Enter value for [" + key + "]: ", key));
+            return new String(terminal.readSecret("Enter value for [" + key + "]: "));
         }
-        return terminal.readText("Enter value for [" + key + "]: ", key);
+        return terminal.readText("Enter value for [" + key + "]: ");
     }
 }

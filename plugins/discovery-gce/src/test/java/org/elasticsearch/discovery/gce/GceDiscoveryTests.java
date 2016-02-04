@@ -22,13 +22,11 @@ package org.elasticsearch.discovery.gce;
 import org.elasticsearch.Version;
 import org.elasticsearch.cloud.gce.GceComputeService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.local.LocalTransport;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -94,9 +92,7 @@ public class GceDiscoveryTests extends ESTestCase {
 
     @Before
     public void createTransportService() {
-        transportService = new MockTransportService(
-                Settings.EMPTY,
-                new LocalTransport(Settings.EMPTY, threadPool, Version.CURRENT, new NamedWriteableRegistry()), threadPool);
+        transportService = MockTransportService.local(Settings.EMPTY, Version.CURRENT, threadPool);
     }
 
     @Before

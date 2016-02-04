@@ -134,8 +134,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         ActionFuture<TermVectorsResponse> termVectors = client().termVectors(new TermVectorsRequest(indexOrAlias(), "type1", "0")
                 .selectedFields(randomBoolean() ? new String[]{"existingfield"} : null)
                 .termStatistics(true)
-                .fieldStatistics(true)
-                .dfs(true));
+                .fieldStatistics(true));
 
         // lets see if the null term vectors are caught...
         TermVectorsResponse actionGet = termVectors.actionGet();
@@ -964,95 +963,6 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
 
     private static String indexOrAlias() {
         return randomBoolean() ? "test" : "alias";
-    }
-
-    public void testDfs() throws ExecutionException, InterruptedException, IOException {
-        logger.info("Setting up the index ...");
-        Settings.Builder settings = settingsBuilder()
-                .put(indexSettings())
-                .put("index.analysis.analyzer", "standard")
-                .put("index.number_of_shards", randomIntBetween(2, 10)); // we need at least 2 shards
-        assertAcked(prepareCreate("test")
-                .setSettings(settings)
-                .addMapping("type1", "text", "type=string"));
-        ensureGreen();
-
-        int numDocs = scaledRandomIntBetween(25, 100);
-        logger.info("Indexing {} documents...", numDocs);
-        List<IndexRequestBuilder> builders = new ArrayList<>();
-        for (int i = 0; i < numDocs; i++) {
-            builders.add(client().prepareIndex("test", "type1", i + "").setSource("text", "cat"));
-        }
-        indexRandom(true, builders);
-
-        XContentBuilder expectedStats = jsonBuilder()
-                .startObject()
-                .startObject("text")
-                    .startObject("field_statistics")
-                    .field("sum_doc_freq", numDocs)
-                    .field("doc_count", numDocs)
-                    .field("sum_ttf", numDocs)
-                .endObject()
-                    .startObject("terms")
-                        .startObject("cat")
-                        .field("doc_freq", numDocs)
-                        .field("ttf", numDocs)
-                        .endObject()
-                    .endObject()
-                .endObject()
-                .endObject();
-
-        logger.info("Without dfs 'cat' should appear strictly less than {} times.", numDocs);
-        TermVectorsResponse response = client().prepareTermVectors("test", "type1", randomIntBetween(0, numDocs - 1) + "")
-                .setSelectedFields("text")
-                .setFieldStatistics(true)
-                .setTermStatistics(true)
-                .get();
-        checkStats(response.getFields(), expectedStats, false);
-
-        logger.info("With dfs 'cat' should appear exactly {} times.", numDocs);
-        response = client().prepareTermVectors("test", "type1", randomIntBetween(0, numDocs - 1) + "")
-                .setSelectedFields("text")
-                .setFieldStatistics(true)
-                .setTermStatistics(true)
-                .setDfs(true)
-                .get();
-        checkStats(response.getFields(), expectedStats, true);
-    }
-
-    private void checkStats(Fields fields, XContentBuilder xContentBuilder, boolean isEqual) throws IOException {
-        Map<String, Object> stats = JsonXContent.jsonXContent.createParser(xContentBuilder.bytes()).map();
-        assertThat("number of fields expected:", fields.size(), equalTo(stats.size()));
-        for (String fieldName : fields) {
-            logger.info("Checking field statistics for field: {}", fieldName);
-            Terms terms = fields.terms(fieldName);
-            Map<String, Integer> fieldStatistics = getFieldStatistics(stats, fieldName);
-            String msg = "field: " + fieldName + " ";
-            assertThat(msg + "sum_doc_freq:",
-                    (int) terms.getSumDocFreq(),
-                    equalOrLessThanTo(fieldStatistics.get("sum_doc_freq"), isEqual));
-            assertThat(msg + "doc_count:",
-                    terms.getDocCount(),
-                    equalOrLessThanTo(fieldStatistics.get("doc_count"), isEqual));
-            assertThat(msg + "sum_ttf:",
-                    (int) terms.getSumTotalTermFreq(),
-                    equalOrLessThanTo(fieldStatistics.get("sum_ttf"), isEqual));
-
-            final TermsEnum termsEnum = terms.iterator();
-            BytesRef text;
-            while((text = termsEnum.next()) != null) {
-                String term = text.utf8ToString();
-                logger.info("Checking term statistics for term: ({}, {})", fieldName, term);
-                Map<String, Integer> termStatistics = getTermStatistics(stats, fieldName, term);
-                msg = "term: (" + fieldName + "," + term + ") ";
-                assertThat(msg + "doc_freq:",
-                        termsEnum.docFreq(),
-                        equalOrLessThanTo(termStatistics.get("doc_freq"), isEqual));
-                assertThat(msg + "ttf:",
-                        (int) termsEnum.totalTermFreq(),
-                        equalOrLessThanTo(termStatistics.get("ttf"), isEqual));
-            }
-        }
     }
 
     private Map<String, Integer> getFieldStatistics(Map<String, Object> stats, String fieldName) throws IOException {

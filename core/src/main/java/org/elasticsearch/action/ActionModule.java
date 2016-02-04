@@ -190,14 +190,11 @@ import org.elasticsearch.action.termvectors.TermVectorsAction;
 import org.elasticsearch.action.termvectors.TransportMultiTermVectorsAction;
 import org.elasticsearch.action.termvectors.TransportShardMultiTermsVectorAction;
 import org.elasticsearch.action.termvectors.TransportTermVectorsAction;
-import org.elasticsearch.action.termvectors.dfs.TransportDfsOnlyAction;
 import org.elasticsearch.action.update.TransportUpdateAction;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.MapBinder;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.node.NodeModule;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -323,8 +320,7 @@ public class ActionModule extends AbstractModule {
 
         registerAction(IndexAction.INSTANCE, TransportIndexAction.class);
         registerAction(GetAction.INSTANCE, TransportGetAction.class);
-        registerAction(TermVectorsAction.INSTANCE, TransportTermVectorsAction.class,
-                TransportDfsOnlyAction.class);
+        registerAction(TermVectorsAction.INSTANCE, TransportTermVectorsAction.class);
         registerAction(MultiTermVectorsAction.INSTANCE, TransportMultiTermVectorsAction.class,
                 TransportShardMultiTermsVectorAction.class);
         registerAction(DeleteAction.INSTANCE, TransportDeleteAction.class);

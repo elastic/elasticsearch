@@ -117,7 +117,7 @@ public abstract class CliTool {
         } else {
 
             if (args.length == 0) {
-                terminal.printError("command not specified");
+                terminal.println(Terminal.Verbosity.SILENT, "ERROR: command not specified");
                 config.printUsage(terminal);
                 return ExitStatus.USAGE;
             }
@@ -125,7 +125,7 @@ public abstract class CliTool {
             String cmdName = args[0];
             cmd = config.cmd(cmdName);
             if (cmd == null) {
-                terminal.printError("unknown command [" + cmdName + "]. Use [-h] option to list available commands");
+                terminal.println(Terminal.Verbosity.SILENT, "ERROR: unknown command [" + cmdName + "]. Use [-h] option to list available commands");
                 return ExitStatus.USAGE;
             }
 
@@ -142,7 +142,7 @@ public abstract class CliTool {
         try {
             return parse(cmd, args).execute(settings, env);
         } catch (UserError error) {
-            terminal.printError(error.getMessage());
+            terminal.println(Terminal.Verbosity.SILENT, "ERROR: " + error.getMessage());
             return error.exitStatus;
         }
     }
@@ -165,8 +165,14 @@ public abstract class CliTool {
             // the stack trace into cli parsing lib is not important
             throw new UserError(ExitStatus.USAGE, e.toString());
         }
-        Terminal.Verbosity verbosity = Terminal.Verbosity.resolve(cli);
-        terminal.verbosity(verbosity);
+
+        if (cli.hasOption("v")) {
+            terminal.setVerbosity(Terminal.Verbosity.VERBOSE);
+        } else if (cli.hasOption("s")) {
+            terminal.setVerbosity(Terminal.Verbosity.SILENT);
+        } else {
+            terminal.setVerbosity(Terminal.Verbosity.NORMAL);
+        }
         return parse(cmd.name(), cli);
     }
 
@@ -224,7 +230,7 @@ public abstract class CliTool {
             public ExitStatus execute(Settings settings, Environment env) throws Exception {
                 if (msg != null) {
                     if (status != ExitStatus.OK) {
-                        terminal.printError(msg);
+                        terminal.println(Terminal.Verbosity.SILENT, "ERROR: " + msg);
                     } else {
                         terminal.println(msg);
                     }

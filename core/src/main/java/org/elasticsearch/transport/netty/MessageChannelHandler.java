@@ -192,6 +192,7 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
     }
 
     protected void handleResponse(Channel channel, StreamInput buffer, final TransportResponseHandler handler) {
+        buffer = new NamedWriteableAwareStreamInput(buffer, transport.namedWriteableRegistry);
         final TransportResponse response = handler.newInstance();
         response.remoteAddress(new InetSocketTransportAddress((InetSocketAddress) channel.getRemoteAddress()));
         response.remoteAddress();

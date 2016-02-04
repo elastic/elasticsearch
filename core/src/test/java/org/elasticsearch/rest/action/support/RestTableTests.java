@@ -130,7 +130,7 @@ public class RestTableTests extends ESTestCase {
     }
 
     private RestResponse assertResponseContentType(Map<String, String> headers, String mediaType) throws Exception {
-        FakeRestRequest requestWithAcceptHeader = new FakeRestRequest(headers, Collections.emptyMap());
+        FakeRestRequest requestWithAcceptHeader = new FakeRestRequest(headers);
         table.startRow();
         table.addCell("foo");
         table.addCell("foo");

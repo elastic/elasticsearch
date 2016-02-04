@@ -22,9 +22,6 @@ package org.elasticsearch.plugin.reindex;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.startsWith;
-
 public class BulkByScrollTaskTests extends ESTestCase {
     private BulkByScrollTask task;
 
@@ -34,28 +31,33 @@ public class BulkByScrollTaskTests extends ESTestCase {
         assertEquals("test_action", task.getAction());
     }
 
-    public void testUnstarted() {
-        assertEquals("unstarted", task.getDescription());
-    }
-
     public void testProgress() {
-        long totalHits = randomIntBetween(10, 1000);
         long created = 0;
         long updated = 0;
         long deleted = 0;
         long versionConflicts = 0;
         long noops = 0;
         int batch = 0;
+        BulkByScrollTask.Status status = task.getStatus();
+        assertEquals(-1, status.getTotal());
+        assertEquals(created, status.getCreated());
+        assertEquals(updated, status.getUpdated());
+        assertEquals(deleted, status.getDeleted());
+        assertEquals(versionConflicts, status.getVersionConflicts());
+        assertEquals(batch, status.getBatches());
+        assertEquals(noops, status.getNoops());
+
+        long totalHits = randomIntBetween(10, 1000);
         task.setTotal(totalHits);
         for (long p = 0; p < totalHits; p++) {
-            String description = task.getDescription();
-            assertThat(description, startsWith(p + "/" + totalHits));
-            assertThat(description, containsString("created=" + created));
-            assertThat(description, containsString("updated=" + updated));
-            assertThat(description, containsString("deleted=" + deleted));
-            assertThat(description, containsString("version_conflicts=" + versionConflicts));
-            assertThat(description, containsString("batch=" + batch));
-            assertThat(description, containsString("noops=" + noops));
+            status = task.getStatus();
+            assertEquals(totalHits, status.getTotal());
+            assertEquals(created, status.getCreated());
+            assertEquals(updated, status.getUpdated());
+            assertEquals(deleted, status.getDeleted());
+            assertEquals(versionConflicts, status.getVersionConflicts());
+            assertEquals(batch, status.getBatches());
+            assertEquals(noops, status.getNoops());
 
             if (randomBoolean()) {
                 created++;
@@ -83,18 +85,18 @@ public class BulkByScrollTaskTests extends ESTestCase {
                 task.countNoop();
             }
         }
-        String description = task.getDescription();
-        assertThat(description, startsWith(totalHits + "/" + totalHits));
-        assertThat(description, containsString("created=" + created));
-        assertThat(description, containsString("updated=" + updated));
-        assertThat(description, containsString("deleted=" + deleted));
-        assertThat(description, containsString("version_conflicts=" + versionConflicts));
-        assertThat(description, containsString("batch=" + batch));
-        assertThat(description, containsString("noops=" + noops));
+        status = task.getStatus();
+        assertEquals(totalHits, status.getTotal());
+        assertEquals(created, status.getCreated());
+        assertEquals(updated, status.getUpdated());
+        assertEquals(deleted, status.getDeleted());
+        assertEquals(versionConflicts, status.getVersionConflicts());
+        assertEquals(batch, status.getBatches());
+        assertEquals(noops, status.getNoops());
     }
 
     @Before
     public void createTask() {
-        task = new BulkByScrollTask(1, "test_type", "test_action");
+        task = new BulkByScrollTask(1, "test_type", "test_action", () -> "test");
     }
 }

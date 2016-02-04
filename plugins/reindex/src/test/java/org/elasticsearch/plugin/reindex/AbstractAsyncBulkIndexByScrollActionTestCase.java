@@ -33,7 +33,7 @@ public abstract class AbstractAsyncBulkIndexByScrollActionTestCase<Request exten
     @Before
     public void setupForTest() {
         threadPool = new ThreadPool(getTestName());
-        task = new BulkByScrollTask(1, "test", "test");
+        task = new BulkByScrollTask(1, "test", "test", () -> "test");
     }
 
     @After

@@ -169,17 +169,16 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
             }
         }
 
+        @Override
+        protected ReindexResponse buildResponse(long took) {
+            return new ReindexResponse(took, task.getStatus());
+        }
+
         /*
          * Methods below here handle script updating the index request. They try
          * to be pretty liberal with regards to types because script are often
          * dynamically typed.
          */
-        @Override
-        protected ReindexResponse buildResponse(long took) {
-            return new ReindexResponse(took, task.created(), task.updated(), task.batches(), task.versionConflicts(),
-                    task.noops(), task.indexingFailures(), task.searchFailures());
-        }
-
         @Override
         protected void scriptChangedIndex(IndexRequest index, Object to) {
             requireNonNull(to, "Can't reindex without a destination index!");

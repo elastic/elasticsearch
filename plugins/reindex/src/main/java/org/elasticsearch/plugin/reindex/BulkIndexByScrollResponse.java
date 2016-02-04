@@ -28,157 +28,88 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 
-import static java.lang.Math.min;
-import static java.util.Collections.unmodifiableList;
-import static org.elasticsearch.action.search.ShardSearchFailure.readShardSearchFailure;
+import static java.util.Objects.requireNonNull;
 
 /**
  * Response used for actions that index many documents using a scroll request.
  */
 public class BulkIndexByScrollResponse extends ActionResponse implements ToXContent {
-    static final String TOOK_FIELD = "took";
-    static final String UPDATED_FIELD = "updated";
-    static final String BATCHES_FIELD = "batches";
-    static final String VERSION_CONFLICTS_FIELD = "version_conflicts";
-    static final String NOOPS_FIELD = "noops";
-    static final String FAILURES_FIELD = "failures";
-
     private long took;
-    private long updated;
-    private int batches;
-    private long versionConflicts;
-    private long noops;
-    private List<Failure> indexingFailures;
-    private List<ShardSearchFailure> searchFailures;
+    private BulkByScrollTask.Status status;
 
     public BulkIndexByScrollResponse() {
     }
 
-    public BulkIndexByScrollResponse(long took, long updated, int batches, long versionConflicts, long noops,
-            List<Failure> indexingFailures, List<ShardSearchFailure> searchFailures) {
+    public BulkIndexByScrollResponse(long took, BulkByScrollTask.Status status) {
         this.took = took;
-        this.updated = updated;
-        this.batches = batches;
-        this.versionConflicts = versionConflicts;
-        this.noops = noops;
-        this.indexingFailures = indexingFailures;
-        this.searchFailures = searchFailures;
+        this.status = requireNonNull(status);
     }
 
     public long getTook() {
         return took;
     }
 
+    protected BulkByScrollTask.Status getStatus() {
+        return status;
+    }
+
+    public String getWriteableName() {
+        return status.getWriteableName();
+    }
+
     public long getUpdated() {
-        return updated;
+        return status.getUpdated();
     }
 
     public int getBatches() {
-        return batches;
+        return status.getBatches();
     }
 
     public long getVersionConflicts() {
-        return versionConflicts;
+        return status.getVersionConflicts();
     }
 
     public long getNoops() {
-        return noops;
+        return status.getNoops();
     }
 
-    /**
-     * Indexing failures.
-     */
     public List<Failure> getIndexingFailures() {
-        return indexingFailures;
+        return status.getIndexingFailures();
     }
 
     public List<ShardSearchFailure> getSearchFailures() {
-        return searchFailures;
+        return status.getSearchFailures();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeVLong(took);
-        out.writeVLong(updated);
-        out.writeVInt(batches);
-        out.writeVLong(versionConflicts);
-        out.writeVLong(noops);
-        out.writeVInt(indexingFailures.size());
-        for (Failure failure: indexingFailures) {
-            failure.writeTo(out);
-        }
-        out.writeVInt(searchFailures.size());
-        for (ShardSearchFailure failure: searchFailures) {
-            failure.writeTo(out);
-        }
+        status.writeTo(out);
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         took = in.readVLong();
-        updated = in.readVLong();
-        batches = in.readVInt();
-        versionConflicts = in.readVLong();
-        noops = in.readVLong();
-        int indexingFailuresCount = in.readVInt();
-        List<Failure> indexingFailures = new ArrayList<>(indexingFailuresCount);
-        for (int i = 0; i < indexingFailuresCount; i++) {
-            indexingFailures.add(Failure.PROTOTYPE.readFrom(in));
-        }
-        this.indexingFailures = unmodifiableList(indexingFailures);
-        int searchFailuresCount = in.readVInt();
-        List<ShardSearchFailure> searchFailures = new ArrayList<>(searchFailuresCount);
-        for (int i = 0; i < searchFailuresCount; i++) {
-            searchFailures.add(readShardSearchFailure(in));
-        }
+        status = new BulkByScrollTask.Status(in);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(TOOK_FIELD, took);
-        builder.field(UPDATED_FIELD, updated);
-        builder.field(BATCHES_FIELD, batches);
-        builder.field(VERSION_CONFLICTS_FIELD, versionConflicts);
-        builder.field(NOOPS_FIELD, noops);
-        builder.startArray(FAILURES_FIELD);
-        for (Failure failure: indexingFailures) {
-            builder.startObject();
-            failure.toXContent(builder, params);
-            builder.endObject();
-        }
-        for (ShardSearchFailure failure: searchFailures) {
-            builder.startObject();
-            failure.toXContent(builder, params);
-            builder.endObject();
-        }
-        builder.endArray();
+        builder.field("took", took);
+        status.innerXContent(builder, params, false, false);
         return builder;
     }
 
     @Override
     public String toString() {
         StringBuilder builder = new StringBuilder();
-        builder.append(toStringName()).append("[");
+        builder.append("BulkIndexByScrollResponse[");
         builder.append("took=").append(took);
-        builder.append(",updated=").append(updated);
-        builder.append(",batches=").append(batches);
-        builder.append(",versionConflicts=").append(versionConflicts);
-        builder.append(",noops=").append(noops);
-        builder.append(",indexing_failures=").append(getIndexingFailures().subList(0, min(3, getIndexingFailures().size())));
-        builder.append(",search_failures=").append(getSearchFailures().subList(0, min(3, getSearchFailures().size())));
-        innerToString(builder);
-        return builder.append("]").toString();
-    }
-
-    protected String toStringName() {
-        return "BulkIndexByScrollResponse";
-    }
-
-    protected void innerToString(StringBuilder builder) {
+        status.innerToString(builder, false, false);
+        return builder.append(']').toString();
     }
 }

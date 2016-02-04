@@ -19,18 +19,26 @@
 
 package org.elasticsearch.plugin.reindex;
 
+import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
+import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.common.inject.Provider;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.tasks.Task;
+
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
-import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
-import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.tasks.Task;
-
 import static java.lang.Math.min;
+import static java.util.Collections.emptyList;
 import static java.util.Collections.unmodifiableList;
+import static org.elasticsearch.action.search.ShardSearchFailure.readShardSearchFailure;
 
 /**
  * Task storing information about a currently running BulkByScroll request.
@@ -46,38 +54,14 @@ public class BulkByScrollTask extends Task {
     private final List<Failure> indexingFailures = new CopyOnWriteArrayList<>();
     private final List<ShardSearchFailure> searchFailures = new CopyOnWriteArrayList<>();
 
-    public BulkByScrollTask(long id, String type, String action) {
-        super(id, type, action, null);
+    public BulkByScrollTask(long id, String type, String action, Provider<String> description) {
+        super(id, type, action, description);
     }
 
     @Override
-    public String toString() {
-        long total = this.total.get();
-        if (total < 0) {
-            return "unstarted";
-        }
-        StringBuilder builder = new StringBuilder();
-        builder.append(successfullyProcessed()).append('/').append(total);
-        builder.append("[updated=").append(updated);
-        builder.append(",created=").append(created);
-        builder.append(",deleted=").append(deleted);
-        builder.append(",batch=").append(batch);
-        builder.append(",version_conflicts=").append(versionConflicts);
-        builder.append(",noops=").append(noops);
-        List<Failure> indexingFailures = this.indexingFailures.subList(0, min(3, this.indexingFailures.size()));
-        if (false == indexingFailures.isEmpty()) {
-            builder.append(",indexing_failures=").append(indexingFailures);
-        }
-        List<ShardSearchFailure> searchFailures = this.searchFailures.subList(0, min(3, this.searchFailures.size()));
-        if (false == searchFailures.isEmpty()) {
-            builder.append(",search_failures=").append(searchFailures);
-        }
-        return builder.append(']').toString();
-    }
-
-    @Override
-    public String getDescription() {
-        return toString();
+    public Status getStatus() {
+        return new Status(total.get(), updated.get(), created.get(), deleted.get(), batch.get(), versionConflicts.get(), noops.get(),
+                unmodifiableList(new ArrayList<>(indexingFailures)), unmodifiableList(new ArrayList<>(searchFailures)));
     }
 
     /**
@@ -141,6 +125,180 @@ public class BulkByScrollTask extends Task {
      */
     public List<ShardSearchFailure> searchFailures() {
         return unmodifiableList(searchFailures);
+    }
+
+    public static class Status implements Task.Status {
+        public static final Status PROTOTYPE = new Status(0, 0, 0, 0, 0, 0, 0, emptyList(), emptyList());
+
+        private final long total;
+        private final long updated;
+        private final long created;
+        private final long deleted;
+        private final int batches;
+        private final long versionConflicts;
+        private final long noops;
+        private final List<Failure> indexingFailures;
+        private final List<ShardSearchFailure> searchFailures;
+
+        public Status(long total, long updated, long created, long deleted, int batches, long versionConflicts, long noops,
+                List<Failure> indexingFailures, List<ShardSearchFailure> searchFailures) {
+            this.total = total;
+            this.updated = updated;
+            this.created = created;
+            this.deleted = deleted;
+            this.batches = batches;
+            this.versionConflicts = versionConflicts;
+            this.noops = noops;
+            this.indexingFailures = indexingFailures;
+            this.searchFailures = searchFailures;
+        }
+
+        public Status(StreamInput in) throws IOException {
+            total = in.readVLong();
+            updated = in.readVLong();
+            created = in.readVLong();
+            deleted = in.readVLong();
+            batches = in.readVInt();
+            versionConflicts = in.readVLong();
+            noops = in.readVLong();
+            int indexingFailuresCount = in.readVInt();
+            List<Failure> indexingFailures = new ArrayList<>(indexingFailuresCount);
+            for (int i = 0; i < indexingFailuresCount; i++) {
+                indexingFailures.add(Failure.PROTOTYPE.readFrom(in));
+            }
+            this.indexingFailures = unmodifiableList(indexingFailures);
+            int searchFailuresCount = in.readVInt();
+            List<ShardSearchFailure> searchFailures = new ArrayList<>(searchFailuresCount);
+            for (int i = 0; i < searchFailuresCount; i++) {
+                searchFailures.add(readShardSearchFailure(in));
+            }
+            this.searchFailures = unmodifiableList(searchFailures);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeVLong(total);
+            out.writeVLong(updated);
+            out.writeVLong(created);
+            out.writeVLong(deleted);
+            out.writeVInt(batches);
+            out.writeVLong(versionConflicts);
+            out.writeVLong(noops);
+            out.writeVInt(indexingFailures.size());
+            for (Failure failure: indexingFailures) {
+                failure.writeTo(out);
+            }
+            out.writeVInt(searchFailures.size());
+            for (ShardSearchFailure failure: searchFailures) {
+                failure.writeTo(out);
+            }
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            innerXContent(builder, params, true, true);
+            return builder.endObject();
+        }
+
+        public XContentBuilder innerXContent(XContentBuilder builder, Params params, boolean includeCreated, boolean includeDeleted)
+                throws IOException {
+            builder.field("updated", updated);
+            if (includeCreated) {
+                builder.field("created", created);
+            }
+            if (includeDeleted) {
+                builder.field("deleted", deleted);
+            }
+            builder.field("batches", batches);
+            builder.field("version_conflicts", versionConflicts);
+            builder.field("noops", noops);
+            builder.startArray("failures");
+            for (Failure failure: indexingFailures) {
+                builder.startObject();
+                failure.toXContent(builder, params);
+                builder.endObject();
+            }
+            for (ShardSearchFailure failure: searchFailures) {
+                builder.startObject();
+                failure.toXContent(builder, params);
+                builder.endObject();
+            }
+            builder.endArray();
+            return builder;
+        }
+
+        @Override
+        public String toString() {
+            StringBuilder builder = new StringBuilder();
+            builder.append("BulkIndexByScrollResponse[");
+            innerToString(builder, true, true);
+            return builder.append(']').toString();
+        }
+
+        public void innerToString(StringBuilder builder, boolean includeCreated, boolean includeDeleted) {
+            builder.append(",updated=").append(updated);
+            if (includeCreated) {
+                builder.append(",created=").append(created);
+            }
+            if (includeDeleted) {
+                builder.append(",deleted=").append(deleted);
+            }
+            builder.append(",batches=").append(batches);
+            builder.append(",versionConflicts=").append(versionConflicts);
+            builder.append(",noops=").append(noops);
+            builder.append(",indexing_failures=").append(getIndexingFailures().subList(0, min(3, getIndexingFailures().size())));
+            builder.append(",search_failures=").append(getSearchFailures().subList(0, min(3, getSearchFailures().size())));
+        }
+
+        @Override
+        public String getWriteableName() {
+            return "bulk-by-scroll";
+        }
+
+        @Override
+        public Status readFrom(StreamInput in) throws IOException {
+            return new Status(in);
+        }
+
+        /**
+         * The total number of documents this request will process. -1 means we don't yet know.
+         */
+        public long getTotal() {
+            return total;
+        }
+
+        public long getUpdated() {
+            return updated;
+        }
+
+        public long getCreated() {
+            return created;
+        }
+
+        public long getDeleted() {
+            return deleted;
+        }
+
+        public int getBatches() {
+            return batches;
+        }
+
+        public long getVersionConflicts() {
+            return versionConflicts;
+        }
+
+        public long getNoops() {
+            return noops;
+        }
+
+        public List<Failure> getIndexingFailures() {
+            return indexingFailures;
+        }
+
+        public List<ShardSearchFailure> getSearchFailures() {
+            return searchFailures;
+        }
     }
 
     void addSearchFailures(ShardSearchFailure... shardSearchFailures) {

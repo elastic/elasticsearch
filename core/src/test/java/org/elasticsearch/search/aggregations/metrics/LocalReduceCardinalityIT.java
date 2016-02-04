@@ -115,9 +115,10 @@ public class LocalReduceCardinalityIT extends ESIntegTestCase {
         precisionThreshold = randomIntBetween(0, 1 << randomInt(20));
         IndexRequestBuilder[] builders = new IndexRequestBuilder[(int) numDocs];
         for (int i = 0; i < numDocs; ++i) {
+            final String strVal = "s" + i;
             builders[i] = client().prepareIndex("idx", "type").setSource(jsonBuilder()
                     .startObject()
-                        .field("str_value", "s" + i)
+                        .field("str_value", strVal)
                         .field("str_values", new String[]{"s" + (i * 2), "s" + (i * 2 + 1)})
                         .field("l_value", i)
                         .field("l_values", new int[] {i * 2, i * 2 + 1})

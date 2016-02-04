@@ -34,8 +34,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeRequest;
-import org.elasticsearch.action.termvectors.TermVectorsRequest;
-import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -102,7 +100,6 @@ import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.suggest.stats.ShardSuggestMetric;
 import org.elasticsearch.index.suggest.stats.SuggestStats;
-import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.index.translog.TranslogStats;
@@ -148,7 +145,6 @@ public class IndexShard extends AbstractIndexShardComponent {
     private final ShardRequestCache shardQueryCache;
     private final ShardFieldData shardFieldData;
     private final PercolatorQueriesRegistry percolatorQueriesRegistry;
-    private final TermVectorsService termVectorsService;
     private final IndexFieldDataService indexFieldDataService;
     private final ShardSuggestMetric shardSuggestMetric = new ShardSuggestMetric();
     private final ShardBitsetFilterCache shardBitsetFilterCache;
@@ -232,7 +228,6 @@ public class IndexShard extends AbstractIndexShardComponent {
         listenersList.add(internalIndexingStats);
         this.indexingOperationListeners = new IndexingOperationListener.CompositeListener(listenersList, logger);
         this.getService = new ShardGetService(indexSettings, this, mapperService);
-        this.termVectorsService = provider.getTermVectorsService();
         this.searchService = new ShardSearchStats(slowLog);
         this.shardWarmerService = new ShardIndexWarmerService(shardId, indexSettings);
         this.indicesQueryCache = provider.getIndicesQueryCache();
@@ -654,10 +649,6 @@ public class IndexShard extends AbstractIndexShardComponent {
         SegmentsStats segmentsStats = getEngine().segmentsStats();
         segmentsStats.addBitsetMemoryInBytes(shardBitsetFilterCache.getMemorySizeInBytes());
         return segmentsStats;
-    }
-
-    public TermVectorsResponse getTermVectors(TermVectorsRequest request) {
-        return this.termVectorsService.getTermVectors(this, request);
     }
 
     public WarmerStats warmerStats() {

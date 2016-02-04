@@ -172,7 +172,6 @@ public class IndicesModule extends AbstractModule {
         bind(UpdateHelper.class).asEagerSingleton();
         bind(MetaDataIndexUpgradeService.class).asEagerSingleton();
         bind(IndicesFieldDataCacheListener.class).asEagerSingleton();
-        bind(TermVectorsService.class).asEagerSingleton();
         bind(NodeServicesProvider.class).asEagerSingleton();
     }
 

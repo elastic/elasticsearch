@@ -45,9 +45,6 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
-/**
- *
- */
 @SuppressForbidden(reason = "modifies system properties intentionally")
 public class CliToolTests extends CliToolTestCase {
     public void testOK() throws Exception {
@@ -233,16 +230,14 @@ public class CliToolTests extends CliToolTestCase {
         final AtomicReference<String> promptedTextValue = new AtomicReference<>(null);
         final Terminal terminal = new MockTerminal() {
             @Override
-            public char[] readSecret(String text, Object... args) {
+            public char[] readSecret(String text) {
                 counter.incrementAndGet();
-                assertThat(args, arrayContaining((Object) "foo.password"));
                 return "changeit".toCharArray();
             }
 
             @Override
-            public String readText(String text, Object... args) {
+            public String readText(String text) {
                 counter.incrementAndGet();
-                assertThat(args, arrayContaining((Object) "replace"));
                 return "replaced";
             }
         };

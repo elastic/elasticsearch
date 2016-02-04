@@ -61,17 +61,8 @@ public abstract class CliToolTestCase extends ESTestCase {
      */
     public static class MockTerminal extends Terminal {
 
-        public MockTerminal() {
-            super(Verbosity.NORMAL);
-        }
-
-        public MockTerminal(Verbosity verbosity) {
-            super(verbosity);
-        }
-
         @Override
-        protected void doPrint(String msg) {
-        }
+        protected void doPrint(String msg) {}
 
         @Override
         public String readText(String text, Object... args) {
@@ -82,13 +73,6 @@ public abstract class CliToolTestCase extends ESTestCase {
         public char[] readSecret(String text, Object... args) {
             return new char[0];
         }
-
-        @Override
-        public void print(String msg) {
-        }
-
-        @Override
-        public void printStackTrace(Throwable t) {}
     }
 
     /**
@@ -99,26 +83,16 @@ public abstract class CliToolTestCase extends ESTestCase {
         List<String> terminalOutput = new ArrayList<>();
 
         public CaptureOutputTerminal() {
-            super(Verbosity.NORMAL);
+            this(Verbosity.NORMAL);
         }
 
         public CaptureOutputTerminal(Verbosity verbosity) {
-            super(verbosity);
+            setVerbosity(verbosity);
         }
 
         @Override
         protected void doPrint(String msg) {
             terminalOutput.add(msg);
-        }
-
-        @Override
-        public void print(String msg) {
-            doPrint(msg);
-        }
-
-        @Override
-        public void printStackTrace(Throwable t) {
-            terminalOutput.add(ExceptionsHelper.stackTrace(t));
         }
 
         public List<String> getTerminalOutput() {

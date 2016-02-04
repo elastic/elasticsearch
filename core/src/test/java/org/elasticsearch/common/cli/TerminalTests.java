@@ -49,14 +49,14 @@ public class TerminalTests extends CliToolTestCase {
     }
 
     private void assertPrinted(CaptureOutputTerminal logTerminal, Terminal.Verbosity verbosity, String text) {
-        logTerminal.print(verbosity, text);
+        logTerminal.println(verbosity, text);
         assertThat(logTerminal.getTerminalOutput(), hasSize(1));
         assertThat(logTerminal.getTerminalOutput(), hasItem(text));
         logTerminal.terminalOutput.clear();
     }
 
     private void assertNotPrinted(CaptureOutputTerminal logTerminal, Terminal.Verbosity verbosity, String text) {
-        logTerminal.print(verbosity, text);
+        logTerminal.println(verbosity, text);
         assertThat(logTerminal.getTerminalOutput(), hasSize(0));
     }
 }

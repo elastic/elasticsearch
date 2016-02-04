@@ -332,7 +332,7 @@ public class ShortFieldMapper extends NumberFieldMapper {
         }
 
         @Override
-        public TokenStream tokenStream(Analyzer analyzer, TokenStream previous) throws IOException {
+        public TokenStream tokenStream(Analyzer analyzer, TokenStream previous) {
             if (fieldType().indexOptions() != IndexOptions.NONE) {
                 return getCachedStream().setIntValue(number);
             }

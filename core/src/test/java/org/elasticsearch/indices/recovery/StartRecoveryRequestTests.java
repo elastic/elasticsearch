@@ -43,11 +43,9 @@ public class StartRecoveryRequestTests extends ESTestCase {
                 new ShardId("test", "_na_", 0),
                 new DiscoveryNode("a", new LocalTransportAddress("1"), targetNodeVersion),
                 new DiscoveryNode("b", new LocalTransportAddress("1"), targetNodeVersion),
-                true,
                 Store.MetadataSnapshot.EMPTY,
-                RecoveryState.Type.RELOCATION,
+                RecoveryState.Type.PRIMARY_RELOCATION,
                 1L
-
         );
         ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
         OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
@@ -63,7 +61,6 @@ public class StartRecoveryRequestTests extends ESTestCase {
         assertThat(outRequest.shardId(), equalTo(inRequest.shardId()));
         assertThat(outRequest.sourceNode(), equalTo(inRequest.sourceNode()));
         assertThat(outRequest.targetNode(), equalTo(inRequest.targetNode()));
-        assertThat(outRequest.markAsRelocated(), equalTo(inRequest.markAsRelocated()));
         assertThat(outRequest.metadataSnapshot().asMap(), equalTo(inRequest.metadataSnapshot().asMap()));
         assertThat(outRequest.recoveryId(), equalTo(inRequest.recoveryId()));
         assertThat(outRequest.recoveryType(), equalTo(inRequest.recoveryType()));

@@ -138,7 +138,6 @@ public class RecoveryTarget extends AbstractComponent implements IndexEventListe
         // create a new recovery status, and process...
         final long recoveryId = onGoingRecoveries.startRecovery(indexShard, sourceNode, listener, recoverySettings.activityTimeout());
         threadPool.generic().execute(new RecoveryRunner(recoveryId));
-
     }
 
     protected void retryRecovery(final RecoveryStatus recoveryStatus, final Throwable reason, TimeValue retryAfter, final StartRecoveryRequest currentRequest) {
@@ -178,7 +177,7 @@ public class RecoveryTarget extends AbstractComponent implements IndexEventListe
             return;
         }
         final StartRecoveryRequest request = new StartRecoveryRequest(recoveryStatus.shardId(), recoveryStatus.sourceNode(), clusterService.localNode(),
-                false, metadataSnapshot, recoveryStatus.state().getType(), recoveryStatus.recoveryId());
+            metadataSnapshot, recoveryStatus.state().getType(), recoveryStatus.recoveryId());
 
         final AtomicReference<RecoveryResponse> responseHolder = new AtomicReference<>();
         try {
@@ -267,7 +266,6 @@ public class RecoveryTarget extends AbstractComponent implements IndexEventListe
                 onGoingRecoveries.failRecovery(recoveryStatus.recoveryId(), new RecoveryFailedException(request, "source shard is closed", cause), false);
                 return;
             }
-
             onGoingRecoveries.failRecovery(recoveryStatus.recoveryId(), new RecoveryFailedException(request, e), true);
         }
     }

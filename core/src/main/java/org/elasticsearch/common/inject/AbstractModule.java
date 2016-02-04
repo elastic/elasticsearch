@@ -23,6 +23,7 @@ import org.elasticsearch.common.inject.matcher.Matcher;
 import org.elasticsearch.common.inject.spi.Message;
 import org.elasticsearch.common.inject.spi.TypeConverter;
 import org.elasticsearch.common.inject.spi.TypeListener;
+import org.elasticsearch.common.settings.SettingsModule;
 
 import java.lang.annotation.Annotation;
 import java.util.Objects;

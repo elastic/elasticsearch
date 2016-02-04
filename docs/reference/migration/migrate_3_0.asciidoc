@@ -166,7 +166,7 @@ with `_parent` field mapping created before version `2.0.0`. The data of these i
 
 The format of the join between parent and child documents have changed with the `2.0.0` release. The old
 format can't read from version `3.0.0` and onwards. The new format allows for a much more efficient and
-scalable join between parent and child documents and the join data structures are stored on on disk
+scalable join between parent and child documents and the join data structures are stored on disk
 data structures as opposed as before the join data structures were stored in the jvm heap space.
 
 ==== `score_type` has been removed
@@ -194,6 +194,22 @@ the parent id under the `_parent` key.
 
 [[breaking_30_settings_changes]]
 === Settings changes
+
+From Elasticsearch 3.0 on all settings are validated before they are applied. Node level and default index
+level settings are validated on node startup, dynamic cluster and index setting are validated before they are updated/added
+to the cluster state. Every setting must be a _known_ setting or in other words all settings must be registered with the
+node or transport client they are used with. This implies that plugins that define custom settings must register all of their
+settings during pluging loading using the `SettingsModule#registerSettings(Setting)` method.
+
+==== Node settings
+
+The `name` setting has been removed and is replaced by `node.name`. Usage of `-Dname=some_node_name` is not supported
+anymore.
+
+==== Transport Settings
+
+All settings with a `netty` infix have been replaced by their already existing `transport` synonyms. For instance `transport.netty.bind_host` is
+no longer supported and should be replaced by the superseding setting `transport.bind_host`.
 
 ==== Analysis settings
 

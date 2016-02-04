@@ -6,6 +6,10 @@
 <module name="Checker">
   <property name="charset" value="UTF-8" />
 
+  <module name="SuppressionFilter">
+    <property name="file" value="${suppressions}" />
+  </module>
+
   <module name="TreeWalker">
     <!-- ~3500 violations
     <module name="LineLength">

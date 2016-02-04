@@ -19,9 +19,8 @@
 
 package org.elasticsearch.ingest.grok;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ingest.core.AbstractProcessorFactory;
-import org.elasticsearch.ingest.core.Processor;
-import org.elasticsearch.ingest.processor.ConfigurationPropertyException;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
@@ -54,7 +53,7 @@ public class GrokProcessorFactoryTests extends ESTestCase {
         try {
             factory.create(config);
             fail("should fail");
-        } catch (ConfigurationPropertyException e) {
+        } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), equalTo("[field] required property is missing"));
 
         }
@@ -67,7 +66,7 @@ public class GrokProcessorFactoryTests extends ESTestCase {
         try {
             factory.create(config);
             fail("should fail");
-        } catch (ConfigurationPropertyException e) {
+        } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), equalTo("[pattern] required property is missing"));
         }
 

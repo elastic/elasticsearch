@@ -90,7 +90,7 @@ public class EsExecutors {
     }
 
     public static String threadName(Settings settings, String namePrefix) {
-        String name = settings.get("name");
+        String name = settings.get("node.name");
         if (name == null) {
             name = "elasticsearch";
         } else {

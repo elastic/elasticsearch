@@ -123,6 +123,11 @@ public class DiscoveryModuleTests extends ModuleTestCase {
         }
 
         @Override
+        public int getMinimumMasterNodes() {
+            return -1;
+        }
+
+        @Override
         public Lifecycle.State lifecycleState() {
             return null;
         }

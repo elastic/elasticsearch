@@ -41,7 +41,7 @@ public class HelpPrinter {
     }
 
     private static void print(Class clazz, String name, final Terminal terminal) {
-        terminal.println(Terminal.Verbosity.SILENT);
+        terminal.println(Terminal.Verbosity.SILENT, "");
         try (InputStream input = clazz.getResourceAsStream(name + HELP_FILE_EXT)) {
             Streams.readAllLines(input, new Callback<String>() {
                 @Override
@@ -52,6 +52,6 @@ public class HelpPrinter {
         } catch (IOException ioe) {
             throw new RuntimeException(ioe);
         }
-        terminal.println();
+        terminal.println(Terminal.Verbosity.SILENT, "");
     }
 }

@@ -26,6 +26,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -58,6 +59,11 @@ public class AssertingLocalTransport extends LocalTransport {
         @Override
         public Settings additionalSettings() {
             return Settings.builder().put(NetworkModule.TRANSPORT_TYPE_KEY, "mock").build();
+        }
+
+        public void onModule(SettingsModule module) {
+            module.registerSetting(ASSERTING_TRANSPORT_MIN_VERSION_KEY);
+            module.registerSetting(ASSERTING_TRANSPORT_MAX_VERSION_KEY);
         }
     }
 

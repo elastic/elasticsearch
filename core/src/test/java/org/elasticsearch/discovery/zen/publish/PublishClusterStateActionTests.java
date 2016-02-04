@@ -35,7 +35,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -55,7 +54,6 @@ import org.elasticsearch.transport.TransportConnectionListener;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseOptions;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.transport.local.LocalTransport;
 import org.junit.After;
 import org.junit.Before;
 
@@ -232,7 +230,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
     }
 
     protected MockTransportService buildTransportService(Settings settings, Version version) {
-        MockTransportService transportService = new MockTransportService(settings, new LocalTransport(settings, threadPool, version, new NamedWriteableRegistry()), threadPool);
+        MockTransportService transportService = MockTransportService.local(Settings.EMPTY, version, threadPool);
         transportService.start();
         return transportService;
     }

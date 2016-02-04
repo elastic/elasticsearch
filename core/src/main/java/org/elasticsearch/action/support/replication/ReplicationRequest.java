@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.support.replication;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.WriteConsistencyLevel;
@@ -30,6 +29,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.tasks.Task;
 
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
@@ -54,6 +54,8 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
     protected String index;
 
     private WriteConsistencyLevel consistencyLevel = WriteConsistencyLevel.DEFAULT;
+
+    private long routedBasedOnClusterVersion = 0;
 
     public ReplicationRequest() {
 
@@ -141,6 +143,20 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
         return (Request) this;
     }
 
+    /**
+     * Sets the minimum version of the cluster state that is required on the next node before we redirect to another primary.
+     * Used to prevent redirect loops, see also {@link TransportReplicationAction.ReroutePhase#doRun()}
+     */
+    @SuppressWarnings("unchecked")
+    Request routedBasedOnClusterVersion(long routedBasedOnClusterVersion) {
+        this.routedBasedOnClusterVersion = routedBasedOnClusterVersion;
+        return (Request) this;
+    }
+
+    long routedBasedOnClusterVersion() {
+        return routedBasedOnClusterVersion;
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
@@ -161,6 +177,7 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
         consistencyLevel = WriteConsistencyLevel.fromId(in.readByte());
         timeout = TimeValue.readTimeValue(in);
         index = in.readString();
+        routedBasedOnClusterVersion = in.readVLong();
     }
 
     @Override
@@ -175,6 +192,12 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
         out.writeByte(consistencyLevel.id());
         timeout.writeTo(out);
         out.writeString(index);
+        out.writeVLong(routedBasedOnClusterVersion);
+    }
+
+    @Override
+    public Task createTask(long id, String type, String action) {
+        return new ReplicationTask(id, type, action, this::getDescription, getParentTaskNode(), getParentTaskId());
     }
 
     /**

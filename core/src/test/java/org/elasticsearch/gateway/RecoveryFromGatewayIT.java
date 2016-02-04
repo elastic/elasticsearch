@@ -331,7 +331,6 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
 
     public void testReusePeerRecovery() throws Exception {
         final Settings settings = settingsBuilder()
-                .put("action.admin.cluster.node.shutdown.delay", "10ms")
                 .put(MockFSIndexStore.INDEX_CHECK_INDEX_ON_CLOSE_SETTING.getKey(), false)
                 .put("gateway.recover_after_nodes", 4)
                 .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 4)

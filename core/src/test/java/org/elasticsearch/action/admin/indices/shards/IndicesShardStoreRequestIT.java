@@ -222,7 +222,7 @@ public class IndicesShardStoreRequestIT extends ESIntegTestCase {
 
         @Override
         public boolean test(Settings settings) {
-            return nodesWithShard.contains(settings.get("name"));
+            return nodesWithShard.contains(settings.get("node.name"));
         }
 
         private Set<String> findNodesWithShard(String index) {

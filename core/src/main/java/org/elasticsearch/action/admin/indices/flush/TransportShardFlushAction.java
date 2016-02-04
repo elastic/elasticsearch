@@ -58,7 +58,7 @@ public class TransportShardFlushAction extends TransportReplicationAction<ShardF
     }
 
     @Override
-    protected Tuple<ReplicationResponse, ShardFlushRequest> shardOperationOnPrimary(MetaData metaData, ShardFlushRequest shardRequest) throws Throwable {
+    protected Tuple<ReplicationResponse, ShardFlushRequest> shardOperationOnPrimary(MetaData metaData, ShardFlushRequest shardRequest) {
         IndexShard indexShard = indicesService.indexServiceSafe(shardRequest.shardId().getIndex()).getShard(shardRequest.shardId().id());
         indexShard.flush(shardRequest.getRequest());
         logger.trace("{} flush request executed on primary", indexShard.shardId());

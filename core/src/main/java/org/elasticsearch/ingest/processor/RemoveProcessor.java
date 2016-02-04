@@ -30,7 +30,7 @@ import java.util.Map;
 /**
  * Processor that removes existing fields. Nothing happens if the field is not present.
  */
-public class RemoveProcessor extends AbstractProcessor {
+public final class RemoveProcessor extends AbstractProcessor {
 
     public static final String TYPE = "remove";
 
@@ -55,7 +55,7 @@ public class RemoveProcessor extends AbstractProcessor {
         return TYPE;
     }
 
-    public static class Factory extends AbstractProcessorFactory<RemoveProcessor> {
+    public static final class Factory extends AbstractProcessorFactory<RemoveProcessor> {
 
         private final TemplateService templateService;
 

@@ -28,7 +28,6 @@ import org.elasticsearch.ingest.core.TemplateService;
 import org.elasticsearch.ingest.processor.AppendProcessor;
 import org.elasticsearch.ingest.processor.ConvertProcessor;
 import org.elasticsearch.ingest.processor.DateProcessor;
-import org.elasticsearch.ingest.processor.DeDotProcessor;
 import org.elasticsearch.ingest.processor.FailProcessor;
 import org.elasticsearch.ingest.processor.GsubProcessor;
 import org.elasticsearch.ingest.processor.JoinProcessor;
@@ -75,7 +74,6 @@ public class NodeModule extends AbstractModule {
         registerProcessor(ConvertProcessor.TYPE, (templateService) -> new ConvertProcessor.Factory());
         registerProcessor(GsubProcessor.TYPE, (templateService) -> new GsubProcessor.Factory());
         registerProcessor(FailProcessor.TYPE, FailProcessor.Factory::new);
-        registerProcessor(DeDotProcessor.TYPE, (templateService) -> new DeDotProcessor.Factory());
     }
 
     @Override

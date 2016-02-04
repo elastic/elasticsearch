@@ -20,6 +20,7 @@
 package org.elasticsearch.ingest;
 
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
@@ -36,10 +37,8 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.ingest.core.Pipeline;
-import org.elasticsearch.ingest.core.PipelineFactoryError;
 import org.elasticsearch.ingest.core.Processor;
 import org.elasticsearch.ingest.core.TemplateService;
-import org.elasticsearch.ingest.processor.ConfigurationPropertyException;
 import org.elasticsearch.script.ScriptService;
 
 import java.io.Closeable;
@@ -104,8 +103,10 @@ public class PipelineStore extends AbstractComponent implements Closeable, Clust
         for (PipelineConfiguration pipeline : ingestMetadata.getPipelines().values()) {
             try {
                 pipelines.put(pipeline.getId(), factory.create(pipeline.getId(), pipeline.getConfigAsMap(), processorFactoryRegistry));
+            } catch (ElasticsearchParseException e) {
+                throw e;
             } catch (Exception e) {
-                throw new RuntimeException(e);
+                throw new ElasticsearchParseException("Error updating pipeline with id [" + pipeline.getId() + "]", e);
             }
         }
         this.pipelines = Collections.unmodifiableMap(pipelines);
@@ -154,9 +155,10 @@ public class PipelineStore extends AbstractComponent implements Closeable, Clust
     public void put(ClusterService clusterService, PutPipelineRequest request, ActionListener<WritePipelineResponse> listener) {
         // validates the pipeline and processor configuration before submitting a cluster update task:
         Map<String, Object> pipelineConfig = XContentHelper.convertToMap(request.getSource(), false).v2();
-        WritePipelineResponse response = validatePipelineResponse(request.getId(), pipelineConfig);
-        if (response != null) {
-            listener.onResponse(response);
+        try {
+            factory.create(request.getId(), pipelineConfig, processorFactoryRegistry);
+        } catch(Exception e) {
+            listener.onFailure(e);
             return;
         }
         clusterService.submitStateUpdateTask("put-pipeline-" + request.getId(), new AckedClusterStateUpdateTask<WritePipelineResponse>(request, listener) {
@@ -234,16 +236,4 @@ public class PipelineStore extends AbstractComponent implements Closeable, Clust
         }
         return result;
     }
-
-    WritePipelineResponse validatePipelineResponse(String id, Map<String, Object> config) {
-        try {
-            factory.create(id, config, processorFactoryRegistry);
-            return null;
-        } catch (ConfigurationPropertyException e) {
-            return new WritePipelineResponse(new PipelineFactoryError(e));
-        } catch (Exception e) {
-            return new WritePipelineResponse(new PipelineFactoryError(e.getMessage()));
-        }
-    }
-
 }

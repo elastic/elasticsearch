@@ -209,7 +209,7 @@ public class VersionsTests extends ESTestCase {
             this.version = version;
         }
         @Override
-        public TokenStream tokenStream(Analyzer analyzer, TokenStream reuse) throws IOException {
+        public TokenStream tokenStream(Analyzer analyzer, TokenStream reuse) {
             return new TokenStream() {
                 boolean finished = true;
                 final CharTermAttribute term = addAttribute(CharTermAttribute.class);

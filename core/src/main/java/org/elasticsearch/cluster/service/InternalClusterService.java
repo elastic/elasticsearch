@@ -196,7 +196,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
         // note, we rely on the fact that its a new id each time we start, see FD and "kill -9" handling
         final String nodeId = DiscoveryService.generateNodeId(settings);
         final TransportAddress publishAddress = transportService.boundAddress().publishAddress();
-        DiscoveryNode localNode = new DiscoveryNode(settings.get("name"), nodeId, publishAddress, nodeAttributes, version);
+        DiscoveryNode localNode = new DiscoveryNode(settings.get("node.name"), nodeId, publishAddress, nodeAttributes, version);
         DiscoveryNodes.Builder nodeBuilder = DiscoveryNodes.builder().put(localNode).localNodeId(localNode.id());
         this.clusterState = ClusterState.builder(clusterState).nodes(nodeBuilder).blocks(initialBlocks).build();
         this.transportService.setLocalNode(localNode);

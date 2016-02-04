@@ -24,6 +24,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.cli.CliTool.ExitStatus;
 import org.elasticsearch.common.cli.CliToolTestCase;
+import org.elasticsearch.common.cli.UserError;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.hamcrest.Matcher;
@@ -53,6 +54,7 @@ public class BootstrapCliParserTests extends CliToolTestCase {
         for (String property : propertiesToClear) {
             System.clearProperty(property);
         }
+        propertiesToClear.clear();
     }
 
     public void testThatVersionIsReturned() throws Exception {
@@ -167,7 +169,7 @@ public class BootstrapCliParserTests extends CliToolTestCase {
         assertThatTerminalOutput(containsString("Parameter [network.host] needs value"));
     }
 
-    public void testParsingErrors() {
+    public void testParsingErrors() throws Exception {
         BootstrapCLIParser parser = new BootstrapCLIParser(terminal);
 
         // unknown params
@@ -229,12 +231,10 @@ public class BootstrapCliParserTests extends CliToolTestCase {
 
     public void testThatHelpfulErrorMessageIsGivenWhenParametersAreOutOfOrder() throws Exception {
         BootstrapCLIParser parser = new BootstrapCLIParser(terminal);
-        try {
-            parser.parse("start", new String[]{"--foo=bar", "-Dbaz=qux"});
-            fail("expected IllegalArgumentException for out-of-order parameters");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("must be before any parameters starting with --"));
-        }
+        UserError e = expectThrows(UserError.class, () -> {
+                parser.parse("start", new String[]{"--foo=bar", "-Dbaz=qux"});
+        });
+        assertThat(e.getMessage(), containsString("must be before any parameters starting with --"));
     }
 
     private void registerProperties(String ... systemProperties) {

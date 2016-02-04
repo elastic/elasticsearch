@@ -34,9 +34,11 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.env.NodeEnvironment;
 
 import java.nio.file.Path;
+import java.util.function.Supplier;
 
 /**
  *
@@ -51,23 +53,21 @@ public class Gateway extends AbstractComponent implements ClusterStateListener {
 
     private final TransportNodesListGatewayMetaState listGatewayMetaState;
 
-    private final String initialMeta;
     private final ClusterName clusterName;
+
+    private final Supplier<Integer> minimumMasterNodesProvider;
 
     @Inject
     public Gateway(Settings settings, ClusterService clusterService, NodeEnvironment nodeEnv, GatewayMetaState metaState,
-                   TransportNodesListGatewayMetaState listGatewayMetaState, ClusterName clusterName) {
+                   TransportNodesListGatewayMetaState listGatewayMetaState, ClusterName clusterName, Discovery discovery) {
         super(settings);
         this.clusterService = clusterService;
         this.nodeEnv = nodeEnv;
         this.metaState = metaState;
         this.listGatewayMetaState = listGatewayMetaState;
         this.clusterName = clusterName;
-
+        this.minimumMasterNodesProvider = discovery::getMinimumMasterNodes;
         clusterService.addLast(this);
-
-        // we define what is our minimum "master" nodes, use that to allow for recovery
-        this.initialMeta = settings.get("gateway.initial_meta", settings.get("gateway.local.initial_meta", settings.get("discovery.zen.minimum_master_nodes", "1")));
     }
 
     public void performStateRecovery(final GatewayStateRecoveredListener listener) throws GatewayException {
@@ -76,7 +76,7 @@ public class Gateway extends AbstractComponent implements ClusterStateListener {
         TransportNodesListGatewayMetaState.NodesGatewayMetaState nodesState = listGatewayMetaState.list(nodesIds.toArray(String.class), null).actionGet();
 
 
-        int requiredAllocation = calcRequiredAllocations(this.initialMeta, nodesIds.size());
+        int requiredAllocation = Math.max(1, minimumMasterNodesProvider.get());
 
 
         if (nodesState.failures().length > 0) {
@@ -143,35 +143,6 @@ public class Gateway extends AbstractComponent implements ClusterStateListener {
         builder.metaData(metaDataBuilder);
         listener.onSuccess(builder.build());
     }
-
-    protected int calcRequiredAllocations(final String setting, final int nodeCount) {
-        int requiredAllocation = 1;
-        try {
-            if ("quorum".equals(setting)) {
-                if (nodeCount > 2) {
-                    requiredAllocation = (nodeCount / 2) + 1;
-                }
-            } else if ("quorum-1".equals(setting) || "half".equals(setting)) {
-                if (nodeCount > 2) {
-                    requiredAllocation = ((1 + nodeCount) / 2);
-                }
-            } else if ("one".equals(setting)) {
-                requiredAllocation = 1;
-            } else if ("full".equals(setting) || "all".equals(setting)) {
-                requiredAllocation = nodeCount;
-            } else if ("full-1".equals(setting) || "all-1".equals(setting)) {
-                if (nodeCount > 1) {
-                    requiredAllocation = nodeCount - 1;
-                }
-            } else {
-                requiredAllocation = Integer.parseInt(setting);
-            }
-        } catch (Exception e) {
-            logger.warn("failed to derived initial_meta from value {}", setting);
-        }
-        return requiredAllocation;
-    }
-
     public void reset() throws Exception {
         try {
             Path[] dataPaths = nodeEnv.nodeDataPaths();

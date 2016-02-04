@@ -48,3 +48,8 @@ Proxy settings have been deprecated and renamed:
 If you are using proxy settings, update your settings as deprecated ones will
 be removed in next major version.
 
+[float]
+=== Multicast plugin deprecated
+
+The `discovery-multicast` plugin has been deprecated in 2.2.0 and has
+been removed in 3.0.0.

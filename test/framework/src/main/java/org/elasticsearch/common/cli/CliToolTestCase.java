@@ -28,11 +28,8 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.io.PrintWriter;
-import java.io.Writer;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
@@ -64,34 +61,18 @@ public abstract class CliToolTestCase extends ESTestCase {
      */
     public static class MockTerminal extends Terminal {
 
-        public MockTerminal() {
-            super(Verbosity.NORMAL);
-        }
-
-        public MockTerminal(Verbosity verbosity) {
-            super(verbosity);
-        }
+        @Override
+        protected void doPrint(String msg) {}
 
         @Override
-        protected void doPrint(String msg, Object... args) {
-        }
-
-        @Override
-        public String readText(String text, Object... args) {
+        public String readText(String prompt) {
             return null;
         }
 
         @Override
-        public char[] readSecret(String text, Object... args) {
+        public char[] readSecret(String prompt) {
             return new char[0];
         }
-
-        @Override
-        public void print(String msg, Object... args) {
-        }
-
-        @Override
-        public void printStackTrace(Throwable t) {}
     }
 
     /**
@@ -99,29 +80,19 @@ public abstract class CliToolTestCase extends ESTestCase {
      */
     public static class CaptureOutputTerminal extends MockTerminal {
 
-        List<String> terminalOutput = new ArrayList();
+        List<String> terminalOutput = new ArrayList<>();
 
         public CaptureOutputTerminal() {
-            super(Verbosity.NORMAL);
+            this(Verbosity.NORMAL);
         }
 
         public CaptureOutputTerminal(Verbosity verbosity) {
-            super(verbosity);
+            setVerbosity(verbosity);
         }
 
         @Override
-        protected void doPrint(String msg, Object... args) {
-            terminalOutput.add(String.format(Locale.ROOT, msg, args));
-        }
-
-        @Override
-        public void print(String msg, Object... args) {
-            doPrint(msg, args);
-        }
-
-        @Override
-        public void printStackTrace(Throwable t) {
-            terminalOutput.add(ExceptionsHelper.stackTrace(t));
+        protected void doPrint(String msg) {
+            terminalOutput.add(msg);
         }
 
         public List<String> getTerminalOutput() {

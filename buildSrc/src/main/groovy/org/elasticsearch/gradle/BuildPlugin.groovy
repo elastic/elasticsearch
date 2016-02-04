@@ -78,15 +78,17 @@ class BuildPlugin implements Plugin<Project> {
         if (project.rootProject.ext.has('buildChecksDone') == false) {
             String javaHome = findJavaHome()
             File gradleJavaHome = Jvm.current().javaHome
-            String gradleJavaVersionDetails = "${System.getProperty('java.vendor')} ${System.getProperty('java.version')}" +
+            String javaVendor = System.getProperty('java.vendor')
+            String javaVersion = System.getProperty('java.version')
+            String gradleJavaVersionDetails = "${javaVendor} ${javaVersion}" +
                 " [${System.getProperty('java.vm.name')} ${System.getProperty('java.vm.version')}]"
 
             String javaVersionDetails = gradleJavaVersionDetails
-            String javaVersion = System.getProperty('java.version')
             JavaVersion javaVersionEnum = JavaVersion.current()
             if (new File(javaHome).canonicalPath != gradleJavaHome.canonicalPath) {
                 javaVersionDetails = findJavaVersionDetails(project, javaHome)
                 javaVersionEnum = JavaVersion.toVersion(findJavaSpecificationVersion(project, javaHome))
+                javaVendor = findJavaVendor(project, javaHome)
                 javaVersion = findJavaVersion(project, javaHome)
             }
 
@@ -112,6 +114,25 @@ class BuildPlugin implements Plugin<Project> {
             // enforce Java version
             if (javaVersionEnum < minimumJava) {
                 throw new GradleException("Java ${minimumJava} or above is required to build Elasticsearch")
+            }
+
+            // this block of code detecting buggy JDK 8 compiler versions can be removed when minimum Java version is incremented
+            assert minimumJava == JavaVersion.VERSION_1_8 : "Remove JDK compiler bug detection only applicable to JDK 8"
+            if (javaVersionEnum == JavaVersion.VERSION_1_8) {
+                if (Objects.equals("Oracle Corporation", javaVendor)) {
+                    def matcher = javaVersion =~ /1\.8\.0(?:_(\d+))?/
+                    if (matcher.matches()) {
+                        int update;
+                        if (matcher.group(1) == null) {
+                            update = 0
+                        } else {
+                            update = matcher.group(1).toInteger()
+                        }
+                        if (update < 40) {
+                            throw new GradleException("JDK ${javaVendor} ${javaVersion} has compiler bug JDK-8052388, update your JDK to at least 8u40")
+                        }
+                    }
+                }
             }
 
             project.rootProject.ext.javaHome = javaHome
@@ -151,6 +172,11 @@ class BuildPlugin implements Plugin<Project> {
     private static String findJavaSpecificationVersion(Project project, String javaHome) {
         String versionScript = 'print(java.lang.System.getProperty("java.specification.version"));'
         return runJavascript(project, javaHome, versionScript)
+    }
+
+    private static String findJavaVendor(Project project, String javaHome) {
+        String vendorScript = 'print(java.lang.System.getProperty("java.vendor"));'
+        return runJavascript(project, javaHome, vendorScript)
     }
 
     /** Finds the parsable java specification version */
@@ -289,7 +315,7 @@ class BuildPlugin implements Plugin<Project> {
         String luceneVersion = VersionProperties.lucene
         if (luceneVersion.contains('-snapshot')) {
             // extract the revision number from the version with a regex matcher
-            String revision = (luceneVersion =~ /\w+-snapshot-(\d+)/)[0][1]
+            String revision = (luceneVersion =~ /\w+-snapshot-([a-z0-9]+)/)[0][1]
             repos.maven {
                 name 'lucene-snapshots'
                 url "http://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/${revision}"

@@ -46,6 +46,24 @@ import java.util.stream.Collectors;
 /**
  * A setting. Encapsulates typical stuff like default value, parsing, and scope.
  * Some (dynamic=true) can by modified at run time using the API.
+ * All settings inside elasticsearch or in any of the plugins should use this type-safe and generic settings infrastructure
+ * together with {@link AbstractScopedSettings}. This class contains several untility methods that makes it straight forward
+ * to add settings for the majority of the cases. For instance a simple boolean settings can be defined like this:
+ * <pre>{@code
+ * public static final Setting<Boolean>; MY_BOOLEAN = Setting.boolSetting("my.bool.setting", true, false, Scope.CLUSTER);}
+ * </pre>
+ * To retrieve the value of the setting a {@link Settings} object can be passed directly to the {@link Setting#get(Settings)} method.
+ * <pre>
+ * final boolean myBooleanValue = MY_BOOLEAN.get(settings);
+ * </pre>
+ * It's recommended to use typed settings rather than string based settings. For example adding a setting for an enum type:
+ * <pre>{@code
+ * public enum Color {
+ *     RED, GREEN, BLUE;
+ * }
+ * public static final Setting<Color> MY_BOOLEAN = new Setting<>("my.color.setting", Color.RED.toString(), Color::valueOf, false, Scope.CLUSTER);
+ * }
+ * </pre>
  */
 public class Setting<T> extends ToXContentToBytes {
     private final String key;
@@ -84,7 +102,9 @@ public class Setting<T> extends ToXContentToBytes {
     }
 
     /**
-     * Returns the settings key or a prefix if this setting is a group setting
+     * Returns the settings key or a prefix if this setting is a group setting.
+     * <b>Note: this method should not be used to retrieve a value from a {@link Settings} object.
+     * Use {@link #get(Settings)} instead</b>
      *
      * @see #isGroupSetting()
      */

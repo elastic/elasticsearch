@@ -19,8 +19,9 @@
 
 package org.elasticsearch.plugins;
 
-import java.io.File;
 import java.io.IOException;
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.DirectoryStream;
 import java.nio.file.FileAlreadyExistsException;
@@ -28,6 +29,7 @@ import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFileAttributes;
@@ -43,6 +45,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.cli.CliTool;
 import org.elasticsearch.common.cli.CliToolTestCase;
 import org.elasticsearch.common.cli.Terminal;
+import org.elasticsearch.common.cli.UserError;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
@@ -193,6 +196,24 @@ public class InstallPluginCommandTests extends ESTestCase {
         assertPlugin("fake", pluginDir, env);
     }
 
+    public void testSpaceInUrl() throws Exception {
+        Environment env = createEnv();
+        Path pluginDir = createTempDir();
+        String pluginZip = createPlugin("fake", pluginDir);
+        Path pluginZipWithSpaces = createTempFile("foo bar", ".zip");
+        Files.copy(new URL(pluginZip).openStream(), pluginZipWithSpaces, StandardCopyOption.REPLACE_EXISTING);
+        installPlugin(pluginZipWithSpaces.toUri().toURL().toString(), env);
+        assertPlugin("fake", pluginDir, env);
+    }
+
+    public void testMalformedUrlNotMaven() throws Exception {
+        // has two colons, so it appears similar to maven coordinates
+        MalformedURLException e = expectThrows(MalformedURLException.class, () -> {
+            installPlugin("://host:1234", createEnv());
+        });
+        assertTrue(e.getMessage(), e.getMessage().contains("no protocol"));
+    }
+
     public void testPluginsDirMissing() throws Exception {
         Environment env = createEnv();
         Files.delete(env.pluginsFile());
@@ -211,7 +232,7 @@ public class InstallPluginCommandTests extends ESTestCase {
             IOException e = expectThrows(IOException.class, () -> {
                 installPlugin(pluginZip, env);
             });
-            assertTrue(e.getMessage(), e.getMessage().contains("Plugins directory is read only"));
+            assertTrue(e.getMessage(), e.getMessage().contains(env.pluginsFile().toString()));
         }
         assertInstallCleaned(env);
     }
@@ -219,7 +240,7 @@ public class InstallPluginCommandTests extends ESTestCase {
     public void testBuiltinModule() throws Exception {
         Environment env = createEnv();
         String pluginZip = createPlugin("lang-groovy", createTempDir());
-        IOException e = expectThrows(IOException.class, () -> {
+        UserError e = expectThrows(UserError.class, () -> {
             installPlugin(pluginZip, env);
         });
         assertTrue(e.getMessage(), e.getMessage().contains("is a system module"));
@@ -288,7 +309,7 @@ public class InstallPluginCommandTests extends ESTestCase {
         Environment env = createEnv();
         String pluginZip = createPlugin("fake", createTempDir());
         installPlugin(pluginZip, env);
-        IOException e = expectThrows(IOException.class, () -> {
+        UserError e = expectThrows(UserError.class, () -> {
             installPlugin(pluginZip, env);
         });
         assertTrue(e.getMessage(), e.getMessage().contains("already exists"));
@@ -312,7 +333,7 @@ public class InstallPluginCommandTests extends ESTestCase {
         Path binDir = pluginDir.resolve("bin");
         Files.createFile(binDir);
         String pluginZip = createPlugin("fake", pluginDir);
-        IOException e = expectThrows(IOException.class, () -> {
+        UserError e = expectThrows(UserError.class, () -> {
             installPlugin(pluginZip, env);
         });
         assertTrue(e.getMessage(), e.getMessage().contains("not a directory"));
@@ -326,7 +347,7 @@ public class InstallPluginCommandTests extends ESTestCase {
         Files.createDirectories(dirInBinDir);
         Files.createFile(dirInBinDir.resolve("somescript"));
         String pluginZip = createPlugin("fake", pluginDir);
-        IOException e = expectThrows(IOException.class, () -> {
+        UserError e = expectThrows(UserError.class, () -> {
             installPlugin(pluginZip, env);
         });
         assertTrue(e.getMessage(), e.getMessage().contains("Directories not allowed in bin dir for plugin"));
@@ -401,7 +422,7 @@ public class InstallPluginCommandTests extends ESTestCase {
         Path configDir = pluginDir.resolve("config");
         Files.createFile(configDir);
         String pluginZip = createPlugin("fake", pluginDir);
-        IOException e = expectThrows(IOException.class, () -> {
+        UserError e = expectThrows(UserError.class, () -> {
             installPlugin(pluginZip, env);
         });
         assertTrue(e.getMessage(), e.getMessage().contains("not a directory"));
@@ -415,7 +436,7 @@ public class InstallPluginCommandTests extends ESTestCase {
         Files.createDirectories(dirInConfigDir);
         Files.createFile(dirInConfigDir.resolve("myconfig.yml"));
         String pluginZip = createPlugin("fake", pluginDir);
-        IOException e = expectThrows(IOException.class, () -> {
+        UserError e = expectThrows(UserError.class, () -> {
             installPlugin(pluginZip, env);
         });
         assertTrue(e.getMessage(), e.getMessage().contains("Directories not allowed in config dir for plugin"));

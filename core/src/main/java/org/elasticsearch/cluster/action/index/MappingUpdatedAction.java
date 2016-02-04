@@ -94,7 +94,7 @@ public class MappingUpdatedAction extends AbstractComponent {
         }
     }
 
-    public void updateMappingOnMasterAsynchronously(String index, String type, Mapping mappingUpdate) throws Throwable {
+    public void updateMappingOnMasterAsynchronously(String index, String type, Mapping mappingUpdate) throws Exception {
         updateMappingOnMaster(index, type, mappingUpdate, dynamicMappingUpdateTimeout, null);
     }
 
@@ -102,7 +102,7 @@ public class MappingUpdatedAction extends AbstractComponent {
      * Same as {@link #updateMappingOnMasterSynchronously(String, String, Mapping, TimeValue)}
      * using the default timeout.
      */
-    public void updateMappingOnMasterSynchronously(String index, String type, Mapping mappingUpdate) throws Throwable {
+    public void updateMappingOnMasterSynchronously(String index, String type, Mapping mappingUpdate) throws Exception {
         updateMappingOnMasterSynchronously(index, type, mappingUpdate, dynamicMappingUpdateTimeout);
     }
 
@@ -111,7 +111,7 @@ public class MappingUpdatedAction extends AbstractComponent {
      * {@code timeout}. When this method returns successfully mappings have
      * been applied to the master node and propagated to data nodes.
      */
-    public void updateMappingOnMasterSynchronously(String index, String type, Mapping mappingUpdate, TimeValue timeout) throws Throwable {
+    public void updateMappingOnMasterSynchronously(String index, String type, Mapping mappingUpdate, TimeValue timeout) throws Exception {
         if (updateMappingRequest(index, type, mappingUpdate, timeout).get().isAcknowledged() == false) {
             throw new TimeoutException("Failed to acknowledge mapping update within [" + timeout + "]");
         }

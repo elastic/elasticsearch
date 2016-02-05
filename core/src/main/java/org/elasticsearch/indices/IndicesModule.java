@@ -164,7 +164,6 @@ public class IndicesModule extends AbstractModule {
         bind(IndicesRequestCache.class).asEagerSingleton();
         bind(TransportNodesListShardStoreMetaData.class).asEagerSingleton();
         bind(IndicesTTLService.class).asEagerSingleton();
-        bind(IndicesWarmer.class).asEagerSingleton();
         bind(UpdateHelper.class).asEagerSingleton();
         bind(MetaDataIndexUpgradeService.class).asEagerSingleton();
         bind(NodeServicesProvider.class).asEagerSingleton();

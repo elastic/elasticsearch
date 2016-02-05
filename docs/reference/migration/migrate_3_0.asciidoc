@@ -160,12 +160,16 @@ Removed support for the undocumented `query_binary` and `filter_binary` sections
 Payloads are now loaded when needed.
 
 [[breaking_30_cat_api]]
-=== REST API changes
+=== CAT API changes
 
-==== Replace use of Content-Type header in _cat API in favour of the Accept header
+==== Use Accept header for specifying response media type
 
-Before we would mistakenly use the Content-Type of the request to establish the response media type, that's the
-role of the Accept header as per HTTP spec.
+Previous versions of Elasticsearch accepted the Content-type header
+field for controlling the media type of the response in the cat API.
+This is in opposition to the HTTP spec which specifies the Accept
+header field for this purpose. Elasticsearch now uses the Accept header
+field and support for using the Content-Type header field for this
+purpose has been removed.
 
 [[breaking_30_parent_child_changes]]
 === Parent/Child changes

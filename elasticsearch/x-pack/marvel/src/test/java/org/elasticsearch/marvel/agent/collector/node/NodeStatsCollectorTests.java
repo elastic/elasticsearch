@@ -24,6 +24,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.notNullValue;
 
 // numClientNodes is set to 0 in this test because the NodeStatsCollector never collects data on client nodes:
 // the NodeStatsCollector.shouldCollect() method checks if the node has node files and client nodes don't have
@@ -42,9 +43,10 @@ public class NodeStatsCollectorTests extends AbstractCollectorTestCase {
             assertThat(marvelDoc, instanceOf(NodeStatsMarvelDoc.class));
 
             NodeStatsMarvelDoc nodeStatsMarvelDoc = (NodeStatsMarvelDoc) marvelDoc;
-            assertThat(nodeStatsMarvelDoc.clusterUUID(), equalTo(client().admin().cluster().prepareState().setMetaData(true).get().getState().metaData().clusterUUID()));
-            assertThat(nodeStatsMarvelDoc.timestamp(), greaterThan(0L));
-            assertThat(nodeStatsMarvelDoc.type(), equalTo(NodeStatsCollector.TYPE));
+            assertThat(nodeStatsMarvelDoc.getClusterUUID(), equalTo(client().admin().cluster().prepareState().setMetaData(true).get().getState().metaData().clusterUUID()));
+            assertThat(nodeStatsMarvelDoc.getTimestamp(), greaterThan(0L));
+            assertThat(nodeStatsMarvelDoc.getType(), equalTo(NodeStatsCollector.TYPE));
+            assertThat(nodeStatsMarvelDoc.getSourceNode(), notNullValue());
 
             assertThat(nodeStatsMarvelDoc.getNodeId(), equalTo(internalCluster().getInstance(DiscoveryService.class, node).localNode().id()));
             assertThat(nodeStatsMarvelDoc.isNodeMaster(), equalTo(node.equals(internalCluster().getMasterName())));

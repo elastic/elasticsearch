@@ -143,10 +143,10 @@ public abstract class Exporter  {
 
         @Override
         public String resolve(MarvelDoc doc) {
-            if (doc.index() != null) {
-                return doc.index();
+            if (doc.getIndex() != null) {
+                return doc.getIndex();
             }
-            return resolve(doc.timestamp());
+            return resolve(doc.getTimestamp());
         }
 
         @Override

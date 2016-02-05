@@ -10,14 +10,13 @@ import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
 
 public class IndexRecoveryMarvelDoc extends MarvelDoc {
 
-    private final RecoveryResponse recoveryResponse;
-
-    public IndexRecoveryMarvelDoc(String clusterUUID, String type, long timestamp, RecoveryResponse recoveryResponse) {
-        super(clusterUUID, type, timestamp);
-        this.recoveryResponse = recoveryResponse;
-    }
+    private RecoveryResponse recoveryResponse;
 
     public RecoveryResponse getRecoveryResponse() {
         return recoveryResponse;
+    }
+
+    public void setRecoveryResponse(RecoveryResponse recoveryResponse) {
+        this.recoveryResponse = recoveryResponse;
     }
 }

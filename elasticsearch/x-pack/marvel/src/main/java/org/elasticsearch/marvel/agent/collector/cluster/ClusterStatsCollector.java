@@ -11,8 +11,10 @@ import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.license.plugin.core.LicenseUtils;
 import org.elasticsearch.license.plugin.core.LicensesManagerService;
 import org.elasticsearch.marvel.agent.collector.AbstractCollector;
@@ -48,9 +50,10 @@ public class ClusterStatsCollector extends AbstractCollector<ClusterStatsCollect
     private final Client client;
 
     @Inject
-    public ClusterStatsCollector(Settings settings, ClusterService clusterService, MarvelSettings marvelSettings, MarvelLicensee marvelLicensee,
-                                 InternalClient client, LicensesManagerService licensesManagerService, ClusterName clusterName) {
-        super(settings, NAME, clusterService, marvelSettings, marvelLicensee);
+    public ClusterStatsCollector(Settings settings, ClusterService clusterService, DiscoveryService discoveryService,
+                                 MarvelSettings marvelSettings, MarvelLicensee marvelLicensee, InternalClient client,
+                                 LicensesManagerService licensesManagerService, ClusterName clusterName) {
+        super(settings, NAME, clusterService, discoveryService, marvelSettings, marvelLicensee);
         this.client = client;
         this.clusterName = clusterName;
         this.licensesManagerService = licensesManagerService;
@@ -66,9 +69,6 @@ public class ClusterStatsCollector extends AbstractCollector<ClusterStatsCollect
     protected Collection<MarvelDoc> doCollect() throws Exception {
         List<MarvelDoc> results = new ArrayList<>(1);
 
-        long timestamp = System.currentTimeMillis();
-        String clusterUUID = clusterUUID();
-
         // Retrieves cluster stats
         ClusterStatsResponse clusterStats = null;
         try {
@@ -81,14 +81,32 @@ public class ClusterStatsCollector extends AbstractCollector<ClusterStatsCollect
             }
         }
 
+        long timestamp = System.currentTimeMillis();
+        String clusterUUID = clusterUUID();
+        DiscoveryNode sourceNode = localNode();
+
         // Adds a cluster info document
-        results.add(new ClusterInfoMarvelDoc(dataIndexNameResolver.resolve(timestamp), CLUSTER_INFO_TYPE, clusterUUID, clusterUUID, timestamp,
-                clusterName.value(), Version.CURRENT.toString(), licensesManagerService.getLicense(), clusterStats));
+        ClusterInfoMarvelDoc clusterInfoDoc = new ClusterInfoMarvelDoc(dataIndexNameResolver.resolve(timestamp), CLUSTER_INFO_TYPE, clusterUUID);
+        clusterInfoDoc.setClusterUUID(clusterUUID);
+        clusterInfoDoc.setTimestamp(timestamp);
+        clusterInfoDoc.setSourceNode(sourceNode);
+        clusterInfoDoc.setClusterName(clusterName.value());
+        clusterInfoDoc.setVersion(Version.CURRENT.toString());
+        clusterInfoDoc.setLicense(licensesManagerService.getLicense());
+        clusterInfoDoc.setClusterStats(clusterStats);
+        results.add(clusterInfoDoc);
 
         // Adds a cluster stats document
         if (super.shouldCollect()) {
-            results.add(new ClusterStatsMarvelDoc(clusterUUID, CLUSTER_STATS_TYPE, timestamp, clusterStats));
+            ClusterStatsMarvelDoc clusterStatsDoc = new ClusterStatsMarvelDoc();
+            clusterStatsDoc.setClusterUUID(clusterUUID);
+            clusterStatsDoc.setType(CLUSTER_STATS_TYPE);
+            clusterStatsDoc.setTimestamp(timestamp);
+            clusterStatsDoc.setSourceNode(sourceNode);
+            clusterStatsDoc.setClusterStats(clusterStats);
+            results.add(clusterStatsDoc);
         }
+
         return Collections.unmodifiableCollection(results);
     }
 }

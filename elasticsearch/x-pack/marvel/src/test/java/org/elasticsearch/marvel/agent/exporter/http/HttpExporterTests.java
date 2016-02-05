@@ -385,7 +385,7 @@ public class HttpExporterTests extends MarvelIntegTestCase {
         exporter.export(Collections.singletonList(doc));
 
         String expectedMarvelIndex = MarvelSettings.MARVEL_INDICES_PREFIX + MarvelTemplateUtils.TEMPLATE_VERSION + "-"
-                + DateTimeFormat.forPattern(newTimeFormat).withZoneUTC().print(doc.timestamp());
+                + DateTimeFormat.forPattern(newTimeFormat).withZoneUTC().print(doc.getTimestamp());
 
         assertThat(webServer.getRequestCount(), equalTo(6 + 4));
 
@@ -442,11 +442,20 @@ public class HttpExporterTests extends MarvelIntegTestCase {
 
     private MarvelDoc newRandomMarvelDoc() {
         if (randomBoolean()) {
-            return new IndexRecoveryMarvelDoc(internalCluster().getClusterName(),
-                    IndexRecoveryCollector.TYPE, System.currentTimeMillis(), new RecoveryResponse());
+            IndexRecoveryMarvelDoc doc = new IndexRecoveryMarvelDoc();
+            doc.setClusterUUID(internalCluster().getClusterName());
+            doc.setType(IndexRecoveryCollector.TYPE);
+            doc.setTimestamp(System.currentTimeMillis());
+            doc.setRecoveryResponse(new RecoveryResponse());
+            return doc;
         } else {
-            return new ClusterStateMarvelDoc(internalCluster().getClusterName(),
-                    ClusterStateCollector.TYPE, System.currentTimeMillis(), ClusterState.PROTO, ClusterHealthStatus.GREEN);
+            ClusterStateMarvelDoc doc = new ClusterStateMarvelDoc();
+            doc.setClusterUUID(internalCluster().getClusterName());
+            doc.setType(ClusterStateCollector.TYPE);
+            doc.setTimestamp(System.currentTimeMillis());
+            doc.setClusterState(ClusterState.PROTO);
+            doc.setStatus(ClusterHealthStatus.GREEN);
+            return doc;
         }
     }
 

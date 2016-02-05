@@ -26,8 +26,16 @@ public class NodeStatsRendererTests extends ESSingleNodeTestCase {
         NodeStats nodeStats = getInstanceFromNode(NodeService.class).stats();
 
         logger.debug("--> creating the node stats marvel document");
-        NodeStatsMarvelDoc marvelDoc = new NodeStatsMarvelDoc("test", "node_stats", 1437580442979L,
-                "node-0", true, nodeStats, false, 90.0, true);
+        NodeStatsMarvelDoc marvelDoc = new NodeStatsMarvelDoc();
+        marvelDoc.setClusterUUID("test");
+        marvelDoc.setType("node_stats");
+        marvelDoc.setTimestamp(1437580442979L);
+        marvelDoc.setNodeId("node-0");
+        marvelDoc.setNodeMaster(true);
+        marvelDoc.setNodeStats(nodeStats);
+        marvelDoc.setMlockall(false);
+        marvelDoc.setDiskThresholdWaterMarkHigh(90.0);
+        marvelDoc.setDiskThresholdDeciderEnabled(true);
 
         logger.debug("--> rendering the document");
         try (BytesStreamOutput os = new BytesStreamOutput()) {

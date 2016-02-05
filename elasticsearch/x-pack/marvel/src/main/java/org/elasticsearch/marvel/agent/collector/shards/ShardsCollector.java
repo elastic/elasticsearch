@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.marvel.agent.collector.AbstractCollector;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
@@ -36,8 +37,9 @@ public class ShardsCollector extends AbstractCollector<ShardsCollector> {
     public static final String TYPE = "shards";
 
     @Inject
-    public ShardsCollector(Settings settings, ClusterService clusterService, MarvelSettings marvelSettings, MarvelLicensee marvelLicensee) {
-        super(settings, NAME, clusterService, marvelSettings, marvelLicensee);
+    public ShardsCollector(Settings settings, ClusterService clusterService, DiscoveryService discoveryService,
+                           MarvelSettings marvelSettings, MarvelLicensee marvelLicensee) {
+        super(settings, NAME, clusterService, discoveryService, marvelSettings, marvelLicensee);
     }
 
     @Override
@@ -61,7 +63,17 @@ public class ShardsCollector extends AbstractCollector<ShardsCollector> {
 
                     for (ShardRouting shard : shards) {
                         if (match(shard.getIndexName())) {
-                            results.add(new ShardMarvelDoc(null, TYPE, id(stateUUID, shard), clusterUUID, timestamp, shard, stateUUID));
+                            ShardMarvelDoc shardDoc = new ShardMarvelDoc(null, TYPE, id(stateUUID, shard));
+                            shardDoc.setClusterUUID(clusterUUID);
+                            shardDoc.setTimestamp(timestamp);
+                            if (shard.assignedToNode()) {
+                                // If the shard is assigned to a node, the shard marvel document
+                                // refers to this node
+                                shardDoc.setSourceNode(clusterState.getNodes().get(shard.currentNodeId()));
+                            }
+                            shardDoc.setShardRouting(shard);
+                            shardDoc.setClusterStateUUID(stateUUID);
+                            results.add(shardDoc);
                         }
                     }
                 }
@@ -78,7 +90,7 @@ public class ShardsCollector extends AbstractCollector<ShardsCollector> {
 
     /**
      * Compute an id that has the format:
-     *
+     * <p>
      * {state_uuid}:{node_id || '_na'}:{index}:{shard}:{'p' || 'r'}
      */
     static String id(String stateUUID, ShardRouting shardRouting) {

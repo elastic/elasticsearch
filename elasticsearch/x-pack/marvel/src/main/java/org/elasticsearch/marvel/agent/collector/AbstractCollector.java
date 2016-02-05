@@ -8,9 +8,11 @@ package org.elasticsearch.marvel.agent.collector;
 
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.marvel.agent.exporter.IndexNameResolver;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
 import org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils;
@@ -25,15 +27,18 @@ public abstract class AbstractCollector<T> extends AbstractLifecycleComponent<T>
     private final String name;
 
     protected final ClusterService clusterService;
+    protected final DiscoveryService discoveryService;
     protected final MarvelSettings marvelSettings;
     protected final MarvelLicensee licensee;
     protected final IndexNameResolver dataIndexNameResolver;
 
     @Inject
-    public AbstractCollector(Settings settings, String name, ClusterService clusterService, MarvelSettings marvelSettings, MarvelLicensee licensee) {
+    public AbstractCollector(Settings settings, String name, ClusterService clusterService, DiscoveryService discoveryService,
+                             MarvelSettings marvelSettings, MarvelLicensee licensee) {
         super(settings);
         this.name = name;
         this.clusterService = clusterService;
+        this.discoveryService = discoveryService;
         this.marvelSettings = marvelSettings;
         this.licensee = licensee;
         this.dataIndexNameResolver = new DataIndexNameResolver(MarvelTemplateUtils.TEMPLATE_VERSION);
@@ -113,6 +118,10 @@ public abstract class AbstractCollector<T> extends AbstractLifecycleComponent<T>
 
     protected String clusterUUID() {
         return clusterService.state().metaData().clusterUUID();
+    }
+
+    protected DiscoveryNode localNode() {
+        return discoveryService.localNode();
     }
 
     /**

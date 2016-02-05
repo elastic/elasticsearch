@@ -27,7 +27,11 @@ public class IndexStatsRendererTests extends ESTestCase {
 
     public void testIndexStatsRenderer() throws Exception {
         logger.debug("--> creating the index stats marvel document");
-        IndexStatsMarvelDoc marvelDoc = new IndexStatsMarvelDoc("test", "index_stats", 1437580442979L,
+        IndexStatsMarvelDoc marvelDoc = new IndexStatsMarvelDoc();
+        marvelDoc.setClusterUUID("test");
+        marvelDoc.setType("index_stats");
+        marvelDoc.setTimestamp(1437580442979L);
+        marvelDoc.setIndexStats(
                 new IndexStats("index-0", new ShardStats[0]) {
                     @Override
                     public CommonStats getTotal() {

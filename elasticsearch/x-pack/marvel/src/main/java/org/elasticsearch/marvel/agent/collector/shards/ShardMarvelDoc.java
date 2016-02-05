@@ -10,13 +10,18 @@ import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
 
 public class ShardMarvelDoc extends MarvelDoc {
 
-    private final ShardRouting shardRouting;
-    private final String clusterStateUUID;
+    private ShardRouting shardRouting;
+    private String clusterStateUUID;
 
-    public ShardMarvelDoc(String index, String type, String id, String clusterUUID, long timestamp,
-                          ShardRouting shardRouting, String clusterStateUUID) {
-        super(index, type, id, clusterUUID, timestamp);
+    public ShardMarvelDoc(String index, String type, String id) {
+        super(index, type, id);
+    }
+
+    public void setShardRouting(ShardRouting shardRouting) {
         this.shardRouting = shardRouting;
+    }
+
+    public void setClusterStateUUID(java.lang.String clusterStateUUID) {
         this.clusterStateUUID = clusterStateUUID;
     }
 
@@ -27,4 +32,5 @@ public class ShardMarvelDoc extends MarvelDoc {
     public String getClusterStateUUID() {
         return clusterStateUUID;
     }
+
 }

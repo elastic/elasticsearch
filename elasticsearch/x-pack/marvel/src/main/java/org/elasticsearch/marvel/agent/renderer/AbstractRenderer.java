@@ -28,6 +28,7 @@ public abstract class AbstractRenderer<T extends MarvelDoc> implements Renderer<
     private static final String[] DEFAULT_FILTERS = {
             Fields.CLUSTER_UUID.underscore().toString(),
             Fields.TIMESTAMP.underscore().toString(),
+            Fields.SOURCE_NODE.underscore().toString(),
     };
 
     private final String[] filters;
@@ -54,9 +55,14 @@ public abstract class AbstractRenderer<T extends MarvelDoc> implements Renderer<
                 builder.startObject();
 
                 // Add fields common to all Marvel documents
-                builder.field(Fields.CLUSTER_UUID, marvelDoc.clusterUUID());
-                DateTime timestampDateTime = new DateTime(marvelDoc.timestamp(), DateTimeZone.UTC);
+                builder.field(Fields.CLUSTER_UUID, marvelDoc.getClusterUUID());
+                DateTime timestampDateTime = new DateTime(marvelDoc.getTimestamp(), DateTimeZone.UTC);
                 builder.field(Fields.TIMESTAMP, timestampDateTime.toString());
+
+                MarvelDoc.Node sourceNode = marvelDoc.getSourceNode();
+                if (sourceNode != null) {
+                    builder.field(Fields.SOURCE_NODE, sourceNode);
+                }
 
                 // Render fields specific to the Marvel document
                 doRender(marvelDoc, builder, ToXContent.EMPTY_PARAMS);
@@ -79,5 +85,6 @@ public abstract class AbstractRenderer<T extends MarvelDoc> implements Renderer<
     public static final class Fields {
         public static final XContentBuilderString CLUSTER_UUID = new XContentBuilderString("cluster_uuid");
         public static final XContentBuilderString TIMESTAMP = new XContentBuilderString("timestamp");
+        public static final XContentBuilderString SOURCE_NODE = new XContentBuilderString("source_node");
     }
 }

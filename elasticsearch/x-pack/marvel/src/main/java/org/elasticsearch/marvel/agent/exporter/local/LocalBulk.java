@@ -60,11 +60,11 @@ public class LocalBulk extends ExportBulk {
 
             // Get the appropriate renderer in order to render the MarvelDoc
             Renderer renderer = renderers.getRenderer(marvelDoc);
-            assert renderer != null : "unable to render marvel document of type [" + marvelDoc.type() + "]. no renderer found in registry";
+            assert renderer != null : "unable to render marvel document of type [" + marvelDoc.getType() + "]. no renderer found in registry";
 
             if (renderer == null) {
                 logger.warn("local exporter [{}] - unable to render marvel document of type [{}]: no renderer found in registry",
-                        name, marvelDoc.type());
+                        name, marvelDoc.getType());
                 continue;
             }
 
@@ -73,11 +73,11 @@ public class LocalBulk extends ExportBulk {
             // we need the index to be based on the document timestamp and/or template version
             request.setIndex(indexNameResolver.resolve(marvelDoc));
 
-            if (marvelDoc.type() != null) {
-                request.setType(marvelDoc.type());
+            if (marvelDoc.getType() != null) {
+                request.setType(marvelDoc.getType());
             }
-            if (marvelDoc.id() != null) {
-                request.setId(marvelDoc.id());
+            if (marvelDoc.getId() != null) {
+                request.setId(marvelDoc.getId());
             }
 
             if (buffer == null) {

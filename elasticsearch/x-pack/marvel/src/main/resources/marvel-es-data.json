@@ -13,7 +13,55 @@
       "_all": {
         "enabled": false
       },
-      "date_detection": false
+      "date_detection": false,
+      "properties": {
+        "cluster_uuid": {
+          "type": "string",
+          "index": "not_analyzed"
+        },
+        "timestamp": {
+          "type": "date",
+          "format": "date_time"
+        },
+        "source_node": {
+          "properties": {
+            "id": {
+              "type": "string",
+              "index": "not_analyzed"
+            },
+            "host": {
+              "type": "string",
+              "index": "not_analyzed"
+            },
+            "transport_address": {
+              "type": "string",
+              "index": "not_analyzed"
+            },
+            "ip": {
+              "type": "string",
+              "index": "not_analyzed"
+            },
+            "name": {
+              "type": "string",
+              "index": "not_analyzed"
+            },
+            "attributes": {
+              "dynamic": false,
+              "properties": {
+                "data": {
+                  "type": "boolean"
+                },
+                "master": {
+                  "type": "boolean"
+                },
+                "client": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+        }
+      }
     },
     "cluster_info": {
       "enabled": false

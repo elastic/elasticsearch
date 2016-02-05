@@ -11,20 +11,23 @@ import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
 
 public class ClusterStateMarvelDoc extends MarvelDoc {
 
-    private final ClusterState clusterState;
-    private final ClusterHealthStatus status;
-
-    public ClusterStateMarvelDoc(String clusterUUID, String type, long timestamp, ClusterState clusterState, ClusterHealthStatus status) {
-        super(clusterUUID, type, timestamp);
-        this.clusterState = clusterState;
-        this.status = status;
-    }
+    private ClusterState clusterState;
+    private ClusterHealthStatus status;
 
     public ClusterState getClusterState() {
         return clusterState;
     }
 
+    public void setClusterState(ClusterState clusterState) {
+        this.clusterState = clusterState;
+    }
+
     public ClusterHealthStatus getStatus() {
         return status;
     }
+
+    public void setStatus(ClusterHealthStatus status) {
+        this.status = status;
+    }
+
 }

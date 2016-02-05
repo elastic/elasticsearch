@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.marvel.agent.collector.AbstractCollector;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
@@ -40,9 +41,9 @@ public class IndexRecoveryCollector extends AbstractCollector<IndexRecoveryColle
     private final Client client;
 
     @Inject
-    public IndexRecoveryCollector(Settings settings, ClusterService clusterService, MarvelSettings marvelSettings,
-                                  MarvelLicensee marvelLicensee, InternalClient client) {
-        super(settings, NAME, clusterService, marvelSettings, marvelLicensee);
+    public IndexRecoveryCollector(Settings settings, ClusterService clusterService, DiscoveryService discoveryService,
+                                  MarvelSettings marvelSettings, MarvelLicensee marvelLicensee, InternalClient client) {
+        super(settings, NAME, clusterService, discoveryService, marvelSettings, marvelLicensee);
         this.client = client;
     }
 
@@ -62,7 +63,13 @@ public class IndexRecoveryCollector extends AbstractCollector<IndexRecoveryColle
                     .get(marvelSettings.recoveryTimeout());
 
             if (recoveryResponse.hasRecoveries()) {
-                results.add(new IndexRecoveryMarvelDoc(clusterUUID(), TYPE, System.currentTimeMillis(), recoveryResponse));
+                IndexRecoveryMarvelDoc indexRecoveryDoc = new IndexRecoveryMarvelDoc();;
+                indexRecoveryDoc.setClusterUUID(clusterUUID());
+                indexRecoveryDoc.setType(TYPE);
+                indexRecoveryDoc.setTimestamp(System.currentTimeMillis());
+                indexRecoveryDoc.setSourceNode(localNode());
+                indexRecoveryDoc.setRecoveryResponse(recoveryResponse);
+                results.add(indexRecoveryDoc);
             }
         } catch (IndexNotFoundException e) {
             if (ShieldPlugin.shieldEnabled(settings) && IndexNameExpressionResolver.isAllIndices(Arrays.asList(marvelSettings.indices()))) {

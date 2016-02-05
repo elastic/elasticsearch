@@ -30,8 +30,12 @@ public class ShardsRendererTests extends ESSingleNodeTestCase {
         ClusterState clusterState = getInstanceFromNode(ClusterService.class).state();
 
         logger.debug("--> creating the shard marvel document");
-        ShardMarvelDoc marvelDoc = new ShardMarvelDoc("my-index", "shards", "my-id",
-                clusterState.metaData().clusterUUID(), 1437580442979L, clusterState.routingTable().allShards().iterator().next(), clusterState.stateUUID());
+        ShardMarvelDoc marvelDoc = new ShardMarvelDoc(null, "shards", "my-id");
+        marvelDoc.setClusterUUID("test");
+        marvelDoc.setClusterUUID(clusterState.metaData().clusterUUID());
+        marvelDoc.setTimestamp(1437580442979L);
+        marvelDoc.setShardRouting(clusterState.routingTable().allShards().iterator().next());
+        marvelDoc.setClusterStateUUID(clusterState.stateUUID());
 
         logger.debug("--> rendering the document");
         Renderer renderer = new ShardsRenderer();
@@ -45,7 +49,13 @@ public class ShardsRendererTests extends ESSingleNodeTestCase {
     }
 
     public void testNoShard() throws IOException {
-        String result = RendererTestUtils.renderAsJSON(new ShardMarvelDoc("my-index", "shards", "my-id", "cluster-uuid", 1437580442979L, null, "my-state-uuid"), new ShardsRenderer());
+        ShardMarvelDoc marvelDoc = new ShardMarvelDoc(null, "shards", "my-id");
+        marvelDoc.setClusterUUID("cluster-uuid");
+        marvelDoc.setTimestamp(1437580442979L);
+        marvelDoc.setShardRouting(null);
+        marvelDoc.setClusterStateUUID("my-state-uuid");
+
+        String result = RendererTestUtils.renderAsJSON(marvelDoc, new ShardsRenderer());
         RendererTestUtils.assertJSONStructureAndValues(result, "{\"cluster_uuid\":\"my-cluster-uuid\",\"timestamp\":\"2015-07-22T15:54:02.979Z\",\"state_uuid\":\"my-state-uuid\"}");
     }
 }

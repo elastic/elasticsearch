@@ -37,7 +37,7 @@ public class ClusterInfoRenderer extends AbstractRenderer<ClusterInfoMarvelDoc> 
                     .map();
             params = new ToXContent.DelegatingMapParams(extraParams, params);
             license.toInnerXContent(builder, params);
-            builder.field(Fields.HKEY, hash(license, marvelDoc.clusterUUID()));
+            builder.field(Fields.HKEY, hash(license, marvelDoc.getClusterUUID()));
             builder.endObject();
         }
 

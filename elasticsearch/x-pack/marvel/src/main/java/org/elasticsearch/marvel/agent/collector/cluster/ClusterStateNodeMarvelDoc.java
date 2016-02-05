@@ -9,21 +9,23 @@ import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
 
 public class ClusterStateNodeMarvelDoc extends MarvelDoc {
 
-    private final String stateUUID;
-    private final String nodeId;
-
-    public ClusterStateNodeMarvelDoc(String clusterUUID, String type, long timestamp, String stateUUID, String nodeId) {
-        super(clusterUUID, type, timestamp);
-        this.stateUUID = stateUUID;
-        this.nodeId = nodeId;
-    }
+    private String stateUUID;
+    private String nodeId;
 
     public String getStateUUID() {
         return stateUUID;
     }
 
+    public void setStateUUID(String stateUUID) {
+        this.stateUUID = stateUUID;
+    }
+
     public String getNodeId() {
         return nodeId;
+    }
+
+    public void setNodeId(String nodeId) {
+        this.nodeId = nodeId;
     }
 }
 

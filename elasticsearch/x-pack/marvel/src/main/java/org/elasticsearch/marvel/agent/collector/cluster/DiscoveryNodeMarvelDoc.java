@@ -10,15 +10,17 @@ import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
 
 public class DiscoveryNodeMarvelDoc extends MarvelDoc {
 
-    private final DiscoveryNode node;
+    private DiscoveryNode node;
 
-    public DiscoveryNodeMarvelDoc(String index, String type, String id, String clusterUUID, long timestamp, DiscoveryNode node) {
-        super(index, type, id, clusterUUID, timestamp);
-        this.node = node;
+    public DiscoveryNodeMarvelDoc(String index, String type, String id) {
+        super(index, type, id);
     }
 
     public DiscoveryNode getNode() {
         return node;
     }
-}
 
+    public void setNode(DiscoveryNode node) {
+        this.node = node;
+    }
+}

@@ -10,6 +10,7 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.marvel.agent.collector.AbstractCollectorTestCase;
@@ -34,6 +35,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 @ClusterScope(numDataNodes = 0, numClientNodes = 0, transportClientRatio = 0.0)
 public class IndexRecoveryCollectorTests extends AbstractCollectorTestCase {
@@ -99,9 +101,10 @@ public class IndexRecoveryCollectorTests extends AbstractCollectorTestCase {
         assertThat(marvelDoc, instanceOf(IndexRecoveryMarvelDoc.class));
 
         IndexRecoveryMarvelDoc indexRecoveryMarvelDoc = (IndexRecoveryMarvelDoc) marvelDoc;
-        assertThat(indexRecoveryMarvelDoc.clusterUUID(), equalTo(client().admin().cluster().prepareState().setMetaData(true).get().getState().metaData().clusterUUID()));
-        assertThat(indexRecoveryMarvelDoc.timestamp(), greaterThan(0L));
-        assertThat(indexRecoveryMarvelDoc.type(), equalTo(IndexRecoveryCollector.TYPE));
+        assertThat(indexRecoveryMarvelDoc.getClusterUUID(), equalTo(client().admin().cluster().prepareState().setMetaData(true).get().getState().metaData().clusterUUID()));
+        assertThat(indexRecoveryMarvelDoc.getTimestamp(), greaterThan(0L));
+        assertThat(indexRecoveryMarvelDoc.getType(), equalTo(IndexRecoveryCollector.TYPE));
+        assertThat(indexRecoveryMarvelDoc.getSourceNode(), notNullValue());
 
         RecoveryResponse recovery = indexRecoveryMarvelDoc.getRecoveryResponse();
         assertNotNull(recovery);
@@ -201,6 +204,7 @@ public class IndexRecoveryCollectorTests extends AbstractCollectorTestCase {
         }
         return new IndexRecoveryCollector(internalCluster().getInstance(Settings.class, nodeId),
                 internalCluster().getInstance(ClusterService.class, nodeId),
+                internalCluster().getInstance(DiscoveryService.class, nodeId),
                 internalCluster().getInstance(MarvelSettings.class, nodeId),
                 internalCluster().getInstance(MarvelLicensee.class, nodeId),
                 securedClient(nodeId));

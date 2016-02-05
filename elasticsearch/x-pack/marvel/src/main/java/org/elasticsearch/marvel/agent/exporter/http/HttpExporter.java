@@ -182,11 +182,11 @@ public class HttpExporter extends Exporter {
 
         // Get the appropriate renderer in order to render the MarvelDoc
         Renderer renderer = renderers.getRenderer(marvelDoc);
-        assert renderer != null : "unable to render marvel document of type [" + marvelDoc.type() + "]. no renderer found in registry";
+        assert renderer != null : "unable to render marvel document of type [" + marvelDoc.getType() + "]. no renderer found in registry";
 
         if (renderer == null) {
             logger.warn("http exporter [{}] - unable to render marvel document of type [{}]: no renderer found in registry",
-                    name(), marvelDoc.type());
+                    name(), marvelDoc.getType());
             return;
         }
 
@@ -199,11 +199,11 @@ public class HttpExporter extends Exporter {
             // we need the index to be based on the document timestamp and/or template version
             builder.field("_index", indexNameResolver.resolve(marvelDoc));
 
-            if (marvelDoc.type() != null) {
-                builder.field("_type", marvelDoc.type());
+            if (marvelDoc.getType() != null) {
+                builder.field("_type", marvelDoc.getType());
             }
-            if (marvelDoc.id() != null) {
-                builder.field("_id", marvelDoc.id());
+            if (marvelDoc.getId() != null) {
+                builder.field("_id", marvelDoc.getId());
             }
             builder.endObject();
             builder.endObject();

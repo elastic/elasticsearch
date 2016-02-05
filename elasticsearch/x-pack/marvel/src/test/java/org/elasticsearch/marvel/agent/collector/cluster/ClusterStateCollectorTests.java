@@ -9,6 +9,7 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.marvel.agent.collector.AbstractCollectorTestCase;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
 import org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils;
@@ -28,6 +29,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.isEmptyOrNullString;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class ClusterStateCollectorTests extends AbstractCollectorTestCase {
 
@@ -89,9 +91,10 @@ public class ClusterStateCollectorTests extends AbstractCollectorTestCase {
         assertThat(marvelDoc, instanceOf(ClusterStateMarvelDoc.class));
 
         ClusterStateMarvelDoc clusterStateMarvelDoc = (ClusterStateMarvelDoc) marvelDoc;
-        assertThat(clusterStateMarvelDoc.clusterUUID(), equalTo(client().admin().cluster().prepareState().setMetaData(true).get().getState().metaData().clusterUUID()));
-        assertThat(clusterStateMarvelDoc.timestamp(), greaterThan(0L));
-        assertThat(clusterStateMarvelDoc.type(), equalTo(ClusterStateCollector.TYPE));
+        assertThat(clusterStateMarvelDoc.getClusterUUID(), equalTo(client().admin().cluster().prepareState().setMetaData(true).get().getState().metaData().clusterUUID()));
+        assertThat(clusterStateMarvelDoc.getTimestamp(), greaterThan(0L));
+        assertThat(clusterStateMarvelDoc.getType(), equalTo(ClusterStateCollector.TYPE));
+        assertThat(clusterStateMarvelDoc.getSourceNode(), notNullValue());
         assertNotNull(clusterStateMarvelDoc.getClusterState());
 
         ClusterState clusterState = clusterStateMarvelDoc.getClusterState();
@@ -147,6 +150,7 @@ public class ClusterStateCollectorTests extends AbstractCollectorTestCase {
         assertNotNull(nodeId);
         return new ClusterStateCollector(internalCluster().getInstance(Settings.class, nodeId),
                 internalCluster().getInstance(ClusterService.class, nodeId),
+                internalCluster().getInstance(DiscoveryService.class, nodeId),
                 internalCluster().getInstance(MarvelSettings.class, nodeId),
                 internalCluster().getInstance(MarvelLicensee.class, nodeId),
                 securedClient(nodeId));
@@ -163,33 +167,31 @@ public class ClusterStateCollectorTests extends AbstractCollectorTestCase {
         List<DiscoveryNodeMarvelDoc> discoveryNodes = new ArrayList<>();
 
         for (MarvelDoc marvelDoc : results) {
-            assertThat(marvelDoc.clusterUUID(), equalTo(clusterUUID));
-            assertThat(marvelDoc.timestamp(), greaterThan(0L));
+            assertThat(marvelDoc.getClusterUUID(), equalTo(clusterUUID));
+            assertThat(marvelDoc.getTimestamp(), greaterThan(0L));
+            assertThat(marvelDoc.getSourceNode(), notNullValue());
             assertThat(marvelDoc, anyOf(instanceOf(ClusterStateMarvelDoc.class), instanceOf(ClusterStateNodeMarvelDoc.class), instanceOf(DiscoveryNodeMarvelDoc.class)));
 
-            switch (marvelDoc.type()) {
-                case ClusterStateCollector.TYPE:
-                    ClusterStateMarvelDoc clusterStateMarvelDoc = (ClusterStateMarvelDoc) marvelDoc;
-                    assertThat(clusterStateMarvelDoc.getClusterState().getRoutingTable().allShards(), hasSize(nbShards));
-                    assertThat(clusterStateMarvelDoc.getClusterState().getNodes().getSize(), equalTo(internalCluster().size()));
-                    break;
+            if (marvelDoc instanceof ClusterStateMarvelDoc) {
+                ClusterStateMarvelDoc clusterStateMarvelDoc = (ClusterStateMarvelDoc) marvelDoc;
+                assertThat(clusterStateMarvelDoc.getClusterState().getRoutingTable().allShards(), hasSize(nbShards));
+                assertThat(clusterStateMarvelDoc.getClusterState().getNodes().getSize(), equalTo(internalCluster().size()));
 
-                case ClusterStateCollector.NODES_TYPE:
-                    ClusterStateNodeMarvelDoc clusterStateNodeMarvelDoc = (ClusterStateNodeMarvelDoc) marvelDoc;
-                    assertThat(clusterStateNodeMarvelDoc.getStateUUID(), equalTo(stateUUID));
-                    assertThat(clusterStateNodeMarvelDoc.getNodeId(), not(isEmptyOrNullString()));
-                    clusterStateNodes.add(clusterStateNodeMarvelDoc);
-                    break;
+            } else if (marvelDoc instanceof ClusterStateNodeMarvelDoc) {
+                ClusterStateNodeMarvelDoc clusterStateNodeMarvelDoc = (ClusterStateNodeMarvelDoc) marvelDoc;
+                assertThat(clusterStateNodeMarvelDoc.getStateUUID(), equalTo(stateUUID));
+                assertThat(clusterStateNodeMarvelDoc.getNodeId(), not(isEmptyOrNullString()));
+                clusterStateNodes.add(clusterStateNodeMarvelDoc);
 
-                case ClusterStateCollector.NODE_TYPE:
-                    DiscoveryNodeMarvelDoc discoveryNodeMarvelDoc = (DiscoveryNodeMarvelDoc) marvelDoc;
-                    assertThat(discoveryNodeMarvelDoc.index(), equalTo(MarvelSettings.MARVEL_DATA_INDEX_PREFIX + MarvelTemplateUtils.TEMPLATE_VERSION));
-                    assertThat(discoveryNodeMarvelDoc.id(),  not(isEmptyOrNullString()));
-                    assertNotNull(discoveryNodeMarvelDoc.getNode());
-                    discoveryNodes.add(discoveryNodeMarvelDoc);
-                    break;
-                default:
-                    fail("unknown marvel document type " + marvelDoc.type());
+            } else if (marvelDoc instanceof DiscoveryNodeMarvelDoc) {
+                DiscoveryNodeMarvelDoc discoveryNodeMarvelDoc = (DiscoveryNodeMarvelDoc) marvelDoc;
+                assertThat(discoveryNodeMarvelDoc.getIndex(), equalTo(MarvelSettings.MARVEL_DATA_INDEX_PREFIX + MarvelTemplateUtils.TEMPLATE_VERSION));
+                assertThat(discoveryNodeMarvelDoc.getId(), not(isEmptyOrNullString()));
+                assertNotNull(discoveryNodeMarvelDoc.getNode());
+                discoveryNodes.add(discoveryNodeMarvelDoc);
+
+            } else {
+                fail("unknown marvel document type " + marvelDoc.getType());
             }
         }
 

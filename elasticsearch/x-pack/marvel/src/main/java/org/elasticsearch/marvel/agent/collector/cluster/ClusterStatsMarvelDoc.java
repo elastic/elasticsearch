@@ -10,14 +10,14 @@ import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
 
 public class ClusterStatsMarvelDoc extends MarvelDoc {
 
-    private final ClusterStatsResponse clusterStats;
-
-    public ClusterStatsMarvelDoc(String clusterUUID, String type, long timestamp, ClusterStatsResponse clusterStats) {
-        super(clusterUUID, type, timestamp);
-        this.clusterStats = clusterStats;
-    }
+    private ClusterStatsResponse clusterStats;
 
     public ClusterStatsResponse getClusterStats() {
         return clusterStats;
     }
+
+    public void setClusterStats(ClusterStatsResponse clusterStats) {
+        this.clusterStats = clusterStats;
+    }
+
 }

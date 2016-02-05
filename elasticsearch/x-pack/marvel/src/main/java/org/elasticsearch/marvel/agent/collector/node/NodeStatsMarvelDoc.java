@@ -10,22 +10,35 @@ import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
 
 public class NodeStatsMarvelDoc extends MarvelDoc {
 
-    private final String nodeId;
-    private final boolean nodeMaster;
-    private final NodeStats nodeStats;
+    private String nodeId;
+    private boolean nodeMaster;
+    private NodeStats nodeStats;
 
-    private final boolean mlockall;
-    private final Double diskThresholdWaterMarkHigh;
-    private final boolean diskThresholdDeciderEnabled;
+    private boolean mlockall;
+    private Double diskThresholdWaterMarkHigh;
+    private boolean diskThresholdDeciderEnabled;
 
-    public NodeStatsMarvelDoc(String clusterUUID, String type, long timestamp,
-                              String nodeId, boolean nodeMaster, NodeStats nodeStats, boolean mlockall, Double diskThresholdWaterMarkHigh, boolean diskThresholdDeciderEnabled) {
-        super(clusterUUID, type, timestamp);
+    public void setNodeId(String nodeId) {
         this.nodeId = nodeId;
+    }
+
+    public void setNodeMaster(boolean nodeMaster) {
         this.nodeMaster = nodeMaster;
+    }
+
+    public void setNodeStats(NodeStats nodeStats) {
         this.nodeStats = nodeStats;
+    }
+
+    public void setMlockall(boolean mlockall) {
         this.mlockall = mlockall;
+    }
+
+    public void setDiskThresholdWaterMarkHigh(Double diskThresholdWaterMarkHigh) {
         this.diskThresholdWaterMarkHigh = diskThresholdWaterMarkHigh;
+    }
+
+    public void setDiskThresholdDeciderEnabled(boolean diskThresholdDeciderEnabled) {
         this.diskThresholdDeciderEnabled = diskThresholdDeciderEnabled;
     }
 
@@ -52,5 +65,6 @@ public class NodeStatsMarvelDoc extends MarvelDoc {
     public boolean isDiskThresholdDeciderEnabled() {
         return diskThresholdDeciderEnabled;
     }
+
 }
 

@@ -22,7 +22,11 @@ public class IndicesStatsRendererTests extends ESSingleNodeTestCase {
         IndicesStatsResponse indicesStats = client().admin().indices().prepareStats().get();
 
         logger.debug("--> creating the indices stats marvel document");
-        IndicesStatsMarvelDoc marvelDoc = new IndicesStatsMarvelDoc("test", "indices_stats", 1437580442979L, indicesStats);
+        IndicesStatsMarvelDoc marvelDoc = new IndicesStatsMarvelDoc();
+        marvelDoc.setClusterUUID("test");
+        marvelDoc.setType("indices_stats");
+        marvelDoc.setTimestamp(1437580442979L);
+        marvelDoc.setIndicesStats(indicesStats);
 
         logger.debug("--> rendering the document");
         Renderer renderer = new IndicesStatsRenderer();

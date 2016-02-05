@@ -9,6 +9,7 @@ import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.marvel.agent.collector.AbstractCollectorTestCase;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
@@ -28,6 +29,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 @ClusterScope(numDataNodes = 0, numClientNodes = 0, transportClientRatio = 0.0)
 public class IndexStatsCollectorTests extends AbstractCollectorTestCase {
@@ -96,9 +98,10 @@ public class IndexStatsCollectorTests extends AbstractCollectorTestCase {
         assertThat(marvelDoc, instanceOf(IndexStatsMarvelDoc.class));
 
         IndexStatsMarvelDoc indexStatsMarvelDoc = (IndexStatsMarvelDoc) marvelDoc;
-        assertThat(indexStatsMarvelDoc.clusterUUID(), equalTo(client().admin().cluster().prepareState().setMetaData(true).get().getState().metaData().clusterUUID()));
-        assertThat(indexStatsMarvelDoc.timestamp(), greaterThan(0L));
-        assertThat(indexStatsMarvelDoc.type(), equalTo(IndexStatsCollector.TYPE));
+        assertThat(indexStatsMarvelDoc.getClusterUUID(), equalTo(client().admin().cluster().prepareState().setMetaData(true).get().getState().metaData().clusterUUID()));
+        assertThat(indexStatsMarvelDoc.getTimestamp(), greaterThan(0L));
+        assertThat(indexStatsMarvelDoc.getType(), equalTo(IndexStatsCollector.TYPE));
+        assertThat(indexStatsMarvelDoc.getSourceNode(), notNullValue());
 
         IndexStats indexStats = indexStatsMarvelDoc.getIndexStats();
         assertNotNull(indexStats);
@@ -157,9 +160,10 @@ public class IndexStatsCollectorTests extends AbstractCollectorTestCase {
                 assertNotNull(indexStats);
 
                 if (indexStats.getIndex().equals(indexPrefix + i)) {
-                    assertThat(indexStatsMarvelDoc.clusterUUID(), equalTo(clusterUUID));
-                    assertThat(indexStatsMarvelDoc.timestamp(), greaterThan(0L));
-                    assertThat(indexStatsMarvelDoc.type(), equalTo(IndexStatsCollector.TYPE));
+                    assertThat(indexStatsMarvelDoc.getClusterUUID(), equalTo(clusterUUID));
+                    assertThat(indexStatsMarvelDoc.getTimestamp(), greaterThan(0L));
+                    assertThat(indexStatsMarvelDoc.getType(), equalTo(IndexStatsCollector.TYPE));
+                    assertThat(indexStatsMarvelDoc.getSourceNode(), notNullValue());
 
                     assertThat(indexStats.getIndex(), equalTo(indexName));
                     assertNotNull(indexStats.getTotal().getDocs());
@@ -234,6 +238,7 @@ public class IndexStatsCollectorTests extends AbstractCollectorTestCase {
         assertNotNull(nodeId);
         return new IndexStatsCollector(internalCluster().getInstance(Settings.class, nodeId),
                 internalCluster().getInstance(ClusterService.class, nodeId),
+                internalCluster().getInstance(DiscoveryService.class, nodeId),
                 internalCluster().getInstance(MarvelSettings.class, nodeId),
                 internalCluster().getInstance(MarvelLicensee.class, nodeId),
                 securedClient(nodeId));

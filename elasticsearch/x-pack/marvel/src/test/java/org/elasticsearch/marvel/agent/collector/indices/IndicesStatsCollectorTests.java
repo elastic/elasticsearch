@@ -11,6 +11,7 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.marvel.agent.collector.AbstractCollectorTestCase;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
@@ -24,9 +25,11 @@ import java.util.List;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
-
+import static org.hamcrest.Matchers.notNullValue;
 
 @ClusterScope(numDataNodes = 0, numClientNodes = 0, transportClientRatio = 0.0)
 public class IndicesStatsCollectorTests extends AbstractCollectorTestCase {
@@ -94,6 +97,12 @@ public class IndicesStatsCollectorTests extends AbstractCollectorTestCase {
         assertThat(marvelDoc, instanceOf(IndicesStatsMarvelDoc.class));
 
         IndicesStatsMarvelDoc indicesStatsMarvelDoc = (IndicesStatsMarvelDoc) marvelDoc;
+        assertThat(indicesStatsMarvelDoc.getClusterUUID(), equalTo(client().admin().cluster().
+                prepareState().setMetaData(true).get().getState().metaData().clusterUUID()));
+        assertThat(indicesStatsMarvelDoc.getTimestamp(), greaterThan(0L));
+        assertThat(indicesStatsMarvelDoc.getType(), equalTo(IndicesStatsCollector.TYPE));
+        assertThat(indicesStatsMarvelDoc.getSourceNode(), notNullValue());
+
         IndicesStatsResponse indicesStats = indicesStatsMarvelDoc.getIndicesStats();
         assertNotNull(indicesStats);
         assertThat(indicesStats.getIndices().keySet(), hasSize(1));
@@ -200,6 +209,7 @@ public class IndicesStatsCollectorTests extends AbstractCollectorTestCase {
         }
         return new IndicesStatsCollector(internalCluster().getInstance(Settings.class, nodeId),
                 internalCluster().getInstance(ClusterService.class, nodeId),
+                internalCluster().getInstance(DiscoveryService.class, nodeId),
                 internalCluster().getInstance(MarvelSettings.class, nodeId),
                 internalCluster().getInstance(MarvelLicensee.class, nodeId),
                 securedClient(nodeId));

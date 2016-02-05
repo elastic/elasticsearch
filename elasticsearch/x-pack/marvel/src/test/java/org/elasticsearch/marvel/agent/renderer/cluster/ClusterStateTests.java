@@ -100,10 +100,11 @@ public class ClusterStateTests extends MarvelIntegTestCase {
         final long nbNodes = internalCluster().size();
 
         logger.debug("--> waiting for documents to be collected");
-        awaitMarvelDocsCount(greaterThanOrEqualTo(nbNodes), ClusterStateCollector.NODES_TYPE);
+        awaitMarvelDocsCount(greaterThanOrEqualTo(nbNodes), ClusterStateCollector.NODE_TYPE);
 
-        logger.debug("--> searching for marvel documents of type [{}]", ClusterStateCollector.NODES_TYPE);
-        SearchResponse response = client().prepareSearch().setTypes(ClusterStateCollector.NODES_TYPE).get();
+        logger.debug("--> searching for marvel documents of type [{}]", ClusterStateCollector.NODE_TYPE);
+        SearchResponse response = client().prepareSearch(MarvelSettings.MARVEL_INDICES_PREFIX + MarvelTemplateUtils.TEMPLATE_VERSION + "-*")
+                .setTypes(ClusterStateCollector.NODE_TYPE).get();
         assertThat(response.getHits().getTotalHits(), greaterThanOrEqualTo(nbNodes));
 
         logger.debug("--> checking that every document contains the expected fields");
@@ -126,14 +127,14 @@ public class ClusterStateTests extends MarvelIntegTestCase {
         logger.debug("--> cluster state nodes successfully collected");
     }
 
-    public void testClusterStateNode() throws Exception {
+    public void testDiscoveryNodes() throws Exception {
         final long nbNodes = internalCluster().size();
 
         logger.debug("--> waiting for documents to be collected");
         awaitMarvelDocsCount(greaterThanOrEqualTo(nbNodes), ClusterStateCollector.NODE_TYPE);
 
         logger.debug("--> searching for marvel documents of type [{}]", ClusterStateCollector.NODE_TYPE);
-        SearchResponse response = client().prepareSearch().setTypes(ClusterStateCollector.NODE_TYPE).get();
+        SearchResponse response = client().prepareSearch(MarvelSettings.MARVEL_DATA_INDEX_PREFIX + "*").setTypes(ClusterStateCollector.NODE_TYPE).get();
         assertThat(response.getHits().getTotalHits(), greaterThanOrEqualTo(nbNodes));
 
         logger.debug("--> checking that every document contains the expected fields");
@@ -164,12 +165,13 @@ public class ClusterStateTests extends MarvelIntegTestCase {
 
             // checks that document is not indexed
             assertHitCount(client().prepareSearch().setSize(0)
+                    .setIndices(dataIndex)
                     .setTypes(ClusterStateCollector.NODE_TYPE)
                     .setQuery(QueryBuilders.boolQuery()
                             .should(QueryBuilders.matchQuery("node.id", nodeId))
                             .should(QueryBuilders.matchQuery("node.name", nodeName))).get(), 0);
         }
 
-        logger.debug("--> cluster state node successfully collected");
+        logger.debug("--> cluster state nodes successfully collected");
     }
 }

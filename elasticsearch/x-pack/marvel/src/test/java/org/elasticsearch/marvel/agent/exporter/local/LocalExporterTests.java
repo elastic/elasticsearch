@@ -126,7 +126,7 @@ public class LocalExporterTests extends MarvelIntegTestCase {
 
         // now lets test that the index name resolver works with a doc
         MarvelDoc doc = newRandomMarvelDoc();
-        indexName = MarvelSettings.MARVEL_INDICES_PREFIX + MarvelTemplateUtils.TEMPLATE_VERSION + "-" + DateTimeFormat.forPattern(timeFormat).withZoneUTC().print(doc.timestamp());
+        indexName = MarvelSettings.MARVEL_INDICES_PREFIX + MarvelTemplateUtils.TEMPLATE_VERSION + "-" + DateTimeFormat.forPattern(timeFormat).withZoneUTC().print(doc.getTimestamp());
         assertThat(exporter.indexNameResolver().resolve(doc), equalTo(indexName));
 
         logger.debug("--> exporting a random marvel document");
@@ -137,7 +137,7 @@ public class LocalExporterTests extends MarvelIntegTestCase {
         timeFormat = randomFrom("dd", "dd.MM.YYYY", "dd.MM");
         updateClusterSettings(Settings.builder().put("marvel.agent.exporters._local.index.name.time_format", timeFormat));
         exporter = getLocalExporter("_local"); // we need to get it again.. as it was rebuilt
-        indexName = MarvelSettings.MARVEL_INDICES_PREFIX + MarvelTemplateUtils.TEMPLATE_VERSION + "-" + DateTimeFormat.forPattern(timeFormat).withZoneUTC().print(doc.timestamp());
+        indexName = MarvelSettings.MARVEL_INDICES_PREFIX + MarvelTemplateUtils.TEMPLATE_VERSION + "-" + DateTimeFormat.forPattern(timeFormat).withZoneUTC().print(doc.getTimestamp());
         assertThat(exporter.indexNameResolver().resolve(doc), equalTo(indexName));
 
         logger.debug("--> exporting the document again (this time with the the new index name time format [{}], expecting index name [{}]", timeFormat, indexName);
@@ -186,11 +186,20 @@ public class LocalExporterTests extends MarvelIntegTestCase {
 
     private MarvelDoc newRandomMarvelDoc() {
         if (randomBoolean()) {
-            return new IndexRecoveryMarvelDoc(internalCluster().getClusterName(),
-                    IndexRecoveryCollector.TYPE, timeStampGenerator.incrementAndGet(), new RecoveryResponse());
+            IndexRecoveryMarvelDoc doc = new IndexRecoveryMarvelDoc();
+            doc.setClusterUUID(internalCluster().getClusterName());
+            doc.setType(IndexRecoveryCollector.TYPE);
+            doc.setTimestamp(System.currentTimeMillis());
+            doc.setRecoveryResponse(new RecoveryResponse());
+            return doc;
         } else {
-            return new ClusterStateMarvelDoc(internalCluster().getClusterName(),
-                    ClusterStateCollector.TYPE, timeStampGenerator.incrementAndGet(), ClusterState.PROTO, ClusterHealthStatus.GREEN);
+            ClusterStateMarvelDoc doc = new ClusterStateMarvelDoc();
+            doc.setClusterUUID(internalCluster().getClusterName());
+            doc.setType(ClusterStateCollector.TYPE);
+            doc.setTimestamp(System.currentTimeMillis());
+            doc.setClusterState(ClusterState.PROTO);
+            doc.setStatus(ClusterHealthStatus.GREEN);
+            return doc;
         }
     }
 }

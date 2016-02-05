@@ -9,6 +9,7 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.marvel.agent.collector.AbstractCollectorTestCase;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
@@ -23,6 +24,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class ShardsCollectorTests extends AbstractCollectorTestCase {
 
@@ -64,10 +66,11 @@ public class ShardsCollectorTests extends AbstractCollectorTestCase {
             assertThat(marvelDoc, instanceOf(ShardMarvelDoc.class));
 
             ShardMarvelDoc shardMarvelDoc = (ShardMarvelDoc) marvelDoc;
-            assertThat(shardMarvelDoc.clusterUUID(), equalTo(clusterState.metaData().clusterUUID()));
-            assertThat(shardMarvelDoc.timestamp(), greaterThan(0L));
-            assertThat(shardMarvelDoc.type(), equalTo(ShardsCollector.TYPE));
-            assertThat(shardMarvelDoc.id(), equalTo(ShardsCollector.id(clusterState.stateUUID(), ((ShardMarvelDoc) marvelDoc).getShardRouting())));
+            assertThat(shardMarvelDoc.getClusterUUID(), equalTo(clusterState.metaData().clusterUUID()));
+            assertThat(shardMarvelDoc.getTimestamp(), greaterThan(0L));
+            assertThat(shardMarvelDoc.getType(), equalTo(ShardsCollector.TYPE));
+            assertThat(shardMarvelDoc.getId(), equalTo(ShardsCollector.id(clusterState.stateUUID(), ((ShardMarvelDoc) marvelDoc).getShardRouting())));
+            assertThat(shardMarvelDoc.getSourceNode(), notNullValue());
             assertThat(shardMarvelDoc.getClusterStateUUID(), equalTo(clusterState.stateUUID()));
 
             ShardRouting shardRouting = shardMarvelDoc.getShardRouting();
@@ -124,10 +127,10 @@ public class ShardsCollectorTests extends AbstractCollectorTestCase {
             assertThat(marvelDoc, instanceOf(ShardMarvelDoc.class));
 
             ShardMarvelDoc shardMarvelDoc = (ShardMarvelDoc) marvelDoc;
-            assertThat(shardMarvelDoc.clusterUUID(), equalTo(clusterState.metaData().clusterUUID()));
-            assertThat(shardMarvelDoc.timestamp(), greaterThan(0L));
-            assertThat(shardMarvelDoc.type(), equalTo(ShardsCollector.TYPE));
-            assertThat(shardMarvelDoc.id(), equalTo(ShardsCollector.id(clusterState.stateUUID(), ((ShardMarvelDoc) marvelDoc).getShardRouting())));
+            assertThat(shardMarvelDoc.getClusterUUID(), equalTo(clusterState.metaData().clusterUUID()));
+            assertThat(shardMarvelDoc.getTimestamp(), greaterThan(0L));
+            assertThat(shardMarvelDoc.getType(), equalTo(ShardsCollector.TYPE));
+            assertThat(shardMarvelDoc.getId(), equalTo(ShardsCollector.id(clusterState.stateUUID(), ((ShardMarvelDoc) marvelDoc).getShardRouting())));
             assertThat(shardMarvelDoc.getClusterStateUUID(), equalTo(clusterState.stateUUID()));
 
             ShardRouting shardRouting = shardMarvelDoc.getShardRouting();
@@ -196,6 +199,7 @@ public class ShardsCollectorTests extends AbstractCollectorTestCase {
         assertNotNull(nodeId);
         return new ShardsCollector(internalCluster().getInstance(Settings.class, nodeId),
                 internalCluster().getInstance(ClusterService.class, nodeId),
+                internalCluster().getInstance(DiscoveryService.class, nodeId),
                 internalCluster().getInstance(MarvelSettings.class, nodeId),
                 internalCluster().getInstance(MarvelLicensee.class, nodeId));
     }

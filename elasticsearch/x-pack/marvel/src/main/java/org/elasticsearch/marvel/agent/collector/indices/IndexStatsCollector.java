@@ -11,8 +11,10 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.marvel.agent.collector.AbstractCollector;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
@@ -41,9 +43,9 @@ public class IndexStatsCollector extends AbstractCollector<IndexStatsCollector> 
     private final Client client;
 
     @Inject
-    public IndexStatsCollector(Settings settings, ClusterService clusterService, MarvelSettings marvelSettings,
-                               MarvelLicensee marvelLicensee, InternalClient client) {
-        super(settings, NAME, clusterService, marvelSettings, marvelLicensee);
+    public IndexStatsCollector(Settings settings, ClusterService clusterService, DiscoveryService discoveryService,
+                               MarvelSettings marvelSettings, MarvelLicensee marvelLicensee, InternalClient client) {
+        super(settings, NAME, clusterService, discoveryService, marvelSettings, marvelLicensee);
         this.client = client;
     }
 
@@ -72,8 +74,16 @@ public class IndexStatsCollector extends AbstractCollector<IndexStatsCollector> 
 
             long timestamp = System.currentTimeMillis();
             String clusterUUID = clusterUUID();
+            DiscoveryNode sourceNode = localNode();
+
             for (IndexStats indexStats : indicesStats.getIndices().values()) {
-                results.add(new IndexStatsMarvelDoc(clusterUUID, TYPE, timestamp, indexStats));
+                IndexStatsMarvelDoc indexStatsDoc = new IndexStatsMarvelDoc();
+                indexStatsDoc.setClusterUUID(clusterUUID);
+                indexStatsDoc.setType(TYPE);
+                indexStatsDoc.setTimestamp(timestamp);
+                indexStatsDoc.setSourceNode(sourceNode);
+                indexStatsDoc.setIndexStats(indexStats);
+                results.add(indexStatsDoc);
             }
         } catch (IndexNotFoundException e) {
             if (ShieldPlugin.shieldEnabled(settings) && IndexNameExpressionResolver.isAllIndices(Arrays.asList(marvelSettings.indices()))) {

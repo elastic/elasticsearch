@@ -47,7 +47,11 @@ public class IndexRecoveryRendererTests extends ESTestCase {
 
         RecoveryResponse recoveryResponse = new RecoveryResponse(2, 2, 2, false, shardResponses, null);
 
-        IndexRecoveryMarvelDoc marvelDoc = new IndexRecoveryMarvelDoc("test", "index_recovery", 1437580442979L, recoveryResponse);
+        IndexRecoveryMarvelDoc marvelDoc = new IndexRecoveryMarvelDoc();
+        marvelDoc.setClusterUUID("test");
+        marvelDoc.setType("index_recovery");
+        marvelDoc.setTimestamp(1437580442979L);
+        marvelDoc.setRecoveryResponse(recoveryResponse);
 
         logger.debug("--> rendering the document");
         Renderer renderer = new IndexRecoveryRenderer();

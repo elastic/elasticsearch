@@ -22,7 +22,11 @@ public class ClusterStatsRendererTests extends ESSingleNodeTestCase {
         ClusterStatsResponse clusterStats = client().admin().cluster().prepareClusterStats().get();
 
         logger.debug("--> creating the cluster stats marvel document");
-        ClusterStatsMarvelDoc marvelDoc = new ClusterStatsMarvelDoc("test", "cluster_stats", 1437580442979L, clusterStats);
+        ClusterStatsMarvelDoc marvelDoc = new ClusterStatsMarvelDoc();
+        marvelDoc.setClusterUUID("test");
+        marvelDoc.setType("cluster_stats");
+        marvelDoc.setTimestamp(1437580442979L);
+        marvelDoc.setClusterStats(clusterStats);
 
         logger.debug("--> rendering the document");
         Renderer renderer = new ClusterStatsRenderer();

@@ -11,33 +11,44 @@ import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
 
 public class ClusterInfoMarvelDoc extends MarvelDoc {
 
-    private final String clusterName;
-    private final String version;
-    private final License license;
-    private final ClusterStatsResponse clusterStats;
+    private String clusterName;
+    private String version;
+    private License license;
+    private ClusterStatsResponse clusterStats;
 
-    ClusterInfoMarvelDoc(String index, String type, String id, String clusterUUID, long timestamp,
-                         String clusterName, String version, License license, ClusterStatsResponse clusterStats) {
-        super(index, type, id, clusterUUID, timestamp);
-        this.clusterName = clusterName;
-        this.version = version;
-        this.license = license;
-        this.clusterStats = clusterStats;
+    public ClusterInfoMarvelDoc(String index, String type, String id) {
+        super(index, type, id);
     }
 
     public String getClusterName() {
         return clusterName;
     }
 
+    public void setClusterName(String clusterName) {
+        this.clusterName = clusterName;
+    }
+
     public String getVersion() {
         return version;
+    }
+
+    public void setVersion(String version) {
+        this.version = version;
     }
 
     public License getLicense() {
         return license;
     }
 
+    public void setLicense(License license) {
+        this.license = license;
+    }
+
     public ClusterStatsResponse getClusterStats() {
         return clusterStats;
+    }
+
+    public void setClusterStats(ClusterStatsResponse clusterStats) {
+        this.clusterStats = clusterStats;
     }
 }

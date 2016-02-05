@@ -22,6 +22,44 @@
         "timestamp": {
           "type": "date",
           "format": "date_time"
+        },
+        "source_node": {
+          "properties": {
+            "uuid": {
+              "type": "string",
+              "index": "not_analyzed"
+            },
+            "host": {
+              "type": "string",
+              "index": "not_analyzed"
+            },
+            "transport_address": {
+              "type": "string",
+              "index": "not_analyzed"
+            },
+            "ip": {
+              "type": "string",
+              "index": "not_analyzed"
+            },
+            "name": {
+              "type": "string",
+              "index": "not_analyzed"
+            },
+            "attributes": {
+              "dynamic": false,
+              "properties": {
+                "data": {
+                  "type": "boolean"
+                },
+                "master": {
+                  "type": "boolean"
+                },
+                "client": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
         }
       }
     },
@@ -197,7 +235,7 @@
         }
       }
     },
-    "nodes": {
+    "node": {
       "properties": {
         "state_uuid": {
           "type": "string",

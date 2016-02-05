@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.marvel.agent.collector.AbstractCollector;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
@@ -34,15 +35,14 @@ public class ClusterStateCollector extends AbstractCollector<ClusterStateCollect
 
     public static final String NAME = "cluster-state-collector";
     public static final String TYPE = "cluster_state";
-    public static final String NODES_TYPE = "nodes";
     public static final String NODE_TYPE = "node";
 
     private final Client client;
 
     @Inject
-    public ClusterStateCollector(Settings settings, ClusterService clusterService, MarvelSettings marvelSettings,
-                                 MarvelLicensee marvelLicensee, InternalClient client) {
-        super(settings, NAME, clusterService, marvelSettings, marvelLicensee);
+    public ClusterStateCollector(Settings settings, ClusterService clusterService, DiscoveryService discoveryService,
+                                 MarvelSettings marvelSettings, MarvelLicensee marvelLicensee, InternalClient client) {
+        super(settings, NAME, clusterService,  discoveryService, marvelSettings, marvelLicensee);
         this.client = client;
     }
 
@@ -59,19 +59,40 @@ public class ClusterStateCollector extends AbstractCollector<ClusterStateCollect
         String clusterUUID = clusterState.metaData().clusterUUID();
         String stateUUID = clusterState.stateUUID();
         long timestamp = System.currentTimeMillis();
+        DiscoveryNode sourceNode = localNode();
+
+        ClusterHealthResponse clusterHealth = client.admin().cluster().prepareHealth().get(marvelSettings.clusterStateTimeout());
 
         // Adds a cluster_state document with associated status
-        ClusterHealthResponse clusterHealth = client.admin().cluster().prepareHealth().get(marvelSettings.clusterStateTimeout());
-        results.add(new ClusterStateMarvelDoc(clusterUUID, TYPE, timestamp, clusterState, clusterHealth.getStatus()));
+        ClusterStateMarvelDoc clusterStateDoc = new ClusterStateMarvelDoc();
+        clusterStateDoc.setClusterUUID(clusterUUID);
+        clusterStateDoc.setType(TYPE);
+        clusterStateDoc.setTimestamp(timestamp);
+        clusterStateDoc.setSourceNode(sourceNode);
+        clusterStateDoc.setClusterState(clusterState);
+        clusterStateDoc.setStatus(clusterHealth.getStatus());
+        results.add(clusterStateDoc);
 
         DiscoveryNodes nodes = clusterState.nodes();
         if (nodes != null) {
             for (DiscoveryNode node : nodes) {
                 // Adds a document for every node in the marvel timestamped index (type "nodes")
-                results.add(new ClusterStateNodeMarvelDoc(clusterUUID, NODES_TYPE, timestamp, stateUUID, node.getId()));
+                ClusterStateNodeMarvelDoc clusterStateNodeDoc = new ClusterStateNodeMarvelDoc();
+                clusterStateNodeDoc.setClusterUUID(clusterUUID);;
+                clusterStateNodeDoc.setType(NODE_TYPE);
+                clusterStateNodeDoc.setTimestamp(timestamp);
+                clusterStateNodeDoc.setSourceNode(sourceNode);
+                clusterStateNodeDoc.setStateUUID(stateUUID);
+                clusterStateNodeDoc.setNodeId(node.getId());
+                results.add(clusterStateNodeDoc);
 
                 // Adds a document for every node in the marvel data index (type "node")
-                results.add(new DiscoveryNodeMarvelDoc(dataIndexNameResolver.resolve(timestamp), NODE_TYPE, node.getId(), clusterUUID, timestamp, node));
+                DiscoveryNodeMarvelDoc discoveryNodeDoc = new DiscoveryNodeMarvelDoc(dataIndexNameResolver.resolve(timestamp), NODE_TYPE, node.getId());
+                discoveryNodeDoc.setClusterUUID(clusterUUID);
+                discoveryNodeDoc.setTimestamp(timestamp);
+                discoveryNodeDoc.setSourceNode(node);
+                discoveryNodeDoc.setNode(node);
+                results.add(discoveryNodeDoc);
             }
         }
 

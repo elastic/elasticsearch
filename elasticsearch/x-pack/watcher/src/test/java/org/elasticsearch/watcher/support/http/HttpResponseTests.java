@@ -12,6 +12,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
 
 import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
@@ -77,9 +78,17 @@ public class HttpResponseTests extends ESTestCase {
         } else {
             assertThat(parsedResponse.body().toUtf8(), is(body));
         }
-        assertThat(parsedResponse.headers().size(), is(headers.size()));
-        for (Map.Entry<String, String[]> header : parsedResponse.headers().entrySet()) {
-            assertThat(header.getValue(), arrayContaining(headers.get(header.getKey())));
+        for (Map.Entry<String, String[]> headerEntry : headers.entrySet()) {
+            assertThat(headerEntry.getValue(), arrayContaining(parsedResponse.header(headerEntry.getKey())));
         }
+    }
+
+    public void testThatHeadersAreCaseInsensitive() {
+        Map<String, String[]> headers = new HashMap<>();
+        headers.put(randomFrom("key", "keY", "KEY", "Key"), new String[] { "value" });
+        headers.put(randomFrom("content-type"), new String[] { "text/html" });
+        HttpResponse response = new HttpResponse(200, headers);
+        assertThat(response.header("key")[0], is("value"));
+        assertThat(response.contentType(), is("text/html"));
     }
 }

@@ -201,7 +201,7 @@ public class HttpClient extends AbstractLifecycleComponent<HttpClient> {
         urlConnection.connect();
 
         final int statusCode = urlConnection.getResponseCode();
-        Map<String, String[]> responseHeaders = new HashMap<>();
+        Map<String, String[]> responseHeaders = new HashMap<>(urlConnection.getHeaderFields().size());
         for (Map.Entry<String, List<String>> header : urlConnection.getHeaderFields().entrySet()) {
             // HttpURLConnection#getHeaderFields returns the first status line as a header
             // with a `null` key (facepalm)... so we have to skip that one.
@@ -209,7 +209,6 @@ public class HttpClient extends AbstractLifecycleComponent<HttpClient> {
                 responseHeaders.put(header.getKey(), header.getValue().toArray(new String[header.getValue().size()]));
             }
         }
-        responseHeaders = unmodifiableMap(responseHeaders);
         logger.debug("http status code [{}]", statusCode);
         if (statusCode < 400) {
             final byte[] body;

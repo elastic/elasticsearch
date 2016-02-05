@@ -11,6 +11,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -22,6 +23,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
@@ -60,7 +62,11 @@ public class HttpResponse implements ToXContent {
     public HttpResponse(int status, @Nullable BytesReference body, Map<String, String[]> headers) {
         this.status = status;
         this.body = body;
-        this.headers = headers;
+        MapBuilder<String, String[]> mapBuilder = MapBuilder.newMapBuilder();
+        for (Map.Entry<String, String[]> entry : headers.entrySet()) {
+            mapBuilder.put(entry.getKey().toLowerCase(Locale.ROOT), entry.getValue());
+        }
+        this.headers = mapBuilder.immutableMap();
     }
 
     public int status() {
@@ -75,12 +81,12 @@ public class HttpResponse implements ToXContent {
         return body;
     }
 
-    public Map<String, String[]> headers() {
-        return headers;
+    public String[] header(String header) {
+        return headers.get(header.toLowerCase(Locale.ROOT));
     }
 
     public String contentType() {
-        String[] values = headers.get(HttpHeaders.Names.CONTENT_TYPE);
+        String[] values = header(HttpHeaders.Names.CONTENT_TYPE);
         if (values == null || values.length == 0) {
             return null;
         }
@@ -88,7 +94,7 @@ public class HttpResponse implements ToXContent {
     }
 
     public XContentType xContentType() {
-        String[] values = headers.get(HttpHeaders.Names.CONTENT_TYPE);
+        String[] values = header(HttpHeaders.Names.CONTENT_TYPE);
         if (values == null || values.length == 0) {
             return null;
         }

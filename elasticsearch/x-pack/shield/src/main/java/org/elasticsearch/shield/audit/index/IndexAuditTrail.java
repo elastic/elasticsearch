@@ -112,7 +112,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     public static final String INDEX_TEMPLATE_NAME = "shield_audit_log";
     public static final String DEFAULT_CLIENT_NAME = "shield-audit-client";
 
-    static final String[] DEFAULT_EVENT_INCLUDES = new String[] {
+    static final String[] DEFAULT_EVENT_INCLUDES = new String[]{
             ACCESS_DENIED.toString(),
             ACCESS_GRANTED.toString(),
             ANONYMOUS_ACCESS_DENIED.toString(),
@@ -164,7 +164,8 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
 
         int maxQueueSize = settings.getAsInt(QUEUE_SIZE_SETTING, DEFAULT_MAX_QUEUE_SIZE);
         if (maxQueueSize <= 0) {
-            logger.warn("invalid value [{}] for setting [{}]. using default value [{}]", maxQueueSize, QUEUE_SIZE_SETTING, DEFAULT_MAX_QUEUE_SIZE);
+            logger.warn("invalid value [{}] for setting [{}]. using default value [{}]", maxQueueSize, QUEUE_SIZE_SETTING,
+                    DEFAULT_MAX_QUEUE_SIZE);
             maxQueueSize = DEFAULT_MAX_QUEUE_SIZE;
         }
         this.eventQueue = new LinkedBlockingQueue<>(maxQueueSize);
@@ -185,7 +186,8 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
         try {
             events = parse(includedEvents, excludedEvents);
         } catch (IllegalArgumentException e) {
-            logger.warn("invalid event type specified, using default for audit index output. include events [{}], exclude events [{}]", e, includedEvents, excludedEvents);
+            logger.warn("invalid event type specified, using default for audit index output. include events [{}], exclude events [{}]",
+                    e, includedEvents, excludedEvents);
             events = parse(DEFAULT_EVENT_INCLUDES, Strings.EMPTY_ARRAY);
         }
         this.indexToRemoteCluster = settings.getByPrefix("shield.audit.index.client.").names().size() > 0;
@@ -200,16 +202,15 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
      * This method determines if this service can be started based on the state in the {@link ClusterChangedEvent} and
      * if the node is the master or not. When using remote indexing, a call to the remote cluster will be made to retrieve
      * the state and the same rules will be applied. In order for the service to start, the following must be true:
-     *
      * <ol>
-     *     <li>The cluster must not have a {@link GatewayService#STATE_NOT_RECOVERED_BLOCK}; in other words the gateway
-     *         must have recovered from disk already.</li>
-     *     <li>The current node must be the master OR the <code>shield_audit_log</code> index template must exist</li>
-     *     <li>The current audit index must not exist or have all primary shards active. The current audit index name
-     *         is determined by the rollover settings and current time</li>
+     * <li>The cluster must not have a {@link GatewayService#STATE_NOT_RECOVERED_BLOCK}; in other words the gateway
+     * must have recovered from disk already.</li>
+     * <li>The current node must be the master OR the <code>shield_audit_log</code> index template must exist</li>
+     * <li>The current audit index must not exist or have all primary shards active. The current audit index name
+     * is determined by the rollover settings and current time</li>
      * </ol>
      *
-     * @param event the {@link ClusterChangedEvent} containing the up to date cluster state
+     * @param event  the {@link ClusterChangedEvent} containing the up to date cluster state
      * @param master flag indicating if the current node is the master
      * @return true if all requirements are met and the service can be started
      */
@@ -600,7 +601,8 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
         msg.builder.field(Field.ORIGIN_TYPE, "rest");
         SocketAddress address = request.getRemoteAddress();
         if (address instanceof InetSocketAddress) {
-            msg.builder.field(Field.ORIGIN_ADDRESS, NetworkAddress.formatAddress(((InetSocketAddress) request.getRemoteAddress()).getAddress()));
+            msg.builder.field(Field.ORIGIN_ADDRESS, NetworkAddress.formatAddress(((InetSocketAddress) request.getRemoteAddress())
+                    .getAddress()));
         } else {
             msg.builder.field(Field.ORIGIN_ADDRESS, address);
         }
@@ -631,7 +633,8 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
         return builder;
     }
 
-    private static XContentBuilder originAttributes(TransportMessage message, XContentBuilder builder, Transport transport, ThreadContext threadContext) throws IOException {
+    private static XContentBuilder originAttributes(TransportMessage message, XContentBuilder builder, Transport transport, ThreadContext
+            threadContext) throws IOException {
 
         // first checking if the message originated in a rest call
         InetSocketAddress restAddress = RemoteHostHeader.restRemoteAddress(threadContext);
@@ -646,7 +649,8 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
         if (address != null) {
             builder.field(Field.ORIGIN_TYPE, "transport");
             if (address instanceof InetSocketTransportAddress) {
-                builder.field(Field.ORIGIN_ADDRESS, NetworkAddress.formatAddress(((InetSocketTransportAddress) address).address().getAddress()));
+                builder.field(Field.ORIGIN_ADDRESS,
+                        NetworkAddress.formatAddress(((InetSocketTransportAddress) address).address().getAddress()));
             } else {
                 builder.field(Field.ORIGIN_ADDRESS, address);
             }
@@ -664,7 +668,8 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
         if (currentState != State.STOPPING && currentState != State.STOPPED) {
             boolean accepted = eventQueue.offer(message);
             if (!accepted) {
-                logger.warn("failed to index audit event: [{}]. queue is full; bulk processor may not be able to keep up or has stopped indexing.", type);
+                logger.warn("failed to index audit event: [{}]. queue is full; bulk processor may not be able to keep up" +
+                        "or has stopped indexing.", type);
             }
         }
     }
@@ -804,7 +809,8 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
 
         bulkProcessor = BulkProcessor.builder(client, new BulkProcessor.Listener() {
             @Override
-            public void beforeBulk(long executionId, BulkRequest request) {}
+            public void beforeBulk(long executionId, BulkRequest request) {
+            }
 
             @Override
             public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {
@@ -835,7 +841,8 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
             return;
         }
         if (clusterChangedEvent.state().metaData().templates().get(INDEX_TEMPLATE_NAME) == null) {
-            logger.debug("shield audit index template [{}] does not exist. it may have been deleted - putting the template", INDEX_TEMPLATE_NAME);
+            logger.debug("shield audit index template [{}] does not exist. it may have been deleted - putting the template",
+                    INDEX_TEMPLATE_NAME);
             threadPool.generic().execute(new AbstractRunnable() {
                 @Override
                 public void onFailure(Throwable throwable) {

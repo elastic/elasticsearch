@@ -35,7 +35,8 @@ public class TextTemplate implements ToXContent {
         this(template, null, null, null);
     }
 
-    public TextTemplate(String template, @Nullable XContentType contentType, @Nullable ScriptType type, @Nullable Map<String, Object> params) {
+    public TextTemplate(String template, @Nullable XContentType contentType, @Nullable ScriptType type,
+                        @Nullable Map<String, Object> params) {
         this.template = template;
         this.contentType = contentType;
         this.type = type;
@@ -140,14 +141,16 @@ public class TextTemplate implements ToXContent {
                 if (token == XContentParser.Token.VALUE_STRING) {
                     template = parser.text();
                 } else {
-                    throw new ElasticsearchParseException("expected a string value for field [{}], but found [{}]", currentFieldName, token);
+                    throw new ElasticsearchParseException("expected a string value for field [{}], but found [{}]",
+                            currentFieldName, token);
                 }
             } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.ID)) {
                 type = ScriptType.INDEXED;
                 if (token == XContentParser.Token.VALUE_STRING) {
                     template = parser.text();
                 } else {
-                    throw new ElasticsearchParseException("expected a string value for field [{}], but found [{}]", currentFieldName, token);
+                    throw new ElasticsearchParseException("expected a string value for field [{}], but found [{}]",
+                            currentFieldName, token);
                 }
             } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.PARAMS)) {
                 if (token == XContentParser.Token.START_OBJECT) {
@@ -160,7 +163,8 @@ public class TextTemplate implements ToXContent {
             }
         }
         if (template == null) {
-            throw new ElasticsearchParseException("expected one of [{}], [{}] or [{}] fields, but found none", Field.INLINE.getPreferredName(), Field.FILE.getPreferredName(), Field.ID.getPreferredName());
+            throw new ElasticsearchParseException("expected one of [{}], [{}] or [{}] fields, but found none",
+                    Field.INLINE.getPreferredName(), Field.FILE.getPreferredName(), Field.ID.getPreferredName());
         }
         assert type != null : "if template is not null, type should definitely not be null";
         return new TextTemplate(template, contentType, type, params);

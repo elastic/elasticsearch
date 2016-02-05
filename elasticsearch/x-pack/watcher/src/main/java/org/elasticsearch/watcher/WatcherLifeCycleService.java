@@ -63,7 +63,8 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
     private synchronized void stop(boolean manual) {
         WatcherState watcherState = watcherService.state();
         if (watcherState != WatcherState.STARTED) {
-            logger.debug("not stopping watcher. watcher can only stop if its current state is [{}], but its current state now is [{}]", WatcherState.STARTED, watcherState);
+            logger.debug("not stopping watcher. watcher can only stop if its current state is [{}], but its current state now is [{}]",
+                    WatcherState.STARTED, watcherState);
         } else {
             watcherService.stop();
         }
@@ -75,7 +76,8 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
     private synchronized void start(ClusterState state, boolean manual) {
         WatcherState watcherState = watcherService.state();
         if (watcherState != WatcherState.STOPPED) {
-            logger.debug("not starting watcher. watcher can only start if its current state is [{}], but its current state now is [{}]", WatcherState.STOPPED, watcherState);
+            logger.debug("not starting watcher. watcher can only start if its current state is [{}], but its current state now is [{}]",
+                    WatcherState.STOPPED, watcherState);
             return;
         }
 
@@ -180,7 +182,8 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
                 return TimeValue.timeValueSeconds(30);
             }
         };
-        clusterService.submitStateUpdateTask("update_watcher_manually_stopped", new AckedClusterStateUpdateTask<Boolean>(request, listener) {
+        clusterService.submitStateUpdateTask("update_watcher_manually_stopped",
+                new AckedClusterStateUpdateTask<Boolean>(request, listener) {
 
             @Override
             protected Boolean newResponse(boolean result) {

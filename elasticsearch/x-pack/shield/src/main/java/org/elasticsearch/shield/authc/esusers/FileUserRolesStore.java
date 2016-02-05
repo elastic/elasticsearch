@@ -148,17 +148,20 @@ public class FileUserRolesStore {
             String role = line.substring(0, i).trim();
             Validation.Error validationError = Validation.Roles.validateRoleName(role);
             if (validationError != null) {
-                logger.error("invalid role entry in users_roles file [{}], line [{}] - {}. skipping...",  path.toAbsolutePath(), lineNr, validationError);
+                logger.error("invalid role entry in users_roles file [{}], line [{}] - {}. skipping...", path.toAbsolutePath(), lineNr,
+                        validationError);
                 continue;
             }
             String usersStr = line.substring(i + 1).trim();
             if (Strings.isEmpty(usersStr)) {
-                logger.error("invalid entry for role [{}] in users_roles file [{}], line [{}]. no users found. skipping...", role, path.toAbsolutePath(), lineNr);
+                logger.error("invalid entry for role [{}] in users_roles file [{}], line [{}]. no users found. skipping...", role,
+                        path.toAbsolutePath(), lineNr);
                 continue;
             }
             String[] roleUsers = USERS_DELIM.split(usersStr);
             if (roleUsers.length == 0) {
-                logger.error("invalid entry for role [{}] in users_roles file [{}], line [{}]. no users found. skipping...", role, path.toAbsolutePath(), lineNr);
+                logger.error("invalid entry for role [{}] in users_roles file [{}], line [{}]. no users found. skipping...", role,
+                        path.toAbsolutePath(), lineNr);
                 continue;
             }
 
@@ -177,8 +180,9 @@ public class FileUserRolesStore {
             usersRoles.put(entry.getKey(), entry.getValue().toArray(new String[entry.getValue().size()]));
         }
 
-        if (usersRoles.isEmpty()){
-            logger.warn("no entries found in users_roles file [{}]. use bin/shield/esusers to add users and role mappings", path.toAbsolutePath());
+        if (usersRoles.isEmpty()) {
+            logger.warn("no entries found in users_roles file [{}]. use bin/shield/esusers to add users and role mappings", path
+                    .toAbsolutePath());
         }
 
         return unmodifiableMap(usersRoles);
@@ -202,7 +206,8 @@ public class FileUserRolesStore {
 
         try (PrintWriter writer = new PrintWriter(openAtomicMoveWriter(path))) {
             for (Map.Entry<String, List<String>> entry : roleToUsers.entrySet()) {
-                writer.printf(Locale.ROOT, "%s:%s%s", entry.getKey(), Strings.collectionToCommaDelimitedString(entry.getValue()), System.lineSeparator());
+                writer.printf(Locale.ROOT, "%s:%s%s", entry.getKey(), Strings.collectionToCommaDelimitedString(entry.getValue()),
+                        System.lineSeparator());
             }
         } catch (IOException ioe) {
             throw new ElasticsearchException("could not write file [" + path.toAbsolutePath() + "], please check file permissions", ioe);

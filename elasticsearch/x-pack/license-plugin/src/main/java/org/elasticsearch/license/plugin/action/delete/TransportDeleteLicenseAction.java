@@ -26,9 +26,11 @@ public class TransportDeleteLicenseAction extends TransportMasterNodeAction<Dele
     private final LicensesService licensesService;
 
     @Inject
-    public TransportDeleteLicenseAction(Settings settings, TransportService transportService, ClusterService clusterService, LicensesService licensesService,
-                                        ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, DeleteLicenseAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, DeleteLicenseRequest::new);
+    public TransportDeleteLicenseAction(Settings settings, TransportService transportService, ClusterService clusterService,
+                                        LicensesService licensesService, ThreadPool threadPool, ActionFilters actionFilters,
+                                        IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(settings, DeleteLicenseAction.NAME, transportService, clusterService, threadPool, actionFilters,
+                indexNameExpressionResolver, DeleteLicenseRequest::new);
         this.licensesService = licensesService;
     }
 
@@ -48,7 +50,8 @@ public class TransportDeleteLicenseAction extends TransportMasterNodeAction<Dele
     }
 
     @Override
-    protected void masterOperation(final DeleteLicenseRequest request, ClusterState state, final ActionListener<DeleteLicenseResponse> listener) throws ElasticsearchException {
+    protected void masterOperation(final DeleteLicenseRequest request, ClusterState state, final ActionListener<DeleteLicenseResponse>
+            listener) throws ElasticsearchException {
         licensesService.removeLicense(request, new ActionListener<ClusterStateUpdateResponse>() {
             @Override
             public void onResponse(ClusterStateUpdateResponse clusterStateUpdateResponse) {

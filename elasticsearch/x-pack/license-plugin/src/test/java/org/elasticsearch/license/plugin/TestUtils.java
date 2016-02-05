@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.license.plugin;
 
-import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.block.ClusterBlock;
@@ -31,9 +30,6 @@ import org.elasticsearch.license.plugin.core.LicensesStatus;
 import org.junit.Assert;
 
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -70,28 +66,6 @@ public class TestUtils {
 
     public static Path getTestPubKeyPath() throws Exception {
         return getResourcePath("/public.key");
-    }
-
-    public static void isSame(Collection<License> firstLicenses, Collection<License> secondLicenses) {
-        // check if the effective licenses have the same feature set
-        assertThat(firstLicenses.size(), equalTo(secondLicenses.size()));
-
-        List<License> license1 = new ArrayList<>(firstLicenses);
-
-        CollectionUtil.timSort(license1, new Comparator<License>() {
-            @Override
-            public int compare(License o1, License o2) {
-                return Long.compare(o1.expiryDate(), o2.expiryDate());
-            }
-        });
-        List<License> license2 = new ArrayList<>(secondLicenses);
-        CollectionUtil.timSort(license2, new Comparator<License>() {
-            @Override
-            public int compare(License o1, License o2) {
-                return Long.compare(o1.expiryDate(), o2.expiryDate());
-            }
-        });
-        assertThat(license1, equalTo(license2));
     }
 
     public static String dumpLicense(License license) throws Exception {
@@ -160,7 +134,8 @@ public class TestUtils {
         assertThat("awaiting no pending tasks for too long", success, equalTo(true));
     }
 
-    public static void registerAndAckSignedLicenses(final LicensesService licensesService, License license, final LicensesStatus expectedStatus) {
+    public static void registerAndAckSignedLicenses(final LicensesService licensesService, License license,
+                                                    final LicensesStatus expectedStatus) {
         PutLicenseRequest putLicenseRequest = new PutLicenseRequest().license(license);
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<LicensesStatus> status = new AtomicReference<>();

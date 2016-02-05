@@ -36,7 +36,8 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
     }
 
     public void testSettings() throws Exception {
-        String hashAlgo = randomFrom("bcrypt", "bcrypt4", "bcrypt5", "bcrypt6", "bcrypt7", "bcrypt8", "bcrypt9", "sha1", "ssha256", "md5", "clear_text", "noop");
+        String hashAlgo = randomFrom("bcrypt", "bcrypt4", "bcrypt5", "bcrypt6", "bcrypt7", "bcrypt8", "bcrypt9",
+                                     "sha1", "ssha256", "md5", "clear_text", "noop");
         int maxUsers = randomIntBetween(10, 100);
         TimeValue ttl = TimeValue.timeValueMinutes(randomIntBetween(10, 20));
         Settings settings = Settings.builder()
@@ -215,7 +216,8 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
                     try {
                         latch.await();
                         for (int i = 0; i < 100; i++) {
-                            User user = realm.authenticate(new UsernamePasswordToken(username, invalidPassword ? randomPassword : password));
+                            User user = realm.authenticate(
+                                    new UsernamePasswordToken(username, invalidPassword ? randomPassword : password));
                             if (invalidPassword && user != null) {
                                 throw new RuntimeException("invalid password led to an authenticated user: " + user.toString());
                             } else if (invalidPassword == false && user == null) {

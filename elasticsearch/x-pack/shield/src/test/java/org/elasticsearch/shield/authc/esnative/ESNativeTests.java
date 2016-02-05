@@ -305,7 +305,8 @@ public class ESNativeTests extends ShieldIntegTestCase {
 
         if (authenticate) {
             final String token = basicAuthHeaderValue("joe", new SecuredString("s3krit".toCharArray()));
-            ClusterHealthResponse response = client().filterWithHeader(Collections.singletonMap("Authorization", token)).admin().cluster().prepareHealth().get();
+            ClusterHealthResponse response = client().filterWithHeader(Collections.singletonMap("Authorization", token)).admin().cluster()
+                    .prepareHealth().get();
             assertFalse(response.isTimedOut());
             c.prepareAddRole()
                     .name("test_role")
@@ -357,7 +358,8 @@ public class ESNativeTests extends ShieldIntegTestCase {
         ensureGreen(ShieldTemplateService.SHIELD_ADMIN_INDEX_NAME);
 
         final String token = basicAuthHeaderValue("joe", new SecuredString("s3krit".toCharArray()));
-        ClusterHealthResponse response = client().filterWithHeader(Collections.singletonMap("Authorization", token)).admin().cluster().prepareHealth().get();
+        ClusterHealthResponse response = client().filterWithHeader(Collections.singletonMap("Authorization", token)).admin().cluster()
+                .prepareHealth().get();
         assertFalse(response.isTimedOut());
         c.prepareDeleteRole().role("test_role").get();
         try {

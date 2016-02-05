@@ -18,7 +18,8 @@ import org.elasticsearch.watcher.support.http.HttpClient;
 public class InternalSlackService extends AbstractLifecycleComponent<SlackService> implements SlackService {
 
     private final HttpClient httpClient;
-    public static final Setting<Settings> SLACK_ACCOUNT_SETTING = Setting.groupSetting("watcher.actions.slack.service.", true, Setting.Scope.CLUSTER);
+    public static final Setting<Settings> SLACK_ACCOUNT_SETTING =
+            Setting.groupSetting("watcher.actions.slack.service.", true, Setting.Scope.CLUSTER);
     private volatile SlackAccounts accounts;
 
     @Inject

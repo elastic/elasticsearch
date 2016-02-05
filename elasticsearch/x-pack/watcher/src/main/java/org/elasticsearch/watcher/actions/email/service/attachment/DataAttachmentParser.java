@@ -46,7 +46,8 @@ public class DataAttachmentParser implements EmailAttachmentParser<DataAttachmen
                 if (token == XContentParser.Token.VALUE_STRING) {
                     dataAttachment = resolve(parser.text());
                 } else {
-                    throw new ElasticsearchParseException("could not parse data attachment. expected string value for [{}] field but found [{}] instead", currentFieldName, token);
+                    throw new ElasticsearchParseException("could not parse data attachment. expected string value for [{}] field but " +
+                            "found [{}] instead", currentFieldName, token);
                 }
             }
         }

@@ -49,16 +49,16 @@ public class IndexStatsRendererTests extends ESTestCase {
                         return stats;
                     }
 
-                    @Override
-                    public CommonStats getPrimaries() {
-                        // Primaries will be filtered out by the renderer
-                        CommonStats stats = new CommonStats();
-                        stats.docs = new DocsStats(345678L, randomLong());
-                        stats.store = new StoreStats(randomLong(), randomLong());
-                        stats.indexing = new IndexingStats(new IndexingStats.Stats(0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, true, randomLong()), null);
-                        return stats;
-                    }
-                });
+                @Override
+                public CommonStats getPrimaries() {
+                    // Primaries will be filtered out by the renderer
+                    CommonStats stats = new CommonStats();
+                    stats.docs = new DocsStats(345678L, randomLong());
+                    stats.store = new StoreStats(randomLong(), randomLong());
+                    stats.indexing = new IndexingStats(new IndexingStats.Stats(0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, true, randomLong()), null);
+                    return stats;
+                }
+            });
 
         logger.debug("--> rendering the document");
         Renderer renderer = new IndexStatsRenderer();

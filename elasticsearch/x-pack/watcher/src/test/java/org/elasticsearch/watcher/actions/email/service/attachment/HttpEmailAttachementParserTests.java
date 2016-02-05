@@ -54,7 +54,8 @@ public class HttpEmailAttachementParserTests extends ESTestCase {
 
     public void testSerializationWorks() throws Exception {
         Map<String, EmailAttachmentParser> attachmentParsers = new HashMap<>();
-        attachmentParsers.put(HttpEmailAttachementParser.TYPE, new HttpEmailAttachementParser(httpClient, httpRequestTemplateParser, new MockTextTemplateEngine()));
+        attachmentParsers.put(HttpEmailAttachementParser.TYPE,
+                new HttpEmailAttachementParser(httpClient, httpRequestTemplateParser, new MockTextTemplateEngine()));
         EmailAttachmentsParser emailAttachmentsParser = new EmailAttachmentsParser(attachmentParsers);
 
         String id = "some-id";

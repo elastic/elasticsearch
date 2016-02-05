@@ -43,7 +43,8 @@ public class WeeklyScheduleTests extends ScheduleTestCase {
         String[] crons = expressions(schedule);
         assertThat(crons, arrayWithSize(time.times().length));
         for (DayTimes dayTimes : time.times()) {
-            assertThat(crons, hasItemInArray("0 " + join(",", dayTimes.minute()) + " " + join(",", dayTimes.hour()) + " ? * " + Strings.collectionToCommaDelimitedString(time.days())));
+            assertThat(crons, hasItemInArray("0 " + join(",", dayTimes.minute()) + " " + join(",", dayTimes.hour()) + " ? * " +
+                    Strings.collectionToCommaDelimitedString(time.days())));
         }
     }
 
@@ -58,7 +59,8 @@ public class WeeklyScheduleTests extends ScheduleTestCase {
         assertThat(crons, arrayWithSize(count));
         for (WeekTimes weekTimes : times) {
             for (DayTimes dayTimes : weekTimes.times()) {
-                assertThat(crons, hasItemInArray("0 " + join(",", dayTimes.minute()) + " " + join(",", dayTimes.hour()) + " ? * " + Strings.collectionToCommaDelimitedString(weekTimes.days())));
+                assertThat(crons, hasItemInArray("0 " + join(",", dayTimes.minute()) + " " + join(",", dayTimes.hour()) + " ? * " +
+                        Strings.collectionToCommaDelimitedString(weekTimes.days())));
             }
         }
     }

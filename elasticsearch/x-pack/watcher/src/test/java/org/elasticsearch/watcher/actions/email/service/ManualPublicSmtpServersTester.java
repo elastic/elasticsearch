@@ -111,12 +111,7 @@ public class ManualPublicSmtpServersTester {
                     .textBody("_text_body")
                     .htmlBody("<b>html body</b><p/><p/><img src=\"cid:logo\"/>")
                     .attach(new Attachment.XContent.Yaml("test.yml", content))
-                    .inline(new Inline.Stream("logo", "logo.jpg", new Provider<InputStream>() {
-                        @Override
-                        public InputStream get() {
-                            return InternalEmailServiceTests.class.getResourceAsStream("logo.png");
-                        }
-                    }))
+                    .inline(new Inline.Stream("logo", "logo.jpg", () -> InternalEmailServiceTests.class.getResourceAsStream("logo.png")))
                     .build();
 
             EmailService.EmailSent sent = service.send(email, null, profile);
@@ -129,7 +124,8 @@ public class ManualPublicSmtpServersTester {
 
     static InternalEmailService startEmailService(Settings.Builder builder) {
         Settings settings = builder.build();
-        InternalEmailService service = new InternalEmailService(settings, new SecretService.PlainText(), new ClusterSettings(settings, Collections.singleton(InternalEmailService.EMAIL_ACCOUNT_SETTING)));
+        InternalEmailService service = new InternalEmailService(settings, new SecretService.PlainText(),
+                new ClusterSettings(settings, Collections.singleton(InternalEmailService.EMAIL_ACCOUNT_SETTING)));
         service.start();
         return service;
     }

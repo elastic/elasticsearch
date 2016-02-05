@@ -97,14 +97,16 @@ public class DailySchedule extends CronnableSchedule {
                         try {
                             times.add(DayTimes.parse(parser, token));
                         } catch (ElasticsearchParseException pe) {
-                            throw new ElasticsearchParseException("could not parse [{}] schedule. invalid time value for field [{}] - [{}]", pe, TYPE, currentFieldName, token);
+                            throw new ElasticsearchParseException("could not parse [{}] schedule. invalid time value for field [{}] - [{}]",
+                                    pe, TYPE, currentFieldName, token);
                         }
                     } else {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                             try {
                                 times.add(DayTimes.parse(parser, token));
                             } catch (ElasticsearchParseException pe) {
-                                throw new ElasticsearchParseException("could not parse [{}] schedule. invalid time value for field [{}] - [{}]", pe, TYPE, currentFieldName, token);
+                                throw new ElasticsearchParseException("could not parse [{}] schedule. invalid time value for field [{}] -" +
+                                        " [{}]", pe, TYPE, currentFieldName, token);
                             }
                         }
                     }

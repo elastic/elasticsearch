@@ -30,8 +30,8 @@ public class ExecutableEmailAction extends ExecutableAction<EmailAction> {
     final HtmlSanitizer htmlSanitizer;
     private final Map<String, EmailAttachmentParser> emailAttachmentParsers;
 
-    public ExecutableEmailAction(EmailAction action, ESLogger logger, EmailService emailService, TextTemplateEngine templateEngine, HtmlSanitizer htmlSanitizer,
-                                 Map<String, EmailAttachmentParser> emailAttachmentParsers) {
+    public ExecutableEmailAction(EmailAction action, ESLogger logger, EmailService emailService, TextTemplateEngine templateEngine,
+                                 HtmlSanitizer htmlSanitizer, Map<String, EmailAttachmentParser> emailAttachmentParsers) {
         super(action, logger);
         this.emailService = emailService;
         this.templateEngine = templateEngine;

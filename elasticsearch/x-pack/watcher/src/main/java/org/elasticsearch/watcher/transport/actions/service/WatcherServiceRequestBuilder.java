@@ -10,7 +10,8 @@ import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  */
-public class WatcherServiceRequestBuilder extends MasterNodeOperationRequestBuilder<WatcherServiceRequest, WatcherServiceResponse, WatcherServiceRequestBuilder> {
+public class WatcherServiceRequestBuilder extends MasterNodeOperationRequestBuilder<WatcherServiceRequest, WatcherServiceResponse,
+        WatcherServiceRequestBuilder> {
 
     public WatcherServiceRequestBuilder(ElasticsearchClient client) {
         super(client, WatcherServiceAction.INSTANCE, new WatcherServiceRequest());

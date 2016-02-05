@@ -68,7 +68,8 @@ public class EmailAttachmentParsersTests extends ESTestCase {
         assertThat(attachment.name(), is("my-id"));
         assertThat(attachment.contentType(), is("personalContentType"));
 
-        assertThat(parsers.get("test").toAttachment(ctx, new Payload.Simple(), attachments.getAttachments().get(1)).id(), is("my-other-id"));
+        assertThat(parsers.get("test").toAttachment(ctx, new Payload.Simple(),
+                attachments.getAttachments().get(1)).id(), is("my-other-id"));
     }
 
     public void testThatUnknownParserThrowsException() throws IOException {

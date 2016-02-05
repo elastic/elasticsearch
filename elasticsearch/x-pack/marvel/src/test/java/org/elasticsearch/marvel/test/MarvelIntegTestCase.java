@@ -353,7 +353,8 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
     }
 
     protected void updateMarvelInterval(long value, TimeUnit timeUnit) {
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put(MarvelSettings.INTERVAL_SETTING.getKey(), value, timeUnit)));
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(
+                Settings.builder().put(MarvelSettings.INTERVAL_SETTING.getKey(), value, timeUnit)));
     }
 
     /** Shield related settings */
@@ -383,7 +384,10 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
 
         public static final String ROLES =
                 "test:\n" + // a user for the test infra.
-                "  cluster: cluster:monitor/nodes/info, cluster:monitor/nodes/stats, cluster:monitor/state, cluster:monitor/health, cluster:monitor/stats, cluster:monitor/task, cluster:admin/settings/update, cluster:admin/repository/delete, cluster:monitor/nodes/liveness, indices:admin/template/get, indices:admin/template/put, indices:admin/template/delete\n" +
+                        "  cluster: cluster:monitor/nodes/info, cluster:monitor/nodes/stats, cluster:monitor/state, " +
+                        "cluster:monitor/health, cluster:monitor/stats, cluster:monitor/task, cluster:admin/settings/update, " +
+                        "cluster:admin/repository/delete, cluster:monitor/nodes/liveness, indices:admin/template/get, " +
+                        "indices:admin/template/put, indices:admin/template/delete\n" +
                 "  indices:\n" +
                 "    '*': all\n" +
                 "\n" +

@@ -27,7 +27,7 @@ public class FairKeyedLockTests extends ESTestCase {
     public void testIfMapEmptyAfterLotsOfAcquireAndReleases() throws InterruptedException {
         ConcurrentHashMap<String, Integer> counter = new ConcurrentHashMap<>();
         ConcurrentHashMap<String, AtomicInteger> safeCounter = new ConcurrentHashMap<>();
-        FairKeyedLock<String> connectionLock = randomBoolean() ? new FairKeyedLock.GlobalLockable<String>() : new FairKeyedLock<String>();
+        FairKeyedLock<String> connectionLock = randomBoolean() ? new FairKeyedLock.GlobalLockable<>() : new FairKeyedLock<>();
         String[] names = new String[randomIntBetween(1, 40)];
         for (int i = 0; i < names.length; i++) {
             names[i] = randomRealisticUnicodeOfLengthBetween(10, 20);
@@ -79,7 +79,7 @@ public class FairKeyedLockTests extends ESTestCase {
     }
 
     public void testCannotAcquireTwoLocks() throws InterruptedException {
-        FairKeyedLock<String> connectionLock = randomBoolean() ? new FairKeyedLock.GlobalLockable<String>() : new FairKeyedLock<String>();
+        FairKeyedLock<String> connectionLock = randomBoolean() ? new FairKeyedLock.GlobalLockable<>() : new FairKeyedLock<>();
         String name = randomRealisticUnicodeOfLength(scaledRandomIntBetween(10, 50));
         connectionLock.acquire(name);
         try {
@@ -91,7 +91,7 @@ public class FairKeyedLockTests extends ESTestCase {
     }
 
     public void testTryAquire() throws InterruptedException {
-        final FairKeyedLock<String> connectionLock = randomBoolean() ? new FairKeyedLock.GlobalLockable<String>() : new FairKeyedLock<String>();
+        final FairKeyedLock<String> connectionLock = randomBoolean() ? new FairKeyedLock.GlobalLockable<>() : new FairKeyedLock<>();
         final String name = randomRealisticUnicodeOfLength(scaledRandomIntBetween(10, 50));
         connectionLock.acquire(name);
         final CountDownLatch latch = new CountDownLatch(1);
@@ -121,7 +121,7 @@ public class FairKeyedLockTests extends ESTestCase {
 
 
     public void testCannotReleaseUnacquiredLock() throws InterruptedException {
-        FairKeyedLock<String> connectionLock = randomBoolean() ? new FairKeyedLock.GlobalLockable<String>() : new FairKeyedLock<String>();
+        FairKeyedLock<String> connectionLock = randomBoolean() ? new FairKeyedLock.GlobalLockable<>() : new FairKeyedLock<>();
         String name = randomRealisticUnicodeOfLength(scaledRandomIntBetween(10, 50));
         try {
             connectionLock.release(name);

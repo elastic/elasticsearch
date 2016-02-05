@@ -47,7 +47,8 @@ public class WatcherIndexTemplateRegistryTests extends AbstractWatcherIntegratio
         assertBusy(new Runnable() {
             @Override
             public void run() {
-                GetIndexTemplatesResponse response = client().admin().indices().prepareGetTemplates(WatcherModule.HISTORY_TEMPLATE_NAME).get();
+                GetIndexTemplatesResponse response = client().admin().indices()
+                        .prepareGetTemplates(WatcherModule.HISTORY_TEMPLATE_NAME).get();
                 assertThat(response.getIndexTemplates().size(), equalTo(1));
                 // setting from the file on the classpath:
                 assertThat(response.getIndexTemplates().get(0).getSettings().getAsBoolean("index.mapper.dynamic", null), is(false));
@@ -62,7 +63,8 @@ public class WatcherIndexTemplateRegistryTests extends AbstractWatcherIntegratio
         assertBusy(new Runnable() {
             @Override
             public void run() {
-                GetIndexTemplatesResponse response = client().admin().indices().prepareGetTemplates(WatcherModule.HISTORY_TEMPLATE_NAME).get();
+                GetIndexTemplatesResponse response = client().admin().indices()
+                        .prepareGetTemplates(WatcherModule.HISTORY_TEMPLATE_NAME).get();
                 assertThat(response.getIndexTemplates().size(), equalTo(1));
                 // setting from the file on the classpath:
                 assertThat(response.getIndexTemplates().get(0).getSettings().getAsBoolean("index.mapper.dynamic", null), is(false));

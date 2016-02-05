@@ -43,7 +43,8 @@ public class PagerDutyActionFactory extends ActionFactory<PagerDutyAction, Execu
         PagerDutyAction action = PagerDutyAction.parse(watchId, actionId, parser);
         PagerDutyAccount account = pagerDutyService.getAccount(action.event.account);
         if (account == null) {
-            throw new ElasticsearchParseException("could not parse [pagerduty] action [{}/{}]. unknown pager duty account [{}]", watchId, account, action.event.account);
+            throw new ElasticsearchParseException("could not parse [pagerduty] action [{}/{}]. unknown pager duty account [{}]", watchId,
+                    account, action.event.account);
         }
         return action;
     }

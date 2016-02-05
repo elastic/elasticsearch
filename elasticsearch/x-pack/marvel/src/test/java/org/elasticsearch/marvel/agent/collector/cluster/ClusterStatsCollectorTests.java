@@ -39,18 +39,22 @@ public class ClusterStatsCollectorTests extends AbstractCollectorTestCase {
         assertThat(marvelDoc, instanceOf(ClusterInfoMarvelDoc.class));
 
         ClusterInfoMarvelDoc clusterInfoMarvelDoc = (ClusterInfoMarvelDoc) marvelDoc;
-        assertThat(clusterInfoMarvelDoc.getClusterUUID(), equalTo(client().admin().cluster().prepareState().setMetaData(true).get().getState().metaData().clusterUUID()));
+        assertThat(clusterInfoMarvelDoc.getClusterUUID(),
+                equalTo(client().admin().cluster().prepareState().setMetaData(true).get().getState().metaData().clusterUUID()));
         assertThat(clusterInfoMarvelDoc.getTimestamp(), greaterThan(0L));
         assertThat(clusterInfoMarvelDoc.getType(), equalTo(ClusterStatsCollector.CLUSTER_INFO_TYPE));
         assertThat(clusterInfoMarvelDoc.getSourceNode(), notNullValue());
 
-        assertThat(clusterInfoMarvelDoc.getClusterName(), equalTo(client().admin().cluster().prepareState().setMetaData(true).get().getClusterName().value()));
-        assertThat(clusterInfoMarvelDoc.getVersion(), equalTo(client().admin().cluster().prepareNodesInfo().get().getNodes()[0].getVersion().toString()));
+        assertThat(clusterInfoMarvelDoc.getClusterName(),
+                equalTo(client().admin().cluster().prepareState().setMetaData(true).get().getClusterName().value()));
+        assertThat(clusterInfoMarvelDoc.getVersion(),
+                equalTo(client().admin().cluster().prepareNodesInfo().get().getNodes()[0].getVersion().toString()));
 
         assertThat(clusterInfoMarvelDoc.getLicense(), notNullValue());
 
         assertNotNull(clusterInfoMarvelDoc.getClusterStats());
-        assertThat(clusterInfoMarvelDoc.getClusterStats().getNodesStats().getCounts().getTotal(), equalTo(internalCluster().getNodeNames().length));
+        assertThat(clusterInfoMarvelDoc.getClusterStats().getNodesStats().getCounts().getTotal(),
+                equalTo(internalCluster().getNodeNames().length));
 
         // Check cluster stats document
         marvelDoc = results.stream().filter(o -> o instanceof ClusterStatsMarvelDoc).findFirst().get();
@@ -58,13 +62,15 @@ public class ClusterStatsCollectorTests extends AbstractCollectorTestCase {
         assertThat(marvelDoc, instanceOf(ClusterStatsMarvelDoc.class));
 
         ClusterStatsMarvelDoc clusterStatsMarvelDoc = (ClusterStatsMarvelDoc) marvelDoc;
-        assertThat(clusterStatsMarvelDoc.getClusterUUID(), equalTo(client().admin().cluster().prepareState().setMetaData(true).get().getState().metaData().clusterUUID()));
+        assertThat(clusterStatsMarvelDoc.getClusterUUID(),
+                equalTo(client().admin().cluster().prepareState().setMetaData(true).get().getState().metaData().clusterUUID()));
         assertThat(clusterStatsMarvelDoc.getTimestamp(), greaterThan(0L));
         assertThat(clusterStatsMarvelDoc.getType(), equalTo(ClusterStatsCollector.CLUSTER_STATS_TYPE));
         assertThat(clusterStatsMarvelDoc.getSourceNode(), notNullValue());
 
         assertNotNull(clusterStatsMarvelDoc.getClusterStats());
-        assertThat(clusterStatsMarvelDoc.getClusterStats().getNodesStats().getCounts().getTotal(), equalTo(internalCluster().getNodeNames().length));
+        assertThat(clusterStatsMarvelDoc.getClusterStats().getNodesStats().getCounts().getTotal(),
+                equalTo(internalCluster().getNodeNames().length));
     }
 
     public void testClusterStatsCollectorWithLicensing() {

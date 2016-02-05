@@ -14,7 +14,6 @@ import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.authc.activedirectory.ActiveDirectoryRealm;
 import org.elasticsearch.shield.authc.ldap.LdapRealm;
-import org.elasticsearch.shield.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.shield.transport.netty.ShieldNettyTransport;
@@ -29,6 +28,8 @@ import java.util.Collections;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.shield.authc.ldap.support.LdapSearchScope.ONE_LEVEL;
+import static org.elasticsearch.shield.authc.ldap.support.LdapSearchScope.SUB_TREE;
 import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;
 import static org.elasticsearch.shield.test.ShieldTestUtils.writeFile;
 import static org.hamcrest.Matchers.equalTo;
@@ -77,7 +78,8 @@ abstract public class AbstractAdLdapRealmTestCase extends ShieldIntegTestCase {
         return settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(realmConfig.buildSettings())
-                .put(sslSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.jks", "testnode")) //we need ssl to the LDAP server
+                //we need ssl to the LDAP server
+                .put(sslSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.jks", "testnode"))
                 .put(SHIELD_AUTHC_REALMS_EXTERNAL + ".files.role_mapping", writeFile(nodeFiles, "role_mapping.yml", configRoleMappings()))
                 .build();
     }
@@ -172,7 +174,7 @@ abstract public class AbstractAdLdapRealmTestCase extends ShieldIntegTestCase {
                         .put(SHIELD_AUTHC_REALMS_EXTERNAL + ".type", ActiveDirectoryRealm.TYPE)
                         .put(SHIELD_AUTHC_REALMS_EXTERNAL + ".domain_name", "ad.test.elasticsearch.com")
                         .put(SHIELD_AUTHC_REALMS_EXTERNAL + ".group_search.base_dn", "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com")
-                        .put(SHIELD_AUTHC_REALMS_EXTERNAL + ".group_search.scope", randomBoolean() ? LdapSearchScope.SUB_TREE : LdapSearchScope.ONE_LEVEL)
+                        .put(SHIELD_AUTHC_REALMS_EXTERNAL + ".group_search.scope", randomBoolean() ? SUB_TREE : ONE_LEVEL)
                         .put(SHIELD_AUTHC_REALMS_EXTERNAL + ".url", "ldaps://ad.test.elasticsearch.com:636")
                         .build()),
 
@@ -181,24 +183,28 @@ abstract public class AbstractAdLdapRealmTestCase extends ShieldIntegTestCase {
                         .put(SHIELD_AUTHC_REALMS_EXTERNAL + ".type", LdapRealm.TYPE)
                         .put(SHIELD_AUTHC_REALMS_EXTERNAL + ".url", "ldaps://ad.test.elasticsearch.com:636")
                         .put(SHIELD_AUTHC_REALMS_EXTERNAL + ".group_search.base_dn", "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com")
-                        .put(SHIELD_AUTHC_REALMS_EXTERNAL + ".group_search.scope", randomBoolean() ? LdapSearchScope.SUB_TREE : LdapSearchScope.ONE_LEVEL)
-                        .putArray(SHIELD_AUTHC_REALMS_EXTERNAL + ".user_dn_templates", "cn={0},CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com")
+                        .put(SHIELD_AUTHC_REALMS_EXTERNAL + ".group_search.scope", randomBoolean() ? SUB_TREE : ONE_LEVEL)
+                        .putArray(SHIELD_AUTHC_REALMS_EXTERNAL + ".user_dn_templates",
+                                "cn={0},CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com")
                         .build()),
 
         AD_LDAP_GROUPS_FROM_ATTRIBUTE(true, AD_ROLE_MAPPING,
                 settingsBuilder()
                         .put(SHIELD_AUTHC_REALMS_EXTERNAL + ".type", LdapRealm.TYPE)
                         .put(SHIELD_AUTHC_REALMS_EXTERNAL + ".url", "ldaps://ad.test.elasticsearch.com:636")
-                        .putArray(SHIELD_AUTHC_REALMS_EXTERNAL + ".user_dn_templates", "cn={0},CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com")
+                        .putArray(SHIELD_AUTHC_REALMS_EXTERNAL + ".user_dn_templates",
+                                "cn={0},CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com")
                         .build()),
 
         OLDAP(false, OLDAP_ROLE_MAPPING,
                 settingsBuilder()
                         .put(SHIELD_AUTHC_REALMS_EXTERNAL + ".type", LdapRealm.TYPE)
                         .put(SHIELD_AUTHC_REALMS_EXTERNAL + ".url", "ldaps://54.200.235.244:636")
-                        .put(SHIELD_AUTHC_REALMS_EXTERNAL + ".group_search.base_dn", "ou=people, dc=oldap, dc=test, dc=elasticsearch, dc=com")
-                        .put(SHIELD_AUTHC_REALMS_EXTERNAL + ".group_search.scope", randomBoolean() ? LdapSearchScope.SUB_TREE : LdapSearchScope.ONE_LEVEL)
-                        .putArray(SHIELD_AUTHC_REALMS_EXTERNAL + ".user_dn_templates", "uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com")
+                        .put(SHIELD_AUTHC_REALMS_EXTERNAL + ".group_search.base_dn",
+                                "ou=people, dc=oldap, dc=test, dc=elasticsearch, dc=com")
+                        .put(SHIELD_AUTHC_REALMS_EXTERNAL + ".group_search.scope", randomBoolean() ? SUB_TREE : ONE_LEVEL)
+                        .putArray(SHIELD_AUTHC_REALMS_EXTERNAL + ".user_dn_templates",
+                                "uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com")
                         .build());
 
         final boolean mapGroupsAsRoles;

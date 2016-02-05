@@ -38,16 +38,16 @@ public class HtmlSanitizerTests extends ESTestCase {
                             "<" + blockTag + "><li>Hello {{ctx.metadata.name}}</li></" + blockTag + ">" +
                             "<ul><li>item1</li></ul>" +
                             "<ol><li>item2</li></ol>" +
-                            "meta <a href=\"https://www.google.com/search?q&#61;{{ctx.metadata.name}}\" rel=\"nofollow\">Testlink</a> meta" +
-                            "</body>"));
+                            "meta <a href=\"https://www.google.com/search?q&#61;{{ctx.metadata.name}}\" rel=\"nofollow\">Testlink</a> " +
+                            "meta</body>"));
         } else {
             assertThat(sanitizedHtml, equalTo(
                     "<head></head><body>" +
                             "<" + blockTag + ">Hello {{ctx.metadata.name}}</" + blockTag + ">" +
                             "<ul><li>item1</li></ul>" +
                             "<ol><li>item2</li></ol>" +
-                            "meta <a href=\"https://www.google.com/search?q&#61;{{ctx.metadata.name}}\" rel=\"nofollow\">Testlink</a> meta" +
-                            "</body>"));
+                            "meta <a href=\"https://www.google.com/search?q&#61;{{ctx.metadata.name}}\" rel=\"nofollow\">Testlink</a> " +
+                            "meta</body>"));
         }
     }
 

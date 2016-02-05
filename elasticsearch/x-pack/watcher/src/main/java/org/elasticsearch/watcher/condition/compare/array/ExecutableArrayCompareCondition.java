@@ -15,7 +15,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-public class ExecutableArrayCompareCondition extends AbstractExecutableCompareCondition<ArrayCompareCondition, ArrayCompareCondition.Result> {
+public class ExecutableArrayCompareCondition extends AbstractExecutableCompareCondition<ArrayCompareCondition,
+        ArrayCompareCondition.Result> {
 
     public ExecutableArrayCompareCondition(ArrayCompareCondition condition, ESLogger logger, Clock clock) {
         super(condition, logger, clock);
@@ -30,7 +31,7 @@ public class ExecutableArrayCompareCondition extends AbstractExecutableCompareCo
             throw new IllegalStateException("array path " + condition.getArrayPath() + " did not evaluate to array, was " + object);
         }
 
-        List<Object> resolvedArray = object != null ? (List<Object>)object : Collections.emptyList();
+        List<Object> resolvedArray = object != null ? (List<Object>) object : Collections.emptyList();
 
         List<Object> resolvedValue = new ArrayList<>(resolvedArray.size());
         for (int i = 0; i < resolvedArray.size(); i++) {
@@ -38,7 +39,8 @@ public class ExecutableArrayCompareCondition extends AbstractExecutableCompareCo
         }
         resolvedValues.put(condition.getArrayPath(), resolvedArray);
 
-        return new ArrayCompareCondition.Result(resolvedValues, condition.getQuantifier().eval(resolvedValue, configuredValue, condition.getOp()));
+        return new ArrayCompareCondition.Result(resolvedValues, condition.getQuantifier().eval(resolvedValue, configuredValue,
+                condition.getOp()));
     }
 
     @Override

@@ -92,7 +92,8 @@ public abstract class AbstractLicensesIntegrationTestCase extends ESIntegTestCas
 
     protected void putLicense(TimeValue expiryDuration) throws Exception {
         License license1 = generateSignedLicense(expiryDuration);
-        final PutLicenseResponse putLicenseResponse = new PutLicenseRequestBuilder(client().admin().cluster(), PutLicenseAction.INSTANCE).setLicense(license1).get();
+        final PutLicenseResponse putLicenseResponse = new PutLicenseRequestBuilder(client().admin().cluster(),
+                PutLicenseAction.INSTANCE).setLicense(license1).get();
         assertThat(putLicenseResponse.isAcknowledged(), equalTo(true));
         assertThat(putLicenseResponse.status(), equalTo(LicensesStatus.VALID));
     }
@@ -119,7 +120,8 @@ public abstract class AbstractLicensesIntegrationTestCase extends ESIntegTestCas
         assertConsumerPluginNotification(consumerPluginServices, state, timeoutInSec);
     }
 
-    protected void assertConsumerPluginNotification(final List<TestPluginServiceBase> consumerPluginServices, final LicenseState state, int timeoutInSec) throws InterruptedException {
+    protected void assertConsumerPluginNotification(final List<TestPluginServiceBase> consumerPluginServices, final LicenseState state,
+                                                    int timeoutInSec) throws InterruptedException {
         assertThat("At least one instance has to be present", consumerPluginServices.size(), greaterThan(0));
         boolean success = awaitBusy(() -> {
             for (TestPluginServiceBase pluginService : consumerPluginServices) {

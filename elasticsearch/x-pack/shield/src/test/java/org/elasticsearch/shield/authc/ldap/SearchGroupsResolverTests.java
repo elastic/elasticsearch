@@ -55,7 +55,8 @@ public class SearchGroupsResolverTests extends ESTestCase {
         options.setAllowConcurrentSocketFactoryUse(true);
         options.setConnectTimeoutMillis(Math.toIntExact(SessionFactory.TIMEOUT_DEFAULT.millis()));
         options.setResponseTimeoutMillis(SessionFactory.TIMEOUT_DEFAULT.millis());
-        ldapConnection = new LDAPConnection(clientSSLService.sslSocketFactory(), options, ldapurl.getHost(), ldapurl.getPort(), BRUCE_BANNER_DN, OpenLdapTests.PASSWORD);
+        ldapConnection = new LDAPConnection(clientSSLService.sslSocketFactory(), options, ldapurl.getHost(), ldapurl.getPort(),
+                BRUCE_BANNER_DN, OpenLdapTests.PASSWORD);
     }
 
     @Override
@@ -113,7 +114,8 @@ public class SearchGroupsResolverTests extends ESTestCase {
                 .build();
 
         SearchGroupsResolver resolver = new SearchGroupsResolver(settings);
-        List<String> groups = resolver.resolve(ldapConnection, "uid=selvig,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com", TimeValue.timeValueSeconds(10), NoOpLogger.INSTANCE);
+        List<String> groups = resolver.resolve(ldapConnection, "uid=selvig,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com",
+                TimeValue.timeValueSeconds(10), NoOpLogger.INSTANCE);
         assertThat(groups, hasItem(containsString("Geniuses")));
     }
 
@@ -135,7 +137,8 @@ public class SearchGroupsResolverTests extends ESTestCase {
                 .put("base_dn", "dc=oldap,dc=test,dc=elasticsearch,dc=com")
                 .put("user_attribute", "uid").build();
         SearchGroupsResolver resolver = new SearchGroupsResolver(settings);
-        assertThat(resolver.readUserAttribute(ldapConnection, BRUCE_BANNER_DN, TimeValue.timeValueSeconds(5), NoOpLogger.INSTANCE), is("hulk"));
+        assertThat(resolver.readUserAttribute(ldapConnection, BRUCE_BANNER_DN, TimeValue.timeValueSeconds(5), NoOpLogger.INSTANCE),
+                is("hulk"));
     }
 
     public void testReadUserAttributeCn() throws Exception {
@@ -144,7 +147,8 @@ public class SearchGroupsResolverTests extends ESTestCase {
                 .put("user_attribute", "cn")
                 .build();
         SearchGroupsResolver resolver = new SearchGroupsResolver(settings);
-        assertThat(resolver.readUserAttribute(ldapConnection, BRUCE_BANNER_DN, TimeValue.timeValueSeconds(5), NoOpLogger.INSTANCE), is("Bruce Banner"));
+        assertThat(resolver.readUserAttribute(ldapConnection, BRUCE_BANNER_DN, TimeValue.timeValueSeconds(5), NoOpLogger.INSTANCE),
+                is("Bruce Banner"));
     }
 
     public void testReadNonExistentUserAttribute() throws Exception {

@@ -54,9 +54,9 @@ public class ShieldNettyTransport extends NettyTransport {
     private final boolean ssl;
 
     @Inject
-    public ShieldNettyTransport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays, Version version,
-                                @Nullable IPFilter authenticator, @Nullable ServerSSLService serverSSLService, ClientSSLService clientSSLService,
-                                NamedWriteableRegistry namedWriteableRegistry) {
+    public ShieldNettyTransport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays,
+                                Version version, @Nullable IPFilter authenticator, @Nullable ServerSSLService serverSSLService,
+                                ClientSSLService clientSSLService, NamedWriteableRegistry namedWriteableRegistry) {
         super(settings, threadPool, networkService, bigArrays, version, namedWriteableRegistry);
         this.authenticator = authenticator;
         this.ssl = settings.getAsBoolean(TRANSPORT_SSL_SETTING, TRANSPORT_SSL_DEFAULT);
@@ -123,7 +123,8 @@ public class ShieldNettyTransport extends NettyTransport {
         public ChannelPipeline getPipeline() throws Exception {
             ChannelPipeline pipeline = super.getPipeline();
             final boolean profileSsl = profileSettings.getAsBoolean(TRANSPORT_PROFILE_SSL_SETTING, ssl);
-            final SSLClientAuth clientAuth = SSLClientAuth.parse(profileSettings.get(TRANSPORT_PROFILE_CLIENT_AUTH_SETTING, settings.get(TRANSPORT_CLIENT_AUTH_SETTING)), TRANSPORT_CLIENT_AUTH_DEFAULT);
+            final SSLClientAuth clientAuth = SSLClientAuth.parse(profileSettings.get(TRANSPORT_PROFILE_CLIENT_AUTH_SETTING,
+                    settings.get(TRANSPORT_CLIENT_AUTH_SETTING)), TRANSPORT_CLIENT_AUTH_DEFAULT);
             if (profileSsl) {
                 SSLEngine serverEngine;
                 if (profileSettings.get("shield.truststore.path") != null) {
@@ -169,7 +170,8 @@ public class ShieldNettyTransport extends NettyTransport {
                 SSLEngine sslEngine;
                 if (settings.getAsBoolean(HOSTNAME_VERIFICATION_SETTING, true)) {
                     InetSocketAddress inetSocketAddress = (InetSocketAddress) e.getValue();
-                    sslEngine = clientSSLService.createSSLEngine(Settings.EMPTY, getHostname(inetSocketAddress), inetSocketAddress.getPort());
+                    sslEngine = clientSSLService.createSSLEngine(Settings.EMPTY, getHostname(inetSocketAddress),
+                            inetSocketAddress.getPort());
 
                     // By default, a SSLEngine will not perform hostname verification. In order to perform hostname verification
                     // we need to specify a EndpointIdentificationAlgorithm. We use the HTTPS algorithm to prevent against
@@ -198,7 +200,8 @@ public class ShieldNettyTransport extends NettyTransport {
                 }
 
                 if (logger.isTraceEnabled()) {
-                    logger.trace("resolved hostname [{}] for address [{}] to be used in ssl hostname verification", hostname, inetSocketAddress);
+                    logger.trace("resolved hostname [{}] for address [{}] to be used in ssl hostname verification", hostname,
+                            inetSocketAddress);
                 }
                 return hostname;
             }

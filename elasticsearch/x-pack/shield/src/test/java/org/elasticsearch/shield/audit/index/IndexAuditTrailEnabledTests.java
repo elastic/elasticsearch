@@ -64,11 +64,13 @@ public class IndexAuditTrailEnabledTests extends ShieldIntegTestCase {
     }
 
     public void testAuditTrailTemplateIsRecreatedAfterDelete() throws Exception {
-        // this is already "tested" by the test framework since we wipe the templates before and after, but lets be explicit about the behavior
+        // this is already "tested" by the test framework since we wipe the templates before and after, but lets be explicit about the
+        // behavior
         awaitIndexTemplateCreation();
 
         // delete the template
-        DeleteIndexTemplateResponse deleteResponse = client().admin().indices().prepareDeleteTemplate(IndexAuditTrail.INDEX_TEMPLATE_NAME).execute().actionGet();
+        DeleteIndexTemplateResponse deleteResponse = client().admin().indices()
+                .prepareDeleteTemplate(IndexAuditTrail.INDEX_TEMPLATE_NAME).execute().actionGet();
         assertThat(deleteResponse.isAcknowledged(), is(true));
         awaitIndexTemplateCreation();
     }
@@ -89,7 +91,8 @@ public class IndexAuditTrailEnabledTests extends ShieldIntegTestCase {
 
     void awaitIndexTemplateCreation() throws InterruptedException {
         boolean found = awaitBusy(() -> {
-            GetIndexTemplatesResponse response = client().admin().indices().prepareGetTemplates(IndexAuditTrail.INDEX_TEMPLATE_NAME).execute().actionGet();
+            GetIndexTemplatesResponse response = client().admin().indices()
+                    .prepareGetTemplates(IndexAuditTrail.INDEX_TEMPLATE_NAME).execute().actionGet();
             if (response.getIndexTemplates().size() > 0) {
                 for (IndexTemplateMetaData indexTemplateMetaData : response.getIndexTemplates()) {
                     if (IndexAuditTrail.INDEX_TEMPLATE_NAME.equals(indexTemplateMetaData.name())) {

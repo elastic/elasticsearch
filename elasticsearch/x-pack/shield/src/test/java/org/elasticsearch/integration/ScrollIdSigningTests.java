@@ -64,12 +64,14 @@ public class ScrollIdSigningTests extends ShieldIntegTestCase {
                 .setScroll(TimeValue.timeValueMinutes(2))
                 .setSize(randomIntBetween(1, 10)).get();
         String scrollId = response.getScrollId();
-        String tamperedScrollId = randomBoolean() ? scrollId.substring(randomIntBetween(1, 10)) : scrollId + randomAsciiOfLength(randomIntBetween(3, 10));
+        String tamperedScrollId = randomBoolean() ? scrollId.substring(randomIntBetween(1, 10)) :
+                scrollId + randomAsciiOfLength(randomIntBetween(3, 10));
         try {
             client().prepareSearchScroll(tamperedScrollId).setScroll(TimeValue.timeValueMinutes(2)).get();
             fail("Expected an authorization exception to be thrown when scroll id is tampered");
         } catch (Exception e) {
-            ElasticsearchSecurityException ese = (ElasticsearchSecurityException) ExceptionsHelper.unwrap(e, ElasticsearchSecurityException.class);
+            ElasticsearchSecurityException ese = (ElasticsearchSecurityException) ExceptionsHelper.unwrap(e,
+                    ElasticsearchSecurityException.class);
             assertThat(ese, notNullValue());
             assertAuthorizationException(ese);
         } finally {
@@ -88,12 +90,14 @@ public class ScrollIdSigningTests extends ShieldIntegTestCase {
                 .setScroll(TimeValue.timeValueMinutes(2))
                 .setSize(5).get();
         String scrollId = response.getScrollId();
-        String tamperedScrollId = randomBoolean() ? scrollId.substring(randomIntBetween(1, 10)) : scrollId + randomAsciiOfLength(randomIntBetween(3, 10));
+        String tamperedScrollId = randomBoolean() ? scrollId.substring(randomIntBetween(1, 10)) :
+                scrollId + randomAsciiOfLength(randomIntBetween(3, 10));
         try {
             client().prepareClearScroll().addScrollId(tamperedScrollId).get();
             fail("Expected an authorization exception to be thrown when scroll id is tampered");
         } catch (Exception e) {
-            ElasticsearchSecurityException ese = (ElasticsearchSecurityException) ExceptionsHelper.unwrap(e, ElasticsearchSecurityException.class);
+            ElasticsearchSecurityException ese = (ElasticsearchSecurityException) ExceptionsHelper.unwrap(e,
+                    ElasticsearchSecurityException.class);
             assertThat(ese, notNullValue());
             assertAuthorizationException(ese);
         } finally {

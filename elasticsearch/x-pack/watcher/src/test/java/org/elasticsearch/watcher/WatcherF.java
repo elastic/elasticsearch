@@ -51,7 +51,8 @@ public class WatcherF {
         settings.put("watcher.actions.hipchat.service.account.v1.auth_token", "a734baf62df618b96dda55b323fc30");
 
         // this is for our test slack incoming webhook (under elasticsearch team)
-        System.setProperty("es.watcher.actions.slack.service.account.a1.url", "https://hooks.slack.com/services/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");
+        System.setProperty("es.watcher.actions.slack.service.account.a1.url",
+                "https://hooks.slack.com/services/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");
 
         System.setProperty("es.watcher.actions.pagerduty.service.account.service1.service_api_key", "fc082467005d4072a914e0bb041882d0");
 

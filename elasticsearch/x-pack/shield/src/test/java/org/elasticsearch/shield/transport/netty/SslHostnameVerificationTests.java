@@ -50,7 +50,8 @@ public class SslHostnameVerificationTests extends ShieldIntegTestCase {
                 .put("shield.ssl.keystore.password", "testnode-no-subjaltname")
                 .put("shield.ssl.truststore.path", keystore.toAbsolutePath()) // settings for client truststore
                 .put("shield.ssl.truststore.password", "testnode-no-subjaltname")
-                .put(ShieldNettyTransport.HOSTNAME_VERIFICATION_SETTING, false) // disable hostname verification as this test uses non-localhost addresses
+                // disable hostname verification as this test uses non-localhost addresses
+                .put(ShieldNettyTransport.HOSTNAME_VERIFICATION_SETTING, false)
                 .build();
     }
 

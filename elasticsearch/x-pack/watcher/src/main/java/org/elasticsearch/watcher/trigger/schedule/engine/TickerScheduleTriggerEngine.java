@@ -78,8 +78,10 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
         for (ActiveSchedule schedule : schedules.values()) {
             long scheduledTime = schedule.check(triggeredTime);
             if (scheduledTime > 0) {
-                logger.trace("triggered job [{}] at [{}] (scheduled time was [{}])", schedule.name, new DateTime(triggeredTime, DateTimeZone.UTC), new DateTime(scheduledTime, DateTimeZone.UTC));
-                events.add(new ScheduleTriggerEvent(schedule.name, new DateTime(triggeredTime, DateTimeZone.UTC), new DateTime(scheduledTime, DateTimeZone.UTC)));
+                logger.trace("triggered job [{}] at [{}] (scheduled time was [{}])", schedule.name,
+                        new DateTime(triggeredTime, DateTimeZone.UTC), new DateTime(scheduledTime, DateTimeZone.UTC));
+                events.add(new ScheduleTriggerEvent(schedule.name, new DateTime(triggeredTime, DateTimeZone.UTC),
+                        new DateTime(scheduledTime, DateTimeZone.UTC)));
                 if (events.size() >= 1000) {
                     notifyListeners(events);
                     events.clear();

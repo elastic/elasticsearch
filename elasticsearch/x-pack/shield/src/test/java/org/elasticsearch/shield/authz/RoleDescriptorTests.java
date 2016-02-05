@@ -38,10 +38,13 @@ public class RoleDescriptorTests extends ESTestCase {
                 .query(new BytesArray("{\"query\": {\"match_all\": {}}}"))
                 .build());
         RoleDescriptor d = new RoleDescriptor("test", new String[]{"all", "none"}, groups, new String[]{"sudo"});
-        assertEquals("Role[name=test, cluster=[all,none], indicesPrivileges=[IndicesPrivileges[privileges=[read], indices=[i1,i2], fields=[body,title], query={\"query\": {\"match_all\": {}}}],], runAs=[sudo]]", d.toString());
+        assertEquals("Role[name=test, cluster=[all,none], indicesPrivileges=[IndicesPrivileges[privileges=[read], indices=[i1,i2], " +
+                "fields=[body,title], query={\"query\": {\"match_all\": {}}}],], runAs=[sudo]]", d.toString());
         XContentBuilder builder = jsonBuilder();
         d.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertEquals("{\"name\":\"test\",\"cluster\":[\"all\",\"none\"],\"indices\":[{\"names\":[\"i1\",\"i2\"],\"privileges\":[\"read\"],\"fields\":[\"body\",\"title\"],\"query\":\"{\\\"query\\\": {\\\"match_all\\\": {}}}\"}],\"run_as\":[\"sudo\"]}",
+        assertEquals("{\"name\":\"test\",\"cluster\":[\"all\",\"none\"],\"indices\":[{\"names\":[\"i1\",\"i2\"]," +
+                "\"privileges\":[\"read\"],\"fields\":[\"body\",\"title\"],\"query\":\"{\\\"query\\\": {\\\"match_all\\\": {}}}\"}]," +
+                "\"run_as\":[\"sudo\"]}",
                 builder.string());
     }
 
@@ -70,14 +73,17 @@ public class RoleDescriptorTests extends ESTestCase {
         assertEquals(0, rd.getIndicesPrivileges().size());
         assertArrayEquals(new String[]{"m", "n"}, rd.getRunAs());
 
-        q = "{\"name\": \"test\", \"cluster\":[\"a\", \"b\"], \"run_as\": [\"m\", \"n\"], \"indices\": [{\"names\": \"idx1\", \"privileges\": [\"p1\", \"p2\"]}, {\"names\": \"idx2\", \"privileges\": [\"p3\"], \"fields\": [\"f1\", \"f2\"]}, {\"names\": \"idx2\", \"privileges\": [\"p3\"], \"fields\": [\"f1\", \"f2\"], \"query\": \"{\\\"match_all\\\": {}}\"}]}";
+        q = "{\"name\": \"test\", \"cluster\":[\"a\", \"b\"], \"run_as\": [\"m\", \"n\"], \"indices\": [{\"names\": \"idx1\", " +
+                "\"privileges\": [\"p1\", \"p2\"]}, {\"names\": \"idx2\", \"privileges\": [\"p3\"], \"fields\": [\"f1\", \"f2\"]}, " +
+                "{\"names\": \"idx2\", \"privileges\": [\"p3\"], \"fields\": [\"f1\", \"f2\"], \"query\": \"{\\\"match_all\\\": {}}\"}]}";
         rd = RoleDescriptor.source(new BytesArray(q));
         assertEquals("test", rd.getName());
         assertArrayEquals(new String[]{"a", "b"}, rd.getClusterPattern());
         assertEquals(3, rd.getIndicesPrivileges().size());
         assertArrayEquals(new String[]{"m", "n"}, rd.getRunAs());
 
-        q = "{\"name\": \"test\", \"cluster\":[\"a\", \"b\"], \"run_as\": [\"m\", \"n\"], \"indices\": [{\"names\": [\"idx1\",\"idx2\"], \"privileges\": [\"p1\", \"p2\"]}]}";
+        q = "{\"name\": \"test\", \"cluster\":[\"a\", \"b\"], \"run_as\": [\"m\", \"n\"], \"indices\": [{\"names\": [\"idx1\",\"idx2\"], " +
+                "\"privileges\": [\"p1\", \"p2\"]}]}";
         rd = RoleDescriptor.source(new BytesArray(q));
         assertEquals("test", rd.getName());
         assertArrayEquals(new String[]{"a", "b"}, rd.getClusterPattern());
@@ -86,7 +92,8 @@ public class RoleDescriptorTests extends ESTestCase {
         assertArrayEquals(new String[]{"m", "n"}, rd.getRunAs());
 
         try {
-            q = "{\"name\": \"test\", \"cluster\":[\"a\", \"b\"], \"run_as\": [\"m\", \"n\"], \"indices\": [{\"names\": \"idx1,idx2\", \"privileges\": [\"p1\", \"p2\"]}]}";
+            q = "{\"name\": \"test\", \"cluster\":[\"a\", \"b\"], \"run_as\": [\"m\", \"n\"], \"indices\": [{\"names\": \"idx1,idx2\", " +
+                    "\"privileges\": [\"p1\", \"p2\"]}]}";
             rd = RoleDescriptor.source(new BytesArray(q));
             fail("should have thrown a parse exception");
         } catch (ElasticsearchParseException epe) {
@@ -96,7 +103,8 @@ public class RoleDescriptorTests extends ESTestCase {
 
         try {
             // Same, but an array of names
-            q = "{\"name\": \"test\", \"cluster\":[\"a\", \"b\"], \"run_as\": [\"m\", \"n\"], \"indices\": [{\"names\": [\"idx1,idx2\"], \"privileges\": [\"p1\", \"p2\"]}]}";
+            q = "{\"name\": \"test\", \"cluster\":[\"a\", \"b\"], \"run_as\": [\"m\", \"n\"], \"indices\": [{\"names\": [\"idx1,idx2\"], " +
+                    "\"privileges\": [\"p1\", \"p2\"]}]}";
             rd = RoleDescriptor.source(new BytesArray(q));
             fail("should have thrown a parse exception");
         } catch (ElasticsearchParseException epe) {

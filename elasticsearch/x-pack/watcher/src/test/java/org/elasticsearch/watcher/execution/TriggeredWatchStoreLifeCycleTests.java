@@ -39,7 +39,8 @@ public class TriggeredWatchStoreLifeCycleTests extends AbstractWatcherIntegratio
             Wid wid = new Wid("record_" + i, randomLong(), DateTime.now(DateTimeZone.UTC));
             triggeredWatches[i] = new TriggeredWatch(wid, event);
             triggeredWatchStore.put(triggeredWatches[i]);
-            GetResponse getResponse = client().prepareGet(TriggeredWatchStore.INDEX_NAME, TriggeredWatchStore.DOC_TYPE, triggeredWatches[i].id().value())
+            GetResponse getResponse = client().prepareGet(TriggeredWatchStore.INDEX_NAME, TriggeredWatchStore.DOC_TYPE,
+                    triggeredWatches[i].id().value())
                     .setVersion(1)
                     .get();
             assertThat(getResponse.isExists(), equalTo(true));
@@ -55,7 +56,8 @@ public class TriggeredWatchStoreLifeCycleTests extends AbstractWatcherIntegratio
         for (TriggeredWatch triggeredWatch : triggeredWatches) {
             assertThat(loadedTriggeredWatches.contains(triggeredWatch), is(true));
             triggeredWatchStore.delete(triggeredWatch.id());
-            GetResponse getResponse = client().prepareGet(TriggeredWatchStore.INDEX_NAME, TriggeredWatchStore.DOC_TYPE, triggeredWatch.id().value())
+            GetResponse getResponse = client().prepareGet(TriggeredWatchStore.INDEX_NAME, TriggeredWatchStore.DOC_TYPE,
+                    triggeredWatch.id().value())
                     .setVersion(2L)
                     .get();
             assertThat(getResponse.isExists(), equalTo(false));

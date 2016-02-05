@@ -48,7 +48,8 @@ public class ArrayCompareConditionSearchTests extends AbstractWatcherIntegration
 
 
         ExecutableArrayCompareCondition condition = new ExecutableArrayCompareCondition(
-                new ArrayCompareCondition("ctx.payload.aggregations.top_tweeters.buckets" , "doc_count", op, numberOfDocumentsWatchingFor, quantifier),
+                new ArrayCompareCondition("ctx.payload.aggregations.top_tweeters.buckets" , "doc_count", op,
+                        numberOfDocumentsWatchingFor, quantifier),
                 logger,
                 SystemClock.INSTANCE
         );
@@ -68,7 +69,8 @@ public class ArrayCompareConditionSearchTests extends AbstractWatcherIntegration
         Map<String, Object> fightsForTheUsers = new HashMap<>();
         fightsForTheUsers.put("doc_count", numberOfDocuments);
         fightsForTheUsers.put("key", "fights_for_the_users");
-        assertThat(resolvedValues, hasEntry("ctx.payload.aggregations.top_tweeters.buckets", (Object) Arrays.asList(elastic, fightsForTheUsers)));
+        assertThat(resolvedValues, hasEntry("ctx.payload.aggregations.top_tweeters.buckets",
+                (Object) Arrays.asList(elastic, fightsForTheUsers)));
 
         client().prepareIndex(index, type).setSource(source("fights_for_the_users", "you know, for the users", numberOfDocuments)).get();
         refresh();
@@ -86,7 +88,8 @@ public class ArrayCompareConditionSearchTests extends AbstractWatcherIntegration
         assertThat(resolvedValues, notNullValue());
         assertThat(resolvedValues.size(), is(1));
         fightsForTheUsers.put("doc_count", numberOfDocumentsWatchingFor);
-        assertThat(resolvedValues, hasEntry("ctx.payload.aggregations.top_tweeters.buckets", (Object) Arrays.asList(fightsForTheUsers, elastic)));
+        assertThat(resolvedValues, hasEntry("ctx.payload.aggregations.top_tweeters.buckets",
+                (Object) Arrays.asList(fightsForTheUsers, elastic)));
     }
 
     private XContentBuilder source(String screenName, String tweet, int i) throws IOException {

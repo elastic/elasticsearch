@@ -20,21 +20,23 @@ import java.nio.file.attribute.PosixFileAttributes;
 
 public class ShieldFiles {
 
-    private ShieldFiles() {}
+    private ShieldFiles() {
+    }
 
     /**
      * This writer opens a temporary file instead of the specified path and
      * tries to move the create tempfile to specified path on close. If possible
      * this move is tried to be atomic, but it will fall back to just replace the
      * existing file if the atomic move fails.
-     *
+     * <p>
      * If the destination path exists, it is overwritten
      *
      * @param path The path of the destination file
      */
     public static final Writer openAtomicMoveWriter(final Path path) throws IOException {
         final Path tempFile = Files.createTempFile(path.getParent(), path.getFileName().toString(), "tmp");
-        final Writer writer = Files.newBufferedWriter(tempFile, StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE);
+        final Writer writer = Files.newBufferedWriter(tempFile, StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption
+                .TRUNCATE_EXISTING, StandardOpenOption.WRITE);
         return new Writer() {
             @Override
             public void write(char[] cbuf, int off, int len) throws IOException {
@@ -51,7 +53,8 @@ public class ShieldFiles {
                 writer.close();
                 // get original permissions
                 if (Files.exists(path)) {
-                    boolean supportsPosixAttributes = Environment.getFileStore(path).supportsFileAttributeView(PosixFileAttributeView.class);
+                    boolean supportsPosixAttributes =
+                            Environment.getFileStore(path).supportsFileAttributeView(PosixFileAttributeView.class);
                     if (supportsPosixAttributes) {
                         setPosixAttributesOnTempFile(path, tempFile);
                     }
@@ -76,10 +79,12 @@ public class ShieldFiles {
         // will be notified by the CheckFileCommand that the ownership has changed and needs to be corrected
         try {
             tempFileView.setOwner(attributes.owner());
-        } catch (Exception e) {}
+        } catch (Exception e) {
+        }
 
         try {
             tempFileView.setGroup(attributes.group());
-        } catch (Exception e) {}
+        } catch (Exception e) {
+        }
     }
 }

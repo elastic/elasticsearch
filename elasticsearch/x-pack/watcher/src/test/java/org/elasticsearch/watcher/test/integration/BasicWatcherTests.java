@@ -246,7 +246,8 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         Thread.sleep(1000);
         long before = historyRecordsCount("_name");
         Thread.sleep(5000);
-        assertThat("Watch has been updated to 100s interval, so no new records should have been added.", historyRecordsCount("_name"), equalTo(before));
+        assertThat("Watch has been updated to 100s interval, so no new records should have been added.", historyRecordsCount("_name"),
+                equalTo(before));
     }
 
     public void testConditionSearchWithSource() throws Exception {
@@ -346,7 +347,8 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
                     .get();
             fail("put watch should have failed");
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("invalid time [0-10:00]. invalid time hour value [-10]. time hours must be between 0 and 23 incl."));
+            assertThat(e.getMessage(),
+                    equalTo("invalid time [0-10:00]. invalid time hour value [-10]. time hours must be between 0 and 23 incl."));
         }
 
         try {
@@ -359,7 +361,8 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
                             .get();
             fail("put watch should have failed");
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("invalid time [0-10:00]. invalid time hour value [-10]. time hours must be between 0 and 23 incl."));
+            assertThat(e.getMessage(),
+                    equalTo("invalid time [0-10:00]. invalid time hour value [-10]. time hours must be between 0 and 23 incl."));
         }
 
         try {
@@ -372,7 +375,8 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
                     .get();
             fail("put watch should have failed");
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("invalid time [0-10:00]. invalid time hour value [-10]. time hours must be between 0 and 23 incl."));
+            assertThat(e.getMessage(),
+                    equalTo("invalid time [0-10:00]. invalid time hour value [-10]. time hours must be between 0 and 23 incl."));
         }
     }
 

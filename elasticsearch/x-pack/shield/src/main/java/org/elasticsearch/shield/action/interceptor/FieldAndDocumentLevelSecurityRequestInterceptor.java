@@ -23,7 +23,8 @@ import java.util.List;
  * Base class for interceptors that disables features when field level security is configured for indices a request
  * is going to execute on.
  */
-public abstract class FieldAndDocumentLevelSecurityRequestInterceptor<Request> extends AbstractComponent implements RequestInterceptor<Request> {
+public abstract class FieldAndDocumentLevelSecurityRequestInterceptor<Request> extends AbstractComponent implements
+        RequestInterceptor<Request> {
 
     private final ThreadContext threadContext;
 
@@ -39,7 +40,8 @@ public abstract class FieldAndDocumentLevelSecurityRequestInterceptor<Request> e
         } else if (request instanceof IndicesRequest) {
             indicesRequests = Collections.singletonList((IndicesRequest) request);
         } else {
-            throw new IllegalArgumentException(LoggerMessageFormat.format("Expected a request of type [{}] or [{}] but got [{}] instead", CompositeIndicesRequest.class, IndicesRequest.class, request.getClass()));
+            throw new IllegalArgumentException(LoggerMessageFormat.format("Expected a request of type [{}] or [{}] but got [{}] instead",
+                    CompositeIndicesRequest.class, IndicesRequest.class, request.getClass()));
         }
         IndicesAccessControl indicesAccessControl = threadContext.getTransient(InternalAuthorizationService.INDICES_PERMISSIONS_KEY);
         for (IndicesRequest indicesRequest : indicesRequests) {
@@ -49,12 +51,14 @@ public abstract class FieldAndDocumentLevelSecurityRequestInterceptor<Request> e
                     boolean fls = indexAccessControl.getFields() != null;
                     boolean dls = indexAccessControl.getQueries() != null;
                     if (fls || dls) {
-                        logger.debug("intercepted request for index [{}] with field level or document level security enabled, disabling features", index);
+                        logger.debug("intercepted request for index [{}] with field level or document level security enabled, " +
+                                "disabling features", index);
                         disableFeatures(request);
                         return;
                     }
                 }
-                logger.trace("intercepted request for index [{}] with neither field level or document level security not enabled, doing nothing", index);
+                logger.trace("intercepted request for index [{}] with neither field level or document level security not enabled, "
+                        + "doing nothing", index);
             }
         }
     }

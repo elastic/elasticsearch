@@ -50,10 +50,13 @@ public class CompareConditionSearchTests extends AbstractWatcherIntegrationTestC
         refresh();
 
         SearchResponse response = client().prepareSearch("my-index")
-                .addAggregation(AggregationBuilders.dateHistogram("rate").field("_timestamp").interval(DateHistogramInterval.HOUR).order(Histogram.Order.COUNT_DESC))
+                .addAggregation(AggregationBuilders.dateHistogram("rate").field("_timestamp")
+                        .interval(DateHistogramInterval.HOUR).order(Histogram.Order.COUNT_DESC))
                 .get();
 
-        ExecutableCompareCondition condition = new ExecutableCompareCondition(new CompareCondition("ctx.payload.aggregations.rate.buckets.0.doc_count", CompareCondition.Op.GTE, 5), logger, SystemClock.INSTANCE);
+        ExecutableCompareCondition condition = new ExecutableCompareCondition(
+                new CompareCondition("ctx.payload.aggregations.rate.buckets.0.doc_count", CompareCondition.Op.GTE, 5),
+                logger, SystemClock.INSTANCE);
         WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response));
         CompareCondition.Result result = condition.execute(ctx);
         assertThat(result.met(), is(false));
@@ -66,7 +69,8 @@ public class CompareConditionSearchTests extends AbstractWatcherIntegrationTestC
         refresh();
 
         response = client().prepareSearch("my-index")
-                .addAggregation(AggregationBuilders.dateHistogram("rate").field("_timestamp").interval(DateHistogramInterval.HOUR).order(Histogram.Order.COUNT_DESC))
+                .addAggregation(AggregationBuilders.dateHistogram("rate")
+                        .field("_timestamp").interval(DateHistogramInterval.HOUR).order(Histogram.Order.COUNT_DESC))
                 .get();
 
         ctx = mockExecutionContext("_name", new Payload.XContent(response));
@@ -79,12 +83,15 @@ public class CompareConditionSearchTests extends AbstractWatcherIntegrationTestC
     }
 
     public void testExecuteAccessHits() throws Exception {
-        ExecutableCompareCondition condition = new ExecutableCompareCondition(new CompareCondition("ctx.payload.hits.hits.0._score", CompareCondition.Op.EQ, 1), logger, SystemClock.INSTANCE);
+        ExecutableCompareCondition condition = new ExecutableCompareCondition(
+                new CompareCondition("ctx.payload.hits.hits.0._score", CompareCondition.Op.EQ, 1),
+                logger, SystemClock.INSTANCE);
         InternalSearchHit hit = new InternalSearchHit(0, "1", new Text("type"), null);
         hit.score(1f);
         hit.shard(new SearchShardTarget("a", new Index("a", "indexUUID"), 0));
 
-        InternalSearchResponse internalSearchResponse = new InternalSearchResponse(new InternalSearchHits(new InternalSearchHit[]{hit}, 1L, 1f), null, null, null, false, false);
+        InternalSearchResponse internalSearchResponse = new InternalSearchResponse(
+                new InternalSearchHits(new InternalSearchHit[]{hit}, 1L, 1f), null, null, null, false, false);
         SearchResponse response = new SearchResponse(internalSearchResponse, "", 3, 3, 500L, new ShardSearchFailure[0]);
 
         WatchExecutionContext ctx = mockExecutionContext("_watch_name", new Payload.XContent(response));

@@ -353,7 +353,8 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
                     assertAccessIsAllowed("admin", "PUT", "/" + index + "/foo/1", jsonDoc, refreshParams);
                     client().admin().cluster().prepareHealth(index).setWaitForGreenStatus().get();
                     assertAccessIsAllowed(user, "GET", "/" + index + "/_mapping/foo/field/name");
-                    // putting warmers only works if the user is allowed to search as well, as the query gets validated, added an own test for this
+                    // putting warmers only works if the user is allowed to search as well, as the query gets validated, added an own
+                    // test for this
                     assertAccessIsAllowed("admin", "PUT", "/" + index + "/_warmer/w1", "{ \"query\" : { \"match_all\" : {} } }");
                     assertAccessIsAllowed(user, "GET", "/" + index + "/_warmer/w1");
                     assertAccessIsAllowed(user, "DELETE", "/" + index + "/_warmer/w1");
@@ -418,11 +419,15 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
                     assertAccessIsAllowed(user, "GET", "/" + index + "/foo/1/_explain", "{ \"query\" : { \"match_all\" : {} } }");
                     assertAccessIsAllowed(user, "GET", "/" + index + "/foo/1/_termvector");
                     assertAccessIsAllowed(user, "GET", "/" + index + "/foo/_percolate", "{ \"doc\" : { \"foo\" : \"bar\" } }");
-                    assertAccessIsAllowed(user, "GET", "/" + index + "/_suggest", "{ \"sgs\" : { \"text\" : \"foo\", \"term\" : { \"field\" : \"body\" } } }");
-                    assertAccessIsAllowed(user, "GET", "/" + index + "/foo/_mget", "{ \"docs\" : [ { \"_id\": \"1\" }, { \"_id\": \"2\" } ] }");
-                    assertAccessIsAllowed(user, "GET", "/" + index + "/foo/_mtermvectors", "{ \"docs\" : [ { \"_id\": \"1\" }, { \"_id\": \"2\" } ] }");
+                    assertAccessIsAllowed(user, "GET",
+                            "/" + index + "/_suggest", "{ \"sgs\" : { \"text\" : \"foo\", \"term\" : { \"field\" : \"body\" } } }");
+                    assertAccessIsAllowed(user, "GET",
+                            "/" + index + "/foo/_mget", "{ \"docs\" : [ { \"_id\": \"1\" }, { \"_id\": \"2\" } ] }");
+                    assertAccessIsAllowed(user, "GET",
+                            "/" + index + "/foo/_mtermvectors", "{ \"docs\" : [ { \"_id\": \"1\" }, { \"_id\": \"2\" } ] }");
 
-                    StringBuilder multiPercolate = new StringBuilder("{\"percolate\" : {\"index\" : \"" + index + "\", \"type\" : \"foo\"}}\n");
+                    StringBuilder multiPercolate =
+                            new StringBuilder("{\"percolate\" : {\"index\" : \"" + index + "\", \"type\" : \"foo\"}}\n");
                     multiPercolate.append("{\"doc\" : {\"message\" : \"some text\"}}\n");
                     multiPercolate.append("{\"percolate\" : {\"index\" : \"" + index + "\", \"type\" : \"foo\", \"id\" : \"1\"}}\n");
                     multiPercolate.append("{}\n");
@@ -435,11 +440,15 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
                     assertAccessIsDenied(user, "GET", "/" + index + "/foo/1/_explain", "{ \"query\" : { \"match_all\" : {} } }");
                     assertAccessIsDenied(user, "GET", "/" + index + "/foo/1/_termvector");
                     assertAccessIsDenied(user, "GET", "/" + index + "/foo/_percolate", "{ \"doc\" : { \"foo\" : \"bar\" } }");
-                    assertAccessIsDenied(user, "GET", "/" + index + "/_suggest", "{ \"sgs\" : { \"text\" : \"foo\", \"term\" : { \"field\" : \"body\" } } }");
-                    assertAccessIsDenied(user, "GET", "/" + index + "/foo/_mget", "{ \"docs\" : [ { \"_id\": \"1\" }, { \"_id\": \"2\" } ] }");
-                    assertAccessIsDenied(user, "GET", "/" + index + "/foo/_mtermvectors", "{ \"docs\" : [ { \"_id\": \"1\" }, { \"_id\": \"2\" } ] }");
+                    assertAccessIsDenied(user,
+                            "GET", "/" + index + "/_suggest", "{ \"sgs\" : { \"text\" : \"foo\", \"term\" : { \"field\" : \"body\" } } }");
+                    assertAccessIsDenied(user,
+                            "GET", "/" + index + "/foo/_mget", "{ \"docs\" : [ { \"_id\": \"1\" }, { \"_id\": \"2\" } ] }");
+                    assertAccessIsDenied(user,
+                            "GET", "/" + index + "/foo/_mtermvectors", "{ \"docs\" : [ { \"_id\": \"1\" }, { \"_id\": \"2\" } ] }");
 
-                    StringBuilder multiPercolate = new StringBuilder("{\"percolate\" : {\"index\" : \"" + index + "\", \"type\" : \"foo\"}}\n");
+                    StringBuilder multiPercolate =
+                            new StringBuilder("{\"percolate\" : {\"index\" : \"" + index + "\", \"type\" : \"foo\"}}\n");
                     multiPercolate.append("{\"doc\" : {\"message\" : \"some text\"}}\n");
                     multiPercolate.append("{\"percolate\" : {\"index\" : \"" + index + "\", \"type\" : \"foo\", \"id\" : \"1\"}}\n");
                     multiPercolate.append("{}\n");
@@ -452,12 +461,16 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
             case "search" :
                 if (userIsAllowed) {
                     assertAccessIsAllowed(user, "GET", "/" + index + "/_search");
-                    assertAccessIsAllowed(user, "GET", "/" + index + "/_suggest", "{ \"my-suggestion\" : { \"text\":\"elasticsearch\", \"term\" : { \"field\" : \"name\" } } }");
-                    assertAccessIsAllowed(user, "GET", "/" + index + "/foo/_msearch", "{}\n{ \"query\" : { \"match_all\" : {} } }\n");
+                    assertAccessIsAllowed(user, "GET", "/" + index + "/_suggest", "{ \"my-suggestion\" : { \"text\":\"elasticsearch\", " +
+                            "\"term\" : { \"field\" : \"name\" } } }");
+                    assertAccessIsAllowed(user,
+                            "GET", "/" + index + "/foo/_msearch", "{}\n{ \"query\" : { \"match_all\" : {} } }\n");
                 } else {
                     assertAccessIsDenied(user, "GET", "/" + index + "/_search");
-                    assertAccessIsDenied(user, "GET", "/" + index + "/_suggest", "{ \"my-suggestion\" : { \"text\":\"elasticsearch\", \"term\" : { \"field\" : \"name\" } } }");
-                    assertAccessIsDenied(user, "GET", "/" + index + "/foo/_msearch", "{}\n{ \"query\" : { \"match_all\" : {} } }\n");
+                    assertAccessIsDenied(user, "GET", "/" + index + "/_suggest", "{ \"my-suggestion\" : { \"text\":\"elasticsearch\", " +
+                            "\"term\" : { \"field\" : \"name\" } } }");
+                    assertAccessIsDenied(user,
+                            "GET", "/" + index + "/foo/_msearch", "{}\n{ \"query\" : { \"match_all\" : {} } }\n");
                 }
                 break;
 
@@ -496,11 +509,13 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
                 if (userIsAllowed) {
                     assertUserIsAllowed(user, "index", index);
                     assertUserIsAllowed(user, "delete", index);
-                    assertAccessIsAllowed(user, "PUT", "/" + index + "/foo/_bulk", "{ \"index\" : { \"_id\" : \"123\" } }\n{ \"foo\" : \"bar\" }\n");
+                    assertAccessIsAllowed(user, "PUT",
+                            "/" + index + "/foo/_bulk", "{ \"index\" : { \"_id\" : \"123\" } }\n{ \"foo\" : \"bar\" }\n");
                 } else {
                     assertUserIsDenied(user, "index", index);
                     assertUserIsDenied(user, "delete", index);
-                    assertAccessIsDenied(user, "PUT", "/" + index + "/foo/_bulk", "{ \"index\" : { \"_id\" : \"123\" } }\n{ \"foo\" : \"bar\" }\n");
+                    assertAccessIsDenied(user,
+                            "PUT", "/" + index + "/foo/_bulk", "{ \"index\" : { \"_id\" : \"123\" } }\n{ \"foo\" : \"bar\" }\n");
                 }
                 break;
 

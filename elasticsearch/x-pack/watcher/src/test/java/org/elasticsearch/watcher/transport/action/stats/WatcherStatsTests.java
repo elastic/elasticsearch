@@ -58,7 +58,8 @@ public class WatcherStatsTests extends AbstractWatcherIntegrationTestCase {
 
         assertThat(response.getWatcherState(), equalTo(WatcherState.STARTED));
 
-        SearchRequest searchRequest = WatcherTestUtils.newInputSearchRequest("idx").source(searchSource().query(termQuery("field", "value")));
+        SearchRequest searchRequest = WatcherTestUtils.newInputSearchRequest("idx")
+                .source(searchSource().query(termQuery("field", "value")));
         watcherClient().preparePutWatch("_name")
                 .setSource(watchBuilder()
                         .trigger(schedule(cron("* * * * * ? *")))

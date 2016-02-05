@@ -138,7 +138,8 @@ public class LicenseIntegrationTests extends MarvelIntegTestCase {
 
         public void enable() {
             for (Licensee licensee : licensees) {
-                licensee.onChange(new Licensee.Status(License.OperationMode.BASIC, randomBoolean() ? LicenseState.ENABLED : LicenseState.GRACE_PERIOD));
+                licensee.onChange(new Licensee.Status(License.OperationMode.BASIC,
+                        randomBoolean() ? LicenseState.ENABLED : LicenseState.GRACE_PERIOD));
             }
         }
 

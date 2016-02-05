@@ -32,9 +32,11 @@ public class TransportDeleteWatchAction extends WatcherTransportAction<DeleteWat
 
     @Inject
     public TransportDeleteWatchAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                      ThreadPool threadPool, ActionFilters actionFilters,  IndexNameExpressionResolver indexNameExpressionResolver,
-                                      WatcherService watcherService, WatcherLicensee watcherLicensee) {
-        super(settings, DeleteWatchAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, watcherLicensee, DeleteWatchRequest::new);
+                                      ThreadPool threadPool, ActionFilters actionFilters,
+                                      IndexNameExpressionResolver indexNameExpressionResolver, WatcherService watcherService,
+                                      WatcherLicensee watcherLicensee) {
+        super(settings, DeleteWatchAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
+                watcherLicensee, DeleteWatchRequest::new);
         this.watcherService = watcherService;
     }
 
@@ -49,10 +51,13 @@ public class TransportDeleteWatchAction extends WatcherTransportAction<DeleteWat
     }
 
     @Override
-    protected void masterOperation(DeleteWatchRequest request, ClusterState state, ActionListener<DeleteWatchResponse> listener) throws ElasticsearchException {
+    protected void masterOperation(DeleteWatchRequest request, ClusterState state, ActionListener<DeleteWatchResponse> listener) throws
+            ElasticsearchException {
         try {
-            DeleteResponse deleteResponse = watcherService.deleteWatch(request.getId(), request.masterNodeTimeout(), request.isForce()).deleteResponse();
-            DeleteWatchResponse response = new DeleteWatchResponse(deleteResponse.getId(), deleteResponse.getVersion(), deleteResponse.isFound());
+            DeleteResponse deleteResponse = watcherService.deleteWatch(request.getId(), request.masterNodeTimeout(), request.isForce())
+                    .deleteResponse();
+            DeleteWatchResponse response = new DeleteWatchResponse(deleteResponse.getId(), deleteResponse.getVersion(), deleteResponse
+                    .isFound());
             listener.onResponse(response);
         } catch (Exception e) {
             listener.onFailure(e);

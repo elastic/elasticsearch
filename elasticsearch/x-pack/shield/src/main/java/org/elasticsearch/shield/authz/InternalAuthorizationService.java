@@ -315,7 +315,8 @@ public class InternalAuthorizationService extends AbstractComponent implements A
             }
         }
         if (user.runAs() != null) {
-            return authorizationError("action [{}] is unauthorized for user [{}] run as [{}]", action, user.principal(), user.runAs().principal());
+            return authorizationError("action [{}] is unauthorized for user [{}] run as [{}]", action, user.principal(),
+                    user.runAs().principal());
         }
         return authorizationError("action [{}] is unauthorized for user [{}]", action, user.principal());
     }

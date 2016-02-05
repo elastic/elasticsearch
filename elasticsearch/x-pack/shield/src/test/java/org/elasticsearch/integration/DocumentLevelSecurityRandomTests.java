@@ -94,7 +94,8 @@ public class DocumentLevelSecurityRandomTests extends ShieldIntegTestCase {
         builder.get();
 
         for (int roleI = 1; roleI <= numberOfRoles; roleI++) {
-            SearchResponse searchResponse1 = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user" + roleI, USERS_PASSWD)))
+            SearchResponse searchResponse1 = client()
+                    .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user" + roleI, USERS_PASSWD)))
                     .prepareSearch("test")
                     .get();
             SearchResponse searchResponse2 = client().prepareSearch("alias" + roleI).get();

@@ -50,7 +50,8 @@ public class EmailTemplateTests extends ESTestCase {
         String htmlBody = "Templated Html Body <script>nefarious scripting</script>";
         String sanitizedHtmlBody = "Templated Html Body";
 
-        EmailTemplate emailTemplate = new EmailTemplate(from, replyTo, priority, to, cc, bcc, subjectTemplate, textBodyTemplate, htmlBodyTemplate);
+        EmailTemplate emailTemplate = new EmailTemplate(from, replyTo, priority, to, cc, bcc, subjectTemplate, textBodyTemplate,
+                htmlBodyTemplate);
 
         XContentBuilder builder = XContentFactory.jsonBuilder();
         emailTemplate.toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -88,7 +89,7 @@ public class EmailTemplateTests extends ESTestCase {
         }
         when(templateEngine.render(priority, model)).thenReturn(priority.getTemplate());
 
-        Email.Builder emailBuilder = parsedEmailTemplate.render(templateEngine, model, htmlSanitizer, new HashMap<String, Attachment>());
+        Email.Builder emailBuilder = parsedEmailTemplate.render(templateEngine, model, htmlSanitizer, new HashMap<>());
 
         assertThat(emailTemplate.from, equalTo(parsedEmailTemplate.from));
         assertThat(emailTemplate.replyTo, equalTo(parsedEmailTemplate.replyTo));

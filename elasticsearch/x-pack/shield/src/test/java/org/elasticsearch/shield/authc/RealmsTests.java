@@ -265,7 +265,8 @@ public class RealmsTests extends ESTestCase {
             @Override
             public DummyRealm createDefault(String name) {
                 if (type().equals("esusers")) {
-                    return new DummyRealm("esusers", new RealmConfig(name, Settings.EMPTY, Settings.builder().put("path.home", createTempDir()).build()));
+                    return new DummyRealm("esusers", new RealmConfig(name, Settings.EMPTY,
+                            Settings.builder().put("path.home", createTempDir()).build()));
                 }
                 return null;
             }

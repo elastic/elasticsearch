@@ -235,7 +235,8 @@ public class License implements ToXContent {
     public static License readLicense(StreamInput in) throws IOException {
         int version = in.readVInt(); // Version for future extensibility
         if (version > VERSION_CURRENT) {
-            throw new ElasticsearchException("Unknown license version found, please upgrade all nodes to the latest elasticsearch-license plugin");
+            throw new ElasticsearchException("Unknown license version found, please upgrade all nodes to the latest elasticsearch-license" +
+                    " plugin");
         }
         Builder builder = builder();
         builder.version(version);
@@ -394,7 +395,8 @@ public class License implements ToXContent {
             if (version == 0) {
                 throw new ElasticsearchException("malformed signature for license [" + builder.uid + "]");
             } else if (version > VERSION_CURRENT) {
-                throw new ElasticsearchException("Unknown license version found, please upgrade all nodes to the latest elasticsearch-license plugin");
+                throw new ElasticsearchException("Unknown license version found, please upgrade all nodes to the latest " +
+                        "elasticsearch-license plugin");
             }
             // signature version is the source of truth
             builder.version(version);

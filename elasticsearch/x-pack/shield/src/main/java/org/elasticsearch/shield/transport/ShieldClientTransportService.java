@@ -24,14 +24,15 @@ public class ShieldClientTransportService extends TransportService {
 
     @Inject
     public ShieldClientTransportService(Settings settings, Transport transport, ThreadPool threadPool, ClientTransportFilter clientFilter,
-            NamedWriteableRegistry namedWriteableRegistry) {
+                                        NamedWriteableRegistry namedWriteableRegistry) {
         super(settings, transport, threadPool, namedWriteableRegistry);
         this.clientFilter = clientFilter;
     }
 
 
     @Override
-    public <T extends TransportResponse> void sendRequest(DiscoveryNode node, String action, TransportRequest request, TransportRequestOptions options, TransportResponseHandler<T> handler) {
+    public <T extends TransportResponse> void sendRequest(DiscoveryNode node, String action, TransportRequest request,
+                                                          TransportRequestOptions options, TransportResponseHandler<T> handler) {
         try {
             clientFilter.outbound(action, request);
             super.sendRequest(node, action, request, options, handler);

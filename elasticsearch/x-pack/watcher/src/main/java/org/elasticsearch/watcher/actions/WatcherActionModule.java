@@ -82,7 +82,8 @@ public class WatcherActionModule extends AbstractModule {
         bind(InternalEmailService.class).asEagerSingleton();
         bind(EmailService.class).to(InternalEmailService.class).asEagerSingleton();
 
-        MapBinder<String, EmailAttachmentParser> emailParsersBinder = MapBinder.newMapBinder(binder(), String.class, EmailAttachmentParser.class);
+        MapBinder<String, EmailAttachmentParser> emailParsersBinder = MapBinder.newMapBinder(binder(), String.class,
+                EmailAttachmentParser.class);
         for (Map.Entry<String, Class<? extends EmailAttachmentParser>> entry : emailAttachmentParsers.entrySet()) {
             emailParsersBinder.addBinding(entry.getKey()).to(entry.getValue()).asEagerSingleton();
         }

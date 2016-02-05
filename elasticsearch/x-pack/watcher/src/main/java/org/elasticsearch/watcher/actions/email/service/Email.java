@@ -187,7 +187,8 @@ public class Email implements ToXContent {
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-            } else if ((token.isValue() || token == XContentParser.Token.START_OBJECT || token == XContentParser.Token.START_ARRAY) && currentFieldName != null) {
+            } else if ((token.isValue() || token == XContentParser.Token.START_OBJECT || token == XContentParser.Token.START_ARRAY) &&
+                    currentFieldName != null) {
                 if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.ID)) {
                     email.id(parser.text());
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.FROM)) {
@@ -221,7 +222,8 @@ public class Email implements ToXContent {
                             } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Email.Field.BODY_HTML)) {
                                 email.htmlBody(parser.text());
                             } else {
-                                throw new ElasticsearchParseException("could not parse email. unexpected field [{}.{}] field", bodyField, currentFieldName);
+                                throw new ElasticsearchParseException("could not parse email. unexpected field [{}.{}] field", bodyField,
+                                        currentFieldName);
                             }
                         }
                     }
@@ -461,7 +463,8 @@ public class Email implements ToXContent {
                 try {
                     return new Email.Address(parser.text());
                 } catch (AddressException ae) {
-                    throw new ElasticsearchParseException("could not parse [" + text + "] in field [" + field + "] as address. address must be RFC822 encoded", ae);
+                    String msg = "could not parse [" + text + "] in field [" + field + "] as address. address must be RFC822 encoded";
+                    throw new ElasticsearchParseException(msg, ae);
                 }
             }
 
@@ -478,12 +481,14 @@ public class Email implements ToXContent {
                         } else if (ParseFieldMatcher.STRICT.match(currentFieldName, ADDRESS_NAME_FIELD)) {
                             name = parser.text();
                         } else {
-                            throw new ElasticsearchParseException("could not parse [" + field + "] object as address. unknown address field [" + currentFieldName + "]");
+                            throw new ElasticsearchParseException("could not parse [" + field + "] object as address. unknown address " +
+                                    "field [" + currentFieldName + "]");
                         }
                     }
                 }
                 if (email == null) {
-                    throw new ElasticsearchParseException("could not parse [" + field + "] as address. address object must define an [email] field");
+                    String msg = "could not parse [" + field + "] as address. address object must define an [email] field";
+                    throw new ElasticsearchParseException(msg);
                 }
                 try {
                     return name != null ? new Email.Address(email, name) : new Email.Address(email);
@@ -492,7 +497,8 @@ public class Email implements ToXContent {
                 }
 
             }
-            throw new ElasticsearchParseException("could not parse [{}] as address. address must either be a string (RFC822 encoded) or an object specifying the address [name] and [email]", field);
+            throw new ElasticsearchParseException("could not parse [{}] as address. address must either be a string (RFC822 encoded) or " +
+                    "an object specifying the address [name] and [email]", field);
         }
 
         public static Address parse(Settings settings, String name) {
@@ -572,7 +578,8 @@ public class Email implements ToXContent {
                 try {
                     return parse(parser.text());
                 } catch (AddressException ae) {
-                    throw new ElasticsearchParseException("could not parse field [" + field + "] with value [" + text + "] as address list. address(es) must be RFC822 encoded", ae);
+                    throw new ElasticsearchParseException("could not parse field [" + field + "] with value [" + text + "] as address " +
+                            "list. address(es) must be RFC822 encoded", ae);
                 }
             }
             if (token == XContentParser.Token.START_ARRAY) {

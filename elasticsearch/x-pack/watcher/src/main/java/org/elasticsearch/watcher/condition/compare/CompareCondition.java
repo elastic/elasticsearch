@@ -82,7 +82,8 @@ public class CompareCondition implements Condition {
 
     public static CompareCondition parse(String watchId, XContentParser parser) throws IOException {
         if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
-            throw new ElasticsearchParseException("could not parse [{}] condition for watch [{}]. expected an object but found [{}] instead", TYPE, watchId, parser.currentToken());
+            throw new ElasticsearchParseException("could not parse [{}] condition for watch [{}]. expected an object but found [{}] " +
+                    "instead", TYPE, watchId, parser.currentToken());
         }
         String path = null;
         Object value = null;
@@ -93,28 +94,35 @@ public class CompareCondition implements Condition {
             if (token == XContentParser.Token.FIELD_NAME) {
                 path = parser.currentName();
             } else if (path == null) {
-                throw new ElasticsearchParseException("could not parse [{}] condition for watch [{}]. expected a field indicating the compared path, but found [{}] instead", TYPE, watchId, token);
+                throw new ElasticsearchParseException("could not parse [{}] condition for watch [{}]. expected a field indicating the " +
+                        "compared path, but found [{}] instead", TYPE, watchId, token);
             } else if (token == XContentParser.Token.START_OBJECT) {
                 token = parser.nextToken();
                 if (token != XContentParser.Token.FIELD_NAME) {
-                    throw new ElasticsearchParseException("could not parse [{}] condition for watch [{}]. expected a field indicating the comparison operator, but found [{}] instead", TYPE, watchId, token);
+                    throw new ElasticsearchParseException("could not parse [{}] condition for watch [{}]. expected a field indicating the" +
+                            " comparison operator, but found [{}] instead", TYPE, watchId, token);
                 }
                 try {
                     op = Op.resolve(parser.currentName());
                 } catch (IllegalArgumentException iae) {
-                    throw new ElasticsearchParseException("could not parse [{}] condition for watch [{}]. unknown comparison operator [{}]", TYPE, watchId, parser.currentName());
+                    throw new ElasticsearchParseException("could not parse [{}] condition for watch [{}]. unknown comparison operator " +
+                            "[{}]", TYPE, watchId, parser.currentName());
                 }
                 token = parser.nextToken();
                 if (!op.supportsStructures() && !token.isValue() && token != XContentParser.Token.VALUE_NULL) {
-                    throw new ElasticsearchParseException("could not parse [{}] condition for watch [{}]. compared value for [{}] with operation [{}] must either be a numeric, string, boolean or null value, but found [{}] instead", TYPE, watchId, path, op.name().toLowerCase(Locale.ROOT), token);
+                    throw new ElasticsearchParseException("could not parse [{}] condition for watch [{}]. compared value for [{}] with " +
+                            "operation [{}] must either be a numeric, string, boolean or null value, but found [{}] instead", TYPE,
+                            watchId, path, op.name().toLowerCase(Locale.ROOT), token);
                 }
                 value = WatcherXContentUtils.readValue(parser, token);
                 token = parser.nextToken();
                 if (token != XContentParser.Token.END_OBJECT) {
-                    throw new ElasticsearchParseException("could not parse [{}] condition for watch [{}]. expected end of path object, but found [{}] instead", TYPE, watchId, token);
+                    throw new ElasticsearchParseException("could not parse [{}] condition for watch [{}]. expected end of path object, " +
+                            "but found [{}] instead", TYPE, watchId, token);
                 }
             } else {
-                throw new ElasticsearchParseException("could not parse [{}] condition for watch [{}]. expected an object for field [{}] but found [{}] instead", TYPE, watchId, path, token);
+                throw new ElasticsearchParseException("could not parse [{}] condition for watch [{}]. expected an object for field [{}] " +
+                        "but found [{}] instead", TYPE, watchId, path, token);
             }
         }
 

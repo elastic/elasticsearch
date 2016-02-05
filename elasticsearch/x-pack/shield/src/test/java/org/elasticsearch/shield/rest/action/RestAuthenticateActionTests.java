@@ -47,7 +47,8 @@ public class RestAuthenticateActionTests extends ShieldIntegTestCase {
 
     public void testAuthenticateApi() throws Exception {
         HttpResponse response = httpClient().method("GET").path("/_shield/authenticate")
-                .addHeader("Authorization", basicAuthHeaderValue(ShieldSettingsSource.DEFAULT_USER_NAME, new SecuredString(ShieldSettingsSource.DEFAULT_PASSWORD.toCharArray())))
+                .addHeader("Authorization", basicAuthHeaderValue(ShieldSettingsSource.DEFAULT_USER_NAME,
+                        new SecuredString(ShieldSettingsSource.DEFAULT_PASSWORD.toCharArray())))
                 .execute();
 
         assertThat(response.getStatusCode(), is(200));

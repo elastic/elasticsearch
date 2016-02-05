@@ -51,12 +51,14 @@ public class UserAccount extends HipChatAccount {
     @Override
     public void validateParsedTemplate(String watchId, String actionId, HipChatMessage.Template template) throws SettingsException {
         if (template.from != null) {
-            throw new ElasticsearchParseException("invalid [" + HipChatAction.TYPE + "] action for [" + watchId + "/" + actionId + "]. [" + name + "] hipchat account doesn't support custom `from` fields");
+            throw new ElasticsearchParseException("invalid [" + HipChatAction.TYPE + "] action for [" + watchId + "/" + actionId + "]. ["
+                    + name + "] hipchat account doesn't support custom `from` fields");
         }
     }
 
     @Override
-    public HipChatMessage render(String watchId, String actionId, TextTemplateEngine engine, HipChatMessage.Template template, Map<String, Object> model) {
+    public HipChatMessage render(String watchId, String actionId, TextTemplateEngine engine, HipChatMessage.Template template,
+                                 Map<String, Object> model) {
         String[] rooms = defaults.rooms;
         if (template.rooms != null) {
             rooms = new String[template.rooms.length];
@@ -86,10 +88,12 @@ public class UserAccount extends HipChatAccount {
                 HttpRequest request = buildRoomRequest(room, message);
                 try {
                     HttpResponse response = httpClient.execute(request);
-                    sentMessages.add(SentMessages.SentMessage.responded(room, SentMessages.SentMessage.TargetType.ROOM, message, request, response));
+                    sentMessages.add(SentMessages.SentMessage.responded(room, SentMessages.SentMessage.TargetType.ROOM, message, request,
+                            response));
                 } catch (IOException e) {
                     logger.error("failed to execute hipchat api http request", e);
-                    sentMessages.add(SentMessages.SentMessage.error(room, SentMessages.SentMessage.TargetType.ROOM, message, ExceptionsHelper.detailedMessage(e)));
+                    sentMessages.add(SentMessages.SentMessage.error(room, SentMessages.SentMessage.TargetType.ROOM, message,
+                            ExceptionsHelper.detailedMessage(e)));
                 }
             }
         }
@@ -98,10 +102,12 @@ public class UserAccount extends HipChatAccount {
                 HttpRequest request = buildUserRequest(user, message);
                 try {
                     HttpResponse response = httpClient.execute(request);
-                    sentMessages.add(SentMessages.SentMessage.responded(user, SentMessages.SentMessage.TargetType.USER, message, request, response));
+                    sentMessages.add(SentMessages.SentMessage.responded(user, SentMessages.SentMessage.TargetType.USER, message, request,
+                            response));
                 } catch (Exception e) {
                     logger.error("failed to execute hipchat api http request", e);
-                    sentMessages.add(SentMessages.SentMessage.error(user, SentMessages.SentMessage.TargetType.USER, message, ExceptionsHelper.detailedMessage(e)));
+                    sentMessages.add(SentMessages.SentMessage.error(user, SentMessages.SentMessage.TargetType.USER, message,
+                            ExceptionsHelper.detailedMessage(e)));
                 }
             }
         }

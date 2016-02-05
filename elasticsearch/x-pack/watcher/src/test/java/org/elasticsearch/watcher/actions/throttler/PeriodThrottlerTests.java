@@ -33,7 +33,8 @@ public class PeriodThrottlerTests extends ESTestCase {
 
         WatchExecutionContext ctx = mockExecutionContext("_name", EMPTY_PAYLOAD);
         ActionStatus actionStatus = mock(ActionStatus.class);
-        when(actionStatus.lastSuccessfulExecution()).thenReturn(ActionStatus.Execution.successful(SystemClock.INSTANCE.nowUTC().minusSeconds((int) period.seconds() - 1)));
+        when(actionStatus.lastSuccessfulExecution())
+                .thenReturn(ActionStatus.Execution.successful(SystemClock.INSTANCE.nowUTC().minusSeconds((int) period.seconds() - 1)));
         WatchStatus status = mock(WatchStatus.class);
         when(status.actionStatus("_action")).thenReturn(actionStatus);
         when(ctx.watch().status()).thenReturn(status);
@@ -52,7 +53,8 @@ public class PeriodThrottlerTests extends ESTestCase {
 
         WatchExecutionContext ctx = mockExecutionContext("_name", EMPTY_PAYLOAD);
         ActionStatus actionStatus = mock(ActionStatus.class);
-        when(actionStatus.lastSuccessfulExecution()).thenReturn(ActionStatus.Execution.successful(SystemClock.INSTANCE.nowUTC().minusSeconds((int) period.seconds() + 1)));
+        when(actionStatus.lastSuccessfulExecution())
+                .thenReturn(ActionStatus.Execution.successful(SystemClock.INSTANCE.nowUTC().minusSeconds((int) period.seconds() + 1)));
         WatchStatus status = mock(WatchStatus.class);
         when(status.actionStatus("_action")).thenReturn(actionStatus);
         when(ctx.watch().status()).thenReturn(status);

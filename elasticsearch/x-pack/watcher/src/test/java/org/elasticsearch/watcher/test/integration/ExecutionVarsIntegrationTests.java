@@ -50,11 +50,13 @@ public class ExecutionVarsIntegrationTests extends AbstractWatcherIntegrationTes
                 .addAction(
                         "a1",
                         scriptTransform("ctx.vars.a1_transform_value = ctx.vars.watch_transform_value + 10; return ctx.payload;"),
-                        loggingAction("condition_value={{ctx.vars.condition_value}}, watch_transform_value={{ctx.vars.watch_transform_value}}, a1_transform_value={{ctx.vars.a1_transform_value}}"))
+                        loggingAction("condition_value={{ctx.vars.condition_value}}, watch_transform_value={{ctx.vars" +
+                                ".watch_transform_value}}, a1_transform_value={{ctx.vars.a1_transform_value}}"))
                 .addAction(
                         "a2",
                         scriptTransform("ctx.vars.a2_transform_value = ctx.vars.watch_transform_value + 20; return ctx.payload;"),
-                        loggingAction("condition_value={{ctx.vars.condition_value}}, watch_transform_value={{ctx.vars.watch_transform_value}}, a2_transform_value={{ctx.vars.a2_transform_value}}")))
+                        loggingAction("condition_value={{ctx.vars.condition_value}}, watch_transform_value={{ctx.vars" +
+                                ".watch_transform_value}}, a2_transform_value={{ctx.vars.a2_transform_value}}")))
                 .get();
 
         assertThat(putWatchResponse.isCreated(), is(true));
@@ -115,11 +117,13 @@ public class ExecutionVarsIntegrationTests extends AbstractWatcherIntegrationTes
                 .addAction(
                         "a1",
                         scriptTransform("ctx.vars.a1_transform_value = ctx.vars.watch_transform_value + 10; return ctx.payload;"),
-                        loggingAction("condition_value={{ctx.vars.condition_value}}, watch_transform_value={{ctx.vars.watch_transform_value}}, a1_transform_value={{ctx.vars.a1_transform_value}}"))
+                        loggingAction("condition_value={{ctx.vars.condition_value}}, watch_transform_value={{ctx.vars" +
+                                ".watch_transform_value}}, a1_transform_value={{ctx.vars.a1_transform_value}}"))
                 .addAction(
                         "a2",
                         scriptTransform("ctx.vars.a2_transform_value = ctx.vars.watch_transform_value + 20; return ctx.payload;"),
-                        loggingAction("condition_value={{ctx.vars.condition_value}}, watch_transform_value={{ctx.vars.watch_transform_value}}, a2_transform_value={{ctx.vars.a2_transform_value}}")))
+                        loggingAction("condition_value={{ctx.vars.condition_value}}, watch_transform_value={{ctx.vars" +
+                                ".watch_transform_value}}, a2_transform_value={{ctx.vars.a2_transform_value}}")))
                 .get();
 
         assertThat(putWatchResponse.isCreated(), is(true));

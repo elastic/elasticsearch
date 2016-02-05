@@ -32,9 +32,11 @@ public class TransportAckWatchAction extends WatcherTransportAction<AckWatchRequ
 
     @Inject
     public TransportAckWatchAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                   ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                   WatcherService watcherService, WatcherLicensee watcherLicensee) {
-        super(settings, AckWatchAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, watcherLicensee, AckWatchRequest::new);
+                                   ThreadPool  threadPool, ActionFilters actionFilters,
+                                   IndexNameExpressionResolver indexNameExpressionResolver, WatcherService watcherService,
+                                   WatcherLicensee watcherLicensee) {
+        super(settings, AckWatchAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
+                watcherLicensee, AckWatchRequest::new);
         this.watcherService = watcherService;
     }
 
@@ -49,7 +51,8 @@ public class TransportAckWatchAction extends WatcherTransportAction<AckWatchRequ
     }
 
     @Override
-    protected void masterOperation(AckWatchRequest request, ClusterState state, ActionListener<AckWatchResponse> listener) throws ElasticsearchException {
+    protected void masterOperation(AckWatchRequest request, ClusterState state, ActionListener<AckWatchResponse> listener) throws
+            ElasticsearchException {
         try {
             WatchStatus watchStatus = watcherService.ackWatch(request.getWatchId(), request.getActionIds(), request.masterNodeTimeout());
             AckWatchResponse response = new AckWatchResponse(watchStatus);

@@ -109,19 +109,22 @@ public class HourlySchedule extends CronnableSchedule {
                         try {
                             minutes.add(DayTimes.parseMinuteValue(parser, token));
                         } catch (ElasticsearchParseException pe) {
-                            throw new ElasticsearchParseException("could not parse [{}] schedule. invalid value for [{}]", pe, TYPE, currentFieldName);
+                            throw new ElasticsearchParseException("could not parse [{}] schedule. invalid value for [{}]", pe, TYPE,
+                                    currentFieldName);
                         }
                     } else if (token == XContentParser.Token.START_ARRAY) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                             try {
                                 minutes.add(DayTimes.parseMinuteValue(parser, token));
                             } catch (ElasticsearchParseException pe) {
-                                throw new ElasticsearchParseException("could not parse [{}] schedule. invalid value for [{}]", pe, TYPE, currentFieldName);
+                                throw new ElasticsearchParseException("could not parse [{}] schedule. invalid value for [{}]", pe, TYPE,
+                                        currentFieldName);
                             }
                         }
                     } else {
                         throw new ElasticsearchParseException("could not parse [{}] schedule. invalid value for [{}]. " +
-                                "expected either string/value or an array of string/number values, but found [{}]", TYPE, currentFieldName, token);
+                                "expected either string/value or an array of string/number values, but found [{}]", TYPE, currentFieldName,
+                                token);
                     }
                 } else {
                     throw new ElasticsearchParseException("could not parse [{}] schedule. unexpected field [{}]", TYPE, currentFieldName);

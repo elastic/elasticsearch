@@ -40,7 +40,8 @@ public class MarvelF {
         }
 
         final CountDownLatch latch = new CountDownLatch(1);
-        final Node node = new MockNode(settings.build(), Version.CURRENT, Arrays.asList(XPackPlugin.class, XPackPlugin.class, XPackPlugin.class));
+        final Node node = new MockNode(settings.build(), Version.CURRENT,
+                Arrays.asList(XPackPlugin.class, XPackPlugin.class, XPackPlugin.class));
         Runtime.getRuntime().addShutdownHook(new Thread() {
 
             @Override

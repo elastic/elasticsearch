@@ -64,10 +64,12 @@ public class Realms extends AbstractLifecycleComponent<Realms> implements Iterab
     }
 
     @Override
-    protected void doStop() throws ElasticsearchException {}
+    protected void doStop() throws ElasticsearchException {
+    }
 
     @Override
-    protected void doClose() throws ElasticsearchException {}
+    protected void doClose() throws ElasticsearchException {
+    }
 
     @Override
     public Iterator<Realm> iterator() {
@@ -157,7 +159,8 @@ public class Realms extends AbstractLifecycleComponent<Realms> implements Iterab
             }
             if (type.equals(realmType)) {
                 if (result != null) {
-                    throw new IllegalArgumentException("multiple [" + realmType + "] realms are configured. only one [" + realmType + "] may be configured");
+                    throw new IllegalArgumentException("multiple [" + realmType + "] realms are configured. only one [" + realmType +
+                            "] may be configured");
                 }
                 result = realmSettings;
             }

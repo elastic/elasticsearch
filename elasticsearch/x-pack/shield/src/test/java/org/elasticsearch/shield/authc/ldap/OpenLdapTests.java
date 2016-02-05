@@ -56,7 +56,8 @@ public class OpenLdapTests extends ESTestCase {
         //openldap does not use cn as naming attributes by default
         String groupSearchBase = "ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         String userTemplate = "uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
-        RealmConfig config = new RealmConfig("oldap-test", LdapTestCase.buildLdapSettings(OPEN_LDAP_URL, userTemplate, groupSearchBase, LdapSearchScope.ONE_LEVEL), globalSettings);
+        RealmConfig config = new RealmConfig("oldap-test", LdapTestCase.buildLdapSettings(OPEN_LDAP_URL, userTemplate, groupSearchBase,
+                LdapSearchScope.ONE_LEVEL), globalSettings);
         LdapSessionFactory sessionFactory = new LdapSessionFactory(config, clientSSLService);
 
         String[] users = new String[] { "blackwidow", "cap", "hawkeye", "hulk", "ironman", "thor" };
@@ -72,7 +73,8 @@ public class OpenLdapTests extends ESTestCase {
 
         String groupSearchBase = "cn=Avengers,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         String userTemplate = "uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
-        RealmConfig config = new RealmConfig("oldap-test", LdapTestCase.buildLdapSettings(OPEN_LDAP_URL, userTemplate, groupSearchBase, LdapSearchScope.BASE), globalSettings);
+        RealmConfig config = new RealmConfig("oldap-test", LdapTestCase.buildLdapSettings(OPEN_LDAP_URL, userTemplate, groupSearchBase,
+                LdapSearchScope.BASE), globalSettings);
         LdapSessionFactory sessionFactory = new LdapSessionFactory(config, clientSSLService);
 
         String[] users = new String[] { "blackwidow", "cap", "hawkeye", "hulk", "ironman", "thor" };

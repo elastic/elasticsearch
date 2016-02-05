@@ -11,7 +11,8 @@ import org.elasticsearch.client.ElasticsearchClient;
 /**
  * Request builder for the {@link ClearRolesCacheRequest}
  */
-public class ClearRolesCacheRequestBuilder extends NodesOperationRequestBuilder<ClearRolesCacheRequest, ClearRolesCacheResponse, ClearRolesCacheRequestBuilder> {
+public class ClearRolesCacheRequestBuilder extends NodesOperationRequestBuilder<ClearRolesCacheRequest, ClearRolesCacheResponse,
+        ClearRolesCacheRequestBuilder> {
 
     public ClearRolesCacheRequestBuilder(ElasticsearchClient client) {
         this(client, ClearRolesCacheAction.INSTANCE, new ClearRolesCacheRequest());
@@ -23,6 +24,7 @@ public class ClearRolesCacheRequestBuilder extends NodesOperationRequestBuilder<
 
     /**
      * Set the roles to be cleared
+     *
      * @param roles the names of the roles that should be cleared
      * @return the builder instance
      */

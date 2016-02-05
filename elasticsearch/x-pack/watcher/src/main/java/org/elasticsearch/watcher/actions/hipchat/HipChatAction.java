@@ -80,21 +80,25 @@ public class HipChatAction implements Action {
                 if (token == XContentParser.Token.VALUE_STRING) {
                     account = parser.text();
                 } else {
-                    throw new ElasticsearchParseException("failed to parse [{}] action [{}/{}]. expected [{}] to be of type string, but found [{}] instead", TYPE, watchId, actionId, Field.ACCOUNT.getPreferredName(), token);
+                    throw new ElasticsearchParseException("failed to parse [{}] action [{}/{}]. expected [{}] to be of type string, but " +
+                            "found [{}] instead", TYPE, watchId, actionId, Field.ACCOUNT.getPreferredName(), token);
                 }
             } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.MESSAGE)) {
                 try {
                     message = HipChatMessage.Template.parse(parser);
                 } catch (Exception e) {
-                    throw new ElasticsearchParseException("failed to parse [{}] action [{}/{}]. failed to parse [{}] field", e, TYPE, watchId, actionId, Field.MESSAGE.getPreferredName());
+                    throw new ElasticsearchParseException("failed to parse [{}] action [{}/{}]. failed to parse [{}] field", e, TYPE,
+                            watchId, actionId, Field.MESSAGE.getPreferredName());
                 }
             } else {
-                throw new ElasticsearchParseException("failed to parse [{}] action [{}/{}]. unexpected token [{}]", TYPE, watchId, actionId, token);
+                throw new ElasticsearchParseException("failed to parse [{}] action [{}/{}]. unexpected token [{}]", TYPE, watchId,
+                        actionId, token);
             }
         }
 
         if (message == null) {
-            throw new ElasticsearchParseException("failed to parse [{}] action [{}/{}]. missing required [{}] field", TYPE, watchId, actionId, Field.MESSAGE.getPreferredName());
+            throw new ElasticsearchParseException("failed to parse [{}] action [{}/{}]. missing required [{}] field", TYPE, watchId,
+                    actionId, Field.MESSAGE.getPreferredName());
         }
 
         return new HipChatAction(account, message);

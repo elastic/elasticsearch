@@ -23,7 +23,8 @@ public class AuthenticationModuleTests extends ESTestCase {
         AuthenticationModule module = new AuthenticationModule(settings);
         try {
             module.addCustomRealm(randomFrom(PkiRealm.TYPE, LdapRealm.TYPE, ActiveDirectoryRealm.TYPE, ESUsersRealm.TYPE),
-                    randomFrom(PkiRealm.Factory.class, LdapRealm.Factory.class, ActiveDirectoryRealm.Factory.class, ESUsersRealm.Factory.class));
+                    randomFrom(PkiRealm.Factory.class, LdapRealm.Factory.class, ActiveDirectoryRealm.Factory.class,
+                            ESUsersRealm.Factory.class));
             fail("overriding a built in realm type is not allowed!");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("cannot redefine"));
@@ -35,7 +36,8 @@ public class AuthenticationModuleTests extends ESTestCase {
         AuthenticationModule module = new AuthenticationModule(settings);
         try {
             module.addCustomRealm(randomBoolean() ? null : "",
-                    randomFrom(PkiRealm.Factory.class, LdapRealm.Factory.class, ActiveDirectoryRealm.Factory.class, ESUsersRealm.Factory.class));
+                    randomFrom(PkiRealm.Factory.class, LdapRealm.Factory.class, ActiveDirectoryRealm.Factory.class,
+                            ESUsersRealm.Factory.class));
             fail("type must not be null");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("null or empty"));

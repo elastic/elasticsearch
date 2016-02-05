@@ -361,7 +361,8 @@ public class ESNativeRolesStore extends AbstractComponent implements RolesStore,
                 try {
                     poller.doRun();
                 } catch (Exception e) {
-                    logger.warn("failed to perform initial poll of roles index [{}]. scheduling again in [{}]", e, ShieldTemplateService.SHIELD_ADMIN_INDEX_NAME, pollInterval);
+                    logger.warn("failed to perform initial poll of roles index [{}]. scheduling again in [{}]", e,
+                            ShieldTemplateService.SHIELD_ADMIN_INDEX_NAME, pollInterval);
                 }
                 versionChecker = threadPool.scheduleWithFixedDelay(poller, pollInterval);
                 state.set(State.STARTED);
@@ -428,7 +429,8 @@ public class ESNativeRolesStore extends AbstractComponent implements RolesStore,
         final boolean exists = event.state().metaData().indices().get(ShieldTemplateService.SHIELD_ADMIN_INDEX_NAME) != null;
         // make sure all the primaries are active
         if (exists && event.state().routingTable().index(ShieldTemplateService.SHIELD_ADMIN_INDEX_NAME).allPrimaryShardsActive()) {
-            logger.debug("shield roles index [{}] all primary shards started, so polling can start", ShieldTemplateService.SHIELD_ADMIN_INDEX_NAME);
+            logger.debug("shield roles index [{}] all primary shards started, so polling can start",
+                    ShieldTemplateService.SHIELD_ADMIN_INDEX_NAME);
             shieldIndexExists = true;
         } else {
             // always set the value - it may have changed...
@@ -457,7 +459,8 @@ public class ESNativeRolesStore extends AbstractComponent implements RolesStore,
                 return;
             }
             if (shieldIndexExists == false) {
-                logger.trace("cannot poll for role changes since shield admin index [{}] does not exist", ShieldTemplateService.SHIELD_ADMIN_INDEX_NAME);
+                logger.trace("cannot poll for role changes since shield admin index [{}] does not exist",
+                        ShieldTemplateService.SHIELD_ADMIN_INDEX_NAME);
                 return;
             }
 
@@ -503,7 +506,8 @@ public class ESNativeRolesStore extends AbstractComponent implements RolesStore,
                             }
                         });
                     }
-                    SearchScrollRequest scrollRequest = client.prepareSearchScroll(response.getScrollId()).setScroll(scrollKeepAlive).request();
+                    SearchScrollRequest scrollRequest = client.prepareSearchScroll(response.getScrollId())
+                            .setScroll(scrollKeepAlive).request();
                     response = client.searchScroll(scrollRequest).actionGet();
                     keepScrolling = response.getHits().getHits().length > 0;
                 }

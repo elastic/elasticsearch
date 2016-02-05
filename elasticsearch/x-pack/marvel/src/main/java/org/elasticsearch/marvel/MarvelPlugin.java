@@ -39,8 +39,10 @@ public class MarvelPlugin extends Plugin {
 
     public static final String NAME = "marvel";
     public static final String ENABLED = NAME + ".enabled";
-    public static final Setting<String> INDEX_MARVEL_VERSION_SETTING = new Setting<>("index.marvel.plugin.version", "", Function.identity(), false, Setting.Scope.INDEX);
-    public static final Setting<String> INDEX_MARVEL_TEMPLATE_VERSION_SETTING = new Setting<>("index.marvel.template.version", "", Function.identity(), false, Setting.Scope.INDEX);
+    public static final Setting<String> INDEX_MARVEL_VERSION_SETTING =
+            new Setting<>("index.marvel.plugin.version", "", Function.identity(), false, Setting.Scope.INDEX);
+    public static final Setting<String> INDEX_MARVEL_TEMPLATE_VERSION_SETTING =
+            new Setting<>("index.marvel.template.version", "", Function.identity(), false, Setting.Scope.INDEX);
     public static final String TRIBE_NAME_SETTING = "tribe.name";
 
     private final Settings settings;

@@ -57,7 +57,8 @@ public class ClusterPrivilege extends AbstractAutomatonPrivilege<ClusterPrivileg
     public static void addCustom(String name, String... actionPatterns) {
         for (String pattern : actionPatterns) {
             if (!ClusterPrivilege.ACTION_MATCHER.test(pattern)) {
-                throw new IllegalArgumentException("cannot register custom cluster privilege [" + name + "]. cluster action must follow the 'cluster:*' format");
+                throw new IllegalArgumentException("cannot register custom cluster privilege [" + name + "]. " +
+                        "cluster action must follow the 'cluster:*' format");
             }
         }
         ClusterPrivilege custom = new ClusterPrivilege(name, actionPatterns);

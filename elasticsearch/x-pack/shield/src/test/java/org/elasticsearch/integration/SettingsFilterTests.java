@@ -15,7 +15,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.http.HttpServerTransport;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
@@ -28,7 +27,6 @@ import org.elasticsearch.test.rest.client.http.HttpResponse;
 import org.junit.After;
 
 import java.io.IOException;
-import java.lang.reflect.Array;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -105,7 +103,8 @@ public class SettingsFilterTests extends ShieldIntegTestCase {
                 // pki filtering
                 .put("shield.authc.realms.pki1.type", "pki")
                 .put("shield.authc.realms.pki1.order", "0")
-                .put("shield.authc.realms.pki1.truststore.path", getDataPath("/org/elasticsearch/shield/transport/ssl/certs/simple/truststore-testnode-only.jks"))
+                .put("shield.authc.realms.pki1.truststore.path",
+                        getDataPath("/org/elasticsearch/shield/transport/ssl/certs/simple/truststore-testnode-only.jks"))
                 .put("shield.authc.realms.pki1.truststore.password", "truststore-testnode-only")
                 .put("shield.authc.realms.pki1.truststore.algorithm", "SunX509")
 
@@ -216,7 +215,9 @@ public class SettingsFilterTests extends ShieldIntegTestCase {
         if (body != null) {
             requestBuilder.body(body);
         }
-        requestBuilder.addHeader(UsernamePasswordToken.BASIC_AUTH_HEADER, UsernamePasswordToken.basicAuthHeaderValue(ShieldSettingsSource.DEFAULT_USER_NAME, new SecuredString(ShieldSettingsSource.DEFAULT_PASSWORD.toCharArray())));
+        requestBuilder.addHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
+                UsernamePasswordToken.basicAuthHeaderValue(ShieldSettingsSource.DEFAULT_USER_NAME,
+                        new SecuredString(ShieldSettingsSource.DEFAULT_PASSWORD.toCharArray())));
         return requestBuilder.execute();
     }
 }

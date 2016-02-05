@@ -94,7 +94,8 @@ public class InternalAuthorizationServiceTests extends ESTestCase {
             internalAuthorizationService.authorize(SystemUser.INSTANCE, "indices:", request);
             fail("action beginning with indices should have failed");
         } catch (ElasticsearchSecurityException e) {
-            assertAuthorizationException(e, containsString("action [indices:] is unauthorized for user [" + SystemUser.INSTANCE.principal() + "]"));
+            assertAuthorizationException(e,
+                    containsString("action [indices:] is unauthorized for user [" + SystemUser.INSTANCE.principal() + "]"));
             verify(auditTrail).accessDenied(SystemUser.INSTANCE, "indices:", request);
             verifyNoMoreInteractions(auditTrail);
         }
@@ -106,7 +107,8 @@ public class InternalAuthorizationServiceTests extends ESTestCase {
             internalAuthorizationService.authorize(SystemUser.INSTANCE, "cluster:admin/whatever", request);
             fail("action beginning with cluster:admin/whatever should have failed");
         } catch (ElasticsearchSecurityException e) {
-            assertAuthorizationException(e, containsString("action [cluster:admin/whatever] is unauthorized for user [" + SystemUser.INSTANCE.principal() + "]"));
+            assertAuthorizationException(e,
+                    containsString("action [cluster:admin/whatever] is unauthorized for user [" + SystemUser.INSTANCE.principal() + "]"));
             verify(auditTrail).accessDenied(SystemUser.INSTANCE, "cluster:admin/whatever", request);
             verifyNoMoreInteractions(auditTrail);
         }
@@ -118,7 +120,8 @@ public class InternalAuthorizationServiceTests extends ESTestCase {
             internalAuthorizationService.authorize(SystemUser.INSTANCE, "cluster:admin/snapshot/status", request);
             fail("action beginning with cluster:admin/snapshot/status should have failed");
         } catch (ElasticsearchSecurityException e) {
-            assertAuthorizationException(e, containsString("action [cluster:admin/snapshot/status] is unauthorized for user [" + SystemUser.INSTANCE.principal() + "]"));
+            assertAuthorizationException(e, containsString("action [cluster:admin/snapshot/status] is unauthorized for user [" +
+                    SystemUser.INSTANCE.principal() + "]"));
             verify(auditTrail).accessDenied(SystemUser.INSTANCE, "cluster:admin/snapshot/status", request);
             verifyNoMoreInteractions(auditTrail);
         }
@@ -244,7 +247,8 @@ public class InternalAuthorizationServiceTests extends ESTestCase {
             internalAuthorizationService.authorize(user, CreateIndexAction.NAME, request);
             fail("indices creation request with alias should be denied since user does not have permission to alias");
         } catch (ElasticsearchSecurityException e) {
-            assertAuthorizationException(e, containsString("action [" + IndicesAliasesAction.NAME + "] is unauthorized for user [test user]"));
+            assertAuthorizationException(e,
+                    containsString("action [" + IndicesAliasesAction.NAME + "] is unauthorized for user [test user]"));
             verify(auditTrail).accessDenied(user, IndicesAliasesAction.NAME, request);
             verifyNoMoreInteractions(auditTrail);
             verify(clusterService).state();
@@ -307,7 +311,8 @@ public class InternalAuthorizationServiceTests extends ESTestCase {
         TransportRequest request = new IndicesExistsRequest("b");
         ClusterState state = mock(ClusterState.class);
         AnonymousService anonymousService = new AnonymousService(Settings.builder().put("shield.authc.anonymous.roles", "a_all").build());
-        internalAuthorizationService = new InternalAuthorizationService(Settings.EMPTY, rolesStore, clusterService, auditTrail, anonymousService, new DefaultAuthenticationFailureHandler(), threadPool);
+        internalAuthorizationService = new InternalAuthorizationService(Settings.EMPTY, rolesStore, clusterService, auditTrail,
+                anonymousService, new DefaultAuthenticationFailureHandler(), threadPool);
 
         when(rolesStore.role("a_all")).thenReturn(Role.builder("a_all").add(IndexPrivilege.ALL, "a").build());
         when(clusterService.state()).thenReturn(state);
@@ -317,7 +322,8 @@ public class InternalAuthorizationServiceTests extends ESTestCase {
             internalAuthorizationService.authorize(anonymousService.anonymousUser(), "indices:a", request);
             fail("indices request for b should be denied since there is no such index");
         } catch (ElasticsearchSecurityException e) {
-            assertAuthorizationException(e, containsString("action [indices:a] is unauthorized for user [" + anonymousService.anonymousUser().principal() + "]"));
+            assertAuthorizationException(e,
+                    containsString("action [indices:a] is unauthorized for user [" + anonymousService.anonymousUser().principal() + "]"));
             verify(auditTrail).accessDenied(anonymousService.anonymousUser(), "indices:a", request);
             verifyNoMoreInteractions(auditTrail);
             verify(clusterService, times(2)).state();
@@ -332,7 +338,8 @@ public class InternalAuthorizationServiceTests extends ESTestCase {
                 .put("shield.authc.anonymous.roles", "a_all")
                 .put(AnonymousService.SETTING_AUTHORIZATION_EXCEPTION_ENABLED, false)
                 .build());
-        internalAuthorizationService = new InternalAuthorizationService(Settings.EMPTY, rolesStore, clusterService, auditTrail, anonymousService, new DefaultAuthenticationFailureHandler(), threadPool);
+        internalAuthorizationService = new InternalAuthorizationService(Settings.EMPTY, rolesStore, clusterService, auditTrail,
+                anonymousService, new DefaultAuthenticationFailureHandler(), threadPool);
 
         when(rolesStore.role("a_all")).thenReturn(Role.builder("a_all").add(IndexPrivilege.ALL, "a").build());
         when(clusterService.state()).thenReturn(state);

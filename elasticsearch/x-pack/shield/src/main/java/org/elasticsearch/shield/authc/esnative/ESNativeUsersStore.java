@@ -74,7 +74,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * particular implements both a User store and a UserRoles store, which means it
  * is responsible for fetching not only {@code User} objects, but also
  * retrieving the roles for a given username.
- *
+ * <p>
  * No caching is done by this class, it is handled at a higher level
  */
 public class ESNativeUsersStore extends AbstractComponent implements ClusterStateListener {
@@ -113,10 +113,10 @@ public class ESNativeUsersStore extends AbstractComponent implements ClusterStat
             return null;
         }
         try {
-            String username = (String)sourceMap.get(Fields.USERNAME);
-            String password = (String)sourceMap.get(Fields.PASSWORD);
-            String[] roles = ((List<String>)sourceMap.get(Fields.ROLES)).toArray(Strings.EMPTY_ARRAY);
-            return new UserAndPassword(new User(username, roles),  password.toCharArray());
+            String username = (String) sourceMap.get(Fields.USERNAME);
+            String password = (String) sourceMap.get(Fields.PASSWORD);
+            String[] roles = ((List<String>) sourceMap.get(Fields.ROLES)).toArray(Strings.EMPTY_ARRAY);
+            return new UserAndPassword(new User(username, roles), password.toCharArray());
         } catch (Exception e) {
             logger.error("error in the format of get response for user", e);
             return null;
@@ -386,7 +386,8 @@ public class ESNativeUsersStore extends AbstractComponent implements ClusterStat
         }
 
         if (clusterState.routingTable().index(ShieldTemplateService.SHIELD_ADMIN_INDEX_NAME).allPrimaryShardsActive()) {
-            logger.debug("shield user index [{}] all primary shards started, so service can start", ShieldTemplateService.SHIELD_ADMIN_INDEX_NAME);
+            logger.debug("shield user index [{}] all primary shards started, so service can start",
+                    ShieldTemplateService.SHIELD_ADMIN_INDEX_NAME);
             return true;
         }
         return false;
@@ -406,7 +407,8 @@ public class ESNativeUsersStore extends AbstractComponent implements ClusterStat
                 } catch (Exception e) {
                     logger.warn("failed to do initial poll of shield users", e);
                 }
-                versionChecker = threadPool.scheduleWithFixedDelay(poller, settings.getAsTime("shield.authc.native.reload.interval", TimeValue.timeValueSeconds(30L)));
+                versionChecker = threadPool.scheduleWithFixedDelay(poller,
+                        settings.getAsTime("shield.authc.native.reload.interval", TimeValue.timeValueSeconds(30L)));
                 state.set(State.STARTED);
             }
         } catch (Exception e) {
@@ -430,6 +432,7 @@ public class ESNativeUsersStore extends AbstractComponent implements ClusterStat
 
     /**
      * This method is used to verify the username and credentials against those stored in the system.
+     *
      * @param username username to lookup the user by
      * @param password the plaintext password to verify
      * @return {@link} User object if successful or {@code null} if verification fails
@@ -479,7 +482,8 @@ public class ESNativeUsersStore extends AbstractComponent implements ClusterStat
         final boolean exists = event.state().metaData().indices().get(ShieldTemplateService.SHIELD_ADMIN_INDEX_NAME) != null;
         // make sure all the primaries are active
         if (exists && event.state().routingTable().index(ShieldTemplateService.SHIELD_ADMIN_INDEX_NAME).allPrimaryShardsActive()) {
-            logger.debug("shield user index [{}] all primary shards started, so polling can start", ShieldTemplateService.SHIELD_ADMIN_INDEX_NAME);
+            logger.debug("shield user index [{}] all primary shards started, so polling can start",
+                    ShieldTemplateService.SHIELD_ADMIN_INDEX_NAME);
             shieldIndexExists = true;
         } else {
             // always set the value - it may have changed...
@@ -522,7 +526,8 @@ public class ESNativeUsersStore extends AbstractComponent implements ClusterStat
                 return;
             }
             if (shieldIndexExists == false) {
-                logger.trace("cannot poll for user changes since shield admin index [{}] does not exist", ShieldTemplateService.SHIELD_ADMIN_INDEX_NAME);
+                logger.trace("cannot poll for user changes since shield admin index [{}] does not exist", ShieldTemplateService
+                        .SHIELD_ADMIN_INDEX_NAME);
                 return;
             }
 
@@ -622,7 +627,8 @@ public class ESNativeUsersStore extends AbstractComponent implements ClusterStat
                         long version = hit.version();
                         map.put(username, version);
                     }
-                    SearchScrollRequest scrollRequest = client.prepareSearchScroll(response.getScrollId()).setScroll(scrollKeepAlive).request();
+                    SearchScrollRequest scrollRequest =
+                            client.prepareSearchScroll(response.getScrollId()).setScroll(scrollKeepAlive).request();
                     response = client.searchScroll(scrollRequest).actionGet();
                     keepScrolling = response.getHits().getHits().length > 0;
                 }

@@ -103,7 +103,8 @@ public class AddUserRequest extends ActionRequest<AddUserRequest> {
                         throw new ElasticsearchParseException("unexpected array for field [{}]", currentFieldName);
                     }
                 } else {
-                    throw new ElasticsearchParseException("failed to parse add user request, got value with wrong type [{}]", currentFieldName);
+                    throw new ElasticsearchParseException("failed to parse add user request, got value with wrong type [{}]",
+                            currentFieldName);
                 }
             }
         }

@@ -44,17 +44,21 @@ public class V1Account extends HipChatAccount {
     }
 
     @Override
-    public void validateParsedTemplate(String watchId, String actionId, HipChatMessage.Template template) throws ElasticsearchParseException {
+    public void validateParsedTemplate(String watchId, String actionId,
+                                       HipChatMessage.Template template) throws ElasticsearchParseException {
         if (template.users != null) {
-            throw new ElasticsearchParseException("invalid [" + HipChatAction.TYPE + "] action for [" + watchId + "/" + actionId + "]. [" + name + "] hipchat account doesn't support user private messaging");
+            throw new ElasticsearchParseException("invalid [" + HipChatAction.TYPE + "] action for [" + watchId + "/" + actionId + "]. ["
+                    + name + "] hipchat account doesn't support user private messaging");
         }
         if ((template.rooms == null || template.rooms.length == 0) && (defaults.rooms == null || defaults.rooms.length == 0)) {
-            throw new ElasticsearchParseException("invalid [" + HipChatAction.TYPE + "] action for [" + watchId + "/" + actionId + "]. missing required [" + HipChatMessage.Field.ROOM + "] field for [" + name + "] hipchat account");
+            throw new ElasticsearchParseException("invalid [" + HipChatAction.TYPE + "] action for [" + watchId + "/" + actionId + "]. " +
+                    "missing required [" + HipChatMessage.Field.ROOM + "] field for [" + name + "] hipchat account");
         }
     }
 
     @Override
-    public HipChatMessage render(String watchId, String actionId, TextTemplateEngine engine, HipChatMessage.Template template, Map<String, Object> model) {
+    public HipChatMessage render(String watchId, String actionId, TextTemplateEngine engine, HipChatMessage.Template template,
+                                 Map<String, Object> model) {
         String message = engine.render(template.body, model);
         String[] rooms = defaults.rooms;
         if (template.rooms != null) {
@@ -78,10 +82,12 @@ public class V1Account extends HipChatAccount {
                 HttpRequest request = buildRoomRequest(room, message);
                 try {
                     HttpResponse response = httpClient.execute(request);
-                    sentMessages.add(SentMessages.SentMessage.responded(room, SentMessages.SentMessage.TargetType.ROOM, message, request, response));
+                    sentMessages.add(SentMessages.SentMessage.responded(room, SentMessages.SentMessage.TargetType.ROOM, message, request,
+                            response));
                 } catch (Exception e) {
                     logger.error("failed to execute hipchat api http request", e);
-                    sentMessages.add(SentMessages.SentMessage.error(room, SentMessages.SentMessage.TargetType.ROOM, message, ExceptionsHelper.detailedMessage(e)));
+                    sentMessages.add(SentMessages.SentMessage.error(room, SentMessages.SentMessage.TargetType.ROOM, message,
+                            ExceptionsHelper.detailedMessage(e)));
                 }
             }
         }

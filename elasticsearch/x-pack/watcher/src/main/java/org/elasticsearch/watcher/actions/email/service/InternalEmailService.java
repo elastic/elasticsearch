@@ -22,11 +22,10 @@ import javax.mail.MessagingException;
 public class InternalEmailService extends AbstractLifecycleComponent<EmailService> implements EmailService {
 
     private final SecretService secretService;
+    public static final Setting<Settings> EMAIL_ACCOUNT_SETTING =
+            Setting.groupSetting("watcher.actions.email.service.", true, Setting.Scope.CLUSTER);
 
     private volatile Accounts accounts;
-
-    public static final Setting<Settings> EMAIL_ACCOUNT_SETTING = Setting.groupSetting("watcher.actions.email.service.", true, Setting.Scope.CLUSTER);
-
 
     @Inject
     public InternalEmailService(Settings settings, SecretService secretService, ClusterSettings clusterSettings) {
@@ -61,7 +60,8 @@ public class InternalEmailService extends AbstractLifecycleComponent<EmailServic
     public EmailSent send(Email email, Authentication auth, Profile profile, String accountName) throws MessagingException {
         Account account = accounts.account(accountName);
         if (account == null) {
-            throw new IllegalArgumentException("failed to send email with subject [" + email.subject() + "] via account [" + accountName + "]. account does not exist");
+            throw new IllegalArgumentException("failed to send email with subject [" + email.subject() + "] via account [" + accountName
+                    + "]. account does not exist");
         }
         return send(email, auth, profile, account);
     }
@@ -71,7 +71,8 @@ public class InternalEmailService extends AbstractLifecycleComponent<EmailServic
         try {
             email = account.send(email, auth, profile);
         } catch (MessagingException me) {
-            throw new MessagingException("failed to send email with subject [" + email.subject() + "] via account [" + account.name() + "]", me);
+            throw new MessagingException("failed to send email with subject [" + email.subject() + "] via account [" + account.name() +
+                    "]", me);
         }
         return new EmailSent(account.name(), email);
     }

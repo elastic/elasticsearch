@@ -33,7 +33,8 @@ public class InternalEmailServiceTests extends ESTestCase {
     @Before
     public void init() throws Exception {
         accounts = mock(Accounts.class);
-        service = new InternalEmailService(Settings.EMPTY, new SecretService.PlainText(), new ClusterSettings(Settings.EMPTY, Collections.singleton(InternalEmailService.EMAIL_ACCOUNT_SETTING))) {
+        service = new InternalEmailService(Settings.EMPTY, new SecretService.PlainText(),
+                new ClusterSettings(Settings.EMPTY, Collections.singleton(InternalEmailService.EMAIL_ACCOUNT_SETTING))) {
             @Override
             protected Accounts createAccounts(Settings settings, ESLogger logger) {
                 return accounts;

@@ -39,7 +39,8 @@ public abstract class HipChatAccount  {
     protected final HttpClient httpClient;
     protected final String authToken;
 
-    protected HipChatAccount(String name, Profile profile, Settings settings, HipChatServer defaultServer, HttpClient httpClient, ESLogger logger) {
+    protected HipChatAccount(String name, Profile profile, Settings settings, HipChatServer defaultServer, HttpClient httpClient,
+                             ESLogger logger) {
         this.name = name;
         this.profile = profile;
         this.server = new HipChatServer(settings, defaultServer);
@@ -55,7 +56,8 @@ public abstract class HipChatAccount  {
 
     public abstract void validateParsedTemplate(String watchId, String actionId, HipChatMessage.Template message) throws SettingsException;
 
-    public abstract HipChatMessage render(String watchId, String actionId, TextTemplateEngine engine, HipChatMessage.Template template, Map<String, Object> model);
+    public abstract HipChatMessage render(String watchId, String actionId, TextTemplateEngine engine, HipChatMessage.Template template,
+                                          Map<String, Object> model);
 
     public abstract SentMessages send(HipChatMessage message);
 
@@ -63,24 +65,28 @@ public abstract class HipChatAccount  {
 
         V1() {
             @Override
-            HipChatAccount createAccount(String name, Settings settings, HipChatServer defaultServer, HttpClient httpClient, ESLogger logger) {
+            HipChatAccount createAccount(String name, Settings settings, HipChatServer defaultServer, HttpClient httpClient,
+                                         ESLogger logger) {
                 return new V1Account(name, settings, defaultServer, httpClient, logger);
             }
         },
         INTEGRATION() {
             @Override
-            HipChatAccount createAccount(String name, Settings settings, HipChatServer defaultServer, HttpClient httpClient, ESLogger logger) {
+            HipChatAccount createAccount(String name, Settings settings, HipChatServer defaultServer, HttpClient httpClient,
+                                         ESLogger logger) {
                 return new IntegrationAccount(name, settings, defaultServer, httpClient, logger);
             }
         },
         USER() {
             @Override
-            HipChatAccount createAccount(String name, Settings settings, HipChatServer defaultServer, HttpClient httpClient, ESLogger logger) {
+            HipChatAccount createAccount(String name, Settings settings, HipChatServer defaultServer, HttpClient httpClient,
+                                         ESLogger logger) {
                 return new UserAccount(name, settings, defaultServer, httpClient, logger);
             }
         };
 
-        abstract HipChatAccount createAccount(String name, Settings settings, HipChatServer defaultServer, HttpClient httpClient, ESLogger logger);
+        abstract HipChatAccount createAccount(String name, Settings settings, HipChatServer defaultServer, HttpClient httpClient,
+                                              ESLogger logger);
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -114,7 +120,5 @@ public abstract class HipChatAccount  {
                 return false;
             }
         }
-
     }
-
 }

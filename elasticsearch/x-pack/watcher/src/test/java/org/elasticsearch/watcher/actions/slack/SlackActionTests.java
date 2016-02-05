@@ -100,7 +100,8 @@ public class SlackActionTests extends ESTestCase {
         ctxModel.put("vars", emptyMap());
         Map<String, Object> expectedModel = singletonMap("ctx", ctxModel);
 
-        when(messageTemplate.render(eq(wid.watchId()), eq("_action"), eq(templateEngine), eq(expectedModel), any(SlackMessageDefaults.class))).thenReturn(message);
+        when(messageTemplate.render(eq(wid.watchId()), eq("_action"), eq(templateEngine), eq(expectedModel),
+                any(SlackMessageDefaults.class))).thenReturn(message);
         SlackAccount account = mock(SlackAccount.class);
         when(service.getAccount(accountName)).thenReturn(account);
 

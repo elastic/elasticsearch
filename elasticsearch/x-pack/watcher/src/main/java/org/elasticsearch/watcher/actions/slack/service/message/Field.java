@@ -125,30 +125,36 @@ class Field implements MessageElement {
                     try {
                         title = TextTemplate.parse(parser);
                     } catch (ElasticsearchParseException pe) {
-                        throw new ElasticsearchParseException("could not parse message attachment field. failed to parse [{}] field", pe, XField.TITLE);
+                        throw new ElasticsearchParseException("could not parse message attachment field. failed to parse [{}] field", pe,
+                                XField.TITLE);
                     }
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, XField.VALUE)) {
                     try {
                         value = TextTemplate.parse(parser);
                     } catch (ElasticsearchParseException pe) {
-                        throw new ElasticsearchParseException("could not parse message attachment field. failed to parse [{}] field", pe, XField.VALUE);
+                        throw new ElasticsearchParseException("could not parse message attachment field. failed to parse [{}] field", pe,
+                                XField.VALUE);
                     }
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, XField.SHORT)) {
                     if (token == XContentParser.Token.VALUE_BOOLEAN) {
                         isShort = parser.booleanValue();
                     } else {
-                        throw new ElasticsearchParseException("could not parse message attachment field. expected a boolean value for [{}] field, but found [{}]", XField.SHORT, token);
+                        throw new ElasticsearchParseException("could not parse message attachment field. expected a boolean value for " +
+                                "[{}] field, but found [{}]", XField.SHORT, token);
                     }
                 } else {
-                    throw new ElasticsearchParseException("could not parse message attachment field. unexpected field [{}]", currentFieldName);
+                    throw new ElasticsearchParseException("could not parse message attachment field. unexpected field [{}]",
+                            currentFieldName);
                 }
             }
 
             if (title == null) {
-                throw new ElasticsearchParseException("could not parse message attachment field. missing required [{}] field", XField.TITLE);
+                throw new ElasticsearchParseException("could not parse message attachment field. missing required [{}] field",
+                        XField.TITLE);
             }
             if (value == null) {
-                throw new ElasticsearchParseException("could not parse message attachment field. missing required [{}] field", XField.VALUE);
+                throw new ElasticsearchParseException("could not parse message attachment field. missing required [{}] field",
+                        XField.VALUE);
             }
             return new Template(title, value, isShort);
         }

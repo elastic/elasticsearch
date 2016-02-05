@@ -36,7 +36,8 @@ public class HttpInput implements Input {
     private final @Nullable HttpContentType expectedResponseXContentType;
     private final @Nullable Set<String> extractKeys;
 
-    public HttpInput(HttpRequestTemplate request, @Nullable HttpContentType expectedResponseXContentType, @Nullable Set<String> extractKeys) {
+    public HttpInput(HttpRequestTemplate request, @Nullable HttpContentType expectedResponseXContentType,
+                     @Nullable Set<String> extractKeys) {
         this.request = request;
         this.expectedResponseXContentType = expectedResponseXContentType;
         this.extractKeys = extractKeys;
@@ -87,7 +88,8 @@ public class HttpInput implements Input {
                 try {
                     request = requestParser.parse(parser);
                 } catch (ElasticsearchParseException pe) {
-                    throw new ElasticsearchParseException("could not parse [{}] input for watch [{}]. failed to parse http request template", pe, TYPE, watchId);
+                    throw new ElasticsearchParseException("could not parse [{}] input for watch [{}]. failed to parse http request " +
+                            "template", pe, TYPE, watchId);
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if (Field.EXTRACT.getPreferredName().equals(currentFieldName)) {
@@ -96,32 +98,39 @@ public class HttpInput implements Input {
                         if (token == XContentParser.Token.VALUE_STRING) {
                             extract.add(parser.text());
                         } else {
-                            throw new ElasticsearchParseException("could not parse [{}] input for watch [{}]. expected a string value as an [{}] item but found [{}] instead", TYPE, watchId, currentFieldName, token);
+                            throw new ElasticsearchParseException("could not parse [{}] input for watch [{}]. expected a string value as " +
+                                    "an [{}] item but found [{}] instead", TYPE, watchId, currentFieldName, token);
                         }
                     }
                 } else {
-                    throw new ElasticsearchParseException("could not parse [{}] input for watch [{}]. unexpected array field [{}]", TYPE, watchId, currentFieldName);
+                    throw new ElasticsearchParseException("could not parse [{}] input for watch [{}]. unexpected array field [{}]", TYPE,
+                            watchId, currentFieldName);
                 }
             } else if (token == XContentParser.Token.VALUE_STRING) {
                 if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.RESPONSE_CONTENT_TYPE)) {
                     expectedResponseBodyType = HttpContentType.resolve(parser.text());
                     if (expectedResponseBodyType == null) {
-                        throw new ElasticsearchParseException("could not parse [{}] input for watch [{}]. unknown content type [{}]", TYPE, watchId, parser.text());
+                        throw new ElasticsearchParseException("could not parse [{}] input for watch [{}]. unknown content type [{}]",
+                                TYPE, watchId, parser.text());
                     }
                 } else {
-                    throw new ElasticsearchParseException("could not parse [{}] input for watch [{}]. unexpected string field [{}]", TYPE, watchId, currentFieldName);
+                    throw new ElasticsearchParseException("could not parse [{}] input for watch [{}]. unexpected string field [{}]",
+                            TYPE, watchId, currentFieldName);
                 }
             } else {
-                throw new ElasticsearchParseException("could not parse [{}] input for watch [{}]. unexpected token [{}]", TYPE, watchId, token);
+                throw new ElasticsearchParseException("could not parse [{}] input for watch [{}]. unexpected token [{}]", TYPE, watchId,
+                        token);
             }
         }
 
         if (request == null) {
-            throw new ElasticsearchParseException("could not parse [{}] input for watch [{}]. missing require [{}] field", TYPE, watchId, Field.REQUEST.getPreferredName());
+            throw new ElasticsearchParseException("could not parse [{}] input for watch [{}]. missing require [{}] field", TYPE, watchId,
+                    Field.REQUEST.getPreferredName());
         }
 
         if (expectedResponseBodyType == HttpContentType.TEXT && extract != null ) {
-            throw new ElasticsearchParseException("could not parse [{}] input for watch [{}]. key extraction is not supported for content type [{}]", TYPE, watchId, expectedResponseBodyType);
+            throw new ElasticsearchParseException("could not parse [{}] input for watch [{}]. key extraction is not supported for content" +
+                    " type [{}]", TYPE, watchId, expectedResponseBodyType);
         }
 
         return new HttpInput(request, expectedResponseBodyType, extract);

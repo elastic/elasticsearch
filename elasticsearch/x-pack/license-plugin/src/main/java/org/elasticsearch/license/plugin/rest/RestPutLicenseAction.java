@@ -39,14 +39,15 @@ public class RestPutLicenseAction extends BaseRestHandler {
         PutLicenseRequest putLicenseRequest = new PutLicenseRequest();
         putLicenseRequest.license(request.content().toUtf8());
         putLicenseRequest.acknowledge(request.paramAsBoolean("acknowledge", false));
-        client.admin().cluster().execute(PutLicenseAction.INSTANCE, putLicenseRequest, new RestBuilderListener<PutLicenseResponse>(channel) {
-            @Override
-            public RestResponse buildResponse(PutLicenseResponse response, XContentBuilder builder) throws Exception {
-                builder.startObject();
-                response.toXContent(builder, ToXContent.EMPTY_PARAMS);
-                builder.endObject();
-                return new BytesRestResponse(RestStatus.OK, builder);
-            }
-        });
+        client.admin().cluster().execute(PutLicenseAction.INSTANCE, putLicenseRequest,
+                new RestBuilderListener<PutLicenseResponse>(channel) {
+                    @Override
+                    public RestResponse buildResponse(PutLicenseResponse response, XContentBuilder builder) throws Exception {
+                        builder.startObject();
+                        response.toXContent(builder, ToXContent.EMPTY_PARAMS);
+                        builder.endObject();
+                        return new BytesRestResponse(RestStatus.OK, builder);
+                    }
+                });
     }
 }

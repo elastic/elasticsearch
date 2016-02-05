@@ -45,7 +45,8 @@ public class HistoryStoreTests extends ESTestCase {
         WatchRecord watchRecord = new WatchRecord(wid, event, ExecutionState.EXECUTED, null);
 
         IndexResponse indexResponse = mock(IndexResponse.class);
-        IndexRequest indexRequest = indexRequest(".watch_history-1970.01.01", HistoryStore.DOC_TYPE, wid.value(), IndexRequest.OpType.CREATE);
+        IndexRequest indexRequest = indexRequest(".watch_history-1970.01.01", HistoryStore.DOC_TYPE, wid.value()
+                , IndexRequest.OpType.CREATE);
         when(clientProxy.index(indexRequest, Matchers.<TimeValue>any())).thenReturn(indexResponse);
         historyStore.put(watchRecord);
         verify(clientProxy).index(Matchers.<IndexRequest>any(), Matchers.<TimeValue>any());

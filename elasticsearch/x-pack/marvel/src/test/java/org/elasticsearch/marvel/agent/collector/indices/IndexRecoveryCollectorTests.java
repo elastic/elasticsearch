@@ -101,7 +101,8 @@ public class IndexRecoveryCollectorTests extends AbstractCollectorTestCase {
         assertThat(marvelDoc, instanceOf(IndexRecoveryMarvelDoc.class));
 
         IndexRecoveryMarvelDoc indexRecoveryMarvelDoc = (IndexRecoveryMarvelDoc) marvelDoc;
-        assertThat(indexRecoveryMarvelDoc.getClusterUUID(), equalTo(client().admin().cluster().prepareState().setMetaData(true).get().getState().metaData().clusterUUID()));
+        assertThat(indexRecoveryMarvelDoc.getClusterUUID(),
+                equalTo(client().admin().cluster().prepareState().setMetaData(true).get().getState().metaData().clusterUUID()));
         assertThat(indexRecoveryMarvelDoc.getTimestamp(), greaterThan(0L));
         assertThat(indexRecoveryMarvelDoc.getType(), equalTo(IndexRecoveryCollector.TYPE));
         assertThat(indexRecoveryMarvelDoc.getSourceNode(), notNullValue());
@@ -166,7 +167,8 @@ public class IndexRecoveryCollectorTests extends AbstractCollectorTestCase {
     }
 
     public void testEmptyCluster() throws Exception {
-        final String node = internalCluster().startNode(settingsBuilder().put(MarvelSettings.INDICES_SETTING.getKey(), Strings.EMPTY_ARRAY));
+        final String node = internalCluster().startNode(settingsBuilder().put(MarvelSettings.INDICES_SETTING.getKey(),
+                Strings.EMPTY_ARRAY));
         waitForNoBlocksOnNode(node);
 
         try {

@@ -92,8 +92,10 @@ public class SchedulerScheduleTriggerEngine extends ScheduleTriggerEngine {
     }
 
     protected void notifyListeners(String name, long triggeredTime, long scheduledTime) {
-        logger.trace("triggered job [{}] at [{}] (scheduled time was [{}])", name, new DateTime(triggeredTime, DateTimeZone.UTC), new DateTime(scheduledTime, DateTimeZone.UTC));
-        final ScheduleTriggerEvent event = new ScheduleTriggerEvent(name, new DateTime(triggeredTime, DateTimeZone.UTC), new DateTime(scheduledTime, DateTimeZone.UTC));
+        logger.trace("triggered job [{}] at [{}] (scheduled time was [{}])", name, new DateTime(triggeredTime, DateTimeZone.UTC),
+                new DateTime(scheduledTime, DateTimeZone.UTC));
+        final ScheduleTriggerEvent event = new ScheduleTriggerEvent(name, new DateTime(triggeredTime, DateTimeZone.UTC),
+                new DateTime(scheduledTime, DateTimeZone.UTC));
         for (Listener listener : listeners) {
             listener.triggered(Arrays.<TriggerEvent>asList(event));
         }

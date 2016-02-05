@@ -177,7 +177,8 @@ public class ClearRolesCacheTests extends ShieldIntegTestCase {
         List<RoleDescriptor> foundRoles = shieldClient.prepareGetRoles().roles(role).get().roles();
         assertThat(foundRoles.size(), is(1));
         logger.debug("--> deleting role [{}]", role);
-        DeleteResponse response = client.prepareDelete(ShieldTemplateService.SHIELD_ADMIN_INDEX_NAME, ESNativeRolesStore.INDEX_ROLE_TYPE, role).get();
+        DeleteResponse response = client.prepareDelete(ShieldTemplateService.SHIELD_ADMIN_INDEX_NAME,
+                ESNativeRolesStore.INDEX_ROLE_TYPE, role).get();
         assertThat(response.isFound(), is(true));
 
         assertBusy(new Runnable() {
@@ -198,7 +199,8 @@ public class ClearRolesCacheTests extends ShieldIntegTestCase {
                 assertThat("role [" + role + "] should be modified and have run as", runAs == null || runAs.length == 0, is(false));
                 assertThat(Arrays.asList(runAs).contains(role), is(true));
             } else {
-                assertThat("role [" + role + "] should be cached and not have run as set but does!", runAs == null || runAs.length == 0, is(true));
+                assertThat("role [" + role + "] should be cached and not have run as set but does!", runAs == null || runAs.length == 0,
+                        is(true));
             }
         }
     }

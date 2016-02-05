@@ -106,7 +106,8 @@ public class SearchTransform implements Transform {
                 try {
                     request = WatcherUtils.readSearchRequest(parser, ExecutableSearchTransform.DEFAULT_SEARCH_TYPE, context);
                 } catch (ElasticsearchParseException srpe) {
-                    throw new ElasticsearchParseException("could not parse [{}] transform for watch [{}]. failed to parse [{}]", srpe, TYPE, watchId, currentFieldName);
+                    throw new ElasticsearchParseException("could not parse [{}] transform for watch [{}]. failed to parse [{}]", srpe,
+                            TYPE, watchId, currentFieldName);
                 }
             } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.TIMEOUT)) {
                 timeout = WatcherDateTimeUtils.parseTimeValue(parser, Field.TIMEOUT.toString());
@@ -114,15 +115,18 @@ public class SearchTransform implements Transform {
                 if (token == XContentParser.Token.VALUE_STRING) {
                     dynamicNameTimeZone = DateTimeZone.forID(parser.text());
                 } else {
-                    throw new ElasticsearchParseException("could not parse [{}] transform for watch [{}]. failed to parse [{}]. must be a string value (e.g. 'UTC' or '+01:00').", TYPE, watchId, currentFieldName);
+                    throw new ElasticsearchParseException("could not parse [{}] transform for watch [{}]. failed to parse [{}]. must be a" +
+                            " string value (e.g. 'UTC' or '+01:00').", TYPE, watchId, currentFieldName);
                 }
             } else {
-                throw new ElasticsearchParseException("could not parse [{}] transform for watch [{}]. unexpected field [{}]", TYPE, watchId, currentFieldName);
+                throw new ElasticsearchParseException("could not parse [{}] transform for watch [{}]. unexpected field [{}]", TYPE,
+                        watchId, currentFieldName);
             }
         }
 
         if (request == null) {
-            throw new ElasticsearchParseException("could not parse [{}] transform for watch [{}]. missing required [{}] field", TYPE, watchId, Field.REQUEST.getPreferredName());
+            throw new ElasticsearchParseException("could not parse [{}] transform for watch [{}]. missing required [{}] field", TYPE,
+                    watchId, Field.REQUEST.getPreferredName());
         }
         return new SearchTransform(request, timeout, dynamicNameTimeZone);
     }

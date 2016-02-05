@@ -132,7 +132,8 @@ public class CleanerServiceTests extends ESTestCase {
         logger.debug("--> creates a cleaner service that cleans every second");
         MarvelLicensee licensee = mock(MarvelLicensee.class);
         when(licensee.cleaningEnabled()).thenReturn(true);
-        CleanerService service = new CleanerService(Settings.EMPTY, clusterSettings, licensee, threadPool, new TestExecutionScheduler(1_000));
+        CleanerService service = new CleanerService(Settings.EMPTY, clusterSettings, licensee, threadPool,
+                new TestExecutionScheduler(1_000));
 
         logger.debug("--> registers cleaning listener");
         TestListener listener = new TestListener(latch);

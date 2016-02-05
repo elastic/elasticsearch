@@ -16,7 +16,8 @@ import static org.hamcrest.Matchers.equalTo;
 public class VersionUtilsTests extends ESTestCase {
 
     public void testParseVersion() {
-        List<Version> versions = randomSubsetOf(9, Version.V_0_18_0, Version.V_0_19_0, Version.V_1_0_1, Version.V_1_2_3, Version.V_1_3_2, Version.V_1_4_6, Version.V_1_6_3, Version.V_1_7_2, Version.V_2_0_0);
+        List<Version> versions = randomSubsetOf(9, Version.V_0_18_0, Version.V_0_19_0, Version.V_1_0_1, Version.V_1_2_3, Version.V_1_3_2,
+                Version.V_1_4_6, Version.V_1_6_3, Version.V_1_7_2, Version.V_2_0_0);
         for (Version version : versions) {
             String output = createOutput(VersionUtils.VERSION_NUMBER_FIELD, version.number());
             assertThat(VersionUtils.parseVersion(output.getBytes(StandardCharsets.UTF_8)), equalTo(version));

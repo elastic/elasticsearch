@@ -28,8 +28,10 @@ public class TransportPutLicenseAction extends TransportMasterNodeAction<PutLice
 
     @Inject
     public TransportPutLicenseAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                     LicensesService licensesService, ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, PutLicenseAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, PutLicenseRequest::new);
+                                     LicensesService licensesService, ThreadPool threadPool, ActionFilters actionFilters,
+                                     IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(settings, PutLicenseAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
+                PutLicenseRequest::new);
         this.licensesService = licensesService;
     }
 
@@ -49,7 +51,8 @@ public class TransportPutLicenseAction extends TransportMasterNodeAction<PutLice
     }
 
     @Override
-    protected void masterOperation(final PutLicenseRequest request, ClusterState state, final ActionListener<PutLicenseResponse> listener) throws ElasticsearchException {
+    protected void masterOperation(final PutLicenseRequest request, ClusterState state, final ActionListener<PutLicenseResponse>
+            listener) throws ElasticsearchException {
         licensesService.registerLicense(request, new ActionListener<LicensesUpdateResponse>() {
             @Override
             public void onResponse(LicensesUpdateResponse licensesUpdateResponse) {

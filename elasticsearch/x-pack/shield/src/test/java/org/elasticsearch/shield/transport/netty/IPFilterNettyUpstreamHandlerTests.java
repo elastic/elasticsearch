@@ -89,10 +89,12 @@ public class IPFilterNettyUpstreamHandlerTests extends ESTestCase {
 
     public void testThatFilteringWorksByIp() throws Exception {
         InetSocketAddress localhostAddr = new InetSocketAddress(InetAddresses.forString("127.0.0.1"), 12345);
-        assertThat(nettyUpstreamHandler.accept(new NullChannelHandlerContext(), new UpstreamMessageEvent(new NullChannel(), "my message", localhostAddr), localhostAddr), is(true));
+        assertThat(nettyUpstreamHandler.accept(new NullChannelHandlerContext(), new UpstreamMessageEvent(
+                new NullChannel(), "my message", localhostAddr), localhostAddr), is(true));
 
         InetSocketAddress remoteAddr = new InetSocketAddress(InetAddresses.forString("10.0.0.8"), 12345);
-        assertThat(nettyUpstreamHandler.accept(new NullChannelHandlerContext(), new UpstreamMessageEvent(new NullChannel(), "my message", remoteAddr), remoteAddr), is(false));
+        assertThat(nettyUpstreamHandler.accept(new NullChannelHandlerContext(), new UpstreamMessageEvent(
+                new NullChannel(), "my message", remoteAddr), remoteAddr), is(false));
     }
 
     private static class NullChannelHandlerContext implements ChannelHandlerContext {

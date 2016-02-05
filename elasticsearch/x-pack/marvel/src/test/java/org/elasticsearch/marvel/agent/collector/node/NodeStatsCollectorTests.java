@@ -43,12 +43,14 @@ public class NodeStatsCollectorTests extends AbstractCollectorTestCase {
             assertThat(marvelDoc, instanceOf(NodeStatsMarvelDoc.class));
 
             NodeStatsMarvelDoc nodeStatsMarvelDoc = (NodeStatsMarvelDoc) marvelDoc;
-            assertThat(nodeStatsMarvelDoc.getClusterUUID(), equalTo(client().admin().cluster().prepareState().setMetaData(true).get().getState().metaData().clusterUUID()));
+            assertThat(nodeStatsMarvelDoc.getClusterUUID(),
+                    equalTo(client().admin().cluster().prepareState().setMetaData(true).get().getState().metaData().clusterUUID()));
             assertThat(nodeStatsMarvelDoc.getTimestamp(), greaterThan(0L));
             assertThat(nodeStatsMarvelDoc.getType(), equalTo(NodeStatsCollector.TYPE));
             assertThat(nodeStatsMarvelDoc.getSourceNode(), notNullValue());
 
-            assertThat(nodeStatsMarvelDoc.getNodeId(), equalTo(internalCluster().getInstance(DiscoveryService.class, node).localNode().id()));
+            assertThat(nodeStatsMarvelDoc.getNodeId(),
+                    equalTo(internalCluster().getInstance(DiscoveryService.class, node).localNode().id()));
             assertThat(nodeStatsMarvelDoc.isNodeMaster(), equalTo(node.equals(internalCluster().getMasterName())));
             assertThat(nodeStatsMarvelDoc.isMlockall(), equalTo(BootstrapInfo.isMemoryLocked()));
             assertNotNull(nodeStatsMarvelDoc.isDiskThresholdDeciderEnabled());

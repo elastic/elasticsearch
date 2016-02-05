@@ -6,8 +6,8 @@
 package org.elasticsearch.shield.authz.permission;
 
 import org.elasticsearch.action.get.GetAction;
-import org.elasticsearch.shield.authz.privilege.GeneralPrivilege;
 import org.elasticsearch.shield.authz.privilege.ClusterPrivilege;
+import org.elasticsearch.shield.authz.privilege.GeneralPrivilege;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -54,7 +54,8 @@ public class PermissionTests extends ESTestCase {
         builder.cluster(ClusterPrivilege.action("cluster:monitor/nodes/info"));
         Role noIndicesPermission = builder.build();
 
-        IndicesPermission.Globals indicesGlobals = new IndicesPermission.Globals(Collections.<GlobalPermission>unmodifiableList(Arrays.asList(noIndicesPermission, permission)));
+        IndicesPermission.Globals indicesGlobals = new IndicesPermission.Globals(
+                Collections.<GlobalPermission>unmodifiableList(Arrays.asList(noIndicesPermission, permission)));
         Iterator<IndicesPermission.Group> iterator = indicesGlobals.iterator();
         assertThat(iterator.hasNext(), is(equalTo(true)));
         int count = 0;

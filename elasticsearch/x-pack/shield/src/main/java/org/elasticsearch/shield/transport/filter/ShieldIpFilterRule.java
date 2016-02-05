@@ -118,7 +118,8 @@ public class ShieldIpFilterRule implements IpFilterRule {
             try {
                 return new IpSubnetFilterRule(isAllowRule, value);
             } catch (UnknownHostException e) {
-                throw new ElasticsearchException("unable to create shield filter for rule [" + (isAllowRule ? "allow " : "deny ") + value + "]", e);
+                String ruleType = (isAllowRule ? "allow " : "deny ");
+                throw new ElasticsearchException("unable to create shield filter for rule [" + ruleType + " " + value + "]", e);
             }
         }
 

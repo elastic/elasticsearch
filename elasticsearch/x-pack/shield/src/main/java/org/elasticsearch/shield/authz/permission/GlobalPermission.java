@@ -19,7 +19,8 @@ import java.util.Set;
  */
 public class GlobalPermission implements Permission {
 
-    public static final GlobalPermission NONE = new GlobalPermission(ClusterPermission.Core.NONE, IndicesPermission.Core.NONE, RunAsPermission.Core.NONE);
+    public static final GlobalPermission NONE = new GlobalPermission(ClusterPermission.Core.NONE, IndicesPermission.Core.NONE,
+            RunAsPermission.Core.NONE);
 
     private final ClusterPermission cluster;
     private final IndicesPermission indices;

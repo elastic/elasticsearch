@@ -109,13 +109,15 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
             cache.put(token.principal(), userWithHash);
             if (logger.isDebugEnabled()) {
                 if (hadHash) {
-                    logger.debug("cached user's password changed. authenticated user [{}], with roles [{}]", token.principal(), userWithHash.user.roles());
+                    logger.debug("cached user's password changed. authenticated user [{}], with roles [{}]", token.principal(),
+                            userWithHash.user.roles());
                 } else {
-                    logger.debug("cached user came from a lookup and could not be used for authentication. authenticated user [{}], with roles [{}]", token.principal(), userWithHash.user.roles());
+                    logger.debug("cached user came from a lookup and could not be used for authentication. authenticated user [{}]" +
+                            " with roles [{}]", token.principal(), userWithHash.user.roles());
                 }
             }
             return userWithHash.user;
-            
+
         } catch (Exception ee) {
             if (logger.isTraceEnabled()) {
                 logger.trace("realm [" + type() + "] could not authenticate [" + token.principal() + "]", ee);
@@ -164,7 +166,8 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
         User user;
         char[] hash;
         Hasher hasher;
-        public UserWithHash(User user, SecuredString password, Hasher hasher){
+
+        public UserWithHash(User user, SecuredString password, Hasher hasher) {
             this.user = user;
             this.hash = password == null ? null : hasher.hash(password);
             this.hasher = hasher;

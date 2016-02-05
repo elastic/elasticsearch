@@ -26,23 +26,32 @@ public class MarvelSettings extends AbstractComponent {
     public static final TimeValue MAX_LICENSE_GRACE_PERIOD = TimeValue.timeValueHours(7 * 24);
 
     /** Sampling interval between two collections (default to 10s) */
-    public static final Setting<TimeValue> INTERVAL_SETTING                     = Setting.timeSetting(PREFIX + "interval", TimeValue.timeValueSeconds(10), true, Setting.Scope.CLUSTER);
+    public static final Setting<TimeValue> INTERVAL_SETTING =
+            Setting.timeSetting(PREFIX + "interval", TimeValue.timeValueSeconds(10), true, Setting.Scope.CLUSTER);
     /** Timeout value when collecting index statistics (default to 10m) */
-    public static final Setting<TimeValue> INDEX_STATS_TIMEOUT_SETTING          = Setting.timeSetting(PREFIX + "index.stats.timeout", TimeValue.timeValueSeconds(10), true, Setting.Scope.CLUSTER);
+    public static final Setting<TimeValue> INDEX_STATS_TIMEOUT_SETTING =
+            Setting.timeSetting(PREFIX + "index.stats.timeout", TimeValue.timeValueSeconds(10), true, Setting.Scope.CLUSTER);
     /** Timeout value when collecting total indices statistics (default to 10m) */
-    public static final Setting<TimeValue> INDICES_STATS_TIMEOUT_SETTING        = Setting.timeSetting(PREFIX + "indices.stats.timeout", TimeValue.timeValueSeconds(10), true, Setting.Scope.CLUSTER);
+    public static final Setting<TimeValue> INDICES_STATS_TIMEOUT_SETTING =
+            Setting.timeSetting(PREFIX + "indices.stats.timeout", TimeValue.timeValueSeconds(10), true, Setting.Scope.CLUSTER);
     /** List of indices names whose stats will be exported (default to all indices) */
-    public static final Setting<List<String>> INDICES_SETTING                   = Setting.listSetting(PREFIX + "indices", Collections.emptyList(), Function.identity(), true, Setting.Scope.CLUSTER);
+    public static final Setting<List<String>> INDICES_SETTING =
+            Setting.listSetting(PREFIX + "indices", Collections.emptyList(), Function.identity(), true, Setting.Scope.CLUSTER);
     /** Timeout value when collecting the cluster state (default to 10m) */
-    public static final Setting<TimeValue> CLUSTER_STATE_TIMEOUT_SETTING        = Setting.timeSetting(PREFIX + "cluster.state.timeout", TimeValue.timeValueSeconds(10), true, Setting.Scope.CLUSTER);
+    public static final Setting<TimeValue> CLUSTER_STATE_TIMEOUT_SETTING =
+            Setting.timeSetting(PREFIX + "cluster.state.timeout", TimeValue.timeValueSeconds(10), true, Setting.Scope.CLUSTER);
     /** Timeout value when collecting the recovery information (default to 10m) */
-    public static final Setting<TimeValue> CLUSTER_STATS_TIMEOUT_SETTING        = Setting.timeSetting(PREFIX + "cluster.stats.timeout", TimeValue.timeValueSeconds(10), true, Setting.Scope.CLUSTER);
+    public static final Setting<TimeValue> CLUSTER_STATS_TIMEOUT_SETTING =
+            Setting.timeSetting(PREFIX + "cluster.stats.timeout", TimeValue.timeValueSeconds(10), true, Setting.Scope.CLUSTER);
     /** Timeout value when collecting the recovery information (default to 10m) */
-    public static final Setting<TimeValue> INDEX_RECOVERY_TIMEOUT_SETTING       = Setting.timeSetting(PREFIX + "index.recovery.timeout", TimeValue.timeValueSeconds(10), true, Setting.Scope.CLUSTER);
+    public static final Setting<TimeValue> INDEX_RECOVERY_TIMEOUT_SETTING =
+            Setting.timeSetting(PREFIX + "index.recovery.timeout", TimeValue.timeValueSeconds(10), true, Setting.Scope.CLUSTER);
     /** Flag to indicate if only active recoveries should be collected (default to false: all recoveries are collected) */
-    public static final Setting<Boolean> INDEX_RECOVERY_ACTIVE_ONLY_SETTING     = Setting.boolSetting(PREFIX + "index.recovery.active_only", false, true, Setting.Scope.CLUSTER) ;
+    public static final Setting<Boolean> INDEX_RECOVERY_ACTIVE_ONLY_SETTING =
+            Setting.boolSetting(PREFIX + "index.recovery.active_only", false, true, Setting.Scope.CLUSTER) ;
     /** List of collectors allowed to collect data (default to all)*/
-    public static final Setting<List<String>> COLLECTORS_SETTING                = Setting.listSetting(PREFIX + "collectors", Collections.emptyList(), Function.identity(), false, Setting.Scope.CLUSTER);
+    public static final Setting<List<String>> COLLECTORS_SETTING =
+            Setting.listSetting(PREFIX + "collectors", Collections.emptyList(), Function.identity(), false, Setting.Scope.CLUSTER);
 
     private TimeValue indexStatsTimeout;
     private TimeValue indicesStatsTimeout;

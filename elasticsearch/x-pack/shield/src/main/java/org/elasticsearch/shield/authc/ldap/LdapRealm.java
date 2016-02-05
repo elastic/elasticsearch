@@ -56,8 +56,9 @@ public class LdapRealm extends AbstractLdapRealm {
             Settings searchSettings = config.settings().getAsSettings("user_search");
             if (!searchSettings.names().isEmpty()) {
                 if (config.settings().getAsArray(LdapSessionFactory.USER_DN_TEMPLATES_SETTING).length > 0) {
-                    throw new IllegalArgumentException("settings were found for both user search and user template modes of operation. Please remove the settings for the\n"
-                            + "mode you do not wish to use. For more details refer to the ldap authentication section of the Shield guide.");
+                    throw new IllegalArgumentException("settings were found for both user search and user template modes of operation. " +
+                            "Please remove the settings for the mode you do not wish to use. For more details refer to the ldap " +
+                            "authentication section of the Shield guide.");
                 }
                 return new LdapUserSearchSessionFactory(config, clientSSLService);
             }

@@ -22,11 +22,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.shield.ssl.ClientSSLService;
 import org.elasticsearch.shield.transport.netty.ShieldNettyHttpServerTransport;
 import org.elasticsearch.test.ShieldIntegTestCase;
-import org.elasticsearch.test.ShieldSettingsSource;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.XPackPlugin;
 
@@ -40,6 +38,7 @@ import java.security.SecureRandom;
 import java.util.Locale;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
+import static org.elasticsearch.test.ShieldSettingsSource.getSSLSettingsForStore;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
@@ -96,12 +95,14 @@ public class SslIntegrationTests extends ShieldIntegTestCase {
     }
 
     public void testThatConnectionToHTTPWorks() throws Exception {
-        Settings settings = ShieldSettingsSource.getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testclient.jks", "testclient");
+        Settings settings = getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testclient.jks", "testclient");
         ClientSSLService service = new ClientSSLService(settings);
 
         CredentialsProvider provider = new BasicCredentialsProvider();
-        provider.setCredentials(AuthScope.ANY, new UsernamePasswordCredentials(nodeClientUsername(), new String(nodeClientPassword().internalChars())));
-        try (CloseableHttpClient client = HttpClients.custom().setSslcontext(service.sslContext()).setDefaultCredentialsProvider(provider).build();
+        provider.setCredentials(AuthScope.ANY, new UsernamePasswordCredentials(nodeClientUsername(),
+                new String(nodeClientPassword().internalChars())));
+        try (CloseableHttpClient client = HttpClients.custom().setSslcontext(service.sslContext())
+                .setDefaultCredentialsProvider(provider).build();
             CloseableHttpResponse response = client.execute(new HttpGet(getNodeUrl()))) {
             assertThat(response.getStatusLine().getStatusCode(), is(200));
             String data = Streams.copyToString(new InputStreamReader(response.getEntity().getContent(), StandardCharsets.UTF_8));
@@ -115,7 +116,8 @@ public class SslIntegrationTests extends ShieldIntegTestCase {
         factory.init((KeyStore) null);
 
         sslContext.init(null, factory.getTrustManagers(), new SecureRandom());
-        SSLConnectionSocketFactory sf = new SSLConnectionSocketFactory(sslContext, new String[]{ "SSLv3" }, null, SSLConnectionSocketFactory.ALLOW_ALL_HOSTNAME_VERIFIER);
+        SSLConnectionSocketFactory sf = new SSLConnectionSocketFactory(sslContext, new String[]{ "SSLv3" }, null,
+                SSLConnectionSocketFactory.ALLOW_ALL_HOSTNAME_VERIFIER);
         try (CloseableHttpClient client = HttpClients.custom().setSSLSocketFactory(sf).build()) {
             client.execute(new HttpGet(getNodeUrl()));
             fail("Expected a connection error due to SSLv3 not being supported by default");
@@ -125,7 +127,8 @@ public class SslIntegrationTests extends ShieldIntegTestCase {
     }
 
     private String getNodeUrl() {
-        TransportAddress transportAddress = randomFrom(internalCluster().getInstance(HttpServerTransport.class).boundAddress().boundAddresses());
+        TransportAddress transportAddress =
+                randomFrom(internalCluster().getInstance(HttpServerTransport.class).boundAddress().boundAddresses());
         assertThat(transportAddress, is(instanceOf(InetSocketTransportAddress.class)));
         InetSocketTransportAddress inetSocketTransportAddress = (InetSocketTransportAddress) transportAddress;
         return String.format(Locale.ROOT, "https://%s:%s/", "localhost", inetSocketTransportAddress.address().getPort());

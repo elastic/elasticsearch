@@ -90,7 +90,8 @@ public class EmailActionTests extends ESTestCase {
 
     @Before
     public void addEmailAttachmentParsers() {
-        emailAttachmentParsers.put(HttpEmailAttachementParser.TYPE, new HttpEmailAttachementParser(httpClient, new HttpRequestTemplate.Parser(registry), new MockTextTemplateEngine()));
+        emailAttachmentParsers.put(HttpEmailAttachementParser.TYPE, new HttpEmailAttachementParser(httpClient,
+                new HttpRequestTemplate.Parser(registry), new MockTextTemplateEngine()));
         emailAttachmentParsers.put(DataAttachmentParser.TYPE, new DataAttachmentParser());
         emailAttachmentParser = new EmailAttachmentsParser(emailAttachmentParsers);
     }
@@ -136,7 +137,8 @@ public class EmailActionTests extends ESTestCase {
         EmailAttachments emailAttachments = randomEmailAttachments();
 
         EmailAction action = new EmailAction(email, account, auth, profile, dataAttachment, emailAttachments);
-        ExecutableEmailAction executable = new ExecutableEmailAction(action, logger, service, engine, htmlSanitizer, emailAttachmentParsers);
+        ExecutableEmailAction executable = new ExecutableEmailAction(action, logger, service, engine, htmlSanitizer,
+                emailAttachmentParsers);
 
         Map<String, Object> data = new HashMap<>();
         Payload payload = new Payload.Simple(data);
@@ -201,8 +203,10 @@ public class EmailActionTests extends ESTestCase {
         Email.Priority priority = randomFrom(Email.Priority.values());
         Email.Address[] to = rarely() ? null : Email.AddressList.parse(randomBoolean() ? "to@domain" : "to1@domain,to2@domain").toArray();
         Email.Address[] cc = rarely() ? null : Email.AddressList.parse(randomBoolean() ? "cc@domain" : "cc1@domain,cc2@domain").toArray();
-        Email.Address[] bcc = rarely() ? null : Email.AddressList.parse(randomBoolean() ? "bcc@domain" : "bcc1@domain,bcc2@domain").toArray();
-        Email.Address[] replyTo = rarely() ? null : Email.AddressList.parse(randomBoolean() ? "reply@domain" : "reply1@domain,reply2@domain").toArray();
+        Email.Address[] bcc = rarely() ? null : Email.AddressList.parse(
+                randomBoolean() ? "bcc@domain" : "bcc1@domain,bcc2@domain").toArray();
+        Email.Address[] replyTo = rarely() ? null : Email.AddressList.parse(
+                randomBoolean() ? "reply@domain" : "reply1@domain,reply2@domain").toArray();
         TextTemplate subject = randomBoolean() ? TextTemplate.inline("_subject").build() : null;
         TextTemplate textBody = randomBoolean() ? TextTemplate.inline("_text_body").build() : null;
         TextTemplate htmlBody = randomBoolean() ? TextTemplate.inline("_text_html").build() : null;
@@ -295,7 +299,8 @@ public class EmailActionTests extends ESTestCase {
         XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
         parser.nextToken();
 
-        ExecutableEmailAction executable = new EmailActionFactory(Settings.EMPTY, emailService, engine, htmlSanitizer, emailAttachmentParser, Collections.emptyMap())
+        ExecutableEmailAction executable = new EmailActionFactory(Settings.EMPTY, emailService, engine, htmlSanitizer,
+                emailAttachmentParser, Collections.emptyMap())
                 .parseExecutable(randomAsciiOfLength(8), randomAsciiOfLength(3), parser);
 
         assertThat(executable, notNullValue());
@@ -376,7 +381,8 @@ public class EmailActionTests extends ESTestCase {
         EmailAttachments emailAttachments = randomEmailAttachments();
 
         EmailAction action = new EmailAction(email, account, auth, profile, dataAttachment, emailAttachments);
-        ExecutableEmailAction executable = new ExecutableEmailAction(action, logger, service, engine, htmlSanitizer, emailAttachmentParsers);
+        ExecutableEmailAction executable = new ExecutableEmailAction(action, logger, service, engine, htmlSanitizer,
+                emailAttachmentParsers);
 
         boolean hideSecrets = randomBoolean();
         ToXContent.Params params = WatcherParams.builder().hideSecrets(hideSecrets).build();
@@ -388,7 +394,8 @@ public class EmailActionTests extends ESTestCase {
         XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
         parser.nextToken();
 
-        ExecutableEmailAction parsed = new EmailActionFactory(Settings.EMPTY, service, engine, htmlSanitizer, emailAttachmentParser, emailAttachmentParsers)
+        ExecutableEmailAction parsed = new EmailActionFactory(Settings.EMPTY, service, engine, htmlSanitizer, emailAttachmentParser,
+                emailAttachmentParsers)
                 .parseExecutable(randomAsciiOfLength(4), randomAsciiOfLength(10), parser);
 
         if (!hideSecrets) {
@@ -444,7 +451,8 @@ public class EmailActionTests extends ESTestCase {
         // setup email attachment parsers
         HttpRequestTemplate.Parser httpRequestTemplateParser = new HttpRequestTemplate.Parser(registry);
         Map<String, EmailAttachmentParser> attachmentParsers = new HashMap<>();
-        attachmentParsers.put(HttpEmailAttachementParser.TYPE, new HttpEmailAttachementParser(httpClient, httpRequestTemplateParser, engine));
+        attachmentParsers.put(HttpEmailAttachementParser.TYPE, new HttpEmailAttachementParser(httpClient, httpRequestTemplateParser,
+                engine));
         EmailAttachmentsParser emailAttachmentsParser = new EmailAttachmentsParser(attachmentParsers);
 
         XContentBuilder builder = jsonBuilder().startObject()
@@ -465,7 +473,8 @@ public class EmailActionTests extends ESTestCase {
 
         parser.nextToken();
 
-        ExecutableEmailAction executableEmailAction = new EmailActionFactory(Settings.EMPTY, emailService, engine, htmlSanitizer, emailAttachmentsParser, attachmentParsers)
+        ExecutableEmailAction executableEmailAction = new EmailActionFactory(Settings.EMPTY, emailService, engine, htmlSanitizer,
+                emailAttachmentsParser, attachmentParsers)
                 .parseExecutable(randomAsciiOfLength(3), randomAsciiOfLength(7), parser);
 
         DateTime now = DateTime.now(DateTimeZone.UTC);
@@ -511,7 +520,8 @@ public class EmailActionTests extends ESTestCase {
             HttpRequestTemplate template = HttpRequestTemplate.builder("localhost", 1234).build();
             attachments.add(new HttpRequestAttachment(randomAsciiOfLength(10), template, randomFrom("my/custom-type", null)));
         } else if ("data".equals(attachmentType)) {
-            attachments.add(new org.elasticsearch.watcher.actions.email.service.attachment.DataAttachment(randomAsciiOfLength(10), randomFrom(DataAttachment.JSON, DataAttachment.YAML)));
+            attachments.add(new org.elasticsearch.watcher.actions.email.service.attachment.DataAttachment(randomAsciiOfLength(10),
+                    randomFrom(DataAttachment.JSON, DataAttachment.YAML)));
         }
 
         return new EmailAttachments(attachments);

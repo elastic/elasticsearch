@@ -69,7 +69,9 @@ public class GroovyManualExecutionTests extends AbstractWatcherIntegrationTestCa
                 .addAction("log", loggingAction("foobar"));
 
         Watch watch = watchParser().parse("_id", false, watchBuilder.buildAsBytes(XContentType.JSON));
-        ManualExecutionContext.Builder ctxBuilder = ManualExecutionContext.builder(watch, false, new ManualTriggerEvent("_id", new ScheduleTriggerEvent(new DateTime(DateTimeZone.UTC), new DateTime(DateTimeZone.UTC))), new TimeValue(1, TimeUnit.HOURS));
+        ManualExecutionContext.Builder ctxBuilder = ManualExecutionContext.builder(watch, false, new ManualTriggerEvent("_id",
+                new ScheduleTriggerEvent(new DateTime(DateTimeZone.UTC), new DateTime(DateTimeZone.UTC))),
+                new TimeValue(1, TimeUnit.HOURS));
         WatchRecord record = executionService().execute(ctxBuilder.build());
         assertThat(record.result().executionDurationMs(), greaterThanOrEqualTo(100L));
     }
@@ -112,7 +114,8 @@ public class GroovyManualExecutionTests extends AbstractWatcherIntegrationTestCa
         }
         long endJoin = System.currentTimeMillis();
         TimeValue tv = new TimeValue(10 * (numberOfThreads+1), TimeUnit.SECONDS);
-        assertThat("Shouldn't take longer than [" + tv.getSeconds() + "] seconds for all the threads to stop", (endJoin - startJoin), lessThan(tv.getMillis()));
+        assertThat("Shouldn't take longer than [" + tv.getSeconds() + "] seconds for all the threads to stop", (endJoin - startJoin),
+                lessThan(tv.getMillis()));
     }
     
 }

@@ -70,7 +70,8 @@ public class IntegrationAccountTests extends ESTestCase {
         }
         Settings settings = sb.build();
 
-        IntegrationAccount account = new IntegrationAccount(accountName, settings, HipChatServer.DEFAULT, mock(HttpClient.class), mock(ESLogger.class));
+        IntegrationAccount account = new IntegrationAccount(accountName, settings, HipChatServer.DEFAULT, mock(HttpClient.class),
+                mock(ESLogger.class));
 
         assertThat(account.profile, is(HipChatAccount.Profile.INTEGRATION));
         assertThat(account.name, equalTo(accountName));

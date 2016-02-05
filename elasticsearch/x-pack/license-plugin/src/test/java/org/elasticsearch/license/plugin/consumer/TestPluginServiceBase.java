@@ -21,7 +21,8 @@ import org.elasticsearch.license.plugin.core.LicensesService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
-public abstract class TestPluginServiceBase extends AbstractLifecycleComponent<TestPluginServiceBase> implements ClusterStateListener, Licensee {
+public abstract class TestPluginServiceBase extends AbstractLifecycleComponent<TestPluginServiceBase>
+        implements ClusterStateListener, Licensee {
 
     private LicensesService licensesClientService;
     private final ClusterService clusterService;
@@ -29,7 +30,8 @@ public abstract class TestPluginServiceBase extends AbstractLifecycleComponent<T
     public final AtomicBoolean registered = new AtomicBoolean(false);
     private AtomicReference<LicenseState> state = new AtomicReference<>(LicenseState.DISABLED);
 
-    public TestPluginServiceBase(boolean eagerLicenseRegistration, Settings settings, LicensesService licensesClientService, ClusterService clusterService) {
+    public TestPluginServiceBase(boolean eagerLicenseRegistration, Settings settings, LicensesService licensesClientService,
+                                 ClusterService clusterService) {
         super(settings);
         this.eagerLicenseRegistration = eagerLicenseRegistration;
         this.licensesClientService = licensesClientService;

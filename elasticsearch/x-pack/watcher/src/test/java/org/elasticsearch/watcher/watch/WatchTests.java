@@ -204,7 +204,8 @@ public class WatchTests extends ESTestCase {
 
         BytesReference bytes = XContentFactory.jsonBuilder().value(watch).bytes();
         logger.info(bytes.toUtf8());
-        Watch.Parser watchParser = new Watch.Parser(settings, conditionRegistry, triggerService, transformRegistry, actionRegistry, inputRegistry, secretService, clock);
+        Watch.Parser watchParser = new Watch.Parser(settings, conditionRegistry, triggerService, transformRegistry, actionRegistry,
+                inputRegistry, secretService, clock);
 
         Watch parsedWatch = watchParser.parse("_name", includeStatus, bytes);
 
@@ -242,7 +243,8 @@ public class WatchTests extends ESTestCase {
                 .startObject()
                     .startArray("actions").endArray()
                 .endObject();
-        Watch.Parser watchParser = new Watch.Parser(settings, conditionRegistry, triggerService, transformRegistry, actionRegistry, inputRegistry, secretService, clock);
+        Watch.Parser watchParser = new Watch.Parser(settings, conditionRegistry, triggerService, transformRegistry, actionRegistry,
+                inputRegistry, secretService, clock);
         try {
             watchParser.parse("failure", false, jsonBuilder.bytes());
             fail("This watch should fail to parse as actions is an array");
@@ -270,7 +272,8 @@ public class WatchTests extends ESTestCase {
                 .field(ScheduleTrigger.TYPE, schedule(schedule).build())
                 .endObject();
         builder.endObject();
-        Watch.Parser watchParser = new Watch.Parser(settings, conditionRegistry, triggerService, transformRegistry, actionRegistry, inputRegistry, secretService, SystemClock.INSTANCE);
+        Watch.Parser watchParser = new Watch.Parser(settings, conditionRegistry, triggerService, transformRegistry, actionRegistry,
+                inputRegistry, secretService, SystemClock.INSTANCE);
         Watch watch = watchParser.parse("failure", false, builder.bytes());
         assertThat(watch, notNullValue());
         assertThat(watch.trigger(), instanceOf(ScheduleTrigger.class));
@@ -282,7 +285,8 @@ public class WatchTests extends ESTestCase {
     }
 
     private static Schedule randomSchedule() {
-        String type = randomFrom(CronSchedule.TYPE, HourlySchedule.TYPE, DailySchedule.TYPE, WeeklySchedule.TYPE, MonthlySchedule.TYPE, YearlySchedule.TYPE, IntervalSchedule.TYPE);
+        String type = randomFrom(CronSchedule.TYPE, HourlySchedule.TYPE, DailySchedule.TYPE, WeeklySchedule.TYPE, MonthlySchedule.TYPE,
+                YearlySchedule.TYPE, IntervalSchedule.TYPE);
         switch (type) {
             case CronSchedule.TYPE:
                 return new CronSchedule("0/5 * * * * ? *");
@@ -346,7 +350,8 @@ public class WatchTests extends ESTestCase {
         Map<String, InputFactory> parsers = new HashMap<>();
         switch (input.type()) {
             case SearchInput.TYPE:
-                IndicesQueriesRegistry queryRegistry = new IndicesQueriesRegistry(Settings.EMPTY, singletonMap("match_all", new MatchAllQueryParser()));
+                IndicesQueriesRegistry queryRegistry = new IndicesQueriesRegistry(Settings.EMPTY,
+                        singletonMap("match_all", new MatchAllQueryParser()));
                 parsers.put(SearchInput.TYPE, new SearchInputFactory(settings, client, queryRegistry));
                 return new InputRegistry(parsers);
             default:
@@ -361,9 +366,12 @@ public class WatchTests extends ESTestCase {
             case ScriptCondition.TYPE:
                 return new ExecutableScriptCondition(new ScriptCondition(Script.inline("_script").build()), logger, scriptService);
             case CompareCondition.TYPE:
-                return new ExecutableCompareCondition(new CompareCondition("_path", randomFrom(Op.values()), randomFrom(5, "3")), logger, SystemClock.INSTANCE);
+                return new ExecutableCompareCondition(new CompareCondition("_path", randomFrom(Op.values()), randomFrom(5, "3")), logger,
+                        SystemClock.INSTANCE);
             case ArrayCompareCondition.TYPE:
-                return new ExecutableArrayCompareCondition(new ArrayCompareCondition("_array_path", "_path", randomFrom(ArrayCompareCondition.Op.values()), randomFrom(5, "3"), ArrayCompareCondition.Quantifier.SOME), logger, SystemClock.INSTANCE);
+                return new ExecutableArrayCompareCondition(new ArrayCompareCondition("_array_path", "_path",
+                        randomFrom(ArrayCompareCondition.Op.values()), randomFrom(5, "3"), ArrayCompareCondition.Quantifier.SOME),
+                        logger, SystemClock.INSTANCE);
             default:
                 return new ExecutableAlwaysCondition(logger);
         }
@@ -395,18 +403,22 @@ public class WatchTests extends ESTestCase {
             case ScriptTransform.TYPE:
                 return new ExecutableScriptTransform(new ScriptTransform(Script.inline("_script").build()), logger, scriptService);
             case SearchTransform.TYPE:
-                return new ExecutableSearchTransform(new SearchTransform(matchAllRequest(WatcherUtils.DEFAULT_INDICES_OPTIONS), timeout, timeZone), logger, client, null);
+                return new ExecutableSearchTransform(new SearchTransform(
+                        matchAllRequest(WatcherUtils.DEFAULT_INDICES_OPTIONS), timeout, timeZone), logger, client, null);
             default: // chain
                 ChainTransform chainTransform = new ChainTransform(Arrays.asList(
-                        new SearchTransform(matchAllRequest(WatcherUtils.DEFAULT_INDICES_OPTIONS), timeout, timeZone), new ScriptTransform(Script.inline("_script").build())));
+                        new SearchTransform(matchAllRequest(WatcherUtils.DEFAULT_INDICES_OPTIONS), timeout, timeZone),
+                        new ScriptTransform(Script.inline("_script").build())));
                 return new ExecutableChainTransform(chainTransform, logger, Arrays.<ExecutableTransform>asList(
-                        new ExecutableSearchTransform(new SearchTransform(matchAllRequest(WatcherUtils.DEFAULT_INDICES_OPTIONS), timeout, timeZone), logger, client, null),
+                        new ExecutableSearchTransform(new SearchTransform(
+                                matchAllRequest(WatcherUtils.DEFAULT_INDICES_OPTIONS), timeout, timeZone), logger, client, null),
                         new ExecutableScriptTransform(new ScriptTransform(Script.inline("_script").build()), logger, scriptService)));
         }
     }
 
     private TransformRegistry transformRegistry() {
-        IndicesQueriesRegistry queryRegistry = new IndicesQueriesRegistry(Settings.EMPTY, singletonMap("match_all", new MatchAllQueryParser()));
+        IndicesQueriesRegistry queryRegistry = new IndicesQueriesRegistry(Settings.EMPTY,
+                singletonMap("match_all", new MatchAllQueryParser()));
         Map<String, TransformFactory> factories = new HashMap<>();
         ChainTransformFactory parser = new ChainTransformFactory();
         factories.put(ChainTransform.TYPE, parser);
@@ -421,14 +433,17 @@ public class WatchTests extends ESTestCase {
         List<ActionWrapper> list = new ArrayList<>();
         if (randomBoolean()) {
             ExecutableTransform transform = randomTransform();
-            EmailAction action = new EmailAction(EmailTemplate.builder().build(), null, null, Profile.STANDARD, randomFrom(DataAttachment.JSON, DataAttachment.YAML), EmailAttachments.EMPTY_ATTACHMENTS);
-            list.add(new ActionWrapper("_email_" + randomAsciiOfLength(8), randomThrottler(), transform, new ExecutableEmailAction(action, logger, emailService, templateEngine, htmlSanitizer, Collections.emptyMap())));
+            EmailAction action = new EmailAction(EmailTemplate.builder().build(), null, null, Profile.STANDARD,
+                    randomFrom(DataAttachment.JSON, DataAttachment.YAML), EmailAttachments.EMPTY_ATTACHMENTS);
+            list.add(new ActionWrapper("_email_" + randomAsciiOfLength(8), randomThrottler(), transform,
+                    new ExecutableEmailAction(action, logger, emailService, templateEngine, htmlSanitizer, Collections.emptyMap())));
         }
         if (randomBoolean()) {
             DateTimeZone timeZone = randomBoolean() ? DateTimeZone.UTC : null;
             TimeValue timeout = randomBoolean() ? TimeValue.timeValueSeconds(30) : null;
             IndexAction action = new IndexAction("_index", "_type", null, timeout, timeZone);
-            list.add(new ActionWrapper("_index_" + randomAsciiOfLength(8), randomThrottler(), randomTransform(), new ExecutableIndexAction(action, logger, client, null)));
+            list.add(new ActionWrapper("_index_" + randomAsciiOfLength(8), randomThrottler(), randomTransform(),
+                    new ExecutableIndexAction(action, logger, client, null)));
         }
         if (randomBoolean()) {
             HttpRequestTemplate httpRequest = HttpRequestTemplate.builder("test.host", randomIntBetween(8000, 9000))
@@ -436,7 +451,8 @@ public class WatchTests extends ESTestCase {
                     .path(TextTemplate.inline("_url").build())
                     .build();
             WebhookAction action = new WebhookAction(httpRequest);
-            list.add(new ActionWrapper("_webhook_" + randomAsciiOfLength(8), randomThrottler(), randomTransform(), new ExecutableWebhookAction(action, logger, httpClient, templateEngine)));
+            list.add(new ActionWrapper("_webhook_" + randomAsciiOfLength(8), randomThrottler(), randomTransform(),
+                    new ExecutableWebhookAction(action, logger, httpClient, templateEngine)));
         }
         return new ExecutableActions(list);
     }
@@ -446,13 +462,15 @@ public class WatchTests extends ESTestCase {
         for (ActionWrapper action : actions) {
             switch (action.action().type()) {
                 case EmailAction.TYPE:
-                    parsers.put(EmailAction.TYPE, new EmailActionFactory(settings, emailService, templateEngine, htmlSanitizer, new EmailAttachmentsParser(Collections.emptyMap()), Collections.emptyMap()));
+                    parsers.put(EmailAction.TYPE, new EmailActionFactory(settings, emailService, templateEngine, htmlSanitizer,
+                            new EmailAttachmentsParser(Collections.emptyMap()), Collections.emptyMap()));
                     break;
                 case IndexAction.TYPE:
                     parsers.put(IndexAction.TYPE, new IndexActionFactory(settings, client));
                     break;
                 case WebhookAction.TYPE:
-                    parsers.put(WebhookAction.TYPE, new WebhookActionFactory(settings,  httpClient, new HttpRequestTemplate.Parser(authRegistry), templateEngine));
+                    parsers.put(WebhookAction.TYPE, new WebhookActionFactory(settings,  httpClient,
+                            new HttpRequestTemplate.Parser(authRegistry), templateEngine));
                     break;
             }
         }
@@ -460,7 +478,8 @@ public class WatchTests extends ESTestCase {
     }
 
     private ActionThrottler randomThrottler() {
-        return new ActionThrottler(SystemClock.INSTANCE, randomBoolean() ? null : TimeValue.timeValueMinutes(randomIntBetween(3, 5)), watcherLicensee);
+        return new ActionThrottler(SystemClock.INSTANCE, randomBoolean() ? null : TimeValue.timeValueMinutes(randomIntBetween(3, 5)),
+                watcherLicensee);
     }
 
     static class ParseOnlyScheduleTriggerEngine extends ScheduleTriggerEngine {

@@ -114,8 +114,9 @@ public class SearchTransformTests extends ESIntegTestCase {
             throw new RuntimeException("failed to create config dir");
 
         }
-        try (InputStream stream  = SearchTransformTests.class.getResourceAsStream("/org/elasticsearch/watcher/transform/search/config/scripts/test_disk_template.mustache");
-            OutputStream out = Files.newOutputStream(scriptPath.resolve("test_disk_template.mustache"))) {
+        String path = "/org/elasticsearch/watcher/transform/search/config/scripts/test_disk_template.mustache";
+        try (InputStream stream  = SearchTransformTests.class.getResourceAsStream(path);
+             OutputStream out = Files.newOutputStream(scriptPath.resolve("test_disk_template.mustache"))) {
             Streams.copy(stream, out);
         } catch (IOException e) {
             throw new RuntimeException("failed to copy mustache template");
@@ -253,7 +254,8 @@ public class SearchTransformTests extends ESIntegTestCase {
         SearchTransform searchTransform = TransformBuilders.searchTransform(request).build();
         ExecutableSearchTransform transform = new ExecutableSearchTransform(searchTransform, logger, ClientProxy.of(client()), null);
 
-        ScheduleTriggerEvent event = new ScheduleTriggerEvent("_name", parseDate("2015-01-04T00:00:00", UTC), parseDate("2015-01-01T00:00:00", UTC));
+        ScheduleTriggerEvent event = new ScheduleTriggerEvent("_name", parseDate("2015-01-04T00:00:00", UTC),
+                parseDate("2015-01-01T00:00:00", UTC));
         WatchExecutionContext ctx = mockExecutionContext("_name", parseDate("2015-01-04T00:00:00", UTC), event, EMPTY_PAYLOAD);
 
         Payload payload = simplePayload("value", "val_3");
@@ -316,7 +318,8 @@ public class SearchTransformTests extends ESIntegTestCase {
         parser.nextToken();
 
         IndicesQueriesRegistry indicesQueryRegistry = internalCluster().getInstance(IndicesQueriesRegistry.class);
-        SearchTransformFactory transformFactory = new SearchTransformFactory(Settings.EMPTY, ClientProxy.of(client()), indicesQueryRegistry);
+        SearchTransformFactory transformFactory = new SearchTransformFactory(Settings.EMPTY, ClientProxy.of(client()),
+                indicesQueryRegistry);
         ExecutableSearchTransform executable = transformFactory.parseExecutable("_id", parser);
 
         assertThat(executable, notNullValue());
@@ -477,7 +480,8 @@ public class SearchTransformTests extends ESIntegTestCase {
         ensureGreen("test-search-index");
 
         SearchTransform searchTransform = TransformBuilders.searchTransform(request).build();
-        ExecutableSearchTransform executableSearchTransform = new ExecutableSearchTransform(searchTransform, logger, ClientProxy.of(client()), null);
+        ExecutableSearchTransform executableSearchTransform = new ExecutableSearchTransform(searchTransform, logger,
+                ClientProxy.of(client()), null);
 
         return executableSearchTransform.execute(ctx, Payload.Simple.EMPTY);
     }

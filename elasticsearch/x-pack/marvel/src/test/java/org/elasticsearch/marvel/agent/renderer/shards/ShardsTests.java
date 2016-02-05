@@ -91,7 +91,8 @@ public class ShardsTests extends MarvelIntegTestCase {
      */
     public void testNotAnalyzedFields() throws Exception {
         final String indexName = INDEX_PREFIX + randomInt();
-        assertAcked(prepareCreate(indexName).setSettings(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1, IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));
+        assertAcked(prepareCreate(indexName)
+                .setSettings(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1, IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));
 
         updateMarvelInterval(3L, TimeUnit.SECONDS);
         waitForMarvelIndices();

@@ -129,7 +129,8 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
                 .get();
 
         // user1 has access to field1, so the query should match with the document:
-        SearchResponse response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+        SearchResponse response = client()
+                .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
                 .prepareSearch("test")
                 .setQuery(matchQuery("field1", "value1"))
                 .get();
@@ -201,7 +202,8 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
 
         Boolean realtime = randomFrom(true, false, null);
         // user1 is granted access to field1 only:
-        GetResponse response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+        GetResponse response = client()
+                .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
                 .prepareGet("test", "type1", "1")
                 .setRealtime(realtime)
                 .setRefresh(true)
@@ -261,7 +263,8 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
 
         Boolean realtime = randomFrom(true, false, null);
         // user1 is granted access to field1 only:
-        MultiGetResponse response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+        MultiGetResponse response = client()
+                .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
                 .prepareMultiGet()
                 .add("test", "type1", "1")
                 .setRealtime(realtime)
@@ -331,7 +334,8 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
                 .get();
 
         // user1 is granted access to field1 only:
-        FieldStatsResponse response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+        FieldStatsResponse response = client()
+                .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
                 .prepareFieldStats()
                 .setFields("field1", "field2")
                 .get();
@@ -383,7 +387,8 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
 
         int max = scaledRandomIntBetween(4, 32);
         for (int i = 0; i < max; i++) {
-            SearchResponse response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+            SearchResponse response = client()
+                    .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
                     .prepareSearch("test")
                     .setQuery(constantScoreQuery(termQuery("field1", "value1")))
                     .get();
@@ -408,7 +413,8 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
         int max = scaledRandomIntBetween(4, 32);
         for (int i = 0; i < max; i++) {
             Boolean requestCache = randomFrom(true, null);
-            SearchResponse response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+            SearchResponse response = client()
+                    .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
                     .prepareSearch("test")
                     .setSize(0)
                     .setQuery(termQuery("field1", "value1"))
@@ -436,7 +442,8 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
                 .get();
 
         // user1 is granted access to field1 only:
-        SearchResponse response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+        SearchResponse response = client()
+                .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
                 .prepareSearch("test")
                 .addField("field1")
                 .addField("field2")
@@ -491,7 +498,8 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
                 .get();
 
         // user1 is granted access to field1 only:
-        SearchResponse response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+        SearchResponse response = client()
+                .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
                 .prepareSearch("test")
                 .get();
         assertThat(response.getHits().getAt(0).sourceAsMap().size(), equalTo(1));
@@ -537,7 +545,8 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
                 .get();
 
         // user1 is granted to use field1, so it is included in the sort_values
-        SearchResponse response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+        SearchResponse response = client()
+                .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
                 .prepareSearch("test")
                 .addSort("field1", SortOrder.ASC)
                 .get();
@@ -574,7 +583,8 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
                 .get();
 
         // user1 is authorized to use field1, so buckets are include for a term agg on field1
-        SearchResponse response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+        SearchResponse response = client()
+                .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
                 .prepareSearch("test")
                 .addAggregation(AggregationBuilders.terms("_name").field("field1"))
                 .get();
@@ -604,14 +614,16 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
 
     public void testTVApi() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
-                        .addMapping("type1", "field1", "type=string,term_vector=with_positions_offsets_payloads", "field2", "type=string,term_vector=with_positions_offsets_payloads")
+                        .addMapping("type1", "field1", "type=string,term_vector=with_positions_offsets_payloads",
+                                "field2", "type=string,term_vector=with_positions_offsets_payloads")
         );
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2")
                 .setRefresh(true)
                 .get();
 
         Boolean realtime = randomFrom(true, false, null);
-        TermVectorsResponse response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+        TermVectorsResponse response = client()
+                .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
                 .prepareTermVectors("test", "type1", "1")
                 .setRealtime(realtime)
                 .get();
@@ -646,14 +658,16 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
 
     public void testMTVApi() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
-                        .addMapping("type1", "field1", "type=string,term_vector=with_positions_offsets_payloads", "field2", "type=string,term_vector=with_positions_offsets_payloads")
+                        .addMapping("type1", "field1", "type=string,term_vector=with_positions_offsets_payloads",
+                                "field2", "type=string,term_vector=with_positions_offsets_payloads")
         );
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2")
                 .setRefresh(true)
                 .get();
 
         Boolean realtime = randomFrom(true, false, null);
-        MultiTermVectorsResponse response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+        MultiTermVectorsResponse response = client()
+                .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
                 .prepareMultiTermVectors()
                 .add(new TermVectorsRequest("test", "type1", "1").realtime(realtime))
                 .get();
@@ -700,7 +714,8 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
                 .get();
 
         // Percolator without a query just evaluates all percolator queries that are loaded, so we have a match:
-        PercolateResponse response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
+        PercolateResponse response = client()
+                .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
                 .preparePercolate()
                 .setDocumentType("type")
                 .setPercolateDoc(new PercolateSourceBuilder.DocBuilder().setDoc("{}"))
@@ -708,7 +723,8 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
         assertThat(response.getCount(), equalTo(1L));
         assertThat(response.getMatches()[0].getId().string(), equalTo("1"));
 
-        // Percolator with a query on a field that the current user can't see. Percolator will not have queries to evaluate, so there is no match:
+        // Percolator with a query on a field that the current user can't see. Percolator will not have queries to evaluate, so there is
+        // no match:
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
                 .preparePercolate()
                 .setDocumentType("type")
@@ -743,7 +759,8 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
         client().prepareIndex("test", "child", "c2").setSource("field1", "yellow").setParent("p1").get();
         refresh();
 
-        SearchResponse searchResponse = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+        SearchResponse searchResponse = client()
+                .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
                 .prepareSearch("test")
                 .setQuery(hasChildQuery("child", termQuery("field1", "yellow")))
                 .get();
@@ -751,7 +768,8 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
         assertThat(searchResponse.getHits().totalHits(), equalTo(1L));
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("p1"));
 
-        searchResponse = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
+        searchResponse = client()
+                .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
                 .prepareSearch("test")
                 .setQuery(hasChildQuery("child", termQuery("field1", "yellow")))
                 .get();
@@ -793,7 +811,8 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
             fail("failed, because bulk request with updates shouldn't be allowed if field level security is enabled");
         } catch (ElasticsearchSecurityException e) {
             assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
-            assertThat(e.getMessage(), equalTo("Can't execute an bulk request with update requests embedded if field or document level security is enabled"));
+            assertThat(e.getMessage(),
+                    equalTo("Can't execute an bulk request with update requests embedded if field or document level security is enabled"));
         }
         assertThat(client().prepareGet("test", "type", "1").get().getSource().get("field2").toString(), equalTo("value2"));
 
@@ -812,7 +831,8 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
                 .get();
 
         // user6 has access to all fields, so the query should match with the document:
-        SearchResponse response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user6", USERS_PASSWD)))
+        SearchResponse response = client()
+                .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user6", USERS_PASSWD)))
                 .prepareSearch("test")
                 .setQuery(matchQuery("field1", "value1"))
                 .get();

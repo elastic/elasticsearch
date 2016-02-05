@@ -103,7 +103,8 @@ public class Role extends GlobalPermission {
         }
 
         public Role build() {
-            IndicesPermission.Core indices = groups.isEmpty() ? IndicesPermission.Core.NONE : new IndicesPermission.Core(groups.toArray(new IndicesPermission.Group[groups.size()]));
+            IndicesPermission.Core indices = groups.isEmpty() ? IndicesPermission.Core.NONE :
+                    new IndicesPermission.Core(groups.toArray(new IndicesPermission.Group[groups.size()]));
             return new Role(name, cluster, indices, runAs);
         }
     }

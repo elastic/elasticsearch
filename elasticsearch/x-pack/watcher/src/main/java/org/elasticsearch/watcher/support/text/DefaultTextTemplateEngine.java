@@ -49,8 +49,11 @@ public class DefaultTextTemplateEngine extends AbstractComponent implements Text
         if (!template.startsWith("__")){
             return textTemplate; //Doesn't even start with __ so can't have a content type
         }
-        int index = template.indexOf("__::", 3); //There must be a __<content_type__:: prefix so the minimum length before detecting '__::' is 3
-        if (index >= 0 && index < 12) { //Assume that the content type name is less than 10 characters long otherwise we may falsely detect strings that start with '__ and have '__::' somewhere in the content
+        // There must be a __<content_type__:: prefix so the minimum length before detecting '__::' is 3
+        int index = template.indexOf("__::", 3);
+        // Assume that the content type name is less than 10 characters long otherwise we may falsely detect strings that start with '__
+        // and have '__::' somewhere in the content
+        if (index >= 0 && index < 12) {
             if (template.length() == 6) {
                 template = "";
             } else {
@@ -63,7 +66,8 @@ public class DefaultTextTemplateEngine extends AbstractComponent implements Text
     private XContentType detectContentType(TextTemplate textTemplate) {
         String template = textTemplate.getTemplate();
         if (template.startsWith("__")) {
-            int endOfContentName = template.indexOf("__::", 3); //There must be a __<content_type__:: prefix so the minimum length before detecting '__::' is 3
+            //There must be a __<content_type__:: prefix so the minimum length before detecting '__::' is 3
+            int endOfContentName = template.indexOf("__::", 3);
             if (endOfContentName != -1) {
                 return XContentType.fromMediaTypeOrFormat(template.substring(2, endOfContentName));
             }

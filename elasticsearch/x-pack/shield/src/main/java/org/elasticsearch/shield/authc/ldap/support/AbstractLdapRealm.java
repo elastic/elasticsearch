@@ -73,7 +73,8 @@ public abstract class AbstractLdapRealm extends CachingUsernamePasswordRealm {
             if (causeMessage == null) {
                 logger.warn("{} failed for user [{}]: {}", action, principal, e.getMessage());
             } else {
-                logger.warn("{} failed for user [{}]: {}\ncause: {}: {}", action, principal, e.getMessage(), e.getCause().getClass().getName(), causeMessage);
+                logger.warn("{} failed for user [{}]: {}\ncause: {}: {}", action, principal, e.getMessage(),
+                        e.getCause().getClass().getName(), causeMessage);
             }
         }
     }

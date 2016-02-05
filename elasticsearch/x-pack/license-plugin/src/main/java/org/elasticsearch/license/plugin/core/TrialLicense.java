@@ -57,7 +57,8 @@ public class TrialLicense {
             final License expectedLicense;
             try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(decrypt(content))) {
                 parser.nextToken();
-                expectedLicense = License.builder().fromLicenseSpec(License.fromXContent(parser), license.signature()).version(-version).build();
+                expectedLicense = License.builder().fromLicenseSpec(License.fromXContent(parser),
+                        license.signature()).version(-version).build();
             }
             return license.equals(expectedLicense);
         } catch (IOException e) {

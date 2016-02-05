@@ -106,7 +106,8 @@ public class ClearRealmsCacheTests extends ShieldIntegTestCase {
 
             @Override
             public void executeRequest() throws Exception {
-                executeHttpRequest("/_shield/realm/" + (randomBoolean() ? "*" : "_all") + "/_clear_cache", Collections.<String, String>emptyMap());
+                executeHttpRequest("/_shield/realm/" + (randomBoolean() ? "*" : "_all") + "/_clear_cache",
+                        Collections.<String, String>emptyMap());
             }
         },
 
@@ -175,7 +176,9 @@ public class ClearRealmsCacheTests extends ShieldIntegTestCase {
                 for (Map.Entry<String, String> entry : params.entrySet()) {
                     requestBuilder.addParam(entry.getKey(), entry.getValue());
                 }
-                requestBuilder.addHeader(UsernamePasswordToken.BASIC_AUTH_HEADER, UsernamePasswordToken.basicAuthHeaderValue(ShieldSettingsSource.DEFAULT_USER_NAME, new SecuredString(ShieldSettingsSource.DEFAULT_PASSWORD.toCharArray())));
+                requestBuilder.addHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
+                        UsernamePasswordToken.basicAuthHeaderValue(ShieldSettingsSource.DEFAULT_USER_NAME,
+                                new SecuredString(ShieldSettingsSource.DEFAULT_PASSWORD.toCharArray())));
                 HttpResponse response = requestBuilder.execute();
                 assertThat(response.hasBody(), is(true));
                 String body = response.getBody();

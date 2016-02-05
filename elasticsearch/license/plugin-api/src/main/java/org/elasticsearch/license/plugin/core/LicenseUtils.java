@@ -20,7 +20,8 @@ public class LicenseUtils {
      * exception's rest header
      */
     public static ElasticsearchSecurityException newComplianceException(String feature) {
-        ElasticsearchSecurityException e = new ElasticsearchSecurityException("current license is non-compliant for [{}]", RestStatus.UNAUTHORIZED, feature);
+        ElasticsearchSecurityException e = new ElasticsearchSecurityException("current license is non-compliant for [{}]",
+                RestStatus.UNAUTHORIZED, feature);
         e.addHeader(EXPIRED_FEATURE_HEADER, feature);
         return e;
     }

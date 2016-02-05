@@ -9,7 +9,8 @@ import org.elasticsearch.action.Action;
 import org.elasticsearch.client.ElasticsearchClient;
 
 /**
- * This action executes a watch, either ignoring the schedule and condition or just the schedule and can execute a subset of the actions, optionally persisting the history entry
+ * This action executes a watch, either ignoring the schedule and condition or just the schedule and can execute a subset of the actions,
+ * optionally persisting the history entry
  */
 public class ExecuteWatchAction extends Action<ExecuteWatchRequest, ExecuteWatchResponse, ExecuteWatchRequestBuilder> {
 

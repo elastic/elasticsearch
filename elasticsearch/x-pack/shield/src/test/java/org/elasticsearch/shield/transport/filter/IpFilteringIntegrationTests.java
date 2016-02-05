@@ -44,13 +44,15 @@ public class IpFilteringIntegrationTests extends ShieldIntegTestCase {
         return Settings.builder().put(super.nodeSettings(nodeOrdinal))
                 .put(NetworkModule.HTTP_ENABLED.getKey(), true)
                 .put("transport.profiles.client.port", randomClientPortRange)
-                .put("transport.profiles.client.bind_host", "localhost") // make sure this is "localhost", no matter if ipv4 or ipv6, but be consistent
+                // make sure this is "localhost", no matter if ipv4 or ipv6, but be consistent
+                .put("transport.profiles.client.bind_host", "localhost")
                 .put("transport.profiles.client.shield.filter.deny", "_all")
                 .put("shield.http.filter.deny", "_all").build();
     }
 
     public void testThatIpFilteringIsIntegratedIntoNettyPipelineViaHttp() throws Exception {
-        TransportAddress transportAddress = randomFrom(internalCluster().getDataNodeInstance(HttpServerTransport.class).boundAddress().boundAddresses());
+        TransportAddress transportAddress =
+                randomFrom(internalCluster().getDataNodeInstance(HttpServerTransport.class).boundAddress().boundAddresses());
         assertThat(transportAddress, is(instanceOf(InetSocketTransportAddress.class)));
         InetSocketTransportAddress inetSocketTransportAddress = (InetSocketTransportAddress) transportAddress;
 
@@ -84,7 +86,8 @@ public class IpFilteringIntegrationTests extends ShieldIntegTestCase {
     }
 
     private static int getProfilePort(String profile) {
-        TransportAddress transportAddress = randomFrom(internalCluster().getInstance(Transport.class).profileBoundAddresses().get(profile).boundAddresses());
+        TransportAddress transportAddress =
+                randomFrom(internalCluster().getInstance(Transport.class).profileBoundAddresses().get(profile).boundAddresses());
         assert transportAddress instanceof InetSocketTransportAddress;
         return ((InetSocketTransportAddress)transportAddress).address().getPort();
     }

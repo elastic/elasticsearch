@@ -31,6 +31,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.isEmptyOrNullString;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.core.Is.is;
 
 @ClusterScope(scope = TEST)
 public class ClusterInfoTests extends MarvelIntegTestCase {
@@ -77,8 +78,8 @@ public class ClusterInfoTests extends MarvelIntegTestCase {
         assertThat(response.getId(), equalTo(clusterUUID));
 
         Map<String, Object> source = response.getSource();
-        assertThat((String) source.get(ClusterInfoRenderer.Fields.CLUSTER_NAME.underscore().toString()), equalTo(cluster().getClusterName()));
-        assertThat((String) source.get(ClusterInfoRenderer.Fields.VERSION.underscore().toString()), equalTo(Version.CURRENT.toString()));
+        assertThat(source.get(ClusterInfoRenderer.Fields.CLUSTER_NAME.underscore().toString()), is(cluster().getClusterName()));
+        assertThat(source.get(ClusterInfoRenderer.Fields.VERSION.underscore().toString()), is(Version.CURRENT.toString()));
 
         Object licenseObj = source.get(ClusterInfoRenderer.Fields.LICENSE.underscore().toString());
         assertThat(licenseObj, instanceOf(Map.class));
@@ -123,11 +124,12 @@ public class ClusterInfoTests extends MarvelIntegTestCase {
         assertHitCount(client().prepareSearch().setSize(0)
                 .setIndices(dataIndex)
                 .setTypes(ClusterStatsCollector.CLUSTER_INFO_TYPE)
-                .setQuery(QueryBuilders.boolQuery()
-                                .should(QueryBuilders.matchQuery(License.XFields.STATUS.underscore().toString(), License.Status.ACTIVE.label()))
-                                .should(QueryBuilders.matchQuery(License.XFields.STATUS.underscore().toString(), License.Status.INVALID.label()))
-                                .should(QueryBuilders.matchQuery(License.XFields.STATUS.underscore().toString(), License.Status.EXPIRED.label()))
-                                .minimumNumberShouldMatch(1)
+                .setQuery(
+                    QueryBuilders.boolQuery()
+                        .should(QueryBuilders.matchQuery(License.XFields.STATUS.underscore().toString(), License.Status.ACTIVE.label()))
+                        .should(QueryBuilders.matchQuery(License.XFields.STATUS.underscore().toString(), License.Status.INVALID.label()))
+                        .should(QueryBuilders.matchQuery(License.XFields.STATUS.underscore().toString(), License.Status.EXPIRED.label()))
+                        .minimumNumberShouldMatch(1)
                 ).get(), 0L);
     }
 }

@@ -171,17 +171,15 @@ public class AccountTests extends ESTestCase {
                 .build();
 
         final CountDownLatch latch = new CountDownLatch(1);
-        EmailServer.Listener.Handle handle = server.addListener(new EmailServer.Listener() {
-            @Override
-            public void on(MimeMessage message) throws Exception {
-                assertThat(message.getFrom().length, is(1));
-                assertThat((InternetAddress) message.getFrom()[0], equalTo(new InternetAddress("from@domain.com")));
-                assertThat(message.getRecipients(Message.RecipientType.TO).length, is(1));
-                assertThat((InternetAddress) message.getRecipients(Message.RecipientType.TO)[0], equalTo(new InternetAddress("to@domain.com", "To")));
-                assertThat(message.getSubject(), equalTo("_subject"));
-                assertThat(Profile.STANDARD.textBody(message), equalTo("_text_body"));
-                latch.countDown();
-            }
+        EmailServer.Listener.Handle handle = server.addListener(message -> {
+            assertThat(message.getFrom().length, is(1));
+            assertThat(message.getFrom()[0], equalTo(new InternetAddress("from@domain.com")));
+            assertThat(message.getRecipients(Message.RecipientType.TO).length, is(1));
+            assertThat(message.getRecipients(Message.RecipientType.TO)[0],
+                    equalTo(new InternetAddress("to@domain.com", "To")));
+            assertThat(message.getSubject(), equalTo("_subject"));
+            assertThat(Profile.STANDARD.textBody(message), equalTo("_text_body"));
+            latch.countDown();
         });
 
         account.send(email, null, Profile.STANDARD);
@@ -211,21 +209,19 @@ public class AccountTests extends ESTestCase {
                 .build();
 
         final CountDownLatch latch = new CountDownLatch(5);
-        EmailServer.Listener.Handle handle = server.addListener(new EmailServer.Listener() {
-            @Override
-            public void on(MimeMessage message) throws Exception {
-                assertThat(message.getFrom().length, is(1));
-                assertThat((InternetAddress) message.getFrom()[0], equalTo(new InternetAddress("from@domain.com")));
-                assertThat(message.getRecipients(Message.RecipientType.TO).length, is(1));
-                assertThat((InternetAddress) message.getRecipients(Message.RecipientType.TO)[0], equalTo(new InternetAddress("to@domain.com", "TO")));
-                assertThat(message.getRecipients(Message.RecipientType.CC).length, is(2));
-                assertThat(message.getRecipients(Message.RecipientType.CC), hasItemInArray((Address) new InternetAddress("cc1@domain.com", "CC1")));
-                assertThat(message.getRecipients(Message.RecipientType.CC), hasItemInArray((Address) new InternetAddress("cc2@domain.com")));
-                assertThat(message.getReplyTo(), arrayWithSize(1));
-                assertThat(message.getReplyTo(), hasItemInArray((Address) new InternetAddress("noreply@domain.com")));
-                // bcc should not be there... (it's bcc after all)
-                latch.countDown();
-            }
+        EmailServer.Listener.Handle handle = server.addListener(message -> {
+            assertThat(message.getFrom().length, is(1));
+            assertThat(message.getFrom()[0], equalTo(new InternetAddress("from@domain.com")));
+            assertThat(message.getRecipients(Message.RecipientType.TO).length, is(1));
+            assertThat(message.getRecipients(Message.RecipientType.TO)[0], equalTo(new InternetAddress("to@domain.com", "TO")));
+            assertThat(message.getRecipients(Message.RecipientType.CC).length, is(2));
+            assertThat(message.getRecipients(Message.RecipientType.CC),
+                    hasItemInArray((Address) new InternetAddress("cc1@domain.com", "CC1")));
+            assertThat(message.getRecipients(Message.RecipientType.CC), hasItemInArray((Address) new InternetAddress("cc2@domain.com")));
+            assertThat(message.getReplyTo(), arrayWithSize(1));
+            assertThat(message.getReplyTo(), hasItemInArray((Address) new InternetAddress("noreply@domain.com")));
+            // bcc should not be there... (it's bcc after all)
+            latch.countDown();
         });
 
         account.send(email, null, Profile.STANDARD);

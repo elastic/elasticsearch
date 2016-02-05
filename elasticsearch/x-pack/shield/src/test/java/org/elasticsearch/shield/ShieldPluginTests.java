@@ -38,12 +38,20 @@ public class ShieldPluginTests extends ShieldIntegTestCase {
         HttpServerTransport httpServerTransport = internalCluster().getDataNodeInstance(HttpServerTransport.class);
         try (CloseableHttpClient httpClient = HttpClients.createDefault()) {
             logger.info("executing unauthorized request to /_shield infos");
-            HttpResponse response = new HttpRequestBuilder(httpClient).httpTransport(httpServerTransport).method("GET").path("/_shield").execute();
+            HttpResponse response = new HttpRequestBuilder(httpClient).httpTransport(httpServerTransport)
+                    .method("GET")
+                    .path("/_shield")
+                    .execute();
             assertThat(response.getStatusCode(), is(UNAUTHORIZED.getStatus()));
 
             logger.info("executing authorized request to /_shield infos");
-            response = new HttpRequestBuilder(httpClient).httpTransport(httpServerTransport).method("GET").path("/_shield").addHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
-                    basicAuthHeaderValue(ShieldSettingsSource.DEFAULT_USER_NAME, new SecuredString(ShieldSettingsSource.DEFAULT_PASSWORD.toCharArray()))).execute();
+            response = new HttpRequestBuilder(httpClient).httpTransport(httpServerTransport)
+                    .method("GET")
+                    .path("/_shield")
+                    .addHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
+                        basicAuthHeaderValue(ShieldSettingsSource.DEFAULT_USER_NAME,
+                            new SecuredString(ShieldSettingsSource.DEFAULT_PASSWORD.toCharArray())))
+                    .execute();
             assertThat(response.getStatusCode(), is(OK.getStatus()));
             assertThat(response.getBody(), allOf(containsString("status"), containsString("cluster_name"), containsString("number"),
                     containsString("build_hash"), containsString("build_timestamp"),  containsString("build_snapshot")));

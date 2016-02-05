@@ -80,13 +80,15 @@ public class IntervalScheduleTests extends ESTestCase {
         try {
             new IntervalSchedule.Parser().parse(parser);
         } catch (ElasticsearchParseException e) {
-            assertThat(e.getMessage(), containsString("expected either a numeric value (millis) or a string value representing time value"));
+            assertThat(e.getMessage(),
+                    containsString("expected either a numeric value (millis) or a string value representing time value"));
             assertThat(e.getMessage(), containsString("found [START_OBJECT]"));
         }
     }
 
     private static IntervalSchedule.Interval randomTimeInterval() {
-        IntervalSchedule.Interval.Unit unit = IntervalSchedule.Interval.Unit.values()[randomIntBetween(0, IntervalSchedule.Interval.Unit.values().length - 1)];
+        int randomSize = randomIntBetween(0, IntervalSchedule.Interval.Unit.values().length - 1);
+        IntervalSchedule.Interval.Unit unit = IntervalSchedule.Interval.Unit.values()[randomSize];
         return new IntervalSchedule.Interval(randomIntBetween(1, 100), unit);
     }
 }

@@ -157,14 +157,15 @@ public class FileUserPasswdStore {
             String username = line.substring(0, i);
             Validation.Error validationError = Validation.ESUsers.validateUsername(username);
             if (validationError != null) {
-                logger.error("invalid username [{}] in users file [{}], skipping... ({})", username, path.toAbsolutePath(), validationError);
+                logger.error("invalid username [{}] in users file [{}], skipping... ({})", username, path.toAbsolutePath(),
+                        validationError);
                 continue;
             }
             String hash = line.substring(i + 1);
             users.put(username, hash.toCharArray());
         }
 
-        if (users.isEmpty()){
+        if (users.isEmpty()) {
             logger.warn("no users found in users file [{}]. use bin/shield/esusers to add users and role mappings", path.toAbsolutePath());
         }
         return unmodifiableMap(users);

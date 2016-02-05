@@ -53,7 +53,8 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
 // thread leak filter for UnboundID's background connect threads. The background connect threads do not always respect the
-// timeout and linger. Will be fixed in a new version of the library, see http://sourceforge.net/p/ldap-sdk/discussion/1001257/thread/154e3b71/
+// timeout and linger. Will be fixed in a new version of the library, see
+// http://sourceforge.net/p/ldap-sdk/discussion/1001257/thread/154e3b71/
 @ThreadLeakFilters(filters = {
         LdapUserSearchSessionFactoryTests.BackgroundConnectThreadLeakFilter.class
 })
@@ -153,14 +154,16 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
             try (LdapSession ldap = sessionFactory.session(user, userPass)) {
                 fail("the user should not have been found");
             } catch (ElasticsearchSecurityException e) {
-                assertAuthenticationException(e, containsString("failed to find user [William Bush] with search base [o=sevenSeas] scope [base]"));
+                assertAuthenticationException(e, containsString("failed to find user [William Bush] with search base [o=sevenSeas] scope " +
+                        "[base]"));
             }
 
             //lookup
             try (LdapSession ldap = sessionFactory.unauthenticatedSession(user)) {
                 fail("the user should not have been found");
             } catch (ElasticsearchSecurityException e) {
-                assertAuthenticationException(e, containsString("failed to find user [William Bush] with search base [o=sevenSeas] scope [base]"));
+                assertAuthenticationException(e, containsString("failed to find user [William Bush] with search base [o=sevenSeas] scope " +
+                        "[base]"));
             }
         } finally {
             sessionFactory.shutdown();
@@ -225,14 +228,16 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
             try (LdapSession ldap = sessionFactory.session(user, userPass)) {
                 fail("the user should not have been found");
             } catch (ElasticsearchSecurityException e) {
-                assertAuthenticationException(e, containsString("failed to find user [William Bush] with search base [o=sevenSeas] scope [one_level]"));
+                assertAuthenticationException(e, containsString("failed to find user [William Bush] with search base [o=sevenSeas] scope " +
+                        "[one_level]"));
             }
 
             //lookup
             try (LdapSession ldap = sessionFactory.unauthenticatedSession(user)) {
                 fail("the user should not have been found");
             } catch (ElasticsearchSecurityException e) {
-                assertAuthenticationException(e, containsString("failed to find user [William Bush] with search base [o=sevenSeas] scope [one_level]"));
+                assertAuthenticationException(e, containsString("failed to find user [William Bush] with search base [o=sevenSeas] scope " +
+                        "[one_level]"));
             }
         } finally {
             sessionFactory.shutdown();
@@ -296,14 +301,16 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
             try (LdapSession ldap = sessionFactory.session(user, userPass)) {
                 fail("the user should not have been found");
             } catch (ElasticsearchSecurityException e) {
-                assertAuthenticationException(e, containsString("failed to find user [William Bush] with search base [o=sevenSeas] scope [sub_tree]"));
+                assertAuthenticationException(e, containsString("failed to find user [William Bush] with search base [o=sevenSeas] scope " +
+                        "[sub_tree]"));
             }
 
             //lookup
             try (LdapSession ldap = sessionFactory.unauthenticatedSession(user)) {
                 fail("the user should not have been found");
             } catch (ElasticsearchSecurityException e) {
-                assertAuthenticationException(e, containsString("failed to find user [William Bush] with search base [o=sevenSeas] scope [sub_tree]"));
+                assertAuthenticationException(e, containsString("failed to find user [William Bush] with search base [o=sevenSeas] scope " +
+                        "[sub_tree]"));
             }
         }finally {
             sessionFactory.shutdown();
@@ -348,7 +355,8 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
         String groupSearchBase = "DC=ad,DC=test,DC=elasticsearch,DC=com";
         String userSearchBase = "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com";
         Settings settings = settingsBuilder()
-                .put(LdapTestCase.buildLdapSettings(new String[] { ActiveDirectorySessionFactoryTests.AD_LDAP_URL }, Strings.EMPTY_ARRAY, groupSearchBase, LdapSearchScope.SUB_TREE))
+                .put(LdapTestCase.buildLdapSettings(new String[] { ActiveDirectorySessionFactoryTests.AD_LDAP_URL }, Strings.EMPTY_ARRAY,
+                        groupSearchBase, LdapSearchScope.SUB_TREE))
                 .put("user_search.base_dn", userSearchBase)
                 .put("bind_dn", "ironman@ad.test.elasticsearch.com")
                 .put("bind_password", ActiveDirectorySessionFactoryTests.PASSWORD)
@@ -390,7 +398,8 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
         String groupSearchBase = "ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         String userSearchBase = "ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         RealmConfig config = new RealmConfig("oldap-test", settingsBuilder()
-                .put(LdapTestCase.buildLdapSettings(new String[] { OpenLdapTests.OPEN_LDAP_URL }, Strings.EMPTY_ARRAY, groupSearchBase, LdapSearchScope.ONE_LEVEL))
+                .put(LdapTestCase.buildLdapSettings(new String[] { OpenLdapTests.OPEN_LDAP_URL }, Strings.EMPTY_ARRAY, groupSearchBase,
+                        LdapSearchScope.ONE_LEVEL))
                 .put("user_search.base_dn", userSearchBase)
                 .put("bind_dn", "uid=blackwidow,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com")
                 .put("bind_password", OpenLdapTests.PASSWORD)
@@ -402,13 +411,15 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
             for (String user : users) {
                 //auth
                 try (LdapSession ldap = sessionFactory.session(user, SecuredStringTests.build(OpenLdapTests.PASSWORD))) {
-                    assertThat(ldap.userDn(), is(equalTo(new MessageFormat("uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com", Locale.ROOT).format(new Object[]{user}, new StringBuffer(), null).toString())));
+                    assertThat(ldap.userDn(), is(equalTo(new MessageFormat("uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com",
+                            Locale.ROOT).format(new Object[]{user}, new StringBuffer(), null).toString())));
                     assertThat(ldap.groups(), hasItem(containsString("Avengers")));
                 }
 
                 //lookup
                 try (LdapSession ldap = sessionFactory.unauthenticatedSession(user)) {
-                    assertThat(ldap.userDn(), is(equalTo(new MessageFormat("uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com", Locale.ROOT).format(new Object[]{user}, new StringBuffer(), null).toString())));
+                    assertThat(ldap.userDn(), is(equalTo(new MessageFormat("uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com",
+                            Locale.ROOT).format(new Object[]{user}, new StringBuffer(), null).toString())));
                     assertThat(ldap.groups(), hasItem(containsString("Avengers")));
                 }
             }
@@ -427,10 +438,13 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
                 .put("bind_password", "pass")
                 .build(), globalSettings);
 
-        LDAPConnectionPool connectionPool = LdapUserSearchSessionFactory.createConnectionPool(config, new SingleServerSet("localhost", randomFrom(ldapServers).getListenPort()), TimeValue.timeValueSeconds(5), NoOpLogger.INSTANCE);
+        LDAPConnectionPool connectionPool = LdapUserSearchSessionFactory.createConnectionPool(config, new SingleServerSet("localhost",
+                randomFrom(ldapServers).getListenPort()), TimeValue.timeValueSeconds(5), NoOpLogger.INSTANCE);
         try {
-            assertThat(connectionPool.getCurrentAvailableConnections(), is(LdapUserSearchSessionFactory.DEFAULT_CONNECTION_POOL_INITIAL_SIZE));
-            assertThat(connectionPool.getMaximumAvailableConnections(), is(LdapUserSearchSessionFactory.DEFAULT_CONNECTION_POOL_SIZE));
+            assertThat(connectionPool.getCurrentAvailableConnections(),
+                    is(LdapUserSearchSessionFactory.DEFAULT_CONNECTION_POOL_INITIAL_SIZE));
+            assertThat(connectionPool.getMaximumAvailableConnections(),
+                    is(LdapUserSearchSessionFactory.DEFAULT_CONNECTION_POOL_SIZE));
             assertEquals(connectionPool.getHealthCheck().getClass(), GetEntryLDAPConnectionPoolHealthCheck.class);
             GetEntryLDAPConnectionPoolHealthCheck healthCheck = (GetEntryLDAPConnectionPoolHealthCheck) connectionPool.getHealthCheck();
             assertThat(healthCheck.getEntryDN(), is("cn=Horatio Hornblower,ou=people,o=sevenSeas"));
@@ -453,7 +467,8 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
                 .put("user_search.pool.health_check.enabled", false)
                 .build(), globalSettings);
 
-        LDAPConnectionPool connectionPool = LdapUserSearchSessionFactory.createConnectionPool(config, new SingleServerSet("localhost", randomFrom(ldapServers).getListenPort()), TimeValue.timeValueSeconds(5), NoOpLogger.INSTANCE);
+        LDAPConnectionPool connectionPool = LdapUserSearchSessionFactory.createConnectionPool(config, new SingleServerSet("localhost",
+                randomFrom(ldapServers).getListenPort()), TimeValue.timeValueSeconds(5), NoOpLogger.INSTANCE);
         try {
             assertThat(connectionPool.getCurrentAvailableConnections(), is(10));
             assertThat(connectionPool.getMaximumAvailableConnections(), is(12));
@@ -476,7 +491,8 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
         try {
             new LdapUserSearchSessionFactory(config, null);
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("[bind_dn] has not been specified so a value must be specified for [user_search.pool.health_check.dn] or [user_search.pool.health_check.enabled] must be set to false"));
+            assertThat(e.getMessage(), containsString("[bind_dn] has not been specified so a value must be specified for [user_search" +
+                    ".pool.health_check.dn] or [user_search.pool.health_check.enabled] must be set to false"));
         }
     }
 

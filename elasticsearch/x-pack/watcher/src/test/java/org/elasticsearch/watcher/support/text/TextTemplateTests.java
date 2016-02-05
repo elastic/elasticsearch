@@ -61,7 +61,8 @@ public class TextTemplateTests extends ESTestCase {
         ScriptType type = randomFrom(ScriptType.values());
 
         CompiledScript compiledScript = mock(CompiledScript.class);
-        when(proxy.compile(new Template(templateText, type, lang, null, merged), Collections.singletonMap("content_type", "text/plain"))).thenReturn(compiledScript);
+        when(proxy.compile(new Template(templateText, type, lang, null, merged), Collections.singletonMap("content_type", "text/plain")))
+                .thenReturn(compiledScript);
         when(proxy.executable(compiledScript, model)).thenReturn(script);
         when(script.run()).thenReturn("rendered_text");
 
@@ -76,7 +77,9 @@ public class TextTemplateTests extends ESTestCase {
         ScriptType scriptType = randomFrom(ScriptType.values());
 
         CompiledScript compiledScript = mock(CompiledScript.class);
-        when(proxy.compile(new Template(templateText, scriptType, lang, null, model), Collections.singletonMap("content_type", "text/plain"))).thenReturn(compiledScript);
+        when(proxy.compile(new Template(templateText, scriptType, lang, null, model),
+                    Collections.singletonMap("content_type", "text/plain")))
+                .thenReturn(compiledScript);
         when(proxy.executable(compiledScript, model)).thenReturn(script);
         when(script.run()).thenReturn("rendered_text");
 
@@ -89,7 +92,9 @@ public class TextTemplateTests extends ESTestCase {
         Map<String, Object> model = singletonMap("key", "model_val");
 
         CompiledScript compiledScript = mock(CompiledScript.class);
-        when(proxy.compile(new Template(templateText, ScriptType.INLINE, lang, null, model), Collections.singletonMap("content_type", "text/plain"))).thenReturn(compiledScript);
+        when(proxy.compile(new Template(templateText, ScriptType.INLINE, lang, null, model),
+                    Collections.singletonMap("content_type", "text/plain")))
+                .thenReturn(compiledScript);
         when(proxy.executable(compiledScript, model)).thenReturn(script);
         when(script.run()).thenReturn("rendered_text");
 

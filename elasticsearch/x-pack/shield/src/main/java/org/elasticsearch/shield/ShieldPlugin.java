@@ -286,11 +286,13 @@ public class ShieldPlugin extends Plugin {
         }
         String username = userSetting.substring(0, i);
         String password = userSetting.substring(i + 1);
-        settingsBuilder.put(authHeaderSettingName, UsernamePasswordToken.basicAuthHeaderValue(username, new SecuredString(password.toCharArray())));
+        settingsBuilder.put(authHeaderSettingName, UsernamePasswordToken.basicAuthHeaderValue(username, new SecuredString(password
+                .toCharArray())));
     }
 
     /*
-     We inject additional settings on each tribe client if the current node is a tribe node, to make sure that every tribe has shield installed and enabled too:
+     We inject additional settings on each tribe client if the current node is a tribe node, to make sure that every tribe has shield
+     installed and enabled too:
      - if shield is loaded on the tribe node we make sure it is also loaded on every tribe, by making it mandatory there
      (this means that the tribe node will fail at startup if shield is not loaded on any tribe due to missing mandatory plugin)
      - if shield is loaded and enabled on the tribe node, we make sure it is also enabled on every tribe, by forcibly enabling it
@@ -305,14 +307,16 @@ public class ShieldPlugin extends Plugin {
         for (Map.Entry<String, Settings> tribeSettings : tribesSettings.entrySet()) {
             String tribePrefix = "tribe." + tribeSettings.getKey() + ".";
 
-            //we copy over existing mandatory plugins under additional settings, as they would get overridden otherwise (arrays don't get merged)
+            // we copy over existing mandatory plugins under additional settings, as they would get overridden otherwise (arrays don't get
+            // merged)
             String[] existingMandatoryPlugins = tribeSettings.getValue().getAsArray("plugin.mandatory", null);
             if (existingMandatoryPlugins == null) {
                 //shield is mandatory on every tribe if installed and enabled on the tribe node
                 settingsBuilder.putArray(tribePrefix + "plugin.mandatory", NAME);
             } else {
                 if (!isShieldMandatory(existingMandatoryPlugins)) {
-                    throw new IllegalStateException("when [plugin.mandatory] is explicitly configured, [" + NAME + "] must be included in this list");
+                    throw new IllegalStateException("when [plugin.mandatory] is explicitly configured, [" + NAME + "] must be included in" +
+                            " this list");
                 }
             }
 
@@ -320,7 +324,8 @@ public class ShieldPlugin extends Plugin {
             if (settings.get(tribeEnabledSetting) != null) {
                 boolean enabled = shieldEnabled(tribeSettings.getValue());
                 if (!enabled) {
-                    throw new IllegalStateException("tribe setting [" + tribeEnabledSetting + "] must be set to true but the value is [" + settings.get(tribeEnabledSetting) + "]");
+                    throw new IllegalStateException("tribe setting [" + tribeEnabledSetting + "] must be set to true but the value is ["
+                            + settings.get(tribeEnabledSetting) + "]");
                 }
             } else {
                 //shield must be enabled on every tribe if it's enabled on the tribe node
@@ -379,7 +384,8 @@ public class ShieldPlugin extends Plugin {
             queryCacheImplementation = settings.get(IndexModule.INDEX_QUERY_CACHE_TYPE_SETTING.getKey());
         }
         if (OPT_OUT_QUERY_CACHE.equals(queryCacheImplementation) == false) {
-            throw new IllegalStateException("shield does not support a user specified query cache. remove the setting [" + IndexModule.INDEX_QUERY_CACHE_TYPE_SETTING.getKey() + "] with value [" + queryCacheImplementation + "]");
+            throw new IllegalStateException("shield does not support a user specified query cache. remove the setting [" + IndexModule
+                    .INDEX_QUERY_CACHE_TYPE_SETTING.getKey() + "] with value [" + queryCacheImplementation + "]");
         }
     }
 }

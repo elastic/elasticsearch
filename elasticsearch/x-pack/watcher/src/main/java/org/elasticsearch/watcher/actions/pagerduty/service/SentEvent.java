@@ -66,7 +66,9 @@ public class SentEvent implements ToXContent {
         if (o == null || getClass() != o.getClass()) return false;
 
         SentEvent sentEvent = (SentEvent) o;
-        return Objects.equals(event, sentEvent.event) && Objects.equals(request, sentEvent.request) && Objects.equals(failureReason, sentEvent.failureReason);
+        return Objects.equals(event, sentEvent.event) &&
+                Objects.equals(request, sentEvent.request) &&
+                Objects.equals(failureReason, sentEvent.failureReason);
     }
 
     @Override
@@ -123,7 +125,8 @@ public class SentEvent implements ToXContent {
                         errors.add(parser.text());
                     }
                 } else {
-                    throw new ElasticsearchParseException("could not parse pagerduty event response. unexpected field [{}]", currentFieldName);
+                    throw new ElasticsearchParseException("could not parse pagerduty event response. unexpected field [{}]",
+                            currentFieldName);
                 }
             }
 

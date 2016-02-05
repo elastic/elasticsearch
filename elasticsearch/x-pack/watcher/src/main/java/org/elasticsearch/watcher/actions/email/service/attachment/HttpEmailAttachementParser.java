@@ -40,7 +40,8 @@ public class HttpEmailAttachementParser implements EmailAttachmentParser<HttpReq
     private final ESLogger logger;
 
     @Inject
-    public HttpEmailAttachementParser(HttpClient httpClient, HttpRequestTemplate.Parser requestTemplateParser, TextTemplateEngine templateEngine) {
+    public HttpEmailAttachementParser(HttpClient httpClient, HttpRequestTemplate.Parser requestTemplateParser,
+                                      TextTemplateEngine templateEngine) {
         this.httpClient = httpClient;
         this.requestTemplateParser = requestTemplateParser;
         this.templateEngine = templateEngine;
@@ -67,7 +68,8 @@ public class HttpEmailAttachementParser implements EmailAttachmentParser<HttpReq
             } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Fields.REQUEST)) {
                 requestTemplate = requestTemplateParser.parse(parser);
             } else {
-                throw new ElasticsearchParseException("Unknown field name [" + currentFieldName + "] in http request attachment configuration");
+                String msg = "Unknown field name [" + currentFieldName + "] in http request attachment configuration";
+                throw new ElasticsearchParseException(msg);
             }
         }
 
@@ -96,8 +98,8 @@ public class HttpEmailAttachementParser implements EmailAttachmentParser<HttpReq
                             httpRequest.port(), httpRequest.method(), httpRequest.path(), response.status());
                 }
             } else {
-                logger.error("Error getting http response: [host[{}], port[{}], method[{}], path[{}]: response status [{}]", httpRequest.host(),
-                        httpRequest.port(), httpRequest.method(), httpRequest.path(), response.status());
+                logger.error("Error getting http response: [host[{}], port[{}], method[{}], path[{}]: response status [{}]",
+                        httpRequest.host(), httpRequest.port(), httpRequest.method(), httpRequest.path(), response.status());
             }
         } catch (IOException e) {
             logger.error("Error executing HTTP request: [host[{}], port[{}], method[{}], path[{}]: [{}]", e, httpRequest.port(),

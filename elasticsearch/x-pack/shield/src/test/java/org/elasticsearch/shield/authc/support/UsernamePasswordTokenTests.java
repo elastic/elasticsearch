@@ -87,7 +87,8 @@ public class UsernamePasswordTokenTests extends ESTestCase {
     public void testExtractTokenRest() throws Exception {
         RestRequest request = mock(RestRequest.class);
         UsernamePasswordToken token = new UsernamePasswordToken("username", SecuredStringTests.build("changeme"));
-        when(request.header(UsernamePasswordToken.BASIC_AUTH_HEADER)).thenReturn(UsernamePasswordToken.basicAuthHeaderValue("username", SecuredStringTests.build("changeme")));
+        when(request.header(UsernamePasswordToken.BASIC_AUTH_HEADER)).thenReturn(UsernamePasswordToken.basicAuthHeaderValue("username",
+                SecuredStringTests.build("changeme")));
         assertThat(UsernamePasswordToken.extractToken(request, null), equalTo(token));
     }
 

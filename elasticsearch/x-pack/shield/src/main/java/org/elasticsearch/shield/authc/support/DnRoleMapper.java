@@ -67,7 +67,7 @@ public class DnRoleMapper {
         try {
             watcherService.add(watcher, ResourceWatcherService.Frequency.HIGH);
         } catch (IOException e) {
-            throw new ElasticsearchException("failed to start file watcher for role mapping file [" + file.toAbsolutePath() +"]", e);
+            throw new ElasticsearchException("failed to start file watcher for role mapping file [" + file.toAbsolutePath() + "]", e);
         }
         listeners = new CopyOnWriteArrayList<>();
         if (listener != null) {
@@ -127,20 +127,22 @@ public class DnRoleMapper {
                         }
                         dnRoles.add(role);
                     } catch (LDAPException e) {
-                        logger.error("invalid DN [{}] found in [{}] role mappings [{}] for realm [{}/{}]. skipping... ", e, providedDn, realmType, path.toAbsolutePath(), realmType, realmName);
+                        logger.error("invalid DN [{}] found in [{}] role mappings [{}] for realm [{}/{}]. skipping... ", e, providedDn,
+                                realmType, path.toAbsolutePath(), realmType, realmName);
                     }
                 }
 
             }
 
-            if (dnToRoles.isEmpty()){
+            if (dnToRoles.isEmpty()) {
                 logger.warn("no mappings found in role mappings file [{}] for realm [{}/{}]", path.toAbsolutePath(), realmType, realmName);
             }
 
             return unmodifiableMap(dnToRoles);
 
         } catch (IOException e) {
-            throw new ElasticsearchException("could not read realm [" + realmType + "/" + realmName + "] role mappings file [" + path.toAbsolutePath() + "]", e);
+            throw new ElasticsearchException("could not read realm [" + realmType + "/" + realmName + "] role mappings file [" +
+                    path.toAbsolutePath() + "]", e);
         }
     }
 
@@ -162,7 +164,8 @@ public class DnRoleMapper {
             }
         }
         if (logger.isDebugEnabled()) {
-            logger.debug("the roles [{}], are mapped from these [{}] groups [{}] for realm [{}/{}]", roles, realmType, groupDns, realmType, config.name());
+            logger.debug("the roles [{}], are mapped from these [{}] groups [{}] for realm [{}/{}]", roles, realmType, groupDns,
+                    realmType, config.name());
         }
 
         DN userDn = dn(userDnString);
@@ -172,7 +175,8 @@ public class DnRoleMapper {
         }
         if (logger.isDebugEnabled()) {
             logger.debug("the roles [{}], are mapped from the user [{}] for realm [{}/{}]",
-                    (rolesMappedToUserDn == null) ? Collections.emptySet() : rolesMappedToUserDn, realmType, userDnString, realmType, config.name());
+                    (rolesMappedToUserDn == null) ? Collections.emptySet() : rolesMappedToUserDn, realmType, userDnString,
+                    realmType, config.name());
         }
         return roles;
     }
@@ -197,7 +201,8 @@ public class DnRoleMapper {
         @Override
         public void onFileChanged(Path file) {
             if (file.equals(DnRoleMapper.this.file)) {
-                logger.info("role mappings file [{}] changed for realm [{}/{}]. updating mappings...", file.toAbsolutePath(), realmType, config.name());
+                logger.info("role mappings file [{}] changed for realm [{}/{}]. updating mappings...", file.toAbsolutePath(),
+                        realmType, config.name());
                 dnRoles = parseFileLenient(file, logger, realmType, config.name());
                 notifyRefresh();
             }

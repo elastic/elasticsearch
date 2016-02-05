@@ -38,7 +38,7 @@ public class ShieldLicensee extends AbstractLicenseeComponent<ShieldLicensee> im
 
     @Override
     public String[] expirationMessages() {
-        return new String[] {
+        return new String[]{
                 "Cluster health, cluster stats and indices stats operations are blocked",
                 "All data operations (read and write) continue to work"
         };
@@ -53,7 +53,9 @@ public class ShieldLicensee extends AbstractLicenseeComponent<ShieldLicensee> im
                         case TRIAL:
                         case GOLD:
                         case PLATINUM:
-                            return new String[] { "The following Shield functionality will be disabled: authentication, authorization, ip filtering, auditing, SSL will be disabled on node restart. Please restart your node after applying the license." };
+                            return new String[]{"The following Shield functionality will be disabled: authentication, authorization, ip " +
+                                    "filtering, auditing, SSL will be disabled on node restart. Please restart your node after applying " +
+                                    "the license."};
                     }
                 }
                 break;
@@ -63,7 +65,7 @@ public class ShieldLicensee extends AbstractLicenseeComponent<ShieldLicensee> im
                         case TRIAL:
                         case BASIC:
                         case PLATINUM:
-                            return new String[] {
+                            return new String[]{
                                     "Field and document level access control will be disabled",
                                     "Custom realms will be ignored"
                             };

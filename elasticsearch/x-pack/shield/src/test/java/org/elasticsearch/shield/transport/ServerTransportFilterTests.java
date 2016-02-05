@@ -42,7 +42,8 @@ public class ServerTransportFilterTests extends ESTestCase {
         authzService = mock(AuthorizationService.class);
         channel = mock(NettyTransportChannel.class);
         when(channel.getProfileName()).thenReturn(TransportSettings.DEFAULT_PROFILE);
-        filter = new ServerTransportFilter.NodeProfile(authcService, authzService, new ShieldActionMapper(), new ThreadContext(Settings.EMPTY), false);
+        filter = new ServerTransportFilter.NodeProfile(authcService, authzService, new ShieldActionMapper(),
+                new ThreadContext(Settings.EMPTY), false);
     }
 
     public void testInbound() throws Exception {

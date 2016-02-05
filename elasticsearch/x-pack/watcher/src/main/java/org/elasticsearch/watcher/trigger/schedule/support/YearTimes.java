@@ -156,7 +156,8 @@ public class YearTimes implements Times {
                         monthsSet.add(parseMonthValue(parser, token));
                     }
                 } else {
-                    throw new ElasticsearchParseException("invalid year month value for [{}] field. expected string/number value or an array of string/number values, but found [{}]", currentFieldName, token);
+                    throw new ElasticsearchParseException("invalid year month value for [{}] field. expected string/number value or an " +
+                            "array of string/number values, but found [{}]", currentFieldName, token);
                 }
             } else if (ParseFieldMatcher.STRICT.match(currentFieldName, DAY_FIELD)) {
                 if (token.isValue()) {
@@ -166,7 +167,8 @@ public class YearTimes implements Times {
                         daysSet.add(MonthTimes.parseDayValue(parser, token));
                     }
                 } else {
-                    throw new ElasticsearchParseException("invalid year day value for [{}] field. expected string/number value or an array of string/number values, but found [{}]", currentFieldName, token);
+                    throw new ElasticsearchParseException("invalid year day value for [{}] field. expected string/number value or an " +
+                            "array of string/number values, but found [{}]", currentFieldName, token);
                 }
             } else if (ParseFieldMatcher.STRICT.match(currentFieldName, TIME_FIELD)) {
                 if (token != XContentParser.Token.START_ARRAY) {

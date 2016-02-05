@@ -77,7 +77,8 @@ public class KnownActionsTests extends ShieldIntegTestCase {
     public void testAllKnownTransportHandlersAreValid() {
         TransportService transportService = internalCluster().getDataNodeInstance(TransportService.class);
         for (String knownHandler : knownHandlers) {
-            assertThat("shield known handler [" + knownHandler + "] is unknown to core", transportService.requestHandlers.keySet(), hasItems(knownHandler));
+            assertThat("shield known handler [" + knownHandler + "] is unknown to core", transportService.requestHandlers.keySet(),
+                    hasItems(knownHandler));
         }
     }
 
@@ -133,7 +134,8 @@ public class KnownActionsTests extends ShieldIntegTestCase {
     /**
      * finds all subclasses extending {@code subClass}, recursively from the package and codesource of {@code prototype}
      */
-    private static Collection<Class<?>> collectSubClasses(Class<?> subClass, Class<?> prototype) throws IOException, ReflectiveOperationException, URISyntaxException {
+    private static Collection<Class<?>> collectSubClasses(Class<?> subClass, Class<?> prototype) throws IOException,
+            ReflectiveOperationException, URISyntaxException {
         URL codeLocation = prototype.getProtectionDomain().getCodeSource().getLocation();
         final FileSystem fileSystem;
         final Path root;
@@ -165,7 +167,8 @@ public class KnownActionsTests extends ShieldIntegTestCase {
         return clazzes;
     }
 
-    private static void collectClassesForPackage(Class<?> subclass, Path root, ClassLoader cld, String pckgname, List<Class<?>> classes) throws IOException, ReflectiveOperationException {
+    private static void collectClassesForPackage(Class<?> subclass, Path root, ClassLoader cld, String pckgname, List<Class<?>> classes)
+            throws IOException, ReflectiveOperationException {
         String pathName = pckgname.replace('.', '/');
         Path directory = root.resolve(pathName);
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(directory)) {

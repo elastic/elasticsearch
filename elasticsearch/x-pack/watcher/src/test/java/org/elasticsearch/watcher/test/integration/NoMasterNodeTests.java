@@ -90,7 +90,8 @@ public class NoMasterNodeTests extends AbstractWatcherIntegrationTestCase {
 
         // Have a sample document in the index, the watch is going to evaluate
         client().prepareIndex("my-index", "my-type").setSource("field", "value").get();
-        SearchRequest searchRequest = WatcherTestUtils.newInputSearchRequest("my-index").source(searchSource().query(termQuery("field", "value")));
+        SearchRequest searchRequest = WatcherTestUtils.newInputSearchRequest("my-index").source(
+                searchSource().query(termQuery("field", "value")));
         WatchSourceBuilder watchSource = watchBuilder()
                 .trigger(schedule(cron("0/5 * * * * ? *")))
                 .input(searchInput(searchRequest))
@@ -199,7 +200,8 @@ public class NoMasterNodeTests extends AbstractWatcherIntegrationTestCase {
         ensureLicenseEnabled();
         for (int i = 1; i <= numberOfWatches; i++) {
             String watchName = "watch" + i;
-            SearchRequest searchRequest = WatcherTestUtils.newInputSearchRequest("my-index").source(searchSource().query(termQuery("field", "value")));
+            SearchRequest searchRequest = WatcherTestUtils.newInputSearchRequest("my-index").source(
+                    searchSource().query(termQuery("field", "value")));
             WatchSourceBuilder watchSource = watchBuilder()
                     .trigger(schedule(cron("0/5 * * * * ? *")))
                     .input(searchInput(searchRequest))
@@ -245,7 +247,8 @@ public class NoMasterNodeTests extends AbstractWatcherIntegrationTestCase {
             public void run () {
                 for (Client client : clients()) {
                     ClusterState state = client.admin().cluster().prepareState().setLocal(true).get().getState();
-                    assertThat("Node [" + state.nodes().localNode() + "] should have a NO_MASTER_BLOCK", state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID), is(true));
+                    assertThat("Node [" + state.nodes().localNode() + "] should have a NO_MASTER_BLOCK",
+                            state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID), is(true));
                 }
             }
         }, 30, TimeUnit.SECONDS);

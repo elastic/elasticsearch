@@ -77,7 +77,7 @@ public class HttpInputTests extends ESTestCase {
         templateEngine = mock(TextTemplateEngine.class);
         secretService = mock(SecretService.class);
         HttpAuthRegistry registry = new HttpAuthRegistry(singletonMap("basic", new BasicAuthFactory(secretService)));
-        httpParser = new HttpInputFactory(Settings.EMPTY, httpClient, templateEngine, new HttpRequest.Parser(registry), new HttpRequestTemplate.Parser(registry));
+        httpParser = new HttpInputFactory(Settings.EMPTY, httpClient, templateEngine, new HttpRequestTemplate.Parser(registry));
     }
 
     public void testExecute() throws Exception {
@@ -99,19 +99,23 @@ public class HttpInputTests extends ESTestCase {
                 httpInput = InputBuilders.httpInput(request.build()).expectedResponseXContentType(HttpContentType.YAML).build();
                 break;
             case 3:
-                response = new HttpResponse(123, "{\"key\" : \"value\"}".getBytes(StandardCharsets.UTF_8), singletonMap(HttpHeaders.Names.CONTENT_TYPE, new String[] { XContentType.JSON.mediaType() }));
+                response = new HttpResponse(123, "{\"key\" : \"value\"}".getBytes(StandardCharsets.UTF_8),
+                    singletonMap(HttpHeaders.Names.CONTENT_TYPE, new String[] { XContentType.JSON.mediaType() }));
                 httpInput = InputBuilders.httpInput(request.build()).build();
                 break;
             case 4:
-                response = new HttpResponse(123, "key: value".getBytes(StandardCharsets.UTF_8), singletonMap(HttpHeaders.Names.CONTENT_TYPE, new String[] { XContentType.YAML.mediaType() }));
+                response = new HttpResponse(123, "key: value".getBytes(StandardCharsets.UTF_8),
+                        singletonMap(HttpHeaders.Names.CONTENT_TYPE, new String[] { XContentType.YAML.mediaType() }));
                 httpInput = InputBuilders.httpInput(request.build()).build();
                 break;
             case 5:
-                response = new HttpResponse(123, "---\nkey: value".getBytes(StandardCharsets.UTF_8), singletonMap(HttpHeaders.Names.CONTENT_TYPE, new String[] { "unrecognized_content_type" }));
+                response = new HttpResponse(123, "---\nkey: value".getBytes(StandardCharsets.UTF_8),
+                        singletonMap(HttpHeaders.Names.CONTENT_TYPE, new String[] { "unrecognized_content_type" }));
                 httpInput = InputBuilders.httpInput(request.build()).expectedResponseXContentType(HttpContentType.YAML).build();
                 break;
             default:
-                response = new HttpResponse(123, "{\"key\" : \"value\"}".getBytes(StandardCharsets.UTF_8), singletonMap(HttpHeaders.Names.CONTENT_TYPE, new String[] { "unrecognized_content_type" }));
+                response = new HttpResponse(123, "{\"key\" : \"value\"}".getBytes(StandardCharsets.UTF_8),
+                        singletonMap(HttpHeaders.Names.CONTENT_TYPE, new String[] { "unrecognized_content_type" }));
                 httpInput = InputBuilders.httpInput(request.build()).build();
                 break;
         }
@@ -178,8 +182,10 @@ public class HttpInputTests extends ESTestCase {
         String path = randomAsciiOfLength(3);
         TextTemplate pathTemplate = TextTemplate.inline(path).build();
         String body = randomBoolean() ? randomAsciiOfLength(3) : null;
-        Map<String, TextTemplate> params = randomBoolean() ? new MapBuilder<String, TextTemplate>().put("a", TextTemplate.inline("b").build()).map() : null;
-        Map<String, TextTemplate> headers = randomBoolean() ? new MapBuilder<String, TextTemplate>().put("c", TextTemplate.inline("d").build()).map() : null;
+        Map<String, TextTemplate> params =
+                randomBoolean() ? new MapBuilder<String, TextTemplate>().put("a", TextTemplate.inline("b").build()).map() : null;
+        Map<String, TextTemplate> headers =
+                randomBoolean() ? new MapBuilder<String, TextTemplate>().put("c", TextTemplate.inline("d").build()).map() : null;
         HttpAuth auth = randomBoolean() ? new BasicAuth("username", "password".toCharArray()) : null;
         HttpRequestTemplate.Builder requestBuilder = HttpRequestTemplate.builder(host, port)
                 .scheme(scheme)

@@ -26,7 +26,9 @@ import static org.elasticsearch.watcher.support.Exceptions.illegalArgument;
 
 /**
  *
- * THIS CLASS IS A COPY OF <a href="https://fisheye.terracotta.org/browse/Quartz/trunk/quartz-core/src/main/java/org/quartz/CronExpression.java?r=2426">{@code CronExpression}</a>
+ * THIS CLASS IS A COPY OF
+ * <a href="https://fisheye.terracotta.org/browse/Quartz/trunk/quartz-core/src/main/java/org/quartz/CronExpression.java?r=2426">
+ *     {@code CronExpression}</a>
  * FROM THE <a href="http://quartz-scheduler.org/">QUARTZ</a> PROJECT
  *
  *
@@ -1088,7 +1090,8 @@ public class Cron {
                 throw illegalArgument("'W' option is not valid here. at pos [{}]", i);
             }
             if(val > 31)
-                throw illegalArgument("the 'W' option does not make sense with values larger than 31 (max number of days in a month) at pos [{}]", i);
+                throw illegalArgument("the 'W' option does not make sense with values larger than 31 (max number of days in a month) at " +
+                        "pos [{}]", i);
             TreeSet<Integer> set = getSet(type);
             set.add(val);
             i++;

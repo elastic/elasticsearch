@@ -10,13 +10,14 @@ import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.shield.XPackUser;
 import org.elasticsearch.shield.SecurityContext;
+import org.elasticsearch.shield.XPackUser;
 import org.elasticsearch.watcher.support.Script;
 import org.elasticsearch.watcher.support.init.InitializingService;
 
-import java.util.Collections;
 import java.util.Map;
+
+import static java.util.Collections.emptyMap;
 
 /**
  *A lazily initialized proxy to the elasticsearch {@link ScriptService}. Inject this proxy whenever the script
@@ -45,7 +46,7 @@ public class ScriptServiceProxy implements InitializingService.Initializable {
 
     public CompiledScript compile(Script script) {
         return securityContext.executeAs(XPackUser.INSTANCE, () ->
-            compile(new org.elasticsearch.script.Script(script.script(), script.type(), script.lang(), script.params()), Collections.emptyMap()));
+            compile(new org.elasticsearch.script.Script(script.script(), script.type(), script.lang(), script.params()), emptyMap()));
     }
 
     public CompiledScript compile(org.elasticsearch.script.Script script, Map<String, String> compileParams) {
@@ -61,7 +62,7 @@ public class ScriptServiceProxy implements InitializingService.Initializable {
 
     public ExecutableScript executable(org.elasticsearch.script.Script script) {
         return securityContext.executeAs(XPackUser.INSTANCE, () ->
-                service.executable(script, WatcherScriptContext.CTX, Collections.emptyMap()));
+                service.executable(script, WatcherScriptContext.CTX, emptyMap()));
     }
 
     public static final ScriptContext.Plugin INSTANCE = new ScriptContext.Plugin("elasticsearch-watcher", "watch");

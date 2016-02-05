@@ -24,13 +24,15 @@ import java.util.function.Supplier;
 /**
  *
  */
-public abstract class WatcherTransportAction<Request extends MasterNodeRequest<Request>, Response extends ActionResponse> extends TransportMasterNodeAction<Request, Response> {
+public abstract class WatcherTransportAction<Request extends MasterNodeRequest<Request>, Response extends ActionResponse>
+        extends TransportMasterNodeAction<Request, Response> {
 
     protected final WatcherLicensee watcherLicensee;
 
     public WatcherTransportAction(Settings settings, String actionName, TransportService transportService,
                                   ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters,
-                                  IndexNameExpressionResolver indexNameExpressionResolver, WatcherLicensee watcherLicensee,  Supplier<Request> request) {
+                                  IndexNameExpressionResolver indexNameExpressionResolver, WatcherLicensee watcherLicensee,
+                                  Supplier<Request> request) {
         super(settings, actionName, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, request);
         this.watcherLicensee = watcherLicensee;
     }

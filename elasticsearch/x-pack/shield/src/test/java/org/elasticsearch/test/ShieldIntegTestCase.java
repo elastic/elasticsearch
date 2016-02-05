@@ -37,6 +37,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.core.IsCollectionContaining.hasItem;
 
 /**
  * Base class to run tests against a cluster with shield installed.
@@ -119,11 +120,13 @@ public abstract class ShieldIntegTestCase extends ESIntegTestCase {
             switch (currentClusterScope) {
                 case SUITE:
                     if (customShieldSettingsSource == null) {
-                        customShieldSettingsSource = new CustomShieldSettingsSource(sslTransportEnabled(), createTempDir(), currentClusterScope);
+                        customShieldSettingsSource = new CustomShieldSettingsSource(sslTransportEnabled(), createTempDir(),
+                                currentClusterScope);
                     }
                     break;
                 case TEST:
-                    customShieldSettingsSource = new CustomShieldSettingsSource(sslTransportEnabled(), createTempDir(), currentClusterScope);
+                    customShieldSettingsSource = new CustomShieldSettingsSource(sslTransportEnabled(), createTempDir(),
+                            currentClusterScope);
                     break;
             }
         }
@@ -134,10 +137,11 @@ public abstract class ShieldIntegTestCase extends ESIntegTestCase {
     public void assertShieldIsInstalled() {
         NodesInfoResponse nodeInfos = client().admin().cluster().prepareNodesInfo().clear().setPlugins(true).get();
         for (NodeInfo nodeInfo : nodeInfos) {
-            // TODO: disable this assertion for now, because the test framework randomly runs with mock plugins. Maybe we should run without mock plugins?
+            // TODO: disable this assertion for now, due to random runs with mock plugins. perhaps run without mock plugins?
 //            assertThat(nodeInfo.getPlugins().getInfos(), hasSize(2));
-            Collection<String> pluginNames = nodeInfo.getPlugins().getPluginInfos().stream().map(p -> p.getName()).collect(Collectors.toList());
-            assertThat("plugin [" + XPackPlugin.NAME + "] not found in [" + pluginNames + "]", pluginNames.contains(XPackPlugin.NAME), is(true));
+            Collection<String> pluginNames =
+                    nodeInfo.getPlugins().getPluginInfos().stream().map(p -> p.getName()).collect(Collectors.toList());
+            assertThat("plugin [" + XPackPlugin.NAME + "] not found in [" + pluginNames + "]", pluginNames, hasItem(XPackPlugin.NAME));
         }
     }
 
@@ -214,7 +218,8 @@ public abstract class ShieldIntegTestCase extends ESIntegTestCase {
     }
 
     /**
-     * Allows to override the node client username (used while sending requests to the test cluster) when the {@link org.elasticsearch.test.ESIntegTestCase.ClusterScope} is set to
+     * Allows to override the node client username (used while sending requests to the test cluster) when the
+     * {@link org.elasticsearch.test.ESIntegTestCase.ClusterScope} is set to
      * {@link org.elasticsearch.test.ESIntegTestCase.Scope#SUITE} or {@link org.elasticsearch.test.ESIntegTestCase.Scope#TEST}
      */
     protected String nodeClientUsername() {
@@ -222,7 +227,8 @@ public abstract class ShieldIntegTestCase extends ESIntegTestCase {
     }
 
     /**
-     * Allows to override the node client password (used while sending requests to the test cluster) when the {@link org.elasticsearch.test.ESIntegTestCase.ClusterScope} is set to
+     * Allows to override the node client password (used while sending requests to the test cluster) when the
+     * {@link org.elasticsearch.test.ESIntegTestCase.ClusterScope} is set to
      * {@link org.elasticsearch.test.ESIntegTestCase.Scope#SUITE} or {@link org.elasticsearch.test.ESIntegTestCase.Scope#TEST}
      */
     protected SecuredString nodeClientPassword() {
@@ -230,7 +236,8 @@ public abstract class ShieldIntegTestCase extends ESIntegTestCase {
     }
 
     /**
-     * Allows to override the transport client username (used while sending requests to the test cluster) when the {@link org.elasticsearch.test.ESIntegTestCase.ClusterScope} is set to
+     * Allows to override the transport client username (used while sending requests to the test cluster) when the
+     * {@link org.elasticsearch.test.ESIntegTestCase.ClusterScope} is set to
      * {@link org.elasticsearch.test.ESIntegTestCase.Scope#SUITE} or {@link org.elasticsearch.test.ESIntegTestCase.Scope#TEST}
      */
     protected String transportClientUsername() {
@@ -238,7 +245,8 @@ public abstract class ShieldIntegTestCase extends ESIntegTestCase {
     }
 
     /**
-     * Allows to override the transport client password (used while sending requests to the test cluster) when the {@link org.elasticsearch.test.ESIntegTestCase.ClusterScope} is set to
+     * Allows to override the transport client password (used while sending requests to the test cluster) when the
+     * {@link org.elasticsearch.test.ESIntegTestCase.ClusterScope} is set to
      * {@link org.elasticsearch.test.ESIntegTestCase.Scope#SUITE} or {@link org.elasticsearch.test.ESIntegTestCase.Scope#TEST}
      */
     protected SecuredString transportClientPassword() {
@@ -246,7 +254,8 @@ public abstract class ShieldIntegTestCase extends ESIntegTestCase {
     }
 
     /**
-     * Allows to control whether ssl is enabled or not on the transport layer when the {@link org.elasticsearch.test.ESIntegTestCase.ClusterScope} is set to
+     * Allows to control whether ssl is enabled or not on the transport layer when the
+     * {@link org.elasticsearch.test.ESIntegTestCase.ClusterScope} is set to
      * {@link org.elasticsearch.test.ESIntegTestCase.Scope#SUITE} or {@link org.elasticsearch.test.ESIntegTestCase.Scope#TEST}
      */
     protected boolean sslTransportEnabled() {
@@ -311,7 +320,8 @@ public abstract class ShieldIntegTestCase extends ESIntegTestCase {
 
     @Override
     protected Function<Client,Client> getClientWrapper() {
-        Map<String, String> headers = Collections.singletonMap("Authorization", basicAuthHeaderValue(nodeClientUsername(), nodeClientPassword()));
+        Map<String, String> headers = Collections.singletonMap("Authorization",
+                basicAuthHeaderValue(nodeClientUsername(), nodeClientPassword()));
         // we need to wrap node clients because we do not specify a shield user for nodes and all requests will use the system
         // user. This is ok for internal n2n stuff but the test framework does other things like wiping indices, repositories, etc
         // that the system user cannot do. so we wrap the node client with a user that can do these things since the client() calls

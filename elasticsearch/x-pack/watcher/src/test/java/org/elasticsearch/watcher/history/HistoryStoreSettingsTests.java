@@ -26,8 +26,10 @@ public class HistoryStoreSettingsTests extends AbstractWatcherIntegrationTestCas
     public void testChangeSettings() throws Exception {
         GetIndexTemplatesResponse response = client().admin().indices().prepareGetTemplates(WatcherModule.HISTORY_TEMPLATE_NAME).get();
         assertThat(response.getIndexTemplates().get(0).getSettings().get("index.number_of_shards"), equalTo("1"));
-        assertThat(response.getIndexTemplates().get(0).getSettings().get("index.number_of_replicas"), nullValue()); // this isn't defined in the template, so we rely on ES's default, which is zero
-        assertThat(response.getIndexTemplates().get(0).getSettings().get("index.refresh_interval"), nullValue()); // this isn't defined in the template, so we rely on ES's default, which is 1s
+        // this isn't defined in the template, so we rely on ES's default, which is zero
+        assertThat(response.getIndexTemplates().get(0).getSettings().get("index.number_of_replicas"), nullValue());
+        // this isn't defined in the template, so we rely on ES's default, which is 1s
+        assertThat(response.getIndexTemplates().get(0).getSettings().get("index.refresh_interval"), nullValue());
         assertAcked(
                 client().admin().cluster().prepareUpdateSettings()
                         .setTransientSettings(Settings.builder()
@@ -41,7 +43,8 @@ public class HistoryStoreSettingsTests extends AbstractWatcherIntegrationTestCas
         assertBusy(new Runnable() {
             @Override
             public void run() {
-                GetIndexTemplatesResponse response = client().admin().indices().prepareGetTemplates(WatcherModule.HISTORY_TEMPLATE_NAME).get();
+                GetIndexTemplatesResponse response = client().admin().indices()
+                        .prepareGetTemplates(WatcherModule.HISTORY_TEMPLATE_NAME).get();
                 assertThat(response.getIndexTemplates().get(0).getSettings().get("index.number_of_shards"), equalTo("2"));
                 assertThat(response.getIndexTemplates().get(0).getSettings().get("index.number_of_replicas"), equalTo("2"));
                 assertThat(response.getIndexTemplates().get(0).getSettings().get("index.refresh_interval"), equalTo("5m"));
@@ -66,7 +69,8 @@ public class HistoryStoreSettingsTests extends AbstractWatcherIntegrationTestCas
         assertBusy(new Runnable() {
             @Override
             public void run() {
-                GetIndexTemplatesResponse response = client().admin().indices().prepareGetTemplates(WatcherModule.HISTORY_TEMPLATE_NAME).get();
+                GetIndexTemplatesResponse response = client().admin().indices()
+                        .prepareGetTemplates(WatcherModule.HISTORY_TEMPLATE_NAME).get();
                 assertThat(response.getIndexTemplates().get(0).getSettings().get("index.number_of_shards"), equalTo("2"));
                 assertThat(response.getIndexTemplates().get(0).getSettings().getAsBoolean("index.mapper.dynamic", null), is(false));
             }

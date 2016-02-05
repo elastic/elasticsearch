@@ -29,9 +29,11 @@ public class TransportWatcherServiceAction extends WatcherTransportAction<Watche
 
     @Inject
     public TransportWatcherServiceAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                         ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+                                         ThreadPool threadPool, ActionFilters actionFilters,
+                                         IndexNameExpressionResolver indexNameExpressionResolver,
                                          WatcherLifeCycleService lifeCycleService, WatcherLicensee watcherLicensee) {
-        super(settings, WatcherServiceAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, watcherLicensee, WatcherServiceRequest::new);
+        super(settings, WatcherServiceAction.NAME, transportService, clusterService, threadPool, actionFilters,
+                indexNameExpressionResolver, watcherLicensee, WatcherServiceRequest::new);
         this.lifeCycleService = lifeCycleService;
     }
 
@@ -49,7 +51,8 @@ public class TransportWatcherServiceAction extends WatcherTransportAction<Watche
     }
 
     @Override
-    protected void masterOperation(WatcherServiceRequest request, ClusterState state, ActionListener<WatcherServiceResponse> listener) throws ElasticsearchException {
+    protected void masterOperation(WatcherServiceRequest request, ClusterState state, ActionListener<WatcherServiceResponse> listener)
+            throws ElasticsearchException {
         switch (request.getCommand()) {
             case START:
                 lifeCycleService.start();

@@ -35,7 +35,8 @@ public class LicenseVerificationTests extends ESTestCase {
     }
 
     public void testGeneratedLicenses() throws Exception {
-        assertThat(LicenseVerifier.verifyLicense(TestUtils.generateSignedLicense(TimeValue.timeValueHours(2 * 24), pubKeyPath, priKeyPath), Files.readAllBytes(pubKeyPath)), equalTo(true));
+        assertThat(LicenseVerifier.verifyLicense(TestUtils.generateSignedLicense(TimeValue.timeValueHours(2 * 24), pubKeyPath, priKeyPath),
+                Files.readAllBytes(pubKeyPath)), equalTo(true));
     }
 
     public void testLicenseTampering() throws Exception {
@@ -51,7 +52,8 @@ public class LicenseVerificationTests extends ESTestCase {
     }
 
     public void testRandomLicenseVerification() throws Exception {
-        TestUtils.LicenseSpec licenseSpec = TestUtils.generateRandomLicenseSpec(randomIntBetween(License.VERSION_START, License.VERSION_CURRENT));
+        TestUtils.LicenseSpec licenseSpec = TestUtils.generateRandomLicenseSpec(
+                randomIntBetween(License.VERSION_START, License.VERSION_CURRENT));
         License generatedLicense = generateSignedLicense(licenseSpec, pubKeyPath, priKeyPath);
         assertThat(LicenseVerifier.verifyLicense(generatedLicense, Files.readAllBytes(pubKeyPath)), equalTo(true));
     }

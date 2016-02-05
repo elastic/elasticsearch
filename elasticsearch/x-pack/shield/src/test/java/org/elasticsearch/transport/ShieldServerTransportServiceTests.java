@@ -30,7 +30,8 @@ public class ShieldServerTransportServiceTests extends ShieldIntegTestCase {
             assertThat(transportService, instanceOf(ShieldServerTransportService.class));
             for (Map.Entry<String, RequestHandlerRegistry> entry : transportService.requestHandlers.entrySet()) {
                 assertThat(
-                        "handler not wrapped by " + ShieldServerTransportService.ProfileSecuredRequestHandler.class + "; do all the handler registration methods have overrides?",
+                        "handler not wrapped by " + ShieldServerTransportService.ProfileSecuredRequestHandler.class +
+                                "; do all the handler registration methods have overrides?",
                         entry.getValue().toString(),
                         startsWith(ShieldServerTransportService.ProfileSecuredRequestHandler.class.getName() + "@")
                 );

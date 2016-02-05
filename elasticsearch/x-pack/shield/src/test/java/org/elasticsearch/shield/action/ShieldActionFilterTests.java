@@ -61,7 +61,8 @@ public class ShieldActionFilterTests extends ESTestCase {
         when(shieldLicenseState.statsAndHealthEnabled()).thenReturn(true);
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
-        filter = new ShieldActionFilter(Settings.EMPTY, authcService, authzService, cryptoService, auditTrail, shieldLicenseState, new ShieldActionMapper(), new HashSet<RequestInterceptor>(), threadPool);
+        filter = new ShieldActionFilter(Settings.EMPTY, authcService, authzService, cryptoService, auditTrail, shieldLicenseState,
+                new ShieldActionMapper(), new HashSet<>(), threadPool);
     }
 
     public void testApply() throws Exception {

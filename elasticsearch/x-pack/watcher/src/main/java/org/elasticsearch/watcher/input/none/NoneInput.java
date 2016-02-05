@@ -36,10 +36,12 @@ public class NoneInput implements Input {
 
     public static NoneInput parse(String watchId, XContentParser parser) throws IOException {
         if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
-            throw new ElasticsearchParseException("could not parse [{}] input for watch [{}]. expected an empty object but found [{}] instead", TYPE, watchId, parser.currentToken());
+            String formattedMessage = "could not parse [{}] input for watch [{}]. expected an empty object but found [{}] instead";
+            throw new ElasticsearchParseException(formattedMessage, TYPE, watchId, parser.currentToken());
         }
         if (parser.nextToken() != XContentParser.Token.END_OBJECT) {
-            throw new ElasticsearchParseException("could not parse [{}] input for watch [{}]. expected an empty object but found [{}] instead", TYPE, watchId, parser.currentToken());
+            String formattedMessage = "could not parse [{}] input for watch [{}]. expected an empty object but found [{}] instead";
+            throw new ElasticsearchParseException(formattedMessage, TYPE, watchId, parser.currentToken());
         }
         return INSTANCE;
     }

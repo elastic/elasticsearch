@@ -44,9 +44,9 @@ public class NodeStatsCollector extends AbstractCollector<NodeStatsCollector> {
     private final DiskThresholdDecider diskThresholdDecider;
 
     @Inject
-    public NodeStatsCollector(Settings settings, ClusterService clusterService, MarvelSettings marvelSettings, MarvelLicensee marvelLicensee,
-                              InternalClient client, DiscoveryService discoveryService, NodeEnvironment nodeEnvironment,
-                              DiskThresholdDecider diskThresholdDecider) {
+    public NodeStatsCollector(Settings settings, ClusterService clusterService, MarvelSettings marvelSettings,
+                              MarvelLicensee marvelLicensee, InternalClient client, DiscoveryService discoveryService,
+                              NodeEnvironment nodeEnvironment, DiskThresholdDecider diskThresholdDecider) {
         super(settings, NAME, clusterService, discoveryService, marvelSettings, marvelLicensee);
         this.client = client;
         this.nodeEnvironment = nodeEnvironment;

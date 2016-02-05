@@ -19,7 +19,9 @@ public class ShieldSecretService extends AbstractComponent implements SecretServ
 
     private final CryptoService cryptoService;
     private final boolean encryptSensitiveData;
-    public static final Setting<Boolean> ENCRYPT_SENSITIVE_DATA_SETTING = Setting.boolSetting("watcher.shield.encrypt_sensitive_data", false, false, Setting.Scope.CLUSTER);
+    public static final Setting<Boolean> ENCRYPT_SENSITIVE_DATA_SETTING =
+            Setting.boolSetting("watcher.shield.encrypt_sensitive_data", false, false, Setting.Scope.CLUSTER);
+
     @Inject
     public ShieldSecretService(Settings settings, CryptoService cryptoService) {
         super(settings);

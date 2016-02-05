@@ -122,7 +122,8 @@ public class UserAccountTests extends ESTestCase {
         HipChatMessage.Format format = randomFrom(HipChatMessage.Format.values());
         HipChatMessage.Color color = randomFrom(HipChatMessage.Color.values());
         Boolean notify = randomBoolean();
-        final HipChatMessage message = new HipChatMessage("_body", new String[] { "_r1", "_r2" }, new String[] { "_u1", "_u2" }, null, format, color, notify);
+        final HipChatMessage message = new HipChatMessage("_body", new String[] { "_r1", "_r2" }, new String[] { "_u1", "_u2" }, null,
+                format, color, notify);
 
         HttpRequest reqR1 = HttpRequest.builder("_host", 443)
                 .method(HttpMethod.POST)

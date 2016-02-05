@@ -18,7 +18,8 @@ public class WatcherPluginTests extends ESTestCase {
             fail("IllegalArgumentException expected");
         } catch (IllegalArgumentException e) {
         }
-        WatcherPlugin.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", ".watches,.triggered_watches,.watch_history*").build());
+        WatcherPlugin.validAutoCreateIndex(Settings.builder().put("action.auto_create_index",
+                ".watches,.triggered_watches,.watch_history*").build());
         WatcherPlugin.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", "*w*").build());
         WatcherPlugin.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", ".w*,.t*").build());
         try {

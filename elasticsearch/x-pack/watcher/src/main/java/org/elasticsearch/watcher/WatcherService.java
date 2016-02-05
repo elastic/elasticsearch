@@ -49,7 +49,8 @@ public class WatcherService extends AbstractComponent {
 
     @Inject
     public WatcherService(Settings settings, Clock clock, TriggerService triggerService, WatchStore watchStore,
-                          Watch.Parser watchParser, ExecutionService executionService, WatchLockService watchLockService, WatcherIndexTemplateRegistry watcherIndexTemplateRegistry) {
+                          Watch.Parser watchParser, ExecutionService executionService, WatchLockService watchLockService,
+                          WatcherIndexTemplateRegistry watcherIndexTemplateRegistry) {
         super(settings);
         this.clock = clock;
         this.triggerService = triggerService;
@@ -111,7 +112,9 @@ public class WatcherService extends AbstractComponent {
         if (!force) {
             lock = watchLockService.tryAcquire(id, timeout);
             if (lock == null) {
-                throw new ElasticsearchTimeoutException("could not delete watch [{}] within [{}]... wait and try again. If this error continues to occur there is a high chance that the watch execution is stuck (either due to unresponsive external system such as an email service, or due to a bad script", id, timeout.format(PeriodType.seconds()));
+                throw new ElasticsearchTimeoutException("could not delete watch [{}] within [{}]... wait and try again. If this error " +
+                        "continues to occur there is a high chance that the watch execution is stuck (either due to unresponsive external" +
+                        " system such as an email service, or due to a bad script", id, timeout.format(PeriodType.seconds()));
             }
         }
         try {
@@ -131,7 +134,9 @@ public class WatcherService extends AbstractComponent {
         ensureStarted();
         WatchLockService.Lock lock = watchLockService.tryAcquire(id, timeout);
         if (lock == null) {
-            throw new ElasticsearchTimeoutException("could not put watch [{}] within [{}]... wait and try again. If this error continues to occur there is a high chance that the watch execution is stuck (either due to unresponsive external system such as an email service, or due to a bad script", id, timeout.format(PeriodType.seconds()));
+            throw new ElasticsearchTimeoutException("could not put watch [{}] within [{}]... wait and try again. If this error continues " +
+                    "to occur there is a high chance that the watch execution is stuck (either due to unresponsive external system such " +
+                    "as an email service, or due to a bad script", id, timeout.format(PeriodType.seconds()));
         }
         try {
             DateTime now = clock.nowUTC();
@@ -186,7 +191,9 @@ public class WatcherService extends AbstractComponent {
         ensureStarted();
         WatchLockService.Lock lock = watchLockService.tryAcquire(id, timeout);
         if (lock == null) {
-            throw new ElasticsearchTimeoutException("could not ack watch [{}] within [{}]... wait and try again. If this error continues to occur there is a high chance that the watch execution is stuck (either due to unresponsive external system such as an email service, or due to a bad script", id, timeout.format(PeriodType.seconds()));
+            throw new ElasticsearchTimeoutException("could not ack watch [{}] within [{}]... wait and try again. If this error continues " +
+                    "to occur there is a high chance that the watch execution is stuck (either due to unresponsive external system such " +
+                    "as an email service, or due to a bad script", id, timeout.format(PeriodType.seconds()));
         }
         if (actionIds == null || actionIds.length == 0) {
             actionIds = new String[] { Watch.ALL_ACTIONS_ID };
@@ -224,7 +231,9 @@ public class WatcherService extends AbstractComponent {
         ensureStarted();
         WatchLockService.Lock lock = watchLockService.tryAcquire(id, timeout);
         if (lock == null) {
-            throw new ElasticsearchTimeoutException("could not ack watch [{}] within [{}]... wait and try again. If this error continues to occur there is a high chance that the watch execution is stuck (either due to unresponsive external system such as an email service, or due to a bad script", id, timeout.format(PeriodType.seconds()));
+            throw new ElasticsearchTimeoutException("could not ack watch [{}] within [{}]... wait and try again. If this error continues " +
+                    "to occur there is a high chance that the watch execution is stuck (either due to unresponsive external system such " +
+                    "as an email service, or due to a bad script", id, timeout.format(PeriodType.seconds()));
         }
 
         // for now, when a watch is deactivated we don't remove its runtime representation

@@ -19,7 +19,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.CoreMatchers.notNullValue;
@@ -62,7 +61,8 @@ public class SlackMessageTests extends ESTestCase {
                 }
                 String imageUrl = randomBoolean() ? null : randomAsciiOfLength(10);
                 String thumbUrl = randomBoolean() ? null : randomAsciiOfLength(10);
-                attachments[i] = new Attachment(fallback, color, pretext, authorName, authorLink, authorIcon, title, titleLink, attachmentText, fields, imageUrl, thumbUrl);
+                attachments[i] = new Attachment(fallback, color, pretext, authorName, authorLink, authorIcon, title, titleLink,
+                        attachmentText, fields, imageUrl, thumbUrl);
             }
         }
 
@@ -206,7 +206,8 @@ public class SlackMessageTests extends ESTestCase {
                             thumbUrl = parser.text();
                         }
                     }
-                    list.add(new Attachment(fallback, color, pretext, authorName, authorLink, authorIcon, title, titleLink, attachmentText, fields, imageUrl, thumbUrl));
+                    list.add(new Attachment(fallback, color, pretext, authorName, authorLink, authorIcon, title, titleLink,
+                            attachmentText, fields, imageUrl, thumbUrl));
                 }
                 attachments = list.toArray(new Attachment[list.size()]);
             }
@@ -331,7 +332,8 @@ public class SlackMessageTests extends ESTestCase {
                     jsonBuilder.endArray();
                 }
                 jsonBuilder.endObject();
-                attachments[i] = new Attachment.Template(fallback, color, pretext, authorName, authorLink, authorIcon, title, titleLink, attachmentText, fields, imageUrl, thumbUrl);
+                attachments[i] = new Attachment.Template(fallback, color, pretext, authorName, authorLink, authorIcon, title,
+                        titleLink, attachmentText, fields, imageUrl, thumbUrl);
             }
             jsonBuilder.endArray();
         }
@@ -470,26 +472,40 @@ public class SlackMessageTests extends ESTestCase {
             for (int i = 0; i < template.attachments.length; i++) {
                 Attachment.Template attachmentTemplate = template.attachments[i];
                 Attachment attachment = message.attachments[i];
-                assertThat(attachment.authorName, is(attachmentTemplate.authorName != null ? attachmentTemplate.authorName.getTemplate() : defaults.attachment.authorName));
-                assertThat(attachment.authorLink, is(attachmentTemplate.authorLink != null ? attachmentTemplate.authorLink.getTemplate() : defaults.attachment.authorLink));
-                assertThat(attachment.authorIcon, is(attachmentTemplate.authorIcon != null ? attachmentTemplate.authorIcon.getTemplate() : defaults.attachment.authorIcon));
-                assertThat(attachment.color, is(attachmentTemplate.color != null ? attachmentTemplate.color.getTemplate() : defaults.attachment.color));
-                assertThat(attachment.fallback, is(attachmentTemplate.fallback != null ? attachmentTemplate.fallback.getTemplate() : defaults.attachment.fallback));
-                assertThat(attachment.imageUrl, is(attachmentTemplate.imageUrl != null ? attachmentTemplate.imageUrl.getTemplate() : defaults.attachment.imageUrl));
-                assertThat(attachment.pretext, is(attachmentTemplate.pretext != null ? attachmentTemplate.pretext.getTemplate() : defaults.attachment.pretext));
-                assertThat(attachment.thumbUrl, is(attachmentTemplate.thumbUrl != null ? attachmentTemplate.thumbUrl.getTemplate() : defaults.attachment.thumbUrl));
-                assertThat(attachment.title, is(attachmentTemplate.title != null ? attachmentTemplate.title.getTemplate() : defaults.attachment.title));
-                assertThat(attachment.titleLink, is(attachmentTemplate.titleLink != null ? attachmentTemplate.titleLink.getTemplate() : defaults.attachment.titleLink));
-                assertThat(attachment.text, is(attachmentTemplate.text != null ? attachmentTemplate.text.getTemplate() : defaults.attachment.text));
+                assertThat(attachment.authorName, is(attachmentTemplate.authorName != null ? attachmentTemplate.authorName.getTemplate()
+                        : defaults.attachment.authorName));
+                assertThat(attachment.authorLink, is(attachmentTemplate.authorLink != null ? attachmentTemplate.authorLink.getTemplate()
+                        : defaults.attachment.authorLink));
+                assertThat(attachment.authorIcon, is(attachmentTemplate.authorIcon != null ? attachmentTemplate.authorIcon.getTemplate()
+                        : defaults.attachment.authorIcon));
+                assertThat(attachment.color, is(attachmentTemplate.color != null ? attachmentTemplate.color.getTemplate()
+                        : defaults.attachment.color));
+                assertThat(attachment.fallback, is(attachmentTemplate.fallback != null ? attachmentTemplate.fallback.getTemplate()
+                        : defaults.attachment.fallback));
+                assertThat(attachment.imageUrl, is(attachmentTemplate.imageUrl != null ? attachmentTemplate.imageUrl.getTemplate()
+                        : defaults.attachment.imageUrl));
+                assertThat(attachment.pretext, is(attachmentTemplate.pretext != null ? attachmentTemplate.pretext.getTemplate()
+                        : defaults.attachment.pretext));
+                assertThat(attachment.thumbUrl, is(attachmentTemplate.thumbUrl != null ? attachmentTemplate.thumbUrl.getTemplate()
+                        : defaults.attachment.thumbUrl));
+                assertThat(attachment.title, is(attachmentTemplate.title != null ? attachmentTemplate.title.getTemplate()
+                        : defaults.attachment.title));
+                assertThat(attachment.titleLink, is(attachmentTemplate.titleLink != null ? attachmentTemplate.titleLink.getTemplate()
+                        : defaults.attachment.titleLink));
+                assertThat(attachment.text, is(attachmentTemplate.text != null ? attachmentTemplate.text.getTemplate()
+                        : defaults.attachment.text));
                 if (attachmentTemplate.fields == null) {
                     assertThat(attachment.fields, nullValue());
                 } else {
                     for (int j = 0; j < attachmentTemplate.fields.length; j++) {
                         Field.Template fieldTemplate = attachmentTemplate.fields[j];
                         Field field = attachment.fields[j];
-                        assertThat(field.title, is(fieldTemplate.title != null ? fieldTemplate.title.getTemplate() : defaults.attachment.field.title));
-                        assertThat(field.value, is(fieldTemplate.value != null ? fieldTemplate.value.getTemplate() : defaults.attachment.field.value));
-                        assertThat(field.isShort, is(fieldTemplate.isShort != null ? fieldTemplate.isShort : defaults.attachment.field.isShort));
+                        assertThat(field.title,
+                                is(fieldTemplate.title != null ? fieldTemplate.title.getTemplate(): defaults.attachment.field.title));
+                        assertThat(field.value,
+                                is(fieldTemplate.value != null ? fieldTemplate.value.getTemplate() : defaults.attachment.field.value));
+                        assertThat(field.isShort,
+                                is(fieldTemplate.isShort != null ? fieldTemplate.isShort : defaults.attachment.field.isShort));
                     }
                 }
             }

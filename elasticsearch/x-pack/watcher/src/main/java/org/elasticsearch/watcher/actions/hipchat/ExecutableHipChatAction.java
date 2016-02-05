@@ -27,7 +27,8 @@ public class ExecutableHipChatAction extends ExecutableAction<HipChatAction> {
     private final TextTemplateEngine templateEngine;
     private final HipChatService hipchatService;
 
-    public ExecutableHipChatAction(HipChatAction action, ESLogger logger, HipChatService hipchatService, TextTemplateEngine templateEngine) {
+    public ExecutableHipChatAction(HipChatAction action, ESLogger logger, HipChatService hipchatService,
+                                   TextTemplateEngine templateEngine) {
         super(action, logger);
         this.hipchatService = hipchatService;
         this.templateEngine = templateEngine;

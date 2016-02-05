@@ -218,9 +218,12 @@ public class FileRolesStoreTests extends ESTestCase {
 
         List<CapturingLogger.Msg> entries = logger.output(CapturingLogger.Level.ERROR);
         assertThat(entries, hasSize(3));
-        assertThat(entries.get(0).text, startsWith("invalid role definition [role_fields] in roles file [" + path.toAbsolutePath() + "]. document and field level security is not enabled."));
-        assertThat(entries.get(1).text, startsWith("invalid role definition [role_query] in roles file [" + path.toAbsolutePath() + "]. document and field level security is not enabled."));
-        assertThat(entries.get(2).text, startsWith("invalid role definition [role_query_fields] in roles file [" + path.toAbsolutePath() + "]. document and field level security is not enabled."));
+        assertThat(entries.get(0).text, startsWith("invalid role definition [role_fields] in roles file [" + path.toAbsolutePath() +
+                "]. document and field level security is not enabled."));
+        assertThat(entries.get(1).text, startsWith("invalid role definition [role_query] in roles file [" + path.toAbsolutePath() +
+                "]. document and field level security is not enabled."));
+        assertThat(entries.get(2).text, startsWith("invalid role definition [role_query_fields] in roles file [" + path.toAbsolutePath() +
+                "]. document and field level security is not enabled."));
     }
 
     /**
@@ -322,11 +325,15 @@ public class FileRolesStoreTests extends ESTestCase {
 
         List<CapturingLogger.Msg> entries = logger.output(CapturingLogger.Level.ERROR);
         assertThat(entries, hasSize(5));
-        assertThat(entries.get(0).text, startsWith("invalid role definition [$dlk39] in roles file [" + path.toAbsolutePath() + "]. invalid role name"));
+        assertThat(entries.get(0).text, startsWith("invalid role definition [$dlk39] in roles file [" + path.toAbsolutePath() +
+                "]. invalid role name"));
         assertThat(entries.get(1).text, startsWith("invalid role definition [role1] in roles file [" + path.toAbsolutePath() + "]"));
-        assertThat(entries.get(2).text, startsWith("invalid role definition [role2] in roles file [" + path.toAbsolutePath() + "]. could not resolve cluster privileges [blkjdlkd]"));
-        assertThat(entries.get(3).text, startsWith("invalid role definition [role3] in roles file [" + path.toAbsolutePath() + "]. [indices] field value must be an array"));
-        assertThat(entries.get(4).text, startsWith("invalid role definition [role4] in roles file [" + path.toAbsolutePath() + "]. could not resolve indices privileges [al;kjdlkj;lkj]"));
+        assertThat(entries.get(2).text, startsWith("invalid role definition [role2] in roles file [" + path.toAbsolutePath() +
+                "]. could not resolve cluster privileges [blkjdlkd]"));
+        assertThat(entries.get(3).text, startsWith("invalid role definition [role3] in roles file [" + path.toAbsolutePath() +
+                "]. [indices] field value must be an array"));
+        assertThat(entries.get(4).text, startsWith("invalid role definition [role4] in roles file [" + path.toAbsolutePath() +
+                "]. could not resolve indices privileges [al;kjdlkj;lkj]"));
     }
 
     public void testThatRoleNamesDoesNotResolvePermissions() throws Exception {
@@ -338,7 +345,8 @@ public class FileRolesStoreTests extends ESTestCase {
 
         List<CapturingLogger.Msg> entries = logger.output(CapturingLogger.Level.ERROR);
         assertThat(entries, hasSize(1));
-        assertThat(entries.get(0).text, startsWith("invalid role definition [$dlk39] in roles file [" + path.toAbsolutePath() + "]. invalid role name"));
+        assertThat(entries.get(0).text, startsWith("invalid role definition [$dlk39] in roles file [" + path.toAbsolutePath() +
+                "]. invalid role name"));
     }
 
     public void testReservedRoles() throws Exception {

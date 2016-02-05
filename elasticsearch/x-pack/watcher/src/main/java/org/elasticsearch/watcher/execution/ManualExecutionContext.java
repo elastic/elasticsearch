@@ -49,11 +49,13 @@ public class ManualExecutionContext extends WatchExecutionContext {
             boolean throttleAll = allMode == ActionExecutionMode.SKIP;
             for (ActionWrapper action : watch.actions()) {
                 if (throttleAll) {
-                    onActionResult(new ActionWrapper.Result(action.id(), new Action.Result.Throttled(action.action().type(), "manually skipped")));
+                    onActionResult(new ActionWrapper.Result(action.id(),
+                            new Action.Result.Throttled(action.action().type(), "manually skipped")));
                 } else {
                     ActionExecutionMode mode = actionModes.get(action.id());
                     if (mode == ActionExecutionMode.SKIP) {
-                        onActionResult(new ActionWrapper.Result(action.id(), new Action.Result.Throttled(action.action().type(), "manually skipped")));
+                        onActionResult(new ActionWrapper.Result(action.id(),
+                                new Action.Result.Throttled(action.action().type(), "manually skipped")));
                     }
                 }
             }
@@ -153,7 +155,8 @@ public class ManualExecutionContext extends WatchExecutionContext {
             if (executionTime == null) {
                 executionTime = DateTime.now(DateTimeZone.UTC);
             }
-            ManualExecutionContext context = new ManualExecutionContext(watch, knownWatch, executionTime, triggerEvent, defaultThrottlePeriod, inputResult, conditionResult, unmodifiableMap(actionModes), recordExecution);
+            ManualExecutionContext context = new ManualExecutionContext(watch, knownWatch, executionTime, triggerEvent,
+                    defaultThrottlePeriod, inputResult, conditionResult, unmodifiableMap(actionModes), recordExecution);
             actionModes = null;
             return context;
         }

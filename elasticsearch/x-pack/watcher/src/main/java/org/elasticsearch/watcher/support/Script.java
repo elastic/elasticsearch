@@ -12,7 +12,6 @@ import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.script.ScriptSettings;
 
@@ -25,7 +24,6 @@ import java.util.Map;
  */
 public class Script implements ToXContent {
 
-    public static final ScriptType DEFAULT_TYPE = ScriptType.INLINE;
     public static final String DEFAULT_LANG = ScriptSettings.DEFAULT_LANG;
 
     private final String script;
@@ -131,27 +129,31 @@ public class Script implements ToXContent {
                 if (token == XContentParser.Token.VALUE_STRING) {
                     script = parser.text();
                 } else {
-                    throw new ElasticsearchParseException("expected a string value for field [{}], but found [{}]", currentFieldName, token);
+                    throw new ElasticsearchParseException("expected a string value for field [{}], but found [{}]", currentFieldName,
+                            token);
                 }
             } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.FILE)) {
                 type = ScriptType.FILE;
                 if (token == XContentParser.Token.VALUE_STRING) {
                     script = parser.text();
                 } else {
-                    throw new ElasticsearchParseException("expected a string value for field [{}], but found [{}]", currentFieldName, token);
+                    throw new ElasticsearchParseException("expected a string value for field [{}], but found [{}]", currentFieldName,
+                            token);
                 }
             } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.ID)) {
                 type = ScriptType.INDEXED;
                 if (token == XContentParser.Token.VALUE_STRING) {
                     script = parser.text();
                 } else {
-                    throw new ElasticsearchParseException("expected a string value for field [{}], but found [{}]", currentFieldName, token);
+                    throw new ElasticsearchParseException("expected a string value for field [{}], but found [{}]", currentFieldName,
+                            token);
                 }
             } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.LANG)) {
                 if (token == XContentParser.Token.VALUE_STRING) {
                     lang = parser.text();
                 } else {
-                    throw new ElasticsearchParseException("expected a string value for field [{}], but found [{}]", currentFieldName, token);
+                    throw new ElasticsearchParseException("expected a string value for field [{}], but found [{}]", currentFieldName,
+                            token);
                 }
             } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.PARAMS)) {
                 if (token == XContentParser.Token.START_OBJECT) {
@@ -164,7 +166,8 @@ public class Script implements ToXContent {
             }
         }
         if (script == null) {
-            throw new ElasticsearchParseException("expected one of [{}], [{}] or [{}] fields, but found none", Field.INLINE.getPreferredName(), Field.FILE.getPreferredName(), Field.ID.getPreferredName());
+            throw new ElasticsearchParseException("expected one of [{}], [{}] or [{}] fields, but found none",
+                    Field.INLINE.getPreferredName(), Field.FILE.getPreferredName(), Field.ID.getPreferredName());
         }
         assert type != null : "if script is not null, type should definitely not be null";
         return new Script(script, type, lang, params);

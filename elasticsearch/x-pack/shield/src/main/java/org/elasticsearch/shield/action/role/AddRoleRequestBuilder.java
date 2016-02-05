@@ -40,7 +40,8 @@ public class AddRoleRequestBuilder extends ActionRequestBuilder<AddRoleRequest, 
         return this;
     }
 
-    public AddRoleRequestBuilder addIndices(String[] indices, String[] privileges, @Nullable String[] fields, @Nullable BytesReference query) {
+    public AddRoleRequestBuilder addIndices(String[] indices, String[] privileges, @Nullable String[] fields,
+                                            @Nullable BytesReference query) {
         request.addIndex(indices, privileges, fields, query);
         return this;
     }

@@ -37,12 +37,14 @@ public class IndexAuditIT extends ESIntegTestCase {
                 return false;
             }
             client().admin().indices().prepareRefresh().get();
-            return client().prepareSearch(".shield_audit_log*").setQuery(QueryBuilders.matchQuery("principal", USER)).get().getHits().totalHits() > 0;
+            return client().prepareSearch(".shield_audit_log*").setQuery(QueryBuilders.matchQuery("principal", USER))
+                    .get().getHits().totalHits() > 0;
         }, 5L, TimeUnit.SECONDS);
 
         assertThat(found, is(true));
 
-        SearchResponse searchResponse = client().prepareSearch(".shield_audit_log*").setQuery(QueryBuilders.matchQuery("principal", USER)).get();
+        SearchResponse searchResponse = client().prepareSearch(".shield_audit_log*").setQuery(
+                QueryBuilders.matchQuery("principal", USER)).get();
         assertThat(searchResponse.getHits().getHits().length, greaterThan(0));
         assertThat((String) searchResponse.getHits().getAt(0).sourceAsMap().get("principal"), is(USER));
     }

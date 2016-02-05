@@ -39,9 +39,11 @@ public abstract class AbstractPrivilegeTestCase extends ShieldIntegTestCase {
         httpClient.close();
     }
 
-    protected void assertAccessIsAllowed(String user, String method, String uri, String body, Map<String, String> params) throws IOException {
+    protected void assertAccessIsAllowed(String user, String method, String uri, String body,
+                                         Map<String, String> params) throws IOException {
         HttpResponse response = executeRequest(user, method, uri, body, params);
-        String message = String.format(Locale.ROOT, "%s %s: Expected no error got %s %s with body %s", method, uri, response.getStatusCode(), response.getReasonPhrase(), response.getBody());
+        String message = String.format(Locale.ROOT, "%s %s: Expected no error got %s %s with body %s", method, uri,
+                response.getStatusCode(), response.getReasonPhrase(), response.getBody());
         assertThat(message, response.getStatusCode(), is(not(greaterThanOrEqualTo(400))));
     }
 
@@ -61,13 +63,16 @@ public abstract class AbstractPrivilegeTestCase extends ShieldIntegTestCase {
         assertAccessIsDenied(user, method, uri, null, new HashMap<>());
     }
 
-    protected void assertAccessIsDenied(String user, String method, String uri, String body, Map<String, String> params) throws IOException {
+    protected void assertAccessIsDenied(String user, String method, String uri, String body,
+                                        Map<String, String> params) throws IOException {
         HttpResponse response = executeRequest(user, method, uri, body, params);
-        String message = String.format(Locale.ROOT, "%s %s body %s: Expected 403, got %s %s with body %s", method, uri, body, response.getStatusCode(), response.getReasonPhrase(), response.getBody());
+        String message = String.format(Locale.ROOT, "%s %s body %s: Expected 403, got %s %s with body %s", method, uri, body,
+                response.getStatusCode(), response.getReasonPhrase(), response.getBody());
         assertThat(message, response.getStatusCode(), is(403));
     }
 
-    protected HttpResponse executeRequest(String user, String method, String uri, String body, Map<String, String> params) throws IOException {
+    protected HttpResponse executeRequest(String user, String method, String uri, String body,
+                                          Map<String, String> params) throws IOException {
         HttpServerTransport httpServerTransport = internalCluster().getDataNodeInstance(HttpServerTransport.class);
 
         HttpRequestBuilder requestBuilder = new HttpRequestBuilder(httpClient).httpTransport(httpServerTransport);
@@ -79,7 +84,8 @@ public abstract class AbstractPrivilegeTestCase extends ShieldIntegTestCase {
         if (body != null) {
             requestBuilder.body(body);
         }
-        requestBuilder.addHeader(UsernamePasswordToken.BASIC_AUTH_HEADER, UsernamePasswordToken.basicAuthHeaderValue(user, new SecuredString("passwd".toCharArray())));
+        requestBuilder.addHeader(UsernamePasswordToken.BASIC_AUTH_HEADER, UsernamePasswordToken.basicAuthHeaderValue(user,
+                new SecuredString("passwd".toCharArray())));
         return requestBuilder.execute();
     }
 

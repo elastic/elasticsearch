@@ -63,9 +63,9 @@ public class ShieldActionFilter extends AbstractComponent implements ActionFilte
     private final ThreadContext threadContext;
 
     @Inject
-    public ShieldActionFilter(Settings settings, AuthenticationService authcService, AuthorizationService authzService, CryptoService cryptoService,
-                              AuditTrail auditTrail, ShieldLicenseState licenseState, ShieldActionMapper actionMapper, Set<RequestInterceptor> requestInterceptors,
-                              ThreadPool threadPool) {
+    public ShieldActionFilter(Settings settings, AuthenticationService authcService, AuthorizationService authzService,
+                              CryptoService cryptoService, AuditTrail auditTrail, ShieldLicenseState licenseState,
+                              ShieldActionMapper actionMapper,  Set<RequestInterceptor> requestInterceptors, ThreadPool threadPool) {
         super(settings);
         this.authcService = authcService;
         this.authzService = authzService;
@@ -81,8 +81,8 @@ public class ShieldActionFilter extends AbstractComponent implements ActionFilte
     public void apply(Task task, String action, ActionRequest request, ActionListener listener, ActionFilterChain chain) {
 
         /**
-            A functional requirement - when the license of shield is disabled (invalid/expires), shield will continue
-            to operate normally, except all read operations will be blocked.
+         A functional requirement - when the license of shield is disabled (invalid/expires), shield will continue
+         to operate normally, except all read operations will be blocked.
          */
         if (!licenseState.statsAndHealthEnabled() && LICENSE_EXPIRATION_ACTION_MATCHER.test(action)) {
             logger.error("blocking [{}] operation due to expired license. Cluster health, cluster stats and indices stats \n" +
@@ -208,13 +208,15 @@ public class ShieldActionFilter extends AbstractComponent implements ActionFilte
         private final ActionListener innerListener;
         private final ThreadContext.StoredContext threadContext;
 
-        private SigningListener(ShieldActionFilter filter, ActionListener innerListener, @Nullable ThreadContext.StoredContext threadContext) {
+        private SigningListener(ShieldActionFilter filter, ActionListener innerListener,
+                                @Nullable ThreadContext.StoredContext threadContext) {
             this.filter = filter;
             this.innerListener = innerListener;
             this.threadContext = threadContext;
         }
 
-        @Override @SuppressWarnings("unchecked")
+        @Override
+        @SuppressWarnings("unchecked")
         public void onResponse(Response response) {
             if (threadContext != null) {
                 threadContext.restore();

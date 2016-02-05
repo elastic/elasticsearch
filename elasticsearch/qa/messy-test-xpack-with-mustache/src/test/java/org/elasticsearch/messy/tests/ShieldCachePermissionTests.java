@@ -95,7 +95,8 @@ public class ShieldCachePermissionTests extends ShieldIntegTestCase {
 
         // Repeat with unauthorized user!!!!
         try {
-            response = client().filterWithHeader(Collections.singletonMap("Authorization", basicAuthHeaderValue(READ_ONE_IDX_USER, new SecuredString("changeme".toCharArray()))))
+            response = client().filterWithHeader(Collections.singletonMap("Authorization", basicAuthHeaderValue(READ_ONE_IDX_USER,
+                    new SecuredString("changeme".toCharArray()))))
                     .prepareSearch("data").setTypes("a").setQuery(QueryBuilders.constantScoreQuery(
                     QueryBuilders.termsLookupQuery("token", new TermsLookup("tokens", "tokens", "1", "tokens"))))
                     .execute().actionGet();
@@ -108,16 +109,19 @@ public class ShieldCachePermissionTests extends ShieldIntegTestCase {
 
     public void testThatScriptServiceDoesntLeakData() {
         SearchResponse response = client().prepareSearch("data").setTypes("a")
-                .setTemplate(new Template("testTemplate", ScriptService.ScriptType.INDEXED, MustacheScriptEngineService.NAME, null, Collections.<String, Object>singletonMap("name", "token")))
+                .setTemplate(new Template("testTemplate", ScriptService.ScriptType.INDEXED, MustacheScriptEngineService.NAME, null,
+                        Collections.<String, Object>singletonMap("name", "token")))
                 .execute().actionGet();
         assertThat(response.isTimedOut(), is(false));
         assertThat(response.getHits().hits().length, is(1));
 
         // Repeat with unauthorized user!!!!
         try {
-            response = client().filterWithHeader(Collections.singletonMap("Authorization", basicAuthHeaderValue(READ_ONE_IDX_USER, new SecuredString("changeme".toCharArray()))))
+            response = client().filterWithHeader(Collections.singletonMap("Authorization", basicAuthHeaderValue(READ_ONE_IDX_USER,
+                    new SecuredString("changeme".toCharArray()))))
                     .prepareSearch("data").setTypes("a")
-                    .setTemplate(new Template("testTemplate", ScriptService.ScriptType.INDEXED, MustacheScriptEngineService.NAME, null, Collections.<String, Object>singletonMap("name", "token")))
+                    .setTemplate(new Template("testTemplate", ScriptService.ScriptType.INDEXED, MustacheScriptEngineService.NAME, null,
+                            Collections.<String, Object>singletonMap("name", "token")))
                     .execute().actionGet();
             fail("search phase exception should have been thrown! response was:\n" + response.toString());
         } catch (SearchPhaseExecutionException e) {

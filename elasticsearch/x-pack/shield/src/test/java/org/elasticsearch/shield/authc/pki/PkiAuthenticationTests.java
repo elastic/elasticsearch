@@ -18,12 +18,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.shield.transport.SSLClientAuth;
 import org.elasticsearch.shield.transport.netty.ShieldNettyHttpServerTransport;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ShieldIntegTestCase;
-import org.elasticsearch.test.ShieldSettingsSource;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.XPackPlugin;
 
@@ -37,6 +35,7 @@ import java.security.KeyStore;
 import java.security.SecureRandom;
 import java.util.Locale;
 
+import static org.elasticsearch.test.ShieldSettingsSource.getSSLSettingsForStore;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -49,16 +48,18 @@ public class PkiAuthenticationTests extends ShieldIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
+        SSLClientAuth sslClientAuth = randomBoolean() ? SSLClientAuth.REQUIRED : SSLClientAuth.OPTIONAL;
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(NetworkModule.HTTP_ENABLED.getKey(), true)
                 .put(ShieldNettyHttpServerTransport.HTTP_SSL_SETTING, true)
-                .put(ShieldNettyHttpServerTransport.HTTP_CLIENT_AUTH_SETTING, randomBoolean() ? SSLClientAuth.REQUIRED : SSLClientAuth.OPTIONAL)
+                .put(ShieldNettyHttpServerTransport.HTTP_CLIENT_AUTH_SETTING, sslClientAuth)
                 .put("shield.authc.realms.esusers.type", "esusers")
                 .put("shield.authc.realms.esusers.order", "0")
                 .put("shield.authc.realms.pki1.type", "pki")
                 .put("shield.authc.realms.pki1.order", "1")
-                .put("shield.authc.realms.pki1.truststore.path", getDataPath("/org/elasticsearch/shield/transport/ssl/certs/simple/truststore-testnode-only.jks"))
+                .put("shield.authc.realms.pki1.truststore.path",
+                        getDataPath("/org/elasticsearch/shield/transport/ssl/certs/simple/truststore-testnode-only.jks"))
                 .put("shield.authc.realms.pki1.truststore.password", "truststore-testnode-only")
                 .put("shield.authc.realms.pki1.files.role_mapping", getDataPath("role_mapping.yml"))
                 .build();
@@ -70,7 +71,7 @@ public class PkiAuthenticationTests extends ShieldIntegTestCase {
     }
 
     public void testTransportClientCanAuthenticateViaPki() {
-        Settings settings = ShieldSettingsSource.getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.jks", "testnode");
+        Settings settings = getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.jks", "testnode");
         try (TransportClient client = createTransportClient(settings)) {
             client.addTransportAddress(randomFrom(internalCluster().getInstance(Transport.class).boundAddress().boundAddresses()));
             IndexResponse response = client.prepareIndex("foo", "bar").setSource("pki", "auth").get();
@@ -144,7 +145,8 @@ public class PkiAuthenticationTests extends ShieldIntegTestCase {
     }
 
     private String getNodeUrl() {
-        TransportAddress transportAddress = randomFrom(internalCluster().getInstance(HttpServerTransport.class).boundAddress().boundAddresses());
+        TransportAddress transportAddress = randomFrom(internalCluster().getInstance(HttpServerTransport.class)
+                .boundAddress().boundAddresses());
         assertThat(transportAddress, is(instanceOf(InetSocketTransportAddress.class)));
         InetSocketTransportAddress inetSocketTransportAddress = (InetSocketTransportAddress) transportAddress;
         return String.format(Locale.ROOT, "https://localhost:%s/", inetSocketTransportAddress.address().getPort());

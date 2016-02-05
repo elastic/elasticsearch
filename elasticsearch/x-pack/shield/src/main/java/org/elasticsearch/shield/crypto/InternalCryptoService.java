@@ -116,10 +116,12 @@ public class InternalCryptoService extends AbstractLifecycleComponent<InternalCr
     }
 
     @Override
-    protected void doStop() throws ElasticsearchException {}
+    protected void doStop() throws ElasticsearchException {
+    }
 
     @Override
-    protected void doClose() throws ElasticsearchException {}
+    protected void doClose() throws ElasticsearchException {
+    }
 
     private void loadKeys() {
         keyFile = resolveSystemKey(settings, env);
@@ -278,7 +280,8 @@ public class InternalCryptoService extends AbstractLifecycleComponent<InternalCr
     public char[] encrypt(char[] chars) {
         SecretKey key = this.encryptionKey;
         if (key == null) {
-            logger.warn("encrypt called without a key, returning plain text. run syskeygen and copy same key to all nodes to enable encryption");
+            logger.warn("encrypt called without a key, returning plain text. run syskeygen and copy same key to all nodes to enable " +
+                    "encryption");
             return chars;
         }
 
@@ -291,7 +294,8 @@ public class InternalCryptoService extends AbstractLifecycleComponent<InternalCr
     public byte[] encrypt(byte[] bytes) {
         SecretKey key = this.encryptionKey;
         if (key == null) {
-            logger.warn("encrypt called without a key, returning plain text. run syskeygen and copy same key to all nodes to enable encryption");
+            logger.warn("encrypt called without a key, returning plain text. run syskeygen and copy same key to all nodes to enable " +
+                    "encryption");
             return bytes;
         }
         byte[] encrypted = encryptInternal(bytes, key);
@@ -378,7 +382,7 @@ public class InternalCryptoService extends AbstractLifecycleComponent<InternalCr
             System.arraycopy(iv, 0, output, 0, iv.length);
             System.arraycopy(encrypted, 0, output, iv.length, encrypted.length);
             return output;
-        } catch (BadPaddingException|IllegalBlockSizeException e) {
+        } catch (BadPaddingException | IllegalBlockSizeException e) {
             throw new ElasticsearchException("error encrypting data", e);
         }
     }
@@ -436,7 +440,7 @@ public class InternalCryptoService extends AbstractLifecycleComponent<InternalCr
 
         byte[] bytes = systemKey.getEncoded();
         if ((bytes.length * 8) < keyLength) {
-            throw new IllegalArgumentException("at least " + keyLength +" bits should be provided as key data");
+            throw new IllegalArgumentException("at least " + keyLength + " bits should be provided as key data");
         }
 
         MessageDigest messageDigest = MessageDigest.getInstance("SHA-256");
@@ -599,9 +603,9 @@ public class InternalCryptoService extends AbstractLifecycleComponent<InternalCr
          * This method performs the <code>extract</code> and <code>expand</code> steps of HKDF in one call with the given
          * data. The output of the extract step is used as the input to the expand step
          *
-         * @param salt optional salt value (a non-secret random value); if not provided, it is set to a string of HashLen zeros.
-         * @param ikm the input keying material
-         * @param info optional context and application specific information; if not provided a zero length byte[] is used
+         * @param salt         optional salt value (a non-secret random value); if not provided, it is set to a string of HashLen zeros.
+         * @param ikm          the input keying material
+         * @param info         optional context and application specific information; if not provided a zero length byte[] is used
          * @param outputLength length of output keying material in octets (&lt;= 255*HashLen)
          * @return the output keying material
          */

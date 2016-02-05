@@ -60,8 +60,9 @@ public class ExecutionService extends AbstractComponent {
     private final AtomicBoolean started = new AtomicBoolean(false);
 
     @Inject
-    public ExecutionService(Settings settings, HistoryStore historyStore, TriggeredWatchStore triggeredWatchStore, WatchExecutor executor, WatchStore watchStore,
-                            WatchLockService watchLockService, Clock clock, WatcherSettingsValidation settingsValidation) {
+    public ExecutionService(Settings settings, HistoryStore historyStore, TriggeredWatchStore triggeredWatchStore, WatchExecutor executor,
+                            WatchStore watchStore, WatchLockService watchLockService, Clock clock,
+                            WatcherSettingsValidation settingsValidation) {
         super(settings);
         this.historyStore = historyStore;
         this.triggeredWatchStore = triggeredWatchStore;
@@ -275,14 +276,16 @@ public class ExecutionService extends AbstractComponent {
                         watchStore.updateStatus(ctx.watch());
                     } catch (Exception e) {
                         logger.warn("failed to update watch status [{}]", e, ctx.id());
-                        record = new WatchRecord(record, ExecutionState.FAILED, format("failed to update watch status [{}]...{}", ctx.id(), ExceptionsHelper.detailedMessage(e)));
+                        record = new WatchRecord(record, ExecutionState.FAILED, format("failed to update watch status [{}]...{}", ctx.id(),
+                                ExceptionsHelper.detailedMessage(e)));
                     }
                 }
             }
         } catch (Exception e) {
             logger.warn("failed to execute watch [{}]", e, ctx.id());
             if (record != null) {
-                record = new WatchRecord(record, ExecutionState.FAILED, format("failed to execute watch. {}", ExceptionsHelper.detailedMessage(e)));
+                record = new WatchRecord(record, ExecutionState.FAILED, format("failed to execute watch. {}",
+                        ExceptionsHelper.detailedMessage(e)));
             } else {
                 record = ctx.abortFailedExecution(ExceptionsHelper.detailedMessage(e));
             }
@@ -393,12 +396,15 @@ public class ExecutionService extends AbstractComponent {
         for (TriggeredWatch triggeredWatch : triggeredWatches) {
             Watch watch = watchStore.get(triggeredWatch.id().watchId());
             if (watch == null) {
-                String message = "unable to find watch for record [" + triggeredWatch.id().watchId() + "]/[" + triggeredWatch.id() + "], perhaps it has been deleted, ignoring...";
-                WatchRecord record = new WatchRecord(triggeredWatch.id(), triggeredWatch.triggerEvent(), ExecutionState.NOT_EXECUTED_WATCH_MISSING, message);
+                String message = "unable to find watch for record [" + triggeredWatch.id().watchId() + "]/[" + triggeredWatch.id() +
+                        "], perhaps it has been deleted, ignoring...";
+                WatchRecord record = new WatchRecord(triggeredWatch.id(), triggeredWatch.triggerEvent(),
+                        ExecutionState.NOT_EXECUTED_WATCH_MISSING, message);
                 historyStore.forcePut(record);
                 triggeredWatchStore.delete(triggeredWatch.id());
             } else {
-                TriggeredExecutionContext ctx = new StartupExecutionContext(watch, clock.now(DateTimeZone.UTC), triggeredWatch.triggerEvent(), defaultThrottlePeriod);
+                TriggeredExecutionContext ctx = new StartupExecutionContext(watch, clock.now(DateTimeZone.UTC),
+                        triggeredWatch.triggerEvent(), defaultThrottlePeriod);
                 executeAsync(ctx, triggeredWatch);
                 counter++;
             }

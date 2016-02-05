@@ -265,7 +265,8 @@ public class WatcherPlugin extends Plugin {
             return;
         }
 
-        String errorMessage = LoggerMessageFormat.format("the [action.auto_create_index] setting value [{}] is too restrictive. disable [action.auto_create_index] or set it to [.watches,.triggered_watches,.watch_history*]", (Object) settings);
+        String errorMessage = LoggerMessageFormat.format("the [action.auto_create_index] setting value [{}] is too restrictive. disable " +
+                "[action.auto_create_index] or set it to [.watches,.triggered_watches,.watch_history*]", (Object) settings);
         if (Booleans.isExplicitFalse(value)) {
             throw new IllegalArgumentException(errorMessage);
         }
@@ -311,7 +312,9 @@ public class WatcherPlugin extends Plugin {
                 throw new IllegalArgumentException(errorMessage);
             }
         }
-        logger.warn("the [action.auto_create_index] setting is configured to be restrictive [{}]. for the next 6 months daily history indices are allowed to be created, but please make sure that any future history indices after 6 months with the pattern [.watch_history-YYYY.MM.dd] are allowed to be created", value);
+        logger.warn("the [action.auto_create_index] setting is configured to be restrictive [{}]. for the next 6 months daily history " +
+                "indices are allowed to be created, but please make sure that any future history indices after 6 months with the pattern " +
+                "[.watch_history-YYYY.MM.dd] are allowed to be created", value);
     }
 
 }

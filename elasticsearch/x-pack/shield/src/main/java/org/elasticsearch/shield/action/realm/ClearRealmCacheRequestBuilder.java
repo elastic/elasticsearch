@@ -11,7 +11,8 @@ import org.elasticsearch.client.ElasticsearchClient;
 /**
  *
  */
-public class ClearRealmCacheRequestBuilder extends NodesOperationRequestBuilder<ClearRealmCacheRequest, ClearRealmCacheResponse, ClearRealmCacheRequestBuilder> {
+public class ClearRealmCacheRequestBuilder extends NodesOperationRequestBuilder<ClearRealmCacheRequest, ClearRealmCacheResponse,
+        ClearRealmCacheRequestBuilder> {
 
     public ClearRealmCacheRequestBuilder(ElasticsearchClient client) {
         this(client, ClearRealmCacheAction.INSTANCE);
@@ -25,7 +26,7 @@ public class ClearRealmCacheRequestBuilder extends NodesOperationRequestBuilder<
      * Sets the realms for which caches will be evicted. When not set all the caches of all realms will be
      * evicted.
      *
-     * @param realms    The realm names
+     * @param realms The realm names
      */
     public ClearRealmCacheRequestBuilder realms(String... realms) {
         request.realms(realms);

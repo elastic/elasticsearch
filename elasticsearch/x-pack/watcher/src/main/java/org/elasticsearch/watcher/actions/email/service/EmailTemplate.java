@@ -86,7 +86,8 @@ public class EmailTemplate implements ToXContent {
         return htmlBody;
     }
 
-    public Email.Builder render(TextTemplateEngine engine, Map<String, Object> model, HtmlSanitizer htmlSanitizer, Map<String, Attachment> attachments) throws AddressException {
+    public Email.Builder render(TextTemplateEngine engine, Map<String, Object> model, HtmlSanitizer htmlSanitizer,
+                                Map<String, Attachment> attachments) throws AddressException {
         Email.Builder builder = Email.builder();
         if (from != null) {
             builder.from(engine.render(from, model));
@@ -129,7 +130,8 @@ public class EmailTemplate implements ToXContent {
         return builder;
     }
 
-    private static Email.AddressList templatesToAddressList(TextTemplateEngine engine, TextTemplate[] templates, Map<String, Object> model) throws AddressException {
+    private static Email.AddressList templatesToAddressList(TextTemplateEngine engine, TextTemplate[] templates,
+                                                            Map<String, Object> model) throws AddressException {
         List<Email.Address> addresses = new ArrayList<>(templates.length);
         for (TextTemplate template : templates) {
             addresses.add(new Email.Address(engine.render(template, model)));
@@ -456,7 +458,8 @@ public class EmailTemplate implements ToXContent {
                         } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Email.Field.BODY_HTML)) {
                             builder.htmlBody(TextTemplate.parse(parser));
                         } else {
-                            throw new ElasticsearchParseException("could not parse email template. unknown field [{}.{}] field", fieldName, currentFieldName);
+                            throw new ElasticsearchParseException("could not parse email template. unknown field [{}.{}] field",
+                                    fieldName, currentFieldName);
                         }
                     }
                 }

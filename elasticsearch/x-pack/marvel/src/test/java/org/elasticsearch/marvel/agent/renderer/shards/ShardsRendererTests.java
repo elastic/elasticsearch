@@ -56,6 +56,7 @@ public class ShardsRendererTests extends ESSingleNodeTestCase {
         marvelDoc.setClusterStateUUID("my-state-uuid");
 
         String result = RendererTestUtils.renderAsJSON(marvelDoc, new ShardsRenderer());
-        RendererTestUtils.assertJSONStructureAndValues(result, "{\"cluster_uuid\":\"my-cluster-uuid\",\"timestamp\":\"2015-07-22T15:54:02.979Z\",\"state_uuid\":\"my-state-uuid\"}");
+        RendererTestUtils.assertJSONStructureAndValues(result, "{\"cluster_uuid\":\"my-cluster-uuid\",\"timestamp\":\"2015-07-22T15:54:02" +
+                ".979Z\",\"state_uuid\":\"my-state-uuid\"}");
     }
 }

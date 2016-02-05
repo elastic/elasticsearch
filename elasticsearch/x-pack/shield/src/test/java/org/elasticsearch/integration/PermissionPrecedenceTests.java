@@ -19,6 +19,7 @@ import org.elasticsearch.test.ShieldIntegTestCase;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.elasticsearch.test.ShieldTestsUtils.assertAuthorizationException;
@@ -93,7 +94,9 @@ public class PermissionPrecedenceTests extends ShieldIntegTestCase {
 
         // first lets try with "admin"... all should work
 
-        PutIndexTemplateResponse putResponse = client.filterWithHeader(Collections.singletonMap(UsernamePasswordToken.BASIC_AUTH_HEADER, basicAuthHeaderValue(transportClientUsername(), transportClientPassword())))
+        PutIndexTemplateResponse putResponse = client
+            .filterWithHeader(Collections.singletonMap(UsernamePasswordToken.BASIC_AUTH_HEADER,
+                    basicAuthHeaderValue(transportClientUsername(), transportClientPassword())))
             .admin().indices().preparePutTemplate("template1")
             .setTemplate("test_*")
             .get();
@@ -107,7 +110,9 @@ public class PermissionPrecedenceTests extends ShieldIntegTestCase {
         // now lets try with "user"
 
         try {
-            client.filterWithHeader(Collections.singletonMap(UsernamePasswordToken.BASIC_AUTH_HEADER, basicAuthHeaderValue("user", transportClientPassword())))
+            Map<String, String> auth = Collections.singletonMap(UsernamePasswordToken.BASIC_AUTH_HEADER, basicAuthHeaderValue("user",
+                    transportClientPassword()));
+            client.filterWithHeader(auth)
                     .admin().indices().preparePutTemplate("template1")
                     .setTemplate("test_*")
                     .get();
@@ -118,7 +123,9 @@ public class PermissionPrecedenceTests extends ShieldIntegTestCase {
         }
 
         try {
-            client.filterWithHeader(Collections.singletonMap(UsernamePasswordToken.BASIC_AUTH_HEADER, basicAuthHeaderValue("user", SecuredStringTests.build("test123"))))
+            Map<String, String> headers = Collections.singletonMap(UsernamePasswordToken.BASIC_AUTH_HEADER, basicAuthHeaderValue("user",
+                    SecuredStringTests.build("test123")));
+            client.filterWithHeader(headers)
                     .admin().indices().prepareGetTemplates("template1")
                     .get();
             fail("expected an authorization exception as template APIs should require cluster ALL permission");

@@ -23,15 +23,15 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
 /**
  *
  */
-public class TransportClearRolesCacheAction extends TransportNodesAction<ClearRolesCacheRequest, ClearRolesCacheResponse, ClearRolesCacheRequest.Node, ClearRolesCacheResponse.Node> {
+public class TransportClearRolesCacheAction extends TransportNodesAction<ClearRolesCacheRequest, ClearRolesCacheResponse,
+        ClearRolesCacheRequest.Node, ClearRolesCacheResponse.Node> {
 
     private final ESNativeRolesStore rolesStore;
 
     @Inject
     public TransportClearRolesCacheAction(Settings settings, ClusterName clusterName, ThreadPool threadPool,
-                                          ClusterService clusterService, TransportService transportService,
-                                          ActionFilters actionFilters, ESNativeRolesStore rolesStore,
-                                          IndexNameExpressionResolver indexNameExpressionResolver) {
+                                          ClusterService clusterService, TransportService transportService, ActionFilters actionFilters,
+                                          ESNativeRolesStore rolesStore, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, ClearRolesCacheAction.NAME, clusterName, threadPool, clusterService, transportService,
                 actionFilters, indexNameExpressionResolver, ClearRolesCacheRequest::new, ClearRolesCacheRequest.Node::new,
                 ThreadPool.Names.MANAGEMENT);

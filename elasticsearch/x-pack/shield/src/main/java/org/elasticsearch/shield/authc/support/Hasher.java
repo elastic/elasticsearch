@@ -239,18 +239,29 @@ public enum Hasher {
             return defaultHasher;
         }
         switch (name.toLowerCase(Locale.ROOT)) {
-            case "bcrypt"       : return BCRYPT;
-            case "bcrypt4"      : return BCRYPT4;
-            case "bcrypt5"      : return BCRYPT5;
-            case "bcrypt6"      : return BCRYPT6;
-            case "bcrypt7"      : return BCRYPT7;
-            case "bcrypt8"      : return BCRYPT8;
-            case "bcrypt9"      : return BCRYPT9;
-            case "sha1"         : return SHA1;
-            case "md5"          : return MD5;
-            case "ssha256"      : return SSHA256;
-            case "noop"         :
-            case "clear_text"   :  return NOOP;
+            case "bcrypt":
+                return BCRYPT;
+            case "bcrypt4":
+                return BCRYPT4;
+            case "bcrypt5":
+                return BCRYPT5;
+            case "bcrypt6":
+                return BCRYPT6;
+            case "bcrypt7":
+                return BCRYPT7;
+            case "bcrypt8":
+                return BCRYPT8;
+            case "bcrypt9":
+                return BCRYPT9;
+            case "sha1":
+                return SHA1;
+            case "md5":
+                return MD5;
+            case "ssha256":
+                return SSHA256;
+            case "noop":
+            case "clear_text":
+                return NOOP;
             default:
                 return defaultHasher;
         }
@@ -322,7 +333,8 @@ public enum Hasher {
             try {
                 digest = MessageDigest.getInstance("SHA-256");
             } catch (NoSuchAlgorithmException e) {
-                throw new IllegalStateException("unsupported digest algorithm [SHA-256]. Please verify you are running on Java 7 or above", e);
+                String msg = "unsupported digest algorithm [SHA-256]. Please verify you are running on Java 7 or above";
+                throw new IllegalStateException(msg, e);
             }
         }
 
@@ -339,10 +351,10 @@ public enum Hasher {
 
     static final class SaltProvider {
 
-        static final char[] ALPHABET = new char[] {
+        static final char[] ALPHABET = new char[]{
                 '.', '/', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D',
                 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T',
-                'U',  'V', 'W', 'X', 'Y', 'Z', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j',
+                'U', 'V', 'W', 'X', 'Y', 'Z', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j',
                 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z'
         };
 

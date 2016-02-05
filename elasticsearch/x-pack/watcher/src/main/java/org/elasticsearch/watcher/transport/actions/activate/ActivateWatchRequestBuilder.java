@@ -11,7 +11,8 @@ import org.elasticsearch.client.ElasticsearchClient;
 /**
  * A activate watch action request builder.
  */
-public class ActivateWatchRequestBuilder extends MasterNodeOperationRequestBuilder<ActivateWatchRequest, ActivateWatchResponse, ActivateWatchRequestBuilder> {
+public class ActivateWatchRequestBuilder extends MasterNodeOperationRequestBuilder<ActivateWatchRequest, ActivateWatchResponse,
+        ActivateWatchRequestBuilder> {
 
     public ActivateWatchRequestBuilder(ElasticsearchClient client) {
         super(client, ActivateWatchAction.INSTANCE, new ActivateWatchRequest());

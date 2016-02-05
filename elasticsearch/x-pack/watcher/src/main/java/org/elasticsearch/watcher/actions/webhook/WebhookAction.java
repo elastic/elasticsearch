@@ -58,12 +58,14 @@ public class WebhookAction implements Action {
         return requestTemplate.toXContent(builder, params);
     }
 
-    public static WebhookAction parse(String watchId, String actionId, XContentParser parser, HttpRequestTemplate.Parser requestParser) throws IOException {
+    public static WebhookAction parse(String watchId, String actionId, XContentParser parser,
+                                      HttpRequestTemplate.Parser requestParser) throws IOException {
         try {
             HttpRequestTemplate request = requestParser.parse(parser);
             return new WebhookAction(request);
         } catch (ElasticsearchParseException pe) {
-            throw new ElasticsearchParseException("could not parse [{}] action [{}/{}]. failed parsing http request template", pe, TYPE, watchId, actionId);
+            throw new ElasticsearchParseException("could not parse [{}] action [{}/{}]. failed parsing http request template", pe, TYPE,
+                    watchId, actionId);
         }
     }
 

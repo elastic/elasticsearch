@@ -42,7 +42,8 @@ public abstract class LdapTestCase extends ESTestCase {
         ldapServers = new InMemoryDirectoryServer[numberOfLdapServers];
         for (int i = 0; i < numberOfLdapServers; i++) {
             InMemoryDirectoryServer ldapServer = new InMemoryDirectoryServer("o=sevenSeas");
-            ldapServer.add("o=sevenSeas", new Attribute("dc", "UnboundID"), new Attribute("objectClass", "top", "domain", "extensibleObject"));
+            ldapServer.add("o=sevenSeas", new Attribute("dc", "UnboundID"),
+                    new Attribute("objectClass", "top", "domain", "extensibleObject"));
             ldapServer.importFromLDIF(false, getDataPath("/org/elasticsearch/shield/authc/ldap/support/seven-seas.ldif").toString());
             ldapServer.startListening();
             ldapServers[i] = ldapServer;
@@ -77,7 +78,8 @@ public abstract class LdapTestCase extends ESTestCase {
         return buildLdapSettings(ldapUrl, userTemplate, groupSearchBase, scope, null);
     }
 
-    public static Settings buildLdapSettings(String[] ldapUrl, String[] userTemplate, String groupSearchBase, LdapSearchScope scope, LdapLoadBalancing serverSetType) {
+    public static Settings buildLdapSettings(String[] ldapUrl, String[] userTemplate, String groupSearchBase, LdapSearchScope scope,
+                                             LdapLoadBalancing serverSetType) {
         Settings.Builder builder = Settings.builder()
                 .putArray(URLS_SETTING, ldapUrl)
                 .putArray(USER_DN_TEMPLATES_SETTING, userTemplate)
@@ -85,7 +87,8 @@ public abstract class LdapTestCase extends ESTestCase {
                 .put("group_search.scope", scope)
                 .put(HOSTNAME_VERIFICATION_SETTING, false);
         if (serverSetType != null) {
-            builder.put(LdapLoadBalancing.LOAD_BALANCE_SETTINGS + "." + LdapLoadBalancing.LOAD_BALANCE_TYPE_SETTING, serverSetType.toString());
+            builder.put(LdapLoadBalancing.LOAD_BALANCE_SETTINGS + "." + LdapLoadBalancing.LOAD_BALANCE_TYPE_SETTING,
+                    serverSetType.toString());
         }
         return builder.build();
     }

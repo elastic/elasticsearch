@@ -35,7 +35,8 @@ public final class DocumentSubsetReader extends FilterLeafReader {
         private final Query roleQuery;
         private final BitsetFilterCache bitsetFilterCache;
 
-        DocumentSubsetDirectoryReader(final DirectoryReader in, final BitsetFilterCache bitsetFilterCache, final Query roleQuery) throws IOException {
+        DocumentSubsetDirectoryReader(final DirectoryReader in, final BitsetFilterCache bitsetFilterCache, final Query roleQuery)
+                throws IOException {
             super(in, new SubReaderWrapper() {
                 @Override
                 public LeafReader wrap(LeafReader reader) {
@@ -61,7 +62,8 @@ public final class DocumentSubsetReader extends FilterLeafReader {
             if (reader instanceof FilterDirectoryReader) {
                 FilterDirectoryReader filterDirectoryReader = (FilterDirectoryReader) reader;
                 if (filterDirectoryReader instanceof DocumentSubsetDirectoryReader) {
-                    throw new IllegalArgumentException(LoggerMessageFormat.format("Can't wrap [{}] twice", DocumentSubsetDirectoryReader.class));
+                    throw new IllegalArgumentException(LoggerMessageFormat.format("Can't wrap [{}] twice",
+                            DocumentSubsetDirectoryReader.class));
                 } else {
                     verifyNoOtherDocumentSubsetDirectoryReaderIsWrapped(filterDirectoryReader.getDelegate());
                 }
@@ -110,7 +112,8 @@ public final class DocumentSubsetReader extends FilterLeafReader {
 
     @Override
     public int numDocs() {
-        // The reason the implement this method is that numDocs should be equal to the number of set bits in liveDocs. (would be weird otherwise)
+        // The reason the implement this method is that numDocs should be equal to the number of set bits in liveDocs. (would be weird
+        // otherwise)
         // for the Shield DSL use case this get invoked in the QueryPhase class (in core ES) if match_all query is used as main query
         // and this is also invoked in tests.
         if (numDocs == -1) {
@@ -122,7 +125,8 @@ public final class DocumentSubsetReader extends FilterLeafReader {
             } else {
                 // this is slow, but necessary in order to be correct:
                 try {
-                    DocIdSetIterator iterator = new FilteredDocIdSetIterator(new BitSetIterator(roleQueryBits, roleQueryBits.approximateCardinality())) {
+                    DocIdSetIterator iterator = new FilteredDocIdSetIterator(new BitSetIterator(roleQueryBits, roleQueryBits
+                            .approximateCardinality())) {
                         @Override
                         protected boolean match(int doc) {
                             return liveDocs.get(doc);

@@ -75,7 +75,8 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
     public void start() throws Exception {
         InMemoryDirectoryServerConfig config = new InMemoryDirectoryServerConfig("dc=ad,dc=test,dc=elasticsearch,dc=com");
         // Get the default schema and overlay with the AD changes
-        config.setSchema(Schema.mergeSchemas(Schema.getDefaultStandardSchema(), Schema.getSchema(getDataPath("ad-schema.ldif").toString())));
+        config.setSchema(Schema.mergeSchemas(Schema.getDefaultStandardSchema(),
+                Schema.getSchema(getDataPath("ad-schema.ldif").toString())));
 
         // Add the bind users here since AD is not LDAPv3 compliant
         config.addAdditionalBindCredentials("CN=ironman@ad.test.elasticsearch.com", PASSWORD);
@@ -84,7 +85,8 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
         directoryServers = new InMemoryDirectoryServer[numberOfLdapServers];
         for (int i = 0; i < numberOfLdapServers; i++) {
             InMemoryDirectoryServer directoryServer = new InMemoryDirectoryServer(config);
-            directoryServer.add("dc=ad,dc=test,dc=elasticsearch,dc=com", new Attribute("dc", "UnboundID"), new Attribute("objectClass", "top", "domain", "extensibleObject"));
+            directoryServer.add("dc=ad,dc=test,dc=elasticsearch,dc=com", new Attribute("dc", "UnboundID"),
+                    new Attribute("objectClass", "top", "domain", "extensibleObject"));
             directoryServer.importFromLDIF(false, getDataPath("ad.ldif").toString());
             directoryServer.startListening();
             directoryServers[i] = directoryServer;

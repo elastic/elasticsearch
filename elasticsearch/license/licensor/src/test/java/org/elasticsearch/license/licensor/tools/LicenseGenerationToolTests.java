@@ -122,7 +122,8 @@ public class LicenseGenerationToolTests extends CliToolTestCase {
         TestUtils.assertLicenseSpec(licenseSpec, outputLicense);
     }
 
-    private String runLicenseGenerationTool(Path pubKeyPath, Path priKeyPath, License licenseSpec, ExitStatus expectedExitStatus) throws Exception {
+    private String runLicenseGenerationTool(Path pubKeyPath, Path priKeyPath, License licenseSpec,
+                                            ExitStatus expectedExitStatus) throws Exception {
         CaptureOutputTerminal outputTerminal = new CaptureOutputTerminal();
         Settings settings = Settings.builder().put("path.home", createTempDir("LicenseGenerationToolTests")).build();
         LicenseGenerator licenseGenerator = new LicenseGenerator(outputTerminal, pubKeyPath, priKeyPath, licenseSpec);

@@ -46,20 +46,20 @@ import java.util.Set;
  */
 // based on lucene/test-framework's FieldFilterLeafReader.
 public final class FieldSubsetReader extends FilterLeafReader {
-    
+
     /**
-     * Wraps a provided DirectoryReader, exposing a subset of fields. 
+     * Wraps a provided DirectoryReader, exposing a subset of fields.
      * <p>
      * Note that for convenience, the returned reader
      * can be used normally (e.g. passed to {@link DirectoryReader#openIfChanged(DirectoryReader)})
-     * and so on. 
+     * and so on.
      * @param in reader to filter
      * @param fieldNames fields to filter.
      */
     public static DirectoryReader wrap(DirectoryReader in, Set<String> fieldNames) throws IOException {
         return new FieldSubsetDirectoryReader(in, fieldNames);
     }
-    
+
     // wraps subreaders with fieldsubsetreaders.
     static class FieldSubsetDirectoryReader extends FilterDirectoryReader {
 
@@ -75,7 +75,7 @@ public final class FieldSubsetReader extends FilterLeafReader {
             this.fieldNames = fieldNames;
             verifyNoOtherFieldSubsetDirectoryReaderIsWrapped(in);
         }
-        
+
         @Override
         protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
             return new FieldSubsetDirectoryReader(in, fieldNames);
@@ -89,7 +89,8 @@ public final class FieldSubsetReader extends FilterLeafReader {
             if (reader instanceof FilterDirectoryReader) {
                 FilterDirectoryReader filterDirectoryReader = (FilterDirectoryReader) reader;
                 if (filterDirectoryReader instanceof FieldSubsetDirectoryReader) {
-                    throw new IllegalArgumentException(LoggerMessageFormat.format("Can't wrap [{}] twice", FieldSubsetDirectoryReader.class));
+                    throw new IllegalArgumentException(LoggerMessageFormat.format("Can't wrap [{}] twice",
+                            FieldSubsetDirectoryReader.class));
                 } else {
                     verifyNoOtherFieldSubsetDirectoryReaderIsWrapped(filterDirectoryReader.getDelegate());
                 }
@@ -101,7 +102,7 @@ public final class FieldSubsetReader extends FilterLeafReader {
             return in.getCoreCacheKey();
         }
     }
-    
+
     /** List of filtered fields */
     private final FieldInfos fieldInfos;
     /** List of filtered fields. this is used for _source filtering */
@@ -121,17 +122,17 @@ public final class FieldSubsetReader extends FilterLeafReader {
         fieldInfos = new FieldInfos(filteredInfos.toArray(new FieldInfo[filteredInfos.size()]));
         this.fieldNames = fieldNames.toArray(new String[fieldNames.size()]);
     }
-    
+
     /** returns true if this field is allowed. */
     boolean hasField(String field) {
         return fieldInfos.fieldInfo(field) != null;
     }
-    
+
     @Override
     public FieldInfos getFieldInfos() {
         return fieldInfos;
     }
-    
+
     @Override
     public Fields getTermVectors(int docID) throws IOException {
         Fields f = super.getTermVectors(docID);
@@ -142,7 +143,7 @@ public final class FieldSubsetReader extends FilterLeafReader {
         // we need to check for emptyness, so we can return null:
         return f.iterator().hasNext() ? f : null;
     }
-    
+
     @Override
     public void document(final int docID, final StoredFieldVisitor visitor) throws IOException {
         super.document(docID, new StoredFieldVisitor() {
@@ -159,81 +160,81 @@ public final class FieldSubsetReader extends FilterLeafReader {
                     visitor.binaryField(fieldInfo, value);
                 }
             }
-            
+
             @Override
             public void stringField(FieldInfo fieldInfo, byte[] value) throws IOException {
                 visitor.stringField(fieldInfo, value);
             }
-            
+
             @Override
             public void intField(FieldInfo fieldInfo, int value) throws IOException {
                 visitor.intField(fieldInfo, value);
             }
-            
+
             @Override
             public void longField(FieldInfo fieldInfo, long value) throws IOException {
                 visitor.longField(fieldInfo, value);
             }
-            
+
             @Override
             public void floatField(FieldInfo fieldInfo, float value) throws IOException {
                 visitor.floatField(fieldInfo, value);
             }
-            
+
             @Override
             public void doubleField(FieldInfo fieldInfo, double value) throws IOException {
                 visitor.doubleField(fieldInfo, value);
             }
-            
+
             @Override
             public Status needsField(FieldInfo fieldInfo) throws IOException {
                 return hasField(fieldInfo.name) ? visitor.needsField(fieldInfo) : Status.NO;
             }
         });
     }
-    
+
     @Override
     public Fields fields() throws IOException {
         return new FieldFilterFields(super.fields());
-    }    
-    
+    }
+
     @Override
     public NumericDocValues getNumericDocValues(String field) throws IOException {
         return hasField(field) ? super.getNumericDocValues(field) : null;
     }
-    
+
     @Override
     public BinaryDocValues getBinaryDocValues(String field) throws IOException {
         return hasField(field) ? super.getBinaryDocValues(field) : null;
     }
-    
+
     @Override
     public SortedDocValues getSortedDocValues(String field) throws IOException {
         return hasField(field) ? super.getSortedDocValues(field) : null;
     }
-    
+
     @Override
     public SortedNumericDocValues getSortedNumericDocValues(String field) throws IOException {
         return hasField(field) ? super.getSortedNumericDocValues(field) : null;
     }
-    
+
     @Override
     public SortedSetDocValues getSortedSetDocValues(String field) throws IOException {
         return hasField(field) ? super.getSortedSetDocValues(field) : null;
     }
-    
+
     @Override
     public NumericDocValues getNormValues(String field) throws IOException {
         return hasField(field) ? super.getNormValues(field) : null;
     }
-    
+
     @Override
     public Bits getDocsWithField(String field) throws IOException {
         return hasField(field) ? super.getDocsWithField(field) : null;
     }
-    
+
     // we share core cache keys (for e.g. fielddata)
-    
+
     @Override
     public Object getCoreCacheKey() {
         return in.getCoreCacheKey();
@@ -243,21 +244,21 @@ public final class FieldSubsetReader extends FilterLeafReader {
      * Filters the Fields instance from the postings.
      * <p>
      * In addition to only returning fields allowed in this subset,
-     * the ES internal _field_names (used by exists filter) has special handling, 
+     * the ES internal _field_names (used by exists filter) has special handling,
      * to hide terms for fields that don't exist.
      */
     class FieldFilterFields extends FilterFields {
-        
+
         public FieldFilterFields(Fields in) {
             super(in);
         }
-        
+
         @Override
         public int size() {
             // this information is not cheap, return -1 like MultiFields does:
             return -1;
         }
-        
+
         @Override
         public Iterator<String> iterator() {
             return new FilterIterator<String, String>(super.iterator()) {
@@ -267,7 +268,7 @@ public final class FieldSubsetReader extends FilterLeafReader {
                 }
             };
         }
-        
+
         @Override
         public Terms terms(String field) throws IOException {
             if (!hasField(field)) {
@@ -290,22 +291,22 @@ public final class FieldSubsetReader extends FilterLeafReader {
             }
         }
     }
-    
+
     /**
      * Terms impl for _field_names (used by exists filter) that filters out terms
      * representing fields that should not be visible in this reader.
      */
     class FieldNamesTerms extends FilterTerms {
-        
+
         FieldNamesTerms(Terms in) {
             super(in);
         }
-        
+
         @Override
         public TermsEnum iterator() throws IOException {
             return new FieldNamesTermsEnum(in.iterator());
         }
-        
+
         // we don't support field statistics (since we filter out terms)
         // but this isn't really a big deal: _field_names is not used for ranking.
 
@@ -329,17 +330,17 @@ public final class FieldSubsetReader extends FilterLeafReader {
             return -1;
         }
     }
-    
+
     /**
      * TermsEnum impl for _field_names (used by exists filter) that filters out terms
      * representing fields that should not be visible in this reader.
      */
     class FieldNamesTermsEnum extends FilterTermsEnum {
-        
+
         FieldNamesTermsEnum(TermsEnum in) {
             super(in);
         }
-        
+
         /** Return true if term is accepted (matches a field name in this reader). */
         boolean accept(BytesRef term) {
             return hasField(term.utf8ToString());
@@ -369,7 +370,7 @@ public final class FieldSubsetReader extends FilterLeafReader {
             }
             return next;
         }
-        
+
         // we don't support ordinals, but _field_names is not used in this way
 
         @Override

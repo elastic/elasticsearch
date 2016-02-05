@@ -61,8 +61,10 @@ public class FieldDataCacheWithFieldSubsetReaderTests extends ESTestCase {
         String name = "_field";
         FieldDataType fieldDataType = new StringFieldMapper.StringFieldType().fieldDataType();
         indexFieldDataCache = new DummyAccountingFieldDataCache();
-        sortedSetDVOrdinalsIndexFieldData = new SortedSetDVOrdinalsIndexFieldData(indexSettings,indexFieldDataCache,  name, circuitBreakerService, fieldDataType);
-        pagedBytesIndexFieldData = new PagedBytesIndexFieldData(indexSettings, name, fieldDataType, indexFieldDataCache, circuitBreakerService);
+        sortedSetDVOrdinalsIndexFieldData = new SortedSetDVOrdinalsIndexFieldData(indexSettings,indexFieldDataCache,  name,
+                circuitBreakerService, fieldDataType);
+        pagedBytesIndexFieldData = new PagedBytesIndexFieldData(indexSettings, name, fieldDataType, indexFieldDataCache,
+                circuitBreakerService);
 
         dir = newDirectory();
         IndexWriterConfig iwc = new IndexWriterConfig(null);
@@ -165,13 +167,15 @@ public class FieldDataCacheWithFieldSubsetReaderTests extends ESTestCase {
         private int topLevelBuilds = 0;
 
         @Override
-        public <FD extends AtomicFieldData, IFD extends IndexFieldData<FD>> FD load(LeafReaderContext context, IFD indexFieldData) throws Exception {
+        public <FD extends AtomicFieldData, IFD extends IndexFieldData<FD>> FD load(LeafReaderContext context, IFD indexFieldData)
+                throws Exception {
             leafLevelBuilds++;
             return indexFieldData.loadDirect(context);
         }
 
         @Override
-        public <FD extends AtomicFieldData, IFD extends IndexFieldData.Global<FD>> IFD load(DirectoryReader indexReader, IFD indexFieldData) throws Exception {
+        public <FD extends AtomicFieldData, IFD extends IndexFieldData.Global<FD>> IFD load(DirectoryReader indexReader,
+                                                                                            IFD indexFieldData) throws Exception {
             topLevelBuilds++;
             return (IFD) indexFieldData.localGlobalDirect(indexReader);
         }

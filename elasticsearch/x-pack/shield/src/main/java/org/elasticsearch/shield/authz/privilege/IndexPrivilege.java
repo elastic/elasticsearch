@@ -35,7 +35,8 @@ public class IndexPrivilege extends AbstractAutomatonPrivilege<IndexPrivilege> {
     public static final IndexPrivilege DATA_ACCESS = new IndexPrivilege("data_access", "indices:data/*");
     public static final IndexPrivilege CRUD = new IndexPrivilege("crud", "indices:data/write/*", "indices:data/read/*");
     public static final IndexPrivilege READ = new IndexPrivilege("read", "indices:data/read/*");
-    public static final IndexPrivilege SEARCH = new IndexPrivilege("search", SearchAction.NAME + "*", MultiSearchAction.NAME + "*", SuggestAction.NAME + "*");
+    public static final IndexPrivilege SEARCH = new IndexPrivilege("search", SearchAction.NAME + "*", MultiSearchAction.NAME + "*",
+            SuggestAction.NAME + "*");
     public static final IndexPrivilege GET = new IndexPrivilege("get", GetAction.NAME + "*", MultiGetAction.NAME + "*");
     public static final IndexPrivilege SUGGEST = new IndexPrivilege("suggest", SuggestAction.NAME + "*");
     public static final IndexPrivilege INDEX = new IndexPrivilege("index", "indices:data/write/index*", "indices:data/write/update*");
@@ -86,7 +87,8 @@ public class IndexPrivilege extends AbstractAutomatonPrivilege<IndexPrivilege> {
     public static void addCustom(String name, String... actionPatterns) {
         for (String pattern : actionPatterns) {
             if (!IndexPrivilege.ACTION_MATCHER.test(pattern)) {
-                throw new IllegalArgumentException("cannot register custom index privilege [" + name + "]. index action must follow the 'indices:*' format");
+                throw new IllegalArgumentException("cannot register custom index privilege [" + name + "]." +
+                        " index action must follow the 'indices:*' format");
             }
         }
         IndexPrivilege custom = new IndexPrivilege(name, actionPatterns);

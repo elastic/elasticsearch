@@ -51,6 +51,7 @@ import org.elasticsearch.index.mapper.core.LongFieldMapper;
 import org.elasticsearch.index.mapper.core.ShortFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -131,10 +132,10 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
 
     public void testFieldDataCacheListener() throws Exception {
         final IndexService indexService = createIndex("test");
-        IndexFieldDataService shardPrivateService = indexService.fieldData();
+        final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         // copy the ifdService since we can set the listener only once.
         final IndexFieldDataService ifdService = new IndexFieldDataService(indexService.getIndexSettings(),
-                getInstanceFromNode(IndicesFieldDataCache.class), getInstanceFromNode(CircuitBreakerService.class), indexService.mapperService());
+                indicesService.getIndicesFieldDataCache(), indicesService.getCircuitBreakerService(), indexService.mapperService());
 
         final BuilderContext ctx = new BuilderContext(indexService.getIndexSettings().getSettings(), new ContentPath(1));
         final MappedFieldType mapper1 = MapperBuilders.stringField("s").tokenized(false).docValues(true).fieldDataSettings(Settings.builder().put(FieldDataType.FORMAT_KEY, "paged_bytes").build()).build(ctx).fieldType();

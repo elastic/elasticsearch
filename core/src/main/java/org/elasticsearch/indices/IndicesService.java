@@ -116,6 +116,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
     private final IndicesFieldDataCache indicesFieldDataCache;
     private final FieldDataCacheCleaner fieldDataCacheCleaner;
     private final ThreadPool threadPool;
+    private final CircuitBreakerService circuitBreakerService;
     private volatile Map<String, IndexService> indices = emptyMap();
     private final Map<Index, List<PendingDelete>> pendingDeletes = new HashMap<>();
     private final OldShardsStats oldShardsStats = new OldShardsStats();
@@ -150,6 +151,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         clusterSettings.addSettingsUpdateConsumer(IndexStoreConfig.INDICES_STORE_THROTTLE_MAX_BYTES_PER_SEC_SETTING, indexStoreConfig::setRateLimitingThrottle);
         indexingMemoryController = new IndexingMemoryController(settings, threadPool, this);
         this.indexScopeSetting = indexScopedSettings;
+        this.circuitBreakerService = circuitBreakerService;
         this.indicesFieldDataCache = new IndicesFieldDataCache(settings, new IndexFieldDataCache.Listener() {
             @Override
             public void onRemoval(ShardId shardId, String fieldName, FieldDataType fieldDataType, boolean wasEvicted, long sizeInBytes) {
@@ -412,6 +414,10 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
 
     public IndicesFieldDataCache getIndicesFieldDataCache() {
         return indicesFieldDataCache;
+    }
+
+    public CircuitBreakerService getCircuitBreakerService() {
+        return circuitBreakerService;
     }
 
     static class OldShardsStats implements IndexEventListener {

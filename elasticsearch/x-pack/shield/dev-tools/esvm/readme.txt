@@ -19,7 +19,7 @@ Troubleshooting:
 - elasticsearch is installed under ~/.esvm/<version>
 - turn on debug in ~/.esvm/1.4.1/config/logging.yml
 - esvm --fresh will reinstall ES
-- plugins will not re-install, you can remove them manually by ~/.esvm/1.4.1/bin/plugin remove shield
+- plugins will not re-install, you can remove them manually by ~/.esvm/1.4.1/bin/elasticsearch-plugin remove shield
 - errors during startup will not show up.  If esvm fails startup look in ~/.esvm/1.4.1/logs/*
 
 

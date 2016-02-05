@@ -302,7 +302,8 @@ public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource, AF 
             boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
             throws IOException;
 
-    private void resolveValuesSourceConfigFromAncestors(String aggName, AggregatorFactory parent, ValuesSourceType requiredValuesSourceType) {
+    private void resolveValuesSourceConfigFromAncestors(String aggName, AggregatorFactory parent,
+            ValuesSourceType requiredValuesSourceType) {
         ValuesSourceConfig config;
         while (parent != null) {
             if (parent instanceof ValuesSourceAggregatorFactory) {

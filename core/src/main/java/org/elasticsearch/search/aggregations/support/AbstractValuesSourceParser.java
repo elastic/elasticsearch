@@ -171,7 +171,8 @@ public abstract class AbstractValuesSourceParser<VS extends ValuesSource>
      *            the target type of the final value output by the aggregation
      * @param otherOptions
      *            a {@link Map} containing the extra options parsed by the
-     *            {@link #token(String, String, org.elasticsearch.common.xcontent.XContentParser.Token, XContentParser, ParseFieldMatcher, Map)}
+     *            {@link #token(String, String, org.elasticsearch.common.xcontent.XContentParser.Token,
+     *             XContentParser, ParseFieldMatcher, Map)}
      *            method
      * @return the created factory
      */

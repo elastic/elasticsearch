@@ -85,8 +85,8 @@ public class HistogramParser extends NumericValuesSourceParser {
     }
 
     @Override
-    protected boolean token(String aggregationName, String currentFieldName, Token token, XContentParser parser, ParseFieldMatcher parseFieldMatcher, Map<ParseField, Object> otherOptions)
-            throws IOException {
+    protected boolean token(String aggregationName, String currentFieldName, Token token, XContentParser parser,
+            ParseFieldMatcher parseFieldMatcher, Map<ParseField, Object> otherOptions) throws IOException {
         if (token.isValue()) {
             if (parseFieldMatcher.match(currentFieldName, Rounding.Interval.INTERVAL_FIELD)) {
                 if (token == XContentParser.Token.VALUE_STRING) {

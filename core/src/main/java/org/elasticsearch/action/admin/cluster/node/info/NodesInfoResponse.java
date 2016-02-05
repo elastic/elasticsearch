@@ -121,6 +121,9 @@ public class NodesInfoResponse extends BaseNodesResponse<NodeInfo> implements To
             if (nodeInfo.getPlugins() != null) {
                 nodeInfo.getPlugins().toXContent(builder, params);
             }
+            if (nodeInfo.getIngest() != null) {
+                nodeInfo.getIngest().toXContent(builder, params);
+            }
 
             builder.endObject();
         }

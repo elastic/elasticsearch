@@ -101,6 +101,7 @@ public class RestNodesInfoAction extends BaseRestHandler {
             nodesInfoRequest.transport(metrics.contains("transport"));
             nodesInfoRequest.http(metrics.contains("http"));
             nodesInfoRequest.plugins(metrics.contains("plugins"));
+            nodesInfoRequest.ingest(metrics.contains("ingest"));
         }
 
         settingsFilter.addFilterSettingParams(request);

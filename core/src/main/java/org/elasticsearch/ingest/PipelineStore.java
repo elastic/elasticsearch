@@ -36,7 +36,6 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.ingest.core.Pipeline;
-import org.elasticsearch.ingest.core.Processor;
 import org.elasticsearch.ingest.core.TemplateService;
 import org.elasticsearch.script.ScriptService;
 
@@ -130,8 +129,8 @@ public class PipelineStore extends AbstractComponent implements Closeable, Clust
             pipelines.remove(request.getId());
             ClusterState.Builder newState = ClusterState.builder(currentState);
             newState.metaData(MetaData.builder(currentState.getMetaData())
-                .putCustom(IngestMetadata.TYPE, new IngestMetadata(pipelines))
-                .build());
+                    .putCustom(IngestMetadata.TYPE, new IngestMetadata(pipelines))
+                    .build());
             return newState.build();
         }
     }
@@ -140,6 +139,10 @@ public class PipelineStore extends AbstractComponent implements Closeable, Clust
      * Stores the specified pipeline definition in the request.
      */
     public void put(ClusterService clusterService, PutPipelineRequest request, ActionListener<WritePipelineResponse> listener) {
+        // TODO(talevy): check all nodes to see if they can also create pipeline
+        // ActionFuture<GetProcessorsResponse> afResp = getProcessorsAction.execute(new GetProcessorsRequest());
+        // GetProcessorsResponse response = afResp.actionGet();
+
         // validates the pipeline and processor configuration before submitting a cluster update task:
         Map<String, Object> pipelineConfig = XContentHelper.convertToMap(request.getSource(), false).v2();
         try {

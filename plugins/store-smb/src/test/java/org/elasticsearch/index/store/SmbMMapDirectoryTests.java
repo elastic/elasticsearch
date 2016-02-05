@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elastiscearch.index.store;
+package org.elasticsearch.index.store;
 
 import java.io.IOException;
 import java.nio.file.Path;

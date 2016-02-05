@@ -12,7 +12,7 @@ This plugin can be installed through the plugin manager:
 
 [source,sh]
 ----------------------------------------------------------------
-sudo bin/plugin install repository-hdfs
+sudo bin/elasticsearch-plugin install repository-hdfs
 ----------------------------------------------------------------
 
 The plugin must be installed on _every_ node in the cluster, and each node must
@@ -26,7 +26,7 @@ The plugin can be removed by specifying the _installed_ package:
 
 [source,sh]
 ----------------------------------------------------------------
-sudo bin/plugin remove repository-hdfs
+sudo bin/elasticsearch-plugin remove repository-hdfs
 ----------------------------------------------------------------
 
 The node must be stopped before removing the plugin.

@@ -91,11 +91,12 @@ class PrecommitTasks {
         // on them. But we want `precommit` to depend on `checkstyle` which depends on them so
         // we have to swap them.
         project.pluginManager.apply('checkstyle')
+        URL checkstyleSuppressions = PrecommitTasks.getResource('/checkstyle_suppressions.xml')
         project.checkstyle {
             config = project.resources.text.fromFile(
                 PrecommitTasks.getResource('/checkstyle.xml'), 'UTF-8')
             configProperties = [
-                suppressions: PrecommitTasks.getResource('/checkstyle_suppressions.xml')
+                suppressions: checkstyleSuppressions
             ]
         }
         for (String taskName : ['checkstyleMain', 'checkstyleTest']) {
@@ -103,6 +104,7 @@ class PrecommitTasks {
             if (task != null) {
                 project.tasks['check'].dependsOn.remove(task)
                 checkstyleTask.dependsOn(task)
+                task.inputs.file(checkstyleSuppressions)
             }
         }
         return checkstyleTask

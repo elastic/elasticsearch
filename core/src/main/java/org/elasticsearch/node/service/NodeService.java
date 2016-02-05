@@ -31,7 +31,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.discovery.Discovery;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpServer;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -78,7 +77,7 @@ public class NodeService extends AbstractComponent implements Closeable {
     public NodeService(Settings settings, ThreadPool threadPool, MonitorService monitorService,
                        Discovery discovery, TransportService transportService, IndicesService indicesService,
                        PluginsService pluginService, CircuitBreakerService circuitBreakerService, Version version,
-                       ProcessorsRegistry processorsRegistry, ClusterService clusterService, SettingsFilter settingsFilter) {
+                       ProcessorsRegistry.Builder processorsRegistryBuilder, ClusterService clusterService, SettingsFilter settingsFilter) {
         super(settings);
         this.threadPool = threadPool;
         this.monitorService = monitorService;
@@ -89,7 +88,7 @@ public class NodeService extends AbstractComponent implements Closeable {
         this.version = version;
         this.pluginService = pluginService;
         this.circuitBreakerService = circuitBreakerService;
-        this.ingestService = new IngestService(settings, threadPool, processorsRegistry);
+        this.ingestService = new IngestService(settings, threadPool, processorsRegistryBuilder);
         this.settingsFilter = settingsFilter;
         clusterService.add(ingestService.getPipelineStore());
     }

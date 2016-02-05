@@ -48,7 +48,7 @@ public class BytesRestResponse extends RestResponse {
      * Creates a new response based on {@link XContentBuilder}.
      */
     public BytesRestResponse(RestStatus status, XContentBuilder builder) {
-        this(status, builder.contentType().restContentType(), builder.bytes());
+        this(status, builder.contentType().mediaType(), builder.bytes());
     }
 
     /**
@@ -93,7 +93,7 @@ public class BytesRestResponse extends RestResponse {
         } else {
             XContentBuilder builder = convert(channel, status, t);
             this.content = builder.bytes();
-            this.contentType = builder.contentType().restContentType();
+            this.contentType = builder.contentType().mediaType();
         }
         if (t instanceof ElasticsearchException) {
             copyHeaders(((ElasticsearchException) t));

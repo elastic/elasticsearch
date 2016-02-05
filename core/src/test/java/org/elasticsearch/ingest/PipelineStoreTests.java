@@ -50,9 +50,9 @@ public class PipelineStoreTests extends ESTestCase {
     @Before
     public void init() throws Exception {
         store = new PipelineStore(Settings.EMPTY);
-        ProcessorsRegistry registry = new ProcessorsRegistry();
-        registry.registerProcessor("set", (templateService) -> new SetProcessor.Factory(TestTemplateService.instance()));
-        store.buildProcessorFactoryRegistry(registry, null);
+        ProcessorsRegistry.Builder registryBuilder = new ProcessorsRegistry.Builder();
+        registryBuilder.registerProcessor("set", (templateService, registry) -> new SetProcessor.Factory(TestTemplateService.instance()));
+        store.buildProcessorFactoryRegistry(registryBuilder, null);
     }
 
     public void testUpdatePipelines() {

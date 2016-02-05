@@ -4,12 +4,13 @@
 *.iml
 *.ipr
 *.iws
+build-idea/
 
 # eclipse files
 .project
 .classpath
-eclipse-build
 .settings
+build-eclipse/
 
 # netbeans files
 nb-configuration.xml
@@ -18,7 +19,6 @@ nbactions.xml
 # gradle stuff
 .gradle/
 build/
-generated-resources/
 
 # maven stuff (to be removed when trunk becomes 4.x)
 *-execution-hints.log
@@ -38,5 +38,5 @@ html_docs
 # random old stuff that we should look at the necessity of...
 /tmp/
 backwards/
-
+eclipse-build
 

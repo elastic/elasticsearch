@@ -1,4 +1,4 @@
-package org.elastiscearch.index.store;
+package org.elasticsearch.index.store;
 
 /*
  * Licensed to Elasticsearch under one or more contributor

@@ -156,7 +156,7 @@ def remove_plugin(version, release_dir, plugin_name):
   run_plugin(version, release_dir, 'remove', [plugin_name])
 
 def run_plugin(version, release_dir, plugin_cmd, args):
-  cmd = [os.path.join(release_dir, 'bin/plugin'), plugin_cmd] + args
+  cmd = [os.path.join(release_dir, 'bin/elasticsearch-plugin'), plugin_cmd] + args
   subprocess.check_call(cmd)
 
 def create_client(http_port=DEFAULT_HTTP_TCP_PORT, timeout=30):

@@ -20,13 +20,6 @@
 package org.elasticsearch.search;
 
 import com.carrotsearch.hppc.ObjectFloatHashMap;
-import com.carrotsearch.hppc.ObjectHashSet;
-import com.carrotsearch.hppc.ObjectSet;
-import com.carrotsearch.hppc.cursors.ObjectCursor;
-
-import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ExceptionsHelper;
@@ -54,14 +47,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.fielddata.FieldDataType;
-import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.IndexFieldDataService;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MappedFieldType.Loading;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.search.stats.ShardSearchStats;
@@ -69,8 +54,6 @@ import org.elasticsearch.index.search.stats.StatsGroupsParseElement;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.indices.IndicesWarmer;
-import org.elasticsearch.indices.IndicesWarmer.TerminationHandle;
 import org.elasticsearch.indices.cache.request.IndicesRequestCache;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptContext;
@@ -109,9 +92,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -124,7 +105,6 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
  */
 public class SearchService extends AbstractLifecycleComponent<SearchService> implements IndexEventListener {
 
-    public static final Setting<Loading> INDEX_NORMS_LOADING_SETTING = new Setting<>("index.norms.loading", Loading.LAZY.toString(), (s) -> Loading.parse(s, Loading.LAZY), false, Setting.Scope.INDEX);
     // we can have 5 minutes here, since we make sure to clean with search requests and when shard/index closes
     public static final Setting<TimeValue> DEFAULT_KEEPALIVE_SETTING = Setting.positiveTimeSetting("search.default_keep_alive", timeValueMinutes(5), false, Setting.Scope.CLUSTER);
     public static final Setting<TimeValue> KEEPALIVE_INTERVAL_SETTING = Setting.positiveTimeSetting("search.keep_alive_interval", timeValueMinutes(1), false, Setting.Scope.CLUSTER);
@@ -138,8 +118,6 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
     private final ClusterService clusterService;
 
     private final IndicesService indicesService;
-
-    private final IndicesWarmer indicesWarmer;
 
     private final ScriptService scriptService;
 
@@ -170,7 +148,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
     private final ParseFieldMatcher parseFieldMatcher;
 
     @Inject
-    public SearchService(Settings settings, ClusterSettings clusterSettings, ClusterService clusterService, IndicesService indicesService, IndicesWarmer indicesWarmer, ThreadPool threadPool,
+    public SearchService(Settings settings, ClusterSettings clusterSettings, ClusterService clusterService, IndicesService indicesService, ThreadPool threadPool,
                          ScriptService scriptService, PageCacheRecycler pageCacheRecycler, BigArrays bigArrays, DfsPhase dfsPhase, QueryPhase queryPhase, FetchPhase fetchPhase,
                          IndicesRequestCache indicesQueryCache) {
         super(settings);
@@ -178,7 +156,6 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.indicesService = indicesService;
-        this.indicesWarmer = indicesWarmer;
         this.scriptService = scriptService;
         this.pageCacheRecycler = pageCacheRecycler;
         this.bigArrays = bigArrays;
@@ -198,9 +175,6 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
         this.elementParsers = unmodifiableMap(elementParsers);
 
         this.keepAliveReaper = threadPool.scheduleWithFixedDelay(new Reaper(), keepAliveInterval);
-
-        this.indicesWarmer.addListener(new NormsWarmer(indicesWarmer));
-        this.indicesWarmer.addListener(new FieldDataWarmer(indicesWarmer));
 
         defaultSearchTimeout = DEFAULT_SEARCH_TIMEOUT_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(DEFAULT_SEARCH_TIMEOUT_SETTING, this::setDefaultSearchTimeout);
@@ -944,184 +918,6 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
      */
     public int getActiveContexts() {
         return this.activeContexts.size();
-    }
-
-    static class NormsWarmer implements IndicesWarmer.Listener {
-        private final IndicesWarmer indicesWarmer;
-
-        public NormsWarmer(IndicesWarmer indicesWarmer) {
-            this.indicesWarmer = indicesWarmer;
-        }
-        @Override
-        public TerminationHandle warmNewReaders(final IndexShard indexShard, final Engine.Searcher searcher) {
-            final Loading defaultLoading = indexShard.indexSettings().getValue(INDEX_NORMS_LOADING_SETTING);
-            final MapperService mapperService = indexShard.mapperService();
-            final ObjectSet<String> warmUp = new ObjectHashSet<>();
-            for (DocumentMapper docMapper : mapperService.docMappers(false)) {
-                for (FieldMapper fieldMapper : docMapper.mappers()) {
-                    final String indexName = fieldMapper.fieldType().name();
-                    Loading normsLoading = fieldMapper.fieldType().normsLoading();
-                    if (normsLoading == null) {
-                        normsLoading = defaultLoading;
-                    }
-                    if (fieldMapper.fieldType().indexOptions() != IndexOptions.NONE && !fieldMapper.fieldType().omitNorms() && normsLoading == Loading.EAGER) {
-                        warmUp.add(indexName);
-                    }
-                }
-            }
-
-            final CountDownLatch latch = new CountDownLatch(1);
-            // Norms loading may be I/O intensive but is not CPU intensive, so we execute it in a single task
-            indicesWarmer.getExecutor().execute(new Runnable() {
-                @Override
-                public void run() {
-                    try {
-                        for (ObjectCursor<String> stringObjectCursor : warmUp) {
-                            final String indexName = stringObjectCursor.value;
-                            final long start = System.nanoTime();
-                            for (final LeafReaderContext ctx : searcher.reader().leaves()) {
-                                final NumericDocValues values = ctx.reader().getNormValues(indexName);
-                                if (values != null) {
-                                    values.get(0);
-                                }
-                            }
-                            if (indexShard.warmerService().logger().isTraceEnabled()) {
-                                indexShard.warmerService().logger().trace("warmed norms for [{}], took [{}]", indexName, TimeValue.timeValueNanos(System.nanoTime() - start));
-                            }
-                        }
-                    } catch (Throwable t) {
-                        indexShard.warmerService().logger().warn("failed to warm-up norms", t);
-                    } finally {
-                        latch.countDown();
-                    }
-                }
-            });
-
-            return new TerminationHandle() {
-                @Override
-                public void awaitTermination() throws InterruptedException {
-                    latch.await();
-                }
-            };
-        }
-
-        @Override
-        public TerminationHandle warmTopReader(IndexShard indexShard, final Engine.Searcher searcher) {
-            return TerminationHandle.NO_WAIT;
-        }
-    }
-
-    static class FieldDataWarmer implements IndicesWarmer.Listener {
-
-        private final IndicesWarmer indicesWarmer;
-
-        public FieldDataWarmer(IndicesWarmer indicesWarmer) {
-            this.indicesWarmer = indicesWarmer;
-        }
-
-        @Override
-        public TerminationHandle warmNewReaders(final IndexShard indexShard, final Engine.Searcher searcher) {
-            final MapperService mapperService = indexShard.mapperService();
-            final Map<String, MappedFieldType> warmUp = new HashMap<>();
-            for (DocumentMapper docMapper : mapperService.docMappers(false)) {
-                for (FieldMapper fieldMapper : docMapper.mappers()) {
-                    final FieldDataType fieldDataType = fieldMapper.fieldType().fieldDataType();
-                    final String indexName = fieldMapper.fieldType().name();
-                    if (fieldDataType == null) {
-                        continue;
-                    }
-                    if (fieldDataType.getLoading() == Loading.LAZY) {
-                        continue;
-                    }
-
-                    if (warmUp.containsKey(indexName)) {
-                        continue;
-                    }
-                    warmUp.put(indexName, fieldMapper.fieldType());
-                }
-            }
-            final IndexFieldDataService indexFieldDataService = indexShard.indexFieldDataService();
-            final Executor executor = indicesWarmer.getExecutor();
-            final CountDownLatch latch = new CountDownLatch(searcher.reader().leaves().size() * warmUp.size());
-            for (final LeafReaderContext ctx : searcher.reader().leaves()) {
-                for (final MappedFieldType fieldType : warmUp.values()) {
-                    executor.execute(new Runnable() {
-
-                        @Override
-                        public void run() {
-                            try {
-                                final long start = System.nanoTime();
-                                indexFieldDataService.getForField(fieldType).load(ctx);
-                                if (indexShard.warmerService().logger().isTraceEnabled()) {
-                                    indexShard.warmerService().logger().trace("warmed fielddata for [{}], took [{}]", fieldType.name(), TimeValue.timeValueNanos(System.nanoTime() - start));
-                                }
-                            } catch (Throwable t) {
-                                indexShard.warmerService().logger().warn("failed to warm-up fielddata for [{}]", t, fieldType.name());
-                            } finally {
-                                latch.countDown();
-                            }
-                        }
-
-                    });
-                }
-            }
-            return new TerminationHandle() {
-                @Override
-                public void awaitTermination() throws InterruptedException {
-                    latch.await();
-                }
-            };
-        }
-
-        @Override
-        public TerminationHandle warmTopReader(final IndexShard indexShard, final Engine.Searcher searcher) {
-            final MapperService mapperService = indexShard.mapperService();
-            final Map<String, MappedFieldType> warmUpGlobalOrdinals = new HashMap<>();
-            for (DocumentMapper docMapper : mapperService.docMappers(false)) {
-                for (FieldMapper fieldMapper : docMapper.mappers()) {
-                    final FieldDataType fieldDataType = fieldMapper.fieldType().fieldDataType();
-                    final String indexName = fieldMapper.fieldType().name();
-                    if (fieldDataType == null) {
-                        continue;
-                    }
-                    if (fieldDataType.getLoading() != Loading.EAGER_GLOBAL_ORDINALS) {
-                        continue;
-                    }
-                    if (warmUpGlobalOrdinals.containsKey(indexName)) {
-                        continue;
-                    }
-                    warmUpGlobalOrdinals.put(indexName, fieldMapper.fieldType());
-                }
-            }
-            final IndexFieldDataService indexFieldDataService = indexShard.indexFieldDataService();
-            final Executor executor = indicesWarmer.getExecutor();
-            final CountDownLatch latch = new CountDownLatch(warmUpGlobalOrdinals.size());
-            for (final MappedFieldType fieldType : warmUpGlobalOrdinals.values()) {
-                executor.execute(new Runnable() {
-                    @Override
-                    public void run() {
-                        try {
-                            final long start = System.nanoTime();
-                            IndexFieldData.Global ifd = indexFieldDataService.getForField(fieldType);
-                            ifd.loadGlobal(searcher.getDirectoryReader());
-                            if (indexShard.warmerService().logger().isTraceEnabled()) {
-                                indexShard.warmerService().logger().trace("warmed global ordinals for [{}], took [{}]", fieldType.name(), TimeValue.timeValueNanos(System.nanoTime() - start));
-                            }
-                        } catch (Throwable t) {
-                            indexShard.warmerService().logger().warn("failed to warm-up global ordinals for [{}]", t, fieldType.name());
-                        } finally {
-                            latch.countDown();
-                        }
-                    }
-                });
-            }
-            return new TerminationHandle() {
-                @Override
-                public void awaitTermination() throws InterruptedException {
-                    latch.await();
-                }
-            };
-        }
     }
 
     class Reaper implements Runnable {

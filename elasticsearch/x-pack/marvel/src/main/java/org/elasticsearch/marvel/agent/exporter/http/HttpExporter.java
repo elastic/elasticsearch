@@ -7,6 +7,7 @@ package org.elasticsearch.marvel.agent.exporter.http;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.Nullable;
@@ -48,7 +49,9 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.AccessController;
 import java.security.KeyStore;
+import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Map;
@@ -315,11 +318,23 @@ public class HttpExporter extends Exporter {
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
 
             if (conn instanceof HttpsURLConnection && sslSocketFactory != null) {
-                HttpsURLConnection httpsConn = (HttpsURLConnection) conn;
-                httpsConn.setSSLSocketFactory(sslSocketFactory);
-                if (!hostnameVerification) {
-                    httpsConn.setHostnameVerifier(TrustAllHostnameVerifier.INSTANCE);
+                final HttpsURLConnection httpsConn = (HttpsURLConnection) conn;
+                final SSLSocketFactory factory = sslSocketFactory;
+
+                SecurityManager sm = System.getSecurityManager();
+                if (sm != null) {
+                    sm.checkPermission(new SpecialPermission());
                 }
+                AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+                    // Requires permission java.lang.RuntimePermission "setFactory";
+                    httpsConn.setSSLSocketFactory(factory);
+
+                    // Requires permission javax.net.ssl.SSLPermission "setHostnameVerifier";
+                    if (!hostnameVerification) {
+                        httpsConn.setHostnameVerifier(TrustAllHostnameVerifier.INSTANCE);
+                    }
+                    return null;
+                });
             }
 
             conn.setRequestMethod(method);

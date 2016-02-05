@@ -4,6 +4,7 @@ grant {
 
   // needed to set expert SSL options, etc
   permission java.lang.RuntimePermission "setFactory";
+  permission javax.net.ssl.SSLPermission "setHostnameVerifier";
 
   // needed when sending emails for javax.activation
   // otherwise a classnotfound exception is thrown due to trying

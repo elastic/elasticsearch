@@ -132,27 +132,28 @@ public abstract class BaseAggregationTestCase<AF extends AggregatorFactory> exte
         ScriptModule scriptModule = new ScriptModule() {
             @Override
             protected void configure() {
-                Settings settings = Settings.builder()
-                    .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-                    // no file watching, so we don't need a ResourceWatcherService
-                    .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING.getKey(), false)
-                    .build();
+                Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+                        // no file watching, so we don't need a
+                        // ResourceWatcherService
+                        .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING.getKey(), false).build();
                 MockScriptEngine mockScriptEngine = new MockScriptEngine();
                 Multibinder<ScriptEngineService> multibinder = Multibinder.newSetBinder(binder(), ScriptEngineService.class);
                 multibinder.addBinding().toInstance(mockScriptEngine);
                 Set<ScriptEngineService> engines = new HashSet<>();
                 engines.add(mockScriptEngine);
                 List<ScriptContext.Plugin> customContexts = new ArrayList<>();
-                ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections.singletonList(new ScriptEngineRegistry.ScriptEngineRegistration(MockScriptEngine.class, MockScriptEngine.TYPES)));
+                ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections
+                        .singletonList(new ScriptEngineRegistry.ScriptEngineRegistration(MockScriptEngine.class, MockScriptEngine.TYPES)));
                 bind(ScriptEngineRegistry.class).toInstance(scriptEngineRegistry);
                 ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(customContexts);
                 bind(ScriptContextRegistry.class).toInstance(scriptContextRegistry);
                 ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
                 bind(ScriptSettings.class).toInstance(scriptSettings);
                 try {
-                    ScriptService scriptService = new ScriptService(settings, new Environment(settings), engines, null, scriptEngineRegistry, scriptContextRegistry, scriptSettings);
+                    ScriptService scriptService = new ScriptService(settings, new Environment(settings), engines, null,
+                            scriptEngineRegistry, scriptContextRegistry, scriptSettings);
                     bind(ScriptService.class).toInstance(scriptService);
-                } catch(IOException e) {
+                } catch (IOException e) {
                     throw new IllegalStateException("error while binding ScriptService", e);
                 }
             }
@@ -265,7 +266,8 @@ public abstract class BaseAggregationTestCase<AF extends AggregatorFactory> exte
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             testAgg.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
-                AggregatorFactory prototype = (AggregatorFactory) namedWriteableRegistry.getPrototype(AggregatorFactory.class, testAgg.getWriteableName());
+                AggregatorFactory prototype = (AggregatorFactory) namedWriteableRegistry.getPrototype(AggregatorFactory.class,
+                        testAgg.getWriteableName());
                 AggregatorFactory deserializedQuery = prototype.readFrom(in);
                 assertEquals(deserializedQuery, testAgg);
                 assertEquals(deserializedQuery.hashCode(), testAgg.hashCode());
@@ -306,7 +308,8 @@ public abstract class BaseAggregationTestCase<AF extends AggregatorFactory> exte
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             agg.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
-                AggregatorFactory prototype = (AggregatorFactory) namedWriteableRegistry.getPrototype(AggregatorFactory.class, agg.getWriteableName());
+                AggregatorFactory prototype = (AggregatorFactory) namedWriteableRegistry.getPrototype(AggregatorFactory.class,
+                        agg.getWriteableName());
                 @SuppressWarnings("unchecked")
                 AF secondAgg = (AF) prototype.readFrom(in);
                 return secondAgg;

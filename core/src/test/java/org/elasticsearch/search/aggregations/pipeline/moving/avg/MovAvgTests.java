@@ -78,8 +78,9 @@ public class MovAvgTests extends BasePipelineAggregationTestCase<MovAvgPipelineA
                     factory.window(randomIntBetween(2, 100));
                 } else {
                     int period = randomIntBetween(1, 100);
-                    factory.modelBuilder(new HoltWintersModel.HoltWintersModelBuilder().alpha(randomDouble()).beta(randomDouble())
-                            .gamma(randomDouble()).period(period).seasonalityType(randomFrom(SeasonalityType.values())).pad(randomBoolean()));
+                    factory.modelBuilder(
+                            new HoltWintersModel.HoltWintersModelBuilder().alpha(randomDouble()).beta(randomDouble()).gamma(randomDouble())
+                                    .period(period).seasonalityType(randomFrom(SeasonalityType.values())).pad(randomBoolean()));
                     factory.window(randomIntBetween(2 * period, 200 * period));
                 }
                 break;

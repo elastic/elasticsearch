@@ -66,7 +66,8 @@ public class DiversifiedSamplerIT extends ESIntegTestCase {
         createIndex("idx_unmapped");
         // idx_unmapped_author is same as main index but missing author field
         assertAcked(prepareCreate("idx_unmapped_author").setSettings(SETTING_NUMBER_OF_SHARDS, NUM_SHARDS, SETTING_NUMBER_OF_REPLICAS, 0)
-                .addMapping("book", "name", "type=string,index=analyzed", "genre", "type=string,index=not_analyzed", "price", "type=float"));
+                .addMapping("book", "name", "type=string,index=analyzed", "genre", "type=string,index=not_analyzed", "price",
+                        "type=float"));
 
         ensureGreen();
         String data[] = {
@@ -86,8 +87,10 @@ public class DiversifiedSamplerIT extends ESIntegTestCase {
 
         for (int i = 0; i < data.length; i++) {
             String[] parts = data[i].split(",");
-            client().prepareIndex("test", "book", "" + i).setSource("author", parts[5], "name", parts[2], "genre", parts[8], "price",Float.parseFloat(parts[3])).get();
-            client().prepareIndex("idx_unmapped_author", "book", "" + i).setSource("name", parts[2], "genre", parts[8],"price",Float.parseFloat(parts[3])).get();
+            client().prepareIndex("test", "book", "" + i)
+                    .setSource("author", parts[5], "name", parts[2], "genre", parts[8], "price", Float.parseFloat(parts[3])).get();
+            client().prepareIndex("idx_unmapped_author", "book", "" + i)
+                    .setSource("name", parts[2], "genre", parts[8], "price", Float.parseFloat(parts[3])).get();
         }
         client().admin().indices().refresh(new RefreshRequest("test")).get();
     }

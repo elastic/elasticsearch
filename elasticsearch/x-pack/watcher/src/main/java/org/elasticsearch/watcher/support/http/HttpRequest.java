@@ -409,7 +409,7 @@ public class HttpRequest implements ToXContent {
 
         public Builder jsonBody(ToXContent xContent) {
             return body(XContentHelper.toString(xContent))
-                    .setHeader("Content-Type", XContentType.JSON.restContentType());
+                    .setHeader("Content-Type", XContentType.JSON.mediaType());
         }
 
         public Builder connectionTimeout(TimeValue timeout) {

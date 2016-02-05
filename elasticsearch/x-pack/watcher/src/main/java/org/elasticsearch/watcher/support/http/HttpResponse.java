@@ -92,7 +92,7 @@ public class HttpResponse implements ToXContent {
         if (values == null || values.length == 0) {
             return null;
         }
-        return XContentType.fromRestContentType(values[0]);
+        return XContentType.fromMediaTypeOrFormat(values[0]);
     }
 
     @Override

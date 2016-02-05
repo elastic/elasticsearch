@@ -169,7 +169,7 @@ public class HttpExporter extends Exporter {
         if (bulkTimeout != null) {
             queryString = "?master_timeout=" + bulkTimeout;
         }
-        HttpURLConnection conn = openAndValidateConnection("POST", "/_bulk" + queryString, XContentType.SMILE.restContentType());
+        HttpURLConnection conn = openAndValidateConnection("POST", "/_bulk" + queryString, XContentType.SMILE.mediaType());
         if (conn != null && (keepAliveThread == null || !keepAliveThread.isAlive())) {
             // start keep alive upon successful connection if not there.
             initKeepAliveThread();
@@ -450,7 +450,7 @@ public class HttpExporter extends Exporter {
         logger.debug("http exporter [{}] - installing template [{}]", name(), template);
         HttpURLConnection connection = null;
         try {
-            connection = openConnection(host, "PUT", "_template/" + template, XContentType.JSON.restContentType());
+            connection = openConnection(host, "PUT", "_template/" + template, XContentType.JSON.mediaType());
             if (connection == null) {
                 logger.debug("http exporter [{}] - no available connection to update marvel template [{}]", name(), template);
                 return false;

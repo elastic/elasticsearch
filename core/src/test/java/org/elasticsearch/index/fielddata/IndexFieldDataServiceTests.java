@@ -51,6 +51,7 @@ import org.elasticsearch.index.mapper.core.LongFieldMapper;
 import org.elasticsearch.index.mapper.core.ShortFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -131,10 +132,10 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
 
     public void testFieldDataCacheListener() throws Exception {
         final IndexService indexService = createIndex("test");
-        IndexFieldDataService shardPrivateService = indexService.fieldData();
+        final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         // copy the ifdService since we can set the listener only once.
         final IndexFieldDataService ifdService = new IndexFieldDataService(indexService.getIndexSettings(),
-                getInstanceFromNode(IndicesFieldDataCache.class), getInstanceFromNode(CircuitBreakerService.class), indexService.mapperService());
+                indicesService.getIndicesFieldDataCache(), indicesService.getCircuitBreakerService(), indexService.mapperService());
 
         final BuilderContext ctx = new BuilderContext(indexService.getIndexSettings().getSettings(), new ContentPath(1));
         final MappedFieldType mapper1 = MapperBuilders.stringField("s").tokenized(false).docValues(true).fieldDataSettings(Settings.builder().put(FieldDataType.FORMAT_KEY, "paged_bytes").build()).build(ctx).fieldType();
@@ -205,7 +206,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
     private void doTestRequireDocValues(MappedFieldType ft) {
         ThreadPool threadPool = new ThreadPool("random_threadpool_name");
         try {
-            IndicesFieldDataCache cache = new IndicesFieldDataCache(Settings.EMPTY, null, threadPool);
+            IndicesFieldDataCache cache = new IndicesFieldDataCache(Settings.EMPTY, null);
             IndexFieldDataService ifds = new IndexFieldDataService(IndexSettingsModule.newIndexSettings("test", Settings.EMPTY), cache, null, null);
             ft.setName("some_long");
             ft.setHasDocValues(true);
@@ -238,7 +239,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         ThreadPool threadPool = new ThreadPool("random_threadpool_name");
         StringFieldMapper.StringFieldType ft = new StringFieldMapper.StringFieldType();
         try {
-            IndicesFieldDataCache cache = new IndicesFieldDataCache(Settings.EMPTY, null, threadPool);
+            IndicesFieldDataCache cache = new IndicesFieldDataCache(Settings.EMPTY, null);
             IndexFieldDataService ifds = new IndexFieldDataService(IndexSettingsModule.newIndexSettings("test", Settings.EMPTY), cache, null, null);
             ft.setName("some_str");
             ft.setFieldDataType(new FieldDataType("string", Settings.builder().put(FieldDataType.FORMAT_KEY, "disabled").build()));

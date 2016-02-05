@@ -392,7 +392,6 @@ public class Node implements Closeable {
         toClose.add(injector.getInstance(IndicesService.class));
         // close filter/fielddata caches after indices
         toClose.add(injector.getInstance(IndicesQueryCache.class));
-        toClose.add(injector.getInstance(IndicesFieldDataCache.class));
         toClose.add(injector.getInstance(IndicesStore.class));
         toClose.add(() ->stopWatch.stop().start("routing"));
         toClose.add(injector.getInstance(RoutingService.class));

@@ -40,7 +40,7 @@ final class Compiler {
     /**
      * The maximum number of characters allowed in the script source.
      */
-    protected static int MAXIMUM_SOURCE_LENGTH = 16384;
+    static int MAXIMUM_SOURCE_LENGTH = 16384;
 
     /**
      * The default language API to be used with Painless.  The second construction is used

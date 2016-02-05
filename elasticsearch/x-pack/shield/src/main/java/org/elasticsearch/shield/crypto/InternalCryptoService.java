@@ -564,30 +564,25 @@ public class InternalCryptoService extends AbstractLifecycleComponent<InternalCr
     }
 
     /**
-     * Provider class for the HmacSHA1 {@link Mac} that provides an optimization by using clone instead of calling
-     * Mac#getInstance and obtaining a lock
+     * Provider class for the HmacSHA1 {@link Mac} that provides an optimization by using a thread local instead of calling
+     * Mac#getInstance and obtaining a lock (in the internals)
      */
     private static class HmacSHA1Provider {
 
-        private static final Mac mac;
-
-        static {
+        private static final ThreadLocal<Mac> MAC = ThreadLocal.withInitial(() -> {
             try {
-                mac = Mac.getInstance(HMAC_ALGO);
+                return Mac.getInstance(HMAC_ALGO);
             } catch (NoSuchAlgorithmException e) {
-                throw new IllegalStateException("could not create message authentication code instance with algorithm [HmacSHA1]", e);
+                throw new IllegalStateException("could not create Mac instance with algorithm [" + HMAC_ALGO + "]", e);
             }
-        }
+        });
 
         private static Mac hmacSHA1() {
-            try {
-                Mac hmac = (Mac) mac.clone();
-                hmac.reset();
-                return hmac;
-            } catch (CloneNotSupportedException e) {
-                throw new IllegalStateException("could not create [HmacSHA1] MAC", e);
-            }
+            Mac instance = MAC.get();
+            instance.reset();
+            return instance;
         }
+
     }
 
     /**

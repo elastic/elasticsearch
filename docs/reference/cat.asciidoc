@@ -95,7 +95,7 @@ green wiki1 3 0 10000 413 103776272 103776272
 green foo   1 0   227   0   2065131   2065131
 --------------------------------------------------
 
-
+[float]
 === Response as text, json, smile, yaml or cbor
 
 [source,sh]
@@ -116,17 +116,17 @@ green foo   1 0   227   0   2065131   2065131
 ]
 --------------------------------------------------
 
-Currently supported formats (for the ?format parameter):
+Currently supported formats (for the `?format=` parameter):
 - text (default)
 - json
 - smile
 - yaml
 - cbor
 
-alternatively you can set the "Accept" HTTP header to the appropriate media format.
+Alternatively you can set the "Accept" HTTP header to the appropriate media format.
 All formats above are supported, the GET parameter takes precedence over the header.
+For example:
 
-For example
 [source,sh]
 --------------------------------------------------
 % curl '192.168.56.10:9200/_cat/indices' -H "Accept: application/json" | jq .

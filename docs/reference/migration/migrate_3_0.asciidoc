@@ -314,7 +314,7 @@ On all types but `string`, the `index` property now only accepts `true`/`false`
 instead of `not_analyzed`/`no`. The `string` field still accepts
 `analyzed`/`not_analyzed`/`no`.
 
-==== `_source`'s `format` option
+==== ++_source++'s `format` option
 
 The `_source` mapping does not support the `format` option anymore. This option
 will still be accepted for indices created before the upgrade to 3.0 for backward

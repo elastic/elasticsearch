@@ -56,6 +56,7 @@ public class Environment {
     public static final Setting<List<String>> PATH_REPO_SETTING = Setting.listSetting("path.repo", Collections.emptyList(), Function.identity(), false, Setting.Scope.CLUSTER);
     public static final Setting<String> PATH_SHARED_DATA_SETTING = Setting.simpleString("path.shared_data", false, Setting.Scope.CLUSTER);
     public static final Setting<String> PIDFILE_SETTING = Setting.simpleString("pidfile", false, Setting.Scope.CLUSTER);
+    public static final Setting<String> FOREGROUND_SETTING = Setting.simpleString("foreground", false, Setting.Scope.CLUSTER);
 
     private final Settings settings;
 

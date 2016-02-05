@@ -308,6 +308,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
             Environment.PATH_SCRIPTS_SETTING,
             Environment.PATH_SHARED_DATA_SETTING,
             Environment.PIDFILE_SETTING,
+            Environment.FOREGROUND_SETTING,
             DiscoveryService.DISCOVERY_SEED_SETTING,
             DiscoveryService.INITIAL_STATE_TIMEOUT_SETTING,
             DiscoveryModule.DISCOVERY_TYPE_SETTING,

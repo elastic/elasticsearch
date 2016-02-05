@@ -12,7 +12,6 @@ import org.elasticsearch.watcher.actions.email.service.EmailTemplate;
 import org.elasticsearch.watcher.actions.email.service.support.EmailServer;
 import org.elasticsearch.watcher.client.WatcherClient;
 import org.elasticsearch.watcher.execution.ActionExecutionMode;
-import org.elasticsearch.watcher.shield.ShieldSecretService;
 import org.elasticsearch.watcher.support.secret.SecretService;
 import org.elasticsearch.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
@@ -100,15 +99,15 @@ public class EmailSecretsIntegrationTests extends AbstractWatcherIntegrationTest
         if (shieldEnabled() && encryptSensitiveData) {
             assertThat(value, not(is((Object) PASSWORD)));
             SecretService secretService = getInstanceFromMaster(SecretService.class);
-            assertThat(secretService, instanceOf(ShieldSecretService.class));
+            assertThat(secretService, instanceOf(SecretService.Secure.class));
             assertThat(new String(secretService.decrypt(((String) value).toCharArray())), is(PASSWORD));
         } else {
             assertThat(value, is((Object) PASSWORD));
             SecretService secretService = getInstanceFromMaster(SecretService.class);
             if (shieldEnabled()) {
-                assertThat(secretService, instanceOf(ShieldSecretService.class));
+                assertThat(secretService, instanceOf(SecretService.Secure.class));
             } else {
-                assertThat(secretService, instanceOf(SecretService.PlainText.class));
+                assertThat(secretService, instanceOf(SecretService.Insecure.class));
             }
             assertThat(new String(secretService.decrypt(((String) value).toCharArray())), is(PASSWORD));
         }

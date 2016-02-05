@@ -57,9 +57,9 @@ integTest {
     // copy keystore into config/
     extraConfigFile keystore.name, keystore
     setupCommand 'setupTestUser',
-                 'bin/x-pack/esusers', 'useradd', 'test_user', '-p', 'changeme', '-r', 'admin'
+                 'bin/xpack/esusers', 'useradd', 'test_user', '-p', 'changeme', '-r', 'admin'
     setupCommand 'setupMarvelUser',
-                 'bin/x-pack/esusers', 'useradd', 'marvel_export', '-p', 'changeme', '-r', 'marvel_agent'
+                 'bin/xpack/esusers', 'useradd', 'marvel_export', '-p', 'changeme', '-r', 'marvel_agent'
     waitCondition = { node, ant ->
       // we just return true, doing an https check is tricky here
       return true

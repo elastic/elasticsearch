@@ -48,7 +48,7 @@ import org.elasticsearch.shield.authc.AuthenticationService;
 import org.elasticsearch.shield.authz.RoleDescriptor;
 import org.elasticsearch.shield.authz.permission.Role;
 import org.elasticsearch.shield.authz.store.RolesStore;
-import org.elasticsearch.shield.client.ShieldClient;
+import org.elasticsearch.shield.client.SecurityClient;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
@@ -84,7 +84,7 @@ public class ESNativeRolesStore extends AbstractComponent implements RolesStore,
     private final ConcurrentHashMap<String, RoleAndVersion> roleCache = new ConcurrentHashMap<>();
 
     private Client client;
-    private ShieldClient shieldClient;
+    private SecurityClient securityClient;
     private int scrollSize;
     private TimeValue scrollKeepAlive;
     private ScheduledFuture<?> versionChecker;
@@ -353,7 +353,7 @@ public class ESNativeRolesStore extends AbstractComponent implements RolesStore,
         try {
             if (state.compareAndSet(State.INITIALIZED, State.STARTING)) {
                 this.client = clientProvider.get();
-                this.shieldClient = new ShieldClient(client);
+                this.securityClient = new SecurityClient(client);
                 this.scrollSize = settings.getAsInt("shield.authc.native.scroll.size", 1000);
                 this.scrollKeepAlive = settings.getAsTime("shield.authc.native.scroll.keep_alive", TimeValue.timeValueSeconds(10L));
                 TimeValue pollInterval = settings.getAsTime("shield.authc.native.reload.interval", TimeValue.timeValueSeconds(30L));
@@ -407,7 +407,7 @@ public class ESNativeRolesStore extends AbstractComponent implements RolesStore,
 
     private <Response> void clearRoleCache(final String role, ActionListener<Response> listener, Response response) {
         ClearRolesCacheRequest request = new ClearRolesCacheRequest().roles(role);
-        shieldClient.clearRolesCache(request, new ActionListener<ClearRolesCacheResponse>() {
+        securityClient.clearRolesCache(request, new ActionListener<ClearRolesCacheResponse>() {
             @Override
             public void onResponse(ClearRolesCacheResponse nodes) {
                 listener.onResponse(response);

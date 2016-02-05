@@ -54,7 +54,7 @@ import org.elasticsearch.shield.action.user.DeleteUserRequest;
 import org.elasticsearch.shield.authc.AuthenticationService;
 import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredString;
-import org.elasticsearch.shield.client.ShieldClient;
+import org.elasticsearch.shield.client.SecurityClient;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
@@ -458,10 +458,10 @@ public class ESNativeUsersStore extends AbstractComponent implements ClusterStat
     }
 
     private <Response> void clearRealmCache(String username, ActionListener<Response> listener, Response response) {
-        ShieldClient shieldClient = new ShieldClient(client);
-        ClearRealmCacheRequest request = shieldClient.prepareClearRealmCache()
+        SecurityClient securityClient = new SecurityClient(client);
+        ClearRealmCacheRequest request = securityClient.prepareClearRealmCache()
                 .usernames(username).request();
-        shieldClient.clearRealmCache(request, new ActionListener<ClearRealmCacheResponse>() {
+        securityClient.clearRealmCache(request, new ActionListener<ClearRealmCacheResponse>() {
             @Override
             public void onResponse(ClearRealmCacheResponse nodes) {
                 listener.onResponse(response);

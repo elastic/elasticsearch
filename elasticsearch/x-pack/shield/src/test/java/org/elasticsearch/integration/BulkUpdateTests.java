@@ -16,6 +16,7 @@ import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.test.ShieldIntegTestCase;
 import org.elasticsearch.test.ShieldSettingsSource;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
+import org.elasticsearch.xpack.XPackPlugin;
 
 import java.io.IOException;
 
@@ -30,7 +31,7 @@ public class BulkUpdateTests extends ShieldIntegTestCase {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(NetworkModule.HTTP_ENABLED.getKey(), true)
-                .put(ShieldPlugin.DLS_FLS_ENABLED_SETTING, randomBoolean())
+                .put(XPackPlugin.featureEnabledSetting(ShieldPlugin.DLS_FLS_FEATURE), randomBoolean())
                 .build();
     }
 

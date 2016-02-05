@@ -123,7 +123,7 @@ fi
 export HOSTNAME=`hostname -s`
 
 # include shield jars in classpath
-ES_CLASSPATH="$ES_CLASSPATH:$ES_HOME/plugins/x-pack/*"
+ES_CLASSPATH="$ES_CLASSPATH:$ES_HOME/plugins/xpack/*"
 
 cd "$ES_HOME" > /dev/null
 $JAVA $ES_JAVA_OPTS -cp "$ES_CLASSPATH" -Des.path.home="$ES_HOME" $properties org.elasticsearch.shield.crypto.tool.SystemKeyTool "$@"

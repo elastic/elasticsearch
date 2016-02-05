@@ -17,6 +17,7 @@ import org.elasticsearch.shield.authc.RealmConfig;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.XPackPlugin;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -82,7 +83,7 @@ public class DnRoleMapper {
     public static Path resolveFile(Settings settings, Environment env) {
         String location = settings.get(ROLE_MAPPING_FILE_SETTING);
         if (location == null) {
-            return ShieldPlugin.resolveConfigFile(env, DEFAULT_FILE_NAME);
+            return XPackPlugin.resolveConfigFile(env, DEFAULT_FILE_NAME);
         }
         return env.binFile().getParent().resolve(location);
     }

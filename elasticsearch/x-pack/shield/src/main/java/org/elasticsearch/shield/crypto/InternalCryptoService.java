@@ -17,6 +17,7 @@ import org.elasticsearch.shield.authc.support.CharArrays;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.XPackPlugin;
 
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
@@ -159,7 +160,7 @@ public class InternalCryptoService extends AbstractLifecycleComponent<InternalCr
     public static Path resolveSystemKey(Settings settings, Environment env) {
         String location = settings.get(FILE_SETTING);
         if (location == null) {
-            return ShieldPlugin.resolveConfigFile(env, FILE_NAME);
+            return XPackPlugin.resolveConfigFile(env, FILE_NAME);
         }
         return env.binFile().getParent().resolve(location);
     }

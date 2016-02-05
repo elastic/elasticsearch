@@ -3,7 +3,7 @@ import org.elasticsearch.gradle.test.NodeInfo
 
 apply plugin: 'elasticsearch.esplugin'
 esplugin {
-  name 'x-pack'
+  name 'xpack'
   description 'Elasticsearch Expanded Pack Plugin'
   classname 'org.elasticsearch.xpack.XPackPlugin'
   // FIXME we still can't be isolated due to shield custom realms
@@ -129,7 +129,7 @@ integTest {
   // TODO: fix this rest test to not depend on a hardcoded port!
   systemProperty 'tests.rest.blacklist', 'getting_started/10_monitor_cluster_health/*'
   cluster {
-    setupCommand 'setupDummyUser', 'bin/x-pack/esusers', 'useradd', 'test_user', '-p', 'changeme', '-r', 'admin'
+    setupCommand 'setupDummyUser', 'bin/xpack/esusers', 'useradd', 'test_user', '-p', 'changeme', '-r', 'admin'
     waitCondition = { NodeInfo node, AntBuilder ant ->
         File tmpFile = new File(node.cwd, 'wait.success')
         ant.get(src: "http://${node.httpUri()}",
@@ -157,7 +157,7 @@ artifacts {
 }
 
 run {
-  setupCommand 'setupDummyUser', 'bin/x-pack/esusers', 'useradd', 'test_user', '-p', 'changeme', '-r', 'admin'
+  setupCommand 'setupDummyUser', 'bin/xpack/esusers', 'useradd', 'test_user', '-p', 'changeme', '-r', 'admin'
 }
 
 // classes are missing, e.g. com.ibm.icu.lang.UCharacter

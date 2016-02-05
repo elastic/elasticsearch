@@ -22,6 +22,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptModule;
+import org.elasticsearch.shield.ShieldPlugin;
+import org.elasticsearch.shield.authz.privilege.ClusterPrivilege;
 import org.elasticsearch.watcher.actions.WatcherActionModule;
 import org.elasticsearch.watcher.actions.email.service.EmailService;
 import org.elasticsearch.watcher.actions.email.service.InternalEmailService;
@@ -50,8 +52,7 @@ import org.elasticsearch.watcher.rest.action.RestPutWatchAction;
 import org.elasticsearch.watcher.rest.action.RestWatchServiceAction;
 import org.elasticsearch.watcher.rest.action.RestWatcherInfoAction;
 import org.elasticsearch.watcher.rest.action.RestWatcherStatsAction;
-import org.elasticsearch.watcher.shield.ShieldSecretService;
-import org.elasticsearch.watcher.shield.WatcherShieldModule;
+import org.elasticsearch.watcher.support.secret.SecretService;
 import org.elasticsearch.watcher.support.WatcherIndexTemplateRegistry.TemplateConfig;
 import org.elasticsearch.watcher.support.clock.ClockModule;
 import org.elasticsearch.watcher.support.http.HttpClient;
@@ -120,7 +121,14 @@ public class WatcherPlugin extends Plugin {
         transportClient = "transport".equals(settings.get(Client.CLIENT_TYPE_SETTING_S.getKey()));
         enabled = watcherEnabled(settings);
         validAutoCreateIndex(settings);
+
+        // adding the watcher privileges to shield
+        if (ShieldPlugin.enabled(settings)) {
+            registerClusterPrivilege("manage_watcher", "cluster:admin/watcher/*", "cluster:monitor/watcher/*");
+            registerClusterPrivilege("monitor_watcher", "cluster:monitor/watcher/*");
+        }
     }
+
 
     @Override public String name() {
         return NAME;
@@ -152,7 +160,6 @@ public class WatcherPlugin extends Plugin {
                 new WatcherActionModule(),
                 new HistoryModule(),
                 new ExecutionModule(),
-                new WatcherShieldModule(settings),
                 new SecretModule(settings));
     }
 
@@ -204,7 +211,8 @@ public class WatcherPlugin extends Plugin {
         module.registerSetting(Setting.intSetting("watcher.execution.scroll.size", 0, false, CLUSTER));
         module.registerSetting(Setting.intSetting("watcher.watch.scroll.size", 0, false, CLUSTER));
         module.registerSetting(Setting.boolSetting("watcher.enabled", false, false, CLUSTER));
-        module.registerSetting(ShieldSecretService.ENCRYPT_SENSITIVE_DATA_SETTING);
+        module.registerSetting(SecretService.Secure.ENCRYPT_SENSITIVE_DATA_SETTING);
+
         // TODO add real settings for these
         module.registerSetting(Setting.simpleString("resource.reload.interval", false, CLUSTER));
         module.registerSetting(Setting.simpleString("resource.reload.enabled", false, CLUSTER));
@@ -326,6 +334,18 @@ public class WatcherPlugin extends Plugin {
                 " for the next 6 months daily history indices are allowed to be created, but please make sure" +
                 " that any future history indices after 6 months with the pattern " +
                 "[.watcher-history-YYYY.MM.dd] are allowed to be created", value);
+    }
+
+    void registerClusterPrivilege(String name, String... patterns) {
+        try {
+            ClusterPrivilege.addCustom(name, patterns);
+        } catch (Exception se) {
+            logger.warn("could not register cluster privilege [{}]", name);
+
+            // we need to prevent bubbling the shield exception here for the tests. In the tests
+            // we create multiple nodes in the same jvm and since the custom cluster is a static binding
+            // multiple nodes will try to add the same privileges multiple times.
+        }
     }
 
 }

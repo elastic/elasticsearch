@@ -7,7 +7,6 @@ package org.elasticsearch.watcher.actions.email.service;
 
 import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.common.cli.Terminal;
-import org.elasticsearch.common.inject.Provider;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -15,7 +14,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.watcher.support.secret.SecretService;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.Collections;
 import java.util.Locale;
 
@@ -124,7 +122,7 @@ public class ManualPublicSmtpServersTester {
 
     static InternalEmailService startEmailService(Settings.Builder builder) {
         Settings settings = builder.build();
-        InternalEmailService service = new InternalEmailService(settings, new SecretService.PlainText(),
+        InternalEmailService service = new InternalEmailService(settings, SecretService.Insecure.INSTANCE,
                 new ClusterSettings(settings, Collections.singleton(InternalEmailService.EMAIL_ACCOUNT_SETTING)));
         service.start();
         return service;

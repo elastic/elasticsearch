@@ -160,7 +160,7 @@ public class AccountTests extends ESTestCase {
                 .put("smtp.port", server.port())
                 .put("smtp.user", USERNAME)
                 .put("smtp.password", PASSWORD)
-                .build()), new SecretService.PlainText(), logger);
+                .build()), SecretService.Insecure.INSTANCE, logger);
 
         Email email = Email.builder()
                 .id("_id")
@@ -197,7 +197,7 @@ public class AccountTests extends ESTestCase {
                 .put("smtp.port", server.port())
                 .put("smtp.user", USERNAME)
                 .put("smtp.password", PASSWORD)
-                .build()), new SecretService.PlainText(), logger);
+                .build()), SecretService.Insecure.INSTANCE, logger);
 
         Email email = Email.builder()
                 .id("_id")
@@ -237,7 +237,7 @@ public class AccountTests extends ESTestCase {
         Account account = new Account(new Account.Config("default", Settings.builder()
                 .put("smtp.host", "localhost")
                 .put("smtp.port", server.port())
-                .build()), new SecretService.PlainText(), logger);
+                .build()), SecretService.Insecure.INSTANCE, logger);
 
         Email email = Email.builder()
                 .id("_id")

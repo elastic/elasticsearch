@@ -42,6 +42,7 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInfo;
 import org.elasticsearch.transport.TransportMessage;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xpack.XPackPlugin;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.ISODateTimeFormat;
@@ -166,13 +167,15 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
                     public Settings nodeSettings(int nodeOrdinal) {
                         Settings.Builder builder = Settings.builder()
                                 .put(super.nodeSettings(nodeOrdinal))
-                                .put(ShieldPlugin.ENABLED_SETTING_NAME, useShield);
-                        // For tests we forcefully configure Shield's custom query cache because the test framework randomizes the query
-                        // cache impl,
-                        // but if shield is disabled then we don't need to forcefully set the query cache
+                                .put(XPackPlugin.featureEnabledSetting(ShieldPlugin.NAME), useShield);
+
+                        // For tests we forcefully configure Shield's custom query cache because the test framework
+                        // randomizes the query cache impl but if shield is disabled then we don't need to forcefully
+                        // set the query cache
                         if (useShield == false) {
                             builder.remove(IndexModule.INDEX_QUERY_CACHE_TYPE_SETTING.getKey());
                         }
+
                         return builder.build();
                     }
             };
@@ -188,7 +191,7 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
 
             Settings.Builder builder = Settings.builder()
                     .put(settings)
-                    .put(ShieldPlugin.ENABLED_SETTING_NAME, useShield)
+                    .put(XPackPlugin.featureEnabledSetting(ShieldPlugin.NAME), useShield)
                     .put(remoteSettings(NetworkAddress.formatAddress(inet.address().getAddress()), inet.address().getPort(), cluster2Name))
                     .put("shield.audit.index.client.shield.user", DEFAULT_USER_NAME + ":" + DEFAULT_PASSWORD);
 

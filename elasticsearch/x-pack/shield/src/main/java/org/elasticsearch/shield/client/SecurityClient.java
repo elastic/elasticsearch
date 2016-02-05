@@ -44,19 +44,12 @@ import org.elasticsearch.shield.action.role.ClearRolesCacheResponse;
 /**
  * A wrapper to elasticsearch clients that exposes all Shield related APIs
  */
-public class ShieldClient {
+public class SecurityClient {
 
     private final ElasticsearchClient client;
-    private final ShieldAuthcClient authcClient;
 
-    public ShieldClient(ElasticsearchClient client) {
+    public SecurityClient(ElasticsearchClient client) {
         this.client = client;
-        this.authcClient = new ShieldAuthcClient(client);
-    }
-
-    @Deprecated
-    public ShieldAuthcClient authc() {
-        return authcClient;
     }
 
     /****************

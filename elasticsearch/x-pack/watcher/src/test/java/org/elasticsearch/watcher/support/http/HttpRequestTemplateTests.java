@@ -136,7 +136,8 @@ public class HttpRequestTemplateTests extends ESTestCase {
 
         HttpRequestTemplate template = builder.build();
 
-        HttpAuthRegistry registry = new HttpAuthRegistry(singletonMap(BasicAuth.TYPE, new BasicAuthFactory(new SecretService.PlainText())));
+        HttpAuthRegistry registry = new HttpAuthRegistry(singletonMap(BasicAuth.TYPE,
+                new BasicAuthFactory(SecretService.Insecure.INSTANCE)));
         HttpRequestTemplate.Parser parser = new HttpRequestTemplate.Parser(registry);
 
         XContentBuilder xContentBuilder = template.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS);

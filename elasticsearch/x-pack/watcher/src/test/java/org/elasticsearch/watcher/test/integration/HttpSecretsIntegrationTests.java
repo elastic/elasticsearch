@@ -14,7 +14,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.watcher.client.WatcherClient;
 import org.elasticsearch.watcher.execution.ActionExecutionMode;
-import org.elasticsearch.watcher.shield.ShieldSecretService;
 import org.elasticsearch.watcher.support.http.HttpRequestTemplate;
 import org.elasticsearch.watcher.support.http.auth.basic.ApplicableBasicAuth;
 import org.elasticsearch.watcher.support.http.auth.basic.BasicAuth;
@@ -118,15 +117,15 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestC
         if (shieldEnabled() && encryptSensitiveData) {
             assertThat(value, not(is((Object) PASSWORD)));
             SecretService secretService = getInstanceFromMaster(SecretService.class);
-            assertThat(secretService, instanceOf(ShieldSecretService.class));
+            assertThat(secretService, instanceOf(SecretService.Secure.class));
             assertThat(new String(secretService.decrypt(((String) value).toCharArray())), is(PASSWORD));
         } else {
             assertThat(value, is((Object) PASSWORD));
             SecretService secretService = getInstanceFromMaster(SecretService.class);
             if (shieldEnabled()) {
-                assertThat(secretService, instanceOf(ShieldSecretService.class));
+                assertThat(secretService, instanceOf(SecretService.Secure.class));
             } else {
-                assertThat(secretService, instanceOf(SecretService.PlainText.class));
+                assertThat(secretService, instanceOf(SecretService.Insecure.class));
             }
             assertThat(new String(secretService.decrypt(((String) value).toCharArray())), is(PASSWORD));
         }
@@ -190,15 +189,15 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestC
         if (shieldEnabled() && encryptSensitiveData) {
             assertThat(value, not(is((Object) PASSWORD)));
             SecretService secretService = getInstanceFromMaster(SecretService.class);
-            assertThat(secretService, instanceOf(ShieldSecretService.class));
+            assertThat(secretService, instanceOf(SecretService.Secure.class));
             assertThat(new String(secretService.decrypt(((String) value).toCharArray())), is(PASSWORD));
         } else {
             assertThat(value, is((Object) PASSWORD));
             SecretService secretService = getInstanceFromMaster(SecretService.class);
             if (shieldEnabled()) {
-                assertThat(secretService, instanceOf(ShieldSecretService.class));
+                assertThat(secretService, instanceOf(SecretService.Secure.class));
             } else {
-                assertThat(secretService, instanceOf(SecretService.PlainText.class));
+                assertThat(secretService, instanceOf(SecretService.Insecure.class));
             }
             assertThat(new String(secretService.decrypt(((String) value).toCharArray())), is(PASSWORD));
         }

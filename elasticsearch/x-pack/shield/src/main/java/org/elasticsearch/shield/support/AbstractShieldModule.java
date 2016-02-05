@@ -22,7 +22,7 @@ public abstract class AbstractShieldModule extends AbstractModule {
     public AbstractShieldModule(Settings settings) {
         this.settings = settings;
         this.clientMode = !"node".equals(settings.get(Client.CLIENT_TYPE_SETTING_S.getKey()));
-        this.shieldEnabled = ShieldPlugin.shieldEnabled(settings);
+        this.shieldEnabled = ShieldPlugin.enabled(settings);
     }
 
     @Override

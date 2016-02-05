@@ -19,7 +19,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
 import org.elasticsearch.shield.action.role.AddRoleRequest;
 import org.elasticsearch.shield.action.role.AddRoleResponse;
-import org.elasticsearch.shield.client.ShieldClient;
+import org.elasticsearch.shield.client.SecurityClient;
 
 /**
  * Rest endpoint to add a Role to the shield index
@@ -38,7 +38,7 @@ public class RestAddRoleAction extends BaseRestHandler {
         AddRoleRequest addRoleReq = new AddRoleRequest(request.content());
         addRoleReq.name(request.param("id"));
 
-        new ShieldClient(client).addRole(addRoleReq, new RestBuilderListener<AddRoleResponse>(channel) {
+        new SecurityClient(client).addRole(addRoleReq, new RestBuilderListener<AddRoleResponse>(channel) {
             @Override
             public RestResponse buildResponse(AddRoleResponse addRoleResponse, XContentBuilder builder) throws Exception {
                 return new BytesRestResponse(RestStatus.OK,

@@ -34,11 +34,13 @@ import java.io.IOException;
 import java.util.Arrays;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
+import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
 
 public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScrollRequest<Self>>
         extends ActionRequest<Self> {
     public static final int SIZE_ALL_MATCHES = -1;
-    private static final TimeValue DEFAULT_SCROLL_TIMEOUT = TimeValue.timeValueMinutes(5);
+    private static final TimeValue DEFAULT_SCROLL_TIMEOUT = timeValueMinutes(5);
     private static final int DEFAULT_SCROLL_SIZE = 100;
 
     /**
@@ -72,6 +74,17 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
      */
     private WriteConsistencyLevel consistency = WriteConsistencyLevel.DEFAULT;
 
+    /**
+     * Initial delay after a rejection before retrying a bulk request. With the default maxRetries the total backoff for retrying rejections
+     * is about 25 seconds per bulk request. Once the entire bulk request is successful the retry counter resets.
+     */
+    private TimeValue retryBackoffInitialTime = timeValueMillis(50);
+
+    /**
+     * Total number of retries attempted for rejections. There is no way to ask for unlimited retries.
+     */
+    private int maxRetries = 10;
+
     public AbstractBulkByScrollRequest() {
     }
 
@@ -96,6 +109,9 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         ActionRequestValidationException e = source.validate();
         if (source.source().from() != -1) {
             e = addValidationError("from is not supported in this context", e);
+        }
+        if (maxRetries < 0) {
+            e = addValidationError("retries cannnot be negative", e);
         }
         if (false == (size == -1 || size > 0)) {
             e = addValidationError(
@@ -206,6 +222,36 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         return self();
     }
 
+    /**
+     * Initial delay after a rejection before retrying request.
+     */
+    public TimeValue getRetryBackoffInitialTime() {
+        return retryBackoffInitialTime;
+    }
+
+    /**
+     * Set the initial delay after a rejection before retrying request.
+     */
+    public Self setRetryBackoffInitialTime(TimeValue retryBackoffInitialTime) {
+        this.retryBackoffInitialTime = retryBackoffInitialTime;
+        return self();
+    }
+
+    /**
+     * Total number of retries attempted for rejections.
+     */
+    public int getMaxRetries() {
+        return maxRetries;
+    }
+
+    /**
+     * Set the total number of retries attempted for rejections. There is no way to ask for unlimited retries.
+     */
+    public Self setMaxRetries(int maxRetries) {
+        this.maxRetries = maxRetries;
+        return self();
+    }
+
     @Override
     public Task createTask(long id, String type, String action) {
         return new BulkByScrollTask(id, type, action, this::getDescription);
@@ -221,6 +267,8 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         refresh = in.readBoolean();
         timeout = TimeValue.readTimeValue(in);
         consistency = WriteConsistencyLevel.fromId(in.readByte());
+        retryBackoffInitialTime = TimeValue.readTimeValue(in);
+        maxRetries = in.readVInt();
     }
 
     @Override
@@ -232,6 +280,8 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         out.writeBoolean(refresh);
         timeout.writeTo(out);
         out.writeByte(consistency.id());
+        retryBackoffInitialTime.writeTo(out);
+        out.writeVInt(maxRetries);
     }
 
     /**
@@ -248,5 +298,4 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
             b.append(Arrays.toString(source.types()));
         }
     }
-
 }

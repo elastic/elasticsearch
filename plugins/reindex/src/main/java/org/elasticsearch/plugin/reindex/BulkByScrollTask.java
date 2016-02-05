@@ -44,6 +44,7 @@ public class BulkByScrollTask extends Task {
     private final AtomicLong noops = new AtomicLong(0);
     private final AtomicInteger batch = new AtomicInteger(0);
     private final AtomicLong versionConflicts = new AtomicLong(0);
+    private final AtomicLong retries = new AtomicLong(0);
 
     public BulkByScrollTask(long id, String type, String action, Provider<String> description) {
         super(id, type, action, description);
@@ -51,7 +52,8 @@ public class BulkByScrollTask extends Task {
 
     @Override
     public Status getStatus() {
-        return new Status(total.get(), updated.get(), created.get(), deleted.get(), batch.get(), versionConflicts.get(), noops.get());
+        return new Status(total.get(), updated.get(), created.get(), deleted.get(), batch.get(), versionConflicts.get(), noops.get(),
+                retries.get());
     }
 
     /**
@@ -62,7 +64,7 @@ public class BulkByScrollTask extends Task {
     }
 
     public static class Status implements Task.Status {
-        public static final Status PROTOTYPE = new Status(0, 0, 0, 0, 0, 0, 0);
+        public static final Status PROTOTYPE = new Status(0, 0, 0, 0, 0, 0, 0, 0);
 
         private final long total;
         private final long updated;
@@ -71,8 +73,9 @@ public class BulkByScrollTask extends Task {
         private final int batches;
         private final long versionConflicts;
         private final long noops;
+        private final long retries;
 
-        public Status(long total, long updated, long created, long deleted, int batches, long versionConflicts, long noops) {
+        public Status(long total, long updated, long created, long deleted, int batches, long versionConflicts, long noops, long retries) {
             this.total = checkPositive(total, "total");
             this.updated = checkPositive(updated, "updated");
             this.created = checkPositive(created, "created");
@@ -80,6 +83,7 @@ public class BulkByScrollTask extends Task {
             this.batches = checkPositive(batches, "batches");
             this.versionConflicts = checkPositive(versionConflicts, "versionConflicts");
             this.noops = checkPositive(noops, "noops");
+            this.retries = checkPositive(retries, "retries");
         }
 
         public Status(StreamInput in) throws IOException {
@@ -90,6 +94,7 @@ public class BulkByScrollTask extends Task {
             batches = in.readVInt();
             versionConflicts = in.readVLong();
             noops = in.readVLong();
+            retries = in.readVLong();
         }
 
         @Override
@@ -101,6 +106,7 @@ public class BulkByScrollTask extends Task {
             out.writeVInt(batches);
             out.writeVLong(versionConflicts);
             out.writeVLong(noops);
+            out.writeVLong(retries);
         }
 
         @Override
@@ -123,6 +129,7 @@ public class BulkByScrollTask extends Task {
             builder.field("batches", batches);
             builder.field("version_conflicts", versionConflicts);
             builder.field("noops", noops);
+            builder.field("retries", retries);
             return builder;
         }
 
@@ -145,6 +152,7 @@ public class BulkByScrollTask extends Task {
             builder.append(",batches=").append(batches);
             builder.append(",versionConflicts=").append(versionConflicts);
             builder.append(",noops=").append(noops);
+            builder.append(",retries=").append(retries);
         }
 
         @Override
@@ -207,6 +215,13 @@ public class BulkByScrollTask extends Task {
             return noops;
         }
 
+        /**
+         * Number of retries that had to be attempted due to rejected executions.
+         */
+        public long getRetries() {
+            return retries;
+        }
+
         private int checkPositive(int value, String name) {
             if (value < 0) {
                 throw new IllegalArgumentException(name + " must be greater than 0 but was [" + value + "]");
@@ -248,5 +263,9 @@ public class BulkByScrollTask extends Task {
 
     void countVersionConflict() {
         versionConflicts.incrementAndGet();
+    }
+
+    void countRetry() {
+        retries.incrementAndGet();
     }
 }

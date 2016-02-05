@@ -88,6 +88,8 @@ public class RoundTripTests extends ESTestCase {
         assertEquals(request.getTimeout(), tripped.getTimeout());
         assertEquals(request.getConsistency(), tripped.getConsistency());
         assertEquals(request.getScript(), tripped.getScript());
+        assertEquals(request.getRetryBackoffInitialTime(), tripped.getRetryBackoffInitialTime());
+        assertEquals(request.getMaxRetries(), tripped.getMaxRetries());
     }
 
     public void testBulkByTaskStatus() throws IOException {
@@ -116,7 +118,7 @@ public class RoundTripTests extends ESTestCase {
 
     private BulkByScrollTask.Status randomStatus() {
         return new BulkByScrollTask.Status(randomPositiveLong(), randomPositiveLong(), randomPositiveLong(), randomPositiveLong(),
-                randomPositiveInt(), randomPositiveLong(), randomPositiveLong());
+                randomPositiveInt(), randomPositiveLong(), randomPositiveLong(), randomPositiveLong());
     }
 
     private List<Failure> randomIndexingFailures() {
@@ -185,8 +187,11 @@ public class RoundTripTests extends ESTestCase {
 
     private void assertTaskStatusEquals(BulkByScrollTask.Status expected, BulkByScrollTask.Status actual) {
         assertEquals(expected.getUpdated(), actual.getUpdated());
+        assertEquals(expected.getCreated(), actual.getCreated());
+        assertEquals(expected.getDeleted(), actual.getDeleted());
         assertEquals(expected.getBatches(), actual.getBatches());
         assertEquals(expected.getVersionConflicts(), actual.getVersionConflicts());
         assertEquals(expected.getNoops(), actual.getNoops());
+        assertEquals(expected.getRetries(), actual.getRetries());
     }
 }

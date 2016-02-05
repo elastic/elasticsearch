@@ -31,7 +31,6 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.IndicesWarmer;
 import org.elasticsearch.shield.license.ShieldLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -68,7 +67,7 @@ public class ShieldIndexSearcherWrapperIntegrationTests extends ESTestCase {
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(shardId.getIndex(), Settings.EMPTY);
         QueryShardContext queryShardContext = mock(QueryShardContext.class);
         IndexSettings settings = IndexSettingsModule.newIndexSettings("_index", Settings.EMPTY);
-        BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(settings, new IndicesWarmer(settings.getSettings(), null), new BitsetFilterCache.Listener() {
+        BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(settings, new BitsetFilterCache.Listener() {
             @Override
             public void onCache(ShardId shardId, Accountable accountable) {
 

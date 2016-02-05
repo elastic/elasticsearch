@@ -29,7 +29,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.IndicesWarmer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.junit.After;
@@ -48,7 +47,7 @@ public class DocumentSubsetReaderTests extends ESTestCase {
     public void before() {
         directory = newDirectory();
         IndexSettings settings = IndexSettingsModule.newIndexSettings("_index", Settings.EMPTY);
-        bitsetFilterCache = new BitsetFilterCache(settings, new IndicesWarmer(settings.getSettings(), null), new BitsetFilterCache.Listener() {
+        bitsetFilterCache = new BitsetFilterCache(settings, new BitsetFilterCache.Listener() {
             @Override
             public void onCache(ShardId shardId, Accountable accountable) {
 
@@ -163,7 +162,7 @@ public class DocumentSubsetReaderTests extends ESTestCase {
         IndexWriter iw = new IndexWriter(dir, iwc);
         iw.close();
         IndexSettings settings = IndexSettingsModule.newIndexSettings("_index", Settings.EMPTY);
-        BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(settings, new IndicesWarmer(settings.getSettings(), null), new BitsetFilterCache.Listener() {
+        BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(settings, new BitsetFilterCache.Listener() {
             @Override
             public void onCache(ShardId shardId, Accountable accountable) {
                 

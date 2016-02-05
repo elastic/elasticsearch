@@ -42,7 +42,6 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
-import org.elasticsearch.indices.IndicesWarmer;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.shield.license.ShieldLicenseState;
 import org.elasticsearch.test.ESTestCase;
@@ -241,7 +240,7 @@ public class ShieldIndexSearcherWrapperUnitTests extends ESTestCase {
 
     public void testDelegateSimilarity() throws Exception {
         IndexSettings settings = IndexSettingsModule.newIndexSettings("_index", Settings.EMPTY);
-        BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(settings, new IndicesWarmer(settings.getSettings(), null), new BitsetFilterCache.Listener() {
+        BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(settings, new BitsetFilterCache.Listener() {
             @Override
             public void onCache(ShardId shardId, Accountable accountable) {
 

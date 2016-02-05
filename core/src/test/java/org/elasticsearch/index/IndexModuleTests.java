@@ -53,7 +53,6 @@ import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.IndexStoreConfig;
 import org.elasticsearch.indices.IndicesModule;
-import org.elasticsearch.indices.IndicesWarmer;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.cache.query.IndicesQueryCache;
@@ -104,7 +103,6 @@ public class IndexModuleTests extends ESTestCase {
     static NodeServicesProvider newNodeServiceProvider(Settings settings, Environment environment, Client client, ScriptEngineService... scriptEngineServices) throws IOException {
         // TODO this can be used in other place too - lets first refactor the IndicesQueriesRegistry
         ThreadPool threadPool = new ThreadPool("test");
-        IndicesWarmer warmer = new IndicesWarmer(settings, threadPool);
         IndicesQueryCache indicesQueryCache = new IndicesQueryCache(settings);
         CircuitBreakerService circuitBreakerService = new NoneCircuitBreakerService();
         PageCacheRecycler recycler = new PageCacheRecycler(settings, threadPool);
@@ -116,7 +114,7 @@ public class IndexModuleTests extends ESTestCase {
         ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
         ScriptService scriptService = new ScriptService(settings, environment, scriptEngines, new ResourceWatcherService(settings, threadPool), scriptEngineRegistry, scriptContextRegistry, scriptSettings);
         IndicesQueriesRegistry indicesQueriesRegistry = new IndicesQueriesRegistry(settings, emptyMap());
-        return new NodeServicesProvider(threadPool, indicesQueryCache, warmer, bigArrays, client, scriptService, indicesQueriesRegistry, circuitBreakerService);
+        return new NodeServicesProvider(threadPool, indicesQueryCache, bigArrays, client, scriptService, indicesQueriesRegistry, circuitBreakerService);
     }
 
     @Override

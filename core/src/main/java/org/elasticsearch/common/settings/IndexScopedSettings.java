@@ -38,8 +38,8 @@ import org.elasticsearch.index.percolator.PercolatorQueriesRegistry;
 import org.elasticsearch.index.store.FsDirectoryService;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.IndexWarmer;
 import org.elasticsearch.indices.cache.request.IndicesRequestCache;
-import org.elasticsearch.search.SearchService;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -132,7 +132,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         PrimaryShardAllocator.INDEX_RECOVERY_INITIAL_SHARDS_SETTING,
         FsDirectoryService.INDEX_LOCK_FACTOR_SETTING,
         EngineConfig.INDEX_CODEC_SETTING,
-        SearchService.INDEX_NORMS_LOADING_SETTING,
+        IndexWarmer.INDEX_NORMS_LOADING_SETTING,
         // this sucks but we can't really validate all the analyzers/similarity in here
         Setting.groupSetting("index.similarity.", false, Setting.Scope.INDEX), // this allows similarity settings to be passed
         Setting.groupSetting("index.analysis.", false, Setting.Scope.INDEX) // this allows analysis settings to be passed

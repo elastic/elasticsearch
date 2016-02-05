@@ -22,10 +22,12 @@ package org.elasticsearch.plugin.reindex;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
+import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.bulk.Retry;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.ClearScrollResponse;
@@ -39,6 +41,7 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -46,6 +49,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -56,6 +60,7 @@ import static java.lang.Math.max;
 import static java.lang.Math.min;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.unmodifiableList;
+import static org.elasticsearch.action.bulk.BackoffPolicy.exponentialBackoff;
 import static org.elasticsearch.common.unit.TimeValue.timeValueNanos;
 import static org.elasticsearch.plugin.reindex.AbstractBulkByScrollRequest.SIZE_ALL_MATCHES;
 import static org.elasticsearch.rest.RestStatus.CONFLICT;
@@ -82,6 +87,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
     private final ThreadPool threadPool;
     private final SearchRequest firstSearchRequest;
     private final ActionListener<Response> listener;
+    private final Retry retry;
 
     public AbstractAsyncBulkByScrollAction(BulkByScrollTask task, ESLogger logger, Client client, ThreadPool threadPool,
             Request mainRequest, SearchRequest firstSearchRequest, ActionListener<Response> listener) {
@@ -92,6 +98,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         this.mainRequest = mainRequest;
         this.firstSearchRequest = firstSearchRequest;
         this.listener = listener;
+        retry = Retry.on(EsRejectedExecutionException.class).policy(wrapBackoffPolicy(backoffPolicy()));
     }
 
     protected abstract BulkRequest buildBulk(Iterable<SearchHit> docs);
@@ -151,57 +158,55 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         threadPool.generic().execute(new AbstractRunnable() {
             @Override
             protected void doRun() throws Exception {
-                try {
-                    SearchHit[] docs = searchResponse.getHits().getHits();
-                    logger.debug("scroll returned [{}] documents with a scroll id of [{}]", docs.length, searchResponse.getScrollId());
-                    if (docs.length == 0) {
-                        startNormalTermination(emptyList(), emptyList());
-                        return;
-                    }
-                    task.countBatch();
-                    List<SearchHit> docsIterable = Arrays.asList(docs);
-                    if (mainRequest.getSize() != SIZE_ALL_MATCHES) {
-                        // Truncate the docs if we have more than the request size
-                        long remaining = max(0, mainRequest.getSize() - task.getSuccessfullyProcessed());
-                        if (remaining < docs.length) {
-                            docsIterable = docsIterable.subList(0, (int) remaining);
-                        }
-                    }
-                    BulkRequest request = buildBulk(docsIterable);
-                    if (request.requests().isEmpty()) {
-                        /*
-                         * If we noop-ed the entire batch then just skip to the next
-                         * batch or the BulkRequest would fail validation.
-                         */
-                        startNextScrollRequest();
-                        return;
-                    }
-                    request.timeout(mainRequest.getTimeout());
-                    request.consistencyLevel(mainRequest.getConsistency());
-                    if (logger.isDebugEnabled()) {
-                        logger.debug("sending [{}] entry, [{}] bulk request", request.requests().size(),
-                                new ByteSizeValue(request.estimatedSizeInBytes()));
-                    }
-                    // NOCOMMIT handle rejections
-                    client.bulk(request, new ActionListener<BulkResponse>() {
-                        @Override
-                        public void onResponse(BulkResponse response) {
-                            onBulkResponse(response);
-                        }
-
-                        @Override
-                        public void onFailure(Throwable e) {
-                            finishHim(e);
-                        }
-                    });
-                } catch (Throwable t) {
-                    finishHim(t);
+                SearchHit[] docs = searchResponse.getHits().getHits();
+                logger.debug("scroll returned [{}] documents with a scroll id of [{}]", docs.length, searchResponse.getScrollId());
+                if (docs.length == 0) {
+                    startNormalTermination(emptyList(), emptyList());
+                    return;
                 }
+                task.countBatch();
+                List<SearchHit> docsIterable = Arrays.asList(docs);
+                if (mainRequest.getSize() != SIZE_ALL_MATCHES) {
+                    // Truncate the docs if we have more than the request size
+                    long remaining = max(0, mainRequest.getSize() - task.getSuccessfullyProcessed());
+                    if (remaining < docs.length) {
+                        docsIterable = docsIterable.subList(0, (int) remaining);
+                    }
+                }
+                BulkRequest request = buildBulk(docsIterable);
+                if (request.requests().isEmpty()) {
+                    /*
+                     * If we noop-ed the entire batch then just skip to the next batch or the BulkRequest would fail validation.
+                     */
+                    startNextScrollRequest();
+                    return;
+                }
+                request.timeout(mainRequest.getTimeout());
+                request.consistencyLevel(mainRequest.getConsistency());
+                if (logger.isDebugEnabled()) {
+                    logger.debug("sending [{}] entry, [{}] bulk request", request.requests().size(),
+                            new ByteSizeValue(request.estimatedSizeInBytes()));
+                }
+                sendBulkRequest(request);
             }
 
             @Override
             public void onFailure(Throwable t) {
                 finishHim(t);
+            }
+        });
+    }
+
+    void sendBulkRequest(BulkRequest request) {
+        retry.withAsyncBackoff(client, request, new ActionListener<BulkResponse>() {
+            @Override
+            public void onResponse(BulkResponse response) {
+                onBulkResponse(response);
+            }
+
+            @Override
+            public void onFailure(Throwable e) {
+                finishHim(e);
             }
         });
     }
@@ -341,5 +346,39 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         } else {
             listener.onFailure(failure);
         }
+    }
+
+    /**
+     * Build the backoff policy for use with retries. Package private for testing.
+     */
+    BackoffPolicy backoffPolicy() {
+        return exponentialBackoff(mainRequest.getRetryBackoffInitialTime(), mainRequest.getMaxRetries());
+    }
+
+    /**
+     * Wraps a backoffPolicy in another policy that counts the number of backoffs acquired.
+     */
+    private BackoffPolicy wrapBackoffPolicy(BackoffPolicy backoffPolicy) {
+        return new BackoffPolicy() {
+            @Override
+            public Iterator<TimeValue> iterator() {
+                return new Iterator<TimeValue>() {
+                    private final Iterator<TimeValue> delegate = backoffPolicy.iterator();
+                    @Override
+                    public boolean hasNext() {
+                        return delegate.hasNext();
+                    }
+
+                    @Override
+                    public TimeValue next() {
+                        if (false == delegate.hasNext()) {
+                            return null;
+                        }
+                        task.countRetry();
+                        return delegate.next();
+                    }
+                };
+            }
+        };
     }
 }

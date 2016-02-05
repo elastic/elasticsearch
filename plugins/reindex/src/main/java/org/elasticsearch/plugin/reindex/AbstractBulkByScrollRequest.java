@@ -34,11 +34,13 @@ import java.io.IOException;
 import java.util.Arrays;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
+import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
 
 public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScrollRequest<Self>>
         extends ActionRequest<Self> {
     public static final int SIZE_ALL_MATCHES = -1;
-    private static final TimeValue DEFAULT_SCROLL_TIMEOUT = TimeValue.timeValueMinutes(5);
+    private static final TimeValue DEFAULT_SCROLL_TIMEOUT = timeValueMinutes(5);
     private static final int DEFAULT_SCROLL_SIZE = 100;
 
     /**
@@ -71,6 +73,17 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
      * Consistency level for write requests.
      */
     private WriteConsistencyLevel consistency = WriteConsistencyLevel.DEFAULT;
+
+    /**
+     * Initial delay after a rejection before retrying request. Defaults to 50ms. With the default maxRetries to total time to retry
+     * rejects is about 25 seconds per rejection.
+     */
+    private TimeValue retryBackoffInitialTime = timeValueMillis(50);
+
+    /**
+     * Total number of retries attempted for rejections. Defaults to 10.
+     */
+    private int maxRetries = 10;
 
     public AbstractBulkByScrollRequest() {
     }
@@ -206,6 +219,38 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         return self();
     }
 
+    /**
+     * Initial delay after a rejection before retrying request. Defaults to 50ms. With the default maxRetries to total time to retry
+     * rejects is about 25 seconds per rejection.
+     */
+    public TimeValue getRetryBackoffInitialTime() {
+        return retryBackoffInitialTime;
+    }
+
+    /**
+     * Initial delay after a rejection before retrying request. Defaults to 50ms. With the default maxRetries to total time to retry
+     * rejects is about 25 seconds per rejection.
+     */
+    public Self setRetryBackoffInitialTime(TimeValue retryBackoffInitialTime) {
+        this.retryBackoffInitialTime = retryBackoffInitialTime;
+        return self();
+    }
+
+    /**
+     * Total number of retries attempted for rejections. Defaults to 10.
+     */
+    public int getMaxRetries() {
+        return maxRetries;
+    }
+
+    /**
+     * Total number of retries attempted for rejections. Defaults to 10.
+     */
+    public Self setMaxRetries(int maxRetries) {
+        this.maxRetries = maxRetries;
+        return self();
+    }
+
     @Override
     public Task createTask(long id, String type, String action) {
         return new BulkByScrollTask(id, type, action, this::getDescription);
@@ -221,6 +266,8 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         refresh = in.readBoolean();
         timeout = TimeValue.readTimeValue(in);
         consistency = WriteConsistencyLevel.fromId(in.readByte());
+        retryBackoffInitialTime = TimeValue.readTimeValue(in);
+        maxRetries = in.readVInt();
     }
 
     @Override
@@ -232,6 +279,8 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         out.writeBoolean(refresh);
         timeout.writeTo(out);
         out.writeByte(consistency.id());
+        retryBackoffInitialTime.writeTo(out);
+        out.writeVInt(maxRetries);
     }
 
     /**
@@ -248,5 +297,4 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
             b.append(Arrays.toString(source.types()));
         }
     }
-
 }

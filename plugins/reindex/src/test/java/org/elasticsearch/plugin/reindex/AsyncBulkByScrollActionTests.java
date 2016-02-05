@@ -24,10 +24,15 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.delete.DeleteRequest;
+import org.elasticsearch.action.delete.DeleteResponse;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.ClearScrollResponse;
@@ -35,6 +40,9 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.replication.ReplicationRequest;
+import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.FilterClient;
 import org.elasticsearch.common.text.Text;
@@ -55,18 +63,23 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.Collections.emptyMap;
 import static org.apache.lucene.util.TestUtil.randomSimpleString;
+import static org.elasticsearch.action.bulk.BackoffPolicy.constantBackoff;
+import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.emptyCollectionOf;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class AsyncBulkByScrollActionTests extends ESTestCase {
-    private MockClearScrollClient client;
+    private MyMockClient client;
     private ThreadPool threadPool;
     private DummyAbstractBulkByScrollRequest mainRequest;
     private SearchRequest firstSearchRequest;
@@ -76,7 +89,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
 
     @Before
     public void setupForTest() {
-        client = new MockClearScrollClient(new NoOpClient(getTestName()));
+        client = new MyMockClient(new NoOpClient(getTestName()));
         threadPool = new ThreadPool(getTestName());
         mainRequest = new DummyAbstractBulkByScrollRequest();
         firstSearchRequest = null;
@@ -147,7 +160,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         long updated = 0;
         long deleted = 0;
         for (int batches = 0; batches < maxBatches; batches++) {
-            BulkItemResponse[] responses = new BulkItemResponse[randomIntBetween(0, 10000)];
+            BulkItemResponse[] responses = new BulkItemResponse[randomIntBetween(0, 100)];
             for (int i = 0; i < responses.length; i++) {
                 ShardId shardId = new ShardId(new Index("name", "uid"), 0);
                 String opType;
@@ -244,6 +257,87 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         assertThat(response.getSearchFailures(), emptyCollectionOf(ShardSearchFailure.class));
     }
 
+    /**
+     * Mimicks script failures or general wrongness by implementers.
+     */
+    public void testListenerReceiveBuildBulkExceptions() throws Exception {
+        DummyAbstractAsyncBulkByScrollAction action = new DummyAbstractAsyncBulkByScrollAction() {
+            @Override
+            protected BulkRequest buildBulk(Iterable<SearchHit> docs) {
+                throw new RuntimeException("surprise");
+            }
+        };
+        InternalSearchHit hit = new InternalSearchHit(0, "id", new Text("type"), emptyMap());
+        InternalSearchHits hits = new InternalSearchHits(new InternalSearchHit[] {hit}, 0, 0);
+        InternalSearchResponse searchResponse = new InternalSearchResponse(hits, null, null, null, false, false);
+        action.onScrollResponse(new SearchResponse(searchResponse, scrollId(), 5, 4, randomLong(), null));
+        try {
+            listener.get();
+            fail("Expected failure.");
+        } catch (ExecutionException e) {
+            assertThat(e.getCause(), instanceOf(RuntimeException.class));
+            assertThat(e.getCause().getMessage(), equalTo("surprise"));
+        }
+    }
+
+    /**
+     * Mimicks bulk rejections. These should be retried and eventually succeed.
+     */
+    public void testBulkRejectionsRetryWithEnoughRetries() throws Exception {
+        int bulksToTry = randomIntBetween(1, 10);
+        long retryAttempts = 0;
+        for (int i = 0; i < bulksToTry; i++) {
+            retryAttempts += retryTestCase(false);
+            assertEquals(retryAttempts, task.getStatus().getRetries());
+        }
+    }
+
+    /**
+     * Mimicks bulk rejections. These should be retried but we fail anyway because we run out of retries.
+     */
+    public void testBulkRejectionsRetryAndFailAnyway() throws Exception {
+        long retryAttempts = retryTestCase(true);
+        assertEquals(retryAttempts, task.getStatus().getRetries());
+    }
+
+    private long retryTestCase(boolean failWithRejection) throws Exception {
+        int totalFailures = randomIntBetween(1, mainRequest.getMaxRetries());
+        int size = randomIntBetween(1, 100);
+        int retryAttempts = totalFailures - (failWithRejection ? 1 : 0);
+
+        client.bulksToReject = client.bulksAttempts.get() + totalFailures;
+        if (!failWithRejection) {
+            mainRequest.setSize(size); // This will cause the request to finish without starting another scroll round.
+        }
+        DummyAbstractAsyncBulkByScrollAction action = new DummyAbstractAsyncBulkByScrollAction() {
+            @Override
+            BackoffPolicy backoffPolicy() {
+                // Force a backoff time of 0 to prevent sleeping
+                return constantBackoff(timeValueMillis(0), retryAttempts);
+            }
+        };
+        BulkRequest request = new BulkRequest();
+        for (int i = 0; i < size + 1; i++) {
+            request.add(new IndexRequest("index", "type", "id" + i));
+        }
+        action.sendBulkRequest(request);
+        listener.get();
+        listener = new PlainActionFuture<>(); // For next time
+        return retryAttempts;
+    }
+
+    /**
+     * The default retry time matches what we say it is in the javadoc for the request.
+     */
+    public void testDefaultRetryTimes() {
+        Iterator<TimeValue> policy = new DummyAbstractAsyncBulkByScrollAction().backoffPolicy().iterator();
+        long millis = 0;
+        while (policy.hasNext()) {
+            millis += policy.next().millis();
+        }
+        assertEquals(24670, millis);
+    }
+
     private class DummyAbstractAsyncBulkByScrollAction
             extends AbstractAsyncBulkByScrollAction<DummyAbstractBulkByScrollRequest, BulkIndexByScrollResponse> {
         public DummyAbstractAsyncBulkByScrollAction() {
@@ -263,17 +357,20 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         }
     }
 
-    private static class DummyAbstractBulkByScrollRequest extends AbstractBulkByScrollRequest<DummyAbstractBulkByScrollRequest> {
+    static class DummyAbstractBulkByScrollRequest extends AbstractBulkByScrollRequest<DummyAbstractBulkByScrollRequest> {
         @Override
         protected DummyAbstractBulkByScrollRequest self() {
             return this;
         }
     }
 
-    private static class MockClearScrollClient extends FilterClient {
-        private List<String> scrollsCleared = new ArrayList<>();
+    private static class MyMockClient extends FilterClient {
+        private final List<String> scrollsCleared = new ArrayList<>();
+        private final AtomicInteger bulksAttempts = new AtomicInteger();
 
-        public MockClearScrollClient(Client in) {
+        private int bulksToReject = 0;
+
+        public MyMockClient(Client in) {
             super(in);
         }
 
@@ -286,6 +383,48 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
                 ClearScrollRequest clearScroll = (ClearScrollRequest) request;
                 scrollsCleared.addAll(clearScroll.getScrollIds());
                 listener.onResponse((Response) new ClearScrollResponse(true, clearScroll.getScrollIds().size()));
+                return;
+            }
+            if (request instanceof BulkRequest) {
+                BulkRequest bulk = (BulkRequest) request;
+                int toReject;
+                if (bulksAttempts.incrementAndGet() > bulksToReject) {
+                    toReject = -1;
+                } else {
+                    toReject = randomIntBetween(0, bulk.requests().size() - 1);
+                }
+                BulkItemResponse[] responses = new BulkItemResponse[bulk.requests().size()];
+                for (int i = 0; i < bulk.requests().size(); i++) {
+                    ActionRequest<?> item = bulk.requests().get(i);
+                    String opType;
+                    DocWriteResponse response;
+                    ShardId shardId = new ShardId(new Index(((ReplicationRequest<?>) item).index(), "uuid"), 0);
+                    if (item instanceof IndexRequest) {
+                        IndexRequest index = (IndexRequest) item;
+                        opType = "index";
+                        response = new IndexResponse(shardId, index.type(), index.id(), randomIntBetween(0, Integer.MAX_VALUE),
+                                true);
+                    } else if (item instanceof UpdateRequest) {
+                        UpdateRequest update = (UpdateRequest) item;
+                        opType = "update";
+                        response = new UpdateResponse(shardId, update.type(), update.id(),
+                                randomIntBetween(0, Integer.MAX_VALUE), true);
+                    } else if (item instanceof DeleteRequest) {
+                        DeleteRequest delete = (DeleteRequest) item;
+                        opType = "delete";
+                        response = new DeleteResponse(shardId, delete.type(), delete.id(), randomIntBetween(0, Integer.MAX_VALUE),
+                                true);
+                    } else {
+                        throw new RuntimeException("Unknown request:  " + item);
+                    }
+                    if (i == toReject) {
+                        responses[i] = new BulkItemResponse(i, opType,
+                                new Failure(response.getIndex(), response.getType(), response.getId(), new EsRejectedExecutionException()));
+                    } else {
+                        responses[i] = new BulkItemResponse(i, opType, response);
+                    }
+                }
+                listener.onResponse((Response) new BulkResponse(responses, 1));
                 return;
             }
             super.doExecute(action, request, listener);

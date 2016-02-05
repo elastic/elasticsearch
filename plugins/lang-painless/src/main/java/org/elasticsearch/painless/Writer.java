@@ -128,7 +128,8 @@ class Writer extends PainlessParserBaseVisitor<Void> {
     private final static org.objectweb.asm.Type BASE_CLASS_TYPE = org.objectweb.asm.Type.getType(Executable.class);
     private final static org.objectweb.asm.Type CLASS_TYPE = org.objectweb.asm.Type.getType("L" + CLASS_NAME.replace(".", "/") + ";");
 
-    private final static org.objectweb.asm.commons.Method CONSTRUCTOR = getAsmMethod(void.class, "<init>", Definition.class, String.class, String.class);
+    private final static org.objectweb.asm.commons.Method CONSTRUCTOR =
+        getAsmMethod(void.class, "<init>", Definition.class, String.class, String.class);
     private final static org.objectweb.asm.commons.Method EXECUTE = getAsmMethod(Object.class, "execute", Map.class);
     private final static String SIGNATURE = "(Ljava/util/Map<Ljava/lang/String;Ljava/lang/Object;>;)Ljava/lang/Object;";
 
@@ -174,57 +175,89 @@ class Writer extends PainlessParserBaseVisitor<Void> {
 
     private final static org.objectweb.asm.Type STRINGBUILDER_TYPE = org.objectweb.asm.Type.getType(StringBuilder.class);
 
-    private final static org.objectweb.asm.commons.Method STRINGBUILDER_CONSTRUCTOR    = getAsmMethod(void.class, "<init>");
-    private final static org.objectweb.asm.commons.Method STRINGBUILDER_APPEND_BOOLEAN = getAsmMethod(StringBuilder.class, "append", boolean.class);
-    private final static org.objectweb.asm.commons.Method STRINGBUILDER_APPEND_CHAR    = getAsmMethod(StringBuilder.class, "append", char.class);
-    private final static org.objectweb.asm.commons.Method STRINGBUILDER_APPEND_INT     = getAsmMethod(StringBuilder.class, "append", int.class);
-    private final static org.objectweb.asm.commons.Method STRINGBUILDER_APPEND_LONG    = getAsmMethod(StringBuilder.class, "append", long.class);
-    private final static org.objectweb.asm.commons.Method STRINGBUILDER_APPEND_FLOAT   = getAsmMethod(StringBuilder.class, "append", float.class);
-    private final static org.objectweb.asm.commons.Method STRINGBUILDER_APPEND_DOUBLE  = getAsmMethod(StringBuilder.class, "append", double.class);
-    private final static org.objectweb.asm.commons.Method STRINGBUILDER_APPEND_STRING  = getAsmMethod(StringBuilder.class, "append", String.class);
-    private final static org.objectweb.asm.commons.Method STRINGBUILDER_APPEND_OBJECT  = getAsmMethod(StringBuilder.class, "append", Object.class);
-    private final static org.objectweb.asm.commons.Method STRINGBUILDER_TOSTRING       = getAsmMethod(String.class, "toString");
+    private final static org.objectweb.asm.commons.Method STRINGBUILDER_CONSTRUCTOR = getAsmMethod(void.class, "<init>");
+    private final static org.objectweb.asm.commons.Method STRINGBUILDER_APPEND_BOOLEAN =
+        getAsmMethod(StringBuilder.class, "append", boolean.class);
+    private final static org.objectweb.asm.commons.Method STRINGBUILDER_APPEND_CHAR =
+        getAsmMethod(StringBuilder.class, "append", char.class);
+    private final static org.objectweb.asm.commons.Method STRINGBUILDER_APPEND_INT =
+        getAsmMethod(StringBuilder.class, "append", int.class);
+    private final static org.objectweb.asm.commons.Method STRINGBUILDER_APPEND_LONG =
+        getAsmMethod(StringBuilder.class, "append", long.class);
+    private final static org.objectweb.asm.commons.Method STRINGBUILDER_APPEND_FLOAT =
+        getAsmMethod(StringBuilder.class, "append", float.class);
+    private final static org.objectweb.asm.commons.Method STRINGBUILDER_APPEND_DOUBLE =
+        getAsmMethod(StringBuilder.class, "append", double.class);
+    private final static org.objectweb.asm.commons.Method STRINGBUILDER_APPEND_STRING =
+        getAsmMethod(StringBuilder.class, "append", String.class);
+    private final static org.objectweb.asm.commons.Method STRINGBUILDER_APPEND_OBJECT =
+        getAsmMethod(StringBuilder.class, "append", Object.class);
+    private final static org.objectweb.asm.commons.Method STRINGBUILDER_TOSTRING = getAsmMethod(String.class, "toString");
 
-    private final static org.objectweb.asm.commons.Method TOINTEXACT_LONG  = getAsmMethod(int.class , "toIntExact"   , long.class);
-    private final static org.objectweb.asm.commons.Method NEGATEEXACT_INT  = getAsmMethod(int.class , "negateExact"  , int.class);
-    private final static org.objectweb.asm.commons.Method NEGATEEXACT_LONG = getAsmMethod(long.class, "negateExact"  , long.class);
-    private final static org.objectweb.asm.commons.Method MULEXACT_INT     = getAsmMethod(int.class , "multiplyExact", int.class , int.class);
-    private final static org.objectweb.asm.commons.Method MULEXACT_LONG    = getAsmMethod(long.class, "multiplyExact", long.class, long.class);
-    private final static org.objectweb.asm.commons.Method ADDEXACT_INT     = getAsmMethod(int.class , "addExact"     , int.class , int.class);
-    private final static org.objectweb.asm.commons.Method ADDEXACT_LONG    = getAsmMethod(long.class, "addExact"     , long.class, long.class);
-    private final static org.objectweb.asm.commons.Method SUBEXACT_INT     = getAsmMethod(int.class , "subtractExact", int.class , int.class);
-    private final static org.objectweb.asm.commons.Method SUBEXACT_LONG    = getAsmMethod(long.class, "subtractExact", long.class, long.class);
+    private final static org.objectweb.asm.commons.Method TOINTEXACT_LONG = getAsmMethod(int.class, "toIntExact", long.class);
+    private final static org.objectweb.asm.commons.Method NEGATEEXACT_INT = getAsmMethod(int.class, "negateExact", int.class);
+    private final static org.objectweb.asm.commons.Method NEGATEEXACT_LONG = getAsmMethod(long.class, "negateExact", long.class);
+    private final static org.objectweb.asm.commons.Method MULEXACT_INT = getAsmMethod(int.class, "multiplyExact", int.class, int.class);
+    private final static org.objectweb.asm.commons.Method MULEXACT_LONG = getAsmMethod(long.class, "multiplyExact", long.class, long.class);
+    private final static org.objectweb.asm.commons.Method ADDEXACT_INT = getAsmMethod(int.class, "addExact", int.class, int.class);
+    private final static org.objectweb.asm.commons.Method ADDEXACT_LONG = getAsmMethod(long.class, "addExact", long.class, long.class);
+    private final static org.objectweb.asm.commons.Method SUBEXACT_INT = getAsmMethod(int.class, "subtractExact", int.class, int.class);
+    private final static org.objectweb.asm.commons.Method SUBEXACT_LONG = getAsmMethod(long.class, "subtractExact", long.class, long.class);
 
-    private final static org.objectweb.asm.commons.Method CHECKEQUALS              = getAsmMethod(boolean.class, "checkEquals"             , Object.class, Object.class);
-    private final static org.objectweb.asm.commons.Method TOBYTEEXACT_INT          = getAsmMethod(byte.class   , "toByteExact"             , int.class);
-    private final static org.objectweb.asm.commons.Method TOBYTEEXACT_LONG         = getAsmMethod(byte.class   , "toByteExact"             , long.class);
-    private final static org.objectweb.asm.commons.Method TOBYTEWOOVERFLOW_FLOAT   = getAsmMethod(byte.class   , "toByteWithoutOverflow"   , float.class);
-    private final static org.objectweb.asm.commons.Method TOBYTEWOOVERFLOW_DOUBLE  = getAsmMethod(byte.class   , "toByteWithoutOverflow"   , double.class);
-    private final static org.objectweb.asm.commons.Method TOSHORTEXACT_INT         = getAsmMethod(short.class  , "toShortExact"            , int.class);
-    private final static org.objectweb.asm.commons.Method TOSHORTEXACT_LONG        = getAsmMethod(short.class  , "toShortExact"            , long.class);
-    private final static org.objectweb.asm.commons.Method TOSHORTWOOVERFLOW_FLOAT  = getAsmMethod(short.class  , "toShortWithoutOverflow"  , float.class);
-    private final static org.objectweb.asm.commons.Method TOSHORTWOOVERFLOW_DOUBLE = getAsmMethod(short.class  , "toShortWihtoutOverflow"  , double.class);
-    private final static org.objectweb.asm.commons.Method TOCHAREXACT_INT          = getAsmMethod(char.class   , "toCharExact"             , int.class);
-    private final static org.objectweb.asm.commons.Method TOCHAREXACT_LONG         = getAsmMethod(char.class   , "toCharExact"             , long.class);
-    private final static org.objectweb.asm.commons.Method TOCHARWOOVERFLOW_FLOAT   = getAsmMethod(char.class   , "toCharWithoutOverflow"   , float.class);
-    private final static org.objectweb.asm.commons.Method TOCHARWOOVERFLOW_DOUBLE  = getAsmMethod(char.class   , "toCharWithoutOverflow"   , double.class);
-    private final static org.objectweb.asm.commons.Method TOINTWOOVERFLOW_FLOAT    = getAsmMethod(int.class    , "toIntWithoutOverflow"    , float.class);
-    private final static org.objectweb.asm.commons.Method TOINTWOOVERFLOW_DOUBLE   = getAsmMethod(int.class    , "toIntWithoutOverflow"    , double.class);
-    private final static org.objectweb.asm.commons.Method TOLONGWOOVERFLOW_FLOAT   = getAsmMethod(long.class   , "toLongWithoutOverflow"   , float.class);
-    private final static org.objectweb.asm.commons.Method TOLONGWOOVERFLOW_DOUBLE  = getAsmMethod(long.class   , "toLongWithoutOverflow"   , double.class);
-    private final static org.objectweb.asm.commons.Method TOFLOATWOOVERFLOW_DOUBLE = getAsmMethod(float.class  , "toFloatWihtoutOverflow"  , double.class);
-    private final static org.objectweb.asm.commons.Method MULWOOVERLOW_FLOAT       = getAsmMethod(float.class  , "multiplyWithoutOverflow" , float.class , float.class);
-    private final static org.objectweb.asm.commons.Method MULWOOVERLOW_DOUBLE      = getAsmMethod(double.class , "multiplyWithoutOverflow" , double.class, double.class);
-    private final static org.objectweb.asm.commons.Method DIVWOOVERLOW_INT         = getAsmMethod(int.class    , "divideWithoutOverflow"   , int.class   , int.class);
-    private final static org.objectweb.asm.commons.Method DIVWOOVERLOW_LONG        = getAsmMethod(long.class   , "divideWithoutOverflow"   , long.class  , long.class);
-    private final static org.objectweb.asm.commons.Method DIVWOOVERLOW_FLOAT       = getAsmMethod(float.class  , "divideWithoutOverflow"   , float.class , float.class);
-    private final static org.objectweb.asm.commons.Method DIVWOOVERLOW_DOUBLE      = getAsmMethod(double.class , "divideWithoutOverflow"   , double.class, double.class);
-    private final static org.objectweb.asm.commons.Method REMWOOVERLOW_FLOAT       = getAsmMethod(float.class  , "remainderWithoutOverflow", float.class , float.class);
-    private final static org.objectweb.asm.commons.Method REMWOOVERLOW_DOUBLE      = getAsmMethod(double.class , "remainderWithoutOverflow", double.class, double.class);
-    private final static org.objectweb.asm.commons.Method ADDWOOVERLOW_FLOAT       = getAsmMethod(float.class  , "addWithoutOverflow"      , float.class , float.class);
-    private final static org.objectweb.asm.commons.Method ADDWOOVERLOW_DOUBLE      = getAsmMethod(double.class , "addWithoutOverflow"      , double.class, double.class);
-    private final static org.objectweb.asm.commons.Method SUBWOOVERLOW_FLOAT       = getAsmMethod(float.class  , "subtractWithoutOverflow" , float.class , float.class);
-    private final static org.objectweb.asm.commons.Method SUBWOOVERLOW_DOUBLE      = getAsmMethod(double.class , "subtractWithoutOverflow" , double.class, double.class);
+    private final static org.objectweb.asm.commons.Method CHECKEQUALS =
+        getAsmMethod(boolean.class, "checkEquals", Object.class, Object.class);
+    private final static org.objectweb.asm.commons.Method TOBYTEEXACT_INT = getAsmMethod(byte.class, "toByteExact", int.class);
+    private final static org.objectweb.asm.commons.Method TOBYTEEXACT_LONG = getAsmMethod(byte.class, "toByteExact", long.class);
+    private final static org.objectweb.asm.commons.Method TOBYTEWOOVERFLOW_FLOAT =
+        getAsmMethod(byte.class, "toByteWithoutOverflow", float.class);
+    private final static org.objectweb.asm.commons.Method TOBYTEWOOVERFLOW_DOUBLE =
+        getAsmMethod(byte.class, "toByteWithoutOverflow", double.class);
+    private final static org.objectweb.asm.commons.Method TOSHORTEXACT_INT = getAsmMethod(short.class, "toShortExact", int.class);
+    private final static org.objectweb.asm.commons.Method TOSHORTEXACT_LONG = getAsmMethod(short.class, "toShortExact", long.class);
+    private final static org.objectweb.asm.commons.Method TOSHORTWOOVERFLOW_FLOAT =
+        getAsmMethod(short.class, "toShortWithoutOverflow", float.class);
+    private final static org.objectweb.asm.commons.Method TOSHORTWOOVERFLOW_DOUBLE =
+        getAsmMethod(short.class, "toShortWihtoutOverflow", double.class);
+    private final static org.objectweb.asm.commons.Method TOCHAREXACT_INT = getAsmMethod(char.class, "toCharExact", int.class);
+    private final static org.objectweb.asm.commons.Method TOCHAREXACT_LONG = getAsmMethod(char.class, "toCharExact", long.class);
+    private final static org.objectweb.asm.commons.Method TOCHARWOOVERFLOW_FLOAT =
+        getAsmMethod(char.class, "toCharWithoutOverflow", float.class);
+    private final static org.objectweb.asm.commons.Method TOCHARWOOVERFLOW_DOUBLE =
+        getAsmMethod(char.class, "toCharWithoutOverflow", double.class);
+    private final static org.objectweb.asm.commons.Method TOINTWOOVERFLOW_FLOAT =
+        getAsmMethod(int.class, "toIntWithoutOverflow", float.class);
+    private final static org.objectweb.asm.commons.Method TOINTWOOVERFLOW_DOUBLE =
+        getAsmMethod(int.class, "toIntWithoutOverflow", double.class);
+    private final static org.objectweb.asm.commons.Method TOLONGWOOVERFLOW_FLOAT =
+        getAsmMethod(long.class, "toLongWithoutOverflow", float.class);
+    private final static org.objectweb.asm.commons.Method TOLONGWOOVERFLOW_DOUBLE =
+        getAsmMethod(long.class, "toLongWithoutOverflow", double.class);
+    private final static org.objectweb.asm.commons.Method TOFLOATWOOVERFLOW_DOUBLE =
+        getAsmMethod(float.class , "toFloatWihtoutOverflow", double.class);
+    private final static org.objectweb.asm.commons.Method MULWOOVERLOW_FLOAT =
+        getAsmMethod(float.class, "multiplyWithoutOverflow", float.class, float.class);
+    private final static org.objectweb.asm.commons.Method MULWOOVERLOW_DOUBLE =
+        getAsmMethod(double.class, "multiplyWithoutOverflow", double.class, double.class);
+    private final static org.objectweb.asm.commons.Method DIVWOOVERLOW_INT =
+        getAsmMethod(int.class, "divideWithoutOverflow", int.class, int.class);
+    private final static org.objectweb.asm.commons.Method DIVWOOVERLOW_LONG =
+        getAsmMethod(long.class, "divideWithoutOverflow", long.class, long.class);
+    private final static org.objectweb.asm.commons.Method DIVWOOVERLOW_FLOAT =
+        getAsmMethod(float.class, "divideWithoutOverflow", float.class, float.class);
+    private final static org.objectweb.asm.commons.Method DIVWOOVERLOW_DOUBLE =
+        getAsmMethod(double.class, "divideWithoutOverflow", double.class, double.class);
+    private final static org.objectweb.asm.commons.Method REMWOOVERLOW_FLOAT =
+        getAsmMethod(float.class, "remainderWithoutOverflow", float.class, float.class);
+    private final static org.objectweb.asm.commons.Method REMWOOVERLOW_DOUBLE =
+        getAsmMethod(double.class, "remainderWithoutOverflow", double.class, double.class);
+    private final static org.objectweb.asm.commons.Method ADDWOOVERLOW_FLOAT =
+        getAsmMethod(float.class, "addWithoutOverflow", float.class, float.class);
+    private final static org.objectweb.asm.commons.Method ADDWOOVERLOW_DOUBLE =
+        getAsmMethod(double.class, "addWithoutOverflow", double.class, double.class);
+    private final static org.objectweb.asm.commons.Method SUBWOOVERLOW_FLOAT =
+        getAsmMethod(float.class, "subtractWithoutOverflow", float.class, float.class);
+    private final static org.objectweb.asm.commons.Method SUBWOOVERLOW_DOUBLE =
+        getAsmMethod(double.class, "subtractWithoutOverflow", double.class, double.class);
 
     private static org.objectweb.asm.commons.Method getAsmMethod(final Class<?> rtype, final String name, final Class<?>... ptypes) {
         return new org.objectweb.asm.commons.Method(name, MethodType.methodType(rtype, ptypes).toMethodDescriptorString());

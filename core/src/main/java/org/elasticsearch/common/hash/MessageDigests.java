@@ -26,41 +26,40 @@ import java.security.NoSuchAlgorithmException;
 
 public class MessageDigests {
 
-    private static final MessageDigest MD5_DIGEST;
-    private static final MessageDigest SHA_1_DIGEST;
-    private static final MessageDigest SHA_256_DIGEST;
-
-    static {
-        try {
-            MD5_DIGEST = MessageDigest.getInstance("MD5");
-            SHA_1_DIGEST = MessageDigest.getInstance("SHA-1");
-            SHA_256_DIGEST = MessageDigest.getInstance("SHA-256");
-        } catch (NoSuchAlgorithmException e) {
-            throw new ElasticsearchException("Unexpected exception creating MessageDigest instance", e);
-        }
+    private static ThreadLocal<MessageDigest> createThreadLocalMessageDigest(String digest) {
+        return ThreadLocal.withInitial(() -> {
+            try {
+                return MessageDigest.getInstance(digest);
+            } catch (NoSuchAlgorithmException e) {
+                throw new ElasticsearchException("unexpected exception creating MessageDigest instance for [" + digest + "]", e);
+            }
+        });
     }
 
+    private static final ThreadLocal<MessageDigest> MD5_DIGEST = createThreadLocalMessageDigest("MD5");
+    private static final ThreadLocal<MessageDigest> SHA_1_DIGEST = createThreadLocalMessageDigest("SHA-1");
+    private static final ThreadLocal<MessageDigest> SHA_256_DIGEST = createThreadLocalMessageDigest("SHA-256");
+
     public static MessageDigest md5() {
-        return clone(MD5_DIGEST);
+        return get(MD5_DIGEST);
     }
 
     public static MessageDigest sha1() {
-        return clone(SHA_1_DIGEST);
+        return get(SHA_1_DIGEST);
     }
 
     public static MessageDigest sha256() {
-        return clone(SHA_256_DIGEST);
+        return get(SHA_256_DIGEST);
     }
 
-    private static MessageDigest clone(MessageDigest messageDigest) {
-        try {
-            return (MessageDigest) messageDigest.clone();
-        } catch (CloneNotSupportedException e) {
-            throw new ElasticsearchException("Unexpected exception cloning MessageDigest instance", e);
-        }
+    private static MessageDigest get(ThreadLocal<MessageDigest> messageDigest) {
+        MessageDigest instance = messageDigest.get();
+        instance.reset();
+        return instance;
     }
 
     private static final char[] HEX_DIGITS = "0123456789abcdef".toCharArray();
+
     public static String toHexString(byte[] bytes) {
         if (bytes == null) {
             throw new NullPointerException("bytes");
@@ -74,4 +73,5 @@ public class MessageDigests {
 
         return sb.toString();
     }
+
 }

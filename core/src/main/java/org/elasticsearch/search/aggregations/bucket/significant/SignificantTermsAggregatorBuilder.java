@@ -332,8 +332,9 @@ public class SignificantTermsAggregatorBuilder extends ValuesSourceAggregatorBui
 
 
         if ((includeExclude != null) && (includeExclude.isRegexBased())) {
-            throw new AggregationExecutionException("Aggregation [" + name + "] cannot support regular expression style include/exclude " +
-                    "settings as they can only be applied to string fields. Use an array of numeric values for include/exclude clauses used to filter numeric fields");
+            throw new AggregationExecutionException("Aggregation [" + name + "] cannot support regular expression style include/exclude "
+                    + "settings as they can only be applied to string fields. Use an array of numeric values for include/exclude "
+                    + "clauses used to filter numeric fields");
         }
 
         if (valuesSource instanceof ValuesSource.Numeric) {
@@ -349,8 +350,8 @@ public class SignificantTermsAggregatorBuilder extends ValuesSourceAggregatorBui
                     bucketCountThresholds, aggregationContext, parent, this, longFilter, pipelineAggregators, metaData);
         }
 
-        throw new AggregationExecutionException("sigfnificant_terms aggregation cannot be applied to field [" + config.fieldContext().field() +
-                "]. It can only be applied to numeric or string fields.");
+        throw new AggregationExecutionException("sigfnificant_terms aggregation cannot be applied to field ["
+                + config.fieldContext().field() + "]. It can only be applied to numeric or string fields.");
     }
 
     /**

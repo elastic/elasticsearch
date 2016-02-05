@@ -125,7 +125,8 @@ public final class GeoCentroidAggregator extends MetricsAggregator {
         Releasables.close(centroids, counts);
     }
 
-    public static class GeoCentroidAggregatorBuilder extends ValuesSourceAggregatorBuilder.LeafOnly<ValuesSource.GeoPoint, GeoCentroidAggregatorBuilder> {
+    public static class GeoCentroidAggregatorBuilder
+            extends ValuesSourceAggregatorBuilder.LeafOnly<ValuesSource.GeoPoint, GeoCentroidAggregatorBuilder> {
 
         public GeoCentroidAggregatorBuilder(String name) {
             super(name, InternalGeoCentroid.TYPE, ValuesSourceType.GEOPOINT, ValueType.GEOPOINT);

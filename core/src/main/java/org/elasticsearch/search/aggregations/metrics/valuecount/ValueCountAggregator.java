@@ -112,7 +112,8 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
         Releasables.close(counts);
     }
 
-    public static class ValueCountAggregatorBuilder extends ValuesSourceAggregatorBuilder.LeafOnly<ValuesSource, ValueCountAggregatorBuilder> {
+    public static class ValueCountAggregatorBuilder
+            extends ValuesSourceAggregatorBuilder.LeafOnly<ValuesSource, ValueCountAggregatorBuilder> {
 
         public ValueCountAggregatorBuilder(String name, ValueType targetValueType) {
             super(name, InternalValueCount.TYPE, ValuesSourceType.ANY, targetValueType);
@@ -133,8 +134,8 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
         }
 
         @Override
-        protected ValuesSourceAggregatorBuilder<ValuesSource, ValueCountAggregatorBuilder> innerReadFrom(String name, ValuesSourceType valuesSourceType,
-                ValueType targetValueType, StreamInput in) {
+        protected ValuesSourceAggregatorBuilder<ValuesSource, ValueCountAggregatorBuilder> innerReadFrom(String name,
+                ValuesSourceType valuesSourceType, ValueType targetValueType, StreamInput in) {
             return new ValueCountAggregator.ValueCountAggregatorBuilder(name, targetValueType);
         }
 

@@ -57,7 +57,8 @@ public class ReverseNestedParser implements Aggregator.Parser {
             }
         }
 
-        ReverseNestedAggregator.ReverseNestedAggregatorBuilder factory = new ReverseNestedAggregator.ReverseNestedAggregatorBuilder(aggregationName);
+        ReverseNestedAggregator.ReverseNestedAggregatorBuilder factory = new ReverseNestedAggregator.ReverseNestedAggregatorBuilder(
+                aggregationName);
         if (path != null) {
             factory.path(path);
         }

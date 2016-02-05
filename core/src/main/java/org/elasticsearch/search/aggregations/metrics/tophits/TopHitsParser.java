@@ -73,7 +73,8 @@ public class TopHitsParser implements Aggregator.Parser {
     }
 
     @Override
-    public TopHitsAggregator.TopHitsAggregatorBuilder parse(String aggregationName, XContentParser parser, QueryParseContext context) throws IOException {
+    public TopHitsAggregator.TopHitsAggregatorBuilder parse(String aggregationName, XContentParser parser, QueryParseContext context)
+            throws IOException {
         TopHitsAggregator.TopHitsAggregatorBuilder factory = new TopHitsAggregator.TopHitsAggregatorBuilder(aggregationName);
         XContentParser.Token token;
         String currentFieldName = null;

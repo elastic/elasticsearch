@@ -39,7 +39,8 @@ public class FilterParser implements Aggregator.Parser {
     }
 
     @Override
-    public FilterAggregator.FilterAggregatorBuilder parse(String aggregationName, XContentParser parser, QueryParseContext context) throws IOException {
+    public FilterAggregator.FilterAggregatorBuilder parse(String aggregationName, XContentParser parser, QueryParseContext context)
+            throws IOException {
         QueryBuilder<?> filter = context.parseInnerQueryBuilder();
 
         if (filter == null) {

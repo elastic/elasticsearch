@@ -78,14 +78,15 @@ public final class CardinalityAggregatorBuilder extends ValuesSourceAggregatorBu
     }
 
     @Override
-    protected Aggregator createUnmapped(AggregationContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
-            throws IOException {
+    protected Aggregator createUnmapped(AggregationContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
+            Map<String, Object> metaData) throws IOException {
         return new CardinalityAggregator(name, null, precision(parent), config.formatter(), context, parent, pipelineAggregators, metaData);
     }
 
     @Override
     protected Aggregator doCreateInternal(ValuesSource valuesSource, AggregationContext context, Aggregator parent,
-            boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+            boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
+                    throws IOException {
         return new CardinalityAggregator(name, valuesSource, precision(parent), config.formatter(), context, parent, pipelineAggregators,
                 metaData);
     }

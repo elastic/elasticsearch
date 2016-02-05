@@ -48,6 +48,7 @@ import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapperLegacy;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -132,7 +133,7 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
                 .put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         indexService = createIndex("test", settings);
         mapperService = indexService.mapperService();
-        indicesFieldDataCache = getInstanceFromNode(IndicesFieldDataCache.class);
+        indicesFieldDataCache = getInstanceFromNode(IndicesService.class).getIndicesFieldDataCache();
         ifdService = indexService.fieldData();
         // LogByteSizeMP to preserve doc ID order
         writer = new IndexWriter(new RAMDirectory(), new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(new LogByteSizeMergePolicy()));

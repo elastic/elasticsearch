@@ -205,7 +205,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
     private void doTestRequireDocValues(MappedFieldType ft) {
         ThreadPool threadPool = new ThreadPool("random_threadpool_name");
         try {
-            IndicesFieldDataCache cache = new IndicesFieldDataCache(Settings.EMPTY, null, threadPool);
+            IndicesFieldDataCache cache = new IndicesFieldDataCache(Settings.EMPTY, null);
             IndexFieldDataService ifds = new IndexFieldDataService(IndexSettingsModule.newIndexSettings("test", Settings.EMPTY), cache, null, null);
             ft.setName("some_long");
             ft.setHasDocValues(true);
@@ -238,7 +238,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         ThreadPool threadPool = new ThreadPool("random_threadpool_name");
         StringFieldMapper.StringFieldType ft = new StringFieldMapper.StringFieldType();
         try {
-            IndicesFieldDataCache cache = new IndicesFieldDataCache(Settings.EMPTY, null, threadPool);
+            IndicesFieldDataCache cache = new IndicesFieldDataCache(Settings.EMPTY, null);
             IndexFieldDataService ifds = new IndexFieldDataService(IndexSettingsModule.newIndexSettings("test", Settings.EMPTY), cache, null, null);
             ft.setName("some_str");
             ft.setFieldDataType(new FieldDataType("string", Settings.builder().put(FieldDataType.FORMAT_KEY, "disabled").build()));

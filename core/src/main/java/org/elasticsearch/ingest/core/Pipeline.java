@@ -20,8 +20,8 @@
 package org.elasticsearch.ingest.core;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.ingest.ProcessorsRegistry;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -85,12 +85,12 @@ public final class Pipeline {
 
     public final static class Factory {
 
-        public Pipeline create(String id, Map<String, Object> config, Map<String, Processor.Factory> processorRegistry) throws Exception {
+        public Pipeline create(String id, Map<String, Object> config, ProcessorsRegistry processorRegistry) throws Exception {
             String description = ConfigurationUtils.readOptionalStringProperty(null, null, config, DESCRIPTION_KEY);
             List<Map<String, Map<String, Object>>> processorConfigs = ConfigurationUtils.readList(null, null, config, PROCESSORS_KEY);
-            List<Processor> processors = readProcessorConfigs(processorConfigs, processorRegistry);
+            List<Processor> processors = ConfigurationUtils.readProcessorConfigs(processorConfigs, processorRegistry);
             List<Map<String, Map<String, Object>>> onFailureProcessorConfigs = ConfigurationUtils.readOptionalList(null, null, config, ON_FAILURE_KEY);
-            List<Processor> onFailureProcessors = readProcessorConfigs(onFailureProcessorConfigs, processorRegistry);
+            List<Processor> onFailureProcessors = ConfigurationUtils.readProcessorConfigs(onFailureProcessorConfigs, processorRegistry);
             if (config.isEmpty() == false) {
                 throw new ElasticsearchParseException("pipeline [" + id + "] doesn't support one or more provided configuration parameters " + Arrays.toString(config.keySet().toArray()));
             }
@@ -98,35 +98,5 @@ public final class Pipeline {
             return new Pipeline(id, description, compoundProcessor);
         }
 
-        private List<Processor> readProcessorConfigs(List<Map<String, Map<String, Object>>> processorConfigs, Map<String, Processor.Factory> processorRegistry) throws Exception {
-            List<Processor> processors = new ArrayList<>();
-            if (processorConfigs != null) {
-                for (Map<String, Map<String, Object>> processorConfigWithKey : processorConfigs) {
-                    for (Map.Entry<String, Map<String, Object>> entry : processorConfigWithKey.entrySet()) {
-                        processors.add(readProcessor(processorRegistry, entry.getKey(), entry.getValue()));
-                    }
-                }
-            }
-
-            return processors;
-        }
-
-        private Processor readProcessor(Map<String, Processor.Factory> processorRegistry, String type, Map<String, Object> config) throws Exception {
-            Processor.Factory factory = processorRegistry.get(type);
-            if (factory != null) {
-                List<Map<String, Map<String, Object>>> onFailureProcessorConfigs = ConfigurationUtils.readOptionalList(null, null, config, ON_FAILURE_KEY);
-                List<Processor> onFailureProcessors = readProcessorConfigs(onFailureProcessorConfigs, processorRegistry);
-                Processor processor;
-                processor = factory.create(config);
-                if (!config.isEmpty()) {
-                    throw new ElasticsearchParseException("processor [" + type + "] doesn't support one or more provided configuration parameters " + Arrays.toString(config.keySet().toArray()));
-                }
-                if (onFailureProcessors.isEmpty()) {
-                    return processor;
-                }
-                return new CompoundProcessor(Collections.singletonList(processor), onFailureProcessors);
-            }
-            throw new ElasticsearchParseException("No processor type exists with name [" + type + "]");
-        }
     }
 }

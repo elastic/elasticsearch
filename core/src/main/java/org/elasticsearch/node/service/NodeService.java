@@ -29,8 +29,8 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.discovery.Discovery;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpServer;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -61,6 +61,7 @@ public class NodeService extends AbstractComponent implements Closeable {
     private final PluginsService pluginService;
     private final CircuitBreakerService circuitBreakerService;
     private final IngestService ingestService;
+    private final SettingsFilter settingsFilter;
     private ScriptService scriptService;
 
     @Nullable
@@ -73,10 +74,10 @@ public class NodeService extends AbstractComponent implements Closeable {
     private final Discovery discovery;
 
     @Inject
-    public NodeService(Settings settings, Environment environment, ThreadPool threadPool, MonitorService monitorService,
+    public NodeService(Settings settings, ThreadPool threadPool, MonitorService monitorService,
                        Discovery discovery, TransportService transportService, IndicesService indicesService,
                        PluginsService pluginService, CircuitBreakerService circuitBreakerService, Version version,
-                       ProcessorsRegistry processorsRegistry, ClusterService clusterService) {
+                       ProcessorsRegistry.Builder processorsRegistryBuilder, ClusterService clusterService, SettingsFilter settingsFilter) {
         super(settings);
         this.threadPool = threadPool;
         this.monitorService = monitorService;
@@ -87,7 +88,8 @@ public class NodeService extends AbstractComponent implements Closeable {
         this.version = version;
         this.pluginService = pluginService;
         this.circuitBreakerService = circuitBreakerService;
-        this.ingestService = new IngestService(settings, threadPool, processorsRegistry);
+        this.ingestService = new IngestService(settings, threadPool, processorsRegistryBuilder);
+        this.settingsFilter = settingsFilter;
         clusterService.add(ingestService.getPipelineStore());
     }
 
@@ -137,7 +139,7 @@ public class NodeService extends AbstractComponent implements Closeable {
     public NodeInfo info(boolean settings, boolean os, boolean process, boolean jvm, boolean threadPool,
                          boolean transport, boolean http, boolean plugin) {
         return new NodeInfo(version, Build.CURRENT, discovery.localNode(), serviceAttributes,
-                settings ? this.settings : null,
+                settings ? settingsFilter.filter(this.settings) : null,
                 os ? monitorService.osService().info() : null,
                 process ? monitorService.processService().info() : null,
                 jvm ? monitorService.jvmService().info() : null,

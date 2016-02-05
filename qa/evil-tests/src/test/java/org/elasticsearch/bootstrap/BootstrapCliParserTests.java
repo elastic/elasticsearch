@@ -54,6 +54,7 @@ public class BootstrapCliParserTests extends CliToolTestCase {
         for (String property : propertiesToClear) {
             System.clearProperty(property);
         }
+        propertiesToClear.clear();
     }
 
     public void testThatVersionIsReturned() throws Exception {

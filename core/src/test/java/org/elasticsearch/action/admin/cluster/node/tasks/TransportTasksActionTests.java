@@ -58,7 +58,6 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.local.LocalTransport;
 import org.junit.After;
 import org.junit.AfterClass;
-import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -115,7 +114,7 @@ public class TransportTasksActionTests extends ESTestCase {
         public TestNode(String name, ThreadPool threadPool, Settings settings) {
             transportService = new TransportService(settings,
                 new LocalTransport(settings, threadPool, Version.CURRENT, new NamedWriteableRegistry()),
-                threadPool){
+                threadPool, new NamedWriteableRegistry()) {
                 @Override
                 protected TaskManager createTaskManager() {
                     if (MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING.get(settings)) {

@@ -52,12 +52,14 @@ public class NettyScheduledPingTests extends ESTestCase {
 
         Settings settings = Settings.builder().put(NettyTransport.PING_SCHEDULE.getKey(), "5ms").put(TransportSettings.PORT.getKey(), 0).build();
 
-        final NettyTransport nettyA = new NettyTransport(settings, threadPool, new NetworkService(settings), BigArrays.NON_RECYCLING_INSTANCE, Version.CURRENT, new NamedWriteableRegistry());
-        MockTransportService serviceA = new MockTransportService(settings, nettyA, threadPool);
+        NamedWriteableRegistry registryA = new NamedWriteableRegistry();
+        final NettyTransport nettyA = new NettyTransport(settings, threadPool, new NetworkService(settings), BigArrays.NON_RECYCLING_INSTANCE, Version.CURRENT, registryA);
+        MockTransportService serviceA = new MockTransportService(settings, nettyA, threadPool, registryA);
         serviceA.start();
 
-        final NettyTransport nettyB = new NettyTransport(settings, threadPool, new NetworkService(settings), BigArrays.NON_RECYCLING_INSTANCE, Version.CURRENT, new NamedWriteableRegistry());
-        MockTransportService serviceB = new MockTransportService(settings, nettyB, threadPool);
+        NamedWriteableRegistry registryB = new NamedWriteableRegistry();
+        final NettyTransport nettyB = new NettyTransport(settings, threadPool, new NetworkService(settings), BigArrays.NON_RECYCLING_INSTANCE, Version.CURRENT, registryB);
+        MockTransportService serviceB = new MockTransportService(settings, nettyB, threadPool, registryB);
         serviceB.start();
 
         DiscoveryNode nodeA = new DiscoveryNode("TS_A", "TS_A", serviceA.boundAddress().publishAddress(), emptyMap(), Version.CURRENT);

@@ -34,8 +34,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeRequest;
-import org.elasticsearch.action.termvectors.TermVectorsRequest;
-import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -102,7 +100,6 @@ import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.suggest.stats.ShardSuggestMetric;
 import org.elasticsearch.index.suggest.stats.SuggestStats;
-import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.index.translog.TranslogStats;
@@ -148,7 +145,6 @@ public class IndexShard extends AbstractIndexShardComponent {
     private final ShardRequestCache shardQueryCache;
     private final ShardFieldData shardFieldData;
     private final PercolatorQueriesRegistry percolatorQueriesRegistry;
-    private final TermVectorsService termVectorsService;
     private final IndexFieldDataService indexFieldDataService;
     private final ShardSuggestMetric shardSuggestMetric = new ShardSuggestMetric();
     private final ShardBitsetFilterCache shardBitsetFilterCache;
@@ -232,7 +228,6 @@ public class IndexShard extends AbstractIndexShardComponent {
         listenersList.add(internalIndexingStats);
         this.indexingOperationListeners = new IndexingOperationListener.CompositeListener(listenersList, logger);
         this.getService = new ShardGetService(indexSettings, this, mapperService);
-        this.termVectorsService = provider.getTermVectorsService();
         this.searchService = new ShardSearchStats(slowLog);
         this.shardWarmerService = new ShardIndexWarmerService(shardId, indexSettings);
         this.indicesQueryCache = provider.getIndicesQueryCache();
@@ -345,9 +340,8 @@ public class IndexShard extends AbstractIndexShardComponent {
                 if (!newRouting.primary() && currentRouting.primary()) {
                     logger.warn("suspect illegal state: trying to move shard from primary mode to replica mode");
                 }
-                // if its the same routing except for some metadata info, return
-                if (currentRouting.equalsIgnoringMetaData(newRouting)) {
-                    this.shardRouting = newRouting; // might have a new version
+                // if its the same routing, return
+                if (currentRouting.equals(newRouting)) {
                     return;
                 }
             }
@@ -655,10 +649,6 @@ public class IndexShard extends AbstractIndexShardComponent {
         SegmentsStats segmentsStats = getEngine().segmentsStats();
         segmentsStats.addBitsetMemoryInBytes(shardBitsetFilterCache.getMemorySizeInBytes());
         return segmentsStats;
-    }
-
-    public TermVectorsResponse getTermVectors(TermVectorsRequest request) {
-        return this.termVectorsService.getTermVectors(this, request);
     }
 
     public WarmerStats warmerStats() {
@@ -1365,21 +1355,16 @@ public class IndexShard extends AbstractIndexShardComponent {
             try {
                 final String writeReason;
                 if (currentRouting == null) {
-                    writeReason = "freshly started, version [" + newRouting.version() + "]";
-                } else if (currentRouting.version() < newRouting.version()) {
-                    writeReason = "version changed from [" + currentRouting.version() + "] to [" + newRouting.version() + "]";
+                    writeReason = "freshly started, allocation id [" + newRouting.allocationId() + "]";
                 } else if (currentRouting.equals(newRouting) == false) {
                     writeReason = "routing changed from " + currentRouting + " to " + newRouting;
                 } else {
-                    logger.trace("skip writing shard state, has been written before; previous version:  [" +
-                        currentRouting.version() + "] current version [" + newRouting.version() + "]");
-                    assert currentRouting.version() <= newRouting.version() : "version should not go backwards for shardID: " + shardId +
-                        " previous version:  [" + currentRouting.version() + "] current version [" + newRouting.version() + "]";
+                    logger.trace("{} skip writing shard state, has been written before", shardId);
                     return;
                 }
-                final ShardStateMetaData newShardStateMetadata = new ShardStateMetaData(newRouting.version(), newRouting.primary(), getIndexUUID(), newRouting.allocationId());
+                final ShardStateMetaData newShardStateMetadata = new ShardStateMetaData(newRouting.primary(), getIndexUUID(), newRouting.allocationId());
                 logger.trace("{} writing shard state, reason [{}]", shardId, writeReason);
-                ShardStateMetaData.FORMAT.write(newShardStateMetadata, newShardStateMetadata.version, shardPath().getShardStatePath());
+                ShardStateMetaData.FORMAT.write(newShardStateMetadata, newShardStateMetadata.legacyVersion, shardPath().getShardStatePath());
             } catch (IOException e) { // this is how we used to handle it.... :(
                 logger.warn("failed to write shard state", e);
                 // we failed to write the shard state, we will try and write

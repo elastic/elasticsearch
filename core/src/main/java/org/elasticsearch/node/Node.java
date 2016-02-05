@@ -183,7 +183,6 @@ public class Node implements Closeable {
             throw new IllegalStateException("Failed to created node environment", ex);
         }
         final NetworkService networkService = new NetworkService(settings);
-        final SettingsFilter settingsFilter = new SettingsFilter(settings);
         final ThreadPool threadPool = new ThreadPool(settings);
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
         boolean success = false;
@@ -197,7 +196,7 @@ public class Node implements Closeable {
                 modules.add(pluginModule);
             }
             modules.add(new PluginsModule(pluginsService));
-            SettingsModule settingsModule = new SettingsModule(this.settings, settingsFilter);
+            SettingsModule settingsModule = new SettingsModule(this.settings);
             modules.add(settingsModule);
             modules.add(new EnvironmentModule(environment));
             modules.add(new NodeModule(this, monitorService));

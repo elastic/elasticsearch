@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.shard.ShardStateMetaData;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -109,7 +110,7 @@ public abstract class PrimaryShardAllocator extends AbstractComponent {
             final boolean snapshotRestore = shard.restoreSource() != null;
             final boolean recoverOnAnyNode = recoverOnAnyNode(indexMetaData);
 
-            final NodesAndVersions nodesAndVersions;
+            final NodesResult nodesResult;
             final boolean enoughAllocationsFound;
 
             if (lastActiveAllocationIds.isEmpty()) {
@@ -117,20 +118,20 @@ public abstract class PrimaryShardAllocator extends AbstractComponent {
                 // when we load an old index (after upgrading cluster) or restore a snapshot of an old index
                 // fall back to old version-based allocation mode
                 // Note that once the shard has been active, lastActiveAllocationIds will be non-empty
-                nodesAndVersions = buildNodesAndVersions(shard, snapshotRestore || recoverOnAnyNode, allocation.getIgnoreNodes(shard.shardId()), shardState);
+                nodesResult = buildVersionBasedNodes(shard, snapshotRestore || recoverOnAnyNode, allocation.getIgnoreNodes(shard.shardId()), shardState);
                 if (snapshotRestore || recoverOnAnyNode) {
-                    enoughAllocationsFound = nodesAndVersions.allocationsFound > 0;
+                    enoughAllocationsFound = nodesResult.allocationsFound > 0;
                 } else {
-                    enoughAllocationsFound = isEnoughVersionBasedAllocationsFound(shard, indexMetaData, nodesAndVersions);
+                    enoughAllocationsFound = isEnoughVersionBasedAllocationsFound(shard, indexMetaData, nodesResult);
                 }
-                logger.debug("[{}][{}]: version-based allocation for pre-{} index found {} allocations of {}, highest version: [{}]", shard.index(), shard.id(), Version.V_3_0_0, nodesAndVersions.allocationsFound, shard, nodesAndVersions.highestVersion);
+                logger.debug("[{}][{}]: version-based allocation for pre-{} index found {} allocations of {}", shard.index(), shard.id(), Version.V_3_0_0, nodesResult.allocationsFound, shard);
             } else {
                 assert lastActiveAllocationIds.isEmpty() == false;
                 // use allocation ids to select nodes
-                nodesAndVersions = buildAllocationIdBasedNodes(shard, snapshotRestore || recoverOnAnyNode,
+                nodesResult = buildAllocationIdBasedNodes(shard, snapshotRestore || recoverOnAnyNode,
                         allocation.getIgnoreNodes(shard.shardId()), lastActiveAllocationIds, shardState);
-                enoughAllocationsFound = nodesAndVersions.allocationsFound > 0;
-                logger.debug("[{}][{}]: found {} allocations of {} based on allocation ids: [{}]", shard.index(), shard.id(), nodesAndVersions.allocationsFound, shard, lastActiveAllocationIds);
+                enoughAllocationsFound = nodesResult.allocationsFound > 0;
+                logger.debug("[{}][{}]: found {} allocations of {} based on allocation ids: [{}]", shard.index(), shard.id(), nodesResult.allocationsFound, shard, lastActiveAllocationIds);
             }
 
             if (enoughAllocationsFound == false){
@@ -143,22 +144,22 @@ public abstract class PrimaryShardAllocator extends AbstractComponent {
                 } else {
                     // we can't really allocate, so ignore it and continue
                     unassignedIterator.removeAndIgnore();
-                    logger.debug("[{}][{}]: not allocating, number_of_allocated_shards_found [{}]", shard.index(), shard.id(), nodesAndVersions.allocationsFound);
+                    logger.debug("[{}][{}]: not allocating, number_of_allocated_shards_found [{}]", shard.index(), shard.id(), nodesResult.allocationsFound);
                 }
                 continue;
             }
 
-            final NodesToAllocate nodesToAllocate = buildNodesToAllocate(shard, allocation, nodesAndVersions.nodes);
+            final NodesToAllocate nodesToAllocate = buildNodesToAllocate(shard, allocation, nodesResult.nodes);
             if (nodesToAllocate.yesNodes.isEmpty() == false) {
                 DiscoveryNode node = nodesToAllocate.yesNodes.get(0);
                 logger.debug("[{}][{}]: allocating [{}] to [{}] on primary allocation", shard.index(), shard.id(), shard, node);
                 changed = true;
-                unassignedIterator.initialize(node.id(), nodesAndVersions.highestVersion, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
+                unassignedIterator.initialize(node.id(), ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
             } else if (nodesToAllocate.throttleNodes.isEmpty() == true && nodesToAllocate.noNodes.isEmpty() == false) {
                 DiscoveryNode node = nodesToAllocate.noNodes.get(0);
                 logger.debug("[{}][{}]: forcing allocating [{}] to [{}] on primary allocation", shard.index(), shard.id(), shard, node);
                 changed = true;
-                unassignedIterator.initialize(node.id(), nodesAndVersions.highestVersion, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
+                unassignedIterator.initialize(node.id(), ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
             } else {
                 // we are throttling this, but we have enough to allocate to this node, ignore it for now
                 logger.debug("[{}][{}]: throttling allocation [{}] to [{}] on primary allocation", shard.index(), shard.id(), shard, nodesToAllocate.throttleNodes);
@@ -173,11 +174,10 @@ public abstract class PrimaryShardAllocator extends AbstractComponent {
      * lastActiveAllocationIds are added to the list. Otherwise, any node that has a shard is added to the list, but
      * entries with matching allocation id are always at the front of the list.
      */
-    protected NodesAndVersions buildAllocationIdBasedNodes(ShardRouting shard, boolean matchAnyShard, Set<String> ignoreNodes,
-                                                           Set<String> lastActiveAllocationIds, AsyncShardFetch.FetchResult<TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> shardState) {
+    protected NodesResult buildAllocationIdBasedNodes(ShardRouting shard, boolean matchAnyShard, Set<String> ignoreNodes,
+                                                      Set<String> lastActiveAllocationIds, AsyncShardFetch.FetchResult<TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> shardState) {
         LinkedList<DiscoveryNode> matchingNodes = new LinkedList<>();
         LinkedList<DiscoveryNode> nonMatchingNodes = new LinkedList<>();
-        long highestVersion = -1;
         for (TransportNodesListGatewayStartedShards.NodeGatewayStartedShards nodeShardState : shardState.getData().values()) {
             DiscoveryNode node = nodeShardState.getNode();
             String allocationId = nodeShardState.allocationId();
@@ -187,7 +187,7 @@ public abstract class PrimaryShardAllocator extends AbstractComponent {
             }
 
             if (nodeShardState.storeException() == null) {
-                if (allocationId == null && nodeShardState.version() != -1) {
+                if (allocationId == null && nodeShardState.legacyVersion() != ShardStateMetaData.NO_VERSION) {
                     // old shard with no allocation id, assign dummy value so that it gets added below in case of matchAnyShard
                     allocationId = "_n/a_";
                 }
@@ -205,14 +205,12 @@ public abstract class PrimaryShardAllocator extends AbstractComponent {
                     } else {
                         matchingNodes.addLast(node);
                     }
-                    highestVersion = Math.max(highestVersion, nodeShardState.version());
                 } else if (matchAnyShard) {
                     if (nodeShardState.primary()) {
                         nonMatchingNodes.addFirst(node);
                     } else {
                         nonMatchingNodes.addLast(node);
                     }
-                    highestVersion = Math.max(highestVersion, nodeShardState.version());
                 }
             }
         }
@@ -224,13 +222,13 @@ public abstract class PrimaryShardAllocator extends AbstractComponent {
         if (logger.isTraceEnabled()) {
             logger.trace("{} candidates for allocation: {}", shard, nodes.stream().map(DiscoveryNode::name).collect(Collectors.joining(", ")));
         }
-        return new NodesAndVersions(nodes, nodes.size(), highestVersion);
+        return new NodesResult(nodes, nodes.size());
     }
 
     /**
      * used by old version-based allocation
      */
-    private boolean isEnoughVersionBasedAllocationsFound(ShardRouting shard, IndexMetaData indexMetaData, NodesAndVersions nodesAndVersions) {
+    private boolean isEnoughVersionBasedAllocationsFound(ShardRouting shard, IndexMetaData indexMetaData, NodesResult nodesAndVersions) {
         // check if the counts meets the minimum set
         int requiredAllocation = 1;
         // if we restore from a repository one copy is more then enough
@@ -288,29 +286,29 @@ public abstract class PrimaryShardAllocator extends AbstractComponent {
      * are added to the list. Otherwise, any node that has a shard is added to the list, but entries with highest
      * version are always at the front of the list.
      */
-    NodesAndVersions buildNodesAndVersions(ShardRouting shard, boolean matchAnyShard, Set<String> ignoreNodes,
-                                           AsyncShardFetch.FetchResult<TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> shardState) {
+    NodesResult buildVersionBasedNodes(ShardRouting shard, boolean matchAnyShard, Set<String> ignoreNodes,
+                                       AsyncShardFetch.FetchResult<TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> shardState) {
         final Map<DiscoveryNode, Long> nodesWithVersion = new HashMap<>();
         int numberOfAllocationsFound = 0;
-        long highestVersion = -1;
+        long highestVersion = ShardStateMetaData.NO_VERSION;
         for (TransportNodesListGatewayStartedShards.NodeGatewayStartedShards nodeShardState : shardState.getData().values()) {
-            long version = nodeShardState.version();
+            long version = nodeShardState.legacyVersion();
             DiscoveryNode node = nodeShardState.getNode();
 
             if (ignoreNodes.contains(node.id())) {
                 continue;
             }
 
-            // -1 version means it does not exists, which is what the API returns, and what we expect to
+            // no version means it does not exists, which is what the API returns, and what we expect to
             if (nodeShardState.storeException() == null) {
                 logger.trace("[{}] on node [{}] has version [{}] of shard", shard, nodeShardState.getNode(), version);
             } else {
-                // when there is an store exception, we disregard the reported version and assign it as -1 (same as shard does not exist)
-                logger.trace("[{}] on node [{}] has version [{}] but the store can not be opened, treating as version -1", nodeShardState.storeException(), shard, nodeShardState.getNode(), version);
-                version = -1;
+                // when there is an store exception, we disregard the reported version and assign it as no version (same as shard does not exist)
+                logger.trace("[{}] on node [{}] has version [{}] but the store can not be opened, treating no version", nodeShardState.storeException(), shard, nodeShardState.getNode(), version);
+                version = ShardStateMetaData.NO_VERSION;
             }
 
-            if (version != -1) {
+            if (version != ShardStateMetaData.NO_VERSION) {
                 numberOfAllocationsFound++;
                 // If we've found a new "best" candidate, clear the
                 // current candidates and add it
@@ -348,7 +346,7 @@ public abstract class PrimaryShardAllocator extends AbstractComponent {
             logger.trace("{} candidates for allocation: {}", shard, sb.toString());
         }
 
-        return new NodesAndVersions(Collections.unmodifiableList(nodesWithHighestVersion), numberOfAllocationsFound, highestVersion);
+        return new NodesResult(Collections.unmodifiableList(nodesWithHighestVersion), numberOfAllocationsFound);
     }
 
     /**
@@ -362,15 +360,13 @@ public abstract class PrimaryShardAllocator extends AbstractComponent {
 
     protected abstract AsyncShardFetch.FetchResult<TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> fetchData(ShardRouting shard, RoutingAllocation allocation);
 
-    static class NodesAndVersions {
+    static class NodesResult {
         public final List<DiscoveryNode> nodes;
         public final int allocationsFound;
-        public final long highestVersion;
 
-        public NodesAndVersions(List<DiscoveryNode> nodes, int allocationsFound, long highestVersion) {
+        public NodesResult(List<DiscoveryNode> nodes, int allocationsFound) {
             this.nodes = nodes;
             this.allocationsFound = allocationsFound;
-            this.highestVersion = highestVersion;
         }
     }
 

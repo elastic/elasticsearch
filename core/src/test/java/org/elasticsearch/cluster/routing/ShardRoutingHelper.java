@@ -53,6 +53,6 @@ public class ShardRoutingHelper {
     }
 
     public static ShardRouting newWithRestoreSource(ShardRouting routing, RestoreSource restoreSource) {
-        return new ShardRouting(routing.index(), routing.shardId().id(), routing.currentNodeId(), routing.relocatingNodeId(), restoreSource, routing.primary(), routing.state(), routing.version(), routing.unassignedInfo(), routing.allocationId(), true, routing.getExpectedShardSize());
+        return new ShardRouting(routing.index(), routing.shardId().id(), routing.currentNodeId(), routing.relocatingNodeId(), restoreSource, routing.primary(), routing.state(), routing.unassignedInfo(), routing.allocationId(), true, routing.getExpectedShardSize());
     }
 }

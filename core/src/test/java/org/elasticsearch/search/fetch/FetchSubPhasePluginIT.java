@@ -29,6 +29,7 @@ import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.SearchModule;
@@ -129,9 +130,6 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
             }
         };
 
-        public TermVectorsFetchSubPhase() {
-        }
-
         public static final String[] NAMES = {"term_vectors_fetch"};
 
         @Override
@@ -158,14 +156,14 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
             String field = context.getFetchSubPhaseContext(CONTEXT_FACTORY).getField();
 
             if (hitContext.hit().fieldsOrNull() == null) {
-                hitContext.hit().fields(new HashMap<String, SearchHitField>());
+                hitContext.hit().fields(new HashMap<>());
             }
             SearchHitField hitField = hitContext.hit().fields().get(NAMES[0]);
             if (hitField == null) {
                 hitField = new InternalSearchHitField(NAMES[0], new ArrayList<>(1));
                 hitContext.hit().fields().put(NAMES[0], hitField);
             }
-            TermVectorsResponse termVector = context.indexShard().getTermVectors(new TermVectorsRequest(context.indexShard().shardId().getIndex().getName(), hitContext.hit().type(), hitContext.hit().id()));
+            TermVectorsResponse termVector = TermVectorsService.getTermVectors(context.indexShard(), new TermVectorsRequest(context.indexShard().shardId().getIndex().getName(), hitContext.hit().type(), hitContext.hit().id()));
             try {
                 Map<String, Integer> tv = new HashMap<>();
                 TermsEnum terms = termVector.getFields().terms(field).iterator();

@@ -35,7 +35,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -129,7 +128,7 @@ public abstract class BasePipelineAggregationTestCase<AF extends PipelineAggrega
         final TestClusterService clusterService = new TestClusterService();
         clusterService.setState(new ClusterState.Builder(clusterService.state()).metaData(new MetaData.Builder()
                 .put(new IndexMetaData.Builder(index.getName()).settings(indexSettings).numberOfShards(1).numberOfReplicas(0))));
-        SettingsModule settingsModule = new SettingsModule(settings, new SettingsFilter(settings));
+        SettingsModule settingsModule = new SettingsModule(settings);
         settingsModule.registerSetting(InternalSettingsPlugin.VERSION_CREATED);
         ScriptModule scriptModule = new ScriptModule() {
             @Override
@@ -185,7 +184,7 @@ public abstract class BasePipelineAggregationTestCase<AF extends PipelineAggrega
                 new AbstractModule() {
                     @Override
                     protected void configure() {
-                        bind(ClusterService.class).toProvider(Providers.of((ClusterService) null));
+                        bind(ClusterService.class).toProvider(Providers.of(clusterService));
                         bind(CircuitBreakerService.class).to(NoneCircuitBreakerService.class);
                         bind(NamedWriteableRegistry.class).toInstance(namedWriteableRegistry);
                     }

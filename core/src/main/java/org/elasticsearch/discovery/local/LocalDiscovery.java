@@ -299,6 +299,11 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
         return new DiscoveryStats(null);
     }
 
+    @Override
+    public int getMinimumMasterNodes() {
+        return -1;
+    }
+
     private LocalDiscovery[] members() {
         ClusterGroup clusterGroup = clusterGroups.get(clusterName);
         if (clusterGroup == null) {

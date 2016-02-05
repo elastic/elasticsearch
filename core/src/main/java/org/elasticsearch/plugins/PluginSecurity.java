@@ -47,7 +47,7 @@ class PluginSecurity {
         PermissionCollection permissions = parsePermissions(terminal, file, environment.tmpFile());
         List<Permission> requested = Collections.list(permissions.elements());
         if (requested.isEmpty()) {
-            terminal.print(Verbosity.VERBOSE, "plugin has a policy file with no additional permissions");
+            terminal.println(Verbosity.VERBOSE, "plugin has a policy file with no additional permissions");
             return;
         }
 
@@ -92,7 +92,7 @@ class PluginSecurity {
         terminal.println(Verbosity.NORMAL, "See http://docs.oracle.com/javase/8/docs/technotes/guides/security/permissions.html");
         terminal.println(Verbosity.NORMAL, "for descriptions of what these permissions allow and the associated risks.");
         if (!batch) {
-            terminal.println(Verbosity.NORMAL);
+            terminal.println(Verbosity.NORMAL, "");
             String text = terminal.readText("Continue with installation? [y/N]");
             if (!text.equalsIgnoreCase("y")) {
                 throw new RuntimeException("installation aborted by user");

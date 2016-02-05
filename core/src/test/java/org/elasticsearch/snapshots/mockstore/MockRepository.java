@@ -34,6 +34,7 @@ import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.snapshots.IndexShardRepository;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardRepository;
@@ -76,26 +77,10 @@ public class MockRepository extends FsRepository {
             repositoriesModule.registerRepository("mock", MockRepository.class, BlobStoreIndexShardRepository.class);
         }
 
-        @Override
-        public Collection<Module> nodeModules() {
-            return Collections.<Module>singletonList(new SettingsFilteringModule());
+        public void onModule(SettingsModule module) {
+            module.registerSettingsFilter("secret.mock.password");
+
         }
-
-        public static class SettingsFilteringModule extends AbstractModule {
-
-            @Override
-            protected void configure() {
-                bind(SettingsFilteringService.class).asEagerSingleton();
-            }
-        }
-
-        public static class SettingsFilteringService {
-            @Inject
-            public SettingsFilteringService(SettingsFilter settingsFilter) {
-                settingsFilter.addFilter("secret.mock.password");
-            }
-        }
-
     }
 
     private final AtomicLong failureCounter = new AtomicLong();

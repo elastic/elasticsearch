@@ -33,10 +33,10 @@ public class IngestService implements Closeable {
 
     private final PipelineStore pipelineStore;
     private final PipelineExecutionService pipelineExecutionService;
-    private final ProcessorsRegistry processorsRegistry;
+    private final ProcessorsRegistry.Builder processorsRegistryBuilder;
 
-    public IngestService(Settings settings, ThreadPool threadPool, ProcessorsRegistry processorsRegistry) {
-        this.processorsRegistry = processorsRegistry;
+    public IngestService(Settings settings, ThreadPool threadPool, ProcessorsRegistry.Builder processorsRegistryBuilder) {
+        this.processorsRegistryBuilder = processorsRegistryBuilder;
         this.pipelineStore = new PipelineStore(settings);
         this.pipelineExecutionService = new PipelineExecutionService(pipelineStore, threadPool);
     }
@@ -50,7 +50,7 @@ public class IngestService implements Closeable {
     }
 
     public void setScriptService(ScriptService scriptService) {
-        pipelineStore.buildProcessorFactoryRegistry(processorsRegistry, scriptService);
+        pipelineStore.buildProcessorFactoryRegistry(processorsRegistryBuilder, scriptService);
     }
 
     @Override

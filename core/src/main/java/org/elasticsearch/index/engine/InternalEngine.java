@@ -21,8 +21,8 @@ package org.elasticsearch.index.engine;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.IndexWriter.IndexReaderWarmer;
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriter.IndexReaderWarmer;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -44,7 +44,6 @@ import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.InfoStream;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.routing.DjbHashFunction;
 import org.elasticsearch.common.Nullable;
@@ -74,7 +73,6 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.index.translog.TranslogCorruptedException;
 import org.elasticsearch.indices.IndicesWarmer;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -137,7 +135,8 @@ public class InternalEngine extends Engine {
             this.lastDeleteVersionPruneTimeMSec = engineConfig.getThreadPool().estimatedTimeInMillis();
             this.indexingService = engineConfig.getIndexingService();
             this.warmer = engineConfig.getWarmer();
-            mergeScheduler = scheduler = new EngineMergeScheduler(engineConfig.getShardId(), engineConfig.getIndexSettings(), engineConfig.getMergeSchedulerConfig());
+            mergeScheduler = scheduler = new EngineMergeScheduler(engineConfig.getShardId(), engineConfig.getIndexSettings(),
+                    engineConfig.getMergeSchedulerConfig());
             this.dirtyLocks = new Object[Runtime.getRuntime().availableProcessors() * 10]; // we multiply it to have enough...
             for (int i = 0; i < dirtyLocks.length; i++) {
                 dirtyLocks[i] = new Object();
@@ -236,20 +235,7 @@ public class InternalEngine extends Engine {
         int opsRecovered = 0;
         final TranslogRecoveryPerformer handler = engineConfig.getTranslogRecoveryPerformer();
         try (Translog.Snapshot snapshot = translog.newSnapshot()) {
-            Translog.Operation operation;
-            while ((operation = snapshot.next()) != null) {
-                try {
-                    handler.performRecoveryOperation(this, operation, true);
-                    opsRecovered++;
-                } catch (ElasticsearchException e) {
-                    if (e.status() == RestStatus.BAD_REQUEST) {
-                        // mainly for MapperParsingException and Failure to detect xcontent
-                        logger.info("ignoring recovery of a corrupt translog entry", e);
-                    } else {
-                        throw e;
-                    }
-                }
-            }
+            opsRecovered = handler.recoveryFromSnapshot(this, snapshot);
         } catch (Throwable e) {
             throw new EngineException(shardId, "failed to recover from translog", e);
         }
@@ -258,9 +244,10 @@ public class InternalEngine extends Engine {
         // note: if opsRecovered == 0 and we have older translogs it means they are corrupted or 0 length.
         if (opsRecovered > 0) {
             logger.trace("flushing post recovery from translog. ops recovered [{}]. committed translog id [{}]. current id [{}]",
-                    opsRecovered, translogGeneration == null ? null : translogGeneration.translogFileGeneration, translog.currentFileGeneration());
+                    opsRecovered, translogGeneration == null ? null : translogGeneration.translogFileGeneration, translog
+                            .currentFileGeneration());
             flush(true, true);
-        } else if (translog.isCurrent(translogGeneration) == false){
+        } else if (translog.isCurrent(translogGeneration) == false) {
             commitIndexWriter(indexWriter, translog, lastCommittedSegmentInfos.getUserData().get(Engine.SYNC_COMMIT_ID));
         }
     }
@@ -381,7 +368,8 @@ public class InternalEngine extends Engine {
                 if (versionValue == null) {
                     currentVersion = loadCurrentVersionFromIndex(create.uid());
                 } else {
-                    if (engineConfig.isEnableGcDeletes() && versionValue.delete() && (engineConfig.getThreadPool().estimatedTimeInMillis() - versionValue.time()) > engineConfig.getGcDeletesInMillis()) {
+                    if (engineConfig.isEnableGcDeletes() && versionValue.delete() && (engineConfig.getThreadPool().estimatedTimeInMillis
+                            () - versionValue.time()) > engineConfig.getGcDeletesInMillis()) {
                         currentVersion = Versions.NOT_FOUND; // deleted, and GC
                     } else {
                         currentVersion = versionValue.version();
@@ -415,7 +403,8 @@ public class InternalEngine extends Engine {
                 // #7142: the primary already determined it's OK to index this document, and we confirmed above that the version doesn't
                 // conflict, so we must also update here on the replica to remain consistent:
                 doUpdate = true;
-            } else if (create.origin() == Operation.Origin.PRIMARY && create.autoGeneratedId() && create.canHaveDuplicates() && currentVersion == 1 && create.version() == Versions.MATCH_ANY) {
+            } else if (create.origin() == Operation.Origin.PRIMARY && create.autoGeneratedId() && create.canHaveDuplicates() &&
+                    currentVersion == 1 && create.version() == Versions.MATCH_ANY) {
                 /**
                  * If bulk index request fails due to a disconnect, unavailable shard etc. then the request is
                  * retried before it actually fails. However, the documents might already be indexed.
@@ -480,7 +469,8 @@ public class InternalEngine extends Engine {
      * Forces a refresh if the versionMap is using too much RAM
      */
     private void checkVersionMapRefresh() {
-        if (versionMap.ramBytesUsedForRefresh() > config().getVersionMapSize().bytes() && versionMapRefreshPending.getAndSet(true) == false) {
+        if (versionMap.ramBytesUsedForRefresh() > config().getVersionMapSize().bytes() && versionMapRefreshPending.getAndSet(true) ==
+                false) {
             try {
                 if (isClosed.get()) {
                     // no point...
@@ -510,7 +500,8 @@ public class InternalEngine extends Engine {
             if (versionValue == null) {
                 currentVersion = loadCurrentVersionFromIndex(index.uid());
             } else {
-                if (engineConfig.isEnableGcDeletes() && versionValue.delete() && (engineConfig.getThreadPool().estimatedTimeInMillis() - versionValue.time()) > engineConfig.getGcDeletesInMillis()) {
+                if (engineConfig.isEnableGcDeletes() && versionValue.delete() && (engineConfig.getThreadPool().estimatedTimeInMillis() -
+                        versionValue.time()) > engineConfig.getGcDeletesInMillis()) {
                     currentVersion = Versions.NOT_FOUND; // deleted, and GC
                 } else {
                     currentVersion = versionValue.version();
@@ -577,7 +568,8 @@ public class InternalEngine extends Engine {
     private void maybePruneDeletedTombstones() {
         // It's expensive to prune because we walk the deletes map acquiring dirtyLock for each uid so we only do it
         // every 1/4 of gcDeletesInMillis:
-        if (engineConfig.isEnableGcDeletes() && engineConfig.getThreadPool().estimatedTimeInMillis() - lastDeleteVersionPruneTimeMSec > engineConfig.getGcDeletesInMillis() * 0.25) {
+        if (engineConfig.isEnableGcDeletes() && engineConfig.getThreadPool().estimatedTimeInMillis() - lastDeleteVersionPruneTimeMSec >
+                engineConfig.getGcDeletesInMillis() * 0.25) {
             pruneDeletedTombstones();
         }
     }
@@ -589,7 +581,8 @@ public class InternalEngine extends Engine {
             if (versionValue == null) {
                 currentVersion = loadCurrentVersionFromIndex(delete.uid());
             } else {
-                if (engineConfig.isEnableGcDeletes() && versionValue.delete() && (engineConfig.getThreadPool().estimatedTimeInMillis() - versionValue.time()) > engineConfig.getGcDeletesInMillis()) {
+                if (engineConfig.isEnableGcDeletes() && versionValue.delete() && (engineConfig.getThreadPool().estimatedTimeInMillis() -
+                        versionValue.time()) > engineConfig.getGcDeletesInMillis()) {
                     currentVersion = Versions.NOT_FOUND; // deleted, and GC
                 } else {
                     currentVersion = versionValue.version();
@@ -621,7 +614,8 @@ public class InternalEngine extends Engine {
 
             delete.updateVersion(updatedVersion, found);
             Translog.Location translogLocation = translog.add(new Translog.Delete(delete));
-            versionMap.putUnderLock(delete.uid().bytes(), new DeleteVersionValue(updatedVersion, engineConfig.getThreadPool().estimatedTimeInMillis(), translogLocation));
+            versionMap.putUnderLock(delete.uid().bytes(), new DeleteVersionValue(updatedVersion, engineConfig.getThreadPool()
+                    .estimatedTimeInMillis(), translogLocation));
             delete.setTranslogLocation(translogLocation);
             indexingService.postDeleteUnderLock(delete);
         }
@@ -649,9 +643,9 @@ public class InternalEngine extends Engine {
             Query query = delete.query();
             if (delete.aliasFilter() != null) {
                 query = new BooleanQuery.Builder()
-                    .add(query, Occur.MUST)
-                    .add(delete.aliasFilter(), Occur.FILTER)
-                    .build();
+                        .add(query, Occur.MUST)
+                        .add(delete.aliasFilter(), Occur.FILTER)
+                        .build();
             }
             if (delete.nested()) {
                 query = new IncludeNestedDocsQuery(query, delete.parentFilter());
@@ -815,7 +809,8 @@ public class InternalEngine extends Engine {
         // we only need to prune the deletes map; the current/old version maps are cleared on refresh:
         for (Map.Entry<BytesRef, VersionValue> entry : versionMap.getAllTombstones()) {
             BytesRef uid = entry.getKey();
-            synchronized (dirtyLock(uid)) { // can we do it without this lock on each value? maybe batch to a set and get the lock once per set?
+            synchronized (dirtyLock(uid)) { // can we do it without this lock on each value? maybe batch to a set and get the lock once
+                // per set?
 
                 // Must re-get it here, vs using entry.getValue(), in case the uid was indexed/deleted since we pulled the iterator:
                 VersionValue versionValue = versionMap.getTombstoneUnderLock(uid);
@@ -832,7 +827,8 @@ public class InternalEngine extends Engine {
 
     @Override
     public void forceMerge(final boolean flush, int maxNumSegments, boolean onlyExpungeDeletes,
-                           final boolean upgrade, final boolean upgradeOnlyAncientSegments) throws EngineException, EngineClosedException, IOException {
+                           final boolean upgrade, final boolean upgradeOnlyAncientSegments) throws EngineException,
+            EngineClosedException, IOException {
         /*
          * We do NOT acquire the readlock here since we are waiting on the merges to finish
          * that's fine since the IW.rollback should stop all the threads and trigger an IOException
@@ -844,7 +840,8 @@ public class InternalEngine extends Engine {
          * thread for optimize, and the 'optimizeLock' guarding this code, and (3) ConcurrentMergeScheduler
          * syncs calls to findForcedMerges.
          */
-        assert indexWriter.getConfig().getMergePolicy() instanceof ElasticsearchMergePolicy : "MergePolicy is " + indexWriter.getConfig().getMergePolicy().getClass().getName();
+        assert indexWriter.getConfig().getMergePolicy() instanceof ElasticsearchMergePolicy : "MergePolicy is " + indexWriter.getConfig()
+                .getMergePolicy().getClass().getName();
         ElasticsearchMergePolicy mp = (ElasticsearchMergePolicy) indexWriter.getConfig().getMergePolicy();
         optimizeLock.lock();
         try {
@@ -922,8 +919,8 @@ public class InternalEngine extends Engine {
             }
             return true;
         } else if (t != null &&
-            ((indexWriter.isOpen() == false && indexWriter.getTragicException() == t)
-                || (translog.isOpen() == false && translog.getTragicException() == t))) {
+                ((indexWriter.isOpen() == false && indexWriter.getTragicException() == t)
+                        || (translog.isOpen() == false && translog.getTragicException() == t))) {
             // this spot on - we are handling the tragic event exception here so we have to fail the engine
             // right away
             failEngine(source, t);
@@ -978,7 +975,8 @@ public class InternalEngine extends Engine {
     @Override
     protected final void closeNoLock(String reason) {
         if (isClosed.compareAndSet(false, true)) {
-            assert rwl.isWriteLockedByCurrentThread() || failEngineLock.isHeldByCurrentThread() : "Either the write lock must be held or the engine must be currently be failing itself";
+            assert rwl.isWriteLockedByCurrentThread() || failEngineLock.isHeldByCurrentThread() : "Either the write lock must be held or " +
+                    "the engine must be currently be failing itself";
             try {
                 this.versionMap.clear();
                 try {
@@ -1094,6 +1092,7 @@ public class InternalEngine extends Engine {
             throw ex;
         }
     }
+
     /** Extended SearcherFactory that warms the segments if needed when acquiring a new searcher */
     final static class SearchFactory extends EngineSearcherFactory {
         private final IndicesWarmer warmer;
@@ -1112,7 +1111,7 @@ public class InternalEngine extends Engine {
         @Override
         public IndexSearcher newSearcher(IndexReader reader, IndexReader previousReader) throws IOException {
             IndexSearcher searcher = super.newSearcher(reader, previousReader);
-            if (reader instanceof LeafReader && isMergedSegment((LeafReader)reader)) {
+            if (reader instanceof LeafReader && isMergedSegment((LeafReader) reader)) {
                 // we call newSearcher from the IndexReaderWarmer which warms segments during merging
                 // in that case the reader is a LeafReader and all we need to do is to build a new Searcher
                 // and return it since it does it's own warming for that particular reader.
@@ -1155,10 +1154,12 @@ public class InternalEngine extends Engine {
                     }
 
                     if (newSearcher != null) {
-                        IndicesWarmer.WarmerContext context = new IndicesWarmer.WarmerContext(shardId, new Searcher("new_reader_warming", newSearcher));
+                        IndicesWarmer.WarmerContext context = new IndicesWarmer.WarmerContext(shardId, new Searcher("new_reader_warming",
+                                newSearcher));
                         warmer.warmNewReaders(context);
                     }
-                    assert searcher.getIndexReader() instanceof ElasticsearchDirectoryReader : "this class needs an ElasticsearchDirectoryReader but got: " + searcher.getIndexReader().getClass();
+                    assert searcher.getIndexReader() instanceof ElasticsearchDirectoryReader : "this class needs an " +
+                            "ElasticsearchDirectoryReader but got: " + searcher.getIndexReader().getClass();
                     warmer.warmTopReader(new IndicesWarmer.WarmerContext(shardId, new Searcher("top_reader_warming", searcher)));
                 } catch (Throwable e) {
                     if (isEngineClosed.get() == false) {
@@ -1222,6 +1223,7 @@ public class InternalEngine extends Engine {
                 }
             }
         }
+
         @Override
         protected void handleMergeException(final Directory dir, final Throwable exc) {
             logger.error("failed to merge", exc);

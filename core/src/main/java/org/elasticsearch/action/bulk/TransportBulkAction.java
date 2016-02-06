@@ -261,7 +261,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     mappingMd = indexMetaData.mappingOrDefault(indexRequest.type());
                 }
                 try {
-                    indexRequest.process(metaData, mappingMd, allowIdGeneration, concreteIndex.getName());
+                    indexRequest.resolveRouting(metaData);
+                    indexRequest.process(mappingMd, allowIdGeneration, concreteIndex.getName());
                 } catch (ElasticsearchParseException | RoutingMissingException e) {
                     BulkItemResponse.Failure failure = new BulkItemResponse.Failure(concreteIndex.getName(), indexRequest.type(), indexRequest.id(), e);
                     BulkItemResponse bulkItemResponse = new BulkItemResponse(i, "index", failure);

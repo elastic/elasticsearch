@@ -133,32 +133,6 @@ public class TimestampMappingTests extends ESSingleNodeTestCase {
     }
 
     // Issue 4718: was throwing a TimestampParsingException: failed to parse timestamp [null]
-    public void testTimestampDefaultValue() throws Exception {
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("_timestamp")
-                    .field("enabled", "yes")
-                .endObject()
-                .endObject().endObject();
-        XContentBuilder doc = XContentFactory.jsonBuilder()
-                .startObject()
-                    .field("foo", "bar")
-                .endObject();
-
-        MetaData metaData = MetaData.builder().build();
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping.string()));
-
-        MappingMetaData mappingMetaData = new MappingMetaData(docMapper);
-
-        IndexRequest request = new IndexRequest("test", "type", "1").source(doc);
-        request.process(metaData, mappingMetaData, true, "test");
-        assertThat(request.timestamp(), notNullValue());
-
-        // We should have less than one minute (probably some ms)
-        long delay = System.currentTimeMillis() - Long.parseLong(request.timestamp());
-        assertThat(delay, lessThanOrEqualTo(60000L));
-    }
-
-    // Issue 4718: was throwing a TimestampParsingException: failed to parse timestamp [null]
     public void testTimestampMissingDefaultToEpochValue() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_timestamp")
@@ -178,7 +152,7 @@ public class TimestampMappingTests extends ESSingleNodeTestCase {
         MappingMetaData mappingMetaData = new MappingMetaData(docMapper);
 
         IndexRequest request = new IndexRequest("test", "type", "1").source(doc);
-        request.process(metaData, mappingMetaData, true, "test");
+        request.process(mappingMetaData, true, "test");
         assertThat(request.timestamp(), notNullValue());
         assertThat(request.timestamp(), is(MappingMetaData.Timestamp.parseStringTimestamp("1970-01-01", Joda.forPattern("YYYY-MM-dd"))));
     }
@@ -203,7 +177,7 @@ public class TimestampMappingTests extends ESSingleNodeTestCase {
         MappingMetaData mappingMetaData = new MappingMetaData(docMapper);
 
         IndexRequest request = new IndexRequest("test", "type", "1").source(doc);
-        request.process(metaData, mappingMetaData, true, "test");
+        request.process(mappingMetaData, true, "test");
         assertThat(request.timestamp(), notNullValue());
 
         // We should have less than one minute (probably some ms)
@@ -281,7 +255,7 @@ public class TimestampMappingTests extends ESSingleNodeTestCase {
         MappingMetaData mappingMetaData = new MappingMetaData(docMapper);
 
         IndexRequest request = new IndexRequest("test", "type", "1").source(doc);
-        request.process(metaData, mappingMetaData, true, "test");
+        request.process(mappingMetaData, true, "test");
 
         assertThat(request.timestamp(), notNullValue());
 
@@ -407,7 +381,7 @@ public class TimestampMappingTests extends ESSingleNodeTestCase {
         XContentBuilder doc = XContentFactory.jsonBuilder().startObject().endObject();
         IndexRequest request = new IndexRequest("test", "type", "1").source(doc).timestamp("2015060210");
         MappingMetaData mappingMetaData = new MappingMetaData(docMapper);
-        request.process(metaData, mappingMetaData, true, "test");
+        request.process(mappingMetaData, true, "test");
 
         assertThat(request.timestamp(), is("1433239200000"));
     }
@@ -419,16 +393,15 @@ public class TimestampMappingTests extends ESSingleNodeTestCase {
         BytesReference source = XContentFactory.jsonBuilder().startObject().field("field", "value").endObject().bytes();
         // test with 2.x
         DocumentMapper currentMapper = createIndex("new-index").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
-        MetaData newMetaData = client().admin().cluster().prepareState().get().getState().getMetaData();
 
         // this works with 2.x
         IndexRequest request = new IndexRequest("new-index", "type", "1").source(source).timestamp("1970-01-01");
-        request.process(newMetaData, new MappingMetaData(currentMapper), true, "new-index");
+        request.process(new MappingMetaData(currentMapper), true, "new-index");
 
         // this fails with 2.x
         request = new IndexRequest("new-index", "type", "1").source(source).timestamp("1234567890");
         try {
-            request.process(newMetaData, new MappingMetaData(currentMapper), true, "new-index");
+            request.process(new MappingMetaData(currentMapper), true, "new-index");
         } catch (Exception e) {
             assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
             assertThat(e.getMessage(), containsString("failed to parse timestamp [1234567890]"));

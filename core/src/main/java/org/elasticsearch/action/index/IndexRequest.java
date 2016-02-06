@@ -582,10 +582,7 @@ public class IndexRequest extends ReplicationRequest<IndexRequest> implements Do
     }
 
 
-    public void process(MetaData metaData, @Nullable MappingMetaData mappingMd, boolean allowIdGeneration, String concreteIndex) {
-        // resolve the routing if needed
-        routing(metaData.resolveIndexRouting(parent, routing, index));
-
+    public void process(@Nullable MappingMetaData mappingMd, boolean allowIdGeneration, String concreteIndex) {
         // resolve timestamp if provided externally
         if (timestamp != null) {
             timestamp = MappingMetaData.Timestamp.parseStringTimestamp(timestamp,
@@ -636,6 +633,11 @@ public class IndexRequest extends ReplicationRequest<IndexRequest> implements Do
                 timestamp = MappingMetaData.Timestamp.parseStringTimestamp(defaultTimestamp, mappingMd.timestamp().dateTimeFormatter());
             }
         }
+    }
+
+    /* resolve the routing if needed */
+    public void resolveRouting(MetaData metaData) {
+        routing(metaData.resolveIndexRouting(parent, routing, index));
     }
 
     @Override

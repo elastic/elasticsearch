@@ -46,7 +46,6 @@ import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.SnapshotId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.AllocationId;
@@ -1071,7 +1070,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         // we can't issue this request through a client because of the inconsistencies we created with the cluster state
         // doing it directly instead
         IndexRequest request = client().prepareIndex("test", "test", "0").setSource("{}").request();
-        request.process(MetaData.builder().put(test.getMetaData(), false).build(), null, false, "test");
+        request.process(null, false, "test");
         TransportIndexAction.executeIndexRequestOnPrimary(request, newShard, null);
         newShard.refresh("test");
         assertHitCount(client().prepareSearch().get(), 1);

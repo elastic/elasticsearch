@@ -19,6 +19,7 @@
 
 package org.elasticsearch;
 
+import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -696,8 +697,8 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                 org.elasticsearch.index.translog.TranslogException::new, 115),
         PROCESS_CLUSTER_EVENT_TIMEOUT_EXCEPTION(org.elasticsearch.cluster.metadata.ProcessClusterEventTimeoutException.class,
                 org.elasticsearch.cluster.metadata.ProcessClusterEventTimeoutException::new, 116),
-        RETRY_ON_PRIMARY_EXCEPTION(org.elasticsearch.action.support.replication.TransportReplicationAction.RetryOnPrimaryException.class,
-                org.elasticsearch.action.support.replication.TransportReplicationAction.RetryOnPrimaryException::new, 117),
+        RETRY_ON_PRIMARY_EXCEPTION(ReplicationOperation.RetryOnPrimaryException.class,
+                ReplicationOperation.RetryOnPrimaryException::new, 117),
         ELASTICSEARCH_TIMEOUT_EXCEPTION(org.elasticsearch.ElasticsearchTimeoutException.class,
                 org.elasticsearch.ElasticsearchTimeoutException::new, 118),
         QUERY_PHASE_EXECUTION_EXCEPTION(org.elasticsearch.search.query.QueryPhaseExecutionException.class,

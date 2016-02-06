@@ -313,7 +313,10 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
 
     /**
      * The term of the current selected primary. This is a non-negative number incremented when
-     * a primary shard is assigned after a full cluster restart or a replica shard is promoted to a primary
+     * a primary shard is assigned after a full cluster restart or a replica shard is promoted to a primary.
+     *
+     * Note: since we increment the term every time a shard is assigned, the term for any operational shard (i.e., a shard
+     * that can be indexed into) is larger than 0.
      * See {@link AllocationService#updateMetaDataWithRoutingTable(MetaData, RoutingTable, RoutingTable)}.
      **/
     public long primaryTerm(int shardId) {

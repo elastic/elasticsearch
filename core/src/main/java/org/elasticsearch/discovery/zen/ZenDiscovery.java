@@ -910,7 +910,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             activeNodes.add(localNode);
             long joinsCounter = clusterJoinsCounter.get();
             if (joinsCounter > 0) {
-                logger.trace("adding local node to the list of active nodes who has previously joined the cluster (joins counter is [{}})", joinsCounter);
+                logger.trace("adding local node to the list of active nodes that have previously joined the cluster (joins counter is [{}])", joinsCounter);
                 joinedOnceActiveNodes.add(localNode);
             }
         }

@@ -55,6 +55,7 @@ import org.elasticsearch.gateway.MetaDataStateFormat;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.NodeServicesProvider;
+import org.elasticsearch.index.SearchSlowLog;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.bitset.ShardBitsetFilterCache;
@@ -89,13 +90,12 @@ import org.elasticsearch.index.percolator.PercolatorQueriesRegistry;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
-import org.elasticsearch.index.SearchSlowLog;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.search.stats.ShardSearchStats;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.snapshots.IndexShardRepository;
-import org.elasticsearch.index.store.Store.MetadataSnapshot;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.store.Store.MetadataSnapshot;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.suggest.stats.ShardSuggestMetric;
@@ -105,8 +105,8 @@ import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.index.warmer.ShardIndexWarmerService;
 import org.elasticsearch.index.warmer.WarmerStats;
-import org.elasticsearch.indices.cache.query.IndicesQueryCache;
 import org.elasticsearch.indices.IndexingMemoryController;
+import org.elasticsearch.indices.cache.query.IndicesQueryCache;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.percolator.PercolatorService;
@@ -874,6 +874,12 @@ public class IndexShard extends AbstractIndexShardComponent {
      * After the store has been recovered, we need to start the engine in order to apply operations
      */
     public void performTranslogRecovery(boolean indexExists) {
+        if (indexExists == false) {
+            // note: these are set when recovering from the translog
+            final RecoveryState.Translog translogStats = recoveryState().getTranslog();
+            translogStats.totalOperations(0);
+            translogStats.totalOperationsOnStart(0);
+        }
         internalPerformTranslogRecovery(false, indexExists);
         assert recoveryState.getStage() == RecoveryState.Stage.TRANSLOG : "TRANSLOG stage expected but was: " + recoveryState.getStage();
     }
@@ -1386,6 +1392,15 @@ public class IndexShard extends AbstractIndexShardComponent {
             protected void operationProcessed() {
                 assert recoveryState != null;
                 recoveryState.getTranslog().incrementRecoveredOperations();
+            }
+
+            @Override
+            public int recoveryFromSnapshot(Engine engine, Translog.Snapshot snapshot) throws IOException {
+                assert recoveryState != null;
+                RecoveryState.Translog translogStats = recoveryState.getTranslog();
+                translogStats.totalOperations(snapshot.totalOperations());
+                translogStats.totalOperationsOnStart(snapshot.totalOperations());
+                return super.recoveryFromSnapshot(engine, snapshot);
             }
         };
         return new EngineConfig(shardId,

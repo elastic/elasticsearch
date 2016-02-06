@@ -238,10 +238,6 @@ public class StoreRecoveryService extends AbstractIndexShardComponent implements
             } catch (IOException e) {
                 logger.debug("failed to list file details", e);
             }
-            if (indexShouldExists == false) {
-                recoveryState.getTranslog().totalOperations(0);
-                recoveryState.getTranslog().totalOperationsOnStart(0);
-            }
             typesToUpdate = indexShard.performTranslogRecovery(indexShouldExists);
 
             indexShard.finalizeRecovery();

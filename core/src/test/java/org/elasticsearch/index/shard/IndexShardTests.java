@@ -41,8 +41,10 @@ import org.elasticsearch.cluster.metadata.SnapshotId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RestoreSource;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingHelper;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -84,6 +86,7 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -646,6 +649,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         final AtomicBoolean postIndexCalled = new AtomicBoolean(false);
 
         shardIndexingService.addListener(new IndexingOperationListener() {
+
             @Override
             public void postIndex(Engine.Index index) {
                 postIndexCalled.set(true);
@@ -715,7 +719,8 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         List<Translog.Operation> operations = new ArrayList<>();
         operations.add(new Translog.Index("testtype", "1", jsonBuilder().startObject().field("foo", "bar").endObject().bytes().toBytes()));
         newShard.prepareForIndexRecovery();
-        newShard.performTranslogRecovery(true);
+        newShard.recoveryState().getTranslog().totalOperations(operations.size());
+        newShard.skipTranslogRecovery();
         newShard.performBatchRecovery(operations);
         assertFalse(newShard.engine().getTranslog().syncNeeded());
     }
@@ -814,4 +819,96 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         // Shard should now be active since we did recover:
         assertNotEquals(IndexingMemoryController.INACTIVE_SHARD_INDEXING_BUFFER, newShard.getIndexingBufferSize());
     }
+
+    public void testRecoverFromStore() throws IOException, InterruptedException {
+        createIndex("test");
+        ensureGreen();
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexService test = indicesService.indexService("test");
+        final IndexShard shard = test.shardSafe(0);
+        int translogOps = 1;
+        client().prepareIndex("test", "test", "0").setSource("{}").setRefresh(randomBoolean()).get();
+        if (randomBoolean()) {
+            client().admin().indices().prepareFlush().get();
+            translogOps = 0;
+        }
+        ShardRouting routing = new ShardRouting(shard.routingEntry());
+        test.removeShard(0, "b/c simon says so");
+        ShardRoutingHelper.reinit(routing);
+        IndexShard newShard = test.createShard(routing);
+        newShard.updateRoutingEntry(routing, false);
+        final CountDownLatch latch = new CountDownLatch(1);
+        newShard.recoverFromStore(routing, new StoreRecoveryService.RecoveryListener() {
+            @Override
+            public void onRecoveryDone() {
+                latch.countDown();
+            }
+
+            @Override
+            public void onIgnoreRecovery(String reason) {
+                fail("failed recovery");
+            }
+
+            @Override
+            public void onRecoveryFailed(IndexShardRecoveryException e) {
+                throw e;
+            }
+        });
+        latch.await();
+        assertEquals(translogOps, newShard.recoveryState().getTranslog().recoveredOperations());
+        assertEquals(translogOps, newShard.recoveryState().getTranslog().totalOperations());
+        assertEquals(translogOps, newShard.recoveryState().getTranslog().totalOperationsOnStart());
+        assertEquals(100.0f, newShard.recoveryState().getTranslog().recoveredPercent(), 0.01f);
+        routing = new ShardRouting(routing);
+        ShardRoutingHelper.moveToStarted(routing);
+        newShard.updateRoutingEntry(routing, true);
+        SearchResponse response = client().prepareSearch().get();
+        assertHitCount(response, 1);
+    }
+
+    public void testRecoverFromCleanStore() throws IOException, InterruptedException {
+        createIndex("test");
+        ensureGreen();
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexService test = indicesService.indexService("test");
+        final IndexShard shard = test.shard(0);
+        client().prepareIndex("test", "test", "0").setSource("{}").setRefresh(randomBoolean()).get();
+        if (randomBoolean()) {
+            client().admin().indices().prepareFlush().get();
+        }
+        ShardRouting routing = new ShardRouting(shard.routingEntry());
+        test.removeShard(0, "b/c simon says so");
+        ShardRoutingHelper.reinit(routing, UnassignedInfo.Reason.INDEX_CREATED);
+        IndexShard newShard = test.createShard(routing);
+        newShard.updateRoutingEntry(routing, false);
+        final CountDownLatch latch = new CountDownLatch(1);
+        newShard.recoverFromStore(routing, new StoreRecoveryService.RecoveryListener() {
+            @Override
+            public void onRecoveryDone() {
+                latch.countDown();
+            }
+
+            @Override
+            public void onIgnoreRecovery(String reason) {
+                fail("failed recovery");
+            }
+
+            @Override
+            public void onRecoveryFailed(IndexShardRecoveryException e) {
+                throw e;
+            }
+        });
+        latch.await();
+        assertEquals(0, newShard.recoveryState().getTranslog().recoveredOperations());
+        assertEquals(0, newShard.recoveryState().getTranslog().totalOperations());
+        assertEquals(0, newShard.recoveryState().getTranslog().totalOperationsOnStart());
+        assertEquals(100.0f, newShard.recoveryState().getTranslog().recoveredPercent(), 0.01f);
+        routing = new ShardRouting(routing);
+        ShardRoutingHelper.moveToStarted(routing);
+        newShard.updateRoutingEntry(routing, true);
+        SearchResponse response = client().prepareSearch().get();
+        assertHitCount(response, 0);
+    }
+
+
 }

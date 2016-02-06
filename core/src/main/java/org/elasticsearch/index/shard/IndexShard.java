@@ -66,7 +66,16 @@ import org.elasticsearch.index.cache.request.ShardRequestCache;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.deletionpolicy.SnapshotDeletionPolicy;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
-import org.elasticsearch.index.engine.*;
+import org.elasticsearch.index.engine.CommitStats;
+import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.EngineClosedException;
+import org.elasticsearch.index.engine.EngineConfig;
+import org.elasticsearch.index.engine.EngineException;
+import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.engine.IndexSearcherWrappingService;
+import org.elasticsearch.index.engine.RefreshFailedEngineException;
+import org.elasticsearch.index.engine.Segment;
+import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.fielddata.FieldDataStats;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.fielddata.ShardFieldData;
@@ -75,7 +84,13 @@ import org.elasticsearch.index.get.GetStats;
 import org.elasticsearch.index.get.ShardGetService;
 import org.elasticsearch.index.indexing.IndexingStats;
 import org.elasticsearch.index.indexing.ShardIndexingService;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.DocumentMapperForType;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.Mapping;
+import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.percolator.PercolatorQueriesRegistry;
 import org.elasticsearch.index.percolator.stats.ShardPercolateService;
@@ -193,7 +208,8 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     private final IndexShardOperationCounter indexShardOperationCounter;
 
-    private final EnumSet<IndexShardState> readAllowedStates = EnumSet.of(IndexShardState.STARTED, IndexShardState.RELOCATED, IndexShardState.POST_RECOVERY);
+    private final EnumSet<IndexShardState> readAllowedStates = EnumSet.of(IndexShardState.STARTED, IndexShardState.RELOCATED,
+            IndexShardState.POST_RECOVERY);
 
     /**
      * True if this shard is still indexing (recently) and false if we've been idle for long enough (as periodically checked by {@link
@@ -205,11 +221,14 @@ public class IndexShard extends AbstractIndexShardComponent {
     private final IndexingMemoryController indexingMemoryController;
 
     @Inject
-    public IndexShard(ShardId shardId, IndexSettingsService indexSettingsService, IndicesLifecycle indicesLifecycle, Store store, StoreRecoveryService storeRecoveryService,
-                      ThreadPool threadPool, MapperService mapperService, IndexQueryParserService queryParserService, IndexCache indexCache, IndexAliasesService indexAliasesService,
+    public IndexShard(ShardId shardId, IndexSettingsService indexSettingsService, IndicesLifecycle indicesLifecycle, Store store,
+                      StoreRecoveryService storeRecoveryService,
+                      ThreadPool threadPool, MapperService mapperService, IndexQueryParserService queryParserService, IndexCache
+                              indexCache, IndexAliasesService indexAliasesService,
                       IndicesQueryCache indicesQueryCache, ShardPercolateService shardPercolateService, CodecService codecService,
                       ShardTermVectorsService termVectorsService, IndexFieldDataService indexFieldDataService, IndexService indexService,
-                      @Nullable IndicesWarmer warmer, SnapshotDeletionPolicy deletionPolicy, SimilarityService similarityService, EngineFactory factory,
+                      @Nullable IndicesWarmer warmer, SnapshotDeletionPolicy deletionPolicy, SimilarityService similarityService,
+                      EngineFactory factory,
                       ClusterService clusterService, ShardPath path, BigArrays bigArrays, IndexSearcherWrappingService wrappingService,
                       IndexingMemoryController indexingMemoryController) {
         super(shardId, indexSettingsService.getSettings());
@@ -239,7 +258,8 @@ public class IndexShard extends AbstractIndexShardComponent {
         this.indicesQueryCache = indicesQueryCache;
         this.shardQueryCache = new ShardRequestCache(shardId, indexSettings);
         this.shardFieldData = new ShardFieldData();
-        this.percolatorQueriesRegistry = new PercolatorQueriesRegistry(shardId, indexSettings, queryParserService, indexingService, indicesLifecycle, mapperService, indexFieldDataService, shardPercolateService);
+        this.percolatorQueriesRegistry = new PercolatorQueriesRegistry(shardId, indexSettings, queryParserService, indexingService,
+                indicesLifecycle, mapperService, indexFieldDataService, shardPercolateService);
         this.shardPercolateService = shardPercolateService;
         this.indexFieldDataService = indexFieldDataService;
         this.indexService = indexService;
@@ -257,7 +277,8 @@ public class IndexShard extends AbstractIndexShardComponent {
         logger.debug("state: [CREATED]");
 
         this.checkIndexOnStartup = indexSettings.get("index.shard.check_on_startup", "false");
-        this.translogConfig = new TranslogConfig(shardId, shardPath().resolveTranslog(), indexSettings, getFromSettings(logger, indexSettings, Translog.Durabilty.REQUEST),
+        this.translogConfig = new TranslogConfig(shardId, shardPath().resolveTranslog(), indexSettings,
+                getFromSettings(logger, indexSettings, Translog.Durabilty.REQUEST),
                 bigArrays, threadPool);
         final QueryCachingPolicy cachingPolicy;
         // the query cache is a node-level thing, however we want the most popular filters
@@ -353,10 +374,12 @@ public class IndexShard extends AbstractIndexShardComponent {
     public void updateRoutingEntry(final ShardRouting newRouting, final boolean persistState) {
         final ShardRouting currentRouting = this.shardRouting;
         if (!newRouting.shardId().equals(shardId())) {
-            throw new IllegalArgumentException("Trying to set a routing entry with shardId [" + newRouting.shardId() + "] on a shard with shardId [" + shardId() + "]");
+            throw new IllegalArgumentException("Trying to set a routing entry with shardId [" + newRouting.shardId() + "] on a shard with" +
+                    " shardId [" + shardId() + "]");
         }
         if ((currentRouting == null || newRouting.isSameAllocation(currentRouting)) == false) {
-            throw new IllegalArgumentException("Trying to set a routing entry with a different allocation. Current " + currentRouting + ", new " + newRouting);
+            throw new IllegalArgumentException("Trying to set a routing entry with a different allocation. Current " + currentRouting +
+                    ", new " + newRouting);
         }
         try {
             if (currentRouting != null) {
@@ -416,11 +439,12 @@ public class IndexShard extends AbstractIndexShardComponent {
     /**
      * Marks the shard as recovering based on a restore, fails with exception is recovering is not allowed to be set.
      */
-    public IndexShardState recovering(String reason, RecoveryState.Type type, RestoreSource restoreSource) throws IndexShardStartedException {
+    public IndexShardState recovering(String reason, RecoveryState.Type type, RestoreSource restoreSource) throws
+            IndexShardStartedException {
         return recovering(reason, new RecoveryState(shardId, shardRouting.primary(), type, restoreSource, localNode));
     }
 
-    private IndexShardState recovering(String reason, RecoveryState recoveryState) throws IndexShardStartedException,
+    IndexShardState recovering(String reason, RecoveryState recoveryState) throws IndexShardStartedException,
             IndexShardRelocatedException, IndexShardRecoveringException, IndexShardClosedException {
 
         synchronized (mutex) {
@@ -473,21 +497,25 @@ public class IndexShard extends AbstractIndexShardComponent {
         return previousState;
     }
 
-    public Engine.Create prepareCreateOnPrimary(SourceToParse source, long version, VersionType versionType, boolean canHaveDuplicates, boolean autoGeneratedId) {
+    public Engine.Create prepareCreateOnPrimary(SourceToParse source, long version, VersionType versionType, boolean canHaveDuplicates,
+                                                boolean autoGeneratedId) {
         try {
             if (shardRouting.primary() == false) {
                 throw new IllegalIndexShardStateException(shardId, state, "shard is not a primary");
             }
-            return prepareCreate(docMapper(source.type()), source, version, versionType, Engine.Operation.Origin.PRIMARY, state != IndexShardState.STARTED || canHaveDuplicates, autoGeneratedId);
+            return prepareCreate(docMapper(source.type()), source, version, versionType, Engine.Operation.Origin.PRIMARY, state !=
+                    IndexShardState.STARTED || canHaveDuplicates, autoGeneratedId);
         } catch (Throwable t) {
             verifyNotClosed(t);
             throw t;
         }
     }
 
-    public Engine.Create prepareCreateOnReplica(SourceToParse source, long version, VersionType versionType, boolean canHaveDuplicates, boolean autoGeneratedId) {
+    public Engine.Create prepareCreateOnReplica(SourceToParse source, long version, VersionType versionType, boolean canHaveDuplicates,
+                                                boolean autoGeneratedId) {
         try {
-            return prepareCreate(docMapper(source.type()), source, version, versionType, Engine.Operation.Origin.REPLICA, state != IndexShardState.STARTED || canHaveDuplicates, autoGeneratedId);
+            return prepareCreate(docMapper(source.type()), source, version, versionType, Engine.Operation.Origin.REPLICA, state !=
+                    IndexShardState.STARTED || canHaveDuplicates, autoGeneratedId);
         } catch (Throwable t) {
             verifyNotClosed(t);
             throw t;
@@ -495,13 +523,15 @@ public class IndexShard extends AbstractIndexShardComponent {
     }
 
 
-    static Engine.Create prepareCreate(DocumentMapperForType docMapper, SourceToParse source, long version, VersionType versionType, Engine.Operation.Origin origin, boolean canHaveDuplicates, boolean autoGeneratedId) {
+    static Engine.Create prepareCreate(DocumentMapperForType docMapper, SourceToParse source, long version, VersionType versionType,
+                                       Engine.Operation.Origin origin, boolean canHaveDuplicates, boolean autoGeneratedId) {
         long startTime = System.nanoTime();
         ParsedDocument doc = docMapper.getDocumentMapper().parse(source);
         if (docMapper.getMapping() != null) {
             doc.addDynamicMappingsUpdate(docMapper.getMapping());
         }
-        return new Engine.Create(docMapper.getDocumentMapper().uidMapper().term(doc.uid().stringValue()), doc, version, versionType, origin, startTime, canHaveDuplicates, autoGeneratedId);
+        return new Engine.Create(docMapper.getDocumentMapper().uidMapper().term(doc.uid().stringValue()), doc, version, versionType,
+                origin, startTime, canHaveDuplicates, autoGeneratedId);
     }
 
     public void create(Engine.Create create) {
@@ -526,7 +556,8 @@ public class IndexShard extends AbstractIndexShardComponent {
             if (shardRouting.primary() == false) {
                 throw new IllegalIndexShardStateException(shardId, state, "shard is not a primary");
             }
-            return prepareIndex(docMapper(source.type()), source, version, versionType, Engine.Operation.Origin.PRIMARY, state != IndexShardState.STARTED || canHaveDuplicates);
+            return prepareIndex(docMapper(source.type()), source, version, versionType, Engine.Operation.Origin.PRIMARY, state !=
+                    IndexShardState.STARTED || canHaveDuplicates);
         } catch (Throwable t) {
             verifyNotClosed(t);
             throw t;
@@ -535,20 +566,23 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     public Engine.Index prepareIndexOnReplica(SourceToParse source, long version, VersionType versionType, boolean canHaveDuplicates) {
         try {
-            return prepareIndex(docMapper(source.type()), source, version, versionType, Engine.Operation.Origin.REPLICA, state != IndexShardState.STARTED || canHaveDuplicates);
+            return prepareIndex(docMapper(source.type()), source, version, versionType, Engine.Operation.Origin.REPLICA, state !=
+                    IndexShardState.STARTED || canHaveDuplicates);
         } catch (Throwable t) {
             verifyNotClosed(t);
             throw t;
         }
     }
 
-    static Engine.Index prepareIndex(DocumentMapperForType docMapper, SourceToParse source, long version, VersionType versionType, Engine.Operation.Origin origin, boolean canHaveDuplicates) {
+    static Engine.Index prepareIndex(DocumentMapperForType docMapper, SourceToParse source, long version, VersionType versionType, Engine
+            .Operation.Origin origin, boolean canHaveDuplicates) {
         long startTime = System.nanoTime();
         ParsedDocument doc = docMapper.getDocumentMapper().parse(source);
         if (docMapper.getMapping() != null) {
             doc.addDynamicMappingsUpdate(docMapper.getMapping());
         }
-        return new Engine.Index(docMapper.getDocumentMapper().uidMapper().term(doc.uid().stringValue()), doc, version, versionType, origin, startTime, canHaveDuplicates);
+        return new Engine.Index(docMapper.getDocumentMapper().uidMapper().term(doc.uid().stringValue()), doc, version, versionType,
+                origin, startTime, canHaveDuplicates);
     }
 
     /**
@@ -579,15 +613,18 @@ public class IndexShard extends AbstractIndexShardComponent {
             throw new IllegalIndexShardStateException(shardId, state, "shard is not a primary");
         }
         final DocumentMapper documentMapper = docMapper(type).getDocumentMapper();
-        return prepareDelete(type, id, documentMapper.uidMapper().term(Uid.createUid(type, id)), version, versionType, Engine.Operation.Origin.PRIMARY);
+        return prepareDelete(type, id, documentMapper.uidMapper().term(Uid.createUid(type, id)), version, versionType, Engine.Operation
+                .Origin.PRIMARY);
     }
 
     public Engine.Delete prepareDeleteOnReplica(String type, String id, long version, VersionType versionType) {
         final DocumentMapper documentMapper = docMapper(type).getDocumentMapper();
-        return prepareDelete(type, id, documentMapper.uidMapper().term(Uid.createUid(type, id)), version, versionType, Engine.Operation.Origin.REPLICA);
+        return prepareDelete(type, id, documentMapper.uidMapper().term(Uid.createUid(type, id)), version, versionType, Engine.Operation
+                .Origin.REPLICA);
     }
 
-    static Engine.Delete prepareDelete(String type, String id, Term uid, long version, VersionType versionType, Engine.Operation.Origin origin) {
+    static Engine.Delete prepareDelete(String type, String id, Term uid, long version, VersionType versionType, Engine.Operation.Origin
+            origin) {
         long startTime = System.nanoTime();
         return new Engine.Delete(type, id, uid, version, versionType, origin, startTime, false);
     }
@@ -840,7 +877,8 @@ public class IndexShard extends AbstractIndexShardComponent {
         }
     }
 
-    public IndexShard postRecovery(String reason) throws IndexShardStartedException, IndexShardRelocatedException, IndexShardClosedException {
+    public IndexShard postRecovery(String reason) throws IndexShardStartedException, IndexShardRelocatedException,
+            IndexShardClosedException {
         indicesLifecycle.beforeIndexShardPostRecovery(this);
         synchronized (mutex) {
             if (state == IndexShardState.CLOSED) {
@@ -894,6 +932,12 @@ public class IndexShard extends AbstractIndexShardComponent {
      * After the store has been recovered, we need to start the engine in order to apply operations
      */
     public Map<String, Mapping> performTranslogRecovery(boolean indexExists) {
+        if (indexExists == false) {
+            // note: these are set when recovering from the translog
+            final RecoveryState.Translog translogStats = recoveryState().getTranslog();
+            translogStats.totalOperations(0);
+            translogStats.totalOperationsOnStart(0);
+        }
         final Map<String, Mapping> recoveredTypes = internalPerformTranslogRecovery(false, indexExists);
         assert recoveryState.getStage() == RecoveryState.Stage.TRANSLOG : "TRANSLOG stage expected but was: " + recoveryState.getStage();
         return recoveredTypes;
@@ -990,7 +1034,8 @@ public class IndexShard extends AbstractIndexShardComponent {
     public void readAllowed() throws IllegalIndexShardStateException {
         IndexShardState state = this.state; // one time volatile read
         if (readAllowedStates.contains(state) == false) {
-            throw new IllegalIndexShardStateException(shardId, state, "operations only allowed when shard state is one of " + readAllowedStates.toString());
+            throw new IllegalIndexShardStateException(shardId, state, "operations only allowed when shard state is one of " +
+                    readAllowedStates.toString());
         }
     }
 
@@ -1015,13 +1060,16 @@ public class IndexShard extends AbstractIndexShardComponent {
             // for primaries, we only allow to write when actually started (so the cluster has decided we started)
             // otherwise, we need to retry, we also want to still allow to index if we are relocated in case it fails
             if (state != IndexShardState.STARTED && state != IndexShardState.RELOCATED) {
-                throw new IllegalIndexShardStateException(shardId, state, "operation only allowed when started/recovering, origin [" + origin + "]");
+                throw new IllegalIndexShardStateException(shardId, state, "operation only allowed when started/recovering, origin [" +
+                        origin + "]");
             }
         } else {
             // for replicas, we allow to write also while recovering, since we index also during recovery to replicas
             // and rely on version checks to make sure its consistent
-            if (state != IndexShardState.STARTED && state != IndexShardState.RELOCATED && state != IndexShardState.RECOVERING && state != IndexShardState.POST_RECOVERY) {
-                throw new IllegalIndexShardStateException(shardId, state, "operation only allowed when started/recovering, origin [" + origin + "]");
+            if (state != IndexShardState.STARTED && state != IndexShardState.RELOCATED && state != IndexShardState.RECOVERING && state !=
+                    IndexShardState.POST_RECOVERY) {
+                throw new IllegalIndexShardStateException(shardId, state, "operation only allowed when started/recovering, origin [" +
+                        origin + "]");
             }
         }
     }
@@ -1040,7 +1088,8 @@ public class IndexShard extends AbstractIndexShardComponent {
     private void verifyNotClosed(Throwable suppressed) throws IllegalIndexShardStateException {
         IndexShardState state = this.state; // one time volatile read
         if (state == IndexShardState.CLOSED) {
-            final IllegalIndexShardStateException exc = new IllegalIndexShardStateException(shardId, state, "operation only allowed when not closed");
+            final IllegalIndexShardStateException exc = new IllegalIndexShardStateException(shardId, state, "operation only allowed when " +
+                    "not closed");
             if (suppressed != null) {
                 exc.addSuppressed(suppressed);
             }
@@ -1132,7 +1181,8 @@ public class IndexShard extends AbstractIndexShardComponent {
         if (System.nanoTime() - lastWriteNS >= inactiveTimeNS) {
             boolean wasActive = active.getAndSet(false);
             if (wasActive) {
-                updateBufferSize(IndexingMemoryController.INACTIVE_SHARD_INDEXING_BUFFER, IndexingMemoryController.INACTIVE_SHARD_TRANSLOG_BUFFER);
+                updateBufferSize(IndexingMemoryController.INACTIVE_SHARD_INDEXING_BUFFER, IndexingMemoryController
+                        .INACTIVE_SHARD_TRANSLOG_BUFFER);
                 logger.debug("marking shard as inactive (inactive_time=[{}]) indexing wise", inactiveTimeNS);
                 indicesLifecycle.onShardInactive(this);
             }
@@ -1192,7 +1242,8 @@ public class IndexShard extends AbstractIndexShardComponent {
                     IndexShard.this.flushOnClose = flushOnClose;
                 }
 
-                TranslogWriter.Type type = TranslogWriter.Type.fromString(settings.get(TranslogConfig.INDEX_TRANSLOG_FS_TYPE, translogConfig.getType().name()));
+                TranslogWriter.Type type = TranslogWriter.Type.fromString(settings.get(TranslogConfig.INDEX_TRANSLOG_FS_TYPE,
+                        translogConfig.getType().name()));
                 if (type != translogConfig.getType()) {
                     logger.info("updating type from [{}] to [{}]", translogConfig.getType(), type);
                     translogConfig.setType(type);
@@ -1208,7 +1259,8 @@ public class IndexShard extends AbstractIndexShardComponent {
                 if (!refreshInterval.equals(IndexShard.this.refreshInterval)) {
                     logger.info("updating refresh_interval from [{}] to [{}]", IndexShard.this.refreshInterval, refreshInterval);
                     if (refreshScheduledFuture != null) {
-                        // NOTE: we pass false here so we do NOT attempt Thread.interrupt if EngineRefresher.run is currently running.  This is
+                        // NOTE: we pass false here so we do NOT attempt Thread.interrupt if EngineRefresher.run is currently running.
+                        // This is
                         // very important, because doing so can cause files to suddenly be closed if they were doing IO when the interrupt
                         // hit.  See https://issues.apache.org/jira/browse/LUCENE-2239
                         FutureUtils.cancel(refreshScheduledFuture);
@@ -1220,16 +1272,19 @@ public class IndexShard extends AbstractIndexShardComponent {
                     }
                 }
 
-                long gcDeletesInMillis = settings.getAsTime(EngineConfig.INDEX_GC_DELETES_SETTING, TimeValue.timeValueMillis(config.getGcDeletesInMillis())).millis();
+                long gcDeletesInMillis = settings.getAsTime(EngineConfig.INDEX_GC_DELETES_SETTING, TimeValue.timeValueMillis(config
+                        .getGcDeletesInMillis())).millis();
                 if (gcDeletesInMillis != config.getGcDeletesInMillis()) {
-                    logger.info("updating {} from [{}] to [{}]", EngineConfig.INDEX_GC_DELETES_SETTING, TimeValue.timeValueMillis(config.getGcDeletesInMillis()), TimeValue.timeValueMillis(gcDeletesInMillis));
+                    logger.info("updating {} from [{}] to [{}]", EngineConfig.INDEX_GC_DELETES_SETTING, TimeValue.timeValueMillis(config
+                            .getGcDeletesInMillis()), TimeValue.timeValueMillis(gcDeletesInMillis));
                     config.setGcDeletesInMillis(gcDeletesInMillis);
                     change = true;
                 }
 
                 final boolean compoundOnFlush = settings.getAsBoolean(EngineConfig.INDEX_COMPOUND_ON_FLUSH, config.isCompoundOnFlush());
                 if (compoundOnFlush != config.isCompoundOnFlush()) {
-                    logger.info("updating {} from [{}] to [{}]", EngineConfig.INDEX_COMPOUND_ON_FLUSH, config.isCompoundOnFlush(), compoundOnFlush);
+                    logger.info("updating {} from [{}] to [{}]", EngineConfig.INDEX_COMPOUND_ON_FLUSH, config.isCompoundOnFlush(),
+                            compoundOnFlush);
                     config.setCompoundOnFlush(compoundOnFlush);
                     change = true;
                 }
@@ -1238,23 +1293,28 @@ public class IndexShard extends AbstractIndexShardComponent {
                     config.setVersionMapSizeSetting(versionMapSize);
                 }
 
-                final int maxThreadCount = settings.getAsInt(MergeSchedulerConfig.MAX_THREAD_COUNT, mergeSchedulerConfig.getMaxThreadCount());
+                final int maxThreadCount = settings.getAsInt(MergeSchedulerConfig.MAX_THREAD_COUNT, mergeSchedulerConfig
+                        .getMaxThreadCount());
                 if (maxThreadCount != mergeSchedulerConfig.getMaxThreadCount()) {
-                    logger.info("updating [{}] from [{}] to [{}]", MergeSchedulerConfig.MAX_THREAD_COUNT, mergeSchedulerConfig.getMaxMergeCount(), maxThreadCount);
+                    logger.info("updating [{}] from [{}] to [{}]", MergeSchedulerConfig.MAX_THREAD_COUNT, mergeSchedulerConfig
+                            .getMaxMergeCount(), maxThreadCount);
                     mergeSchedulerConfig.setMaxThreadCount(maxThreadCount);
                     change = true;
                 }
 
                 final int maxMergeCount = settings.getAsInt(MergeSchedulerConfig.MAX_MERGE_COUNT, mergeSchedulerConfig.getMaxMergeCount());
                 if (maxMergeCount != mergeSchedulerConfig.getMaxMergeCount()) {
-                    logger.info("updating [{}] from [{}] to [{}]", MergeSchedulerConfig.MAX_MERGE_COUNT, mergeSchedulerConfig.getMaxMergeCount(), maxMergeCount);
+                    logger.info("updating [{}] from [{}] to [{}]", MergeSchedulerConfig.MAX_MERGE_COUNT, mergeSchedulerConfig
+                            .getMaxMergeCount(), maxMergeCount);
                     mergeSchedulerConfig.setMaxMergeCount(maxMergeCount);
                     change = true;
                 }
 
-                final boolean autoThrottle = settings.getAsBoolean(MergeSchedulerConfig.AUTO_THROTTLE, mergeSchedulerConfig.isAutoThrottle());
+                final boolean autoThrottle = settings.getAsBoolean(MergeSchedulerConfig.AUTO_THROTTLE, mergeSchedulerConfig
+                        .isAutoThrottle());
                 if (autoThrottle != mergeSchedulerConfig.isAutoThrottle()) {
-                    logger.info("updating [{}] from [{}] to [{}]", MergeSchedulerConfig.AUTO_THROTTLE, mergeSchedulerConfig.isAutoThrottle(), autoThrottle);
+                    logger.info("updating [{}] from [{}] to [{}]", MergeSchedulerConfig.AUTO_THROTTLE, mergeSchedulerConfig
+                            .isAutoThrottle(), autoThrottle);
                     mergeSchedulerConfig.setAutoThrottle(autoThrottle);
                     change = true;
                 }
@@ -1476,7 +1536,8 @@ public class IndexShard extends AbstractIndexShardComponent {
                             " previous version:  [" + currentRouting.version() + "] current version [" + newRouting.version() + "]";
                     return;
                 }
-                final ShardStateMetaData newShardStateMetadata = new ShardStateMetaData(newRouting.version(), newRouting.primary(), getIndexUUID());
+                final ShardStateMetaData newShardStateMetadata = new ShardStateMetaData(newRouting.version(), newRouting.primary(),
+                        getIndexUUID());
                 logger.trace("{} writing shard state, reason [{}]", shardId, writeReason);
                 ShardStateMetaData.FORMAT.write(newShardStateMetadata, newShardStateMetadata.version, shardPath().getShardStatePath());
             } catch (IOException e) { // this is how we used to handle it.... :(
@@ -1490,7 +1551,8 @@ public class IndexShard extends AbstractIndexShardComponent {
     private String getIndexUUID() {
         assert indexSettings.get(IndexMetaData.SETTING_INDEX_UUID) != null
                 || indexSettings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).before(Version.V_0_90_6) :
-                "version: " + indexSettings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, null) + " uuid: " + indexSettings.get(IndexMetaData.SETTING_INDEX_UUID);
+                "version: " + indexSettings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, null) + " uuid: " +
+                        indexSettings.get(IndexMetaData.SETTING_INDEX_UUID);
         return indexSettings.get(IndexMetaData.SETTING_INDEX_UUID, IndexMetaData.INDEX_UUID_NA_VALUE);
     }
 
@@ -1505,6 +1567,15 @@ public class IndexShard extends AbstractIndexShardComponent {
             protected void operationProcessed() {
                 assert recoveryState != null;
                 recoveryState.getTranslog().incrementRecoveredOperations();
+            }
+
+            @Override
+            public int recoveryFromSnapshot(Engine engine, Translog.Snapshot snapshot) throws IOException {
+                assert recoveryState != null;
+                RecoveryState.Translog translogStats = recoveryState.getTranslog();
+                translogStats.totalOperations(snapshot.estimatedTotalOperations());
+                translogStats.totalOperationsOnStart(snapshot.estimatedTotalOperations());
+                return super.recoveryFromSnapshot(engine, snapshot);
             }
         };
         return new EngineConfig(shardId,
@@ -1572,7 +1643,8 @@ public class IndexShard extends AbstractIndexShardComponent {
         try {
             return Translog.Durabilty.valueOf(value.toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException ex) {
-            logger.warn("Can't apply {} illegal value: {} using {} instead, use one of: {}", TranslogConfig.INDEX_TRANSLOG_DURABILITY, value, defaultValue, Arrays.toString(Translog.Durabilty.values()));
+            logger.warn("Can't apply {} illegal value: {} using {} instead, use one of: {}", TranslogConfig.INDEX_TRANSLOG_DURABILITY,
+                    value, defaultValue, Arrays.toString(Translog.Durabilty.values()));
             return defaultValue;
         }
     }

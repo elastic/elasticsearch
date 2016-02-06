@@ -35,11 +35,16 @@ import org.elasticsearch.index.aliases.IndexAliasesService;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.IgnoreOnRecoveryEngineException;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.DocumentMapperForType;
+import org.elasticsearch.index.mapper.MapperException;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.Mapping;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -92,6 +97,25 @@ public class TranslogRecoveryPerformer {
             throw new BatchOperationException(shardId, "failed to apply batch translog operation [" + t.getMessage() + "]", numOps, t);
         }
         return numOps;
+    }
+
+    public int recoveryFromSnapshot(Engine engine, Translog.Snapshot snapshot) throws IOException {
+        Translog.Operation operation;
+        int opsRecovered = 0;
+        while ((operation = snapshot.next()) != null) {
+            try {
+                performRecoveryOperation(engine, operation, true);
+                opsRecovered++;
+            } catch (ElasticsearchException e) {
+                if (e.status() == RestStatus.BAD_REQUEST) {
+                    // mainly for MapperParsingException and Failure to detect xcontent
+                    logger.info("ignoring recovery of a corrupt translog entry", e);
+                } else {
+                    throw e;
+                }
+            }
+        }
+        return opsRecovered;
     }
 
     public static class BatchOperationException extends ElasticsearchException {
@@ -247,6 +271,7 @@ public class TranslogRecoveryPerformer {
     protected void operationProcessed() {
         // noop
     }
+
 
     /**
      * Returns the recovered types modifying the mapping during the recovery

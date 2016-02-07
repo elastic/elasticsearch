@@ -23,6 +23,7 @@ import org.elasticsearch.ElasticsearchException;
 
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.Objects;
 
 public class MessageDigests {
 
@@ -61,9 +62,7 @@ public class MessageDigests {
     private static final char[] HEX_DIGITS = "0123456789abcdef".toCharArray();
 
     public static String toHexString(byte[] bytes) {
-        if (bytes == null) {
-            throw new NullPointerException("bytes");
-        }
+        Objects.requireNonNull(bytes);
         StringBuilder sb = new StringBuilder(2 * bytes.length);
 
         for (int i = 0; i < bytes.length; i++) {

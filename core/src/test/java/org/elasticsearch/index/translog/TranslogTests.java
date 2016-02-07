@@ -1671,8 +1671,8 @@ public class TranslogTests extends ESTestCase {
             }
             boolean atLeastOneFailed = false;
             for (Throwable ex : threadExceptions) {
-                assertTrue(ex.toString(), ex instanceof IOException || ex instanceof AlreadyClosedException);
                 if (ex != null) {
+                    assertTrue(ex.toString(), ex instanceof IOException || ex instanceof AlreadyClosedException);
                     atLeastOneFailed = true;
                 }
             }

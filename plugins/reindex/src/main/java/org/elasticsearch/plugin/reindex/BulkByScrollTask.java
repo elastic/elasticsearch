@@ -29,11 +29,11 @@ import org.elasticsearch.tasks.Task;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
+import java.util.Arrays;
 import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static java.lang.Math.min;
 import static java.util.Collections.emptyList;
@@ -55,8 +55,8 @@ public class BulkByScrollTask extends Task {
     private final AtomicLong noops = new AtomicLong(0);
     private final AtomicInteger batch = new AtomicInteger(0);
     private final AtomicLong versionConflicts = new AtomicLong(0);
-    private final List<Failure> indexingFailures = new CopyOnWriteArrayList<>();
-    private final List<ShardSearchFailure> searchFailures = new CopyOnWriteArrayList<>();
+    private final AtomicReference<List<Failure>> indexingFailures = new AtomicReference<>(emptyList());
+    private final AtomicReference<List<ShardSearchFailure>> searchFailures = new AtomicReference<>(emptyList());
 
     public BulkByScrollTask(long id, String type, String action, Provider<String> description) {
         super(id, type, action, description);
@@ -65,7 +65,7 @@ public class BulkByScrollTask extends Task {
     @Override
     public Status getStatus() {
         return new Status(total.get(), updated.get(), created.get(), deleted.get(), batch.get(), versionConflicts.get(), noops.get(),
-                unmodifiableList(new ArrayList<>(indexingFailures)), unmodifiableList(new ArrayList<>(searchFailures)));
+                indexingFailures.get(), searchFailures.get());
     }
 
     /**
@@ -79,7 +79,7 @@ public class BulkByScrollTask extends Task {
      * All indexing failures.
      */
     public List<Failure> getIndexingFailures() {
-        return unmodifiableList(indexingFailures);
+        return indexingFailures.get();
     }
 
     public static class Status implements Task.Status {
@@ -283,8 +283,8 @@ public class BulkByScrollTask extends Task {
         }
     }
 
-    void addSearchFailures(ShardSearchFailure... shardSearchFailures) {
-        Collections.addAll(searchFailures, shardSearchFailures);
+    void setTotal(long totalHits) {
+        total.set(totalHits);
     }
 
     void countBatch() {
@@ -311,11 +311,11 @@ public class BulkByScrollTask extends Task {
         versionConflicts.incrementAndGet();
     }
 
-    void addIndexingFailure(Failure failure) {
-        indexingFailures.add(failure);
+    void setIndexingFailures(List<Failure> failures) {
+        indexingFailures.set(unmodifiableList(failures));
     }
 
-    void setTotal(long totalHits) {
-        total.set(totalHits);
+    void setSearchFailures(ShardSearchFailure... shardSearchFailures) {
+        searchFailures.set(unmodifiableList(Arrays.asList(shardSearchFailures)));
     }
 }

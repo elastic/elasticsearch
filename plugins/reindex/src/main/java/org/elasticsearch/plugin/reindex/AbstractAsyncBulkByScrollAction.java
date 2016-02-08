@@ -41,6 +41,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
@@ -136,12 +137,12 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
     void onScrollResponse(SearchResponse searchResponse) {
         scroll.set(searchResponse.getScrollId());
         if (searchResponse.getShardFailures() != null && searchResponse.getShardFailures().length > 0) {
-            task.addSearchFailures(searchResponse.getShardFailures());
+            task.setSearchFailures(searchResponse.getShardFailures());
             startNormalTermination();
             return;
         }
         long total = searchResponse.getHits().totalHits();
-        if (mainRequest.getSize() >= 0) {
+        if (mainRequest.getSize() > 0) {
             total = min(total, mainRequest.getSize());
         }
         task.setTotal(total);
@@ -205,10 +206,11 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
 
     void onBulkResponse(BulkResponse response) {
         try {
+            List<Failure> failures = new ArrayList<Failure>();
             Set<String> destinationIndicesThisBatch = new HashSet<>();
             for (BulkItemResponse item : response) {
                 if (item.isFailed()) {
-                    recordFailure(item.getFailure());
+                    recordFailure(item.getFailure(), failures);
                     continue;
                 }
 
@@ -233,7 +235,8 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
             }
             destinationIndices.addAll(destinationIndicesThisBatch);
 
-            if (false == task.getIndexingFailures().isEmpty()) {
+            if (false == failures.isEmpty()) {
+                task.setIndexingFailures(failures);
                 startNormalTermination();
                 return;
             }
@@ -265,14 +268,14 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         });
     }
 
-    private void recordFailure(Failure failure) {
+    private void recordFailure(Failure failure, List<Failure> failures) {
         if (failure.getStatus() == CONFLICT) {
             task.countVersionConflict();
             if (false == mainRequest.isAbortOnVersionConflict()) {
                 return;
             }
         }
-        task.addIndexingFailure(failure);
+        failures.add(failure);
     }
 
     void startNormalTermination() {

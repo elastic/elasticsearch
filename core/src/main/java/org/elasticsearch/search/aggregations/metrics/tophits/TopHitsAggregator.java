@@ -49,6 +49,7 @@ import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
+import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -554,11 +555,11 @@ public class TopHitsAggregator extends MetricsAggregator {
         public boolean trackScores() {
             return trackScores;
         }
-
         @Override
-        protected AggregatorFactory<?> doBuild(AggregationContext context) {
+        protected AggregatorFactory<?> doBuild(AggregationContext context, AggregatorFactory<?> parent, Builder subfactoriesBuilder)
+                throws IOException {
             return new TopHitsAggregatorFactory(name, type, from, size, explain, version, trackScores, sorts, highlightBuilder, fieldNames,
-                    fieldDataFields, scriptFields, fetchSourceContext);
+                    fieldDataFields, scriptFields, fetchSourceContext, context, parent, subfactoriesBuilder, metaData);
         }
 
         @Override

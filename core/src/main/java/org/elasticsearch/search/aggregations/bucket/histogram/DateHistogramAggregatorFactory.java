@@ -23,14 +23,18 @@ import org.elasticsearch.common.rounding.DateTimeUnit;
 import org.elasticsearch.common.rounding.Rounding;
 import org.elasticsearch.common.rounding.TimeZoneRounding;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
 import static java.util.Collections.unmodifiableMap;
 
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 public class DateHistogramAggregatorFactory extends AbstractHistogramAggregatorFactory<DateHistogramAggregatorFactory> {
@@ -60,8 +64,10 @@ public class DateHistogramAggregatorFactory extends AbstractHistogramAggregatorF
 
     public DateHistogramAggregatorFactory(String name, Type type, ValuesSourceConfig<Numeric> config, long interval,
             DateHistogramInterval dateHistogramInterval, long offset, InternalOrder order, boolean keyed, long minDocCount,
-            ExtendedBounds extendedBounds) {
-        super(name, type, config, interval, offset, order, keyed, minDocCount, extendedBounds, InternalDateHistogram.HISTOGRAM_FACTORY);
+            ExtendedBounds extendedBounds, AggregationContext context, AggregatorFactory<?> parent,
+            AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
+        super(name, type, config, interval, offset, order, keyed, minDocCount, extendedBounds, InternalDateHistogram.HISTOGRAM_FACTORY,
+                context, parent, subFactoriesBuilder, metaData);
         this.dateHistogramInterval = dateHistogramInterval;
     }
 

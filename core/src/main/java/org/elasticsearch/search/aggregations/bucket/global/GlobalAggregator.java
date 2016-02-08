@@ -28,6 +28,7 @@ import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
+import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -77,8 +78,9 @@ public class GlobalAggregator extends SingleBucketAggregator {
         }
 
         @Override
-        protected AggregatorFactory<?> doBuild(AggregationContext context) throws IOException {
-            return new GlobalAggregatorFactory(name, type);
+        protected AggregatorFactory<?> doBuild(AggregationContext context, AggregatorFactory<?> parent, Builder subFactoriesBuilder)
+                throws IOException {
+            return new GlobalAggregatorFactory(name, type, context, parent, subFactoriesBuilder, metaData);
         }
 
         @Override

@@ -25,6 +25,8 @@ import org.elasticsearch.common.lucene.index.FilterableTermsEnum;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.JLHScore;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicStreams;
@@ -167,10 +169,10 @@ public class SignificantTermsAggregatorBuilder extends ValuesSourceAggregatorBui
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory<ValuesSource, ?> innerBuild(AggregationContext context,
-            ValuesSourceConfig<ValuesSource> config) {
+    protected ValuesSourceAggregatorFactory<ValuesSource, ?> innerBuild(AggregationContext context, ValuesSourceConfig<ValuesSource> config,
+            AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
         return new SignificantTermsAggregatorFactory(name, type, config, includeExclude, executionHint, filterBuilder,
-                bucketCountThresholds, significanceHeuristic, context);
+                bucketCountThresholds, significanceHeuristic, context, parent, subFactoriesBuilder, metaData);
     }
 
     @Override

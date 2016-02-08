@@ -103,8 +103,9 @@ public class FilterAggregator extends SingleBucketAggregator {
         }
 
         @Override
-        protected AggregatorFactory<?> doBuild(AggregationContext context) throws IOException {
-            return new FilterAggregatorFactory(name, type, filter, context);
+        protected AggregatorFactory<?> doBuild(AggregationContext context, AggregatorFactory<?> parent,
+                AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
+            return new FilterAggregatorFactory(name, type, filter, context, parent, subFactoriesBuilder, metaData);
         }
 
         @Override

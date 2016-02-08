@@ -37,6 +37,8 @@ import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorBuilder;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.format.ValueFormat;
@@ -177,9 +179,10 @@ public abstract class ValuesSourceAggregatorBuilder<VS extends ValuesSource, AB 
     }
 
     @Override
-    protected final ValuesSourceAggregatorFactory<VS, ?> doBuild(AggregationContext context) {
+    protected final ValuesSourceAggregatorFactory<VS, ?> doBuild(AggregationContext context, AggregatorFactory<?> parent,
+            AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
         ValuesSourceConfig<VS> config = resolveConfig(context);
-        ValuesSourceAggregatorFactory<VS, ?> factory = innerBuild(context, config);
+        ValuesSourceAggregatorFactory<VS, ?> factory = innerBuild(context, config, parent, subFactoriesBuilder);
         return factory;
     }
 
@@ -188,7 +191,8 @@ public abstract class ValuesSourceAggregatorBuilder<VS extends ValuesSource, AB 
         return config;
     }
 
-    protected abstract ValuesSourceAggregatorFactory<VS, ?> innerBuild(AggregationContext context, ValuesSourceConfig<VS> config);
+    protected abstract ValuesSourceAggregatorFactory<VS, ?> innerBuild(AggregationContext context, ValuesSourceConfig<VS> config,
+            AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder) throws IOException;
 
     public ValuesSourceConfig<VS> config(AggregationContext context) {
 

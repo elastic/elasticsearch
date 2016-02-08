@@ -28,9 +28,11 @@ import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
+import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -168,8 +170,9 @@ public class StatsAggregator extends NumericMetricsAggregator.MultiValue {
         }
 
         @Override
-        protected StatsAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig<Numeric> config) {
-            return new StatsAggregatorFactory(name, type, config);
+        protected StatsAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig<Numeric> config,
+                AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
+            return new StatsAggregatorFactory(name, type, config, context, parent, subFactoriesBuilder, metaData);
         }
 
         @Override

@@ -58,45 +58,15 @@ public abstract class AggregatorFactory<AF extends AggregatorFactory<AF>> extend
      *            The aggregation name
      * @param type
      *            The aggregation type
+     * @throws IOException
+     *             if an error occurs creating the factory
      */
-    public AggregatorFactory(String name, Type type) {
+    public AggregatorFactory(String name, Type type, AggregationContext context, AggregatorFactory<?> parent,
+            AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
         this.name = name;
         this.type = type;
-    }
-
-    /**
-     * Initializes this factory with the given {@link AggregationContext} ready
-     * to create {@link Aggregator}s
-     */
-    public final void init(AggregationContext context) {
         this.context = context;
-        doInit(context);
-        this.factories.init(context);
-    }
-
-    /**
-     * Allows the {@link AggregatorFactory} to initialize any state prior to
-     * using it to create {@link Aggregator}s.
-     *
-     * @param context
-     *            the {@link AggregationContext} to use during initialization.
-     */
-    protected void doInit(AggregationContext context) {
-    }
-
-    /**
-     * Registers sub-factories with this factory. The sub-factory will be
-     * responsible for the creation of sub-aggregators under the aggregator
-     * created by this factory.
-     *
-     * @param subFactories
-     *            The sub-factories
-     * @return this factory (fluent interface)
-     */
-    public AF subFactories(AggregatorFactories subFactories) {
-        this.factories = subFactories;
-        this.factories.setParent(this);
-        return (AF) this;
+        this.factories = subFactoriesBuilder.build(context, this);
     }
 
     public String name() {
@@ -113,14 +83,6 @@ public abstract class AggregatorFactory<AF extends AggregatorFactory<AF>> extend
     }
 
     public void doValidate() {
-    }
-
-    /**
-     * @return The parent factory if one exists (will always return {@code null}
-     *         for top level aggregator factories).
-     */
-    public AggregatorFactory<?> parent() {
-        return parent;
     }
 
     protected abstract Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket,
@@ -142,11 +104,6 @@ public abstract class AggregatorFactory<AF extends AggregatorFactory<AF>> extend
      */
     public final Aggregator create(Aggregator parent, boolean collectsFromSingleBucket) throws IOException {
         return createInternal(context, parent, collectsFromSingleBucket, this.factories.createPipelineAggregators(), this.metaData);
-    }
-
-    public AF setMetaData(Map<String, Object> metaData) {
-        this.metaData = metaData;
-        return (AF) this;
     }
 
     public String getType() {

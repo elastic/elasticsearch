@@ -44,7 +44,7 @@ import java.util.Set;
  */
 public class AggregatorFactories {
 
-    public static final AggregatorFactories EMPTY = new AggregatorFactories(new AggregatorFactory<?>[0],
+    public static final AggregatorFactories EMPTY = new AggregatorFactories(null, new AggregatorFactory<?>[0],
             new ArrayList<PipelineAggregatorFactory>());
 
     private AggregatorFactory<?> parent;
@@ -55,16 +55,11 @@ public class AggregatorFactories {
         return new Builder();
     }
 
-    private AggregatorFactories(AggregatorFactory<?>[] factories,
+    private AggregatorFactories(AggregatorFactory<?> parent, AggregatorFactory<?>[] factories,
             List<PipelineAggregatorFactory> pipelineAggregators) {
+        this.parent = parent;
         this.factories = factories;
         this.pipelineAggregatorFactories = pipelineAggregators;
-    }
-
-    public void init(AggregationContext context) {
-        for (AggregatorFactory<?> factory : factories) {
-            factory.init(context);
-        }
     }
 
     public List<PipelineAggregator> createPipelineAggregators() throws IOException {
@@ -118,13 +113,6 @@ public class AggregatorFactories {
         return pipelineAggregatorFactories.size();
     }
 
-    void setParent(AggregatorFactory<?> parent) {
-        this.parent = parent;
-        for (AggregatorFactory<?> factory : factories) {
-            factory.parent = parent;
-        }
-    }
-
     public void validate() {
         for (AggregatorFactory<?> factory : factories) {
             factory.validate();
@@ -168,7 +156,7 @@ public class AggregatorFactories {
             return this;
         }
 
-        public AggregatorFactories build(AggregationContext context) throws IOException {
+        public AggregatorFactories build(AggregationContext context, AggregatorFactory<?> parent) throws IOException {
             if (aggregatorBuilders.isEmpty() && pipelineAggregatorFactories.isEmpty()) {
                 return EMPTY;
             }
@@ -180,9 +168,9 @@ public class AggregatorFactories {
             }
             AggregatorFactory<?>[] aggFactories = new AggregatorFactory<?>[aggregatorBuilders.size()];
             for (int i = 0; i < aggregatorBuilders.size(); i++) {
-                aggFactories[i] = aggregatorBuilders.get(i).build(context);
+                aggFactories[i] = aggregatorBuilders.get(i).build(context, parent);
             }
-            return new AggregatorFactories(aggFactories, orderedpipelineAggregators);
+            return new AggregatorFactories(parent, aggFactories, orderedpipelineAggregators);
         }
 
         private List<PipelineAggregatorFactory> resolvePipelineAggregatorOrder(List<PipelineAggregatorFactory> pipelineAggregatorFactories,

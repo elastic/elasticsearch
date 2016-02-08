@@ -22,6 +22,8 @@ package org.elasticsearch.search.aggregations.bucket.histogram;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.rounding.Rounding;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -48,8 +50,9 @@ public abstract class AbstractHistogramAggregatorFactory<AF extends AbstractHist
 
     public AbstractHistogramAggregatorFactory(String name, Type type, ValuesSourceConfig<Numeric> config, long interval, long offset,
             InternalOrder order, boolean keyed, long minDocCount, ExtendedBounds extendedBounds,
-            InternalHistogram.Factory<?> histogramFactory) {
-        super(name, type, config);
+            InternalHistogram.Factory<?> histogramFactory, AggregationContext context, AggregatorFactory<?> parent,
+            AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
+        super(name, type, config, context, parent, subFactoriesBuilder, metaData);
         this.interval = interval;
         this.offset = offset;
         this.order = order;

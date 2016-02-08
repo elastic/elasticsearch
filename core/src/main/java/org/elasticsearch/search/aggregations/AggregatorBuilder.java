@@ -97,16 +97,13 @@ public abstract class AggregatorBuilder<AB extends AggregatorBuilder<AB>> extend
         return type.name();
     }
 
-    public final AggregatorFactory<?> build(AggregationContext context) throws IOException {
-        AggregatorFactory<?> factory = doBuild(context);
-        if (factoriesBuilder != null && factoriesBuilder.count() > 0) {
-            factory.subFactories(factoriesBuilder.build(context));
-        }
-        factory.setMetaData(metaData);
+    public final AggregatorFactory<?> build(AggregationContext context, AggregatorFactory<?> parent) throws IOException {
+        AggregatorFactory<?> factory = doBuild(context, parent, factoriesBuilder);
         return factory;
     }
 
-    protected abstract AggregatorFactory<?> doBuild(AggregationContext context) throws IOException;
+    protected abstract AggregatorFactory<?> doBuild(AggregationContext context, AggregatorFactory<?> parent,
+            AggregatorFactories.Builder subfactoriesBuilder) throws IOException;
 
     @Override
     public final AB readFrom(StreamInput in) throws IOException {

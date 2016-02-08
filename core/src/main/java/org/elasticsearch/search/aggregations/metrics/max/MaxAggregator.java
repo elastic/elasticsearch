@@ -29,9 +29,11 @@ import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
+import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -127,8 +129,9 @@ public class MaxAggregator extends NumericMetricsAggregator.SingleValue {
         }
 
         @Override
-        protected MaxAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig<Numeric> config) {
-            return new MaxAggregatorFactory(name, type, config);
+        protected MaxAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig<Numeric> config,
+                AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
+            return new MaxAggregatorFactory(name, type, config, context, parent, subFactoriesBuilder, metaData);
         }
 
         @Override

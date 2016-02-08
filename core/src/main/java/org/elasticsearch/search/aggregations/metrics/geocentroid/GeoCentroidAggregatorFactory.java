@@ -20,6 +20,8 @@
 package org.elasticsearch.search.aggregations.metrics.geocentroid;
 
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -33,8 +35,10 @@ import java.util.Map;
 
 public class GeoCentroidAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource.GeoPoint, GeoCentroidAggregatorFactory> {
 
-    public GeoCentroidAggregatorFactory(String name, Type type, ValuesSourceConfig<ValuesSource.GeoPoint> config) {
-        super(name, type, config);
+    public GeoCentroidAggregatorFactory(String name, Type type, ValuesSourceConfig<ValuesSource.GeoPoint> config,
+            AggregationContext context, AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder,
+            Map<String, Object> metaData) throws IOException {
+        super(name, type, config, context, parent, subFactoriesBuilder, metaData);
     }
 
     @Override

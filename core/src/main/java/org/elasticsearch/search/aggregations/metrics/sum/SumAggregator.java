@@ -27,6 +27,8 @@ import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
@@ -118,8 +120,9 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue {
         }
 
         @Override
-        protected SumAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig<Numeric> config) {
-            return new SumAggregatorFactory(name, type, config);
+        protected SumAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig<Numeric> config,
+                AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
+            return new SumAggregatorFactory(name, type, config, context, parent, subFactoriesBuilder, metaData);
         }
 
         @Override

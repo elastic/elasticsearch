@@ -33,6 +33,7 @@ import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
+import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.bucket.BestDocsDeferringCollector;
 import org.elasticsearch.search.aggregations.bucket.DeferringBucketCollector;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
@@ -44,7 +45,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorBuild
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
@@ -217,8 +217,9 @@ public class SamplerAggregator extends SingleBucketAggregator {
         }
 
         @Override
-        protected AggregatorFactory<?> doBuild(AggregationContext context) {
-            return new SamplerAggregatorFactory(name, type, shardSize);
+        protected SamplerAggregatorFactory doBuild(AggregationContext context, AggregatorFactory<?> parent, Builder subFactoriesBuilder)
+                throws IOException {
+            return new SamplerAggregatorFactory(name, type, shardSize, context, parent, subFactoriesBuilder, metaData);
         }
 
         @Override
@@ -315,8 +316,9 @@ public class SamplerAggregator extends SingleBucketAggregator {
 
         @Override
         protected ValuesSourceAggregatorFactory<ValuesSource, ?> innerBuild(AggregationContext context,
-                ValuesSourceConfig<ValuesSource> config) {
-            return new DiversifiedAggregatorFactory(name, TYPE, config, shardSize, maxDocsPerValue, executionHint);
+                ValuesSourceConfig<ValuesSource> config, AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
+            return new DiversifiedAggregatorFactory(name, TYPE, config, shardSize, maxDocsPerValue, executionHint, context, parent,
+                    subFactoriesBuilder, metaData);
         }
 
         @Override

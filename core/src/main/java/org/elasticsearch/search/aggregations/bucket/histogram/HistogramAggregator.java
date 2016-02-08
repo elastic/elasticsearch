@@ -32,9 +32,11 @@ import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
+import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -170,8 +172,10 @@ public class HistogramAggregator extends BucketsAggregator {
         }
 
         @Override
-        protected HistogramAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig<Numeric> config) {
-            return new HistogramAggregatorFactory(name, type, config, interval, offset, order, keyed, minDocCount, extendedBounds);
+        protected HistogramAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig<Numeric> config,
+                AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
+            return new HistogramAggregatorFactory(name, type, config, interval, offset, order, keyed, minDocCount, extendedBounds, context,
+                    parent, subFactoriesBuilder, metaData);
         }
 
     }
@@ -373,9 +377,10 @@ public class HistogramAggregator extends BucketsAggregator {
         }
 
         @Override
-        protected DateHistogramAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig<Numeric> config) {
+        protected DateHistogramAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig<Numeric> config,
+                AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
             return new DateHistogramAggregatorFactory(name, type, config, interval, dateHistogramInterval, offset, order, keyed,
-                    minDocCount, extendedBounds);
+                    minDocCount, extendedBounds, context, parent, subFactoriesBuilder, metaData);
         }
 
         @Override

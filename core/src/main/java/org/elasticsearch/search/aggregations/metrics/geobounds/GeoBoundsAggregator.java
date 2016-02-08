@@ -30,9 +30,11 @@ import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
+import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -41,7 +43,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
@@ -199,9 +200,9 @@ public final class GeoBoundsAggregator extends MetricsAggregator {
         }
 
         @Override
-        protected GeoBoundsAggregatorFactory innerBuild(AggregationContext context,
-                ValuesSourceConfig<ValuesSource.GeoPoint> config) {
-            return new GeoBoundsAggregatorFactory(name, type, config, wrapLongitude);
+        protected GeoBoundsAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig<ValuesSource.GeoPoint> config,
+                AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
+            return new GeoBoundsAggregatorFactory(name, type, config, wrapLongitude, context, parent, subFactoriesBuilder, metaData);
         }
 
         @Override

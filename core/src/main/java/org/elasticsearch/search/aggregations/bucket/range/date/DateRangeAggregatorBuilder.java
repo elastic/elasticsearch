@@ -20,6 +20,8 @@
 package org.elasticsearch.search.aggregations.bucket.range.date;
 
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.AbstractBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Range;
@@ -245,8 +247,10 @@ public class DateRangeAggregatorBuilder extends AbstractBuilder<DateRangeAggrega
     }
 
     @Override
-    protected DateRangeAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig<Numeric> config) {
-        return new DateRangeAggregatorFactory(name, type, config, ranges, keyed, rangeFactory);
+    protected DateRangeAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig<Numeric> config,
+            AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
+        return new DateRangeAggregatorFactory(name, type, config, ranges, keyed, rangeFactory, context, parent, subFactoriesBuilder,
+                metaData);
     }
 
     @Override

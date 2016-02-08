@@ -25,9 +25,11 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
+import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -95,8 +97,8 @@ public class MissingAggregator extends SingleBucketAggregator {
 
         @Override
         protected ValuesSourceAggregatorFactory<ValuesSource, ?> innerBuild(AggregationContext context,
-                ValuesSourceConfig<ValuesSource> config) {
-            return new MissingAggregatorFactory(name, type, config);
+                ValuesSourceConfig<ValuesSource> config, AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
+            return new MissingAggregatorFactory(name, type, config, context, parent, subFactoriesBuilder, metaData);
         }
 
         @Override

@@ -20,6 +20,8 @@
 package org.elasticsearch.search.aggregations.metrics.percentiles.hdr;
 
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -39,8 +41,9 @@ public class HDRPercentilesAggregatorFactory extends ValuesSourceAggregatorFacto
     private final boolean keyed;
 
     public HDRPercentilesAggregatorFactory(String name, Type type, ValuesSourceConfig<Numeric> config, double[] percents,
-            int numberOfSignificantValueDigits, boolean keyed) {
-        super(name, type, config);
+            int numberOfSignificantValueDigits, boolean keyed, AggregationContext context, AggregatorFactory<?> parent,
+            AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
+        super(name, type, config, context, parent, subFactoriesBuilder, metaData);
         this.percents = percents;
         this.numberOfSignificantValueDigits = numberOfSignificantValueDigits;
         this.keyed = keyed;

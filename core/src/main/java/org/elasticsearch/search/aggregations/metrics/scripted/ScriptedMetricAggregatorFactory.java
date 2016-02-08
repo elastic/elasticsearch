@@ -22,6 +22,7 @@ package org.elasticsearch.search.aggregations.metrics.scripted;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -44,8 +45,9 @@ public class ScriptedMetricAggregatorFactory extends AggregatorFactory<ScriptedM
     private final Map<String, Object> params;
 
     public ScriptedMetricAggregatorFactory(String name, Type type, Script initScript, Script mapScript, Script combineScript,
-            Script reduceScript, Map<String, Object> params) {
-        super(name, type);
+            Script reduceScript, Map<String, Object> params, AggregationContext context, AggregatorFactory<?> parent,
+            AggregatorFactories.Builder subFactories, Map<String, Object> metaData) throws IOException {
+        super(name, type, context, parent, subFactories, metaData);
         this.initScript = initScript;
         this.mapScript = mapScript;
         this.combineScript = combineScript;

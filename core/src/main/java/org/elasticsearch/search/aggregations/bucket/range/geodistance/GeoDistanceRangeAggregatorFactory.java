@@ -29,6 +29,8 @@ import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.bucket.range.InternalRange;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator;
@@ -55,8 +57,9 @@ public class GeoDistanceRangeAggregatorFactory
     private final boolean keyed;
 
     public GeoDistanceRangeAggregatorFactory(String name, Type type, ValuesSourceConfig<ValuesSource.GeoPoint> config, GeoPoint origin,
-            List<Range> ranges, DistanceUnit unit, GeoDistance distanceType, boolean keyed) {
-        super(name, type, config);
+            List<Range> ranges, DistanceUnit unit, GeoDistance distanceType, boolean keyed, AggregationContext context,
+            AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
+        super(name, type, config, context, parent, subFactoriesBuilder, metaData);
         this.origin = origin;
         this.ranges = ranges;
         this.unit = unit;

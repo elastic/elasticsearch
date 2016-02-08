@@ -25,6 +25,7 @@ import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.NonCollectingAggregator;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
@@ -53,8 +54,9 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
 
     public TermsAggregatorFactory(String name, Type type, ValuesSourceConfig<ValuesSource> config, Terms.Order order,
             IncludeExclude includeExclude, String executionHint, SubAggCollectionMode collectMode,
-            TermsAggregator.BucketCountThresholds bucketCountThresholds, boolean showTermDocCountError) {
-        super(name, type, config);
+            TermsAggregator.BucketCountThresholds bucketCountThresholds, boolean showTermDocCountError, AggregationContext context,
+            AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
+        super(name, type, config, context, parent, subFactoriesBuilder, metaData);
         this.order = order;
         this.includeExclude = includeExclude;
         this.executionHint = executionHint;

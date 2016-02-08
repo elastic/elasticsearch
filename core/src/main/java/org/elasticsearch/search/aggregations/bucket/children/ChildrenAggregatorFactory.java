@@ -21,6 +21,8 @@ package org.elasticsearch.search.aggregations.bucket.children;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.NonCollectingAggregator;
@@ -43,8 +45,9 @@ public class ChildrenAggregatorFactory
     private final Query childFilter;
 
     public ChildrenAggregatorFactory(String name, Type type, ValuesSourceConfig<ParentChild> config, String parentType, Query childFilter,
-            Query parentFilter) {
-        super(name, type, config);
+            Query parentFilter, AggregationContext context, AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder,
+            Map<String, Object> metaData) throws IOException {
+        super(name, type, config, context, parent, subFactoriesBuilder, metaData);
         this.parentType = parentType;
         this.childFilter = childFilter;
         this.parentFilter = parentFilter;

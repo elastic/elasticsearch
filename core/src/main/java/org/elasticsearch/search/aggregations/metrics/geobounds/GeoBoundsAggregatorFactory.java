@@ -20,6 +20,8 @@
 package org.elasticsearch.search.aggregations.metrics.geobounds;
 
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -35,8 +37,10 @@ public class GeoBoundsAggregatorFactory extends ValuesSourceAggregatorFactory<Va
 
     private final boolean wrapLongitude;
 
-    public GeoBoundsAggregatorFactory(String name, Type type, ValuesSourceConfig<ValuesSource.GeoPoint> config, boolean wrapLongitude) {
-        super(name, type, config);
+    public GeoBoundsAggregatorFactory(String name, Type type, ValuesSourceConfig<ValuesSource.GeoPoint> config, boolean wrapLongitude,
+            AggregationContext context, AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder,
+            Map<String, Object> metaData) throws IOException {
+        super(name, type, config, context, parent, subFactoriesBuilder, metaData);
         this.wrapLongitude = wrapLongitude;
     }
 

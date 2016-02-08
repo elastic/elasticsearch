@@ -20,6 +20,8 @@
 package org.elasticsearch.search.aggregations.bucket.range;
 
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Range;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Unmapped;
@@ -42,8 +44,9 @@ public class AbstractRangeAggregatorFactory<AF extends AbstractRangeAggregatorFa
     private final boolean keyed;
 
     public AbstractRangeAggregatorFactory(String name, Type type, ValuesSourceConfig<Numeric> config, List<R> ranges, boolean keyed,
-            InternalRange.Factory<?, ?> rangeFactory) {
-        super(name, type, config);
+            InternalRange.Factory<?, ?> rangeFactory, AggregationContext context, AggregatorFactory<?> parent,
+            AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
+        super(name, type, config, context, parent, subFactoriesBuilder, metaData);
         this.ranges = ranges;
         this.keyed = keyed;
         this.rangeFactory = rangeFactory;

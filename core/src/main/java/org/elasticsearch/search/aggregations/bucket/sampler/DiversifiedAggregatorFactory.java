@@ -21,6 +21,8 @@ package org.elasticsearch.search.aggregations.bucket.sampler;
 
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.NonCollectingAggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
@@ -43,8 +45,9 @@ public class DiversifiedAggregatorFactory extends ValuesSourceAggregatorFactory<
     private final String executionHint;
 
     public DiversifiedAggregatorFactory(String name, Type type, ValuesSourceConfig<ValuesSource> config, int shardSize, int maxDocsPerValue,
-            String executionHint) {
-        super(name, type, config);
+            String executionHint, AggregationContext context, AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder,
+            Map<String, Object> metaData) throws IOException {
+        super(name, type, config, context, parent, subFactoriesBuilder, metaData);
         this.shardSize = shardSize;
         this.maxDocsPerValue = maxDocsPerValue;
         this.executionHint = executionHint;

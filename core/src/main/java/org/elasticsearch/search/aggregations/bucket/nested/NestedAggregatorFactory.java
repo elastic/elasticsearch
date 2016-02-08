@@ -22,6 +22,7 @@ package org.elasticsearch.search.aggregations.bucket.nested;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.NonCollectingAggregator;
@@ -37,8 +38,9 @@ public class NestedAggregatorFactory extends AggregatorFactory<NestedAggregatorF
 
     private final String path;
 
-    public NestedAggregatorFactory(String name, Type type, String path) {
-        super(name, type);
+    public NestedAggregatorFactory(String name, Type type, String path, AggregationContext context, AggregatorFactory<?> parent,
+            AggregatorFactories.Builder subFactories, Map<String, Object> metaData) throws IOException {
+        super(name, type, context, parent, subFactories, metaData);
         this.path = path;
     }
 

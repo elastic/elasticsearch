@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -63,8 +64,9 @@ public class TopHitsAggregatorFactory extends AggregatorFactory<TopHitsAggregato
 
     public TopHitsAggregatorFactory(String name, Type type, int from, int size, boolean explain, boolean version, boolean trackScores,
             List<BytesReference> sorts, HighlightBuilder highlightBuilder, List<String> fieldNames, List<String> fieldDataFields,
-            List<ScriptField> scriptFields, FetchSourceContext fetchSourceContext) {
-        super(name, type);
+            List<ScriptField> scriptFields, FetchSourceContext fetchSourceContext, AggregationContext context, AggregatorFactory<?> parent,
+            AggregatorFactories.Builder subFactories, Map<String, Object> metaData) throws IOException {
+        super(name, type, context, parent, subFactories, metaData);
         this.from = from;
         this.size = size;
         this.explain = explain;

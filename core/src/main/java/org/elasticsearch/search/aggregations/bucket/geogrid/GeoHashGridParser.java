@@ -35,6 +35,8 @@ import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortingNumericDocValues;
 import org.elasticsearch.index.query.GeoBoundingBoxQueryBuilder;
 import org.elasticsearch.search.aggregations.AggregatorBuilder;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.bucket.BucketUtils;
 import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.GeoPointValuesSourceParser;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -149,7 +151,8 @@ public class GeoHashGridParser extends GeoPointValuesSourceParser {
 
         @Override
         protected ValuesSourceAggregatorFactory<ValuesSource.GeoPoint, ?> innerBuild(AggregationContext context,
-                ValuesSourceConfig<ValuesSource.GeoPoint> config) {
+                ValuesSourceConfig<ValuesSource.GeoPoint> config, AggregatorFactory<?> parent, Builder subFactoriesBuilder)
+                        throws IOException {
             int shardSize = this.shardSize;
             if (shardSize == 0) {
                 shardSize = Integer.MAX_VALUE;
@@ -168,7 +171,8 @@ public class GeoHashGridParser extends GeoPointValuesSourceParser {
             if (shardSize < requiredSize) {
                 shardSize = requiredSize;
             }
-            return new GeoHashGridAggregatorFactory(name, type, config, precision, requiredSize, shardSize);
+            return new GeoHashGridAggregatorFactory(name, type, config, precision, requiredSize, shardSize, context, parent,
+                    subFactoriesBuilder, metaData);
         }
 
         @Override

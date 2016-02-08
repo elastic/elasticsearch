@@ -23,6 +23,8 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -69,8 +71,9 @@ public final class CardinalityAggregatorBuilder extends ValuesSourceAggregatorBu
     }
 
     @Override
-    protected CardinalityAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig<ValuesSource> config) {
-        return new CardinalityAggregatorFactory(name, type, config, precisionThreshold);
+    protected CardinalityAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig<ValuesSource> config,
+            AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
+        return new CardinalityAggregatorFactory(name, type, config, precisionThreshold, context, parent, subFactoriesBuilder, metaData);
     }
 
     @Override

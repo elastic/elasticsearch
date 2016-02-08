@@ -22,7 +22,9 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
+import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator.BucketCountThresholds;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -32,7 +34,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorBuild
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
@@ -199,10 +200,11 @@ public class TermsAggregatorBuilder extends ValuesSourceAggregatorBuilder<Values
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory<ValuesSource, ?> innerBuild(AggregationContext context,
-            ValuesSourceConfig<ValuesSource> config) {
+    protected ValuesSourceAggregatorFactory<ValuesSource, ?> innerBuild(AggregationContext context, ValuesSourceConfig<ValuesSource> config,
+            AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
         return new TermsAggregatorFactory(name, type, config, order, includeExclude, executionHint, collectMode,
-                bucketCountThresholds, showTermDocCountError);
+ bucketCountThresholds,
+                showTermDocCountError, context, parent, subFactoriesBuilder, metaData);
     }
 
     @Override

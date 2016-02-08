@@ -38,6 +38,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
+import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -269,8 +270,10 @@ public class FiltersAggregator extends BucketsAggregator {
         }
 
         @Override
-        protected AggregatorFactory<?> doBuild(AggregationContext context) throws IOException {
-            return new FiltersAggregatorFactory(name, type, filters, keyed, otherBucket, otherBucketKey, context);
+        protected AggregatorFactory<?> doBuild(AggregationContext context, AggregatorFactory<?> parent, Builder subFactoriesBuilder)
+                throws IOException {
+            return new FiltersAggregatorFactory(name, type, filters, keyed, otherBucket, otherBucketKey, context, parent,
+                    subFactoriesBuilder, metaData);
         }
 
         @Override

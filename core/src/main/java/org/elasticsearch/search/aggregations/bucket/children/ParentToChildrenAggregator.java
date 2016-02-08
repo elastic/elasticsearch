@@ -41,8 +41,10 @@ import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
+import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -210,8 +212,9 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator {
 
         @Override
         protected ValuesSourceAggregatorFactory<ParentChild, ?> innerBuild(AggregationContext context,
-                ValuesSourceConfig<ParentChild> config) {
-            return new ChildrenAggregatorFactory(name, type, config, parentType, childFilter, parentFilter);
+                ValuesSourceConfig<ParentChild> config, AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
+            return new ChildrenAggregatorFactory(name, type, config, parentType, childFilter, parentFilter, context, parent,
+                    subFactoriesBuilder, metaData);
         }
 
         @Override

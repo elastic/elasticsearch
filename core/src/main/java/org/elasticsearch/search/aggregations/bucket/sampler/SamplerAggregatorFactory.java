@@ -20,6 +20,7 @@
 package org.elasticsearch.search.aggregations.bucket.sampler;
 
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -33,8 +34,9 @@ public class SamplerAggregatorFactory extends AggregatorFactory<SamplerAggregato
 
     private final int shardSize;
 
-    public SamplerAggregatorFactory(String name, Type type, int shardSize) {
-        super(name, type);
+    public SamplerAggregatorFactory(String name, Type type, int shardSize, AggregationContext context, AggregatorFactory<?> parent,
+            AggregatorFactories.Builder subFactories, Map<String, Object> metaData) throws IOException {
+        super(name, type, context, parent, subFactories, metaData);
         this.shardSize = shardSize;
     }
 

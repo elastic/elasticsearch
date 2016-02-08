@@ -72,7 +72,6 @@ public class AggregationPhase implements SearchPhase {
         if (context.aggregations() != null) {
             AggregationContext aggregationContext = new AggregationContext(context);
             context.aggregations().aggregationContext(aggregationContext);
-            context.aggregations().factories().init(aggregationContext);
 
             List<Aggregator> collectors = new ArrayList<>();
             Aggregator[] aggregators;

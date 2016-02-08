@@ -19,21 +19,26 @@
 
 package org.elasticsearch.search.aggregations.bucket.range.ipv4;
 
+import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.bucket.range.AbstractRangeAggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.range.InternalRange.Factory;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
+import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 public class Ipv4RangeAggregatorFactory
         extends AbstractRangeAggregatorFactory<Ipv4RangeAggregatorFactory, IPv4RangeAggregatorBuilder.Range> {
 
     public Ipv4RangeAggregatorFactory(String name, Type type, ValuesSourceConfig<Numeric> config,
-            List<IPv4RangeAggregatorBuilder.Range> ranges, boolean keyed,
-            Factory<?, ?> rangeFactory) {
-        super(name, type, config, ranges, keyed, rangeFactory);
+            List<IPv4RangeAggregatorBuilder.Range> ranges, boolean keyed, Factory<?, ?> rangeFactory, AggregationContext context,
+            AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
+        super(name, type, config, ranges, keyed, rangeFactory, context, parent, subFactoriesBuilder, metaData);
     }
 
 }

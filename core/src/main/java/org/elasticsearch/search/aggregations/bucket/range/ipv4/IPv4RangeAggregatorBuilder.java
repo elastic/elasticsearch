@@ -26,6 +26,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.network.Cidrs;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.AbstractBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -120,8 +122,10 @@ public class IPv4RangeAggregatorBuilder extends AbstractBuilder<IPv4RangeAggrega
     }
 
     @Override
-    protected Ipv4RangeAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig<Numeric> config) {
-        return new Ipv4RangeAggregatorFactory(name, type, config, ranges, keyed, rangeFactory);
+    protected Ipv4RangeAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig<Numeric> config,
+            AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
+        return new Ipv4RangeAggregatorFactory(name, type, config, ranges, keyed, rangeFactory, context, parent, subFactoriesBuilder,
+                metaData);
     }
 
     @Override

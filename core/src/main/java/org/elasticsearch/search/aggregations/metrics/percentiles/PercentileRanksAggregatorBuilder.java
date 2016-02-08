@@ -22,6 +22,8 @@ package org.elasticsearch.search.aggregations.metrics.percentiles;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.metrics.percentiles.hdr.HDRPercentileRanksAggregatorFactory;
 import org.elasticsearch.search.aggregations.metrics.percentiles.tdigest.InternalTDigestPercentileRanks;
 import org.elasticsearch.search.aggregations.metrics.percentiles.tdigest.TDigestPercentileRanksAggregatorFactory;
@@ -126,12 +128,15 @@ public class PercentileRanksAggregatorBuilder extends LeafOnly<ValuesSource.Nume
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory<Numeric, ?> innerBuild(AggregationContext context, ValuesSourceConfig<Numeric> config) {
+    protected ValuesSourceAggregatorFactory<Numeric, ?> innerBuild(AggregationContext context, ValuesSourceConfig<Numeric> config,
+            AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
         switch (method) {
         case TDIGEST:
-            return new TDigestPercentileRanksAggregatorFactory(name, type, config, values, compression, keyed);
+            return new TDigestPercentileRanksAggregatorFactory(name, type, config, values, compression, keyed, context, parent,
+                    subFactoriesBuilder, metaData);
         case HDR:
-            return new HDRPercentileRanksAggregatorFactory(name, type, config, values, numberOfSignificantValueDigits, keyed);
+            return new HDRPercentileRanksAggregatorFactory(name, type, config, values, numberOfSignificantValueDigits, keyed, context,
+                    parent, subFactoriesBuilder, metaData);
         default:
             throw new IllegalStateException("Illegal method [" + method.getName() + "]");
         }

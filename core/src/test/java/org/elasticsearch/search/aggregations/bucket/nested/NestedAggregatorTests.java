@@ -125,9 +125,8 @@ public class NestedAggregatorTests extends ESSingleNodeTestCase {
         AggregatorFactories.Builder builder = AggregatorFactories.builder();
         NestedAggregator.NestedAggregatorBuilder factory = new NestedAggregator.NestedAggregatorBuilder("test", "nested_field");
         builder.addAggregator(factory);
-        AggregatorFactories factories = builder.build(context);
+        AggregatorFactories factories = builder.build(context, null);
         searchContext.aggregations(new SearchContextAggregations(factories));
-        factories.init(context);
         Aggregator[] aggs = factories.createTopLevelAggregators();
         BucketCollector collector = BucketCollector.wrap(Arrays.asList(aggs));
         collector.preCollection();

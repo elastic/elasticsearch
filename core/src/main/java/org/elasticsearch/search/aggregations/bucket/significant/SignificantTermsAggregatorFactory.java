@@ -35,6 +35,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.NonCollectingAggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
@@ -69,8 +70,9 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
 
     public SignificantTermsAggregatorFactory(String name, Type type, ValuesSourceConfig<ValuesSource> config, IncludeExclude includeExclude,
             String executionHint, QueryBuilder<?> filterBuilder, TermsAggregator.BucketCountThresholds bucketCountThresholds,
-            SignificanceHeuristic significanceHeuristic, AggregationContext context) {
-        super(name, type, config);
+            SignificanceHeuristic significanceHeuristic, AggregationContext context, AggregatorFactory<?> parent,
+            AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
+        super(name, type, config, context, parent, subFactoriesBuilder, metaData);
         this.includeExclude = includeExclude;
         this.executionHint = executionHint;
         this.filterBuilder = filterBuilder;

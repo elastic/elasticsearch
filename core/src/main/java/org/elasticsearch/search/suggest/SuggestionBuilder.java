@@ -21,10 +21,13 @@ package org.elasticsearch.search.suggest;
 
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryParseContext;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -138,12 +141,62 @@ public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> extends 
         return builder;
     }
 
+    protected abstract XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException;
+
+    public static SuggestionBuilder<?> fromXContent(QueryParseContext parseContext, String suggestionName, Suggesters suggesters)
+            throws IOException {
+        XContentParser parser = parseContext.parser();
+        ParseFieldMatcher parsefieldMatcher = parseContext.parseFieldMatcher();
+        XContentParser.Token token;
+        String fieldName = null;
+        String suggestText = null;
+        String prefix = null;
+        String regex = null;
+        SuggestionBuilder<?> suggestionBuilder = null;
+
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                fieldName = parser.currentName();
+            } else if (token.isValue()) {
+                if (parsefieldMatcher.match(fieldName, TEXT_FIELD)) {
+                    suggestText = parser.text();
+                } else if (parsefieldMatcher.match(fieldName, PREFIX_FIELD)) {
+                    prefix = parser.text();
+                } else if (parsefieldMatcher.match(fieldName, REGEX_FIELD)) {
+                    regex = parser.text();
+                } else {
+                    throw new IllegalArgumentException("[suggestion] does not support [" + fieldName + "]");
+                }
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                if (suggestionName == null) {
+                    throw new IllegalArgumentException("Suggestion must have name");
+                }
+                SuggestionBuilder<?> suggestParser = suggesters.getSuggestionPrototype(fieldName);
+                if (suggestParser == null) {
+                    throw new IllegalArgumentException("Suggester[" + fieldName + "] not supported");
+                }
+                suggestionBuilder = suggestParser.innerFromXContent(parseContext, suggestionName);
+            }
+        }
+        if (suggestText != null) {
+            suggestionBuilder.text(suggestText);
+        }
+        if (prefix != null) {
+            suggestionBuilder.prefix(prefix);
+        }
+        if (regex != null) {
+            suggestionBuilder.regex(regex);
+        }
+        return suggestionBuilder;
+    }
+
+    protected abstract SuggestionBuilder<T> innerFromXContent(QueryParseContext parseContext, String name) throws IOException;
+
     private String getSuggesterName() {
         //default impl returns the same as writeable name, but we keep the distinction between the two just to make sure
         return getWriteableName();
     }
 
-    protected abstract XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException;
 
     /**
      * Sets from what field to fetch the candidate suggestions from. This is an

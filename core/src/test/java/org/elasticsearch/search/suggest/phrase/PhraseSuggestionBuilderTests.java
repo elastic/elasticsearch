@@ -47,8 +47,19 @@ public class PhraseSuggestionBuilderTests extends AbstractSuggestionBuilderTestC
         maybeSet(testBuilder::separator, randomAsciiOfLengthBetween(1, 10));
         maybeSet(testBuilder::realWordErrorLikelihood, randomFloat());
         maybeSet(testBuilder::confidence, randomFloat());
-        maybeSet(testBuilder::collatePrune, randomBoolean());
         maybeSet(testBuilder::collateQuery, randomAsciiOfLengthBetween(3, 20));
+        // collate query prune and parameters will only be used when query is set
+        if (testBuilder.collateQuery() != null) {
+            maybeSet(testBuilder::collatePrune, randomBoolean());
+            if (randomBoolean()) {
+                Map<String, Object> collateParams = new HashMap<>();
+                int numParams = randomIntBetween(1, 5);
+                for (int i = 0; i < numParams; i++) {
+                    collateParams.put(randomAsciiOfLength(5), randomAsciiOfLength(5));
+                }
+                testBuilder.collateParams(collateParams );
+            }
+        }
         if (randomBoolean()) {
             // preTag, postTag
             testBuilder.highlight(randomAsciiOfLengthBetween(3, 20), randomAsciiOfLengthBetween(3, 20));
@@ -56,11 +67,6 @@ public class PhraseSuggestionBuilderTests extends AbstractSuggestionBuilderTestC
         maybeSet(testBuilder::gramSize, randomIntBetween(1, 5));
         maybeSet(testBuilder::forceUnigrams, randomBoolean());
         maybeSet(testBuilder::tokenLimit, randomInt(20));
-        if (randomBoolean()) {
-            Map<String, Object> collateParams = new HashMap<>();
-            collateParams.put(randomAsciiOfLength(5), randomAsciiOfLength(5));
-            testBuilder.collateParams(collateParams );
-        }
         if (randomBoolean()) {
             testBuilder.smoothingModel(randomSmoothingModel());
         }

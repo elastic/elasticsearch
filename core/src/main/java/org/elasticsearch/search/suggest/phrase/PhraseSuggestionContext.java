@@ -31,24 +31,28 @@ import java.util.List;
 import java.util.Map;
 
 class PhraseSuggestionContext extends SuggestionContext {
-    private final BytesRef SEPARATOR = new BytesRef(" ");
-    private float maxErrors = 0.5f;
-    private BytesRef separator = SEPARATOR;
-    private float realworldErrorLikelihood = 0.95f;
-    private List<DirectCandidateGenerator> generators = new ArrayList<>();
-    private int gramSize = 1;
-    private float confidence = 1.0f;
+    static final boolean DEFAULT_COLLATE_PRUNE = false;
+    static final boolean DEFAULT_REQUIRE_UNIGRAM = true;
+    static final float DEFAULT_CONFIDENCE = 1.0f;
+    static final int DEFAULT_GRAM_SIZE = 1;
+    static final float DEFAULT_RWE_ERRORLIKELIHOOD = 0.95f;
+    static final float DEFAULT_MAX_ERRORS = 0.5f;
+    static final String DEFAULT_SEPARATOR = " ";
+
+    private float maxErrors = DEFAULT_MAX_ERRORS;
+    private BytesRef separator = new BytesRef(DEFAULT_SEPARATOR);
+    private float realworldErrorLikelihood = DEFAULT_RWE_ERRORLIKELIHOOD;
+    private int gramSize = DEFAULT_GRAM_SIZE;
+    private float confidence = DEFAULT_CONFIDENCE;
     private int tokenLimit = NoisyChannelSpellChecker.DEFAULT_TOKEN_LIMIT;
+    private boolean requireUnigram = DEFAULT_REQUIRE_UNIGRAM;
     private BytesRef preTag;
     private BytesRef postTag;
     private CompiledScript collateQueryScript;
-    private CompiledScript collateFilterScript;
+    private boolean prune = DEFAULT_COLLATE_PRUNE;
+    private List<DirectCandidateGenerator> generators = new ArrayList<>();
     private Map<String, Object> collateScriptParams = new HashMap<>(1);
-
     private WordScorer.WordScorerFactory scorer;
-
-    private boolean requireUnigram = true;
-    private boolean prune = false;
 
     public PhraseSuggestionContext(Suggester<? extends PhraseSuggestionContext> suggester) {
         super(suggester);

@@ -123,7 +123,6 @@ public final class SuggestParseElement implements SearchParseElement {
             SuggestUtils.verifySuggestion(mapperService, globalText, suggestionContext);
             suggestionSearchContext.addSuggestion(suggestionName, suggestionContext);
         }
-
         return suggestionSearchContext;
     }
 }

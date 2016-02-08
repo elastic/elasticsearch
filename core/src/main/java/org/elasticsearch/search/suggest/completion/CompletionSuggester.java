@@ -38,6 +38,7 @@ import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.SuggestContextParser;
 import org.elasticsearch.search.suggest.Suggester;
+import org.elasticsearch.search.suggest.SuggestionBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -50,6 +51,7 @@ import java.util.Set;
 
 public class CompletionSuggester extends Suggester<CompletionSuggestionContext> {
 
+    @Override
     public SuggestContextParser getContextParser() {
         return new CompletionSuggestParser(this);
     }
@@ -86,7 +88,8 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
                 for (String field : payloadFields) {
                     MappedFieldType payloadFieldType = suggestionContext.getMapperService().fullName(field);
                     if (payloadFieldType != null) {
-                        final AtomicFieldData data = suggestionContext.getIndexFieldDataService().getForField(payloadFieldType).load(subReaderContext);
+                        final AtomicFieldData data = suggestionContext.getIndexFieldDataService().getForField(payloadFieldType)
+                                .load(subReaderContext);
                         final ScriptDocValues scriptValues = data.getScriptValues();
                         scriptValues.setNextDocId(subDocId);
                         payload.put(field, new ArrayList<>(scriptValues.getValues()));
@@ -261,5 +264,10 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
                 return TopSuggestDocs.EMPTY;
             }
         }
+    }
+
+    @Override
+    public SuggestionBuilder<?> getBuilderPrototype() {
+        return CompletionSuggestionBuilder.PROTOTYPE;
     }
 }

@@ -20,6 +20,7 @@ package org.elasticsearch.search.suggest;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.query.QueryShardContext;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -47,6 +48,7 @@ public class SuggestionSearchContext {
         private Analyzer analyzer;
         private int size = 5;
         private int shardSize = -1;
+        private QueryShardContext shardContext;
 
         public BytesRef getText() {
             return text;
@@ -116,6 +118,14 @@ public class SuggestionSearchContext {
                 throw new IllegalArgumentException("ShardSize must be positive but was: " + shardSize);
             }
             this.shardSize = shardSize;
+        }
+
+        public void setShardContext(QueryShardContext context) {
+            this.shardContext = context;
+        }
+
+        public QueryShardContext getShardContext() {
+            return this.shardContext;
         }
     }
 

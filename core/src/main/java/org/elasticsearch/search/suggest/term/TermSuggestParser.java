@@ -20,8 +20,8 @@ package org.elasticsearch.search.suggest.term;
 
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.suggest.DirectSpellcheckerSettings;
 import org.elasticsearch.search.suggest.SuggestContextParser;
 import org.elasticsearch.search.suggest.SuggestUtils;
@@ -38,7 +38,8 @@ public final class TermSuggestParser implements SuggestContextParser {
     }
 
     @Override
-    public SuggestionSearchContext.SuggestionContext parse(XContentParser parser, MapperService mapperService, IndexFieldDataService fieldDataService) throws IOException {
+    public SuggestionSearchContext.SuggestionContext parse(XContentParser parser, QueryShardContext shardContext) throws IOException {
+        MapperService mapperService = shardContext.getMapperService();
         XContentParser.Token token;
         String fieldName = null;
         TermSuggestionContext suggestion = new TermSuggestionContext(suggester);

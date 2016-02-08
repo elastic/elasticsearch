@@ -42,6 +42,7 @@ import org.elasticsearch.search.suggest.SuggestContextParser;
 import org.elasticsearch.search.suggest.SuggestUtils;
 import org.elasticsearch.search.suggest.Suggester;
 import org.elasticsearch.search.suggest.SuggestionBuilder;
+import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 import org.elasticsearch.search.suggest.phrase.NoisyChannelSpellChecker.Result;
 
 import java.io.IOException;
@@ -143,7 +144,7 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
         return response;
     }
 
-    private PhraseSuggestion.Entry buildResultEntry(PhraseSuggestionContext suggestion, CharsRefBuilder spare, double cutoffScore) {
+    private PhraseSuggestion.Entry buildResultEntry(SuggestionContext suggestion, CharsRefBuilder spare, double cutoffScore) {
         spare.copyUTF8Bytes(suggestion.getText());
         return new PhraseSuggestion.Entry(new Text(spare.toString()), 0, spare.length(), cutoffScore);
     }

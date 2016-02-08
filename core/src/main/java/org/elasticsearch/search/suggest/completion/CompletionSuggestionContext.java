@@ -20,7 +20,6 @@ package org.elasticsearch.search.suggest.completion;
 
 import org.apache.lucene.search.suggest.document.CompletionQuery;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
 import org.elasticsearch.search.suggest.Suggester;
@@ -44,12 +43,10 @@ public class CompletionSuggestionContext extends SuggestionSearchContext.Suggest
     private CompletionSuggestionBuilder.RegexOptionsBuilder regexOptionsBuilder;
     private Map<String, List<ContextMapping.QueryContext>> queryContexts = Collections.emptyMap();
     private final MapperService mapperService;
-    private final IndexFieldDataService indexFieldDataService;
     private Set<String> payloadFields = Collections.emptySet();
 
-    CompletionSuggestionContext(Suggester suggester, MapperService mapperService, IndexFieldDataService indexFieldDataService) {
+    CompletionSuggestionContext(Suggester suggester, MapperService mapperService) {
         super(suggester);
-        this.indexFieldDataService = indexFieldDataService;
         this.mapperService = mapperService;
     }
 
@@ -76,10 +73,6 @@ public class CompletionSuggestionContext extends SuggestionSearchContext.Suggest
 
     MapperService getMapperService() {
         return mapperService;
-    }
-
-    IndexFieldDataService getIndexFieldDataService() {
-        return indexFieldDataService;
     }
 
     void setPayloadFields(Set<String> fields) {

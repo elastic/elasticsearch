@@ -35,6 +35,7 @@ import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.SuggestContextParser;
 import org.elasticsearch.search.suggest.Suggester;
@@ -90,7 +91,8 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
                 for (String field : payloadFields) {
                     MappedFieldType payloadFieldType = suggestionContext.getMapperService().fullName(field);
                     if (payloadFieldType != null) {
-                        final AtomicFieldData data = suggestionContext.getIndexFieldDataService().getForField(payloadFieldType)
+                        QueryShardContext shardContext = suggestionContext.getShardContext();
+                        final AtomicFieldData data = shardContext.getForField(payloadFieldType)
                                 .load(subReaderContext);
                         final ScriptDocValues scriptValues = data.getScriptValues();
                         scriptValues.setNextDocId(subDocId);

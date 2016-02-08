@@ -271,7 +271,7 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
 
             XContentParser parser = XContentHelper.createParser(xContentBuilder.bytes());
             parser.nextToken(); // set cursor to START_OBJECT
-            SuggestionSearchContext suggestionSearchContext = parseElement.parseInternal(parser, mockMapperService, null, "test", 1);
+            SuggestionSearchContext suggestionSearchContext = parseElement.parseInternal(parser, mockShardContext);
             SuggestionContext oldSchoolContext = suggestionSearchContext.suggestions().get(suggestionBuilder.name());
 
             SuggestionContext newSchoolContext = suggestionBuilder.build(mockShardContext);

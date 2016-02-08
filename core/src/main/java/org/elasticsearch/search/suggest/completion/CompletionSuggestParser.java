@@ -20,17 +20,16 @@ package org.elasticsearch.search.suggest.completion;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.RegexpFlag;
 import org.elasticsearch.search.suggest.SuggestContextParser;
 import org.elasticsearch.search.suggest.SuggestUtils.Fields;
@@ -135,8 +134,9 @@ public class CompletionSuggestParser implements SuggestContextParser {
     }
 
     @Override
-    public SuggestionSearchContext.SuggestionContext parse(XContentParser parser, MapperService mapperService, IndexFieldDataService fieldDataService) throws IOException {
-        final CompletionSuggestionContext suggestion = new CompletionSuggestionContext(completionSuggester, mapperService, fieldDataService);
+    public SuggestionSearchContext.SuggestionContext parse(XContentParser parser,  QueryShardContext shardContext) throws IOException {
+        MapperService mapperService = shardContext.getMapperService();
+        final CompletionSuggestionContext suggestion = new CompletionSuggestionContext(completionSuggester, mapperService);
         final ContextAndSuggest contextAndSuggest = new ContextAndSuggest(mapperService);
         TLP_PARSER.parse(parser, suggestion, contextAndSuggest);
         final XContentParser contextParser = contextAndSuggest.contextParser;

@@ -44,7 +44,11 @@ import static org.elasticsearch.action.search.ShardSearchFailure.readShardSearch
  * Task storing information about a currently running BulkByScroll request.
  */
 public class BulkByScrollTask extends Task {
-    private final AtomicLong total = new AtomicLong(-1);
+    /**
+     * The total number of documents this request will process. 0 means we don't yet know or, possibly, there are actually 0 documents
+     * to process. Its ok that these have the same meaning because any request with 0 actual documents should be quite short lived.
+     */
+    private final AtomicLong total = new AtomicLong(0);
     private final AtomicLong updated = new AtomicLong(0);
     private final AtomicLong created = new AtomicLong(0);
     private final AtomicLong deleted = new AtomicLong(0);
@@ -214,7 +218,8 @@ public class BulkByScrollTask extends Task {
         }
 
         /**
-         * The total number of documents this request will process. -1 means we don't yet know.
+         * The total number of documents this request will process. 0 means we don't yet know or, possibly, there are actually 0 documents
+         * to process. Its ok that these have the same meaning because any request with 0 actual documents should be quite short lived.
          */
         public long getTotal() {
             return total;

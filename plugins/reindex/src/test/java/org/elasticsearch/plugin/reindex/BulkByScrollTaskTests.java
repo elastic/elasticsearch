@@ -44,7 +44,7 @@ public class BulkByScrollTaskTests extends ESTestCase {
         long noops = 0;
         int batch = 0;
         BulkByScrollTask.Status status = task.getStatus();
-        assertEquals(-1, status.getTotal());
+        assertEquals(0, status.getTotal());
         assertEquals(created, status.getCreated());
         assertEquals(updated, status.getUpdated());
         assertEquals(deleted, status.getDeleted());

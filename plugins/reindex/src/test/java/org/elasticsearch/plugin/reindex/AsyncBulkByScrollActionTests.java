@@ -101,8 +101,8 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
     }
 
     public void testScrollResponseSetsTotal() {
-        // Default is -1, meaning unstarted
-        assertEquals(-1, task.getStatus().getTotal());
+        // Default is 0, meaning unstarted
+        assertEquals(0, task.getStatus().getTotal());
 
         long total = randomIntBetween(0, Integer.MAX_VALUE);
         InternalSearchHits hits = new InternalSearchHits(null, total, 0);

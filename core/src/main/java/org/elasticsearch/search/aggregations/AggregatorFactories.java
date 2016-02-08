@@ -44,7 +44,7 @@ import java.util.Set;
  */
 public class AggregatorFactories {
 
-    public static final AggregatorFactories EMPTY = new AggregatorFactories(new AggregatorBuilder<?>[0],
+    public static final AggregatorFactories EMPTY = new AggregatorFactories(new AggregatorFactory<?>[0],
             new ArrayList<PipelineAggregatorFactory>());
 
     private AggregatorFactory<?> parent;

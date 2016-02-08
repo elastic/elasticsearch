@@ -33,11 +33,9 @@ import org.elasticsearch.index.mapper.ip.IpFieldMapper;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.SearchScript;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -65,7 +63,7 @@ public abstract class ValuesSourceAggregatorBuilder<VS extends ValuesSource, AB 
         }
 
         @Override
-        public AB subFactories(AggregatorFactories subFactories) {
+        public AB subAggregations(Builder subFactories) {
             throw new AggregationInitializationException("Aggregator [" + name + "] of type [" + type + "] cannot accept sub-aggregations");
         }
     }
@@ -191,25 +189,6 @@ public abstract class ValuesSourceAggregatorBuilder<VS extends ValuesSource, AB 
     }
 
     protected abstract ValuesSourceAggregatorFactory<VS, ?> innerBuild(AggregationContext context, ValuesSourceConfig<VS> config);
-
-    @Override
-    public void doInit(AggregationContext context) {
-        this.config = config(context);
-    }
-
-    @Override
-    public Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-        VS vs = context.valuesSource(config, context.searchContext());
-        if (vs == null) {
-            return createUnmapped(context, parent, pipelineAggregators, metaData);
-        }
-        return doCreateInternal(vs, context, parent, collectsFromSingleBucket, pipelineAggregators, metaData);
-    }
-
-    @Override
-    public void doValidate() {
-    }
 
     public ValuesSourceConfig<VS> config(AggregationContext context) {
 

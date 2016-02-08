@@ -22,13 +22,12 @@ package org.elasticsearch.search.aggregations.pipeline.cumulativesum;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregator;
+import org.elasticsearch.search.aggregations.bucket.histogram.AbstractHistogramAggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
@@ -158,11 +157,11 @@ public class CumulativeSumPipelineAggregator extends PipelineAggregator {
                 throw new IllegalStateException(PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName()
                         + " must contain a single entry for aggregation [" + name + "]");
             }
-            if (!(parent instanceof HistogramAggregator.AbstractBuilder)) {
+            if (!(parent instanceof AbstractHistogramAggregatorFactory<?>)) {
                 throw new IllegalStateException("cumulative sum aggregation [" + name
                         + "] must have a histogram or date_histogram as parent");
             } else {
-                HistogramAggregator.AbstractBuilder histoParent = (HistogramAggregator.AbstractBuilder) parent;
+                AbstractHistogramAggregatorFactory<?> histoParent = (AbstractHistogramAggregatorFactory<?>) parent;
                 if (histoParent.minDocCount() != 0) {
                     throw new IllegalStateException("parent histogram of cumulative sum aggregation [" + name
                             + "] must have min_doc_count of 0");

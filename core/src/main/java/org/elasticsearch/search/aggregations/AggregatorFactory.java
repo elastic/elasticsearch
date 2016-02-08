@@ -112,6 +112,9 @@ public abstract class AggregatorFactory<AF extends AggregatorFactory<AF>> extend
         factories.validate();
     }
 
+    public void doValidate() {
+    }
+
     /**
      * @return The parent factory if one exists (will always return {@code null}
      *         for top level aggregator factories).
@@ -120,11 +123,8 @@ public abstract class AggregatorFactory<AF extends AggregatorFactory<AF>> extend
         return parent;
     }
 
-    // NORELEASE make this abstract when agg refactoring is complete
-    protected Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-        throw new UnsupportedOperationException("THIS SHOULD NEVER BE CALLED");
-    }
+    protected abstract Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket,
+            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException;
 
     /**
      * Creates the aggregator
@@ -142,9 +142,6 @@ public abstract class AggregatorFactory<AF extends AggregatorFactory<AF>> extend
      */
     public final Aggregator create(Aggregator parent, boolean collectsFromSingleBucket) throws IOException {
         return createInternal(context, parent, collectsFromSingleBucket, this.factories.createPipelineAggregators(), this.metaData);
-    }
-
-    public void doValidate() {
     }
 
     public AF setMetaData(Map<String, Object> metaData) {

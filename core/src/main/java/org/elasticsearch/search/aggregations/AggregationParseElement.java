@@ -65,8 +65,10 @@ public class AggregationParseElement implements SearchParseElement {
         QueryParseContext parseContext = new QueryParseContext(queriesRegistry);
         parseContext.reset(parser);
         parseContext.parseFieldMatcher(context.parseFieldMatcher());
-        AggregatorFactories.Builder factories = aggregatorParsers.parseAggregators(parser, parseContext);
+        AggregatorFactories.Builder builders = aggregatorParsers.parseAggregators(parser, parseContext);
         AggregationContext aggContext = new AggregationContext(context);
-        context.aggregations(new SearchContextAggregations(factories.build(aggContext)));
+        AggregatorFactories factories = builders.build(aggContext);
+        factories.validate();
+        context.aggregations(new SearchContextAggregations(factories));
     }
 }

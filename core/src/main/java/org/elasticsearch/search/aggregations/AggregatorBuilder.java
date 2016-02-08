@@ -19,6 +19,7 @@
 package org.elasticsearch.search.aggregations;
 
 
+import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -29,15 +30,19 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
 
 /**
  * A factory that knows how to create an {@link Aggregator} of a specific type.
  */
-public abstract class AggregatorBuilder<AB extends AggregatorBuilder<AB>> extends AggregatorFactory<AB>
+public abstract class AggregatorBuilder<AB extends AggregatorBuilder<AB>> extends ToXContentToBytes
         implements NamedWriteable<AB>, ToXContent {
 
+    protected String name;
+    protected Type type;
     protected AggregatorFactories.Builder factoriesBuilder = AggregatorFactories.builder();
+    protected Map<String, Object> metaData;
 
     /**
      * Constructs a new aggregator factory.
@@ -46,7 +51,8 @@ public abstract class AggregatorBuilder<AB extends AggregatorBuilder<AB>> extend
      * @param type  The aggregation type
      */
     public AggregatorBuilder(String name, Type type) {
-        super(name, type);
+        this.name = name;
+        this.type = type;
     }
 
     /**
@@ -82,6 +88,15 @@ public abstract class AggregatorBuilder<AB extends AggregatorBuilder<AB>> extend
         return (AB) this;
     }
 
+    public AB setMetaData(Map<String, Object> metaData) {
+        this.metaData = metaData;
+        return (AB) this;
+    }
+
+    public String getType() {
+        return type.name();
+    }
+
     public final AggregatorFactory<?> build(AggregationContext context) throws IOException {
         AggregatorFactory<?> factory = doBuild(context);
         if (factoriesBuilder != null && factoriesBuilder.count() > 0) {
@@ -91,10 +106,7 @@ public abstract class AggregatorBuilder<AB extends AggregatorBuilder<AB>> extend
         return factory;
     }
 
-    // NORELEASE make this method abstract when agg refactoring is complete
-    protected AggregatorFactory<?> doBuild(AggregationContext context) throws IOException {
-        return this;
-    }
+    protected abstract AggregatorFactory<?> doBuild(AggregationContext context) throws IOException;
 
     @Override
     public final AB readFrom(StreamInput in) throws IOException {

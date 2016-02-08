@@ -35,7 +35,7 @@ import java.util.Map;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
-abstract class AbstractHistogramAggregatorFactory<AF extends AbstractHistogramAggregatorFactory<AF>>
+public abstract class AbstractHistogramAggregatorFactory<AF extends AbstractHistogramAggregatorFactory<AF>>
         extends ValuesSourceAggregatorFactory<ValuesSource.Numeric, AF> {
 
     protected final long interval;
@@ -57,6 +57,10 @@ abstract class AbstractHistogramAggregatorFactory<AF extends AbstractHistogramAg
         this.minDocCount = minDocCount;
         this.extendedBounds = extendedBounds;
         this.histogramFactory = histogramFactory;
+    }
+
+    public long minDocCount() {
+        return minDocCount;
     }
 
     @Override

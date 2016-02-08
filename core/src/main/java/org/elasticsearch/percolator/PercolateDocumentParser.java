@@ -57,7 +57,7 @@ public class PercolateDocumentParser {
         this.aggregationPhase = aggregationPhase;
     }
 
-    public ParsedDocument parse(PercolateShardRequest request, PercolateContext context, MapperService mapperService, QueryShardContext queryShardContext) {
+    public ParsedDocument parse(final PercolateShardRequest request, final PercolateContext context, final MapperService mapperService) {
         BytesReference source = request.source();
         if (source == null || source.length() == 0) {
             if (request.docSource() != null && request.docSource().length() != 0) {
@@ -70,13 +70,13 @@ public class PercolateDocumentParser {
         // TODO: combine all feature parse elements into one map
         Map<String, ? extends SearchParseElement> hlElements = highlightPhase.parseElements();
         Map<String, ? extends SearchParseElement> aggregationElements = aggregationPhase.parseElements();
-
+        final QueryShardContext queryShardContext = context.getQueryShardContext();
         ParsedDocument doc = null;
         // Some queries (function_score query when for decay functions) rely on a SearchContext being set:
         // We switch types because this context needs to be in the context of the percolate queries in the shard and
         // not the in memory percolate doc
-        String[] previousTypes = context.getQueryShardContext().getTypes();
-        context.getQueryShardContext().setTypes(PercolatorService.TYPE_NAME);
+        final String[] previousTypes = queryShardContext.getTypes();
+        queryShardContext.setTypes(PercolatorService.TYPE_NAME);
         try (XContentParser parser = XContentFactory.xContent(source).createParser(source);) {
             String currentFieldName = null;
             XContentParser.Token token;
@@ -173,7 +173,7 @@ public class PercolateDocumentParser {
         } catch (Throwable e) {
             throw new ElasticsearchParseException("failed to parse request", e);
         } finally {
-            context.getQueryShardContext().setTypes(previousTypes);
+            queryShardContext.setTypes(previousTypes);
         }
 
         if (request.docSource() != null && request.docSource().length() != 0) {

@@ -191,7 +191,7 @@ public class PercolatorService extends AbstractComponent implements Releasable {
         );
         SearchContext.setCurrent(context);
         try {
-            ParsedDocument parsedDocument = percolateDocumentParser.parse(request, context, percolateIndexService.mapperService(), context.getQueryShardContext());
+            ParsedDocument parsedDocument = percolateDocumentParser.parse(request, context, percolateIndexService.mapperService());
             if (context.searcher().getIndexReader().maxDoc() == 0) {
                 return new PercolateShardResponse(Lucene.EMPTY_TOP_DOCS, Collections.emptyMap(), Collections.emptyMap(), context);
             }

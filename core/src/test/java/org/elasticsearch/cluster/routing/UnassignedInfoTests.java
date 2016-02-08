@@ -185,14 +185,13 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
      */
     public void testStateTransitionMetaHandling() {
         ShardRouting shard = TestShardRouting.newShardRouting("test", 1, null, null, null, true, ShardRoutingState.UNASSIGNED, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null));
-        ShardRouting mutable = new ShardRouting(shard);
-        assertThat(mutable.unassignedInfo(), notNullValue());
-        mutable.initialize("test_node", null, -1);
-        assertThat(mutable.state(), equalTo(ShardRoutingState.INITIALIZING));
-        assertThat(mutable.unassignedInfo(), notNullValue());
-        mutable.moveToStarted();
-        assertThat(mutable.state(), equalTo(ShardRoutingState.STARTED));
-        assertThat(mutable.unassignedInfo(), nullValue());
+        assertThat(shard.unassignedInfo(), notNullValue());
+        shard = shard.initialize("test_node", null, -1);
+        assertThat(shard.state(), equalTo(ShardRoutingState.INITIALIZING));
+        assertThat(shard.unassignedInfo(), notNullValue());
+        shard = shard.moveToStarted();
+        assertThat(shard.state(), equalTo(ShardRoutingState.STARTED));
+        assertThat(shard.unassignedInfo(), nullValue());
     }
 
     /**
@@ -259,9 +258,10 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
      * Verifies that delayed allocation calculation are correct.
      */
     public void testUnassignedDelayedOnlyOnNodeLeft() throws Exception {
-        final UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.NODE_LEFT, null);
-        long delay = unassignedInfo.updateDelay(unassignedInfo.getUnassignedTimeInNanos() + 1, // add 1 tick delay
+        UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.NODE_LEFT, null);
+        unassignedInfo = unassignedInfo.updateDelay(unassignedInfo.getUnassignedTimeInNanos() + 1, // add 1 tick delay
                 Settings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "10h").build(), Settings.EMPTY);
+        long delay = unassignedInfo.getLastComputedLeftDelayNanos();
         long cachedDelay = unassignedInfo.getLastComputedLeftDelayNanos();
         assertThat(delay, equalTo(cachedDelay));
         assertThat(delay, equalTo(TimeValue.timeValueHours(10).nanos() - 1));
@@ -274,8 +274,9 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         EnumSet<UnassignedInfo.Reason> reasons = EnumSet.allOf(UnassignedInfo.Reason.class);
         reasons.remove(UnassignedInfo.Reason.NODE_LEFT);
         UnassignedInfo unassignedInfo = new UnassignedInfo(RandomPicks.randomFrom(random(), reasons), null);
-        long delay = unassignedInfo.updateDelay(unassignedInfo.getUnassignedTimeInNanos() + 1, // add 1 tick delay
+        unassignedInfo = unassignedInfo.updateDelay(unassignedInfo.getUnassignedTimeInNanos() + 1, // add 1 tick delay
                 Settings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "10h").build(), Settings.EMPTY);
+        long delay = unassignedInfo.getLastComputedLeftDelayNanos();
         assertThat(delay, equalTo(0L));
         delay = unassignedInfo.getLastComputedLeftDelayNanos();
         assertThat(delay, equalTo(0L));
@@ -286,20 +287,24 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
      */
     public void testLeftDelayCalculation() throws Exception {
         final long baseTime = System.nanoTime();
-        final UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.NODE_LEFT, "test", null, baseTime, System.currentTimeMillis());
+        UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.NODE_LEFT, "test", null, baseTime, System.currentTimeMillis());
         final long totalDelayNanos = TimeValue.timeValueMillis(10).nanos();
         final Settings settings = Settings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueNanos(totalDelayNanos)).build();
-        long delay = unassignedInfo.updateDelay(baseTime, settings, Settings.EMPTY);
+        unassignedInfo = unassignedInfo.updateDelay(baseTime, settings, Settings.EMPTY);
+        long delay = unassignedInfo.getLastComputedLeftDelayNanos();
         assertThat(delay, equalTo(totalDelayNanos));
         assertThat(delay, equalTo(unassignedInfo.getLastComputedLeftDelayNanos()));
         long delta1 = randomIntBetween(1, (int) (totalDelayNanos - 1));
-        delay = unassignedInfo.updateDelay(baseTime + delta1, settings, Settings.EMPTY);
+        unassignedInfo = unassignedInfo.updateDelay(baseTime + delta1, settings, Settings.EMPTY);
+        delay = unassignedInfo.getLastComputedLeftDelayNanos();
         assertThat(delay, equalTo(totalDelayNanos - delta1));
         assertThat(delay, equalTo(unassignedInfo.getLastComputedLeftDelayNanos()));
-        delay = unassignedInfo.updateDelay(baseTime + totalDelayNanos, settings, Settings.EMPTY);
+        unassignedInfo = unassignedInfo.updateDelay(baseTime + totalDelayNanos, settings, Settings.EMPTY);
+        delay = unassignedInfo.getLastComputedLeftDelayNanos();
         assertThat(delay, equalTo(0L));
         assertThat(delay, equalTo(unassignedInfo.getLastComputedLeftDelayNanos()));
-        delay = unassignedInfo.updateDelay(baseTime + totalDelayNanos + randomIntBetween(1, 20), settings, Settings.EMPTY);
+        unassignedInfo = unassignedInfo.updateDelay(baseTime + totalDelayNanos + randomIntBetween(1, 20), settings, Settings.EMPTY);
+        delay = unassignedInfo.getLastComputedLeftDelayNanos();
         assertThat(delay, equalTo(0L));
         assertThat(delay, equalTo(unassignedInfo.getLastComputedLeftDelayNanos()));
     }

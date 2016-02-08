@@ -26,8 +26,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
-import static org.elasticsearch.cluster.routing.ShardRouting.readShardRoutingEntry;
-
 public class ShardUpgradeStatus extends BroadcastShardResponse {
 
     private ShardRouting shardRouting;
@@ -75,7 +73,7 @@ public class ShardUpgradeStatus extends BroadcastShardResponse {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        shardRouting = readShardRoutingEntry(in);
+        shardRouting = new ShardRouting(in);
         totalBytes = in.readLong();
         toUpgradeBytes = in.readLong();
         toUpgradeBytesAncient = in.readLong();

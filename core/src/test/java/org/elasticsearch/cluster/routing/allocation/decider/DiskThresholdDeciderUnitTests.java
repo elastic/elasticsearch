@@ -43,6 +43,7 @@ import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
@@ -106,7 +107,7 @@ public class DiskThresholdDeciderUnitTests extends ESTestCase {
 
         final Index index = metaData.index("test").getIndex();
 
-        ShardRouting test_0 = ShardRouting.newUnassigned(index, 0, null, true, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
+        ShardRouting test_0 = ShardRouting.newUnassigned(new ShardId(index, 0), null, true, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
         DiscoveryNode node_0 = new DiscoveryNode("node_0", DummyTransportAddress.INSTANCE, Collections.emptyMap(),
                 new HashSet<>(Arrays.asList(DiscoveryNode.Role.values())), Version.CURRENT);
         DiscoveryNode node_1 = new DiscoveryNode("node_1", DummyTransportAddress.INSTANCE, Collections.emptyMap(),
@@ -156,24 +157,24 @@ public class DiskThresholdDeciderUnitTests extends ESTestCase {
                 .build();
         final IndexMetaData indexMetaData = metaData.index("test");
 
-        ShardRouting test_0 = ShardRouting.newUnassigned(indexMetaData.getIndex(), 0, null, true, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
-        ShardRoutingHelper.initialize(test_0, node_0.getId());
-        ShardRoutingHelper.moveToStarted(test_0);
+        ShardRouting test_0 = ShardRouting.newUnassigned(new ShardId(indexMetaData.getIndex(), 0), null, true, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
+        test_0 = ShardRoutingHelper.initialize(test_0, node_0.getId());
+        test_0 = ShardRoutingHelper.moveToStarted(test_0);
         shardRoutingMap.put(test_0, "/node0/least");
 
-        ShardRouting test_1 = ShardRouting.newUnassigned(indexMetaData.getIndex(), 1, null, true, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
-        ShardRoutingHelper.initialize(test_1, node_1.getId());
-        ShardRoutingHelper.moveToStarted(test_1);
+        ShardRouting test_1 = ShardRouting.newUnassigned(new ShardId(indexMetaData.getIndex(), 1), null, true, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
+        test_1 = ShardRoutingHelper.initialize(test_1, node_1.getId());
+        test_1 = ShardRoutingHelper.moveToStarted(test_1);
         shardRoutingMap.put(test_1, "/node1/least");
 
-        ShardRouting test_2 = ShardRouting.newUnassigned(indexMetaData.getIndex(), 2, null, true, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
-        ShardRoutingHelper.initialize(test_2, node_1.getId());
-        ShardRoutingHelper.moveToStarted(test_2);
+        ShardRouting test_2 = ShardRouting.newUnassigned(new ShardId(indexMetaData.getIndex(), 2), null, true, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
+        test_2 = ShardRoutingHelper.initialize(test_2, node_1.getId());
+        test_2 = ShardRoutingHelper.moveToStarted(test_2);
         shardRoutingMap.put(test_2, "/node1/most");
 
-        ShardRouting test_3 = ShardRouting.newUnassigned(indexMetaData.getIndex(), 3, null, true, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
-        ShardRoutingHelper.initialize(test_3, node_1.getId());
-        ShardRoutingHelper.moveToStarted(test_3);
+        ShardRouting test_3 = ShardRouting.newUnassigned(new ShardId(indexMetaData.getIndex(), 3), null, true, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
+        test_3 = ShardRoutingHelper.initialize(test_3, node_1.getId());
+        test_3 = ShardRoutingHelper.moveToStarted(test_3);
         // Intentionally not in the shardRoutingMap. We want to test what happens when we don't know where it is.
 
         RoutingTable routingTable = RoutingTable.builder()
@@ -233,45 +234,44 @@ public class DiskThresholdDeciderUnitTests extends ESTestCase {
         shardSizes.put("[other][0][p]", 10000L);
         ClusterInfo info = new DevNullClusterInfo(ImmutableOpenMap.of(), ImmutableOpenMap.of(), shardSizes.build());
         final Index index = new Index("test", "_na_");
-        ShardRouting test_0 = ShardRouting.newUnassigned(index, 0, null, false, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
-        ShardRoutingHelper.initialize(test_0, "node1");
-        ShardRoutingHelper.moveToStarted(test_0);
-        ShardRoutingHelper.relocate(test_0, "node2");
+        ShardRouting test_0 = ShardRouting.newUnassigned(new ShardId(index, 0), null, false, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
+        test_0 = ShardRoutingHelper.initialize(test_0, "node1");
+        test_0 = ShardRoutingHelper.moveToStarted(test_0);
+        test_0 = ShardRoutingHelper.relocate(test_0, "node2");
 
-        ShardRouting test_1 = ShardRouting.newUnassigned(index, 1, null, false, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
-        ShardRoutingHelper.initialize(test_1, "node2");
-        ShardRoutingHelper.moveToStarted(test_1);
-        ShardRoutingHelper.relocate(test_1, "node1");
+        ShardRouting test_1 = ShardRouting.newUnassigned(new ShardId(index, 1), null, false, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
+        test_1 = ShardRoutingHelper.initialize(test_1, "node2");
+        test_1 = ShardRoutingHelper.moveToStarted(test_1);
+        test_1 = ShardRoutingHelper.relocate(test_1, "node1");
 
-        ShardRouting test_2 = ShardRouting.newUnassigned(index, 2, null, false, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
-        ShardRoutingHelper.initialize(test_2, "node1");
-        ShardRoutingHelper.moveToStarted(test_2);
+        ShardRouting test_2 = ShardRouting.newUnassigned(new ShardId(index, 2), null, false, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
+        test_2 = ShardRoutingHelper.initialize(test_2, "node1");
+        test_2 = ShardRoutingHelper.moveToStarted(test_2);
 
         assertEquals(1000L, DiskThresholdDecider.getShardSize(test_2, info));
         assertEquals(100L, DiskThresholdDecider.getShardSize(test_1, info));
         assertEquals(10L, DiskThresholdDecider.getShardSize(test_0, info));
 
         RoutingNode node = new RoutingNode("node1", new DiscoveryNode("node1", new LocalTransportAddress("test"),
-                emptyMap(), emptySet(), Version.CURRENT), Arrays.asList(test_0, test_1.buildTargetRelocatingShard(), test_2));
+                emptyMap(), emptySet(), Version.CURRENT), test_0, test_1.buildTargetRelocatingShard(), test_2);
         assertEquals(100L, DiskThresholdDecider.sizeOfRelocatingShards(node, info, false, "/dev/null"));
         assertEquals(90L, DiskThresholdDecider.sizeOfRelocatingShards(node, info, true, "/dev/null"));
         assertEquals(0L, DiskThresholdDecider.sizeOfRelocatingShards(node, info, true, "/dev/some/other/dev"));
         assertEquals(0L, DiskThresholdDecider.sizeOfRelocatingShards(node, info, true, "/dev/some/other/dev"));
 
-        ShardRouting test_3 = ShardRouting.newUnassigned(index, 3, null, false, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
-        ShardRoutingHelper.initialize(test_3, "node1");
-        ShardRoutingHelper.moveToStarted(test_3);
+        ShardRouting test_3 = ShardRouting.newUnassigned(new ShardId(index, 3), null, false, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
+        test_3 = ShardRoutingHelper.initialize(test_3, "node1");
+        test_3 = ShardRoutingHelper.moveToStarted(test_3);
         assertEquals(0L, DiskThresholdDecider.getShardSize(test_3, info));
 
 
-        ShardRouting other_0 = ShardRouting.newUnassigned(new Index("other", "_NA_"), 0, null, randomBoolean(), new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
-        ShardRoutingHelper.initialize(other_0, "node2");
-        ShardRoutingHelper.moveToStarted(other_0);
-        ShardRoutingHelper.relocate(other_0, "node1");
-
+        ShardRouting other_0 = ShardRouting.newUnassigned(new ShardId("other", "_NA_", 0), null, randomBoolean(), new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
+        other_0 = ShardRoutingHelper.initialize(other_0, "node2");
+        other_0 = ShardRoutingHelper.moveToStarted(other_0);
+        other_0 = ShardRoutingHelper.relocate(other_0, "node1");
 
         node = new RoutingNode("node1", new DiscoveryNode("node1", new LocalTransportAddress("test"),
-                emptyMap(), emptySet(), Version.CURRENT), Arrays.asList(test_0, test_1.buildTargetRelocatingShard(), test_2, other_0.buildTargetRelocatingShard()));
+                emptyMap(), emptySet(), Version.CURRENT), test_0, test_1.buildTargetRelocatingShard(), test_2, other_0.buildTargetRelocatingShard());
         if (other_0.primary()) {
             assertEquals(10100L, DiskThresholdDecider.sizeOfRelocatingShards(node, info, false, "/dev/null"));
             assertEquals(10090L, DiskThresholdDecider.sizeOfRelocatingShards(node, info, true, "/dev/null"));

@@ -93,6 +93,14 @@ public class RecoverySource extends AbstractComponent implements IndexEventListe
             logger.debug("delaying recovery of {} as source node {} is unknown", request.shardId(), request.targetNode());
             throw new DelayRecoveryException("source node does not have the node [" + request.targetNode() + "] in its state yet..");
         }
+
+        ShardRouting routingEntry = shard.routingEntry();
+        if (request.recoveryType() == RecoveryState.Type.PRIMARY_RELOCATION &&
+            (routingEntry.relocating() == false || routingEntry.relocatingNodeId().equals(request.targetNode().getId()) == false)) {
+            logger.debug("delaying recovery of {} as source shard is not marked yet as relocating to {}", request.shardId(), request.targetNode());
+            throw new DelayRecoveryException("source shard is not marked yet as relocating to [" + request.targetNode() + "]");
+        }
+
         ShardRouting targetShardRouting = null;
         for (ShardRouting shardRouting : node) {
             if (shardRouting.shardId().equals(request.shardId())) {

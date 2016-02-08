@@ -54,7 +54,7 @@ public class ShieldTemplateService extends AbstractComponent implements ClusterS
             ByteArrayOutputStream out = new ByteArrayOutputStream();
             Streams.copy(is, out);
             final byte[] template = out.toByteArray();
-            logger.info("--> putting the shield index template");
+            logger.debug("putting the shield index template");
             PutIndexTemplateRequest putTemplateRequest = client.admin().indices()
                     .preparePutTemplate(SECURITY_TEMPLATE_NAME).setSource(template).request();
             PutIndexTemplateResponse templateResponse = client.admin().indices().putTemplate(putTemplateRequest).get();

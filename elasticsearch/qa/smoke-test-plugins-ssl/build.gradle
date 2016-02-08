@@ -7,34 +7,134 @@ dependencies {
   testCompile project(path: ':x-plugins:elasticsearch:x-pack', configuration: 'runtime')
 }
 
-// location of keystore and files to generate it
-File keystore = new File(project.buildDir, 'keystore/test-node.jks')
+// needed to be consistent with ssl host checking
+String san = getSubjectAlternativeNameString()
 
-// generate the keystore
-task createKey(type: LoggedExec) {
+// location of generated keystores and certificates
+File keystoreDir = new File(project.buildDir, 'keystore')
+
+// Generate the node's keystore
+File nodeKeystore = new File(keystoreDir, 'test-node.jks')
+task createNodeKeyStore(type: LoggedExec) {
   doFirst {
-    project.delete(keystore.parentFile)
-    keystore.parentFile.mkdirs()
+    if (nodeKeystore.parentFile.exists() == false) {
+      nodeKeystore.parentFile.mkdirs()
+    }
+    if (nodeKeystore.exists()) {
+      delete nodeKeystore
+    }
   }
-  // needed to be consistent with ssl host checking
-  String san = getSubjectAlternativeNameString()
   executable = 'keytool'
   standardInput = new ByteArrayInputStream('FirstName LastName\nUnit\nOrganization\nCity\nState\nNL\nyes\n\n'.getBytes('UTF-8'))
   args '-genkey',
-       '-alias', 'test-node',
-       '-keystore', keystore,
-       '-keyalg', 'RSA',
-       '-keysize', '2048',
-       '-validity', '712',
-       '-dname', 'CN=smoke-test-plugins-ssl',
-       '-keypass', 'keypass',
-       '-storepass', 'keypass',
-       '-ext', san
+          '-alias', 'test-node',
+          '-keystore', nodeKeystore,
+          '-keyalg', 'RSA',
+          '-keysize', '2048',
+          '-validity', '712',
+          '-dname', 'CN=smoke-test-plugins-ssl',
+          '-keypass', 'keypass',
+          '-storepass', 'keypass',
+          '-ext', san
 }
 
-// add keystore to test classpath: it expects it there
-sourceSets.test.resources.srcDir(keystore.parentFile)
-processTestResources.dependsOn(createKey)
+// Generate the client's keystore
+File clientKeyStore = new File(keystoreDir, 'test-client.jks')
+task createClientKeyStore(type: LoggedExec) {
+  doFirst {
+    if (clientKeyStore.parentFile.exists() == false) {
+      clientKeyStore.parentFile.mkdirs()
+    }
+    if (clientKeyStore.exists()) {
+      delete clientKeyStore
+    }
+  }
+  executable = 'keytool'
+  standardInput = new ByteArrayInputStream('FirstName LastName\nUnit\nOrganization\nCity\nState\nNL\nyes\n\n'.getBytes('UTF-8'))
+  args '-genkey',
+          '-alias', 'test-client',
+          '-keystore', clientKeyStore,
+          '-keyalg', 'RSA',
+          '-keysize', '2048',
+          '-validity', '712',
+          '-dname', 'CN=smoke-test-plugins-ssl',
+          '-keypass', 'keypass',
+          '-storepass', 'keypass',
+          '-ext', san
+}
+
+// Export the node's certificate
+File nodeCertificate = new File(keystoreDir, 'test-node.cert')
+task exportNodeCertificate(type: LoggedExec) {
+  doFirst {
+    if (nodeCertificate.parentFile.exists() == false) {
+      nodeCertificate.parentFile.mkdirs()
+    }
+    if (nodeCertificate.exists()) {
+      delete nodeCertificate
+    }
+  }
+  executable = 'keytool'
+  args '-export',
+          '-alias', 'test-node',
+          '-keystore', nodeKeystore,
+          '-storepass', 'keypass',
+          '-file', nodeCertificate
+}
+
+// Import the node certificate in the client's keystore
+task importNodeCertificateInClientKeyStore(type: LoggedExec) {
+  dependsOn exportNodeCertificate
+  executable = 'keytool'
+  args '-import',
+          '-alias', 'test-node',
+          '-keystore', clientKeyStore,
+          '-storepass', 'keypass',
+          '-file', nodeCertificate,
+          '-noprompt'
+}
+
+// Export the client's certificate
+File clientCertificate = new File(keystoreDir, 'test-client.cert')
+task exportClientCertificate(type: LoggedExec) {
+  doFirst {
+    if (clientCertificate.parentFile.exists() == false) {
+      clientCertificate.parentFile.mkdirs()
+    }
+    if (clientCertificate.exists()) {
+      delete clientCertificate
+    }
+  }
+  executable = 'keytool'
+  args '-export',
+          '-alias', 'test-client',
+          '-keystore', clientKeyStore,
+          '-storepass', 'keypass',
+          '-file', clientCertificate
+}
+
+// Import the client certificate in the node's keystore
+task importClientCertificateInNodeKeyStore(type: LoggedExec) {
+  dependsOn exportClientCertificate
+  executable = 'keytool'
+  args '-import',
+          '-alias', 'test-client',
+          '-keystore', nodeKeystore,
+          '-storepass', 'keypass',
+          '-file', clientCertificate,
+          '-noprompt'
+}
+
+forbiddenPatterns {
+  exclude '**/*.cert'
+}
+
+// Add keystores to test classpath: it expects it there
+sourceSets.test.resources.srcDir(keystoreDir)
+processTestResources.dependsOn(
+        createNodeKeyStore, createClientKeyStore,
+        importNodeCertificateInClientKeyStore, importClientCertificateInNodeKeyStore
+)
 
 ext.pluginsCount = 1 // we install xpack explicitly
 project.rootProject.subprojects.findAll { it.path.startsWith(':plugins:') }.each { subproj ->
@@ -45,25 +145,46 @@ project.rootProject.subprojects.findAll { it.path.startsWith(':plugins:') }.each
 
 integTest {
   cluster {
-    systemProperty 'es.xpack.monitoring.agent.exporters.es.type', 'http'
-    systemProperty 'es.xpack.monitoring.agent.exporters.es.enabled', 'false'
-    systemProperty 'es.xpack.monitoring.agent.exporters.es.ssl.truststore.path', keystore.name
-    systemProperty 'es.xpack.monitoring.agent.exporters.es.ssl.truststore.password', 'keypass'
+    systemProperty 'es.xpack.monitoring.agent.interval', '3s'
+    systemProperty 'es.xpack.monitoring.agent.exporters._http.type', 'http'
+    systemProperty 'es.xpack.monitoring.agent.exporters._http.enabled', 'false'
+    systemProperty 'es.xpack.monitoring.agent.exporters._http.ssl.truststore.path', clientKeyStore.name
+    systemProperty 'es.xpack.monitoring.agent.exporters._http.ssl.truststore.password', 'keypass'
+    systemProperty 'es.xpack.monitoring.agent.exporters._http.auth.username', 'monitoring_agent'
+    systemProperty 'es.xpack.monitoring.agent.exporters._http.auth.password', 'changeme'
+
     systemProperty 'es.shield.transport.ssl', 'true'
     systemProperty 'es.shield.http.ssl', 'true'
-    systemProperty 'es.shield.ssl.keystore.path', keystore.name
+    systemProperty 'es.shield.ssl.keystore.path', nodeKeystore.name
     systemProperty 'es.shield.ssl.keystore.password', 'keypass'
+
     plugin 'x-pack', project(':x-plugins:elasticsearch:x-pack')
 
-    // copy keystore into config/
-    extraConfigFile keystore.name, keystore
+    // copy keystores into config/
+    extraConfigFile nodeKeystore.name, nodeKeystore
+    extraConfigFile clientKeyStore.name, clientKeyStore
+
     setupCommand 'setupTestUser',
                  'bin/xpack/esusers', 'useradd', 'test_user', '-p', 'changeme', '-r', 'admin'
     setupCommand 'setupMarvelUser',
-                 'bin/xpack/esusers', 'useradd', 'marvel_export', '-p', 'changeme', '-r', 'marvel_agent'
+                 'bin/xpack/esusers', 'useradd', 'monitoring_agent', '-p', 'changeme', '-r', 'remote_monitoring_agent'
+
     waitCondition = { node, ant ->
-      // we just return true, doing an https check is tricky here
-      return true
+      // HTTPS check is tricky to do, so we wait for the log file to indicate that the node is started
+      String waitForNodeStartProp = "waitForNodeStart${name}"
+      ant.waitfor(maxwait: '10', maxwaitunit: 'second', checkevery: '100', checkeveryunit: 'millisecond',
+              timeoutproperty: waitForNodeStartProp) {
+        and {
+          resourcecontains(resource: "${node.startLog.toString()}", substring: "bound_addresses {${node.httpUri()}")
+          resourcecontains(resource: "${node.startLog.toString()}", substring: 'started')
+        }
+      }
+
+      if (ant.project.getProperty(waitForNodeStartProp)) {
+        println "Timed out when looking for bound_addresses in log file ${node.startLog.toString()}"
+        return false;
+      }
+      return true;
     }
   }
 }

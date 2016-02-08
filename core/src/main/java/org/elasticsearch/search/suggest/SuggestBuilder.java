@@ -20,6 +20,8 @@ package org.elasticsearch.search.suggest;
 
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -43,6 +45,7 @@ import java.util.Objects;
 public class SuggestBuilder extends ToXContentToBytes implements Writeable<SuggestBuilder> {
 
     public static final SuggestBuilder PROTOTYPE = new SuggestBuilder();
+    protected static final ParseField GLOBAL_TEXT_FIELD = new ParseField("text");
 
     private String globalText;
     private final List<SuggestionBuilder<?>> suggestions = new ArrayList<>();
@@ -107,6 +110,7 @@ public class SuggestBuilder extends ToXContentToBytes implements Writeable<Sugge
 
     public static SuggestBuilder fromXContent(QueryParseContext parseContext, Suggesters suggesters) throws IOException {
         XContentParser parser = parseContext.parser();
+        ParseFieldMatcher parseFieldMatcher = parseContext.parseFieldMatcher();
         SuggestBuilder suggestBuilder = new SuggestBuilder();
         String fieldName = null;
 
@@ -115,7 +119,7 @@ public class SuggestBuilder extends ToXContentToBytes implements Writeable<Sugge
             if (token == XContentParser.Token.FIELD_NAME) {
                 fieldName = parser.currentName();
             } else if (token.isValue()) {
-                if ("text".equals(fieldName)) {
+                if (parseFieldMatcher.match(fieldName, GLOBAL_TEXT_FIELD)) {
                     suggestBuilder.setText(parser.text());
                 } else {
                     throw new IllegalArgumentException("[suggest] does not support [" + fieldName + "]");

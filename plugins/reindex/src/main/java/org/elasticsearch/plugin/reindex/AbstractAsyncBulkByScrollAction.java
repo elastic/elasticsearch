@@ -62,6 +62,10 @@ import static org.elasticsearch.search.sort.SortBuilders.fieldSort;
  * results.
  */
 public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBulkByScrollRequest<Request>, Response> {
+    /**
+     * The request for this action. Named mainRequest because we create lots of <code>request</code> variables all representing child
+     * requests of this mainRequest.
+     */
     protected final Request mainRequest;
     protected final BulkByScrollTask task;
 

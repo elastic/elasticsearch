@@ -48,7 +48,7 @@
         <!-- <lucene.snapshot.revision>1715952</lucene.snapshot.revision> -->
         <!-- <lucene.maven.version>5.4.0-snapshot-${lucene.snapshot.revision}</lucene.maven.version>-->
         <lucene.maven.version>${lucene.version}</lucene.maven.version>
-        <testframework.version>2.2.0</testframework.version>
+        <testframework.version>2.3.1</testframework.version>
         <securemock.version>1.1</securemock.version>
         <securesm.version>1.0</securesm.version>
 

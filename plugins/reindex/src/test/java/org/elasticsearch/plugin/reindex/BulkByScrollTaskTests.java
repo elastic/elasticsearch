@@ -25,6 +25,11 @@ import org.junit.Before;
 public class BulkByScrollTaskTests extends ESTestCase {
     private BulkByScrollTask task;
 
+    @Before
+    public void createTask() {
+        task = new BulkByScrollTask(1, "test_type", "test_action", () -> "test");
+    }
+
     public void testBasicData() {
         assertEquals(1, task.getId());
         assertEquals("test_type", task.getType());
@@ -93,10 +98,5 @@ public class BulkByScrollTaskTests extends ESTestCase {
         assertEquals(versionConflicts, status.getVersionConflicts());
         assertEquals(batch, status.getBatches());
         assertEquals(noops, status.getNoops());
-    }
-
-    @Before
-    public void createTask() {
-        task = new BulkByScrollTask(1, "test_type", "test_action", () -> "test");
     }
 }

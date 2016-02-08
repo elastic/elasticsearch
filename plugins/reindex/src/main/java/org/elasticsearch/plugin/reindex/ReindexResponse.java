@@ -49,7 +49,7 @@ public class ReindexResponse extends BulkIndexByScrollResponse {
     public String toString() {
         StringBuilder builder = new StringBuilder();
         builder.append("ReindexResponse[");
-        builder.append("took=").append(getTook());
+        builder.append("took=").append(getTook()).append(',');
         getStatus().innerToString(builder, true, false);
         return builder.append(']').toString();
     }

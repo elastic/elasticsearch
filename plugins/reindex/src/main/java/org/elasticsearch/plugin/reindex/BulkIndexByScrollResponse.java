@@ -104,7 +104,7 @@ public class BulkIndexByScrollResponse extends ActionResponse implements ToXCont
     public String toString() {
         StringBuilder builder = new StringBuilder();
         builder.append("BulkIndexByScrollResponse[");
-        builder.append("took=").append(took);
+        builder.append("took=").append(took).append(',');
         status.innerToString(builder, false, false);
         return builder.append(']').toString();
     }

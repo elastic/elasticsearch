@@ -193,7 +193,7 @@ public class BulkByScrollTask extends Task {
         }
 
         public void innerToString(StringBuilder builder, boolean includeCreated, boolean includeDeleted) {
-            builder.append(",updated=").append(updated);
+            builder.append("updated=").append(updated);
             if (includeCreated) {
                 builder.append(",created=").append(created);
             }

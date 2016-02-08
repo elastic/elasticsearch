@@ -139,7 +139,7 @@ public class PercolateContext extends SearchContext {
     }
 
     // for testing:
-    PercolateContext(PercolateShardRequest request, SearchShardTarget searchShardTarget, MapperService mapperService) {
+    PercolateContext(PercolateShardRequest request, SearchShardTarget searchShardTarget, MapperService mapperService, QueryShardContext queryShardContext) {
         super(null);
         this.searchShardTarget = searchShardTarget;
         this.mapperService = mapperService;
@@ -153,7 +153,7 @@ public class PercolateContext extends SearchContext {
         this.startTime = 0;
         this.numberOfShards = 0;
         this.onlyCount = true;
-        queryShardContext = new QueryShardContext(mapperService.getIndexSettings(), null, null, null, mapperService, null, null, null);
+        this.queryShardContext = queryShardContext;
     }
 
     public IndexSearcher docSearcher() {

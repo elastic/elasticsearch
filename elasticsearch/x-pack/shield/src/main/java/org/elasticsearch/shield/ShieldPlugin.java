@@ -210,7 +210,7 @@ public class ShieldPlugin extends Plugin {
         assert shieldLicenseState != null;
         if (flsDlsEnabled(settings)) {
             module.setSearcherWrapper((indexService) -> new ShieldIndexSearcherWrapper(indexService.getIndexSettings(),
-                    indexService.getQueryShardContext(), indexService.mapperService(),
+                    indexService.newQueryShardContext(), indexService.mapperService(),
                     indexService.cache().bitsetFilterCache(), indexService.getIndexServices().getThreadPool().getThreadContext(),
                     shieldLicenseState));
         }

@@ -876,8 +876,9 @@ public class IndexShard extends AbstractIndexShardComponent {
     public void performTranslogRecovery(boolean indexExists) {
         if (indexExists == false) {
             // note: these are set when recovering from the translog
-            recoveryState().getTranslog().totalOperations(0);
-            recoveryState().getTranslog().totalOperationsOnStart(0);
+            final RecoveryState.Translog translogStats = recoveryState().getTranslog();
+            translogStats.totalOperations(0);
+            translogStats.totalOperationsOnStart(0);
         }
         internalPerformTranslogRecovery(false, indexExists);
         assert recoveryState.getStage() == RecoveryState.Stage.TRANSLOG : "TRANSLOG stage expected but was: " + recoveryState.getStage();
@@ -1395,8 +1396,10 @@ public class IndexShard extends AbstractIndexShardComponent {
 
             @Override
             public int recoveryFromSnapshot(Engine engine, Translog.Snapshot snapshot) throws IOException {
-                recoveryState().getTranslog().totalOperations(snapshot.totalOperations());
-                recoveryState().getTranslog().totalOperationsOnStart(snapshot.totalOperations());
+                assert recoveryState != null;
+                RecoveryState.Translog translogStats = recoveryState.getTranslog();
+                translogStats.totalOperations(snapshot.totalOperations());
+                translogStats.totalOperationsOnStart(snapshot.totalOperations());
                 return super.recoveryFromSnapshot(engine, snapshot);
             }
         };

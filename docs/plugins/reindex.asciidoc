@@ -527,6 +527,69 @@ The number of documents that were successfully created. This is not returned by
 `_update_by_query` because it isn't allowed to create documents.
 
 [float]
+=== Response body
+
+While `_reindex` and `_update_by_query` is running you can fetch its status
+using the task list API. This will fetch `_reindex`:
+
+[source,js]
+--------------------------------------------------
+POST /_tasks/*/*reindex?pretty&detailed=true
+--------------------------------------------------
+// AUTOSENSE
+
+and this will fetch `_update_by_query`:
+
+[source,js]
+--------------------------------------------------
+POST /_tasks/*/*byquery?pretty&detailed=true
+--------------------------------------------------
+// AUTOSENSE
+
+Those fetch all running reindexes and the response looks like:
+
+[source,js]
+--------------------------------------------------
+{
+  "nodes" : {
+    "r1A2WoRbTwKZ516z6NEs5A" : {
+      "name" : "Tyrannus",
+      "transport_address" : "127.0.0.1:9300",
+      "host" : "127.0.0.1",
+      "ip" : "127.0.0.1:9300",
+      "attributes" : {
+        "testattr" : "test",
+        "portsfile" : "true"
+      },
+      "tasks" : [ {
+        "node" : "r1A2WoRbTwKZ516z6NEs5A",
+        "id" : 36619,
+        "type" : "transport",
+        "action" : "indices:data/write/update/byquery",
+        "status" : {
+          "total" : 6154,
+          "updated" : 3500,
+          "created" : 0,
+          "deleted" : 0,
+          "batches" : 36,
+          "version_conflicts" : 0,
+          "noops" : 0,
+          "failures" : [ ]
+        },
+        "description" : "update-by-query [test][test]"
+      } ]
+    }
+  }
+}
+--------------------------------------------------
+
+The actual status is the `status` object. It is just like the response json
+with the important addition of the `total` field. That is the total number
+of operations that the reindex expects to perform. You can estimate the
+progess by adding the `updated`, `created`, and `deleted` fields.
+
+
+[float]
 === Examples
 
 Below are some examples of how you might use this plugin:

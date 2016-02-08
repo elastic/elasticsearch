@@ -44,7 +44,6 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
@@ -261,28 +260,47 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     @After
     public void wipeCluster() throws Exception {
-
         // wipe indices
-        Map<String, String> deleteIndicesArgs = new HashMap<>();
-        deleteIndicesArgs.put("index", "*");
-        try {
-            adminExecutionContext.callApi("indices.delete", deleteIndicesArgs, Collections.emptyList(), Collections.emptyMap());
-        } catch (RestException e) {
-            // 404 here just means we had no indexes
-            if (e.statusCode() != 404) {
-                throw e;
+        Set<String> indicesToDelete = indicesToDelete();
+        if (false == indicesToDelete.isEmpty()) {
+            try {
+                Map<String, String> deleteIndicesArgs = new HashMap<>();
+                deleteIndicesArgs.put("index", Strings.collectionToCommaDelimitedString(indicesToDelete));
+                adminExecutionContext.callApi("indices.delete", deleteIndicesArgs, Collections.emptyList(), Collections.emptyMap());
+            } catch (RestException e) {
+                // 404 here just means we had no indexes
+                if (e.statusCode() != 404) {
+                    throw e;
+                }
             }
         }
 
         // wipe index templates
-        Map<String, String> deleteTemplatesArgs = new HashMap<>();
-        deleteTemplatesArgs.put("name", "*");
-        adminExecutionContext.callApi("indices.delete_template", deleteTemplatesArgs, Collections.emptyList(), Collections.emptyMap());
+        String templatesToDelete = templatesToDelete();
+        if (Strings.hasLength(templatesToDelete)) {
+            Map<String, String> deleteTemplatesArgs = new HashMap<>();
+            deleteTemplatesArgs.put("name", templatesToDelete);
+            adminExecutionContext.callApi("indices.delete_template", deleteTemplatesArgs, Collections.emptyList(), Collections.emptyMap());
+        }
 
         // wipe snapshots
         Map<String, String> deleteSnapshotsArgs = new HashMap<>();
         deleteSnapshotsArgs.put("repository", "*");
         adminExecutionContext.callApi("snapshot.delete_repository", deleteSnapshotsArgs, Collections.emptyList(), Collections.emptyMap());
+    }
+
+    /**
+     * @return An include set of indices that will be removed in between tests. Defaults to all indices.
+     */
+    protected Set<String> indicesToDelete() {
+        return Collections.singleton("*");
+    }
+
+    /**
+     * @return The name of templates that will be removed in between tests. Defaults to all templates.
+     */
+    protected String templatesToDelete() {
+        return "*";
     }
 
     @AfterClass

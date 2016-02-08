@@ -109,17 +109,21 @@ Building the rpm
 ----------------
 Right now the zip, tar, and deb distributions are built with dependencies fetched by maven and should work on any systems.
 The rpm requires that you have some dependencies installed and it's skipped if you don't have them. Building the rpm is
-optional during development but if you want or need to build it then you'll need to install som dependencies:
+optional during development but if you want or need to build it then you'll need to install some dependencies:
 
 For CentOS/RHEL/Fedora:
 ```shell
 sudo yum install rpm-build expect gpg2
 ```
 
-Fedora 20 will also need:
+Fedora will need:
 ```shell
-sudo yum install rpm-sign
+sudo dnf install rpm-build expect gpg2 rpm-sign
 ```
+
+Even then our rpm building plugin has had some issues signing the rpm on Fedora, so feel free to skip that by adding
+`-DskipSign` to the `mvn` invocation. Sorry for the trouble. The vagrant tests won't pass for you without that but it
+is better than the build not working at all.
 
 For Debian/Ubuntu:
 ```shell

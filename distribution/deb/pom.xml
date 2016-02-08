@@ -111,7 +111,7 @@
                             <goal>jdeb</goal>
                         </goals>
                         <configuration>
-                            <signPackage>true</signPackage>
+                            <signPackage>${deb.sign}</signPackage>
                             <keyring>${gpg.keyring}</keyring>
                             <key>${gpg.key}</key>
                             <passphrase>${gpg.passphrase}</passphrase>

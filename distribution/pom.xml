@@ -51,6 +51,7 @@
         <gpg.keypath>${project.parent.basedir}/src/test/resources/dummyGpg</gpg.keypath>
         <gpg.keyring>${gpg.keypath}/secring.gpg</gpg.keyring>
         <gpg.passphrase>dummy</gpg.passphrase>
+        <deb.sign>true</deb.sign>
     </properties>
 
     <!-- PUT TEST ONLY DEPS HERE. Let individual distributions figure out what they want -->
@@ -297,8 +298,7 @@
         </profile>
         <profile>
             <!-- Activate me to skip signing the rpm. Signing the rpm requires a few dependencies and might not work
-              properly on some distributions. Its known to work on Centos-6, and, ironically, Ubunutu 14.04.
-              This doesn't attempt to skip sigining the deb because we don't seem to have any problems with that. -->
+              properly on some distributions. Its known to work on Centos-6, and, ironically, Ubunutu 14.04. -->
             <id>skipSign</id>
             <activation>
                 <property>
@@ -306,8 +306,10 @@
                 </property>
             </activation>
             <properties>
-                <!-- Clearing this properly prevents the rpm plugin from trying to sign the rpm. -->
+                <!-- Clearing this property prevents the rpm plugin from trying to sign the rpm. -->
                 <gpg.key></gpg.key>
+                <!-- Clearing this property because once we've cleared the above one we can't sign the deb either. -->
+                <deb.sign>false</deb.sign>
             </properties>
         </profile>
     </profiles>

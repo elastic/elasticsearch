@@ -44,6 +44,7 @@ import org.elasticsearch.index.cache.query.QueryCache;
 import org.elasticsearch.index.cache.query.index.IndexQueryCache;
 import org.elasticsearch.index.cache.query.none.NoneQueryCache;
 import org.elasticsearch.index.engine.EngineException;
+import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexSearcherWrapper;
 import org.elasticsearch.index.shard.ShardId;
@@ -52,7 +53,6 @@ import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.IndexStoreConfig;
 import org.elasticsearch.indices.IndicesModule;
-import org.elasticsearch.indices.IndicesWarmer;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.cache.query.IndicesQueryCache;
@@ -96,17 +96,17 @@ public class IndexModuleTests extends ESTestCase {
         public void addPendingDelete(ShardId shardId, IndexSettings indexSettings) {
         }
     };
+
+    private final IndexFieldDataCache.Listener listener = new IndexFieldDataCache.Listener() {};
     private MapperRegistry mapperRegistry;
 
     static NodeServicesProvider newNodeServiceProvider(Settings settings, Environment environment, Client client, ScriptEngineService... scriptEngineServices) throws IOException {
         // TODO this can be used in other place too - lets first refactor the IndicesQueriesRegistry
         ThreadPool threadPool = new ThreadPool("test");
-        IndicesWarmer warmer = new IndicesWarmer(settings, threadPool);
         IndicesQueryCache indicesQueryCache = new IndicesQueryCache(settings);
         CircuitBreakerService circuitBreakerService = new NoneCircuitBreakerService();
         PageCacheRecycler recycler = new PageCacheRecycler(settings, threadPool);
         BigArrays bigArrays = new BigArrays(recycler, circuitBreakerService);
-        IndicesFieldDataCache indicesFieldDataCache = new IndicesFieldDataCache(settings, new IndicesFieldDataCacheListener(circuitBreakerService), threadPool);
         Set<ScriptEngineService> scriptEngines = Collections.emptySet();
         scriptEngines.addAll(Arrays.asList(scriptEngineServices));
         ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections.emptyList());
@@ -114,7 +114,7 @@ public class IndexModuleTests extends ESTestCase {
         ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
         ScriptService scriptService = new ScriptService(settings, environment, scriptEngines, new ResourceWatcherService(settings, threadPool), scriptEngineRegistry, scriptContextRegistry, scriptSettings);
         IndicesQueriesRegistry indicesQueriesRegistry = new IndicesQueriesRegistry(settings, emptyMap());
-        return new NodeServicesProvider(threadPool, indicesQueryCache, warmer, bigArrays, client, scriptService, indicesQueriesRegistry, indicesFieldDataCache, circuitBreakerService);
+        return new NodeServicesProvider(threadPool, indicesQueryCache, bigArrays, client, scriptService, indicesQueriesRegistry, circuitBreakerService);
     }
 
     @Override
@@ -143,7 +143,7 @@ public class IndexModuleTests extends ESTestCase {
         IndexModule module = new IndexModule(indexSettings, null, new AnalysisRegistry(null, environment));
         module.setSearcherWrapper((s) -> new Wrapper());
         module.engineFactory.set(new MockEngineFactory(AssertingDirectoryReader.class));
-        IndexService indexService = module.newIndexService(nodeEnvironment, deleter, nodeServicesProvider, mapperRegistry);
+        IndexService indexService = module.newIndexService(nodeEnvironment, deleter, nodeServicesProvider, mapperRegistry, new IndicesFieldDataCache(settings, listener));
         assertTrue(indexService.getSearcherWrapper() instanceof Wrapper);
         assertSame(indexService.getEngineFactory(), module.engineFactory.get());
         indexService.close("simon says", false);
@@ -161,7 +161,7 @@ public class IndexModuleTests extends ESTestCase {
         final Index index = indexSettings.getIndex();
         IndexModule module = new IndexModule(indexSettings, null, new AnalysisRegistry(null, environment));
         module.addIndexStore("foo_store", FooStore::new);
-        IndexService indexService = module.newIndexService(nodeEnvironment, deleter, nodeServicesProvider, mapperRegistry);
+        IndexService indexService = module.newIndexService(nodeEnvironment, deleter, nodeServicesProvider, mapperRegistry, new IndicesFieldDataCache(settings, listener));
         assertTrue(indexService.getIndexStore() instanceof FooStore);
         try {
             module.addIndexStore("foo_store", FooStore::new);
@@ -184,7 +184,8 @@ public class IndexModuleTests extends ESTestCase {
         IndexModule module = new IndexModule(indexSettings, null, new AnalysisRegistry(null, environment));
         Consumer<Settings> listener = (s) -> {};
         module.addIndexEventListener(eventListener);
-        IndexService indexService = module.newIndexService(nodeEnvironment, deleter, nodeServicesProvider, mapperRegistry);
+        IndexService indexService = module.newIndexService(nodeEnvironment, deleter, nodeServicesProvider, mapperRegistry,
+            new IndicesFieldDataCache(settings, this.listener));
         IndexSettings x = indexService.getIndexSettings();
         assertEquals(x.getSettings().getAsMap(), indexSettings.getSettings().getAsMap());
         assertEquals(x.getIndex(), index);
@@ -208,7 +209,8 @@ public class IndexModuleTests extends ESTestCase {
 
         }
 
-        IndexService indexService = module.newIndexService(nodeEnvironment, deleter, nodeServicesProvider, mapperRegistry);
+        IndexService indexService = module.newIndexService(nodeEnvironment, deleter, nodeServicesProvider, mapperRegistry,
+            new IndicesFieldDataCache(settings, listener));
         assertSame(booleanSetting, indexService.getIndexSettings().getScopedSettings().get(booleanSetting.getKey()));
 
         indexService.close("simon says", false);
@@ -234,7 +236,8 @@ public class IndexModuleTests extends ESTestCase {
             }
         });
 
-        IndexService indexService = module.newIndexService(nodeEnvironment, deleter, nodeServicesProvider, mapperRegistry);
+        IndexService indexService = module.newIndexService(nodeEnvironment, deleter, nodeServicesProvider, mapperRegistry,
+            new IndicesFieldDataCache(settings, listener));
         SimilarityService similarityService = indexService.similarityService();
         assertNotNull(similarityService.getSimilarity("my_similarity"));
         assertTrue(similarityService.getSimilarity("my_similarity").get() instanceof TestSimilarity);
@@ -251,7 +254,8 @@ public class IndexModuleTests extends ESTestCase {
                 .build();
         IndexModule module = new IndexModule(IndexSettingsModule.newIndexSettings("foo", indexSettings), null, new AnalysisRegistry(null, environment));
         try {
-            module.newIndexService(nodeEnvironment, deleter, nodeServicesProvider, mapperRegistry);
+            module.newIndexService(nodeEnvironment, deleter, nodeServicesProvider, mapperRegistry,
+                new IndicesFieldDataCache(settings, listener));
         } catch (IllegalArgumentException ex) {
             assertEquals("Unknown Similarity type [test_similarity] for [my_similarity]", ex.getMessage());
         }
@@ -265,7 +269,8 @@ public class IndexModuleTests extends ESTestCase {
                 .build();
         IndexModule module = new IndexModule(IndexSettingsModule.newIndexSettings("foo", indexSettings), null, new AnalysisRegistry(null, environment));
         try {
-            module.newIndexService(nodeEnvironment, deleter, nodeServicesProvider, mapperRegistry);
+            module.newIndexService(nodeEnvironment, deleter, nodeServicesProvider, mapperRegistry,
+                new IndicesFieldDataCache(settings, listener));
         } catch (IllegalArgumentException ex) {
             assertEquals("Similarity [my_similarity] must have an associated type", ex.getMessage());
         }
@@ -312,7 +317,8 @@ public class IndexModuleTests extends ESTestCase {
             assertEquals(e.getMessage(), "Can't register the same [query_cache] more than once for [custom]");
         }
 
-        IndexService indexService = module.newIndexService(nodeEnvironment, deleter, nodeServicesProvider, mapperRegistry);
+        IndexService indexService = module.newIndexService(nodeEnvironment, deleter, nodeServicesProvider, mapperRegistry,
+            new IndicesFieldDataCache(settings, listener));
         assertTrue(indexService.cache().query() instanceof CustomQueryCache);
         indexService.close("simon says", false);
     }
@@ -322,7 +328,8 @@ public class IndexModuleTests extends ESTestCase {
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
         IndexModule module = new IndexModule(IndexSettingsModule.newIndexSettings("foo", indexSettings), null, new AnalysisRegistry(null, environment));
-        IndexService indexService = module.newIndexService(nodeEnvironment, deleter, nodeServicesProvider, mapperRegistry);
+        IndexService indexService = module.newIndexService(nodeEnvironment, deleter, nodeServicesProvider, mapperRegistry,
+            new IndicesFieldDataCache(settings, listener));
         assertTrue(indexService.cache().query() instanceof IndexQueryCache);
         indexService.close("simon says", false);
     }

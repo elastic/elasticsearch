@@ -203,7 +203,6 @@ final class StoreRecovery {
                         logger.trace("cleaning existing shard, shouldn't exists");
                         IndexWriter writer = new IndexWriter(store.directory(), new IndexWriterConfig(Lucene.STANDARD_ANALYZER).setOpenMode(IndexWriterConfig.OpenMode.CREATE));
                         writer.close();
-                        recoveryState.getTranslog().totalOperations(0);
                     }
                 }
             } catch (Throwable e) {
@@ -223,10 +222,6 @@ final class StoreRecovery {
                 }
             } catch (IOException e) {
                 logger.debug("failed to list file details", e);
-            }
-            if (indexShouldExists == false) {
-                recoveryState.getTranslog().totalOperations(0);
-                recoveryState.getTranslog().totalOperationsOnStart(0);
             }
             indexShard.performTranslogRecovery(indexShouldExists);
             indexShard.finalizeRecovery();

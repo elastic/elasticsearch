@@ -451,7 +451,7 @@ public final class ShardRouting implements Streamable, ToXContent {
     }
 
     /**
-     * Moves the shard from started to initializing and bumps the version
+     * Moves the shard from started to initializing
      */
     void reinitializeShard() {
         ensureNotFrozen();

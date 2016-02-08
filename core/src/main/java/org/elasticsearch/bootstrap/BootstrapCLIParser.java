@@ -32,10 +32,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
 
 import static org.elasticsearch.common.cli.CliToolConfig.Builder.cmd;
 import static org.elasticsearch.common.cli.CliToolConfig.Builder.optionBuilder;
@@ -131,6 +133,7 @@ final class BootstrapCLIParser extends CliTool {
 
             // hacky way to extract all the fancy extra args, there is no CLI tool helper for this
             Iterator<String> iterator = cli.getArgList().iterator();
+            final Map<String, String> properties = new HashMap<>();
             while (iterator.hasNext()) {
                 String arg = iterator.next();
                 if (!arg.startsWith("--")) {
@@ -148,20 +151,22 @@ final class BootstrapCLIParser extends CliTool {
                     String[] splitArg = arg.split("=", 2);
                     String key = splitArg[0];
                     String value = splitArg[1];
-                    System.setProperty("es." + key, value);
+                    properties.put("es." + key, value);
                 } else {
                     if (iterator.hasNext()) {
                         String value = iterator.next();
                         if (value.startsWith("--")) {
                             throw new UserError(ExitStatus.USAGE, "Parameter [" + arg + "] needs value");
                         }
-                        System.setProperty("es." + arg, value);
+                        properties.put("es." + arg, value);
                     } else {
                         throw new UserError(ExitStatus.USAGE, "Parameter [" + arg + "] needs value");
                     }
                 }
             }
-
+            for (Map.Entry<String, String> entry : properties.entrySet()) {
+                System.setProperty(entry.getKey(), entry.getValue());
+            }
             return new Start(terminal);
         }
 

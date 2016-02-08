@@ -11,7 +11,7 @@ This plugin can be installed using the plugin manager:
 
 [source,sh]
 ----------------------------------------------------------------
-sudo bin/plugin install discovery-azure
+sudo bin/elasticsearch-plugin install discovery-azure
 ----------------------------------------------------------------
 
 The plugin must be installed on every node in the cluster, and each node must
@@ -25,7 +25,7 @@ The plugin can be removed with the following command:
 
 [source,sh]
 ----------------------------------------------------------------
-sudo bin/plugin remove discovery-azure
+sudo bin/elasticsearch-plugin remove discovery-azure
 ----------------------------------------------------------------
 
 The node must be stopped before removing the plugin.
@@ -403,7 +403,7 @@ This command should give you a JSON result:
 sudo service elasticsearch stop
 
 # Install the plugin
-sudo /usr/share/elasticsearch/bin/plugin install discovery-azure
+sudo /usr/share/elasticsearch/bin/elasticsearch-plugin install discovery-azure
 
 # Configure it
 sudo vi /etc/elasticsearch/elasticsearch.yml

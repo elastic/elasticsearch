@@ -10,15 +10,15 @@ Run the following command to get usage instructions:
 
 [source,shell]
 -----------------------------------
-sudo bin/plugin -h
+sudo bin/elasticsearch-plugin -h
 -----------------------------------
 
 [IMPORTANT]
 .Running as root
 =====================
 If Elasticsearch was installed using the deb or rpm package then run
-`bin/plugin` as `root` so it can write to the appropriate files on disk.
-Otherwise run `bin/plugin` as the user that owns all of the Elasticsearch
+`bin/elasticsearch-plugin` as `root` so it can write to the appropriate files on disk.
+Otherwise run `bin/elasticsearch-plugin` as the user that owns all of the Elasticsearch
 files.
 =====================
 
@@ -36,7 +36,7 @@ Core Elasticsearch plugins can be installed as follows:
 
 [source,shell]
 -----------------------------------
-sudo bin/plugin install [plugin_name]
+sudo bin/elasticsearch-plugin install [plugin_name]
 -----------------------------------
 
 For instance, to install the core <<analysis-icu,ICU plugin>>, just run the
@@ -44,7 +44,7 @@ following command:
 
 [source,shell]
 -----------------------------------
-sudo bin/plugin install analysis-icu
+sudo bin/elasticsearch-plugin install analysis-icu
 -----------------------------------
 
 This command will install the version of the plugin that matches your
@@ -59,7 +59,7 @@ and Sonatype), or from GitHub.  In this case, the command is as follows:
 
 [source,shell]
 -----------------------------------
-sudo bin/plugin install [org]/[user|component]/[version]
+sudo bin/elasticsearch-plugin install [org]/[user|component]/[version]
 -----------------------------------
 
 For instance, to install the https://github.com/lmenezes/elasticsearch-kopf[Kopf]
@@ -67,8 +67,8 @@ plugin from GitHub, run one of the following commands:
 
 [source,shell]
 -----------------------------------
-sudo bin/plugin install lmenezes/elasticsearch-kopf <1>
-sudo bin/plugin install lmenezes/elasticsearch-kopf/2.x <2>
+sudo bin/elasticsearch-plugin install lmenezes/elasticsearch-kopf <1>
+sudo bin/elasticsearch-plugin install lmenezes/elasticsearch-kopf/2.x <2>
 -----------------------------------
 <1> Installs the latest version from GitHub.
 <2> Installs the 1.x version from GitHub.
@@ -80,7 +80,7 @@ plugin from Sonatype, run:
 
 [source,shell]
 -----------------------------------
-sudo bin/plugin install org.elasticsearch.plugin/mapper-attachments/3.0.0 <1>
+sudo bin/elasticsearch-plugin install org.elasticsearch.plugin/mapper-attachments/3.0.0 <1>
 -----------------------------------
 <1> When installing from `download.elastic.co` or from Maven Central/Sonatype, the
     version is required.
@@ -92,7 +92,7 @@ A plugin can also be downloaded directly from a custom location by specifying th
 
 [source,shell]
 -----------------------------------
-sudo bin/plugin install [url] <1>
+sudo bin/elasticsearch-plugin install [url] <1>
 -----------------------------------
 <1> must be a valid URL, the plugin name is determined from its descriptor.
 
@@ -100,7 +100,7 @@ For instance, to install a plugin from your local file system, you could run:
 
 [source,shell]
 -----------------------------------
-sudo bin/plugin install file:///path/to/plugin.zip
+sudo bin/elasticsearch-plugin install file:///path/to/plugin.zip
 -----------------------------------
 
 The plugin script will refuse to talk to an HTTPS URL with an untrusted
@@ -109,7 +109,7 @@ to a local Java truststore and pass the location to the script as follows:
 
 [source,shell]
 -----------------------------------
-sudo bin/plugin -Djavax.net.ssl.trustStore=/path/to/trustStore.jks install https://....
+sudo bin/elasticsearch-plugin -Djavax.net.ssl.trustStore=/path/to/trustStore.jks install https://....
 -----------------------------------
 
 [[listing-removing]]
@@ -122,7 +122,7 @@ A list of the currently loaded plugins can be retrieved with the `list` option:
 
 [source,shell]
 -----------------------------------
-sudo bin/plugin list
+sudo bin/elasticsearch-plugin list
 -----------------------------------
 
 Alternatively, use the {ref}/cluster-nodes-info.html[node-info API] to find
@@ -136,7 +136,7 @@ Plugins can be removed manually, by deleting the appropriate directory under
 
 [source,shell]
 -----------------------------------
-sudo bin/plugin remove [pluginname]
+sudo bin/elasticsearch-plugin remove [pluginname]
 -----------------------------------
 
 After a Java plugin has been removed, you will need to restart the node to complete the removal process.
@@ -167,7 +167,7 @@ can do this as follows:
 
 [source,sh]
 ---------------------
-sudo bin/plugin -Des.path.conf=/path/to/custom/config/dir install <plugin name>
+sudo bin/elasticsearch-plugin -Des.path.conf=/path/to/custom/config/dir install <plugin name>
 ---------------------
 
 You can also set the `CONF_DIR` environment variable to the custom config
@@ -183,13 +183,13 @@ waits. Here is some examples of setting it to different values:
 [source,shell]
 -----------------------------------
 # Wait for 30 seconds before failing
-sudo bin/plugin install mobz/elasticsearch-head --timeout 30s
+sudo bin/elasticsearch-plugin install mobz/elasticsearch-head --timeout 30s
 
 # Wait for 1 minute before failing
-sudo bin/plugin install mobz/elasticsearch-head --timeout 1m
+sudo bin/elasticsearch-plugin install mobz/elasticsearch-head --timeout 1m
 
 # Wait forever (default)
-sudo bin/plugin install mobz/elasticsearch-head --timeout 0
+sudo bin/elasticsearch-plugin install mobz/elasticsearch-head --timeout 0
 -----------------------------------
 
 [float]
@@ -201,7 +201,7 @@ options can be set on the command line:
 
 [source,shell]
 -----------------------------------
-sudo bin/plugin install mobz/elasticsearch-head -DproxyHost=host_name -DproxyPort=port_number
+sudo bin/elasticsearch-plugin install mobz/elasticsearch-head -DproxyHost=host_name -DproxyPort=port_number
 -----------------------------------
 
 On Windows, they need to be added to the `JAVA_OPTS` environment variable:
@@ -209,7 +209,7 @@ On Windows, they need to be added to the `JAVA_OPTS` environment variable:
 [source,shell]
 -----------------------------------
 set JAVA_OPTS="-DproxyHost=host_name -DproxyPort=port_number"
-bin/plugin install mobz/elasticsearch-head
+bin/elasticsearch-plugin install mobz/elasticsearch-head
 -----------------------------------
 
 === Settings related to plugins

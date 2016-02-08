@@ -29,11 +29,15 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.hamcrest.Matcher;
 import org.junit.After;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Properties;
 
 import static org.elasticsearch.common.cli.CliTool.ExitStatus.OK;
 import static org.elasticsearch.common.cli.CliTool.ExitStatus.OK_AND_EXIT;
@@ -48,6 +52,12 @@ public class BootstrapCliParserTests extends CliToolTestCase {
 
     private CaptureOutputTerminal terminal = new CaptureOutputTerminal();
     private List<String> propertiesToClear = new ArrayList<>();
+    private Map<Object, Object> properties;
+
+    @Before
+    public void before() {
+        this.properties = new HashMap<>(System.getProperties());
+    }
 
     @After
     public void clearProperties() {
@@ -55,6 +65,7 @@ public class BootstrapCliParserTests extends CliToolTestCase {
             System.clearProperty(property);
         }
         propertiesToClear.clear();
+        assertEquals("properties leaked", properties, new HashMap<>(System.getProperties()));
     }
 
     public void testThatVersionIsReturned() throws Exception {
@@ -235,6 +246,7 @@ public class BootstrapCliParserTests extends CliToolTestCase {
                 parser.parse("start", new String[]{"--foo=bar", "-Dbaz=qux"});
         });
         assertThat(e.getMessage(), containsString("must be before any parameters starting with --"));
+        assertNull(System.getProperty("es.foo"));
     }
 
     private void registerProperties(String ... systemProperties) {

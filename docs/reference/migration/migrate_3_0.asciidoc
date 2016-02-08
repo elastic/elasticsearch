@@ -6,6 +6,7 @@ your application to Elasticsearch 3.0.
 
 * <<breaking_30_search_changes>>
 * <<breaking_30_rest_api_changes>>
+* <<breaking_30_cat_api>>
 * <<breaking_30_parent_child_changes>>
 * <<breaking_30_settings_changes>>
 * <<breaking_30_mapping_changes>>
@@ -158,6 +159,18 @@ Removed support for the undocumented `query_binary` and `filter_binary` sections
 
 Payloads are now loaded when needed.
 
+[[breaking_30_cat_api]]
+=== CAT API changes
+
+==== Use Accept header for specifying response media type
+
+Previous versions of Elasticsearch accepted the Content-type header
+field for controlling the media type of the response in the cat API.
+This is in opposition to the HTTP spec which specifies the Accept
+header field for this purpose. Elasticsearch now uses the Accept header
+field and support for using the Content-Type header field for this
+purpose has been removed.
+
 [[breaking_30_parent_child_changes]]
 === Parent/Child changes
 
@@ -301,7 +314,7 @@ On all types but `string`, the `index` property now only accepts `true`/`false`
 instead of `not_analyzed`/`no`. The `string` field still accepts
 `analyzed`/`not_analyzed`/`no`.
 
-==== `_source`'s `format` option
+==== ++_source++'s `format` option
 
 The `_source` mapping does not support the `format` option anymore. This option
 will still be accepted for indices created before the upgrade to 3.0 for backward
@@ -330,6 +343,8 @@ disable doc values is by using the `doc_values` property of mappings.
 
 [[breaking_30_plugins]]
 === Plugin changes
+
+The command `bin/plugin` has been renamed to `bin/elasticsearch-plugin`.
 
 ==== Site plugins removed
 

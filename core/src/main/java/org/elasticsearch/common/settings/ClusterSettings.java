@@ -60,6 +60,7 @@ import org.elasticsearch.gateway.PrimaryShardAllocator;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.store.IndexStoreConfig;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.analysis.HunspellService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.cache.query.IndicesQueryCache;
@@ -290,7 +291,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
             ScriptService.SCRIPT_CACHE_SIZE_SETTING,
             ScriptService.SCRIPT_CACHE_EXPIRE_SETTING,
             ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING,
-            IndicesFieldDataCache.INDICES_FIELDDATA_CLEAN_INTERVAL_SETTING,
+            IndicesService.INDICES_FIELDDATA_CLEAN_INTERVAL_SETTING,
             IndicesFieldDataCache.INDICES_FIELDDATA_CACHE_SIZE_KEY,
             IndicesRequestCache.INDICES_CACHE_QUERY_SIZE,
             IndicesRequestCache.INDICES_CACHE_QUERY_EXPIRE,

@@ -56,14 +56,14 @@ The packages may be downloaded from the following URLs:
 
 Plugins can be installed as follows:
 
-    bin/plugin -Des.plugins.staging=true install cloud-aws
+    bin/elasticsearch-plugin -Des.plugins.staging=true install cloud-aws
 
 The same goes for the x-plugins:
 
-    bin/plugin -Des.plugins.staging=true install license
-    bin/plugin -Des.plugins.staging=true install marvel-agent
-    bin/plugin -Des.plugins.staging=true install shield
-    bin/plugin -Des.plugins.staging=true install watcher
+    bin/elasticsearch-plugin -Des.plugins.staging=true install license
+    bin/elasticsearch-plugin -Des.plugins.staging=true install marvel-agent
+    bin/elasticsearch-plugin -Des.plugins.staging=true install shield
+    bin/elasticsearch-plugin -Des.plugins.staging=true install watcher
 
 To install the deb from an APT repo:
 

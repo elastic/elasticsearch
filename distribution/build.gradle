@@ -372,7 +372,7 @@ task run(type: RunTask) {}
 
 /**
  * Build some variables that are replaced in the packages. This includes both
- * scripts like bin/elasticsearch and bin/plugin that a user might run and also
+ * scripts like bin/elasticsearch and bin/elasticsearch-plugin that a user might run and also
  * scripts like postinst which are run as part of the installation.
  *
  * <dl>
@@ -384,7 +384,7 @@ task run(type: RunTask) {}
  *  <dt>path.conf</dt>
  *  <dd>The default directory from which to load configuration. This is used in
  *    the packaging scripts, but in that context it is always
- *    /etc/elasticsearch. Its also used in bin/plugin, where it is
+ *    /etc/elasticsearch. Its also used in bin/elasticsearch-plugin, where it is
  *    /etc/elasticsearch for the os packages but $ESHOME/config otherwise.</dd>
  *  <dt>path.env</dt>
  *  <dd>The env file sourced before bin/elasticsearch to set environment

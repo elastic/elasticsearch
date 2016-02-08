@@ -28,12 +28,67 @@ import org.elasticsearch.painless.Definition.Method;
 import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Transform;
 import org.elasticsearch.painless.Definition.Type;
+import org.elasticsearch.painless.PainlessParser.AfterthoughtContext;
+import org.elasticsearch.painless.PainlessParser.ArgumentsContext;
+import org.elasticsearch.painless.PainlessParser.AssignmentContext;
+import org.elasticsearch.painless.PainlessParser.BinaryContext;
+import org.elasticsearch.painless.PainlessParser.BlockContext;
+import org.elasticsearch.painless.PainlessParser.BoolContext;
+import org.elasticsearch.painless.PainlessParser.BreakContext;
+import org.elasticsearch.painless.PainlessParser.CastContext;
+import org.elasticsearch.painless.PainlessParser.CharContext;
+import org.elasticsearch.painless.PainlessParser.CompContext;
+import org.elasticsearch.painless.PainlessParser.ConditionalContext;
+import org.elasticsearch.painless.PainlessParser.ContinueContext;
+import org.elasticsearch.painless.PainlessParser.DeclContext;
+import org.elasticsearch.painless.PainlessParser.DeclarationContext;
+import org.elasticsearch.painless.PainlessParser.DecltypeContext;
+import org.elasticsearch.painless.PainlessParser.DeclvarContext;
+import org.elasticsearch.painless.PainlessParser.DoContext;
+import org.elasticsearch.painless.PainlessParser.EmptyContext;
+import org.elasticsearch.painless.PainlessParser.EmptyscopeContext;
+import org.elasticsearch.painless.PainlessParser.ExprContext;
+import org.elasticsearch.painless.PainlessParser.ExpressionContext;
+import org.elasticsearch.painless.PainlessParser.ExtbraceContext;
+import org.elasticsearch.painless.PainlessParser.ExtcallContext;
+import org.elasticsearch.painless.PainlessParser.ExtcastContext;
+import org.elasticsearch.painless.PainlessParser.ExtdotContext;
+import org.elasticsearch.painless.PainlessParser.ExternalContext;
+import org.elasticsearch.painless.PainlessParser.ExtfieldContext;
+import org.elasticsearch.painless.PainlessParser.ExtnewContext;
+import org.elasticsearch.painless.PainlessParser.ExtprecContext;
+import org.elasticsearch.painless.PainlessParser.ExtstartContext;
+import org.elasticsearch.painless.PainlessParser.ExtstringContext;
+import org.elasticsearch.painless.PainlessParser.ExttypeContext;
+import org.elasticsearch.painless.PainlessParser.ExtvarContext;
+import org.elasticsearch.painless.PainlessParser.FalseContext;
+import org.elasticsearch.painless.PainlessParser.ForContext;
+import org.elasticsearch.painless.PainlessParser.IfContext;
+import org.elasticsearch.painless.PainlessParser.IncrementContext;
+import org.elasticsearch.painless.PainlessParser.InitializerContext;
+import org.elasticsearch.painless.PainlessParser.MultipleContext;
+import org.elasticsearch.painless.PainlessParser.NullContext;
+import org.elasticsearch.painless.PainlessParser.NumericContext;
+import org.elasticsearch.painless.PainlessParser.PostincContext;
+import org.elasticsearch.painless.PainlessParser.PrecedenceContext;
+import org.elasticsearch.painless.PainlessParser.PreincContext;
+import org.elasticsearch.painless.PainlessParser.ReturnContext;
+import org.elasticsearch.painless.PainlessParser.SingleContext;
+import org.elasticsearch.painless.PainlessParser.SourceContext;
+import org.elasticsearch.painless.PainlessParser.StatementContext;
+import org.elasticsearch.painless.PainlessParser.ThrowContext;
+import org.elasticsearch.painless.PainlessParser.TrapContext;
+import org.elasticsearch.painless.PainlessParser.TrueContext;
+import org.elasticsearch.painless.PainlessParser.TryContext;
+import org.elasticsearch.painless.PainlessParser.UnaryContext;
+import org.elasticsearch.painless.PainlessParser.WhileContext;
 import org.elasticsearch.script.ScoreAccessor;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
+import java.lang.invoke.MethodType;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.HashMap;
@@ -43,70 +98,16 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.painless.PainlessParser.ADD;
-import static org.elasticsearch.painless.PainlessParser.AfterthoughtContext;
-import static org.elasticsearch.painless.PainlessParser.ArgumentsContext;
-import static org.elasticsearch.painless.PainlessParser.AssignmentContext;
 import static org.elasticsearch.painless.PainlessParser.BWAND;
 import static org.elasticsearch.painless.PainlessParser.BWOR;
 import static org.elasticsearch.painless.PainlessParser.BWXOR;
-import static org.elasticsearch.painless.PainlessParser.BinaryContext;
-import static org.elasticsearch.painless.PainlessParser.BlockContext;
-import static org.elasticsearch.painless.PainlessParser.BoolContext;
-import static org.elasticsearch.painless.PainlessParser.BreakContext;
-import static org.elasticsearch.painless.PainlessParser.CastContext;
-import static org.elasticsearch.painless.PainlessParser.CharContext;
-import static org.elasticsearch.painless.PainlessParser.CompContext;
-import static org.elasticsearch.painless.PainlessParser.ConditionalContext;
-import static org.elasticsearch.painless.PainlessParser.ContinueContext;
 import static org.elasticsearch.painless.PainlessParser.DIV;
-import static org.elasticsearch.painless.PainlessParser.DeclContext;
-import static org.elasticsearch.painless.PainlessParser.DeclarationContext;
-import static org.elasticsearch.painless.PainlessParser.DecltypeContext;
-import static org.elasticsearch.painless.PainlessParser.DeclvarContext;
-import static org.elasticsearch.painless.PainlessParser.DoContext;
-import static org.elasticsearch.painless.PainlessParser.EmptyContext;
-import static org.elasticsearch.painless.PainlessParser.EmptyscopeContext;
-import static org.elasticsearch.painless.PainlessParser.ExprContext;
-import static org.elasticsearch.painless.PainlessParser.ExpressionContext;
-import static org.elasticsearch.painless.PainlessParser.ExtbraceContext;
-import static org.elasticsearch.painless.PainlessParser.ExtcallContext;
-import static org.elasticsearch.painless.PainlessParser.ExtcastContext;
-import static org.elasticsearch.painless.PainlessParser.ExtdotContext;
-import static org.elasticsearch.painless.PainlessParser.ExternalContext;
-import static org.elasticsearch.painless.PainlessParser.ExtfieldContext;
-import static org.elasticsearch.painless.PainlessParser.ExtnewContext;
-import static org.elasticsearch.painless.PainlessParser.ExtprecContext;
-import static org.elasticsearch.painless.PainlessParser.ExtstartContext;
-import static org.elasticsearch.painless.PainlessParser.ExtstringContext;
-import static org.elasticsearch.painless.PainlessParser.ExttypeContext;
-import static org.elasticsearch.painless.PainlessParser.ExtvarContext;
-import static org.elasticsearch.painless.PainlessParser.FalseContext;
-import static org.elasticsearch.painless.PainlessParser.ForContext;
-import static org.elasticsearch.painless.PainlessParser.IfContext;
-import static org.elasticsearch.painless.PainlessParser.IncrementContext;
-import static org.elasticsearch.painless.PainlessParser.InitializerContext;
 import static org.elasticsearch.painless.PainlessParser.LSH;
 import static org.elasticsearch.painless.PainlessParser.MUL;
-import static org.elasticsearch.painless.PainlessParser.MultipleContext;
-import static org.elasticsearch.painless.PainlessParser.NullContext;
-import static org.elasticsearch.painless.PainlessParser.NumericContext;
-import static org.elasticsearch.painless.PainlessParser.PostincContext;
-import static org.elasticsearch.painless.PainlessParser.PrecedenceContext;
-import static org.elasticsearch.painless.PainlessParser.PreincContext;
 import static org.elasticsearch.painless.PainlessParser.REM;
 import static org.elasticsearch.painless.PainlessParser.RSH;
-import static org.elasticsearch.painless.PainlessParser.ReturnContext;
 import static org.elasticsearch.painless.PainlessParser.SUB;
-import static org.elasticsearch.painless.PainlessParser.SingleContext;
-import static org.elasticsearch.painless.PainlessParser.SourceContext;
-import static org.elasticsearch.painless.PainlessParser.StatementContext;
-import static org.elasticsearch.painless.PainlessParser.ThrowContext;
-import static org.elasticsearch.painless.PainlessParser.TrapContext;
-import static org.elasticsearch.painless.PainlessParser.TrueContext;
-import static org.elasticsearch.painless.PainlessParser.TryContext;
 import static org.elasticsearch.painless.PainlessParser.USH;
-import static org.elasticsearch.painless.PainlessParser.UnaryContext;
-import static org.elasticsearch.painless.PainlessParser.WhileContext;
 
 class Writer extends PainlessParserBaseVisitor<Void> {
     private static class Branch {
@@ -125,181 +126,142 @@ class Writer extends PainlessParserBaseVisitor<Void> {
     final static String BASE_CLASS_NAME = Executable.class.getName();
     final static String CLASS_NAME = BASE_CLASS_NAME + "$CompiledPainlessExecutable";
     private final static org.objectweb.asm.Type BASE_CLASS_TYPE = org.objectweb.asm.Type.getType(Executable.class);
-    private final static org.objectweb.asm.Type CLASS_TYPE =
-        org.objectweb.asm.Type.getType("L" + CLASS_NAME.replace(".", "/") + ";");
+    private final static org.objectweb.asm.Type CLASS_TYPE = org.objectweb.asm.Type.getType("L" + CLASS_NAME.replace(".", "/") + ";");
+
+    private final static org.objectweb.asm.commons.Method CONSTRUCTOR =
+        getAsmMethod(void.class, "<init>", Definition.class, String.class, String.class);
+    private final static org.objectweb.asm.commons.Method EXECUTE = getAsmMethod(Object.class, "execute", Map.class);
+    private final static String SIGNATURE = "(Ljava/util/Map<Ljava/lang/String;Ljava/lang/Object;>;)Ljava/lang/Object;";
 
     private final static org.objectweb.asm.Type PAINLESS_ERROR_TYPE = org.objectweb.asm.Type.getType(PainlessError.class);
-
-    private final static org.objectweb.asm.commons.Method CONSTRUCTOR = org.objectweb.asm.commons.Method.getMethod(
-        "void <init>(org.elasticsearch.painless.Definition, java.lang.String, java.lang.String)");
-    private final static org.objectweb.asm.commons.Method EXECUTE = org.objectweb.asm.commons.Method.getMethod(
-        "java.lang.Object execute(java.util.Map)");
-    private final static String SIGNATURE = "(Ljava/util/Map<Ljava/lang/String;Ljava/lang/Object;>;)Ljava/lang/Object;";
 
     private final static org.objectweb.asm.Type DEFINITION_TYPE = org.objectweb.asm.Type.getType(Definition.class);
 
     private final static org.objectweb.asm.Type MAP_TYPE = org.objectweb.asm.Type.getType(Map.class);
-    private final static org.objectweb.asm.commons.Method MAP_GET =
-        org.objectweb.asm.commons.Method.getMethod("Object get(Object)");
+    private final static org.objectweb.asm.commons.Method MAP_GET = getAsmMethod(Object.class, "get", Object.class);
 
     private final static org.objectweb.asm.Type SCORE_ACCESSOR_TYPE = org.objectweb.asm.Type.getType(ScoreAccessor.class);
-    private final static org.objectweb.asm.commons.Method SCORE_ACCESSOR_FLOAT =
-        org.objectweb.asm.commons.Method.getMethod("float floatValue()");
+    private final static org.objectweb.asm.commons.Method SCORE_ACCESSOR_FLOAT = getAsmMethod(float.class, "floatValue");
 
-    private final static org.objectweb.asm.commons.Method DEF_METHOD_CALL = org.objectweb.asm.commons.Method.getMethod(
-        "java.lang.Object methodCall(java.lang.Object, java.lang.String, " +
-            "org.elasticsearch.painless.Definition, java.lang.Object[], boolean[])");
-    private final static org.objectweb.asm.commons.Method DEF_ARRAY_STORE = org.objectweb.asm.commons.Method.getMethod(
-        "void arrayStore(java.lang.Object, java.lang.Object, java.lang.Object, " +
-            "org.elasticsearch.painless.Definition, boolean, boolean)");
-    private final static org.objectweb.asm.commons.Method DEF_ARRAY_LOAD = org.objectweb.asm.commons.Method.getMethod(
-        "java.lang.Object arrayLoad(java.lang.Object, java.lang.Object, " +
-            "org.elasticsearch.painless.Definition, boolean)");
-    private final static org.objectweb.asm.commons.Method DEF_FIELD_STORE = org.objectweb.asm.commons.Method.getMethod(
-        "void fieldStore(java.lang.Object, java.lang.Object, java.lang.String, " +
-            "org.elasticsearch.painless.Definition, boolean)");
-    private final static org.objectweb.asm.commons.Method DEF_FIELD_LOAD = org.objectweb.asm.commons.Method.getMethod(
-        "java.lang.Object fieldLoad(java.lang.Object, java.lang.String, org.elasticsearch.painless.Definition)");
+    private final static org.objectweb.asm.commons.Method DEF_METHOD_CALL = getAsmMethod(
+        Object.class, "methodCall", Object.class, String.class, Definition.class, Object[].class, boolean[].class);
+    private final static org.objectweb.asm.commons.Method DEF_ARRAY_STORE = getAsmMethod(
+        void.class, "arrayStore", Object.class, Object.class, Object.class, Definition.class, boolean.class, boolean.class);
+    private final static org.objectweb.asm.commons.Method DEF_ARRAY_LOAD = getAsmMethod(
+        Object.class, "arrayLoad", Object.class, Object.class, Definition.class, boolean.class);
+    private final static org.objectweb.asm.commons.Method DEF_FIELD_STORE = getAsmMethod(
+        void.class, "fieldStore", Object.class, Object.class, String.class, Definition.class, boolean.class);
+    private final static org.objectweb.asm.commons.Method DEF_FIELD_LOAD = getAsmMethod(
+        Object.class, "fieldLoad", Object.class, String.class, Definition.class);
 
-    private final static org.objectweb.asm.commons.Method DEF_NOT_CALL = org.objectweb.asm.commons.Method.getMethod(
-        "java.lang.Object not(java.lang.Object)");
-    private final static org.objectweb.asm.commons.Method DEF_NEG_CALL = org.objectweb.asm.commons.Method.getMethod(
-        "java.lang.Object neg(java.lang.Object)");
-    private final static org.objectweb.asm.commons.Method DEF_MUL_CALL = org.objectweb.asm.commons.Method.getMethod(
-        "java.lang.Object mul(java.lang.Object, java.lang.Object)");
-    private final static org.objectweb.asm.commons.Method DEF_DIV_CALL = org.objectweb.asm.commons.Method.getMethod(
-        "java.lang.Object div(java.lang.Object, java.lang.Object)");
-    private final static org.objectweb.asm.commons.Method DEF_REM_CALL = org.objectweb.asm.commons.Method.getMethod(
-        "java.lang.Object rem(java.lang.Object, java.lang.Object)");
-    private final static org.objectweb.asm.commons.Method DEF_ADD_CALL = org.objectweb.asm.commons.Method.getMethod(
-        "java.lang.Object add(java.lang.Object, java.lang.Object)");
-    private final static org.objectweb.asm.commons.Method DEF_SUB_CALL = org.objectweb.asm.commons.Method.getMethod(
-        "java.lang.Object sub(java.lang.Object, java.lang.Object)");
-    private final static org.objectweb.asm.commons.Method DEF_LSH_CALL = org.objectweb.asm.commons.Method.getMethod(
-        "java.lang.Object lsh(java.lang.Object, java.lang.Object)");
-    private final static org.objectweb.asm.commons.Method DEF_RSH_CALL = org.objectweb.asm.commons.Method.getMethod(
-        "java.lang.Object rsh(java.lang.Object, java.lang.Object)");
-    private final static org.objectweb.asm.commons.Method DEF_USH_CALL = org.objectweb.asm.commons.Method.getMethod(
-        "java.lang.Object ush(java.lang.Object, java.lang.Object)");
-    private final static org.objectweb.asm.commons.Method DEF_AND_CALL = org.objectweb.asm.commons.Method.getMethod(
-        "java.lang.Object and(java.lang.Object, java.lang.Object)");
-    private final static org.objectweb.asm.commons.Method DEF_XOR_CALL = org.objectweb.asm.commons.Method.getMethod(
-        "java.lang.Object xor(java.lang.Object, java.lang.Object)");
-    private final static org.objectweb.asm.commons.Method DEF_OR_CALL = org.objectweb.asm.commons.Method.getMethod(
-        "java.lang.Object or(java.lang.Object, java.lang.Object)");
-    private final static org.objectweb.asm.commons.Method DEF_EQ_CALL = org.objectweb.asm.commons.Method.getMethod(
-        "boolean eq(java.lang.Object, java.lang.Object)");
-    private final static org.objectweb.asm.commons.Method DEF_LT_CALL = org.objectweb.asm.commons.Method.getMethod(
-        "boolean lt(java.lang.Object, java.lang.Object)");
-    private final static org.objectweb.asm.commons.Method DEF_LTE_CALL = org.objectweb.asm.commons.Method.getMethod(
-        "boolean lte(java.lang.Object, java.lang.Object)");
-    private final static org.objectweb.asm.commons.Method DEF_GT_CALL = org.objectweb.asm.commons.Method.getMethod(
-        "boolean gt(java.lang.Object, java.lang.Object)");
-    private final static org.objectweb.asm.commons.Method DEF_GTE_CALL = org.objectweb.asm.commons.Method.getMethod(
-        "boolean gte(java.lang.Object, java.lang.Object)");
+    private final static org.objectweb.asm.commons.Method DEF_NOT_CALL = getAsmMethod(Object.class, "not", Object.class);
+    private final static org.objectweb.asm.commons.Method DEF_NEG_CALL = getAsmMethod(Object.class, "neg", Object.class);
+    private final static org.objectweb.asm.commons.Method DEF_MUL_CALL = getAsmMethod(Object.class, "mul", Object.class, Object.class);
+    private final static org.objectweb.asm.commons.Method DEF_DIV_CALL = getAsmMethod(Object.class, "div", Object.class, Object.class);
+    private final static org.objectweb.asm.commons.Method DEF_REM_CALL = getAsmMethod(Object.class, "rem", Object.class, Object.class);
+    private final static org.objectweb.asm.commons.Method DEF_ADD_CALL = getAsmMethod(Object.class, "add", Object.class, Object.class);
+    private final static org.objectweb.asm.commons.Method DEF_SUB_CALL = getAsmMethod(Object.class, "sub", Object.class, Object.class);
+    private final static org.objectweb.asm.commons.Method DEF_LSH_CALL = getAsmMethod(Object.class, "lsh", Object.class, Object.class);
+    private final static org.objectweb.asm.commons.Method DEF_RSH_CALL = getAsmMethod(Object.class, "rsh", Object.class, Object.class);
+    private final static org.objectweb.asm.commons.Method DEF_USH_CALL = getAsmMethod(Object.class, "ush", Object.class, Object.class);
+    private final static org.objectweb.asm.commons.Method DEF_AND_CALL = getAsmMethod(Object.class, "and", Object.class, Object.class);
+    private final static org.objectweb.asm.commons.Method DEF_XOR_CALL = getAsmMethod(Object.class, "xor", Object.class, Object.class);
+    private final static org.objectweb.asm.commons.Method DEF_OR_CALL  = getAsmMethod(Object.class, "or" , Object.class, Object.class);
+    private final static org.objectweb.asm.commons.Method DEF_EQ_CALL  = getAsmMethod(boolean.class, "eq" , Object.class, Object.class);
+    private final static org.objectweb.asm.commons.Method DEF_LT_CALL  = getAsmMethod(boolean.class, "lt" , Object.class, Object.class);
+    private final static org.objectweb.asm.commons.Method DEF_LTE_CALL = getAsmMethod(boolean.class, "lte", Object.class, Object.class);
+    private final static org.objectweb.asm.commons.Method DEF_GT_CALL  = getAsmMethod(boolean.class, "gt" , Object.class, Object.class);
+    private final static org.objectweb.asm.commons.Method DEF_GTE_CALL = getAsmMethod(boolean.class, "gte", Object.class, Object.class);
 
     private final static org.objectweb.asm.Type STRINGBUILDER_TYPE = org.objectweb.asm.Type.getType(StringBuilder.class);
 
-    private final static org.objectweb.asm.commons.Method STRINGBUILDER_CONSTRUCTOR =
-        org.objectweb.asm.commons.Method.getMethod("void <init>()");
+    private final static org.objectweb.asm.commons.Method STRINGBUILDER_CONSTRUCTOR = getAsmMethod(void.class, "<init>");
     private final static org.objectweb.asm.commons.Method STRINGBUILDER_APPEND_BOOLEAN =
-        org.objectweb.asm.commons.Method.getMethod("java.lang.StringBuilder append(boolean)");
+        getAsmMethod(StringBuilder.class, "append", boolean.class);
     private final static org.objectweb.asm.commons.Method STRINGBUILDER_APPEND_CHAR =
-        org.objectweb.asm.commons.Method.getMethod("java.lang.StringBuilder append(char)");
+        getAsmMethod(StringBuilder.class, "append", char.class);
     private final static org.objectweb.asm.commons.Method STRINGBUILDER_APPEND_INT =
-        org.objectweb.asm.commons.Method.getMethod("java.lang.StringBuilder append(int)");
+        getAsmMethod(StringBuilder.class, "append", int.class);
     private final static org.objectweb.asm.commons.Method STRINGBUILDER_APPEND_LONG =
-        org.objectweb.asm.commons.Method.getMethod("java.lang.StringBuilder append(long)");
+        getAsmMethod(StringBuilder.class, "append", long.class);
     private final static org.objectweb.asm.commons.Method STRINGBUILDER_APPEND_FLOAT =
-        org.objectweb.asm.commons.Method.getMethod("java.lang.StringBuilder append(float)");
+        getAsmMethod(StringBuilder.class, "append", float.class);
     private final static org.objectweb.asm.commons.Method STRINGBUILDER_APPEND_DOUBLE =
-        org.objectweb.asm.commons.Method.getMethod("java.lang.StringBuilder append(double)");
+        getAsmMethod(StringBuilder.class, "append", double.class);
     private final static org.objectweb.asm.commons.Method STRINGBUILDER_APPEND_STRING =
-        org.objectweb.asm.commons.Method.getMethod("java.lang.StringBuilder append(java.lang.String)");
+        getAsmMethod(StringBuilder.class, "append", String.class);
     private final static org.objectweb.asm.commons.Method STRINGBUILDER_APPEND_OBJECT =
-        org.objectweb.asm.commons.Method.getMethod("java.lang.StringBuilder append(java.lang.Object)");
-    private final static org.objectweb.asm.commons.Method STRINGBUILDER_TOSTRING =
-        org.objectweb.asm.commons.Method.getMethod("java.lang.String toString()");
+        getAsmMethod(StringBuilder.class, "append", Object.class);
+    private final static org.objectweb.asm.commons.Method STRINGBUILDER_TOSTRING = getAsmMethod(String.class, "toString");
 
-    private final static org.objectweb.asm.commons.Method TOINTEXACT_LONG =
-        org.objectweb.asm.commons.Method.getMethod("int toIntExact(long)");
-    private final static org.objectweb.asm.commons.Method NEGATEEXACT_INT =
-        org.objectweb.asm.commons.Method.getMethod("int negateExact(int)");
-    private final static org.objectweb.asm.commons.Method NEGATEEXACT_LONG =
-        org.objectweb.asm.commons.Method.getMethod("long negateExact(long)");
-    private final static org.objectweb.asm.commons.Method MULEXACT_INT =
-        org.objectweb.asm.commons.Method.getMethod("int multiplyExact(int, int)");
-    private final static org.objectweb.asm.commons.Method MULEXACT_LONG =
-        org.objectweb.asm.commons.Method.getMethod("long multiplyExact(long, long)");
-    private final static org.objectweb.asm.commons.Method ADDEXACT_INT =
-        org.objectweb.asm.commons.Method.getMethod("int addExact(int, int)");
-    private final static org.objectweb.asm.commons.Method ADDEXACT_LONG =
-        org.objectweb.asm.commons.Method.getMethod("long addExact(long, long)");
-    private final static org.objectweb.asm.commons.Method SUBEXACT_INT =
-        org.objectweb.asm.commons.Method.getMethod("int subtractExact(int, int)");
-    private final static org.objectweb.asm.commons.Method SUBEXACT_LONG =
-        org.objectweb.asm.commons.Method.getMethod("long subtractExact(long, long)");
+    private final static org.objectweb.asm.commons.Method TOINTEXACT_LONG = getAsmMethod(int.class, "toIntExact", long.class);
+    private final static org.objectweb.asm.commons.Method NEGATEEXACT_INT = getAsmMethod(int.class, "negateExact", int.class);
+    private final static org.objectweb.asm.commons.Method NEGATEEXACT_LONG = getAsmMethod(long.class, "negateExact", long.class);
+    private final static org.objectweb.asm.commons.Method MULEXACT_INT = getAsmMethod(int.class, "multiplyExact", int.class, int.class);
+    private final static org.objectweb.asm.commons.Method MULEXACT_LONG = getAsmMethod(long.class, "multiplyExact", long.class, long.class);
+    private final static org.objectweb.asm.commons.Method ADDEXACT_INT = getAsmMethod(int.class, "addExact", int.class, int.class);
+    private final static org.objectweb.asm.commons.Method ADDEXACT_LONG = getAsmMethod(long.class, "addExact", long.class, long.class);
+    private final static org.objectweb.asm.commons.Method SUBEXACT_INT = getAsmMethod(int.class, "subtractExact", int.class, int.class);
+    private final static org.objectweb.asm.commons.Method SUBEXACT_LONG = getAsmMethod(long.class, "subtractExact", long.class, long.class);
 
     private final static org.objectweb.asm.commons.Method CHECKEQUALS =
-        org.objectweb.asm.commons.Method.getMethod("boolean checkEquals(java.lang.Object, java.lang.Object)");
-    private final static org.objectweb.asm.commons.Method TOBYTEEXACT_INT =
-        org.objectweb.asm.commons.Method.getMethod("byte toByteExact(int)");
-    private final static org.objectweb.asm.commons.Method TOBYTEEXACT_LONG =
-        org.objectweb.asm.commons.Method.getMethod("byte toByteExact(long)");
+        getAsmMethod(boolean.class, "checkEquals", Object.class, Object.class);
+    private final static org.objectweb.asm.commons.Method TOBYTEEXACT_INT = getAsmMethod(byte.class, "toByteExact", int.class);
+    private final static org.objectweb.asm.commons.Method TOBYTEEXACT_LONG = getAsmMethod(byte.class, "toByteExact", long.class);
     private final static org.objectweb.asm.commons.Method TOBYTEWOOVERFLOW_FLOAT =
-        org.objectweb.asm.commons.Method.getMethod("byte toByteWithoutOverflow(float)");
+        getAsmMethod(byte.class, "toByteWithoutOverflow", float.class);
     private final static org.objectweb.asm.commons.Method TOBYTEWOOVERFLOW_DOUBLE =
-        org.objectweb.asm.commons.Method.getMethod("byte toByteWithoutOverflow(double)");
-    private final static org.objectweb.asm.commons.Method TOSHORTEXACT_INT =
-        org.objectweb.asm.commons.Method.getMethod("short toShortExact(int)");
-    private final static org.objectweb.asm.commons.Method TOSHORTEXACT_LONG =
-        org.objectweb.asm.commons.Method.getMethod("short toShortExact(long)");
+        getAsmMethod(byte.class, "toByteWithoutOverflow", double.class);
+    private final static org.objectweb.asm.commons.Method TOSHORTEXACT_INT = getAsmMethod(short.class, "toShortExact", int.class);
+    private final static org.objectweb.asm.commons.Method TOSHORTEXACT_LONG = getAsmMethod(short.class, "toShortExact", long.class);
     private final static org.objectweb.asm.commons.Method TOSHORTWOOVERFLOW_FLOAT =
-        org.objectweb.asm.commons.Method.getMethod("short toShortWithoutOverflow(float)");
+        getAsmMethod(short.class, "toShortWithoutOverflow", float.class);
     private final static org.objectweb.asm.commons.Method TOSHORTWOOVERFLOW_DOUBLE =
-        org.objectweb.asm.commons.Method.getMethod("short toShortWithoutOverflow(double)");
-    private final static org.objectweb.asm.commons.Method TOCHAREXACT_INT =
-        org.objectweb.asm.commons.Method.getMethod("char toCharExact(int)");
-    private final static org.objectweb.asm.commons.Method TOCHAREXACT_LONG =
-        org.objectweb.asm.commons.Method.getMethod("char toCharExact(long)");
+        getAsmMethod(short.class, "toShortWihtoutOverflow", double.class);
+    private final static org.objectweb.asm.commons.Method TOCHAREXACT_INT = getAsmMethod(char.class, "toCharExact", int.class);
+    private final static org.objectweb.asm.commons.Method TOCHAREXACT_LONG = getAsmMethod(char.class, "toCharExact", long.class);
     private final static org.objectweb.asm.commons.Method TOCHARWOOVERFLOW_FLOAT =
-        org.objectweb.asm.commons.Method.getMethod("char toCharWithoutOverflow(float)");
+        getAsmMethod(char.class, "toCharWithoutOverflow", float.class);
     private final static org.objectweb.asm.commons.Method TOCHARWOOVERFLOW_DOUBLE =
-        org.objectweb.asm.commons.Method.getMethod("char toCharWithoutOverflow(double)");
+        getAsmMethod(char.class, "toCharWithoutOverflow", double.class);
     private final static org.objectweb.asm.commons.Method TOINTWOOVERFLOW_FLOAT =
-        org.objectweb.asm.commons.Method.getMethod("int toIntWithoutOverflow(float)");
+        getAsmMethod(int.class, "toIntWithoutOverflow", float.class);
     private final static org.objectweb.asm.commons.Method TOINTWOOVERFLOW_DOUBLE =
-        org.objectweb.asm.commons.Method.getMethod("int toIntWithoutOverflow(double)");
+        getAsmMethod(int.class, "toIntWithoutOverflow", double.class);
     private final static org.objectweb.asm.commons.Method TOLONGWOOVERFLOW_FLOAT =
-        org.objectweb.asm.commons.Method.getMethod("long toLongExactWithoutOverflow(float)");
+        getAsmMethod(long.class, "toLongWithoutOverflow", float.class);
     private final static org.objectweb.asm.commons.Method TOLONGWOOVERFLOW_DOUBLE =
-        org.objectweb.asm.commons.Method.getMethod("long toLongExactWithoutOverflow(double)");
+        getAsmMethod(long.class, "toLongWithoutOverflow", double.class);
     private final static org.objectweb.asm.commons.Method TOFLOATWOOVERFLOW_DOUBLE =
-        org.objectweb.asm.commons.Method.getMethod("float toFloatWithoutOverflow(double)");
+        getAsmMethod(float.class , "toFloatWihtoutOverflow", double.class);
     private final static org.objectweb.asm.commons.Method MULWOOVERLOW_FLOAT =
-        org.objectweb.asm.commons.Method.getMethod("float multiplyWithoutOverflow(float, float)");
+        getAsmMethod(float.class, "multiplyWithoutOverflow", float.class, float.class);
     private final static org.objectweb.asm.commons.Method MULWOOVERLOW_DOUBLE =
-        org.objectweb.asm.commons.Method.getMethod("double multiplyWithoutOverflow(double, double)");
+        getAsmMethod(double.class, "multiplyWithoutOverflow", double.class, double.class);
     private final static org.objectweb.asm.commons.Method DIVWOOVERLOW_INT =
-        org.objectweb.asm.commons.Method.getMethod("int divideWithoutOverflow(int, int)");
+        getAsmMethod(int.class, "divideWithoutOverflow", int.class, int.class);
     private final static org.objectweb.asm.commons.Method DIVWOOVERLOW_LONG =
-        org.objectweb.asm.commons.Method.getMethod("long divideWithoutOverflow(long, long)");
+        getAsmMethod(long.class, "divideWithoutOverflow", long.class, long.class);
     private final static org.objectweb.asm.commons.Method DIVWOOVERLOW_FLOAT =
-        org.objectweb.asm.commons.Method.getMethod("float divideWithoutOverflow(float, float)");
+        getAsmMethod(float.class, "divideWithoutOverflow", float.class, float.class);
     private final static org.objectweb.asm.commons.Method DIVWOOVERLOW_DOUBLE =
-        org.objectweb.asm.commons.Method.getMethod("double divideWithoutOverflow(double, double)");
+        getAsmMethod(double.class, "divideWithoutOverflow", double.class, double.class);
     private final static org.objectweb.asm.commons.Method REMWOOVERLOW_FLOAT =
-        org.objectweb.asm.commons.Method.getMethod("float remainderWithoutOverflow(float, float)");
+        getAsmMethod(float.class, "remainderWithoutOverflow", float.class, float.class);
     private final static org.objectweb.asm.commons.Method REMWOOVERLOW_DOUBLE =
-        org.objectweb.asm.commons.Method.getMethod("double remainderWithoutOverflow(double, double)");
+        getAsmMethod(double.class, "remainderWithoutOverflow", double.class, double.class);
     private final static org.objectweb.asm.commons.Method ADDWOOVERLOW_FLOAT =
-        org.objectweb.asm.commons.Method.getMethod("float addWithoutOverflow(float, float)");
+        getAsmMethod(float.class, "addWithoutOverflow", float.class, float.class);
     private final static org.objectweb.asm.commons.Method ADDWOOVERLOW_DOUBLE =
-        org.objectweb.asm.commons.Method.getMethod("double addWithoutOverflow(double, double)");
+        getAsmMethod(double.class, "addWithoutOverflow", double.class, double.class);
     private final static org.objectweb.asm.commons.Method SUBWOOVERLOW_FLOAT =
-        org.objectweb.asm.commons.Method.getMethod("float subtractWithoutOverflow(float, float)");
+        getAsmMethod(float.class, "subtractWithoutOverflow", float.class, float.class);
     private final static org.objectweb.asm.commons.Method SUBWOOVERLOW_DOUBLE =
-        org.objectweb.asm.commons.Method.getMethod("double subtractWithoutOverflow(double, double)");
+        getAsmMethod(double.class, "subtractWithoutOverflow", double.class, double.class);
+
+    private static org.objectweb.asm.commons.Method getAsmMethod(final Class<?> rtype, final String name, final Class<?>... ptypes) {
+        return new org.objectweb.asm.commons.Method(name, MethodType.methodType(rtype, ptypes).toMethodDescriptorString());
+    }
 
     static byte[] write(Metadata metadata) {
         Writer writer = new Writer(metadata);
@@ -356,7 +318,7 @@ class Writer extends PainlessParserBaseVisitor<Void> {
     private void writeBegin() {
         final int compute = ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS;
         final int version = Opcodes.V1_7;
-        final int access = Opcodes.ACC_PUBLIC | Opcodes.ACC_SUPER | Opcodes.ACC_FINAL | Opcodes.ACC_SYNTHETIC;
+        final int access = Opcodes.ACC_PUBLIC | Opcodes.ACC_SUPER | Opcodes.ACC_FINAL;
         final String base = BASE_CLASS_TYPE.getInternalName();
         final String name = CLASS_TYPE.getInternalName();
 
@@ -366,7 +328,7 @@ class Writer extends PainlessParserBaseVisitor<Void> {
     }
 
     private void writeConstructor() {
-        final int access = Opcodes.ACC_PUBLIC | Opcodes.ACC_SYNTHETIC;
+        final int access = Opcodes.ACC_PUBLIC;
         final GeneratorAdapter constructor = new GeneratorAdapter(access, CONSTRUCTOR, null, null, writer);
         constructor.loadThis();
         constructor.loadArgs();
@@ -376,7 +338,7 @@ class Writer extends PainlessParserBaseVisitor<Void> {
     }
 
     private void writeExecute() {
-        final int access = Opcodes.ACC_PUBLIC | Opcodes.ACC_SYNTHETIC;
+        final int access = Opcodes.ACC_PUBLIC;
         execute = new GeneratorAdapter(access, EXECUTE, SIGNATURE, null, writer);
 
         final Label fals = new Label();

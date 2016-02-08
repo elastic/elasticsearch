@@ -37,6 +37,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.MockEngineFactoryPlugin;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.sort.SortOrder;
@@ -176,7 +177,7 @@ public class RandomExceptionCircuitBreakerIT extends ESIntegTestCase {
 
                 // Since .cleanUp() is no longer called on cache clear, we need to call it on each node manually
                 for (String node : internalCluster().getNodeNames()) {
-                    final IndicesFieldDataCache fdCache = internalCluster().getInstance(IndicesFieldDataCache.class, node);
+                    final IndicesFieldDataCache fdCache = internalCluster().getInstance(IndicesService.class, node).getIndicesFieldDataCache();
                     // Clean up the cache, ensuring that entries' listeners have been called
                     fdCache.getCache().refresh();
                 }

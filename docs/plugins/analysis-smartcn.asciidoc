@@ -18,7 +18,7 @@ This plugin can be installed using the plugin manager:
 
 [source,sh]
 ----------------------------------------------------------------
-sudo bin/plugin install analysis-smartcn
+sudo bin/elasticsearch-plugin install analysis-smartcn
 ----------------------------------------------------------------
 
 The plugin must be installed on every node in the cluster, and each node must
@@ -32,7 +32,7 @@ The plugin can be removed with the following command:
 
 [source,sh]
 ----------------------------------------------------------------
-sudo bin/plugin remove analysis-smartcn
+sudo bin/elasticsearch-plugin remove analysis-smartcn
 ----------------------------------------------------------------
 
 The node must be stopped before removing the plugin.

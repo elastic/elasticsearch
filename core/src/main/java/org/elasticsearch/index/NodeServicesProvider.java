@@ -20,13 +20,10 @@
 package org.elasticsearch.index;
 
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.indices.IndicesWarmer;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.cache.query.IndicesQueryCache;
-import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -40,24 +37,20 @@ public final class NodeServicesProvider {
 
     private final ThreadPool threadPool;
     private final IndicesQueryCache indicesQueryCache;
-    private final IndicesWarmer warmer;
     private final BigArrays bigArrays;
     private final Client client;
     private final IndicesQueriesRegistry indicesQueriesRegistry;
     private final ScriptService scriptService;
-    private final IndicesFieldDataCache indicesFieldDataCache;
     private final CircuitBreakerService circuitBreakerService;
 
     @Inject
-    public NodeServicesProvider(ThreadPool threadPool, IndicesQueryCache indicesQueryCache, @Nullable IndicesWarmer warmer, BigArrays bigArrays, Client client, ScriptService scriptService, IndicesQueriesRegistry indicesQueriesRegistry, IndicesFieldDataCache indicesFieldDataCache, CircuitBreakerService circuitBreakerService) {
+    public NodeServicesProvider(ThreadPool threadPool, IndicesQueryCache indicesQueryCache, BigArrays bigArrays, Client client, ScriptService scriptService, IndicesQueriesRegistry indicesQueriesRegistry, CircuitBreakerService circuitBreakerService) {
         this.threadPool = threadPool;
         this.indicesQueryCache = indicesQueryCache;
-        this.warmer = warmer;
         this.bigArrays = bigArrays;
         this.client = client;
         this.indicesQueriesRegistry = indicesQueriesRegistry;
         this.scriptService = scriptService;
-        this.indicesFieldDataCache = indicesFieldDataCache;
         this.circuitBreakerService = circuitBreakerService;
     }
 
@@ -67,10 +60,6 @@ public final class NodeServicesProvider {
 
     public IndicesQueryCache getIndicesQueryCache() {
         return indicesQueryCache;
-    }
-
-    public IndicesWarmer getWarmer() {
-        return warmer;
     }
 
     public BigArrays getBigArrays() { return bigArrays; }
@@ -85,10 +74,6 @@ public final class NodeServicesProvider {
 
     public ScriptService getScriptService() {
         return scriptService;
-    }
-
-    public IndicesFieldDataCache getIndicesFieldDataCache() {
-        return indicesFieldDataCache;
     }
 
     public CircuitBreakerService getCircuitBreakerService() {

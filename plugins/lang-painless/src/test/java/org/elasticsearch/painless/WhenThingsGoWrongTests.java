@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless;
 
+import java.util.Arrays;
 import java.util.Collections;
 
 public class WhenThingsGoWrongTests extends ScriptTestCase {
@@ -127,5 +128,22 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
             assertTrue(expected.getMessage().contains(
                 "The maximum number of statements that can be executed in a loop has been reached."));
         }
+    }
+
+    public void testSourceLimits() {
+        char[] chars = new char[Compiler.MAXIMUM_SOURCE_LENGTH + 1];
+        Arrays.fill(chars, '0');
+
+        try {
+            exec(new String(chars));
+            fail("should have hit IllegalArgumentException");
+        } catch (IllegalArgumentException expected) {
+            assertTrue(expected.getMessage().contains("Scripts may be no longer than"));
+        }
+
+        chars = new char[Compiler.MAXIMUM_SOURCE_LENGTH];
+        Arrays.fill(chars, '0');
+
+        assertEquals(0, exec(new String(chars)));
     }
 }

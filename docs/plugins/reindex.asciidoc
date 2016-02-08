@@ -530,7 +530,7 @@ The number of documents that were successfully created. This is not returned by
 === Response body
 
 While `_reindex` and `_update_by_query` are running you can fetch their status
-using the task list API. This will fetch `_reindex`:
+using the {ref}/task/list.html[Task List APIs]. This will fetch `_reindex`:
 
 [source,js]
 --------------------------------------------------
@@ -566,7 +566,7 @@ The responses looks like:
         "id" : 36619,
         "type" : "transport",
         "action" : "indices:data/write/update/byquery",
-        "status" : {
+        "status" : {    <1>
           "total" : 6154,
           "updated" : 3500,
           "created" : 0,
@@ -583,10 +583,11 @@ The responses looks like:
 }
 --------------------------------------------------
 
-The actual status is the `status` object. It is just like the response json
-with the important addition of the `total` field. That is the total number
+<1> this object contains the actual status. It is just like the response json
+with the important addition of the `total` field. `total` is the total number
 of operations that the reindex expects to perform. You can estimate the
-progess by adding the `updated`, `created`, and `deleted` fields.
+progress by adding the `updated`, `created`, and `deleted` fields. The request
+will finish when their sum is equal to the `total` field.
 
 
 [float]

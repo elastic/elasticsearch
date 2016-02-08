@@ -20,6 +20,7 @@
 package org.elasticsearch.search;
 
 import com.carrotsearch.hppc.ObjectFloatHashMap;
+
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ExceptionsHelper;

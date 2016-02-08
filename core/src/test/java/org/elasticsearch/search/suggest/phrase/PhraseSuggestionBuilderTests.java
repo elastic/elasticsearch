@@ -42,6 +42,10 @@ public class PhraseSuggestionBuilderTests extends AbstractSuggestionBuilderTestC
 
     @Override
     protected PhraseSuggestionBuilder randomSuggestionBuilder() {
+        return randomPhraseSuggestionBuilder();
+    }
+
+    public static PhraseSuggestionBuilder randomPhraseSuggestionBuilder() {
         PhraseSuggestionBuilder testBuilder = new PhraseSuggestionBuilder(randomAsciiOfLength(10));
         maybeSet(testBuilder::maxErrors, randomFloat());
         maybeSet(testBuilder::separator, randomAsciiOfLengthBetween(1, 10));

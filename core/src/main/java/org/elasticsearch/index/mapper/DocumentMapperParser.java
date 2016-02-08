@@ -49,7 +49,6 @@ public class DocumentMapperParser {
 
     final MapperService mapperService;
     final AnalysisService analysisService;
-    private static final ESLogger logger = Loggers.getLogger(DocumentMapperParser.class);
     private final SimilarityService similarityService;
     private final Supplier<QueryShardContext> queryShardContextSupplier;
 

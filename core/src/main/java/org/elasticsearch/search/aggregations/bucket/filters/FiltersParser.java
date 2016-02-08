@@ -82,7 +82,7 @@ public class FiltersParser implements Aggregator.Parser {
                         if (token == XContentParser.Token.FIELD_NAME) {
                             key = parser.currentName();
                         } else {
-                            ParsedQuery filter = context.indexShard().getQueryShardContext().parseInnerFilter(parser);
+                            ParsedQuery filter = context.getQueryShardContext().parseInnerFilter(parser);
                             filters.add(new FiltersAggregator.KeyedFilter(key, filter == null ? Queries.newMatchAllQuery() : filter.query()));
                         }
                     }
@@ -95,7 +95,7 @@ public class FiltersParser implements Aggregator.Parser {
                     keyed = false;
                     int idx = 0;
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        ParsedQuery filter = context.indexShard().getQueryShardContext().parseInnerFilter(parser);
+                        ParsedQuery filter = context.getQueryShardContext().parseInnerFilter(parser);
                         filters.add(new FiltersAggregator.KeyedFilter(String.valueOf(idx), filter == null ? Queries.newMatchAllQuery()
                                 : filter.query()));
                         idx++;

@@ -68,7 +68,7 @@ public class CustomQueryParserIT extends ESIntegTestCase {
 
     private static QueryShardContext queryShardContext() {
         IndicesService indicesService = internalCluster().getDataNodeInstance(IndicesService.class);
-        return indicesService.indexServiceSafe("index").getQueryShardContext();
+        return indicesService.indexServiceSafe("index").newQueryShardContext();
     }
 
     //see #11120

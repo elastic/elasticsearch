@@ -79,7 +79,7 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
     protected void setSearchContext(String[] types) {
         final MapperService mapperService = queryShardContext().getMapperService();
         final IndexFieldDataService fieldData = indexFieldDataService();
-        TestSearchContext testSearchContext = new TestSearchContext() {
+        TestSearchContext testSearchContext = new TestSearchContext(queryShardContext()) {
 
             @Override
             public MapperService mapperService() {
@@ -91,7 +91,7 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
                 return fieldData; // need to build / parse inner hits sort fields
             }
         };
-        testSearchContext.setTypes(types);
+        testSearchContext.getQueryShardContext().setTypes(types);
         SearchContext.setCurrent(testSearchContext);
     }
 
@@ -192,11 +192,12 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
 
     public void testToQueryInnerQueryType() throws IOException {
         String[] searchTypes = new String[]{CHILD_TYPE};
-        QueryShardContext.setTypes(searchTypes);
+        QueryShardContext shardContext = createShardContext();
+        shardContext.setTypes(searchTypes);
         HasParentQueryBuilder hasParentQueryBuilder = new HasParentQueryBuilder(PARENT_TYPE, new IdsQueryBuilder().addIds("id"));
-        Query query = hasParentQueryBuilder.toQuery(createShardContext());
+        Query query = hasParentQueryBuilder.toQuery(shardContext);
         //verify that the context types are still the same as the ones we previously set
-        assertThat(QueryShardContext.getTypes(), equalTo(searchTypes));
+        assertThat(shardContext.getTypes(), equalTo(searchTypes));
         HasChildQueryBuilderTests.assertLateParsingQuery(query, PARENT_TYPE, "id");
     }
 

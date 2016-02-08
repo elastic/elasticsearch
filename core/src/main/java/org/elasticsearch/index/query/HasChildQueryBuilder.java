@@ -26,6 +26,7 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.JoinUtil;
 import org.apache.lucene.search.join.ScoreMode;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -205,13 +206,15 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        String[] previousTypes = QueryShardContext.setTypesWithPrevious(type);
         Query innerQuery;
+        final String[] previousTypes = context.getTypes();
+        context.setTypes(type);
         try {
             innerQuery = query.toQuery(context);
         } finally {
-            QueryShardContext.setTypes(previousTypes);
+            context.setTypes(previousTypes);
         }
+
         if (innerQuery == null) {
             return null;
         }

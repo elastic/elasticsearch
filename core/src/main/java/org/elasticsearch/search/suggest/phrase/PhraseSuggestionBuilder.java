@@ -414,7 +414,7 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
          * Default discount parameter for {@link StupidBackoff} smoothing
          */
         public static final double DEFAULT_BACKOFF_DISCOUNT = 0.4;
-        static final StupidBackoff PROTOTYPE = new StupidBackoff(DEFAULT_BACKOFF_DISCOUNT);
+        public static final StupidBackoff PROTOTYPE = new StupidBackoff(DEFAULT_BACKOFF_DISCOUNT);
         private double discount = DEFAULT_BACKOFF_DISCOUNT;
         private static final String NAME = "stupid_backoff";
         private static final ParseField DISCOUNT_FIELD = new ParseField("discount");
@@ -511,7 +511,7 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
          * Default alpha parameter for laplace smoothing
          */
         public static final double DEFAULT_LAPLACE_ALPHA = 0.5;
-        static final Laplace PROTOTYPE = new Laplace(DEFAULT_LAPLACE_ALPHA);
+        public static final Laplace PROTOTYPE = new Laplace(DEFAULT_LAPLACE_ALPHA);
 
         /**
          * Creates a Laplace smoothing model.
@@ -656,7 +656,7 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
      */
     public static final class LinearInterpolation extends SmoothingModel {
         private static final String NAME = "linear";
-        static final LinearInterpolation PROTOTYPE = new LinearInterpolation(0.8, 0.1, 0.1);
+        public static final LinearInterpolation PROTOTYPE = new LinearInterpolation(0.8, 0.1, 0.1);
         private final double trigramLambda;
         private final double bigramLambda;
         private final double unigramLambda;

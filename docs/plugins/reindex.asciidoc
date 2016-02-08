@@ -529,7 +529,7 @@ The number of documents that were successfully created. This is not returned by
 [float]
 === Response body
 
-While `_reindex` and `_update_by_query` is running you can fetch its status
+While `_reindex` and `_update_by_query` are running you can fetch their status
 using the task list API. This will fetch `_reindex`:
 
 [source,js]
@@ -546,7 +546,7 @@ POST /_tasks/*/*byquery?pretty&detailed=true
 --------------------------------------------------
 // AUTOSENSE
 
-Those fetch all running reindexes and the response looks like:
+The responses looks like:
 
 [source,js]
 --------------------------------------------------

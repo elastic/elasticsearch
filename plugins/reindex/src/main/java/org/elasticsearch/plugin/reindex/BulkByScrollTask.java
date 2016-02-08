@@ -267,6 +267,10 @@ public class BulkByScrollTask extends Task {
             return noops;
         }
 
+        /**
+         * All of the indexing failures. Version conflicts are only included if the request sets abortOnVersionConflict to true (the
+         * default).
+         */
         public List<Failure> getIndexingFailures() {
             return indexingFailures;
         }

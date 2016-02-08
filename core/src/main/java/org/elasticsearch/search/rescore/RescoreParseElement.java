@@ -36,10 +36,10 @@ public class RescoreParseElement implements SearchParseElement {
     public void parse(XContentParser parser, SearchContext context) throws Exception {
         if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
             while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                context.addRescore(parseSingleRescoreContext(parser, context.indexShard().getQueryShardContext()));
+                context.addRescore(parseSingleRescoreContext(parser, context.getQueryShardContext()));
             }
         } else {
-            context.addRescore(parseSingleRescoreContext(parser, context.indexShard().getQueryShardContext()));
+            context.addRescore(parseSingleRescoreContext(parser, context.getQueryShardContext()));
         }
     }
 

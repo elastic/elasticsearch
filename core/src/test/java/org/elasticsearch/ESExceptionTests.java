@@ -194,7 +194,7 @@ public class ESExceptionTests extends ESTestCase {
 
     public void testToXContent() throws IOException {
         {
-            ElasticsearchException ex = new SearchParseException(new TestSearchContext(), "foo", new XContentLocation(1,0));
+            ElasticsearchException ex = new SearchParseException(new TestSearchContext(null), "foo", new XContentLocation(1,0));
             XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.startObject();
             ex.toXContent(builder, PARAMS);

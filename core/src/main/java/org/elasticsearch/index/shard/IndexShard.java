@@ -27,7 +27,6 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.UsageTrackingQueryCachingPolicy;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.apache.lucene.util.CloseableThreadLocal;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.ThreadInterruptedException;
 import org.elasticsearch.ElasticsearchException;
@@ -158,7 +157,6 @@ public class IndexShard extends AbstractIndexShardComponent {
     private final IndicesQueryCache indicesQueryCache;
     private final IndexEventListener indexEventListener;
     private final IndexSettings idxSettings;
-    private final NodeServicesProvider provider;
 
     /** How many bytes we are currently moving to disk, via either IndexWriter.flush or refresh.  IndexingMemoryController polls this
      *  across all shards to decide if throttling is necessary because moving bytes to disk is falling behind vs incoming documents
@@ -253,9 +251,9 @@ public class IndexShard extends AbstractIndexShardComponent {
 
         this.engineConfig = newEngineConfig(translogConfig, cachingPolicy);
         this.suspendableRefContainer = new SuspendableRefContainer();
-        this.provider = provider;
         this.searcherWrapper = indexSearcherWrapper;
-        this.percolatorQueriesRegistry = new PercolatorQueriesRegistry(shardId, indexSettings, newQueryShardContext());
+        QueryShardContext queryShardContext = new QueryShardContext(idxSettings, provider.getClient(), indexCache.bitsetFilterCache(), indexFieldDataService, mapperService, similarityService, provider.getScriptService(), provider.getIndicesQueriesRegistry());
+        this.percolatorQueriesRegistry = new PercolatorQueriesRegistry(shardId, indexSettings, queryShardContext);
     }
 
     public Store store() {
@@ -814,7 +812,7 @@ public class IndexShard extends AbstractIndexShardComponent {
                         engine.flushAndClose();
                     }
                 } finally { // playing safe here and close the engine even if the above succeeds - close can be called multiple times
-                    IOUtils.close(engine, percolatorQueriesRegistry, queryShardContextCache);
+                    IOUtils.close(engine, percolatorQueriesRegistry);
                 }
             }
         }
@@ -1497,25 +1495,6 @@ public class IndexShard extends AbstractIndexShardComponent {
             this.cause = cause;
             this.indexUUID = indexUUID;
         }
-    }
-
-    private CloseableThreadLocal<QueryShardContext> queryShardContextCache = new CloseableThreadLocal<QueryShardContext>() {
-        // TODO We should get rid of this threadlocal but I think it should be a sep change
-        @Override
-        protected QueryShardContext initialValue() {
-            return newQueryShardContext();
-        }
-    };
-
-    private QueryShardContext newQueryShardContext() {
-        return new QueryShardContext(idxSettings, provider.getClient(), indexCache.bitsetFilterCache(), indexFieldDataService, mapperService, similarityService, provider.getScriptService(), provider.getIndicesQueriesRegistry());
-    }
-
-    /**
-     * Returns a threadlocal QueryShardContext for this shard.
-     */
-    public QueryShardContext getQueryShardContext() {
-        return queryShardContextCache.get();
     }
 
     EngineFactory getEngineFactory() {

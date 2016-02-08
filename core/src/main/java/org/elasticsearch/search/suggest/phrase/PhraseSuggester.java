@@ -33,7 +33,6 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.query.ParsedQuery;
-import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
@@ -65,7 +64,7 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
     /*
      * More Ideas:
      *   - add ability to find whitespace problems -> we can build a poor mans decompounder with our index based on a automaton?
-     *   - add ability to build different error models maybe based on a confusion matrix?   
+     *   - add ability to build different error models maybe based on a confusion matrix?
      *   - try to combine a token with its subsequent token to find / detect word splits (optional)
      *      - for this to work we need some way to defined the position length of a candidate
      *   - phonetic filters could be interesting here too for candidate selection
@@ -84,8 +83,8 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
             DirectSpellChecker directSpellChecker = SuggestUtils.getDirectSpellChecker(generator);
             Terms terms = MultiFields.getTerms(indexReader, generator.field());
             if (terms !=  null) {
-                gens.add(new DirectCandidateGenerator(directSpellChecker, generator.field(), generator.suggestMode(), 
-                        indexReader, realWordErrorLikelihood, generator.size(), generator.preFilter(), generator.postFilter(), terms));    
+                gens.add(new DirectCandidateGenerator(directSpellChecker, generator.field(), generator.suggestMode(),
+                        indexReader, realWordErrorLikelihood, generator.size(), generator.preFilter(), generator.postFilter(), terms));
             }
         }
         final String suggestField = suggestion.getField();
@@ -119,8 +118,7 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
                     final ExecutableScript executable = scriptService.executable(collateScript, vars);
                     final BytesReference querySource = (BytesReference) executable.run();
                     IndexService indexService = indicesService.indexService(suggestion.getIndex());
-                    IndexShard shard = indexService.getShard(suggestion.getShard());
-                    final ParsedQuery parsedQuery = shard.getQueryShardContext().parse(querySource);
+                    final ParsedQuery parsedQuery = indexService.newQueryShardContext().parse(querySource);
                     collateMatch = Lucene.exists(searcher, parsedQuery.query());
                 }
                 if (!collateMatch && !collatePrune) {
@@ -152,7 +150,7 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
     ScriptService scriptService() {
         return scriptService;
     }
-    
+
     @Override
     public SuggestContextParser getContextParser() {
         return new PhraseSuggestParser(this);

@@ -21,12 +21,9 @@ package org.elasticsearch.search.sort;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -38,17 +35,17 @@ import java.util.Objects;
 /**
  * A sort builder to sort based on a document field.
  */
-public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
+public class FieldSortBuilder extends SortBuilder implements SortBuilderTemp<FieldSortBuilder> {
+    public static final String NAME = "field_sort";
     static final FieldSortBuilder PROTOTYPE = new FieldSortBuilder("");
     public static final String NAME = "field_sort";
     public static final ParseField NESTED_PATH = new ParseField("nested_path");
     public static final ParseField NESTED_FILTER = new ParseField("nested_filter");
     public static final ParseField MISSING = new ParseField("missing");
     public static final ParseField ORDER = new ParseField("order");
-    public static final ParseField SORT_MODE = new ParseField("mode");    
+    public static final ParseField SORT_MODE = new ParseField("mode");
     public static final ParseField UNMAPPED_TYPE = new ParseField("unmapped_type");
 
- 
     private final String fieldName;
 
     private Object missing;
@@ -71,10 +68,12 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         this.setNestedFilter(template.getNestedFilter());
         this.setNestedPath(template.getNestedPath());
     }
+
     /**
      * Constructs a new sort based on a document field.
      *
-     * @param fieldName The field name.
+     * @param fieldName
+     *            The field name.
      */
     public FieldSortBuilder(String fieldName) {
         if (fieldName == null) {
@@ -82,7 +81,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         }
         this.fieldName = fieldName;
     }
-    
+
     /** Returns the document field this sort should be based on. */
     public String getFieldName() {
         return this.fieldName;
@@ -111,24 +110,29 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
 
     /**
      * Set the type to use in case the current field is not mapped in an index.
-     * Specifying a type tells Elasticsearch what type the sort values should have, which is important
-     * for cross-index search, if there are sort fields that exist on some indices only.
-     * If the unmapped type is <tt>null</tt> then query execution will fail if one or more indices
-     * don't have a mapping for the current field.
+     * Specifying a type tells Elasticsearch what type the sort values should
+     * have, which is important for cross-index search, if there are sort fields
+     * that exist on some indices only. If the unmapped type is <tt>null</tt>
+     * then query execution will fail if one or more indices don't have a
+     * mapping for the current field.
      */
     public FieldSortBuilder unmappedType(String type) {
         this.unmappedType = type;
         return this;
     }
 
-    /** Returns the type to use in case the current field is not mapped in an index. */
+    /**
+     * Returns the type to use in case the current field is not mapped in an
+     * index.
+     */
     public String unmappedType() {
         return this.unmappedType;
     }
 
     /**
-     * Defines what values to pick in the case a document contains multiple values for the targeted sort field.
-     * Possible values: min, max, sum and avg
+     * Defines what values to pick in the case a document contains multiple
+     * values for the targeted sort field. Possible values: min, max, sum and
+     * avg
      * 
      * TODO would love to see an enum here
      * <p>
@@ -139,37 +143,48 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         return this;
     }
 
-    /** Returns what values to pick in the case a document contains multiple values for the targeted sort field. */
+    /**
+     * Returns what values to pick in the case a document contains multiple
+     * values for the targeted sort field.
+     */
     public String sortMode() {
         return this.sortMode;
     }
+
     /**
-     * Sets the nested filter that the nested objects should match with in order to be taken into account
-     * for sorting.
+     * Sets the nested filter that the nested objects should match with in order
+     * to be taken into account for sorting.
      * 
-     * TODO should the above getters and setters be deprecated/ changed in favour of real getters and setters?
+     * TODO should the above getters and setters be deprecated/ changed in
+     * favour of real getters and setters?
      */
     public FieldSortBuilder setNestedFilter(QueryBuilder nestedFilter) {
         this.nestedFilter = nestedFilter;
         return this;
     }
 
-    /** Returns the nested filter that the nested objects should match with in order to be taken into account
-     * for sorting. */
+    /**
+     * Returns the nested filter that the nested objects should match with in
+     * order to be taken into account for sorting.
+     */
     public QueryBuilder getNestedFilter() {
         return this.nestedFilter;
     }
 
     /**
-     * Sets the nested path if sorting occurs on a field that is inside a nested object. By default when sorting on a
-     * field inside a nested object, the nearest upper nested object is selected as nested path.
+     * Sets the nested path if sorting occurs on a field that is inside a nested
+     * object. By default when sorting on a field inside a nested object, the
+     * nearest upper nested object is selected as nested path.
      */
     public FieldSortBuilder setNestedPath(String nestedPath) {
         this.nestedPath = nestedPath;
         return this;
     }
 
-    /** Returns the nested path if sorting occurs in a field that is inside a nested object. */
+    /**
+     * Returns the nested path if sorting occurs in a field that is inside a
+     * nested object.
+     */
     public String getNestedPath() {
         return this.nestedPath;
     }
@@ -207,24 +222,20 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
             return true;
         }
 
-        if (other== null || getClass() != other.getClass()) {
+        if (other == null || getClass() != other.getClass()) {
             return false;
         }
 
         FieldSortBuilder builder = (FieldSortBuilder) other;
-        return (Objects.equals(this.fieldName, builder.fieldName) &&
-                Objects.equals(this.nestedFilter, builder.nestedFilter) &&
-                Objects.equals(this.nestedPath, builder.nestedPath) &&
-                Objects.equals(this.missing, builder.missing) &&
-                Objects.equals(this.order, builder.order) &&
-                Objects.equals(this.sortMode, builder.sortMode) &&
-                Objects.equals(this.unmappedType, builder.unmappedType));
+        return (Objects.equals(this.fieldName, builder.fieldName) && Objects.equals(this.nestedFilter, builder.nestedFilter)
+                && Objects.equals(this.nestedPath, builder.nestedPath) && Objects.equals(this.missing, builder.missing)
+                && Objects.equals(this.order, builder.order) && Objects.equals(this.sortMode, builder.sortMode)
+                && Objects.equals(this.unmappedType, builder.unmappedType));
     }
-    
+
     @Override
     public int hashCode() {
-        return Objects.hash(this.fieldName, this.nestedFilter, this.nestedPath,
-                this.missing, this.order, this.sortMode, this.unmappedType);
+        return Objects.hash(this.fieldName, this.nestedFilter, this.nestedPath, this.missing, this.order, this.sortMode, this.unmappedType);
     }
 
     @Override
@@ -243,14 +254,14 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         }
         out.writeOptionalString(this.nestedPath);
         out.writeGenericValue(this.missing);
-        
+
         if (this.order != null) {
             out.writeBoolean(true);
             this.order.writeTo(out);
         } else {
             out.writeBoolean(false);
         }
-        
+
         out.writeOptionalString(this.sortMode);
         out.writeOptionalString(this.unmappedType);
     }
@@ -285,7 +296,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         SortOrder order = null;
         String sortMode = null;
         String unmappedType = null;
-        
+
         String currentFieldName = null;
         XContentParser.Token token;
         fieldName = elementName;
@@ -343,6 +354,16 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
             builder.unmappedType(unmappedType);
         }
         return builder;
+    }
+
+    @Override
+    public String getName() {
+        return "field_sort_builder";
+    }
+
+    @Override
+    public SortBuilderTemp<FieldSortBuilder> getBuilderPrototype() {
+        return PROTOTYPE;
     }
 
 }

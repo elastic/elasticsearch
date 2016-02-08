@@ -19,14 +19,15 @@
 
 package org.elasticsearch.search.sort;
 
+import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.index.query.QueryParseContext;
 
 import java.io.IOException;
 
-public interface ParameterParser<T extends ToXContent> {
+public interface SortBuilderTemp<T extends ToXContent> extends NamedWriteable<FieldSortBuilder>, ToXContent {
     /**
-     * Creates a new item from the json held by the {@link ParameterParser}
+     * Creates a new item from the json held by the {@link SortBuilderTemp}
      * in {@link org.elasticsearch.common.xcontent.XContent} format
      *
      * @param context
@@ -35,5 +36,9 @@ public interface ParameterParser<T extends ToXContent> {
      *            call
      * @return the new item
      */
-    T fromXContent(QueryParseContext context, String elementName) throws IOException;
+    NamedWriteable<T> fromXContent(QueryParseContext context, String elementName) throws IOException;
+    
+    String getName();
+
+    SortBuilderTemp<T> getBuilderPrototype();
 }

@@ -51,7 +51,7 @@ public enum SortOrder implements Writeable<SortOrder> {
         }
     };
     
-    private static final SortOrder PROTOTYPE = ASC;
+    private static final SortOrder PROTOTYPE = DESC;
 
     @Override
     public SortOrder readFrom(StreamInput in) throws IOException {

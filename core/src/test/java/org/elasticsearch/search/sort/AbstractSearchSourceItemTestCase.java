@@ -42,8 +42,7 @@ import java.io.IOException;
 
 import static org.hamcrest.Matchers.*;
 
-//TODO maybe merge with AbstractsortBuilderTestCase once #14933 is in?
-public abstract class AbstractSearchSourceItemTestCase<T extends NamedWriteable<T> & ToXContent & ParameterParser<T>> extends ESTestCase {
+public abstract class AbstractSearchSourceItemTestCase<T extends SortBuilderTemp<T>> extends ESTestCase {
 
     protected static NamedWriteableRegistry namedWriteableRegistry;
 
@@ -146,17 +145,19 @@ public abstract class AbstractSearchSourceItemTestCase<T extends NamedWriteable<
         }
     }
 
-    protected T copyItem(T original) throws IOException {
+    protected T copyItem(SortBuilderTemp<T> sort) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            original.writeTo(output);
+            sort.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
+                SortBuilderTemp<?> prototype = sortParser(sort.getName()).getBuilderPrototype();
                 @SuppressWarnings("unchecked")
-                T prototype = (T) namedWriteableRegistry.getPrototype(getPrototype(), original.getWriteableName());
-                T copy = (T) prototype.readFrom(in);
-                return copy;
+                T secondQuery = (T) prototype.readFrom(in);
+                return secondQuery;
             }
         }
     }
-    
-    protected abstract Class<T> getPrototype();
+
+    private SortBuilderTemp<?> sortParser(String queryId) {
+        return indicesQueriesRegistry.sortParsers().get(queryId);
+    }
 }

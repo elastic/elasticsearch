@@ -22,7 +22,10 @@ package org.elasticsearch.bootstrap;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Scope;
 
-public class BootstrapSettings {
+public final class BootstrapSettings {
+
+    private BootstrapSettings() {
+    }
 
     // TODO: remove this: http://www.openbsd.org/papers/hackfest2015-pledge/mgp00005.jpg
     /**

@@ -55,10 +55,6 @@ public class BulkIndexByScrollResponse extends ActionResponse implements ToXCont
         return status;
     }
 
-    public String getWriteableName() {
-        return status.getWriteableName();
-    }
-
     public long getUpdated() {
         return status.getUpdated();
     }

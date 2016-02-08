@@ -323,7 +323,7 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
         int fileDescriptorCountThreshold = (1 << 16);
         if (maxFileDescriptorCount < fileDescriptorCountThreshold) {
             logger.warn(
-                    "max file descriptors [{}] for elasticsearch process likely too low, consider increasing to [{}]",
+                    "max file descriptors [{}] for elasticsearch process likely too low, consider increasing to at least [{}]",
                     maxFileDescriptorCount,
                     fileDescriptorCountThreshold);
         }

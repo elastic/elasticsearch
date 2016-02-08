@@ -19,8 +19,6 @@
 
 package org.elasticsearch.plugin.reindex;
 
-import java.util.Objects;
-
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.index.IndexRequest;
@@ -45,8 +43,9 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import static java.util.Objects.requireNonNull;
+import java.util.Objects;
 
+import static java.util.Objects.requireNonNull;
 import static org.elasticsearch.index.VersionType.INTERNAL;
 
 public class TransportReindexAction extends HandledTransportAction<ReindexRequest, ReindexResponse> {
@@ -170,7 +169,7 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         }
 
         @Override
-        protected ReindexResponse buildResponse(long took) {
+        protected ReindexResponse buildResponse(TimeValue took) {
             return new ReindexResponse(took, task.getStatus());
         }
 

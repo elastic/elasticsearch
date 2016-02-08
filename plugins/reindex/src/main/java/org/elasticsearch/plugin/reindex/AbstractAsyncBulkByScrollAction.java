@@ -19,16 +19,6 @@
 
 package org.elasticsearch.plugin.reindex;
 
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
-
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
@@ -46,13 +36,23 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
+
 import static java.lang.Math.max;
 import static java.lang.Math.min;
-
+import static org.elasticsearch.common.unit.TimeValue.timeValueNanos;
 import static org.elasticsearch.plugin.reindex.AbstractBulkByScrollRequest.SIZE_ALL_MATCHES;
 import static org.elasticsearch.rest.RestStatus.CONFLICT;
 import static org.elasticsearch.search.sort.SortBuilders.fieldSort;
@@ -92,7 +92,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
 
     protected abstract BulkRequest buildBulk(Iterable<SearchHit> docs);
 
-    protected abstract Response buildResponse(long took);
+    protected abstract Response buildResponse(TimeValue took);
 
     public void start() {
         initialSearch();
@@ -326,7 +326,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
             });
         }
         if (failure == null) {
-            listener.onResponse(buildResponse(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTime.get())));
+            listener.onResponse(buildResponse(timeValueNanos(System.nanoTime() - startTime.get())));
         } else {
             listener.onFailure(failure);
         }

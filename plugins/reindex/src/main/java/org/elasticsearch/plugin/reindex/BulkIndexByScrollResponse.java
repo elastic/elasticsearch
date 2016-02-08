@@ -24,6 +24,7 @@ import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -36,18 +37,18 @@ import static java.util.Objects.requireNonNull;
  * Response used for actions that index many documents using a scroll request.
  */
 public class BulkIndexByScrollResponse extends ActionResponse implements ToXContent {
-    private long took;
+    private TimeValue took;
     private BulkByScrollTask.Status status;
 
     public BulkIndexByScrollResponse() {
     }
 
-    public BulkIndexByScrollResponse(long took, BulkByScrollTask.Status status) {
+    public BulkIndexByScrollResponse(TimeValue took, BulkByScrollTask.Status status) {
         this.took = took;
-        this.status = requireNonNull(status);
+        this.status = requireNonNull(status, "Null status not supported");
     }
 
-    public long getTook() {
+    public TimeValue getTook() {
         return took;
     }
 
@@ -82,20 +83,20 @@ public class BulkIndexByScrollResponse extends ActionResponse implements ToXCont
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeVLong(took);
+        took.writeTo(out);
         status.writeTo(out);
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        took = in.readVLong();
+        took = TimeValue.readTimeValue(in);
         status = new BulkByScrollTask.Status(in);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field("took", took);
+        builder.field("took", took.millis());
         status.innerXContent(builder, params, false, false);
         return builder;
     }

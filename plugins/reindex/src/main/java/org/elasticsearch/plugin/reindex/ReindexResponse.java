@@ -19,6 +19,7 @@
 
 package org.elasticsearch.plugin.reindex;
 
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -30,7 +31,7 @@ public class ReindexResponse extends BulkIndexByScrollResponse {
     public ReindexResponse() {
     }
 
-    public ReindexResponse(long took, BulkByScrollTask.Status status) {
+    public ReindexResponse(TimeValue took, BulkByScrollTask.Status status) {
         super(took, status);
     }
 

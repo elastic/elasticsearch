@@ -42,6 +42,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static org.apache.lucene.util.TestUtil.randomSimpleString;
+import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 
 /**
  * Round trip tests for all Streamable things declared in this plugin.
@@ -98,14 +99,14 @@ public class RoundTripTests extends ESTestCase {
     }
 
     public void testReindexResponse() throws IOException {
-        ReindexResponse response = new ReindexResponse(randomPositiveLong(), randomStatus());
+        ReindexResponse response = new ReindexResponse(timeValueMillis(randomPositiveLong()), randomStatus());
         ReindexResponse tripped = new ReindexResponse();
         roundTrip(response, tripped);
         assertResponseEquals(response, tripped);
     }
 
     public void testBulkIndexByScrollResponse() throws IOException {
-        BulkIndexByScrollResponse response = new BulkIndexByScrollResponse(randomPositiveLong(), randomStatus());
+        BulkIndexByScrollResponse response = new BulkIndexByScrollResponse(timeValueMillis(randomPositiveLong()), randomStatus());
         BulkIndexByScrollResponse tripped = new BulkIndexByScrollResponse();
         roundTrip(response, tripped);
         assertResponseEquals(response, tripped);

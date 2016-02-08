@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.internal.IdFieldMapper;
 import org.elasticsearch.index.mapper.internal.IndexFieldMapper;
@@ -89,7 +90,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
         }
 
         @Override
-        protected BulkIndexByScrollResponse buildResponse(long took) {
+        protected BulkIndexByScrollResponse buildResponse(TimeValue took) {
             return new BulkIndexByScrollResponse(took, task.getStatus());
         }
 

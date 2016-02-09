@@ -410,14 +410,20 @@ public final class ShardRouting implements Streamable, ToXContent {
 
     /**
      * Initializes an unassigned shard on a node.
+     *
+     * @param existingAllocationId allocation id to use. If null, a fresh allocation id is generated.
      */
-    void initialize(String nodeId, long expectedShardSize) {
+    void initialize(String nodeId, @Nullable String existingAllocationId, long expectedShardSize) {
         ensureNotFrozen();
         assert state == ShardRoutingState.UNASSIGNED : this;
         assert relocatingNodeId == null : this;
         state = ShardRoutingState.INITIALIZING;
         currentNodeId = nodeId;
-        allocationId = AllocationId.newInitializing();
+        if (existingAllocationId == null) {
+            allocationId = AllocationId.newInitializing();
+        } else {
+            allocationId = AllocationId.newInitializing(existingAllocationId);
+        }
         this.expectedShardSize = expectedShardSize;
     }
 

@@ -439,7 +439,7 @@ public class ExceptionSerializationTests extends ESTestCase {
     }
 
     public void testSearchParseException() throws IOException {
-        SearchContext ctx = new TestSearchContext();
+        SearchContext ctx = new TestSearchContext(null);
         SearchParseException ex = serialize(new SearchParseException(ctx, "foo", new XContentLocation(66, 666)));
         assertEquals("foo", ex.getMessage());
         assertEquals(66, ex.getLineNumber());

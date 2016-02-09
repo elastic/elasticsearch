@@ -88,6 +88,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.transport.netty.NettyTransport;
 import org.elasticsearch.tribe.TribeService;
+import org.elasticsearch.bootstrap.BootstrapSettings;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -378,6 +379,11 @@ public final class ClusterSettings extends AbstractScopedSettings {
             PageCacheRecycler.WEIGHT_LONG_SETTING,
             PageCacheRecycler.WEIGHT_OBJECTS_SETTING,
             PageCacheRecycler.TYPE_SETTING,
-            PluginsService.MANDATORY_SETTING
+            PluginsService.MANDATORY_SETTING,
+            BootstrapSettings.SECURITY_MANAGER_ENABLED_SETTING,
+            BootstrapSettings.SECURITY_FILTER_BAD_DEFAULTS_SETTING,
+            BootstrapSettings.MLOCKALL_SETTING,
+            BootstrapSettings.SECCOMP_SETTING,
+            BootstrapSettings.CTRLHANDLER_SETTING
         )));
 }

@@ -173,8 +173,8 @@ public class PercolatorService extends AbstractComponent implements Releasable {
     }
 
     public PercolateShardResponse percolate(PercolateShardRequest request) throws IOException {
-        IndexService percolateIndexService = indicesService.indexServiceSafe(request.shardId().getIndex());
-        IndexShard indexShard = percolateIndexService.getShard(request.shardId().id());
+        final IndexService percolateIndexService = indicesService.indexServiceSafe(request.shardId().getIndex());
+        final IndexShard indexShard = percolateIndexService.getShard(request.shardId().id());
         indexShard.readAllowed(); // check if we can read the shard...
         PercolatorQueriesRegistry percolateQueryRegistry = indexShard.percolateRegistry();
         percolateQueryRegistry.prePercolate();
@@ -187,7 +187,7 @@ public class PercolatorService extends AbstractComponent implements Releasable {
                 indexShard.shardId().getIndex().getName(),
                 request.indices()
         );
-        Query aliasFilter = percolateIndexService.aliasFilter(indexShard.getQueryShardContext(), filteringAliases);
+        Query aliasFilter = percolateIndexService.aliasFilter(percolateIndexService.newQueryShardContext(), filteringAliases);
 
         SearchShardTarget searchShardTarget = new SearchShardTarget(clusterService.localNode().id(), request.shardId().getIndex(),
                 request.shardId().id());
@@ -195,8 +195,7 @@ public class PercolatorService extends AbstractComponent implements Releasable {
                 pageCacheRecycler, bigArrays, scriptService, aliasFilter, parseFieldMatcher, fetchPhase);
         SearchContext.setCurrent(context);
         try {
-            ParsedDocument parsedDocument = percolateDocumentParser.parse(request, context, percolateIndexService.mapperService(), percolateIndexService.getQueryShardContext());
-
+            ParsedDocument parsedDocument = percolateDocumentParser.parse(request, context, percolateIndexService.mapperService());
             if (context.searcher().getIndexReader().maxDoc() == 0) {
                 return new PercolateShardResponse(Lucene.EMPTY_TOP_DOCS, Collections.emptyMap(), Collections.emptyMap(), context);
             }

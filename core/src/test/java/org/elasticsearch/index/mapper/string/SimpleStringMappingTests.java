@@ -50,6 +50,7 @@ import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.VersionUtils;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
@@ -278,6 +279,33 @@ public class SimpleStringMappingTests extends ESSingleNodeTestCase {
             Map<String, Object> serializedMap = getSerializedMap(fieldName, mapper);
             assertEquals(serializedMap.get("search_quote_analyzer"), "simple");
         }
+    }
+
+    public void testSearchAnalyzerSerialization() throws IOException {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties")
+                    .startObject("field")
+                        .field("type", "string")
+                        .field("analyzer", "standard")
+                        .field("search_analyzer", "keyword")
+                    .endObject()
+                .endObject().endObject().endObject().string();
+
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
+        assertEquals(mapping,  mapper.mappingSource().toString());
+
+        // special case: default index analyzer
+        mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties")
+                    .startObject("field")
+                        .field("type", "string")
+                        .field("analyzer", "default")
+                        .field("search_analyzer", "keyword")
+                    .endObject()
+                .endObject().endObject().endObject().string();
+
+        mapper = parser.parse("type", new CompressedXContent(mapping));
+        assertEquals(mapping,  mapper.mappingSource().toString());
     }
 
     private Map<String, Object> getSerializedMap(String fieldName, DocumentMapper mapper) throws Exception {

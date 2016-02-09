@@ -30,6 +30,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -74,7 +75,6 @@ import static java.util.Collections.unmodifiableMap;
  */
 public class QueryShardContext {
 
-    private static final ThreadLocal<String[]> typesContext = new ThreadLocal<>();
     private final MapperService mapperService;
     private final ScriptService scriptService;
     private final SimilarityService similarityService;
@@ -82,23 +82,14 @@ public class QueryShardContext {
     private final IndexFieldDataService indexFieldDataService;
     private final IndexSettings indexSettings;
     private final Client client;
+    private String[] types = Strings.EMPTY_ARRAY;
 
-    public static void setTypes(String[] types) {
-        typesContext.set(types);
+    public void setTypes(String... types) {
+        this.types = types;
     }
 
-    public static String[] getTypes() {
-        return typesContext.get();
-    }
-
-    public static String[] setTypesWithPrevious(String... types) {
-        String[] old = typesContext.get();
-        setTypes(types);
-        return old;
-    }
-
-    public static void removeTypes() {
-        typesContext.remove();
+    public String[] getTypes() {
+        return types;
     }
 
     private final Map<String, Query> namedQueries = new HashMap<>();
@@ -126,6 +117,7 @@ public class QueryShardContext {
 
     public QueryShardContext(QueryShardContext source) {
         this(source.indexSettings, source.client, source.bitsetFilterCache, source.indexFieldDataService, source.mapperService, source.similarityService, source.scriptService, source.indicesQueriesRegistry);
+        this.types = source.getTypes();
     }
 
 

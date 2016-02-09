@@ -23,8 +23,6 @@ import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.percolate.PercolateShardRequest;
-import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -35,7 +33,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.DocumentMapperForType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.aggregations.AggregationPhase;
@@ -60,7 +57,7 @@ public class PercolateDocumentParser {
         this.aggregationPhase = aggregationPhase;
     }
 
-    public ParsedDocument parse(PercolateShardRequest request, PercolateContext context, MapperService mapperService, QueryShardContext queryShardContext) {
+    public ParsedDocument parse(final PercolateShardRequest request, final PercolateContext context, final MapperService mapperService) {
         BytesReference source = request.source();
         if (source == null || source.length() == 0) {
             if (request.docSource() != null && request.docSource().length() != 0) {
@@ -73,13 +70,13 @@ public class PercolateDocumentParser {
         // TODO: combine all feature parse elements into one map
         Map<String, ? extends SearchParseElement> hlElements = highlightPhase.parseElements();
         Map<String, ? extends SearchParseElement> aggregationElements = aggregationPhase.parseElements();
-
+        final QueryShardContext queryShardContext = context.getQueryShardContext();
         ParsedDocument doc = null;
         // Some queries (function_score query when for decay functions) rely on a SearchContext being set:
         // We switch types because this context needs to be in the context of the percolate queries in the shard and
         // not the in memory percolate doc
-        String[] previousTypes = context.types();
-        context.types(new String[]{PercolatorService.TYPE_NAME});
+        final String[] previousTypes = queryShardContext.getTypes();
+        queryShardContext.setTypes(PercolatorService.TYPE_NAME);
         try (XContentParser parser = XContentFactory.xContent(source).createParser(source);) {
             String currentFieldName = null;
             XContentParser.Token token;
@@ -176,7 +173,7 @@ public class PercolateDocumentParser {
         } catch (Throwable e) {
             throw new ElasticsearchParseException("failed to parse request", e);
         } finally {
-            context.types(previousTypes);
+            queryShardContext.setTypes(previousTypes);
         }
 
         if (request.docSource() != null && request.docSource().length() != 0) {

@@ -56,18 +56,14 @@ import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptSettings;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.InternalSettingsPlugin;
-import org.elasticsearch.test.TestSearchContext;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.cluster.TestClusterService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
-import org.junit.After;
 import org.junit.AfterClass;
-import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -212,20 +208,6 @@ public abstract class BaseAggregationTestCase<AB extends AggregatorBuilder<AB>> 
         namedWriteableRegistry = null;
     }
 
-    @Before
-    public void beforeTest() {
-        //set some random types to be queried as part the search request, before each test
-        String[] types = getRandomTypes();
-        TestSearchContext testSearchContext = new TestSearchContext();
-        testSearchContext.setTypes(types);
-        SearchContext.setCurrent(testSearchContext);
-    }
-
-    @After
-    public void afterTest() {
-        SearchContext.removeCurrent();
-    }
-
     /**
      * Generic test that creates new AggregatorFactory from the test
      * AggregatorFactory and checks both for equality and asserts equality on
@@ -266,7 +248,7 @@ public abstract class BaseAggregationTestCase<AB extends AggregatorBuilder<AB>> 
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             testAgg.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
-                AggregatorBuilder prototype = (AggregatorBuilder) namedWriteableRegistry.getPrototype(AggregatorBuilder.class, 
+                AggregatorBuilder prototype = (AggregatorBuilder) namedWriteableRegistry.getPrototype(AggregatorBuilder.class,
                     testAgg.getWriteableName());
                 AggregatorBuilder deserializedQuery = prototype.readFrom(in);
                 assertEquals(deserializedQuery, testAgg);
@@ -308,7 +290,7 @@ public abstract class BaseAggregationTestCase<AB extends AggregatorBuilder<AB>> 
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             agg.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
-                AggregatorBuilder prototype = (AggregatorBuilder) namedWriteableRegistry.getPrototype(AggregatorBuilder.class, 
+                AggregatorBuilder prototype = (AggregatorBuilder) namedWriteableRegistry.getPrototype(AggregatorBuilder.class,
                     agg.getWriteableName());
                 @SuppressWarnings("unchecked")
                 AB secondAgg = (AB) prototype.readFrom(in);

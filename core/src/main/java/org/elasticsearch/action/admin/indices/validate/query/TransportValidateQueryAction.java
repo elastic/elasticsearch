@@ -168,7 +168,8 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<Valid
     protected ShardValidateQueryResponse shardOperation(ShardValidateQueryRequest request) {
         IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         IndexShard indexShard = indexService.getShard(request.shardId().id());
-        final QueryShardContext queryShardContext = indexShard.getQueryShardContext();
+        final QueryShardContext queryShardContext = indexService.newQueryShardContext();
+        queryShardContext.setTypes(request.types());
 
         boolean valid;
         String explanation = null;

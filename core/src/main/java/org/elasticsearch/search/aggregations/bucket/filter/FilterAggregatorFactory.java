@@ -42,7 +42,7 @@ public class FilterAggregatorFactory extends AggregatorFactory<FilterAggregatorF
             AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
         super(name, type, context, parent, subFactoriesBuilder, metaData);
         IndexSearcher contextSearcher = context.searchContext().searcher();
-        Query filter = filterBuilder.toQuery(context.searchContext().indexShard().getQueryShardContext());
+        Query filter = filterBuilder.toQuery(context.searchContext().getQueryShardContext());
         weight = contextSearcher.createNormalizedWeight(filter, false);
     }
 

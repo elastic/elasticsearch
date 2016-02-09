@@ -73,12 +73,10 @@ public abstract class SearchContext implements Releasable {
 
     public static void setCurrent(SearchContext value) {
         current.set(value);
-        QueryShardContext.setTypes(value.types());
     }
 
     public static void removeCurrent() {
         current.remove();
-        QueryShardContext.removeTypes();
     }
 
     public static SearchContext current() {
@@ -134,10 +132,6 @@ public abstract class SearchContext implements Releasable {
     public abstract SearchShardTarget shardTarget();
 
     public abstract int numberOfShards();
-
-    public abstract boolean hasTypes();
-
-    public abstract String[] types();
 
     public abstract float queryBoost();
 
@@ -381,5 +375,7 @@ public abstract class SearchContext implements Releasable {
          */
         CONTEXT
     }
+
+    public abstract QueryShardContext getQueryShardContext();
 
 }

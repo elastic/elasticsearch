@@ -74,6 +74,11 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.signific
  */
 public class SignificanceHeuristicTests extends ESTestCase {
     static class SignificantTermsTestSearchContext extends TestSearchContext {
+
+        public SignificantTermsTestSearchContext() {
+            super(null);
+        }
+
         @Override
         public int numberOfShards() {
             return 1;

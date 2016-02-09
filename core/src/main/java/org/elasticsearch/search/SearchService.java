@@ -649,8 +649,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
         if (source == null) {
             return;
         }
-        final IndexShard indexShard = context.indexShard();
-        QueryShardContext queryShardContext = indexShard.getQueryShardContext();
+        QueryShardContext queryShardContext = context.getQueryShardContext();
         context.from(source.from());
         context.size(source.size());
         ObjectFloatHashMap<String> indexBoostMap = source.indexBoost();
@@ -754,7 +753,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
         if (source.rescores() != null) {
             try {
                 for (RescoreBuilder<?> rescore : source.rescores()) {
-                    context.addRescore(rescore.build(context.indexShard().getQueryShardContext()));
+                    context.addRescore(rescore.build(context.getQueryShardContext()));
                 }
             } catch (IOException e) {
                 throw new SearchContextException(context, "failed to create RescoreSearchContext", e);
@@ -779,7 +778,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
         if (source.highlighter() != null) {
             HighlightBuilder highlightBuilder = source.highlighter();
             try {
-                context.highlight(highlightBuilder.build(context.indexShard().getQueryShardContext()));
+                context.highlight(highlightBuilder.build(context.getQueryShardContext()));
             } catch (IOException e) {
                 throw new SearchContextException(context, "failed to create SearchContextHighlighter", e);
             }

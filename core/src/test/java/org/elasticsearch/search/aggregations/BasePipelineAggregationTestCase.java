@@ -57,18 +57,14 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptSettings;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorFactory;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.InternalSettingsPlugin;
-import org.elasticsearch.test.TestSearchContext;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.cluster.TestClusterService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
-import org.junit.After;
 import org.junit.AfterClass;
-import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -210,20 +206,6 @@ public abstract class BasePipelineAggregationTestCase<AF extends PipelineAggrega
         aggParsers = null;
         currentTypes = null;
         namedWriteableRegistry = null;
-    }
-
-    @Before
-    public void beforeTest() {
-        //set some random types to be queried as part the search request, before each test
-        String[] types = getRandomTypes();
-        TestSearchContext testSearchContext = new TestSearchContext();
-        testSearchContext.setTypes(types);
-        SearchContext.setCurrent(testSearchContext);
-    }
-
-    @After
-    public void afterTest() {
-        SearchContext.removeCurrent();
     }
 
     /**

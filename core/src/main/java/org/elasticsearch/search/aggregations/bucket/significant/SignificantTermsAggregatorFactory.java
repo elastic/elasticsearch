@@ -109,7 +109,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
         Query filter = null;
         try {
             if (filterBuilder != null) {
-                filter = filterBuilder.toFilter(context.searchContext().indexShard().getQueryShardContext());
+                filter = filterBuilder.toFilter(context.searchContext().getQueryShardContext());
             }
         } catch (IOException e) {
             throw new ElasticsearchException("failed to create filter: " + filterBuilder.toString(), e);

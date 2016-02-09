@@ -17,19 +17,19 @@
  * under the License.
  */
 
-package org.elasticsearch.search.query;
+package org.elasticsearch.bootstrap;
 
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.SearchParseElement;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.ESTestCase;
 
-/**
- *
- */
-public class QueryParseElement implements SearchParseElement {
+public class BootstrapSettingsTests extends ESTestCase {
 
-    @Override
-    public void parse(XContentParser parser, SearchContext context) throws Exception {
-        context.parsedQuery(context.getQueryShardContext().parse(parser));
+    public void testDefaultSettings() {
+        assertTrue(BootstrapSettings.SECURITY_MANAGER_ENABLED_SETTING.get(Settings.EMPTY));
+        assertTrue(BootstrapSettings.SECURITY_FILTER_BAD_DEFAULTS_SETTING.get(Settings.EMPTY));
+        assertFalse(BootstrapSettings.MLOCKALL_SETTING.get(Settings.EMPTY));
+        assertTrue(BootstrapSettings.SECCOMP_SETTING.get(Settings.EMPTY));
+        assertTrue(BootstrapSettings.CTRLHANDLER_SETTING.get(Settings.EMPTY));
     }
+
 }

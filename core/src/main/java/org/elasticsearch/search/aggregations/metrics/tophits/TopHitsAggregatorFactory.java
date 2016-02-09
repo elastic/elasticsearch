@@ -136,7 +136,7 @@ public class TopHitsAggregatorFactory extends AggregatorFactory<TopHitsAggregato
             subSearchContext.fetchSourceContext(fetchSourceContext);
         }
         if (highlightBuilder != null) {
-            subSearchContext.highlight(highlightBuilder.build(aggregationContext.searchContext().indexShard().getQueryShardContext()));
+            subSearchContext.highlight(highlightBuilder.build(aggregationContext.searchContext().getQueryShardContext()));
         }
         return new TopHitsAggregator(aggregationContext.searchContext().fetchPhase(), subSearchContext, name, aggregationContext, parent,
                 pipelineAggregators, metaData);

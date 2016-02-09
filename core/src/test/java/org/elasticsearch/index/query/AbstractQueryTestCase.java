@@ -332,15 +332,14 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     }
 
     protected void setSearchContext(String[] types) {
-        TestSearchContext testSearchContext = new TestSearchContext();
-        testSearchContext.setTypes(types);
+        TestSearchContext testSearchContext = new TestSearchContext(queryShardContext);
+        testSearchContext.getQueryShardContext().setTypes(types);
         SearchContext.setCurrent(testSearchContext);
     }
 
     @After
     public void afterTest() {
         clientInvocationHandler.delegate = null;
-        QueryShardContext.removeTypes();
         SearchContext.removeCurrent();
     }
 

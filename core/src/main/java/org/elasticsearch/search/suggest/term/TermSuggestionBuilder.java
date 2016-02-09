@@ -19,12 +19,6 @@
 
 package org.elasticsearch.search.suggest.term;
 
-import org.apache.lucene.search.spell.DirectSpellChecker;
-import org.apache.lucene.search.spell.JaroWinklerDistance;
-import org.apache.lucene.search.spell.LevensteinDistance;
-import org.apache.lucene.search.spell.LuceneLevenshteinDistance;
-import org.apache.lucene.search.spell.NGramDistance;
-import org.apache.lucene.search.spell.StringDistance;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -545,6 +539,8 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
                     return LEVENSTEIN;
                 case "ngram":
                     return NGRAM;
+                case "jarowinkler":
+                    return JAROWINKLER;
                 default: throw new IllegalArgumentException("Illegal distance option " + str);
             }
         }

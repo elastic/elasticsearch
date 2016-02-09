@@ -1,5 +1,20 @@
 h1. Elasticsearch
 
+h2. What to Use Elasticsearch For and When to Use It.
+
+Have extremely large amounts of data to churn through? Want to return searches quickly and accurately? Elasticsearch can easily index massive amounts of data and return results faster with less resource consumption when compared to then other search technologies (e.g. conventional SQL database search).
+
+Elasticsearch has many use cases including:
+* Search (e.g. simple search, fuzzy search, aggregating and so on)
+* Search suggestions (e.g. Type ahead suggested searches)
+* Analytics store
+* Auto completer
+* Spell checker
+* Alerting engine
+* Logging
+* General purpose document store
+* ...and many more.
+
 h2. A Distributed RESTful Search Engine
 
 h3. "https://www.elastic.co/products/elasticsearch":https://www.elastic.co/products/elasticsearch

@@ -855,6 +855,12 @@
                             <artifactId>java17</artifactId>
                             <version>1.0</version>
                         </signature>
+                        <ignores>
+                            <!-- This class is invalid and only used in order to
+                            verify that duplicate classes fails with a JAR hell,
+                            so we prevent animal sniffer from checking it. -->
+                            <ignore>DuplicateClass</ignore>
+                        </ignores>
                     </configuration>
                     <executions>
                         <execution>

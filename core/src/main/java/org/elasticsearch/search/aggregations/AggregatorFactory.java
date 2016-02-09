@@ -67,6 +67,7 @@ public abstract class AggregatorFactory<AF extends AggregatorFactory<AF>> extend
         this.type = type;
         this.context = context;
         this.factories = subFactoriesBuilder.build(context, this);
+        this.metaData = metaData;
     }
 
     public String name() {

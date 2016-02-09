@@ -256,8 +256,8 @@ public class Setting<T> extends ToXContentToBytes {
      * this is used for settings that depend on each other... see {@link org.elasticsearch.common.settings.AbstractScopedSettings#addSettingsUpdateConsumer(Setting, Setting, BiConsumer)} and it's
      * usage for details.
      */
-    static <A, B> AbstractScopedSettings.SettingUpdater<Tuple<A, B>> compoundUpdater(final BiConsumer<A,B> consumer, final Setting<A> aSettting, final Setting<B> bSetting, ESLogger logger) {
-        final AbstractScopedSettings.SettingUpdater<A> aSettingUpdater = aSettting.newUpdater(null, logger);
+    static <A, B> AbstractScopedSettings.SettingUpdater<Tuple<A, B>> compoundUpdater(final BiConsumer<A,B> consumer, final Setting<A> aSetting, final Setting<B> bSetting, ESLogger logger) {
+        final AbstractScopedSettings.SettingUpdater<A> aSettingUpdater = aSetting.newUpdater(null, logger);
         final AbstractScopedSettings.SettingUpdater<B> bSettingUpdater = bSetting.newUpdater(null, logger);
         return new AbstractScopedSettings.SettingUpdater<Tuple<A, B>>() {
             @Override

@@ -23,10 +23,14 @@ import com.carrotsearch.randomizedtesting.RandomizedTest;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.client.RestException;
+import org.elasticsearch.test.rest.client.RestResponse;
 import org.elasticsearch.test.rest.parser.RestTestParseException;
 import org.elasticsearch.test.rest.parser.RestTestSuiteParser;
 import org.elasticsearch.test.rest.section.DoSection;
@@ -56,6 +60,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -261,27 +266,55 @@ public abstract class ESRestTestCase extends ESTestCase {
     @After
     public void wipeCluster() throws Exception {
         // wipe indices
-        Set<String> indicesToDelete = indicesToDelete();
-        if (false == indicesToDelete.isEmpty()) {
+        String deleteIndices = "*";
+        if (excludeIndices().size() > 0) {
+            deleteIndices = Strings.collectionToDelimitedString(excludeIndices(), ",", "-", "");
+        }
+
+        Map<String, String> deleteIndicesArgs = new HashMap<>();
+        deleteIndicesArgs.put("index", deleteIndices);
+        try {
+            adminExecutionContext.callApi("indices.delete", deleteIndicesArgs, Collections.emptyList(), Collections.emptyMap());
+        } catch (RestException e) {
+            // 404 here just means we had no indexes
+            if (e.statusCode() != 404) {
+                throw e;
+            }
+        }
+
+        // wipe index templates
+        String deleteTemplates = "*";
+        if (excludeTemplates().size() > 0) {
             try {
-                Map<String, String> deleteIndicesArgs = new HashMap<>();
-                deleteIndicesArgs.put("index", Strings.collectionToCommaDelimitedString(indicesToDelete));
-                adminExecutionContext.callApi("indices.delete", deleteIndicesArgs, Collections.emptyList(), Collections.emptyMap());
+                // We need to list all existing templates first
+                RestResponse response = adminExecutionContext.callApi("indices.get_template", Collections.emptyMap(),
+                        Collections.emptyList(), Collections.emptyMap());
+                try (XContentParser parser = XContentType.JSON.xContent().createParser(response.getBodyAsString())) {
+                    Set<String> deletions = new HashSet<>();
+
+                    String[] exclusions = excludeIndices().toArray(new String[]{});
+                    for (String template : parser.map().keySet()) {
+                        if (Regex.simpleMatch(exclusions, template) == false) {
+                            // If the template name does not match an exclusion,
+                            // we add it to the list of templates to be deleted
+                            deletions.add(template);
+                        }
+                    }
+
+                    if (deletions.isEmpty() == false) {
+                        deleteTemplates = Strings.collectionToCommaDelimitedString(deletions);
+                    }
+                }
             } catch (RestException e) {
-                // 404 here just means we had no indexes
+                // 404 here just means we had no templates
                 if (e.statusCode() != 404) {
                     throw e;
                 }
             }
         }
-
-        // wipe index templates
-        String templatesToDelete = templatesToDelete();
-        if (Strings.hasLength(templatesToDelete)) {
-            Map<String, String> deleteTemplatesArgs = new HashMap<>();
-            deleteTemplatesArgs.put("name", templatesToDelete);
-            adminExecutionContext.callApi("indices.delete_template", deleteTemplatesArgs, Collections.emptyList(), Collections.emptyMap());
-        }
+        Map<String, String> deleteTemplatesArgs = new HashMap<>();
+        deleteTemplatesArgs.put("name", deleteTemplates);
+        adminExecutionContext.callApi("indices.delete_template", deleteTemplatesArgs, Collections.emptyList(), Collections.emptyMap());
 
         // wipe snapshots
         Map<String, String> deleteSnapshotsArgs = new HashMap<>();
@@ -290,17 +323,17 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     /**
-     * @return An include set of indices that will be removed in between tests. Defaults to all indices.
+     * @return An exclude set of indices that will not be removed in between tests.
      */
-    protected Set<String> indicesToDelete() {
-        return Collections.singleton("*");
+    protected Set<String> excludeIndices() {
+        return Collections.emptySet();
     }
 
     /**
-     * @return The name of templates that will be removed in between tests. Defaults to all templates.
+     * @return An exclude set of index templates that will not be removed in between tests.
      */
-    protected String templatesToDelete() {
-        return "*";
+    protected Set<String> excludeTemplates() {
+        return Collections.emptySet();
     }
 
     @AfterClass

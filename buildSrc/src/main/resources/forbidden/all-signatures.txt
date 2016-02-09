@@ -129,3 +129,5 @@ java.util.Collections#shuffle(java.util.List) @ Use java.util.Collections#shuffl
 @defaultMessage Use org.elasticsearch.common.Randomness#get for reproducible sources of randomness
 java.util.Random#<init>()
 java.util.concurrent.ThreadLocalRandom
+
+java.security.MessageDigest#clone() @ use org.elasticsearch.common.hash.MessageDigests

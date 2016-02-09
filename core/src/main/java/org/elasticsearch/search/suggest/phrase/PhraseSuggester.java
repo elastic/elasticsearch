@@ -33,7 +33,6 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.query.ParsedQuery;
-import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
@@ -122,8 +121,7 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
                     final ExecutableScript executable = scriptService.executable(collateScript, vars);
                     final BytesReference querySource = (BytesReference) executable.run();
                     IndexService indexService = indicesService.indexService(suggestion.getIndex());
-                    IndexShard shard = indexService.getShard(suggestion.getShard());
-                    final ParsedQuery parsedQuery = shard.getQueryShardContext().parse(querySource);
+                    final ParsedQuery parsedQuery = indexService.newQueryShardContext().parse(querySource);
                     collateMatch = Lucene.exists(searcher, parsedQuery.query());
                 }
                 if (!collateMatch && !collatePrune) {

@@ -27,7 +27,6 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.UsageTrackingQueryCachingPolicy;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.apache.lucene.util.CloseableThreadLocal;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.ThreadInterruptedException;
 import org.elasticsearch.ElasticsearchException;
@@ -55,6 +54,7 @@ import org.elasticsearch.gateway.MetaDataStateFormat;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.NodeServicesProvider;
+import org.elasticsearch.index.SearchSlowLog;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.bitset.ShardBitsetFilterCache;
@@ -89,13 +89,12 @@ import org.elasticsearch.index.percolator.PercolatorQueriesRegistry;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
-import org.elasticsearch.index.SearchSlowLog;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.search.stats.ShardSearchStats;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.snapshots.IndexShardRepository;
-import org.elasticsearch.index.store.Store.MetadataSnapshot;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.store.Store.MetadataSnapshot;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.suggest.stats.ShardSuggestMetric;
@@ -105,8 +104,8 @@ import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.index.warmer.ShardIndexWarmerService;
 import org.elasticsearch.index.warmer.WarmerStats;
-import org.elasticsearch.indices.cache.query.IndicesQueryCache;
 import org.elasticsearch.indices.IndexingMemoryController;
+import org.elasticsearch.indices.cache.query.IndicesQueryCache;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.percolator.PercolatorService;
@@ -158,7 +157,6 @@ public class IndexShard extends AbstractIndexShardComponent {
     private final IndicesQueryCache indicesQueryCache;
     private final IndexEventListener indexEventListener;
     private final IndexSettings idxSettings;
-    private final NodeServicesProvider provider;
 
     /** How many bytes we are currently moving to disk, via either IndexWriter.flush or refresh.  IndexingMemoryController polls this
      *  across all shards to decide if throttling is necessary because moving bytes to disk is falling behind vs incoming documents
@@ -253,9 +251,9 @@ public class IndexShard extends AbstractIndexShardComponent {
 
         this.engineConfig = newEngineConfig(translogConfig, cachingPolicy);
         this.suspendableRefContainer = new SuspendableRefContainer();
-        this.provider = provider;
         this.searcherWrapper = indexSearcherWrapper;
-        this.percolatorQueriesRegistry = new PercolatorQueriesRegistry(shardId, indexSettings, newQueryShardContext());
+        QueryShardContext queryShardContext = new QueryShardContext(idxSettings, provider.getClient(), indexCache.bitsetFilterCache(), indexFieldDataService, mapperService, similarityService, provider.getScriptService(), provider.getIndicesQueriesRegistry());
+        this.percolatorQueriesRegistry = new PercolatorQueriesRegistry(shardId, indexSettings, queryShardContext);
     }
 
     public Store store() {
@@ -814,7 +812,7 @@ public class IndexShard extends AbstractIndexShardComponent {
                         engine.flushAndClose();
                     }
                 } finally { // playing safe here and close the engine even if the above succeeds - close can be called multiple times
-                    IOUtils.close(engine, percolatorQueriesRegistry, queryShardContextCache);
+                    IOUtils.close(engine, percolatorQueriesRegistry);
                 }
             }
         }
@@ -874,6 +872,12 @@ public class IndexShard extends AbstractIndexShardComponent {
      * After the store has been recovered, we need to start the engine in order to apply operations
      */
     public void performTranslogRecovery(boolean indexExists) {
+        if (indexExists == false) {
+            // note: these are set when recovering from the translog
+            final RecoveryState.Translog translogStats = recoveryState().getTranslog();
+            translogStats.totalOperations(0);
+            translogStats.totalOperationsOnStart(0);
+        }
         internalPerformTranslogRecovery(false, indexExists);
         assert recoveryState.getStage() == RecoveryState.Stage.TRANSLOG : "TRANSLOG stage expected but was: " + recoveryState.getStage();
     }
@@ -1387,6 +1391,15 @@ public class IndexShard extends AbstractIndexShardComponent {
                 assert recoveryState != null;
                 recoveryState.getTranslog().incrementRecoveredOperations();
             }
+
+            @Override
+            public int recoveryFromSnapshot(Engine engine, Translog.Snapshot snapshot) throws IOException {
+                assert recoveryState != null;
+                RecoveryState.Translog translogStats = recoveryState.getTranslog();
+                translogStats.totalOperations(snapshot.totalOperations());
+                translogStats.totalOperationsOnStart(snapshot.totalOperations());
+                return super.recoveryFromSnapshot(engine, snapshot);
+            }
         };
         return new EngineConfig(shardId,
             threadPool, indexSettings, warmer, store, deletionPolicy, indexSettings.getMergePolicy(),
@@ -1497,25 +1510,6 @@ public class IndexShard extends AbstractIndexShardComponent {
             this.cause = cause;
             this.indexUUID = indexUUID;
         }
-    }
-
-    private CloseableThreadLocal<QueryShardContext> queryShardContextCache = new CloseableThreadLocal<QueryShardContext>() {
-        // TODO We should get rid of this threadlocal but I think it should be a sep change
-        @Override
-        protected QueryShardContext initialValue() {
-            return newQueryShardContext();
-        }
-    };
-
-    private QueryShardContext newQueryShardContext() {
-        return new QueryShardContext(idxSettings, provider.getClient(), indexCache.bitsetFilterCache(), indexFieldDataService, mapperService, similarityService, provider.getScriptService(), provider.getIndicesQueriesRegistry());
-    }
-
-    /**
-     * Returns a threadlocal QueryShardContext for this shard.
-     */
-    public QueryShardContext getQueryShardContext() {
-        return queryShardContextCache.get();
     }
 
     EngineFactory getEngineFactory() {

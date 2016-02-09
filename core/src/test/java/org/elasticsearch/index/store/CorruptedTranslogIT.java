@@ -167,13 +167,13 @@ public class CorruptedTranslogIT extends ESIntegTestCase {
 
     /** Disables translog flushing for the specified index */
     private static void disableTranslogFlush(String index) {
-        Settings settings = Settings.builder().put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTTING.getKey(), new ByteSizeValue(1, ByteSizeUnit.PB)).build();
+        Settings settings = Settings.builder().put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(1, ByteSizeUnit.PB)).build();
         client().admin().indices().prepareUpdateSettings(index).setSettings(settings).get();
     }
 
     /** Enables translog flushing for the specified index */
     private static void enableTranslogFlush(String index) {
-        Settings settings = Settings.builder().put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTTING.getKey(), new ByteSizeValue(512, ByteSizeUnit.MB)).build();
+        Settings settings = Settings.builder().put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(512, ByteSizeUnit.MB)).build();
         client().admin().indices().prepareUpdateSettings(index).setSettings(settings).get();
     }
 }

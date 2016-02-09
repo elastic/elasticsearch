@@ -48,6 +48,11 @@ public class ShardRoutingHelper {
         routing.reinitializeShard();
     }
 
+    public static void reinit(ShardRouting routing, UnassignedInfo.Reason reason) {
+        routing.reinitializeShard();
+        routing.updateUnassignedInfo(new UnassignedInfo(reason, "test_reinit"));
+    }
+
     public static void moveToUnassigned(ShardRouting routing, UnassignedInfo info) {
         routing.moveToUnassigned(info);
     }

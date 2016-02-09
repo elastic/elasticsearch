@@ -66,7 +66,7 @@ public class SizeMappingTests extends ESSingleNodeTestCase {
         Map<String, MetadataFieldMapper.TypeParser> metadataMappers = new HashMap<>();
         IndicesModule indices = new IndicesModule();
         indices.registerMetadataMapper(SizeFieldMapper.NAME, new SizeFieldMapper.TypeParser());
-        mapperService = new MapperService(indexService.getIndexSettings(), indexService.analysisService(), indexService.similarityService(), indices.getMapperRegistry(), indexService::getQueryShardContext);
+        mapperService = new MapperService(indexService.getIndexSettings(), indexService.analysisService(), indexService.similarityService(), indices.getMapperRegistry(), indexService::newQueryShardContext);
         parser = mapperService.documentMapperParser();
     }
 
@@ -98,7 +98,7 @@ public class SizeMappingTests extends ESSingleNodeTestCase {
                 Collections.emptyMap(),
                 Collections.singletonMap(SizeFieldMapper.NAME, new SizeFieldMapper.TypeParser()));
         parser = new DocumentMapperParser(indexService.getIndexSettings(), mapperService,
-                indexService.analysisService(), indexService.similarityService(), mapperRegistry, indexService::getQueryShardContext);
+                indexService.analysisService(), indexService.similarityService(), mapperRegistry, indexService::newQueryShardContext);
         DocumentMapper docMapper = parser.parse("type", new CompressedXContent(mapping));
 
         BytesReference source = XContentFactory.jsonBuilder()

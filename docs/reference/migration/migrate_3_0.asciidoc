@@ -112,6 +112,7 @@ The `GET` HTTP verb for `/_forcemerge` is no longer supported, please use the
 ==== Deprecated queries removed
 
 The following deprecated queries have been removed:
+
 * `filtered`: use `bool` query instead, which supports `filter` clauses too
 * `and`: use `must` clauses in a `bool` query instead
 * `or`: use should clauses in a `bool` query instead

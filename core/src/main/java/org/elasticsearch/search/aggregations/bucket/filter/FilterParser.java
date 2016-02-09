@@ -39,7 +39,7 @@ public class FilterParser implements Aggregator.Parser {
 
     @Override
     public AggregatorFactory parse(String aggregationName, XContentParser parser, SearchContext context) throws IOException {
-        ParsedQuery filter = context.indexShard().getQueryShardContext().parseInnerFilter(parser);
+        ParsedQuery filter = context.getQueryShardContext().parseInnerFilter(parser);
 
         return new FilterAggregator.Factory(aggregationName, filter == null ? new MatchAllDocsQuery() : filter.query());
     }

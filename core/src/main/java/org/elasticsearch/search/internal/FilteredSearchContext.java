@@ -35,6 +35,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.query.ParsedQuery;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.ScriptService;
@@ -115,16 +116,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     @Override
     public int numberOfShards() {
         return in.numberOfShards();
-    }
-
-    @Override
-    public boolean hasTypes() {
-        return in.hasTypes();
-    }
-
-    @Override
-    public String[] types() {
-        return in.types();
     }
 
     @Override
@@ -525,4 +516,8 @@ public abstract class FilteredSearchContext extends SearchContext {
     @Override
     public Map<Class<?>, Collector> queryCollectors() { return in.queryCollectors();}
 
+    @Override
+    public QueryShardContext getQueryShardContext() {
+        return in.getQueryShardContext();
+    }
 }

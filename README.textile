@@ -2,7 +2,7 @@ h1. Elasticsearch
 
 h2. What is Elasticsearch?
 
-Elasticsearch is a near realtime search universal platform and generic technology that allows you to explore data at an incredible scale with ease. Elasticsearch is designed to help you try to make sense of your data by handling the storage and providing the analytics engine to organize and make it easily accessible.
+Elasticsearch is a near realtime universal search platform that allows you to explore data at an incredible scale with ease. Elasticsearch is designed to help you try to make sense of your data by handling the storage and providing the analytics engine to organize and make it easily accessible.
 
 h2. A Distributed RESTful Search Engine
 

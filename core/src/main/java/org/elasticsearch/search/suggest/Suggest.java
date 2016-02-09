@@ -19,7 +19,6 @@
 package org.elasticsearch.search.suggest;
 
 import org.apache.lucene.util.CollectionUtil;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -640,39 +639,6 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                 @Override
                 public int hashCode() {
                     return text.hashCode();
-                }
-            }
-        }
-
-        public enum Sort {
-
-            /**
-             * Sort should first be based on score.
-             */
-            SCORE((byte) 0x0),
-
-            /**
-             * Sort should first be based on document frequency.
-             */
-            FREQUENCY((byte) 0x1);
-
-            private byte id;
-
-            private Sort(byte id) {
-                this.id = id;
-            }
-
-            public byte id() {
-                return id;
-            }
-
-            public static Sort fromId(byte id) {
-                if (id == 0) {
-                    return SCORE;
-                } else if (id == 1) {
-                    return FREQUENCY;
-                } else {
-                    throw new ElasticsearchException("Illegal suggest sort " + id);
                 }
             }
         }

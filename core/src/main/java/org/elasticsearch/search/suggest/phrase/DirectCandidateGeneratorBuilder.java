@@ -381,7 +381,7 @@ public final class DirectCandidateGeneratorBuilder
         transferIfNotNull(this.maxInspections, generator::maxInspections);
         transferIfNotNull(this.maxTermFreq, generator::maxTermFreq);
         transferIfNotNull(this.prefixLength, generator::prefixLength);
-        transferIfNotNull(this.minWordLength, generator::minQueryLength);
+        transferIfNotNull(this.minWordLength, generator::minWordLength);
         transferIfNotNull(this.minDocFreq, generator::minDocFreq);
         return generator;
     }

@@ -20,6 +20,7 @@
 package org.elasticsearch.search.suggest.term;
 
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -27,6 +28,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.suggest.DirectSpellcheckerSettings;
+import org.elasticsearch.search.suggest.SuggestUtils;
 import org.elasticsearch.search.suggest.SuggestionBuilder;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 
@@ -384,6 +387,12 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
     }
 
     @Override
+    protected SuggestionContext innerBuild(QueryShardContext context) throws IOException {
+        TermSuggestionContext suggestionContext = new TermSuggestionContext(TermSuggester.PROTOTYPE);
+        return fillSuggestionContext(suggestionContext);
+    }
+
+    @Override
     public String getWriteableName() {
         return SUGGESTION_NAME;
     }
@@ -438,6 +447,23 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
                             maxTermFreq, prefixLength, minWordLength, minDocFreq);
     }
 
+    // Transfers the builder settings to the target TermSuggestionContext
+    private TermSuggestionContext fillSuggestionContext(TermSuggestionContext context) {
+        DirectSpellcheckerSettings settings = context.getDirectSpellCheckerSettings();
+        settings.accuracy(accuracy);
+        settings.maxEdits(maxEdits);
+        settings.maxInspections(maxInspections);
+        settings.maxTermFreq(maxTermFreq);
+        settings.minDocFreq(minDocFreq);
+        settings.minWordLength(minWordLength);
+        settings.prefixLength(prefixLength);
+        settings.sort(sort);
+        settings.stringDistance(SuggestUtils.resolveStringDistance(stringDistance));
+        settings.suggestMode(SuggestUtils.resolveSuggestMode(suggestMode));
+        return context;
+    }
+
+
     /** An enum representing the valid suggest modes. */
     public enum SuggestMode implements Writeable<SuggestMode> {
         /** Only suggest terms in the suggest text that aren't in the index. This is the default. */
@@ -472,11 +498,17 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
     /** An enum representing the valid sorting options */
     public enum SortBy implements Writeable<SortBy> {
         /** Sort should first be based on score, then document frequency and then the term itself. */
-        SCORE,
+        SCORE((byte) 0x0),
         /** Sort should first be based on document frequency, then score and then the term itself. */
-        FREQUENCY;
+        FREQUENCY((byte) 0x1);
 
         protected static SortBy PROTOTYPE = SCORE;
+
+        private byte id;
+
+        SortBy(byte id) {
+            this.id = id;
+        }
 
         @Override
         public void writeTo(final StreamOutput out) throws IOException {
@@ -495,6 +527,20 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
         public static SortBy resolve(final String str) {
             Objects.requireNonNull(str, "Input string is null");
             return valueOf(str.toUpperCase(Locale.ROOT));
+        }
+
+        public byte id() {
+            return id;
+        }
+
+        public static SortBy fromId(byte id) {
+            if (id == 0) {
+                return SCORE;
+            } else if (id == 1) {
+                return FREQUENCY;
+            } else {
+                throw new ElasticsearchException("Illegal suggest sort " + id);
+            }
         }
     }
 

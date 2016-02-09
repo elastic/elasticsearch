@@ -903,13 +903,10 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
 
 
     @Override
-    public SuggestionContext build(QueryShardContext context) throws IOException {
+    public SuggestionContext innerBuild(QueryShardContext context) throws IOException {
         PhraseSuggestionContext suggestionContext = new PhraseSuggestionContext(PhraseSuggester.PROTOTYPE);
         MapperService mapperService = context.getMapperService();
         suggestionContext.setShardContext(context);
-
-        // copy common fields
-        SuggestUtils.suggestionToSuggestionContext(this, mapperService, suggestionContext);
 
         suggestionContext.setSeparator(BytesRefs.toBytesRef(this.separator));
         suggestionContext.setRealWordErrorLikelihood(this.realWordErrorLikelihood);
@@ -943,11 +940,6 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
                 suggestionContext.setCollateScriptParams(this.collateParams);
             }
             suggestionContext.setCollatePrune(this.collatePrune);
-        }
-
-        // TODO make field mandatory in the builder, then remove this
-        if (suggestionContext.getField() == null) {
-            throw new IllegalArgumentException("The required field option is missing");
         }
 
         MappedFieldType fieldType = mapperService.fullName(suggestionContext.getField());

@@ -251,6 +251,7 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
 
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
             SuggestBuilder suggestBuilder = new SuggestBuilder();
+            suggestBuilder.setText(randomAsciiOfLength(10));
             SB suggestionBuilder = randomTestBuilder();
             suggestBuilder.addSuggestion(suggestionBuilder);
 
@@ -274,11 +275,17 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
             SuggestionSearchContext suggestionSearchContext = parseElement.parseInternal(parser, mockShardContext);
             SuggestionContext oldSchoolContext = suggestionSearchContext.suggestions().get(suggestionBuilder.name());
 
-            SuggestionContext newSchoolContext = suggestionBuilder.build(mockShardContext);
+            SuggestionContext newSchoolContext = suggestionBuilder.build(mockShardContext, suggestBuilder.getGlobalText());
 
             assertNotSame(oldSchoolContext, newSchoolContext);
             // deep comparison of analyzers is difficult here, but we check they are same class
-            assertEquals(oldSchoolContext.getAnalyzer().getClass(), newSchoolContext.getAnalyzer().getClass());
+            if (oldSchoolContext.getAnalyzer() == null) {
+                assertNull(newSchoolContext.getAnalyzer());
+            } else if (newSchoolContext.getAnalyzer() == null) {
+                assertNull(oldSchoolContext.getAnalyzer());
+            } else {
+                assertEquals(oldSchoolContext.getAnalyzer().getClass(), newSchoolContext.getAnalyzer().getClass());
+            }
             assertEquals(oldSchoolContext.getField(), newSchoolContext.getField());
             // TODO consolidate text/prefix/regex
             //assertEquals(oldSchoolContext.getPrefix(), newSchoolContext.getPrefix());

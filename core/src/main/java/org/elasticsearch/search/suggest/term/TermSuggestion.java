@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.suggest.term;
 
+import org.apache.lucene.search.Sort;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -80,12 +81,12 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
     }
 
     public static final int TYPE = 1;
-    private Sort sort;
+    private TermSuggestionBuilder.SortBy sort;
 
     public TermSuggestion() {
     }
 
-    public TermSuggestion(String name, int size, Sort sort) {
+    public TermSuggestion(String name, int size, TermSuggestionBuilder.SortBy sort) {
         super(name, size);
         this.sort = sort;
     }
@@ -110,7 +111,7 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
     @Override
     protected void innerReadFrom(StreamInput in) throws IOException {
         super.innerReadFrom(in);
-        sort = Sort.fromId(in.readByte());
+        sort = TermSuggestionBuilder.SortBy.fromId(in.readByte());
     }
 
     @Override

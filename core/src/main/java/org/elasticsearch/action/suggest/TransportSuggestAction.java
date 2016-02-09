@@ -39,7 +39,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.suggest.stats.ShardSuggestMetric;
 import org.elasticsearch.indices.IndicesService;
@@ -132,7 +131,6 @@ public class TransportSuggestAction extends TransportBroadcastAction<SuggestRequ
     protected ShardSuggestResponse shardOperation(ShardSuggestRequest request) {
         IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         IndexShard indexShard = indexService.getShard(request.shardId().id());
-        QueryShardContext shardContext = indexShard.getQueryShardContext();
         ShardSuggestMetric suggestMetric = indexShard.getSuggestMetric();
         suggestMetric.preSuggest();
         long startTime = System.nanoTime();
@@ -144,7 +142,7 @@ public class TransportSuggestAction extends TransportBroadcastAction<SuggestRequ
                 if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
                     throw new IllegalArgumentException("suggest content missing");
                 }
-                final SuggestionSearchContext context = suggestPhase.parseElement().parseInternal(parser, indexShard.getQueryShardContext());
+                final SuggestionSearchContext context = suggestPhase.parseElement().parseInternal(parser, indexService.newQueryShardContext());
                 final Suggest result = suggestPhase.execute(context, searcher.searcher());
                 return new ShardSuggestResponse(request.shardId(), result);
             }

@@ -19,7 +19,9 @@
 
 package org.elasticsearch.search.suggest;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.support.ToXContentToBytes;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.NamedWriteable;
@@ -194,7 +196,20 @@ public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> extends 
 
     protected abstract SuggestionBuilder<T> innerFromXContent(QueryParseContext parseContext, String name) throws IOException;
 
-    protected abstract SuggestionContext build(QueryShardContext context) throws IOException;
+    public SuggestionContext build(QueryShardContext context, @Nullable String globalText) throws IOException {
+        SuggestionContext suggestionContext = innerBuild(context);
+        // copy over common settings to each suggestion builder
+        SuggestUtils.suggestionToSuggestionContext(this, context.getMapperService(), suggestionContext);
+        SuggestUtils.verifySuggestion(context.getMapperService(), new BytesRef(globalText), suggestionContext);
+        suggestionContext.setShardContext(context);
+        // TODO make field mandatory in the builder, then remove this
+        if (suggestionContext.getField() == null) {
+            throw new IllegalArgumentException("The required field option is missing");
+        }
+        return suggestionContext;
+    }
+
+    protected abstract SuggestionContext innerBuild(QueryShardContext context) throws IOException;
 
     public String getSuggesterName() {
         //default impl returns the same as writeable name, but we keep the distinction between the two just to make sure

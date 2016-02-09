@@ -44,7 +44,7 @@ public final class SuggestParseElement implements SearchParseElement {
 
     @Override
     public void parse(XContentParser parser, SearchContext context) throws Exception {
-        SuggestionSearchContext suggestionSearchContext = parseInternal(parser, context.indexShard().getQueryShardContext());
+        SuggestionSearchContext suggestionSearchContext = parseInternal(parser, context.getQueryShardContext());
         context.suggest(suggestionSearchContext);
     }
 

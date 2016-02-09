@@ -379,7 +379,7 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
     }
 
     @Override
-    protected SuggestionContext build(QueryShardContext context) throws IOException {
+    protected SuggestionContext innerBuild(QueryShardContext context) throws IOException {
         // NORELEASE
         throw new UnsupportedOperationException();
     }

@@ -95,6 +95,15 @@ public class SuggestBuilder extends ToXContentToBytes implements Writeable<Sugge
         return suggestions;
     }
 
+    /**
+     * Returns the possibly null global suggest text that
+     * should be applied as the text for all suggesters.
+     */
+    @Nullable
+    public String getGlobalText() {
+        return globalText;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();

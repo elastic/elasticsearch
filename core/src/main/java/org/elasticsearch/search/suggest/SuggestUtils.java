@@ -55,6 +55,7 @@ import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 import java.io.IOException;
 import java.util.Comparator;
 import java.util.Locale;
+import java.util.Objects;
 
 public final class SuggestUtils {
     public static final Comparator<SuggestWord> LUCENE_FREQUENCY = new SuggestWordFrequencyComparator();
@@ -172,12 +173,12 @@ public final class SuggestUtils {
         }
     }
 
-    public static Suggest.Suggestion.Sort resolveSort(String sortVal) {
+    public static TermSuggestionBuilder.SortBy resolveSort(String sortVal) {
         sortVal = sortVal.toLowerCase(Locale.US);
         if ("score".equals(sortVal)) {
-            return Suggest.Suggestion.Sort.SCORE;
+            return TermSuggestionBuilder.SortBy.SCORE;
         } else if ("frequency".equals(sortVal)) {
-            return Suggest.Suggestion.Sort.FREQUENCY;
+            return TermSuggestionBuilder.SortBy.FREQUENCY;
         } else {
             throw new IllegalArgumentException("Illegal suggest sort " + sortVal);
         }
@@ -198,6 +199,28 @@ public final class SuggestUtils {
             return new NGramDistance();
         } else {
             throw new IllegalArgumentException("Illegal distance option " + distanceVal);
+        }
+    }
+
+    public static SuggestMode resolveSuggestMode(TermSuggestionBuilder.SuggestMode suggestMode) {
+        Objects.requireNonNull(suggestMode, "suggestMode must not be null");
+        switch (suggestMode) {
+            case MISSING: return SuggestMode.SUGGEST_WHEN_NOT_IN_INDEX;
+            case POPULAR: return SuggestMode.SUGGEST_MORE_POPULAR;
+            case ALWAYS: return SuggestMode.SUGGEST_ALWAYS;
+            default: throw new IllegalArgumentException("Unknown suggestMode [" + suggestMode + "]");
+        }
+    }
+
+    public static StringDistance resolveStringDistance(TermSuggestionBuilder.StringDistanceImpl stringDistance) {
+        Objects.requireNonNull(stringDistance, "stringDistance must not be null");
+        switch (stringDistance) {
+            case INTERNAL: return DirectSpellChecker.INTERNAL_LEVENSHTEIN;
+            case DAMERAU_LEVENSHTEIN: return new LuceneLevenshteinDistance();
+            case LEVENSTEIN: return new LevensteinDistance();
+            case JAROWINKLER: return new JaroWinklerDistance();
+            case NGRAM: return new NGramDistance();
+            default: throw new IllegalArgumentException("Illegal distance option " + stringDistance);
         }
     }
 
@@ -243,7 +266,7 @@ public final class SuggestUtils {
             } else if (parseFieldMatcher.match(fieldName, Fields.PREFIX_LENGTH)) {
                 suggestion.prefixLength(parser.intValue());
             } else if (parseFieldMatcher.match(fieldName, Fields.MIN_WORD_LENGTH)) {
-                suggestion.minQueryLength(parser.intValue());
+                suggestion.minWordLength(parser.intValue());
             } else if (parseFieldMatcher.match(fieldName, Fields.MIN_DOC_FREQ)) {
                 suggestion.minDocFreq(parser.floatValue());
             } else {

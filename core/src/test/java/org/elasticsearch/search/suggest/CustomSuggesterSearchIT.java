@@ -34,8 +34,10 @@ import org.elasticsearch.test.ESIntegTestCase.Scope;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -135,9 +137,11 @@ public class CustomSuggesterSearchIT extends ESIntegTestCase {
         }
 
         @Override
-        protected SuggestionContext build(QueryShardContext context) throws IOException {
-            // NORELEASE
-            return null;
+        protected SuggestionContext innerBuild(QueryShardContext context) throws IOException {
+            Map<String, Object> options = new HashMap<>();
+            options.put("field", randomField);
+            options.put("suffix", randomSuffix);
+            return new CustomSuggester.CustomSuggestionsContext(new CustomSuggester(), options);
         }
 
     }

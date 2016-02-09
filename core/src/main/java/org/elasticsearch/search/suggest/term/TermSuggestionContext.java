@@ -34,4 +34,9 @@ final class TermSuggestionContext extends SuggestionContext {
         return settings;
     }
 
+    @Override
+    public String toString() {
+        return "SpellcheckerSettings" + settings + ", BaseSettings" + super.toString();
+    }
+
 }

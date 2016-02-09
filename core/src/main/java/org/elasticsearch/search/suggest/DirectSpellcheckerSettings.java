@@ -22,14 +22,14 @@ import org.apache.lucene.search.spell.DirectSpellChecker;
 import org.apache.lucene.search.spell.StringDistance;
 import org.apache.lucene.search.spell.SuggestMode;
 import org.apache.lucene.util.automaton.LevenshteinAutomata;
+import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 
 public class DirectSpellcheckerSettings  {
 
     // NB: If this changes, make sure to change the default in TermBuilderSuggester
     public static SuggestMode DEFAULT_SUGGEST_MODE = SuggestMode.SUGGEST_WHEN_NOT_IN_INDEX;
     public static float DEFAULT_ACCURACY = 0.5f;
-    // NB: If this changes, make sure to change the default in TermBuilderSuggester
-    public static Suggest.Suggestion.Sort DEFAULT_SORT = Suggest.Suggestion.Sort.SCORE;
+    public static TermSuggestionBuilder.SortBy DEFAULT_SORT = TermSuggestionBuilder.SortBy.SCORE;
     // NB: If this changes, make sure to change the default in TermBuilderSuggester
     public static StringDistance DEFAULT_STRING_DISTANCE = DirectSpellChecker.INTERNAL_LEVENSHTEIN;
     public static int DEFAULT_MAX_EDITS = LevenshteinAutomata.MAXIMUM_SUPPORTED_DISTANCE;
@@ -41,7 +41,7 @@ public class DirectSpellcheckerSettings  {
 
     private SuggestMode suggestMode = DEFAULT_SUGGEST_MODE;
     private float accuracy = DEFAULT_ACCURACY;
-    private Suggest.Suggestion.Sort sort = DEFAULT_SORT;
+    private TermSuggestionBuilder.SortBy sort = DEFAULT_SORT;
     private StringDistance stringDistance = DEFAULT_STRING_DISTANCE;
     private int maxEdits = DEFAULT_MAX_EDITS;
     private int maxInspections = DEFAULT_MAX_INSPECTIONS;
@@ -66,11 +66,11 @@ public class DirectSpellcheckerSettings  {
         this.accuracy = accuracy;
     }
 
-    public Suggest.Suggestion.Sort sort() {
+    public TermSuggestionBuilder.SortBy sort() {
         return sort;
     }
 
-    public void sort(Suggest.Suggestion.Sort sort) {
+    public void sort(TermSuggestionBuilder.SortBy sort) {
         this.sort = sort;
     }
 
@@ -118,8 +118,8 @@ public class DirectSpellcheckerSettings  {
         return minWordLength;
     }
 
-    public void minQueryLength(int minQueryLength) {
-        this.minWordLength = minQueryLength;
+    public void minWordLength(int minWordLength) {
+        this.minWordLength = minWordLength;
     }
 
     public float minDocFreq() {
@@ -128,6 +128,22 @@ public class DirectSpellcheckerSettings  {
 
     public void minDocFreq(float minDocFreq) {
         this.minDocFreq = minDocFreq;
+    }
+
+    @Override
+    public String toString() {
+        return "[" +
+                   "suggestMode=" + suggestMode +
+                   ",sort=" + sort +
+                   ",stringDistance=" + stringDistance +
+                   ",accuracy=" + accuracy +
+                   ",maxEdits=" + maxEdits +
+                   ",maxInspections=" + maxInspections +
+                   ",maxTermFreq=" + maxTermFreq +
+                   ",prefixLength=" + prefixLength +
+                   ",minWordLength=" + minWordLength +
+                   ",minDocFreq=" + minDocFreq +
+               "]";
     }
 
 }

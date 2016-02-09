@@ -127,6 +127,21 @@ public class SuggestionSearchContext {
         public QueryShardContext getShardContext() {
             return this.shardContext;
         }
+
+        @Override
+        public String toString() {
+            return "[" +
+                       "text=" + text +
+                       ",field=" + field +
+                       ",prefix=" + prefix +
+                       ",regex=" + regex +
+                       ",size=" + size +
+                       ",shardSize=" + shardSize +
+                       ",suggester=" + suggester +
+                       ",analyzer=" + analyzer +
+                       ",shardContext=" + shardContext +
+                   "]";
+        }
     }
 
 }

@@ -24,7 +24,7 @@ GET my_index/my_type/1?routing=user1 <2>
 // AUTOSENSE
 
 <1> This document uses `user1` as its routing value, instead of its ID.
-<2> The the same `routing` value needs to be provided when
+<2> The same `routing` value needs to be provided when
     <<docs-get,getting>>, <<docs-delete,deleting>>, or <<docs-update,updating>>
     the document.
 

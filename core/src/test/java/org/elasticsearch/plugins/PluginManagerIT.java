@@ -18,9 +18,6 @@
  */
 package org.elasticsearch.plugins;
 
-import com.google.common.base.Charsets;
-import com.google.common.hash.Hashing;
-
 import org.apache.http.impl.client.HttpClients;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
@@ -28,7 +25,7 @@ import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.cli.CliTool;
 import org.elasticsearch.common.cli.CliTool.ExitStatus;
 import org.elasticsearch.common.cli.CliToolTestCase.CaptureOutputTerminal;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
@@ -38,16 +35,25 @@ import org.elasticsearch.test.junit.annotations.Network;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
 import org.jboss.netty.bootstrap.ServerBootstrap;
-import org.jboss.netty.channel.*;
+import org.jboss.netty.channel.Channel;
+import org.jboss.netty.channel.ChannelHandlerContext;
+import org.jboss.netty.channel.ChannelPipeline;
+import org.jboss.netty.channel.ChannelPipelineFactory;
+import org.jboss.netty.channel.Channels;
+import org.jboss.netty.channel.MessageEvent;
+import org.jboss.netty.channel.SimpleChannelUpstreamHandler;
 import org.jboss.netty.channel.socket.nio.NioServerSocketChannelFactory;
-import org.jboss.netty.handler.codec.http.*;
+import org.jboss.netty.handler.codec.http.DefaultHttpResponse;
+import org.jboss.netty.handler.codec.http.HttpRequest;
+import org.jboss.netty.handler.codec.http.HttpRequestDecoder;
+import org.jboss.netty.handler.codec.http.HttpResponseEncoder;
+import org.jboss.netty.handler.codec.http.HttpResponseStatus;
 import org.jboss.netty.handler.ssl.SslContext;
 import org.jboss.netty.handler.ssl.SslHandler;
 import org.jboss.netty.handler.ssl.util.InsecureTrustManagerFactory;
 import org.jboss.netty.handler.ssl.util.SelfSignedCertificate;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Test;
 
 import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLContext;
@@ -80,8 +86,14 @@ import static org.elasticsearch.common.io.FileSystemUtilsTests.assertFileContent
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.plugins.PluginInfoTests.writeProperties;
 import static org.elasticsearch.test.ESIntegTestCase.Scope;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertDirectoryExists;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileExists;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileNotExists;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.jboss.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, transportClientRatio = 0.0)
@@ -113,8 +125,8 @@ public class PluginManagerIT extends ESIntegTestCase {
     }
 
     private void writeSha1(Path file, boolean corrupt) throws IOException {
-        String sha1Hex = Hashing.sha1().hashBytes(Files.readAllBytes(file)).toString();
-        try (BufferedWriter out = Files.newBufferedWriter(file.resolveSibling(file.getFileName() + ".sha1"), Charsets.UTF_8)) {
+        String sha1Hex = MessageDigests.toHexString(MessageDigests.sha1().digest(Files.readAllBytes(file)));
+        try (BufferedWriter out = Files.newBufferedWriter(file.resolveSibling(file.getFileName() + ".sha1"), StandardCharsets.UTF_8)) {
             out.write(sha1Hex);
             if (corrupt) {
                 out.write("bad");
@@ -123,8 +135,8 @@ public class PluginManagerIT extends ESIntegTestCase {
     }
 
     private void writeMd5(Path file, boolean corrupt) throws IOException {
-        String md5Hex = Hashing.md5().hashBytes(Files.readAllBytes(file)).toString();
-        try (BufferedWriter out = Files.newBufferedWriter(file.resolveSibling(file.getFileName() + ".md5"), Charsets.UTF_8)) {
+        String md5Hex = MessageDigests.toHexString(MessageDigests.md5().digest(Files.readAllBytes(file)));
+        try (BufferedWriter out = Files.newBufferedWriter(file.resolveSibling(file.getFileName() + ".md5"), StandardCharsets.UTF_8)) {
             out.write(md5Hex);
             if (corrupt) {
                 out.write("bad");
@@ -695,7 +707,7 @@ public class PluginManagerIT extends ESIntegTestCase {
             assertThat(requests, hasSize(1));
             String msg = String.format(Locale.ROOT, "Request header did not contain Authorization header, terminal output was: %s", terminal.getTerminalOutput());
             assertThat(msg, requests.get(0).headers().contains("Authorization"), is(true));
-            assertThat(msg, requests.get(0).headers().get("Authorization"), is("Basic " + Base64.encodeBytes("user:pass".getBytes(Charsets.UTF_8))));
+            assertThat(msg, requests.get(0).headers().get("Authorization"), is("Basic " + Base64.encodeBytes("user:pass".getBytes(StandardCharsets.UTF_8))));
         } finally {
             HttpsURLConnection.setDefaultSSLSocketFactory(defaultSocketFactory);
             serverBootstrap.releaseExternalResources();

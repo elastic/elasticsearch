@@ -74,7 +74,7 @@ public class GeoDistanceParser extends GeoPointValuesSourceParser {
         static final Range PROTOTYPE = new Range(null, null, null);
 
         public Range(String key, Double from, Double to) {
-            super(key(key, from, to), from, to);
+            super(key(key, from, to), from == null ? 0 : from, to);
         }
 
         private static String key(String key, Double from, Double to) {

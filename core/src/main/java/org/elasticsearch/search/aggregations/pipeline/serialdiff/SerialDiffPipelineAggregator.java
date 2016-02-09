@@ -163,6 +163,9 @@ public class SerialDiffPipelineAggregator extends PipelineAggregator {
          * Sets the lag to use when calculating the serial difference.
          */
         public Factory lag(int lag) {
+            if (lag <= 0) {
+                throw new IllegalArgumentException("[lag] must be a positive integer: [" + name + "]");
+            }
             this.lag = lag;
             return this;
         }

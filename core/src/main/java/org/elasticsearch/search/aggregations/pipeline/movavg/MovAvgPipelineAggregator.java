@@ -343,6 +343,9 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
          *            Size of window
          */
         public Factory window(int window) {
+            if (window <= 0) {
+                throw new IllegalArgumentException("[window] must be a positive integer: [" + name + "]");
+            }
             this.window = window;
             return this;
         }

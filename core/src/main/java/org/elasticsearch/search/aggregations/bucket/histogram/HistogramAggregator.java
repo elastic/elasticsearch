@@ -199,6 +199,9 @@ public class HistogramAggregator extends BucketsAggregator {
         }
 
         public AB interval(long interval) {
+            if (interval < 1) {
+                throw new IllegalArgumentException("[interval] must be 1 or greater for histogram aggregation [" + name + "]");
+            }
             this.interval = interval;
             return (AB) this;
         }
@@ -286,7 +289,7 @@ public class HistogramAggregator extends BucketsAggregator {
                 throws IOException {
             AbstractBuilder<AB> factory = createFactoryFromStream(name, in);
             factory.interval = in.readVLong();
-            factory.offset = in.readVLong();
+            factory.offset = in.readLong();
             if (in.readBoolean()) {
                 factory.order = InternalOrder.Streams.readOrder(in);
             }
@@ -304,7 +307,7 @@ public class HistogramAggregator extends BucketsAggregator {
         protected void innerWriteTo(StreamOutput out) throws IOException {
             writeFactoryToStream(out);
             out.writeVLong(interval);
-            out.writeVLong(offset);
+            out.writeLong(offset);
             boolean hasOrder = order != null;
             out.writeBoolean(hasOrder);
             if (hasOrder) {

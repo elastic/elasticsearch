@@ -21,7 +21,6 @@ package org.elasticsearch.search.aggregations.bucket;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.joda.Joda;
@@ -42,7 +41,6 @@ import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInter
 import org.elasticsearch.search.aggregations.bucket.histogram.ExtendedBounds;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Bucket;
-import org.elasticsearch.search.aggregations.metrics.max.Max;
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -1139,8 +1137,8 @@ public class DateHistogramIT extends ESIntegTestCase {
                     .addAggregation(dateHistogram("histo").field("date").interval(-TimeUnit.DAYS.toMillis(1)).minDocCount(0)).execute()
                     .actionGet();
             fail();
-        } catch (SearchPhaseExecutionException e) {
-            assertThat(e.toString(), containsString("IllegalArgumentException"));
+        } catch (IllegalArgumentException e) {
+            assertThat(e.toString(), containsString("[interval] must be 1 or greater for histogram aggregation [histo]"));
         }
     }
 

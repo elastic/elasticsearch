@@ -714,8 +714,8 @@ public class MovAvgIT extends ESIntegTestCase {
                                             .gapPolicy(gapPolicy))
                     ).execute().actionGet();
             fail("MovingAvg should not accept a window that is zero");
-        } catch (SearchPhaseExecutionException e) {
-           assertThat(e.getMessage(), is("all shards failed"));
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), is("[window] must be a positive integer: [movavg_counts]"));
         }
     }
 
@@ -727,7 +727,7 @@ public class MovAvgIT extends ESIntegTestCase {
                             range("histo").field(INTERVAL_FIELD).addRange(0, 10)
                                     .subAggregation(randomMetric("the_metric", VALUE_FIELD))
                                     .subAggregation(movingAvg("movavg_counts", "the_metric")
-                                            .window(0)
+                                            .window(windowSize)
                                             .modelBuilder(new SimpleModel.SimpleModelBuilder())
                                             .gapPolicy(gapPolicy))
                     ).execute().actionGet();
@@ -752,11 +752,8 @@ public class MovAvgIT extends ESIntegTestCase {
                                             .gapPolicy(gapPolicy))
                     ).execute().actionGet();
             fail("MovingAvg should not accept a window that is negative");
-
-        } catch (SearchPhaseExecutionException exception) {
-            //Throwable rootCause = exception.unwrapCause();
-            //assertThat(rootCause, instanceOf(SearchParseException.class));
-            //assertThat("[window] value must be a positive, non-zero integer.  Value supplied was [0] in [movingAvg].", equalTo(exception.getMessage()));
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), is("[window] must be a positive integer: [movavg_counts]"));
         }
     }
 

@@ -20,7 +20,6 @@
 package org.elasticsearch.search.aggregations.pipeline.serialdiff;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.collect.EvictingQueue;
 import org.elasticsearch.search.aggregations.bucket.histogram.ExtendedBounds;
@@ -286,8 +285,8 @@ public class SerialDiffIT extends ESIntegTestCase {
                                         .lag(-1)
                                         .gapPolicy(gapPolicy))
                 ).execute().actionGet();
-        } catch (SearchPhaseExecutionException e) {
-            assertThat(e.getMessage(), is("all shards failed"));
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), is("[lag] must be a positive integer: [diff_counts]"));
         }
     }
 }

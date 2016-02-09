@@ -20,7 +20,6 @@ package org.elasticsearch.messy.tests;
 
 import com.carrotsearch.hppc.LongHashSet;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
@@ -734,7 +733,7 @@ public class HistogramTests extends ESIntegTestCase {
         SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(1L).minDocCount(0)
-                        .subAggregation(histogram("sub_histo").field("SINGLE_VALUED_FIELD_NAME").interval(1L)))
+                        .subAggregation(histogram("sub_histo").field(SINGLE_VALUED_FIELD_NAME).interval(1L)))
                 .execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
@@ -834,7 +833,7 @@ public class HistogramTests extends ESIntegTestCase {
             client().prepareSearch("empty_bucket_idx")
                     .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(-1).minDocCount(0)).execute().actionGet();
             fail();
-        } catch (SearchPhaseExecutionException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.toString(), containsString("[interval] must be 1 or greater for histogram aggregation [histo]"));
         }
     }

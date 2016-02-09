@@ -59,6 +59,11 @@ import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.SearchScript;
+import org.elasticsearch.search.aggregations.AggregationInitializationException;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.AggregatorParsers;
+import org.elasticsearch.search.aggregations.SearchContextAggregations;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.dfs.DfsPhase;
 import org.elasticsearch.search.dfs.DfsSearchResult;
@@ -146,12 +151,14 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
     private final Map<String, SearchParseElement> elementParsers;
 
     private final ParseFieldMatcher parseFieldMatcher;
+    private AggregatorParsers aggParsers;
 
     @Inject
-    public SearchService(Settings settings, ClusterSettings clusterSettings, ClusterService clusterService, IndicesService indicesService, ThreadPool threadPool,
-                         ScriptService scriptService, PageCacheRecycler pageCacheRecycler, BigArrays bigArrays, DfsPhase dfsPhase, QueryPhase queryPhase, FetchPhase fetchPhase,
-                         IndicesRequestCache indicesQueryCache) {
+    public SearchService(Settings settings, ClusterSettings clusterSettings, ClusterService clusterService, IndicesService indicesService,
+            ThreadPool threadPool, ScriptService scriptService, PageCacheRecycler pageCacheRecycler, BigArrays bigArrays, DfsPhase dfsPhase,
+            QueryPhase queryPhase, FetchPhase fetchPhase, IndicesRequestCache indicesQueryCache, AggregatorParsers aggParsers) {
         super(settings);
+        this.aggParsers = aggParsers;
         this.parseFieldMatcher = new ParseFieldMatcher(settings);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
@@ -552,7 +559,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
                     QueryParseContext queryParseContext = new QueryParseContext(indicesService.getIndicesQueryRegistry());
                     queryParseContext.reset(parser);
                     queryParseContext.parseFieldMatcher(parseFieldMatcher);
-                    parseSource(context, SearchSourceBuilder.parseSearchSource(parser, queryParseContext));
+                    parseSource(context, SearchSourceBuilder.parseSearchSource(parser, queryParseContext, aggParsers));
                 }
             }
             parseSource(context, request.source());
@@ -705,32 +712,13 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
         context.timeoutInMillis(source.timeoutInMillis());
         context.terminateAfter(source.terminateAfter());
         if (source.aggregations() != null) {
-            XContentParser completeAggregationsParser = null;
             try {
-                XContentBuilder completeAggregationsBuilder = XContentFactory.jsonBuilder();
-                completeAggregationsBuilder.startObject();
-                for (BytesReference agg : source.aggregations()) {
-                    XContentParser parser = XContentFactory.xContent(agg).createParser(agg);
-                    parser.nextToken();
-                    parser.nextToken();
-                    completeAggregationsBuilder.field(parser.currentName());
-                    parser.nextToken();
-                    completeAggregationsBuilder.copyCurrentStructure(parser);
-                }
-                completeAggregationsBuilder.endObject();
-                BytesReference completeAggregationsBytes = completeAggregationsBuilder.bytes();
-                completeAggregationsParser = XContentFactory.xContent(completeAggregationsBytes).createParser(completeAggregationsBytes);
-                completeAggregationsParser.nextToken();
-                this.elementParsers.get("aggregations").parse(completeAggregationsParser, context);
-            } catch (Exception e) {
-                String sSource = "_na_";
-                try {
-                    sSource = source.toString();
-                } catch (Throwable e1) {
-                    // ignore
-                }
-                XContentLocation location = completeAggregationsParser != null ? completeAggregationsParser.getTokenLocation() : null;
-                throw new SearchParseException(context, "failed to parse aggregation source [" + sSource + "]", location, e);
+                AggregationContext aggContext = new AggregationContext(context);
+                AggregatorFactories factories = source.aggregations().build(aggContext, null);
+                factories.validate();
+                context.aggregations(new SearchContextAggregations(factories));
+            } catch (IOException e) {
+                throw new AggregationInitializationException("Failed to create aggregators", e);
             }
         }
         if (source.suggest() != null) {

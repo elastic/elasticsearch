@@ -114,13 +114,13 @@ bundlePlugin {
     include 'LICENSE.txt'
     include 'NOTICE.txt'
   }
-  from('shield/bin/shield') {
+  from('shield/bin/xpack') {
     into 'bin'
   }
-  from('shield/config/shield') {
+  from('shield/config/xpack') {
     into 'config'
   }
-  from('watcher/bin/watcher') {
+  from('watcher/bin/xpack') {
     into 'bin'
   }
 }

@@ -167,7 +167,7 @@ public class FileUserPasswdStore {
         }
 
         if (users.isEmpty()) {
-            logger.warn("no users found in users file [{}]. use bin/shield/esusers to add users and role mappings", path.toAbsolutePath());
+            logger.warn("no users found in users file [{}]. use bin/xpack/esusers to add users and role mappings", path.toAbsolutePath());
         }
         return unmodifiableMap(users);
     }

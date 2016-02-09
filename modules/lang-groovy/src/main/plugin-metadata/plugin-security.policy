@@ -49,6 +49,7 @@ grant {
   permission org.elasticsearch.script.ClassPermission "org.codehaus.groovy.runtime.typehandling.DefaultTypeTransformation";
   permission org.elasticsearch.script.ClassPermission "org.codehaus.groovy.vmplugin.v7.IndyInterface";
   permission org.elasticsearch.script.ClassPermission "sun.reflect.ConstructorAccessorImpl";
+  permission org.elasticsearch.script.ClassPermission "sun.reflect.MethodAccessorImpl";
 
   permission org.elasticsearch.script.ClassPermission "groovy.lang.Closure";
   permission org.elasticsearch.script.ClassPermission "org.codehaus.groovy.runtime.GeneratedClosure";

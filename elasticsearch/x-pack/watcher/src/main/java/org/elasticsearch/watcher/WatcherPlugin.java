@@ -91,13 +91,19 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Function;
 
+import static org.elasticsearch.common.settings.Setting.Scope.CLUSTER;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 
 public class WatcherPlugin extends Plugin {
 
     public static final String NAME = "watcher";
     public static final String ENABLED_SETTING = NAME + ".enabled";
+    public static final Setting<String> INDEX_WATCHER_VERSION_SETTING =
+            new Setting<>("index.watcher.plugin.version", "", Function.identity(), false, Setting.Scope.INDEX);
+    public static final Setting<String> INDEX_WATCHER_TEMPLATE_VERSION_SETTING =
+            new Setting<>("index.watcher.template.version", "", Function.identity(), false, Setting.Scope.INDEX);
 
     private final static ESLogger logger = Loggers.getLogger(XPackPlugin.class);
 
@@ -193,37 +199,40 @@ public class WatcherPlugin extends Plugin {
         module.registerSetting(InternalEmailService.EMAIL_ACCOUNT_SETTING);
         module.registerSetting(InternalHipChatService.HIPCHAT_ACCOUNT_SETTING);
         module.registerSetting(InternalPagerDutyService.PAGERDUTY_ACCOUNT_SETTING);
-        module.registerSetting(Setting.intSetting("watcher.execution.scroll.size", 0, false, Setting.Scope.CLUSTER));
-        module.registerSetting(Setting.intSetting("watcher.watch.scroll.size", 0, false, Setting.Scope.CLUSTER));
-        module.registerSetting(Setting.boolSetting("watcher.enabled", false, false, Setting.Scope.CLUSTER));
+        module.registerSetting(INDEX_WATCHER_VERSION_SETTING);
+        module.registerSetting(INDEX_WATCHER_TEMPLATE_VERSION_SETTING);
+        module.registerSetting(Setting.intSetting("watcher.execution.scroll.size", 0, false, CLUSTER));
+        module.registerSetting(Setting.intSetting("watcher.watch.scroll.size", 0, false, CLUSTER));
+        module.registerSetting(Setting.boolSetting("watcher.enabled", false, false, CLUSTER));
         module.registerSetting(ShieldSecretService.ENCRYPT_SENSITIVE_DATA_SETTING);
         // TODO add real settings for these
-        module.registerSetting(Setting.simpleString("resource.reload.interval", false, Setting.Scope.CLUSTER));
-        module.registerSetting(Setting.simpleString("resource.reload.enabled", false, Setting.Scope.CLUSTER));
-        module.registerSetting(Setting.simpleString("resource.reload.interval.low", false, Setting.Scope.CLUSTER));
-        module.registerSetting(Setting.simpleString("resource.reload.interval.medium", false, Setting.Scope.CLUSTER));
-        module.registerSetting(Setting.simpleString("watcher.internal.ops.search.default_timeout", false, Setting.Scope.CLUSTER));
-        module.registerSetting(Setting.simpleString("watcher.internal.ops.bulk.default_timeout", false, Setting.Scope.CLUSTER));
-        module.registerSetting(Setting.simpleString("watcher.internal.ops.index.default_timeout", false, Setting.Scope.CLUSTER));
-        module.registerSetting(Setting.simpleString("watcher.execution.default_throttle_period", false, Setting.Scope.CLUSTER));
-        module.registerSetting(Setting.simpleString("watcher.http.default_read_timeout", false, Setting.Scope.CLUSTER));
-        module.registerSetting(Setting.groupSetting("watcher.http.ssl.", false, Setting.Scope.CLUSTER));
-        module.registerSetting(Setting.groupSetting("watcher.http.proxy.", false, Setting.Scope.CLUSTER));
-        module.registerSetting(Setting.simpleString("watcher.actions.index.default_timeout", false, Setting.Scope.CLUSTER));
-        module.registerSetting(Setting.simpleString("watcher.index.rest.direct_access", false, Setting.Scope.CLUSTER));
-        module.registerSetting(Setting.simpleString("watcher.trigger.schedule.engine", false, Setting.Scope.CLUSTER));
-        module.registerSetting(Setting.simpleString("watcher.input.search.default_timeout", false, Setting.Scope.CLUSTER));
-        module.registerSetting(Setting.simpleString("watcher.transform.search.default_timeout", false, Setting.Scope.CLUSTER));
-        module.registerSetting(Setting.simpleString("watcher.trigger.schedule.ticker.tick_interval", false, Setting.Scope.CLUSTER));
-        module.registerSetting(Setting.simpleString("watcher.execution.scroll.timeout", false, Setting.Scope.CLUSTER));
-        module.registerSetting(Setting.simpleString("watcher.start_immediately", false, Setting.Scope.CLUSTER));
-        module.registerSetting(Setting.simpleString("watcher.http.default_connection_timeout", false, Setting.Scope.CLUSTER));
+        module.registerSetting(Setting.simpleString("resource.reload.interval", false, CLUSTER));
+        module.registerSetting(Setting.simpleString("resource.reload.enabled", false, CLUSTER));
+        module.registerSetting(Setting.simpleString("resource.reload.interval.low", false, CLUSTER));
+        module.registerSetting(Setting.simpleString("resource.reload.interval.medium", false, CLUSTER));
+        module.registerSetting(Setting.simpleString("watcher.internal.ops.search.default_timeout", false, CLUSTER));
+        module.registerSetting(Setting.simpleString("watcher.internal.ops.bulk.default_timeout", false, CLUSTER));
+        module.registerSetting(Setting.simpleString("watcher.internal.ops.index.default_timeout", false, CLUSTER));
+        module.registerSetting(Setting.simpleString("watcher.execution.default_throttle_period", false, CLUSTER));
+        module.registerSetting(Setting.simpleString("watcher.http.default_read_timeout", false, CLUSTER));
+        module.registerSetting(Setting.groupSetting("watcher.http.ssl.", false, CLUSTER));
+        module.registerSetting(Setting.groupSetting("watcher.http.proxy.", false, CLUSTER));
+        module.registerSetting(Setting.simpleString("watcher.actions.index.default_timeout", false, CLUSTER));
+        module.registerSetting(Setting.simpleString("watcher.index.rest.direct_access", false, CLUSTER));
+        module.registerSetting(Setting.simpleString("watcher.trigger.schedule.engine", false, CLUSTER));
+        module.registerSetting(Setting.simpleString("watcher.input.search.default_timeout", false, CLUSTER));
+        module.registerSetting(Setting.simpleString("watcher.transform.search.default_timeout", false, CLUSTER));
+        module.registerSetting(Setting.simpleString("watcher.trigger.schedule.ticker.tick_interval", false, CLUSTER));
+        module.registerSetting(Setting.simpleString("watcher.execution.scroll.timeout", false, CLUSTER));
+        module.registerSetting(Setting.simpleString("watcher.start_immediately", false, CLUSTER));
+        module.registerSetting(Setting.simpleString("watcher.http.default_connection_timeout", false, CLUSTER));
 
         module.registerSettingsFilter("watcher.actions.email.service.account.*.smtp.password");
         module.registerSettingsFilter("watcher.actions.slack.service.account.*.url");
         module.registerSettingsFilter("watcher.actions.pagerduty.service.account.*.url");
         module.registerSettingsFilter("watcher.actions.pagerduty.service." + PagerDutyAccount.SERVICE_KEY_SETTING);
-        module.registerSettingsFilter("watcher.actions.pagerduty.service.account.*." + PagerDutyAccount.SERVICE_KEY_SETTING);
+        module.registerSettingsFilter("watcher.actions.pagerduty.service.account.*." +
+                PagerDutyAccount.SERVICE_KEY_SETTING);
         module.registerSettingsFilter("watcher.actions.hipchat.service.account.*.auth_token");
     }
 
@@ -265,8 +274,9 @@ public class WatcherPlugin extends Plugin {
             return;
         }
 
-        String errorMessage = LoggerMessageFormat.format("the [action.auto_create_index] setting value [{}] is too restrictive. disable " +
-                "[action.auto_create_index] or set it to [.watches,.triggered_watches,.watch_history*]", (Object) settings);
+        String errorMessage = LoggerMessageFormat.format("the [action.auto_create_index] setting value [{}] is too" +
+                " restrictive. disable [action.auto_create_index] or set it to " +
+                "[.watches,.triggered_watches,.watcher-history*]", (Object) settings);
         if (Booleans.isExplicitFalse(value)) {
             throw new IllegalArgumentException(errorMessage);
         }
@@ -312,9 +322,10 @@ public class WatcherPlugin extends Plugin {
                 throw new IllegalArgumentException(errorMessage);
             }
         }
-        logger.warn("the [action.auto_create_index] setting is configured to be restrictive [{}]. for the next 6 months daily history " +
-                "indices are allowed to be created, but please make sure that any future history indices after 6 months with the pattern " +
-                "[.watch_history-YYYY.MM.dd] are allowed to be created", value);
+        logger.warn("the [action.auto_create_index] setting is configured to be restrictive [{}]. " +
+                " for the next 6 months daily history indices are allowed to be created, but please make sure" +
+                " that any future history indices after 6 months with the pattern " +
+                "[.watcher-history-YYYY.MM.dd] are allowed to be created", value);
     }
 
 }

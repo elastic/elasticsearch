@@ -89,7 +89,7 @@ public class HistoryTemplateTransformMappingsTests extends AbstractWatcherIntegr
                 assertThat(mappingsResponse, notNullValue());
                 assertThat(mappingsResponse.getMappings().isEmpty(), is(false));
                 for (ObjectObjectCursor<String, ImmutableOpenMap<String, MappingMetaData>> metadatas : mappingsResponse.getMappings()) {
-                    if (!metadatas.key.startsWith(".watch_history")) {
+                    if (!metadatas.key.startsWith(".watcher-history")) {
                         continue;
                     }
                     MappingMetaData metadata = metadatas.value.get("watch_record");

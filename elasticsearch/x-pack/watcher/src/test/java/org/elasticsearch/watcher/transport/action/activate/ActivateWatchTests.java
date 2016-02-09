@@ -75,13 +75,13 @@ public class ActivateWatchTests extends AbstractWatcherIntegrationTestCase {
 
         flush();
         refresh();
-        long count1 = docCount(".watch_history*", "watch_record", matchAllQuery());
+        long count1 = docCount(".watcher-history*", "watch_record", matchAllQuery());
 
         Thread.sleep(10000);
 
         flush();
         refresh();
-        long count2 = docCount(".watch_history*", "watch_record", matchAllQuery());
+        long count2 = docCount(".watcher-history*", "watch_record", matchAllQuery());
 
         assertThat(count2, is(count1));
 
@@ -96,7 +96,7 @@ public class ActivateWatchTests extends AbstractWatcherIntegrationTestCase {
         assertThat(getWatchResponse.getStatus().state().isActive(), is(true));
 
         Thread.sleep(10000);
-        long count3 = docCount(".watch_history*", "watch_record", matchAllQuery());
+        long count3 = docCount(".watcher-history*", "watch_record", matchAllQuery());
         assertThat(count3, greaterThan(count1));
     }
 

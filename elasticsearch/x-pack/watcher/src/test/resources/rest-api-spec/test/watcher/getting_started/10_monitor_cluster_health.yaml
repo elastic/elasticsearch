@@ -65,11 +65,11 @@
 
   - do:
       indices.refresh:
-        index: .watch_history-*
+        index: .watcher-history-*
 
   - do:
       search:
-        index: .watch_history-*
+        index: .watcher-history-*
         body: >
           {
             "query": {

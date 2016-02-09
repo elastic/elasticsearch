@@ -6,12 +6,12 @@ admin:
 watcher_manager:
   cluster: manage_watcher, cluster:monitor/nodes/info, cluster:monitor/health
   indices:
-    '.watch_history-*': all
+    '.watcher-history-*': all
 
 watcher_monitor:
   cluster: monitor_watcher
   indices:
-    '.watch_history-*': read
+    '.watcher-history-*': read
 
 crapy_role:
   cluster:

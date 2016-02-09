@@ -38,7 +38,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
-import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -225,8 +224,7 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator {
             if (childDocMapper != null) {
                 ParentFieldMapper parentFieldMapper = childDocMapper.parentFieldMapper();
                 if (!parentFieldMapper.active()) {
-                    throw new SearchParseException(aggregationContext.searchContext(),
-                            "[children] no [_parent] field not configured that points to a parent type", null); // NOCOMMIT fix exception args
+                    throw new IllegalArgumentException("[children] no [_parent] field not configured that points to a parent type");
                 }
                 parentType = parentFieldMapper.type();
                 DocumentMapper parentDocMapper = aggregationContext.searchContext().mapperService().documentMapper(parentType);

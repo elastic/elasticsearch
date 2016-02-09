@@ -21,11 +21,9 @@ package org.elasticsearch.search.aggregations;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorer;
-import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ObjectArray;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -35,14 +33,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-// NORELEASE remove ToXContentToBytes here when agg refactoring complete
-public abstract class AggregatorFactory<AF extends AggregatorFactory<AF>> extends ToXContentToBytes {
-
-    // NORELEASE remove this method when agg refactoring complete
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        throw new UnsupportedOperationException("This should never be called");
-    }
+public abstract class AggregatorFactory<AF extends AggregatorFactory<AF>> {
 
     protected String name;
     protected Type type;

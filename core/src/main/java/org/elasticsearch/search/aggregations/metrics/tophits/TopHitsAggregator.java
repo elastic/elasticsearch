@@ -43,6 +43,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.AggregatorBuilder;
@@ -555,8 +556,14 @@ public class TopHitsAggregator extends MetricsAggregator {
         public boolean trackScores() {
             return trackScores;
         }
+
         @Override
-        protected AggregatorFactory<?> doBuild(AggregationContext context, AggregatorFactory<?> parent, Builder subfactoriesBuilder)
+        public TopHitsAggregatorBuilder subAggregations(Builder subFactories) {
+            throw new AggregationInitializationException("Aggregator [" + name + "] of type [" + type + "] cannot accept sub-aggregations");
+        }
+
+        @Override
+        protected TopHitsAggregatorFactory doBuild(AggregationContext context, AggregatorFactory<?> parent, Builder subfactoriesBuilder)
                 throws IOException {
             return new TopHitsAggregatorFactory(name, type, from, size, explain, version, trackScores, sorts, highlightBuilder, fieldNames,
                     fieldDataFields, scriptFields, fetchSourceContext, context, parent, subfactoriesBuilder, metaData);

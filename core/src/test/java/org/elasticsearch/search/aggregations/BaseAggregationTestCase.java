@@ -97,9 +97,9 @@ public abstract class BaseAggregationTestCase<AB extends AggregatorBuilder<AB>> 
 
     private static NamedWriteableRegistry namedWriteableRegistry;
 
-    private static AggregatorParsers aggParsers;
-    private static IndicesQueriesRegistry queriesRegistry;
-    private static ParseFieldMatcher parseFieldMatcher;
+    protected static AggregatorParsers aggParsers;
+    protected static IndicesQueriesRegistry queriesRegistry;
+    protected static ParseFieldMatcher parseFieldMatcher;
 
     protected abstract AB createTestAggregatorBuilder();
 

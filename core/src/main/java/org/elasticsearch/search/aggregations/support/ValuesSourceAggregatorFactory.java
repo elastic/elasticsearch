@@ -30,7 +30,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-// NORELEASE this needs to extend AggregatorFactory<AF> after refactoring is complete
 public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource, AF extends ValuesSourceAggregatorFactory<VS, AF>>
         extends AggregatorFactory<AF> {
 

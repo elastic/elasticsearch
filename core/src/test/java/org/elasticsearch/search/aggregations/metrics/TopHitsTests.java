@@ -19,8 +19,12 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.AbstractQueryTestCase;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 import org.elasticsearch.search.aggregations.metrics.tophits.TopHitsAggregator;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
@@ -29,7 +33,9 @@ import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 
 import java.util.ArrayList;
-import java.util.List;;
+import java.util.List;
+
+import static org.hamcrest.Matchers.containsString;
 
 public class TopHitsTests extends BaseAggregationTestCase<TopHitsAggregator.TopHitsAggregatorBuilder> {
 
@@ -141,6 +147,40 @@ public class TopHitsTests extends BaseAggregationTestCase<TopHitsAggregator.TopH
             factory.highlighter(HighlightBuilderTests.randomHighlighterBuilder());
         }
         return factory;
+    }
+
+
+    public void testFailWithSubAgg() throws Exception {
+        String source = "{\n" +
+            "    \"top-tags\": {\n" +
+            "      \"terms\": {\n" +
+            "        \"field\": \"tags\"\n" +
+            "      },\n" +
+            "      \"aggs\": {\n" +
+            "        \"top_tags_hits\": {\n" +
+            "          \"top_hits\": {},\n" +
+            "          \"aggs\": {\n" +
+            "            \"max\": {\n" +
+            "              \"max\": {\n" +
+            "                \"field\": \"age\"\n" +
+            "              }\n" +
+            "            }\n" +
+            "          }\n" +
+            "        }\n" +
+            "      }\n" +
+            "    }\n" +
+            "}";
+        try {
+            XContentParser parser = XContentFactory.xContent(source).createParser(source);
+            QueryParseContext parseContext = new QueryParseContext(queriesRegistry);
+            parseContext.reset(parser);
+            parseContext.parseFieldMatcher(parseFieldMatcher);
+            assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
+            aggParsers.parseAggregators(parser, parseContext);
+            fail();
+        } catch (AggregationInitializationException e) {
+            assertThat(e.toString(), containsString("Aggregator [top_tags_hits] of type [top_hits] cannot accept sub-aggregations"));
+        }
     }
 
 }

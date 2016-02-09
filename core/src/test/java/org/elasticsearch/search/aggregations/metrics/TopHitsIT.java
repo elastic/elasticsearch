@@ -595,39 +595,6 @@ public class TopHitsIT extends ESIntegTestCase {
         }
     }
 
-    // public void testFailWithSubAgg() throws Exception {
-    // String source = "{\n" +
-    // "  \"aggs\": {\n" +
-    // "    \"top-tags\": {\n" +
-    // "      \"terms\": {\n" +
-    // "        \"field\": \"tags\"\n" +
-    // "      },\n" +
-    // "      \"aggs\": {\n" +
-    // "        \"top_tags_hits\": {\n" +
-    // "          \"top_hits\": {},\n" +
-    // "          \"aggs\": {\n" +
-    // "            \"max\": {\n" +
-    // "              \"max\": {\n" +
-    // "                \"field\": \"age\"\n" +
-    // "              }\n" +
-    // "            }\n" +
-    // "          }\n" +
-    // "        }\n" +
-    // "      }\n" +
-    // "    }\n" +
-    // "  }\n" +
-    // "}";
-    // try {
-    // client().prepareSearch("idx").setTypes("type")
-    // .setSource(new BytesArray(source))
-    // .get();
-    // fail();
-    // } catch (SearchPhaseExecutionException e) {
-    // assertThat(e.toString(),
-    // containsString("Aggregator [top_tags_hits] of type [top_hits] cannot accept sub-aggregations"));
-    // }
-    // } NORELEASE this needs to be tested in a top_hits aggregations unit test
-
     public void testEmptyIndex() throws Exception {
         SearchResponse response = client().prepareSearch("empty").setTypes("type")
                 .addAggregation(topHits("hits"))

@@ -99,14 +99,16 @@ public class RoundTripTests extends ESTestCase {
     }
 
     public void testReindexResponse() throws IOException {
-        ReindexResponse response = new ReindexResponse(timeValueMillis(randomPositiveLong()), randomStatus());
+        ReindexResponse response = new ReindexResponse(timeValueMillis(randomPositiveLong()), randomStatus(), randomIndexingFailures(),
+                randomSearchFailures());
         ReindexResponse tripped = new ReindexResponse();
         roundTrip(response, tripped);
         assertResponseEquals(response, tripped);
     }
 
     public void testBulkIndexByScrollResponse() throws IOException {
-        BulkIndexByScrollResponse response = new BulkIndexByScrollResponse(timeValueMillis(randomPositiveLong()), randomStatus());
+        BulkIndexByScrollResponse response = new BulkIndexByScrollResponse(timeValueMillis(randomPositiveLong()), randomStatus(),
+                randomIndexingFailures(), randomSearchFailures());
         BulkIndexByScrollResponse tripped = new BulkIndexByScrollResponse();
         roundTrip(response, tripped);
         assertResponseEquals(response, tripped);
@@ -114,7 +116,7 @@ public class RoundTripTests extends ESTestCase {
 
     private BulkByScrollTask.Status randomStatus() {
         return new BulkByScrollTask.Status(randomPositiveLong(), randomPositiveLong(), randomPositiveLong(), randomPositiveLong(),
-                randomPositiveInt(), randomPositiveLong(), randomPositiveLong(), randomIndexingFailures(), randomSearchFailures());
+                randomPositiveInt(), randomPositiveLong(), randomPositiveLong());
     }
 
     private List<Failure> randomIndexingFailures() {
@@ -160,13 +162,6 @@ public class RoundTripTests extends ESTestCase {
     private void assertResponseEquals(BulkIndexByScrollResponse expected, BulkIndexByScrollResponse actual) {
         assertEquals(expected.getTook(), actual.getTook());
         assertTaskStatusEquals(expected.getStatus(), actual.getStatus());
-    }
-
-    private void assertTaskStatusEquals(BulkByScrollTask.Status expected, BulkByScrollTask.Status actual) {
-        assertEquals(expected.getUpdated(), actual.getUpdated());
-        assertEquals(expected.getBatches(), actual.getBatches());
-        assertEquals(expected.getVersionConflicts(), actual.getVersionConflicts());
-        assertEquals(expected.getNoops(), actual.getNoops());
         assertEquals(expected.getIndexingFailures().size(), actual.getIndexingFailures().size());
         for (int i = 0; i < expected.getIndexingFailures().size(); i++) {
             Failure expectedFailure = expected.getIndexingFailures().get(i);
@@ -186,5 +181,12 @@ public class RoundTripTests extends ESTestCase {
             // We can't use getCause because throwable doesn't implement equals
             assertEquals(expectedFailure.reason(), actualFailure.reason());
         }
+    }
+
+    private void assertTaskStatusEquals(BulkByScrollTask.Status expected, BulkByScrollTask.Status actual) {
+        assertEquals(expected.getUpdated(), actual.getUpdated());
+        assertEquals(expected.getBatches(), actual.getBatches());
+        assertEquals(expected.getVersionConflicts(), actual.getVersionConflicts());
+        assertEquals(expected.getNoops(), actual.getNoops());
     }
 }

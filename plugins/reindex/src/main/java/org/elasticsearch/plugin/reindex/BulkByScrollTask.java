@@ -19,8 +19,6 @@
 
 package org.elasticsearch.plugin.reindex;
 
-import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.inject.Provider;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -28,17 +26,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.tasks.Task;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
-
-import static java.lang.Math.min;
-import static java.util.Collections.emptyList;
-import static java.util.Collections.unmodifiableList;
-import static org.elasticsearch.action.search.ShardSearchFailure.readShardSearchFailure;
 
 /**
  * Task storing information about a currently running BulkByScroll request.
@@ -55,8 +44,6 @@ public class BulkByScrollTask extends Task {
     private final AtomicLong noops = new AtomicLong(0);
     private final AtomicInteger batch = new AtomicInteger(0);
     private final AtomicLong versionConflicts = new AtomicLong(0);
-    private final AtomicReference<List<Failure>> indexingFailures = new AtomicReference<>(emptyList());
-    private final AtomicReference<List<ShardSearchFailure>> searchFailures = new AtomicReference<>(emptyList());
 
     public BulkByScrollTask(long id, String type, String action, Provider<String> description) {
         super(id, type, action, description);
@@ -64,8 +51,7 @@ public class BulkByScrollTask extends Task {
 
     @Override
     public Status getStatus() {
-        return new Status(total.get(), updated.get(), created.get(), deleted.get(), batch.get(), versionConflicts.get(), noops.get(),
-                indexingFailures.get(), searchFailures.get());
+        return new Status(total.get(), updated.get(), created.get(), deleted.get(), batch.get(), versionConflicts.get(), noops.get());
     }
 
     /**
@@ -75,15 +61,8 @@ public class BulkByScrollTask extends Task {
         return updated.get() + created.get() + deleted.get();
     }
 
-    /**
-     * All indexing failures.
-     */
-    public List<Failure> getIndexingFailures() {
-        return indexingFailures.get();
-    }
-
     public static class Status implements Task.Status {
-        public static final Status PROTOTYPE = new Status(0, 0, 0, 0, 0, 0, 0, emptyList(), emptyList());
+        public static final Status PROTOTYPE = new Status(0, 0, 0, 0, 0, 0, 0);
 
         private final long total;
         private final long updated;
@@ -92,11 +71,8 @@ public class BulkByScrollTask extends Task {
         private final int batches;
         private final long versionConflicts;
         private final long noops;
-        private final List<Failure> indexingFailures;
-        private final List<ShardSearchFailure> searchFailures;
 
-        public Status(long total, long updated, long created, long deleted, int batches, long versionConflicts, long noops,
-                List<Failure> indexingFailures, List<ShardSearchFailure> searchFailures) {
+        public Status(long total, long updated, long created, long deleted, int batches, long versionConflicts, long noops) {
             this.total = checkPositive(total, "total");
             this.updated = checkPositive(updated, "updated");
             this.created = checkPositive(created, "created");
@@ -104,8 +80,6 @@ public class BulkByScrollTask extends Task {
             this.batches = checkPositive(batches, "batches");
             this.versionConflicts = checkPositive(versionConflicts, "versionConflicts");
             this.noops = checkPositive(noops, "noops");
-            this.indexingFailures = indexingFailures;
-            this.searchFailures = searchFailures;
         }
 
         public Status(StreamInput in) throws IOException {
@@ -116,18 +90,6 @@ public class BulkByScrollTask extends Task {
             batches = in.readVInt();
             versionConflicts = in.readVLong();
             noops = in.readVLong();
-            int indexingFailuresCount = in.readVInt();
-            List<Failure> indexingFailures = new ArrayList<>(indexingFailuresCount);
-            for (int i = 0; i < indexingFailuresCount; i++) {
-                indexingFailures.add(Failure.PROTOTYPE.readFrom(in));
-            }
-            this.indexingFailures = unmodifiableList(indexingFailures);
-            int searchFailuresCount = in.readVInt();
-            List<ShardSearchFailure> searchFailures = new ArrayList<>(searchFailuresCount);
-            for (int i = 0; i < searchFailuresCount; i++) {
-                searchFailures.add(readShardSearchFailure(in));
-            }
-            this.searchFailures = unmodifiableList(searchFailures);
         }
 
         @Override
@@ -139,14 +101,6 @@ public class BulkByScrollTask extends Task {
             out.writeVInt(batches);
             out.writeVLong(versionConflicts);
             out.writeVLong(noops);
-            out.writeVInt(indexingFailures.size());
-            for (Failure failure: indexingFailures) {
-                failure.writeTo(out);
-            }
-            out.writeVInt(searchFailures.size());
-            for (ShardSearchFailure failure: searchFailures) {
-                failure.writeTo(out);
-            }
         }
 
         @Override
@@ -169,18 +123,6 @@ public class BulkByScrollTask extends Task {
             builder.field("batches", batches);
             builder.field("version_conflicts", versionConflicts);
             builder.field("noops", noops);
-            builder.startArray("failures");
-            for (Failure failure: indexingFailures) {
-                builder.startObject();
-                failure.toXContent(builder, params);
-                builder.endObject();
-            }
-            for (ShardSearchFailure failure: searchFailures) {
-                builder.startObject();
-                failure.toXContent(builder, params);
-                builder.endObject();
-            }
-            builder.endArray();
             return builder;
         }
 
@@ -203,8 +145,6 @@ public class BulkByScrollTask extends Task {
             builder.append(",batches=").append(batches);
             builder.append(",versionConflicts=").append(versionConflicts);
             builder.append(",noops=").append(noops);
-            builder.append(",indexing_failures=").append(getIndexingFailures().subList(0, min(3, getIndexingFailures().size())));
-            builder.append(",search_failures=").append(getSearchFailures().subList(0, min(3, getSearchFailures().size())));
         }
 
         @Override
@@ -267,21 +207,6 @@ public class BulkByScrollTask extends Task {
             return noops;
         }
 
-        /**
-         * All of the indexing failures. Version conflicts are only included if the request sets abortOnVersionConflict to true (the
-         * default).
-         */
-        public List<Failure> getIndexingFailures() {
-            return indexingFailures;
-        }
-
-        /**
-         * All search failures.
-         */
-        public List<ShardSearchFailure> getSearchFailures() {
-            return searchFailures;
-        }
-
         private int checkPositive(int value, String name) {
             if (value < 0) {
                 throw new IllegalArgumentException(name + " must be greater than 0 but was [" + value + "]");
@@ -323,13 +248,5 @@ public class BulkByScrollTask extends Task {
 
     void countVersionConflict() {
         versionConflicts.incrementAndGet();
-    }
-
-    void setIndexingFailures(List<Failure> failures) {
-        indexingFailures.set(unmodifiableList(failures));
-    }
-
-    void setSearchFailures(ShardSearchFailure... shardSearchFailures) {
-        searchFailures.set(unmodifiableList(Arrays.asList(shardSearchFailures)));
     }
 }

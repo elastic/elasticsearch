@@ -20,7 +20,9 @@
 package org.elasticsearch.plugin.reindex;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
@@ -42,6 +44,8 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import java.util.List;
 
 public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateByQueryRequest, BulkIndexByScrollResponse> {
     private final Client client;
@@ -90,8 +94,9 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
         }
 
         @Override
-        protected BulkIndexByScrollResponse buildResponse(TimeValue took) {
-            return new BulkIndexByScrollResponse(took, task.getStatus());
+        protected BulkIndexByScrollResponse buildResponse(TimeValue took, List<Failure> indexingFailures,
+                List<ShardSearchFailure> searchFailures) {
+            return new BulkIndexByScrollResponse(took, task.getStatus(), indexingFailures, searchFailures);
         }
 
         @Override

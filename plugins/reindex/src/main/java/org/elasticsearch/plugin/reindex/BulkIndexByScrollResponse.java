@@ -29,9 +29,13 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
+import static java.lang.Math.min;
+import static java.util.Collections.unmodifiableList;
 import static java.util.Objects.requireNonNull;
+import static org.elasticsearch.action.search.ShardSearchFailure.readShardSearchFailure;
 
 /**
  * Response used for actions that index many documents using a scroll request.
@@ -39,13 +43,18 @@ import static java.util.Objects.requireNonNull;
 public class BulkIndexByScrollResponse extends ActionResponse implements ToXContent {
     private TimeValue took;
     private BulkByScrollTask.Status status;
+    private List<Failure> indexingFailures;
+    private List<ShardSearchFailure> searchFailures;
 
     public BulkIndexByScrollResponse() {
     }
 
-    public BulkIndexByScrollResponse(TimeValue took, BulkByScrollTask.Status status) {
+    public BulkIndexByScrollResponse(TimeValue took, BulkByScrollTask.Status status, List<Failure> indexingFailures,
+            List<ShardSearchFailure> searchFailures) {
         this.took = took;
         this.status = requireNonNull(status, "Null status not supported");
+        this.indexingFailures = indexingFailures;
+        this.searchFailures = searchFailures;
     }
 
     public TimeValue getTook() {
@@ -72,12 +81,19 @@ public class BulkIndexByScrollResponse extends ActionResponse implements ToXCont
         return status.getNoops();
     }
 
+    /**
+     * All of the indexing failures. Version conflicts are only included if the request sets abortOnVersionConflict to true (the
+     * default).
+     */
     public List<Failure> getIndexingFailures() {
-        return status.getIndexingFailures();
+        return indexingFailures;
     }
 
+    /**
+     * All search failures.
+     */
     public List<ShardSearchFailure> getSearchFailures() {
-        return status.getSearchFailures();
+        return searchFailures;
     }
 
     @Override
@@ -85,6 +101,14 @@ public class BulkIndexByScrollResponse extends ActionResponse implements ToXCont
         super.writeTo(out);
         took.writeTo(out);
         status.writeTo(out);
+        out.writeVInt(indexingFailures.size());
+        for (Failure failure: indexingFailures) {
+            failure.writeTo(out);
+        }
+        out.writeVInt(searchFailures.size());
+        for (ShardSearchFailure failure: searchFailures) {
+            failure.writeTo(out);
+        }
     }
 
     @Override
@@ -92,12 +116,36 @@ public class BulkIndexByScrollResponse extends ActionResponse implements ToXCont
         super.readFrom(in);
         took = TimeValue.readTimeValue(in);
         status = new BulkByScrollTask.Status(in);
+        int indexingFailuresCount = in.readVInt();
+        List<Failure> indexingFailures = new ArrayList<>(indexingFailuresCount);
+        for (int i = 0; i < indexingFailuresCount; i++) {
+            indexingFailures.add(Failure.PROTOTYPE.readFrom(in));
+        }
+        this.indexingFailures = unmodifiableList(indexingFailures);
+        int searchFailuresCount = in.readVInt();
+        List<ShardSearchFailure> searchFailures = new ArrayList<>(searchFailuresCount);
+        for (int i = 0; i < searchFailuresCount; i++) {
+            searchFailures.add(readShardSearchFailure(in));
+        }
+        this.searchFailures = unmodifiableList(searchFailures);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field("took", took.millis());
         status.innerXContent(builder, params, false, false);
+        builder.startArray("failures");
+        for (Failure failure: indexingFailures) {
+            builder.startObject();
+            failure.toXContent(builder, params);
+            builder.endObject();
+        }
+        for (ShardSearchFailure failure: searchFailures) {
+            builder.startObject();
+            failure.toXContent(builder, params);
+            builder.endObject();
+        }
+        builder.endArray();
         return builder;
     }
 
@@ -107,6 +155,8 @@ public class BulkIndexByScrollResponse extends ActionResponse implements ToXCont
         builder.append("BulkIndexByScrollResponse[");
         builder.append("took=").append(took).append(',');
         status.innerToString(builder, false, false);
+        builder.append(",indexing_failures=").append(getIndexingFailures().subList(0, min(3, getIndexingFailures().size())));
+        builder.append(",search_failures=").append(getSearchFailures().subList(0, min(3, getSearchFailures().size())));
         return builder.append(']').toString();
     }
 }

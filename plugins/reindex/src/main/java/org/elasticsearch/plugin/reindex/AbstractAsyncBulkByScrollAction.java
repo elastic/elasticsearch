@@ -32,6 +32,7 @@ import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ESLogger;
@@ -53,6 +54,8 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static java.lang.Math.max;
 import static java.lang.Math.min;
+import static java.util.Collections.emptyList;
+import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.common.unit.TimeValue.timeValueNanos;
 import static org.elasticsearch.plugin.reindex.AbstractBulkByScrollRequest.SIZE_ALL_MATCHES;
 import static org.elasticsearch.rest.RestStatus.CONFLICT;
@@ -93,7 +96,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
 
     protected abstract BulkRequest buildBulk(Iterable<SearchHit> docs);
 
-    protected abstract Response buildResponse(TimeValue took);
+    protected abstract Response buildResponse(TimeValue took, List<Failure> indexingFailures, List<ShardSearchFailure> searchFailures);
 
     public void start() {
         initialSearch();
@@ -137,8 +140,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
     void onScrollResponse(SearchResponse searchResponse) {
         scroll.set(searchResponse.getScrollId());
         if (searchResponse.getShardFailures() != null && searchResponse.getShardFailures().length > 0) {
-            task.setSearchFailures(searchResponse.getShardFailures());
-            startNormalTermination();
+            startNormalTermination(emptyList(), unmodifiableList(Arrays.asList(searchResponse.getShardFailures())));
             return;
         }
         long total = searchResponse.getHits().totalHits();
@@ -153,7 +155,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
                     SearchHit[] docs = searchResponse.getHits().getHits();
                     logger.debug("scroll returned [{}] documents with a scroll id of [{}]", docs.length, searchResponse.getScrollId());
                     if (docs.length == 0) {
-                        startNormalTermination();
+                        startNormalTermination(emptyList(), emptyList());
                         return;
                     }
                     task.countBatch();
@@ -236,14 +238,13 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
             destinationIndices.addAll(destinationIndicesThisBatch);
 
             if (false == failures.isEmpty()) {
-                task.setIndexingFailures(failures);
-                startNormalTermination();
+                startNormalTermination(unmodifiableList(failures), emptyList());
                 return;
             }
 
             if (mainRequest.getSize() != SIZE_ALL_MATCHES && task.getSuccessfullyProcessed() >= mainRequest.getSize()) {
                 // We've processed all the requested docs.
-                startNormalTermination();
+                startNormalTermination(emptyList(), emptyList());
                 return;
             }
             startNextScrollRequest();
@@ -278,9 +279,9 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         failures.add(failure);
     }
 
-    void startNormalTermination() {
+    void startNormalTermination(List<Failure> indexingFailures, List<ShardSearchFailure> searchFailures) {
         if (false == mainRequest.isRefresh()) {
-            finishHim(null);
+            finishHim(null, indexingFailures, searchFailures);
             return;
         }
         RefreshRequest refresh = new RefreshRequest();
@@ -288,7 +289,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         client.admin().indices().refresh(refresh, new ActionListener<RefreshResponse>() {
             @Override
             public void onResponse(RefreshResponse response) {
-                finishHim(null);
+                finishHim(null, indexingFailures, searchFailures);
             }
 
             @Override
@@ -301,13 +302,20 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
     /**
      * Finish the request.
      *
-     * @param failure
-     *            the failure that caused the request to fail prematurely if not
-     *            null. If not null this doesn't mean the request was entirely
-     *            successful - it may have accumulated failures in the failures
-     *            list.
+     * @param failure if non null then the request failed catastrophically with this exception
      */
     void finishHim(Throwable failure) {
+        finishHim(failure, emptyList(), emptyList());
+    }
+
+    /**
+     * Finish the request.
+     *
+     * @param failure if non null then the request failed catastrophically with this exception
+     * @param indexingFailures any indexing failures accumulated during the request
+     * @param searchFailures any search failures accumulated during the request
+     */
+    void finishHim(Throwable failure, List<Failure> indexingFailures, List<ShardSearchFailure> searchFailures) {
         String scrollId = scroll.get();
         if (Strings.hasLength(scrollId)) {
             /*
@@ -329,7 +337,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
             });
         }
         if (failure == null) {
-            listener.onResponse(buildResponse(timeValueNanos(System.nanoTime() - startTime.get())));
+            listener.onResponse(buildResponse(timeValueNanos(System.nanoTime() - startTime.get()), indexingFailures, searchFailures));
         } else {
             listener.onFailure(failure);
         }

@@ -19,10 +19,14 @@
 
 package org.elasticsearch.plugin.reindex;
 
+import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.plugin.reindex.BulkByScrollTask.Status;
 
 import java.io.IOException;
+import java.util.List;
 
 /**
  * Response for the ReindexAction.
@@ -31,8 +35,8 @@ public class ReindexResponse extends BulkIndexByScrollResponse {
     public ReindexResponse() {
     }
 
-    public ReindexResponse(TimeValue took, BulkByScrollTask.Status status) {
-        super(took, status);
+    public ReindexResponse(TimeValue took, Status status, List<Failure> indexingFailures, List<ShardSearchFailure> searchFailures) {
+        super(took, status, indexingFailures, searchFailures);
     }
 
     public long getCreated() {

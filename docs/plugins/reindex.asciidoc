@@ -573,8 +573,7 @@ The responses looks like:
           "deleted" : 0,
           "batches" : 36,
           "version_conflicts" : 0,
-          "noops" : 0,
-          "failures" : [ ]
+          "noops" : 0
         },
         "description" : "update-by-query [test][test]"
       } ]

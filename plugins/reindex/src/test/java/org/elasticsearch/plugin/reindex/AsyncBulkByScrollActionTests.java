@@ -70,7 +70,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
     private ThreadPool threadPool;
     private DummyAbstractBulkByScrollRequest mainRequest;
     private SearchRequest firstSearchRequest;
-    private PlainActionFuture<Object> listener;
+    private PlainActionFuture<BulkIndexByScrollResponse> listener;
     private String scrollId;
     private BulkByScrollTask task;
 
@@ -226,9 +226,9 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         ShardSearchFailure shardFailure = new ShardSearchFailure(new RuntimeException("test"));
         new DummyAbstractAsyncBulkByScrollAction()
                 .onScrollResponse(new SearchResponse(null, scrollId(), 5, 4, randomLong(), new ShardSearchFailure[] { shardFailure }));
-        listener.get();
-        assertThat(task.getStatus().getIndexingFailures(), emptyCollectionOf(Failure.class));
-        assertThat(task.getStatus().getSearchFailures(), contains(shardFailure));
+        BulkIndexByScrollResponse response = listener.get();
+        assertThat(response.getIndexingFailures(), emptyCollectionOf(Failure.class));
+        assertThat(response.getSearchFailures(), contains(shardFailure));
         assertThat(client.scrollsCleared, contains(scrollId));
     }
 
@@ -239,12 +239,13 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         Failure failure = new Failure("index", "type", "id", new RuntimeException("test"));
         DummyAbstractAsyncBulkByScrollAction action = new DummyAbstractAsyncBulkByScrollAction();
         action.onBulkResponse(new BulkResponse(new BulkItemResponse[] {new BulkItemResponse(0, "index", failure)}, randomLong()));
-        listener.get();
-        assertThat(task.getStatus().getIndexingFailures(), contains(failure));
-        assertThat(task.getStatus().getSearchFailures(), emptyCollectionOf(ShardSearchFailure.class));
+        BulkIndexByScrollResponse response = listener.get();
+        assertThat(response.getIndexingFailures(), contains(failure));
+        assertThat(response.getSearchFailures(), emptyCollectionOf(ShardSearchFailure.class));
     }
 
-    private class DummyAbstractAsyncBulkByScrollAction extends AbstractAsyncBulkByScrollAction<DummyAbstractBulkByScrollRequest, Object> {
+    private class DummyAbstractAsyncBulkByScrollAction
+            extends AbstractAsyncBulkByScrollAction<DummyAbstractBulkByScrollRequest, BulkIndexByScrollResponse> {
         public DummyAbstractAsyncBulkByScrollAction() {
             super(AsyncBulkByScrollActionTests.this.task, logger, client, threadPool,
                     AsyncBulkByScrollActionTests.this.mainRequest, firstSearchRequest, listener);
@@ -256,9 +257,9 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         }
 
         @Override
-        protected Object buildResponse(TimeValue took) {
-            // Any object will do here because we don't look at the response.
-            return new Object();
+        protected BulkIndexByScrollResponse buildResponse(TimeValue took, List<Failure> indexingFailures,
+                List<ShardSearchFailure> searchFailures) {
+            return new BulkIndexByScrollResponse(took, task.getStatus(), indexingFailures, searchFailures);
         }
     }
 

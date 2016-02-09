@@ -35,7 +35,6 @@ import java.io.IOException;
  */
 public class BaseTasksRequest<T extends BaseTasksRequest> extends ActionRequest<T> {
 
-
     public static final String[] ALL_ACTIONS = Strings.EMPTY_ARRAY;
 
     public static final String[] ALL_NODES = Strings.EMPTY_ARRAY;
@@ -51,6 +50,8 @@ public class BaseTasksRequest<T extends BaseTasksRequest> extends ActionRequest<
     private String parentNode;
 
     private long parentTaskId = ALL_TASKS;
+
+    private long taskId = ALL_TASKS;
 
     public BaseTasksRequest() {
     }
@@ -104,6 +105,22 @@ public class BaseTasksRequest<T extends BaseTasksRequest> extends ActionRequest<
     }
 
     /**
+     * Returns the id of the task that should be processed.
+     *
+     * By default tasks with any ids are returned.
+     */
+    public long taskId() {
+        return taskId;
+    }
+
+    @SuppressWarnings("unchecked")
+    public final Request taskId(long taskId) {
+        this.taskId = taskId;
+        return (Request) this;
+    }
+
+
+    /**
      * Returns the parent node id that tasks should be filtered by
      */
     public String parentNode() {
@@ -150,6 +167,7 @@ public class BaseTasksRequest<T extends BaseTasksRequest> extends ActionRequest<
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         nodesIds = in.readStringArray();
+        taskId = in.readLong();
         actions = in.readStringArray();
         parentNode = in.readOptionalString();
         parentTaskId = in.readLong();
@@ -162,6 +180,7 @@ public class BaseTasksRequest<T extends BaseTasksRequest> extends ActionRequest<
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeStringArrayNullable(nodesIds);
+        out.writeLong(taskId);
         out.writeStringArrayNullable(actions);
         out.writeOptionalString(parentNode);
         out.writeLong(parentTaskId);
@@ -172,12 +191,17 @@ public class BaseTasksRequest<T extends BaseTasksRequest> extends ActionRequest<
         if (actions() != null && actions().length > 0 && Regex.simpleMatch(actions(), task.getAction()) == false) {
             return false;
         }
+        if (taskId() != ALL_TASKS) {
+            if(taskId() != task.getId()) {
+                return false;
+            }
+        }
         if (parentNode() != null) {
             if (parentNode().equals(task.getParentNode()) == false) {
                 return false;
             }
         }
-        if (parentTaskId() != BaseTasksRequest.ALL_TASKS) {
+        if (parentTaskId() != ALL_TASKS) {
             if (parentTaskId() != task.getParentId()) {
                 return false;
             }

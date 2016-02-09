@@ -26,6 +26,8 @@ import org.elasticsearch.rest.action.admin.cluster.health.RestClusterHealthActio
 import org.elasticsearch.rest.action.admin.cluster.node.hotthreads.RestNodesHotThreadsAction;
 import org.elasticsearch.rest.action.admin.cluster.node.info.RestNodesInfoAction;
 import org.elasticsearch.rest.action.admin.cluster.node.stats.RestNodesStatsAction;
+import org.elasticsearch.rest.action.admin.cluster.node.tasks.RestCancelTasksAction;
+import org.elasticsearch.rest.action.admin.cluster.node.tasks.RestListTasksAction;
 import org.elasticsearch.rest.action.admin.cluster.repositories.delete.RestDeleteRepositoryAction;
 import org.elasticsearch.rest.action.admin.cluster.repositories.get.RestGetRepositoriesAction;
 import org.elasticsearch.rest.action.admin.cluster.repositories.put.RestPutRepositoryAction;
@@ -245,6 +247,10 @@ public class RestActionModule extends AbstractModule {
 
 
         bind(RestFieldStatsAction.class).asEagerSingleton();
+
+        // Tasks API
+        bind(RestListTasksAction.class).asEagerSingleton();
+        bind(RestCancelTasksAction.class).asEagerSingleton();
 
         // cat API
         Multibinder<AbstractCatAction> catActionMultibinder = Multibinder.newSetBinder(binder(), AbstractCatAction.class);

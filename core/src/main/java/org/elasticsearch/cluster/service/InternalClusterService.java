@@ -192,6 +192,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
     @Override
     protected void doStart() {
         add(localNodeMasterListeners);
+        add(taskManager);
         this.clusterState = ClusterState.builder(clusterState).blocks(initialBlocks).build();
         this.updateTasksExecutor = EsExecutors.newSinglePrioritizing(UPDATE_THREAD_NAME, daemonThreadFactory(settings, UPDATE_THREAD_NAME));
         this.reconnectToNodes = threadPool.schedule(reconnectInterval, ThreadPool.Names.GENERIC, new ReconnectToNodes());

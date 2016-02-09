@@ -587,6 +587,8 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
                     return LEVENSTEIN;
                 case "ngram":
                     return NGRAM;
+                case "jarowinkler":
+                    return JAROWINKLER;
                 default: throw new IllegalArgumentException("Illegal distance option " + str);
             }
         }

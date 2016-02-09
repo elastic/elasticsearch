@@ -648,7 +648,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                 if (logger.isTraceEnabled()) {
                     logger.trace("action [{}] completed on shard [{}] for request [{}] with cluster state version [{}]", transportPrimaryAction, shardId, request, state.version());
                 }
-                ReplicationPhase replicationPhase = new ReplicationPhase(request, primaryResponse.v2(), primaryResponse.v1(), shardId, channel, indexShardReference);
+                ReplicationPhase replicationPhase = new ReplicationPhase(primaryResponse.v2(), primaryResponse.v1(), shardId, channel, indexShardReference);
                 finishAndMoveToReplication(replicationPhase);
             } else {
                 // delegate primary phase to relocation target
@@ -771,7 +771,6 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
      */
     final class ReplicationPhase extends AbstractRunnable {
 
-        private final Request request;
         private final ReplicaRequest replicaRequest;
         private final Response finalResponse;
         private final TransportChannel channel;
@@ -786,9 +785,8 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         private final int totalShards;
         private final IndexShardReference indexShardReference;
 
-        public ReplicationPhase(Request request, ReplicaRequest replicaRequest, Response finalResponse, ShardId shardId,
+        public ReplicationPhase(ReplicaRequest replicaRequest, Response finalResponse, ShardId shardId,
                                 TransportChannel channel, IndexShardReference indexShardReference) {
-            this.request = request;
             this.replicaRequest = replicaRequest;
             this.channel = channel;
             this.finalResponse = finalResponse;

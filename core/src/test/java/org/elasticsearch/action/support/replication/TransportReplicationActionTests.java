@@ -604,7 +604,7 @@ public class TransportReplicationActionTests extends ESTestCase {
 
         TransportChannel channel = createTransportChannel(listener, error::set);
         TransportReplicationAction<Request, Request, Response>.ReplicationPhase replicationPhase =
-                action.new ReplicationPhase(request, request,
+                action.new ReplicationPhase(request,
                         new Response(),
                         request.shardId(), channel, reference);
 

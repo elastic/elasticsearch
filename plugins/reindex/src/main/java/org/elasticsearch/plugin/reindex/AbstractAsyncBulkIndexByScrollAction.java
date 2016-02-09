@@ -19,10 +19,6 @@
 
 package org.elasticsearch.plugin.reindex;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Objects;
-
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -45,6 +41,10 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.threadpool.ThreadPool;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Objects;
 
 import static java.util.Collections.emptyMap;
 

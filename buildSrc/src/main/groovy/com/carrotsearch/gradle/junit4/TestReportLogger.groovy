@@ -124,7 +124,7 @@ class TestReportLogger extends TestsSummaryEventListener implements AggregatedEv
                 formatDurationInSeconds(e.getNoEventDuration()) + " at: " +
                 (e.getDescription() == null ? "<unknown>" : formatDescription(e.getDescription())))
         try {
-            playBeat();
+            //playBeat();
         } catch (Exception nosound) { /* handling exceptions with style */ }
         slowTestsFound = true
     }

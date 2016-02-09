@@ -267,8 +267,8 @@ public abstract class ESRestTestCase extends ESTestCase {
     public void wipeCluster() throws Exception {
         // wipe indices
         String deleteIndices = "*";
-        if (excludeIndices().size() > 0) {
-            deleteIndices = deleteIndices + "," + Strings.collectionToDelimitedString(excludeIndices(), ",", "-", "");
+        if (excludeIndicesFromDeletion().size() > 0) {
+            deleteIndices = deleteIndices + "," + Strings.collectionToDelimitedString(excludeIndicesFromDeletion(), ",", "-", "");
         }
 
         Map<String, String> deleteIndicesArgs = new HashMap<>();
@@ -284,7 +284,7 @@ public abstract class ESRestTestCase extends ESTestCase {
 
         // wipe index templates
         Set<String> deletions = new HashSet<>();
-        if (excludeTemplates().isEmpty()) {
+        if (excludeTemplatesFromDeletion().isEmpty()) {
             deletions.add("*");
         } else {
             try {
@@ -292,7 +292,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                 RestResponse response = adminExecutionContext.callApi("indices.get_template", Collections.emptyMap(),
                         Collections.emptyList(), Collections.emptyMap());
                 try (XContentParser parser = XContentType.JSON.xContent().createParser(response.getBodyAsString())) {
-                    String[] exclusions = excludeTemplates().toArray(new String[]{});
+                    String[] exclusions = excludeTemplatesFromDeletion().toArray(new String[]{});
                     for (String template : parser.map().keySet()) {
                         if (Regex.simpleMatch(exclusions, template) == false) {
                             // If the template name does not match an exclusion,
@@ -324,14 +324,14 @@ public abstract class ESRestTestCase extends ESTestCase {
     /**
      * @return An exclude list of indices that will not be removed in between tests.
      */
-    protected List<String> excludeIndices() {
+    protected List<String> excludeIndicesFromDeletion() {
         return Collections.emptyList();
     }
 
     /**
      * @return An exclude list of index templates that will not be removed in between tests.
      */
-    protected List<String> excludeTemplates() {
+    protected List<String> excludeTemplatesFromDeletion() {
         return Collections.emptyList();
     }
 

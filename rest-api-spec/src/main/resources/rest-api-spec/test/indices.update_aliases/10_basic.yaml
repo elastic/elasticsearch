@@ -19,6 +19,9 @@
                 index: test_index
                 alias: test_alias
                 routing: routing_value
+                filter:
+                  ids:
+                    values: ["1", "2", "3"]
 
   - do:
       indices.exists_alias:
@@ -31,7 +34,7 @@
         index: test_index
         name: test_alias
 
-  - match: {test_index.aliases.test_alias: {'index_routing': 'routing_value', 'search_routing': 'routing_value'}}
+  - match: {test_index.aliases.test_alias: {filter: { ids : { values: ["1", "2", "3"]}}, 'index_routing': 'routing_value', 'search_routing': 'routing_value'}}
 
 ---
 "Basic test for multiple aliases":

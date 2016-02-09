@@ -22,6 +22,8 @@ package org.elasticsearch.plugin.reindex;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
+import static java.util.Collections.emptyList;
+
 public class BulkByScrollTaskTests extends ESTestCase {
     private BulkByScrollTask task;
 
@@ -98,5 +100,15 @@ public class BulkByScrollTaskTests extends ESTestCase {
         assertEquals(versionConflicts, status.getVersionConflicts());
         assertEquals(batch, status.getBatches());
         assertEquals(noops, status.getNoops());
+    }
+
+    public void testStatusHatesNegatives() {
+        expectThrows(IllegalArgumentException.class, () -> new BulkByScrollTask.Status(-1, 0, 0, 0, 0, 0, 0, emptyList(), emptyList()));
+        expectThrows(IllegalArgumentException.class, () -> new BulkByScrollTask.Status(0, -1, 0, 0, 0, 0, 0, emptyList(), emptyList()));
+        expectThrows(IllegalArgumentException.class, () -> new BulkByScrollTask.Status(0, 0, -1, 0, 0, 0, 0, emptyList(), emptyList()));
+        expectThrows(IllegalArgumentException.class, () -> new BulkByScrollTask.Status(0, 0, 0, -1, 0, 0, 0, emptyList(), emptyList()));
+        expectThrows(IllegalArgumentException.class, () -> new BulkByScrollTask.Status(0, 0, 0, 0, -1, 0, 0, emptyList(), emptyList()));
+        expectThrows(IllegalArgumentException.class, () -> new BulkByScrollTask.Status(0, 0, 0, 0, 0, -1, 0, emptyList(), emptyList()));
+        expectThrows(IllegalArgumentException.class, () -> new BulkByScrollTask.Status(0, 0, 0, 0, 0, 0, -1, emptyList(), emptyList()));
     }
 }

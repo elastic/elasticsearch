@@ -97,13 +97,13 @@ public class BulkByScrollTask extends Task {
 
         public Status(long total, long updated, long created, long deleted, int batches, long versionConflicts, long noops,
                 List<Failure> indexingFailures, List<ShardSearchFailure> searchFailures) {
-            this.total = total;
-            this.updated = updated;
-            this.created = created;
-            this.deleted = deleted;
-            this.batches = batches;
-            this.versionConflicts = versionConflicts;
-            this.noops = noops;
+            this.total = checkPositive(total, "total");
+            this.updated = checkPositive(updated, "updated");
+            this.created = checkPositive(created, "created");
+            this.deleted = checkPositive(deleted, "deleted");
+            this.batches = checkPositive(batches, "batches");
+            this.versionConflicts = checkPositive(versionConflicts, "versionConflicts");
+            this.noops = checkPositive(noops, "noops");
             this.indexingFailures = indexingFailures;
             this.searchFailures = searchFailures;
         }
@@ -280,6 +280,20 @@ public class BulkByScrollTask extends Task {
          */
         public List<ShardSearchFailure> getSearchFailures() {
             return searchFailures;
+        }
+
+        private int checkPositive(int value, String name) {
+            if (value < 0) {
+                throw new IllegalArgumentException(name + " must be greater than 0 but was [" + value + "]");
+            }
+            return value;
+        }
+
+        private long checkPositive(long value, String name) {
+            if (value < 0) {
+                throw new IllegalArgumentException(name + " must be greater than 0 but was [" + value + "]");
+            }
+            return value;
         }
     }
 

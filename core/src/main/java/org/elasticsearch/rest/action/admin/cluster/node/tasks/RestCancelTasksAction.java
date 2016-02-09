@@ -19,6 +19,7 @@
 
 package org.elasticsearch.rest.action.admin.cluster.node.tasks;
 
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
@@ -30,34 +31,32 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.RestToXContentListener;
 
-import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 
-public class RestListTasksAction extends BaseRestHandler {
+public class RestCancelTasksAction extends BaseRestHandler {
 
     @Inject
-    public RestListTasksAction(Settings settings, RestController controller, Client client) {
+    public RestCancelTasksAction(Settings settings, RestController controller, Client client) {
         super(settings, client);
-        controller.registerHandler(GET, "/_tasks", this);
-        controller.registerHandler(GET, "/_tasks/{nodeId}", this);
-        controller.registerHandler(GET, "/_tasks/{nodeId}/{taskId}", this);
+        controller.registerHandler(POST, "/_tasks/_cancel", this);
+        controller.registerHandler(POST, "/_tasks/{nodeId}/_cancel", this);
+        controller.registerHandler(POST, "/_tasks/{nodeId}/{taskId}/_cancel", this);
     }
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
-        boolean detailed = request.paramAsBoolean("detailed", false);
         String[] nodesIds = Strings.splitStringByCommaToArray(request.param("nodeId"));
         long taskId = request.paramAsLong("taskId", ListTasksRequest.ALL_TASKS);
         String[] actions = Strings.splitStringByCommaToArray(request.param("actions"));
         String parentNode = request.param("parent_node");
         long parentTaskId = request.paramAsLong("parent_task", ListTasksRequest.ALL_TASKS);
 
-        ListTasksRequest listTasksRequest = new ListTasksRequest(nodesIds);
-        listTasksRequest.taskId(taskId);
-        listTasksRequest.detailed(detailed);
-        listTasksRequest.actions(actions);
-        listTasksRequest.parentNode(parentNode);
-        listTasksRequest.parentTaskId(parentTaskId);
-        client.admin().cluster().listTasks(listTasksRequest, new RestToXContentListener<>(channel));
+        CancelTasksRequest cancelTasksRequest = new CancelTasksRequest(nodesIds);
+        cancelTasksRequest.taskId(taskId);
+        cancelTasksRequest.actions(actions);
+        cancelTasksRequest.parentNode(parentNode);
+        cancelTasksRequest.parentTaskId(parentTaskId);
+        client.admin().cluster().cancelTasks(cancelTasksRequest, new RestToXContentListener<>(channel));
     }
 }

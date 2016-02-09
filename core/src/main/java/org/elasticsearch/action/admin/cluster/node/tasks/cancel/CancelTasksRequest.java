@@ -17,52 +17,57 @@
  * under the License.
  */
 
-package org.elasticsearch.action.support;
+package org.elasticsearch.action.admin.cluster.node.tasks.cancel;
 
+import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 
 /**
- * Base class for requests that can have associated child tasks
+ * A request to cancel tasks
  */
-public class ChildTaskRequest extends TransportRequest {
+public class CancelTasksRequest extends BaseTasksRequest<CancelTasksRequest> {
 
-    private String parentTaskNode;
+    public static final String DEFAULT_REASON = "by user request";
 
-    private long parentTaskId;
+    private String reason = DEFAULT_REASON;
 
-    protected ChildTaskRequest() {
-    }
-
-    public void setParentTask(String parentTaskNode, long parentTaskId) {
-        this.parentTaskNode = parentTaskNode;
-        this.parentTaskId = parentTaskId;
+    /**
+     * Cancel tasks on the specified nodes. If none are passed, all cancellable tasks on
+     * all nodes will be cancelled.
+     */
+    public CancelTasksRequest(String... nodesIds) {
+        super(nodesIds);
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        parentTaskNode = in.readOptionalString();
-        parentTaskId = in.readLong();
+        reason = in.readString();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeOptionalString(parentTaskNode);
-        out.writeLong(parentTaskId);
+        out.writeString(reason);
+
     }
 
     @Override
-    public final Task createTask(long id, String type, String action) {
-        return createTask(id, type, action, parentTaskNode, parentTaskId);
+    public boolean match(Task task) {
+        return super.match(task) && task instanceof CancellableTask;
     }
 
-    public Task createTask(long id, String type, String action, String parentTaskNode, long parentTaskId) {
-        return new Task(id, type, action, getDescription(), parentTaskNode, parentTaskId);
+    public CancelTasksRequest reason(String reason) {
+        this.reason = reason;
+        return this;
+    }
+
+    public String reason() {
+        return reason;
     }
 }

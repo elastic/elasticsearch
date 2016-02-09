@@ -105,7 +105,9 @@ public class ListTasksResponse extends BaseTasksResponse implements ToXContent {
         if (getTaskFailures() != null && getTaskFailures().size() > 0) {
             builder.startArray("task_failures");
             for (TaskOperationFailure ex : getTaskFailures()){
+                builder.startObject();
                 builder.value(ex);
+                builder.endObject();
             }
             builder.endArray();
         }
@@ -113,7 +115,9 @@ public class ListTasksResponse extends BaseTasksResponse implements ToXContent {
         if (getNodeFailures() != null && getNodeFailures().size() > 0) {
             builder.startArray("node_failures");
             for (FailedNodeException ex : getNodeFailures()) {
-                builder.value(ex);
+                builder.startObject();
+                ex.toXContent(builder, params);
+                builder.endObject();
             }
             builder.endArray();
         }

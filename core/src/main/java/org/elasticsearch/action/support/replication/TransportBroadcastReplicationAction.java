@@ -121,6 +121,7 @@ public abstract class TransportBroadcastReplicationAction<Request extends Broadc
     protected void shardExecute(Task task, Request request, ShardId shardId, ActionListener<ShardResponse> shardActionListener) {
         ShardRequest shardRequest = newShardRequest(request, shardId);
         shardRequest.setParentTask(clusterService.localNode().getId(), task.getId());
+        taskManager.registerChildTask(task, clusterService.localNode().getId());
         replicatedBroadcastShardAction.execute(shardRequest, shardActionListener);
     }
 

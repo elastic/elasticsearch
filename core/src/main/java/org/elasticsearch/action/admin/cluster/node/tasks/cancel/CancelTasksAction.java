@@ -17,36 +17,30 @@
  * under the License.
  */
 
-package org.elasticsearch.transport;
+package org.elasticsearch.action.admin.cluster.node.tasks.cancel;
 
-import org.elasticsearch.tasks.Task;
+import org.elasticsearch.action.Action;
+import org.elasticsearch.client.ElasticsearchClient;
 
 /**
+ * Action for cancelling running tasks
  */
-public abstract class TransportRequest extends TransportMessage<TransportRequest> {
+public class CancelTasksAction extends Action<CancelTasksRequest, CancelTasksResponse, CancelTasksRequestBuilder> {
 
-    public static class Empty extends TransportRequest {
-        public static final Empty INSTANCE = new Empty();
+    public static final CancelTasksAction INSTANCE = new CancelTasksAction();
+    public static final String NAME = "cluster:admin/tasks/cancel";
+
+    private CancelTasksAction() {
+        super(NAME);
     }
 
-    public TransportRequest() {
+    @Override
+    public CancelTasksResponse newResponse() {
+        return new CancelTasksResponse();
     }
 
-
-    /**
-     * Returns the task object that should be used to keep track of the processing of the request.
-     *
-     * A request can override this method and return null to avoid being tracked by the task manager.
-     */
-    public Task createTask(long id, String type, String action) {
-        return new Task(id, type, action, getDescription());
+    @Override
+    public CancelTasksRequestBuilder newRequestBuilder(ElasticsearchClient client) {
+        return new CancelTasksRequestBuilder(client, this);
     }
-
-    /**
-     * Returns optional description of the request to be displayed by the task manager
-     */
-    public String getDescription() {
-        return "";
-    }
-
 }

@@ -32,7 +32,6 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
-import static org.mockito.Mockito.mock;
 
 public class ServerSSLServiceTests extends ESTestCase {
     Path testnodeStore;
@@ -223,17 +222,17 @@ public class ServerSSLServiceTests extends ESTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/2")
     public void testThatSSLSocketFactoryHasProperCiphersAndProtocols() throws Exception {
         ServerSSLService sslService = new ServerSSLService(settingsBuilder()
                 .put("shield.ssl.keystore.path", testnodeStore)
                 .put("shield.ssl.keystore.password", "testnode")
                 .build(), env);
         SSLSocketFactory factory = sslService.sslSocketFactory();
-        assertThat(factory.getDefaultCipherSuites(), is(sslService.ciphers()));
+        final String[] ciphers = sslService.supportedCiphers(factory.getSupportedCipherSuites(), sslService.ciphers());
+        assertThat(factory.getDefaultCipherSuites(), is(ciphers));
 
         try (SSLSocket socket = (SSLSocket) factory.createSocket()) {
-            assertThat(socket.getEnabledCipherSuites(), is(sslService.ciphers()));
+            assertThat(socket.getEnabledCipherSuites(), is(ciphers));
             assertThat(socket.getEnabledProtocols(), is(sslService.supportedProtocols()));
         }
     }

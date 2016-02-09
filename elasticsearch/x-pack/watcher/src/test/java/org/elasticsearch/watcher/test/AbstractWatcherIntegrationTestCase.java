@@ -61,6 +61,7 @@ import org.elasticsearch.watcher.trigger.TriggerService;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleModule;
 import org.elasticsearch.watcher.watch.Watch;
 import org.elasticsearch.xpack.TimeWarpedXPackPlugin;
+import org.elasticsearch.xpack.XPackClient;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.hamcrest.Matcher;
 import org.jboss.netty.util.internal.SystemPropertyUtil;
@@ -349,9 +350,8 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
     }
 
     protected WatcherClient watcherClient() {
-        return shieldEnabled ?
-                new WatcherClient(internalCluster().transportClient()) :
-                new WatcherClient(client());
+        Client client = shieldEnabled ? internalCluster().transportClient() : client();
+        return randomBoolean() ? new XPackClient(client).watcher() : new WatcherClient(client);
     }
 
     protected ScriptServiceProxy scriptService() {

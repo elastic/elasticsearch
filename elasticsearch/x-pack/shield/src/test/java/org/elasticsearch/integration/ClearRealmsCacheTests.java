@@ -21,7 +21,7 @@ import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.SecuredStringTests;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
-import org.elasticsearch.shield.client.ShieldClient;
+import org.elasticsearch.shield.client.SecurityClient;
 import org.elasticsearch.test.ShieldIntegTestCase;
 import org.elasticsearch.test.ShieldSettingsSource;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
@@ -140,11 +140,11 @@ public class ClearRealmsCacheTests extends ShieldIntegTestCase {
         public abstract void executeRequest() throws Exception;
 
         static void executeTransportRequest(ClearRealmCacheRequest request) throws Exception {
-            ShieldClient shieldClient = new ShieldClient(client());
+            SecurityClient securityClient = securityClient(client());
 
             final CountDownLatch latch = new CountDownLatch(1);
             final AtomicReference<Throwable> error = new AtomicReference<>();
-            shieldClient.clearRealmCache(request, new ActionListener<ClearRealmCacheResponse>() {
+            securityClient.clearRealmCache(request, new ActionListener<ClearRealmCacheResponse>() {
                 @Override
                 public void onResponse(ClearRealmCacheResponse response) {
                     assertThat(response.getNodes().length, equalTo(internalCluster().getNodeNames().length));

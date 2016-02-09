@@ -20,7 +20,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
 import org.elasticsearch.shield.action.role.ClearRolesCacheRequest;
 import org.elasticsearch.shield.action.role.ClearRolesCacheResponse;
-import org.elasticsearch.shield.client.ShieldClient;
+import org.elasticsearch.shield.client.SecurityClient;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
@@ -42,7 +42,7 @@ public class RestClearRolesCacheAction extends BaseRestHandler {
 
         ClearRolesCacheRequest req = new ClearRolesCacheRequest().roles(roles);
 
-        new ShieldClient(client).clearRolesCache(req, new RestBuilderListener<ClearRolesCacheResponse>(channel) {
+        new SecurityClient(client).clearRolesCache(req, new RestBuilderListener<ClearRolesCacheResponse>(channel) {
             @Override
             public RestResponse buildResponse(ClearRolesCacheResponse response, XContentBuilder builder) throws Exception {
                 response.toXContent(builder, ToXContent.EMPTY_PARAMS);

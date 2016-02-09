@@ -19,6 +19,7 @@ import org.elasticsearch.shield.authz.privilege.IndexPrivilege;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.XPackPlugin;
 
 import java.io.BufferedWriter;
 import java.io.OutputStream;
@@ -52,8 +53,9 @@ public class FileRolesStoreTests extends ESTestCase {
 
     public void testParseFile() throws Exception {
         Path path = getDataPath("roles.yml");
-        Map<String, Role> roles = FileRolesStore.parseFile(path, logger,
-                Settings.builder().put(ShieldPlugin.DLS_FLS_ENABLED_SETTING, true).build());
+        Map<String, Role> roles = FileRolesStore.parseFile(path, logger, Settings.builder()
+                .put(XPackPlugin.featureEnabledSetting(ShieldPlugin.DLS_FLS_FEATURE), true)
+                .build());
         assertThat(roles, notNullValue());
         assertThat(roles.size(), is(10));
 
@@ -208,8 +210,9 @@ public class FileRolesStoreTests extends ESTestCase {
     public void testParseFileWithFLSAndDLSDisabled() throws Exception {
         Path path = getDataPath("roles.yml");
         CapturingLogger logger = new CapturingLogger(CapturingLogger.Level.ERROR);
-        Map<String, Role> roles = FileRolesStore.parseFile(path,
-                logger, Settings.builder().put(ShieldPlugin.DLS_FLS_ENABLED_SETTING, false).build());
+        Map<String, Role> roles = FileRolesStore.parseFile(path, logger, Settings.builder()
+                .put(XPackPlugin.featureEnabledSetting(ShieldPlugin.DLS_FLS_FEATURE), false)
+                .build());
         assertThat(roles, notNullValue());
         assertThat(roles.size(), is(7));
         assertThat(roles.get("role_fields"), nullValue());

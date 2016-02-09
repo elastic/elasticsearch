@@ -19,7 +19,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
 import org.elasticsearch.shield.action.user.DeleteUserRequest;
 import org.elasticsearch.shield.action.user.DeleteUserResponse;
-import org.elasticsearch.shield.client.ShieldClient;
+import org.elasticsearch.shield.client.SecurityClient;
 
 /**
  * Rest action to delete a user from the shield index
@@ -37,7 +37,7 @@ public class RestDeleteUserAction extends BaseRestHandler {
         String user = request.param("username");
         DeleteUserRequest delUserRequest = new DeleteUserRequest(user);
 
-        new ShieldClient(client).deleteUser(delUserRequest, new RestBuilderListener<DeleteUserResponse>(channel) {
+        new SecurityClient(client).deleteUser(delUserRequest, new RestBuilderListener<DeleteUserResponse>(channel) {
             @Override
             public RestResponse buildResponse(DeleteUserResponse response, XContentBuilder builder) throws Exception {
                 return new BytesRestResponse(response.found() ? RestStatus.OK : RestStatus.NOT_FOUND,

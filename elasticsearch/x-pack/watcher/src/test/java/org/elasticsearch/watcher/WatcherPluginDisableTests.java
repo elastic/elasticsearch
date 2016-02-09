@@ -41,8 +41,10 @@ public class WatcherPluginDisableTests extends ESIntegTestCase {
         return Settings.settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(WatcherPlugin.ENABLED_SETTING, false)
+
                 // disable shield because of query cache check and authentication/authorization
-                .put(ShieldPlugin.ENABLED_SETTING_NAME, false)
+                .put(XPackPlugin.featureEnabledSetting(ShieldPlugin.NAME), false)
+
                 .put(NetworkModule.HTTP_ENABLED.getKey(), true)
                 .build();
     }

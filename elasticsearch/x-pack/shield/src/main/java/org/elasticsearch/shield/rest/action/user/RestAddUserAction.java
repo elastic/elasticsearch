@@ -20,7 +20,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
 import org.elasticsearch.shield.action.user.AddUserRequest;
 import org.elasticsearch.shield.action.user.AddUserResponse;
-import org.elasticsearch.shield.client.ShieldClient;
+import org.elasticsearch.shield.client.SecurityClient;
 
 /**
  * Rest endpoint to add a User to the shield index
@@ -40,7 +40,7 @@ public class RestAddUserAction extends BaseRestHandler {
         addUserReq.username(request.param("username"));
         addUserReq.source(request.content());
 
-        new ShieldClient(client).addUser(addUserReq, new RestBuilderListener<AddUserResponse>(channel) {
+        new SecurityClient(client).addUser(addUserReq, new RestBuilderListener<AddUserResponse>(channel) {
             @Override
             public RestResponse buildResponse(AddUserResponse addUserResponse, XContentBuilder builder) throws Exception {
                 return new BytesRestResponse(RestStatus.OK,

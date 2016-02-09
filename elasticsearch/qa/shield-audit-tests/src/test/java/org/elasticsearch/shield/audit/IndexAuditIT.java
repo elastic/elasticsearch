@@ -5,10 +5,14 @@
  */
 package org.elasticsearch.shield.audit;
 
+import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateResponse;
+import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.shield.audit.index.IndexAuditTrail;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -47,6 +51,35 @@ public class IndexAuditIT extends ESIntegTestCase {
                 QueryBuilders.matchQuery("principal", USER)).get();
         assertThat(searchResponse.getHits().getHits().length, greaterThan(0));
         assertThat((String) searchResponse.getHits().getAt(0).sourceAsMap().get("principal"), is(USER));
+    }
+
+    public void testAuditTrailTemplateIsRecreatedAfterDelete() throws Exception {
+        // this is already "tested" by the test framework since we wipe the templates before and after,
+        // but lets be explicit about the behavior
+        awaitIndexTemplateCreation();
+
+        // delete the template
+        DeleteIndexTemplateResponse deleteResponse = client().admin().indices()
+                .prepareDeleteTemplate(IndexAuditTrail.INDEX_TEMPLATE_NAME).execute().actionGet();
+        assertThat(deleteResponse.isAcknowledged(), is(true));
+        awaitIndexTemplateCreation();
+    }
+
+    private void awaitIndexTemplateCreation() throws InterruptedException {
+        boolean found = awaitBusy(() -> {
+            GetIndexTemplatesResponse response = client().admin().indices()
+                    .prepareGetTemplates(IndexAuditTrail.INDEX_TEMPLATE_NAME).execute().actionGet();
+            if (response.getIndexTemplates().size() > 0) {
+                for (IndexTemplateMetaData indexTemplateMetaData : response.getIndexTemplates()) {
+                    if (IndexAuditTrail.INDEX_TEMPLATE_NAME.equals(indexTemplateMetaData.name())) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        });
+
+        assertThat("index template [" + IndexAuditTrail.INDEX_TEMPLATE_NAME + "] was not created", found, is(true));
     }
 
     @Override

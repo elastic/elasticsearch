@@ -19,7 +19,7 @@ public class WatcherPluginTests extends ESTestCase {
         } catch (IllegalArgumentException e) {
         }
         WatcherPlugin.validAutoCreateIndex(Settings.builder().put("action.auto_create_index",
-                ".watches,.triggered_watches,.watch_history*").build());
+                ".watches,.triggered_watches,.watcher-history*").build());
         WatcherPlugin.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", "*w*").build());
         WatcherPlugin.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", ".w*,.t*").build());
         try {
@@ -33,7 +33,7 @@ public class WatcherPluginTests extends ESTestCase {
         } catch (IllegalArgumentException e) {
         }
         try {
-            WatcherPlugin.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", ".watch_history*").build());
+            WatcherPlugin.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", ".watcher-history*").build());
             fail("IllegalArgumentException expected");
         } catch (IllegalArgumentException e) {
         }

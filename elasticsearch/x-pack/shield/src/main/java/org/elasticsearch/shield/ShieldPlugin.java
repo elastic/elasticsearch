@@ -6,7 +6,6 @@
 package org.elasticsearch.shield;
 
 import org.elasticsearch.action.ActionModule;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.network.NetworkModule;
@@ -14,7 +13,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.shield.action.ShieldActionFilter;
@@ -71,7 +69,6 @@ import org.elasticsearch.shield.transport.netty.ShieldNettyHttpServerTransport;
 import org.elasticsearch.shield.transport.netty.ShieldNettyTransport;
 import org.elasticsearch.xpack.XPackPlugin;
 
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -85,22 +82,19 @@ import java.util.Map;
 public class ShieldPlugin extends Plugin {
 
     public static final String NAME = "shield";
-    public static final String ENABLED_SETTING_NAME = NAME + ".enabled";
+    public static final String DLS_FLS_FEATURE = "shield.dls_fls";
     public static final String OPT_OUT_QUERY_CACHE = "opt_out_cache";
-    public static final String DLS_FLS_ENABLED_SETTING = "shield.dls_fls.enabled";
-
-    private static final boolean DEFAULT_ENABLED_SETTING = true;
 
     private final Settings settings;
     private final boolean enabled;
-    private final boolean clientMode;
+    private final boolean transportClientMode;
     private ShieldLicenseState shieldLicenseState;
 
     public ShieldPlugin(Settings settings) {
         this.settings = settings;
-        this.enabled = shieldEnabled(settings);
-        this.clientMode = clientMode(settings);
-        if (enabled && clientMode == false) {
+        this.transportClientMode = XPackPlugin.transportClientMode(settings);
+        this.enabled = XPackPlugin.featureEnabled(settings, NAME, true);
+        if (enabled && !transportClientMode) {
             failIfShieldQueryCacheIsNotActive(settings, true);
         }
     }
@@ -118,11 +112,11 @@ public class ShieldPlugin extends Plugin {
     @Override
     public Collection<Module> nodeModules() {
 
-        if (!enabled) {
+        if (enabled == false) {
             return Collections.singletonList(new ShieldDisabledModule(settings));
         }
 
-        if (clientMode) {
+        if (transportClientMode == true) {
             return Arrays.<Module>asList(
                     new ShieldTransportModule(settings),
                     new SSLModule(settings));
@@ -147,18 +141,21 @@ public class ShieldPlugin extends Plugin {
 
     @Override
     public Collection<Class<? extends LifecycleComponent>> nodeServices() {
-        if (enabled && clientMode == false) {
-            List<Class<? extends LifecycleComponent>> list = new ArrayList<>();
-            if (AuditTrailModule.fileAuditLoggingEnabled(settings)) {
-                list.add(LoggingAuditTrail.class);
-            }
-            list.add(ShieldLicensee.class);
-            list.add(InternalCryptoService.class);
-            list.add(FileRolesStore.class);
-            list.add(Realms.class);
-            return list;
+        if (enabled == false || transportClientMode == true) {
+            return Collections.emptyList();
         }
-        return Collections.emptyList();
+        List<Class<? extends LifecycleComponent>> list = new ArrayList<>();
+
+        //TODO why only focus on file audit logs? shouldn't we just check if audit trail is enabled in general?
+        if (AuditTrailModule.fileAuditLoggingEnabled(settings) == true) {
+            list.add(LoggingAuditTrail.class);
+        }
+        list.add(ShieldLicensee.class);
+        list.add(InternalCryptoService.class);
+        list.add(FileRolesStore.class);
+        list.add(Realms.class);
+        return list;
+
     }
 
     @Override
@@ -178,6 +175,7 @@ public class ShieldPlugin extends Plugin {
     }
 
     public void onModule(SettingsModule settingsModule) {
+        //TODO shouldn't we register these settings only if shield is enabled and we're not in a client mode?
         settingsModule.registerSetting(IPFilter.IP_FILTER_ENABLED_SETTING);
         settingsModule.registerSetting(IPFilter.IP_FILTER_ENABLED_HTTP_SETTING);
         settingsModule.registerSetting(IPFilter.HTTP_FILTER_ALLOW_SETTING);
@@ -187,6 +185,9 @@ public class ShieldPlugin extends Plugin {
         settingsModule.registerSetting(Setting.boolSetting("plugins.load_classpath_plugins", true, false, Setting.Scope.CLUSTER));
         // TODO add real settings for this wildcard here
         settingsModule.registerSetting(Setting.groupSetting("shield.", false, Setting.Scope.CLUSTER));
+        // TODO please let's just drop the old settings before releasing
+        settingsModule.registerSetting(Setting.groupSetting("xpack.shield.", false, Setting.Scope.CLUSTER));
+
         String[] asArray = settings.getAsArray("shield.hide_settings");
         for (String pattern : asArray) {
             settingsModule.registerSettingsFilter(pattern);
@@ -207,14 +208,15 @@ public class ShieldPlugin extends Plugin {
         if (enabled == false) {
             return;
         }
+
         assert shieldLicenseState != null;
         if (flsDlsEnabled(settings)) {
             module.setSearcherWrapper((indexService) -> new ShieldIndexSearcherWrapper(indexService.getIndexSettings(),
-                    indexService.getQueryShardContext(), indexService.mapperService(),
+                    indexService.newQueryShardContext(), indexService.mapperService(),
                     indexService.cache().bitsetFilterCache(), indexService.getIndexServices().getThreadPool().getThreadContext(),
                     shieldLicenseState));
         }
-        if (clientMode == false) {
+        if (transportClientMode == false) {
             module.registerQueryCache(ShieldPlugin.OPT_OUT_QUERY_CACHE, OptOutQueryCache::new);
             failIfShieldQueryCacheIsNotActive(module.getSettings(), false);
         }
@@ -225,7 +227,7 @@ public class ShieldPlugin extends Plugin {
             return;
         }
         // registering the security filter only for nodes
-        if (clientMode == false) {
+        if (transportClientMode == false) {
             module.registerFilter(ShieldActionFilter.class);
         }
 
@@ -241,23 +243,21 @@ public class ShieldPlugin extends Plugin {
     }
 
     public void onModule(NetworkModule module) {
-        if (clientMode == false) {
-            // we want to expose the shield rest action even when the plugin is disabled
-            module.registerRestHandler(RestShieldInfoAction.class);
-        }
 
-        if (enabled == false) {
+        if (transportClientMode) {
+            if (enabled) {
+                module.registerTransport(ShieldPlugin.NAME, ShieldNettyTransport.class);
+                module.registerTransportService(ShieldPlugin.NAME, ShieldClientTransportService.class);
+            }
             return;
         }
 
-        module.registerTransport(ShieldPlugin.NAME, ShieldNettyTransport.class);
-        if (clientMode) {
-            module.registerTransportService(ShieldPlugin.NAME, ShieldClientTransportService.class);
-        } else {
-            module.registerTransportService(ShieldPlugin.NAME, ShieldServerTransportService.class);
-        }
+        // we want to expose the shield rest action even when the plugin is disabled
+        module.registerRestHandler(RestShieldInfoAction.class);
 
-        if (clientMode == false) {
+        if (enabled) {
+            module.registerTransport(ShieldPlugin.NAME, ShieldNettyTransport.class);
+            module.registerTransportService(ShieldPlugin.NAME, ShieldServerTransportService.class);
             module.registerRestHandler(RestAuthenticateAction.class);
             module.registerRestHandler(RestClearRealmCacheAction.class);
             module.registerRestHandler(RestClearRolesCacheAction.class);
@@ -290,39 +290,41 @@ public class ShieldPlugin extends Plugin {
                 .toCharArray())));
     }
 
-    /*
-     We inject additional settings on each tribe client if the current node is a tribe node, to make sure that every tribe has shield
-     installed and enabled too:
-     - if shield is loaded on the tribe node we make sure it is also loaded on every tribe, by making it mandatory there
-     (this means that the tribe node will fail at startup if shield is not loaded on any tribe due to missing mandatory plugin)
-     - if shield is loaded and enabled on the tribe node, we make sure it is also enabled on every tribe, by forcibly enabling it
-       (that means it's not possible to disable shield on the tribe clients)
+    /**
+     * If the current node is a tribe node, we inject additional settings on each tribe client. We do this to make sure
+     * that every tribe cluster has shield installed and is enabled. We do that by:
+     *
+     *    - making it mandatory on the tribe client (this means that the tribe node will fail at startup if shield is
+     *      not loaded on any tribe due to missing mandatory plugin)
+     *
+     *    - forcibly enabling it (that means it's not possible to disable shield on the tribe clients)
      */
     private void addTribeSettings(Settings.Builder settingsBuilder) {
         Map<String, Settings> tribesSettings = settings.getGroups("tribe", true);
         if (tribesSettings.isEmpty()) {
+            // it's not a tribe node
             return;
         }
 
         for (Map.Entry<String, Settings> tribeSettings : tribesSettings.entrySet()) {
             String tribePrefix = "tribe." + tribeSettings.getKey() + ".";
 
-            // we copy over existing mandatory plugins under additional settings, as they would get overridden otherwise (arrays don't get
-            // merged)
+            // we copy over existing mandatory plugins under additional settings, as they would get overridden
+            // otherwise (arrays don't get merged)
             String[] existingMandatoryPlugins = tribeSettings.getValue().getAsArray("plugin.mandatory", null);
             if (existingMandatoryPlugins == null) {
                 //shield is mandatory on every tribe if installed and enabled on the tribe node
-                settingsBuilder.putArray(tribePrefix + "plugin.mandatory", NAME);
+                settingsBuilder.putArray(tribePrefix + "plugin.mandatory", XPackPlugin.NAME);
             } else {
-                if (!isShieldMandatory(existingMandatoryPlugins)) {
-                    throw new IllegalStateException("when [plugin.mandatory] is explicitly configured, [" + NAME + "] must be included in" +
-                            " this list");
+                if (Arrays.binarySearch(existingMandatoryPlugins, XPackPlugin.NAME) < 0) {
+                    throw new IllegalStateException("when [plugin.mandatory] is explicitly configured, [" +
+                            XPackPlugin.NAME + "] must be included in this list");
                 }
             }
 
-            final String tribeEnabledSetting = tribePrefix + ENABLED_SETTING_NAME;
+            final String tribeEnabledSetting = tribePrefix + XPackPlugin.featureEnabledSetting(NAME);
             if (settings.get(tribeEnabledSetting) != null) {
-                boolean enabled = shieldEnabled(tribeSettings.getValue());
+                boolean enabled = enabled(tribeSettings.getValue());
                 if (!enabled) {
                     throw new IllegalStateException("tribe setting [" + tribeEnabledSetting + "] must be set to true but the value is ["
                             + settings.get(tribeEnabledSetting) + "]");
@@ -334,43 +336,22 @@ public class ShieldPlugin extends Plugin {
         }
     }
 
-    /*
-        We need to forcefully overwrite the query cache implementation to use Shield's opt out query cache implementation.
-        This impl. disabled the query cache if field level security is used for a particular request. If we wouldn't do
-        forcefully overwrite the query cache implementation then we leave the system vulnerable to leakages of data to
-        unauthorized users.
+    /**
+     *  We need to forcefully overwrite the query cache implementation to use Shield's opt out query cache implementation.
+     *  This impl. disabled the query cache if field level security is used for a particular request. If we wouldn't do
+     *  forcefully overwrite the query cache implementation then we leave the system vulnerable to leakages of data to
+     *  unauthorized users.
      */
     private void addQueryCacheSettings(Settings.Builder settingsBuilder) {
         settingsBuilder.put(IndexModule.INDEX_QUERY_CACHE_TYPE_SETTING.getKey(), OPT_OUT_QUERY_CACHE);
     }
 
-    private static boolean isShieldMandatory(String[] existingMandatoryPlugins) {
-        for (String existingMandatoryPlugin : existingMandatoryPlugins) {
-            if (NAME.equals(existingMandatoryPlugin)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    public static Path configDir(Environment env) {
-        return env.configFile().resolve(XPackPlugin.NAME);
-    }
-
-    public static Path resolveConfigFile(Environment env, String name) {
-        return configDir(env).resolve(name);
-    }
-
-    public static boolean clientMode(Settings settings) {
-        return !"node".equals(settings.get(Client.CLIENT_TYPE_SETTING_S.getKey()));
-    }
-
-    public static boolean shieldEnabled(Settings settings) {
-        return settings.getAsBoolean(ENABLED_SETTING_NAME, DEFAULT_ENABLED_SETTING);
+    public static boolean enabled(Settings settings) {
+        return XPackPlugin.featureEnabled(settings, NAME, true);
     }
 
     public static boolean flsDlsEnabled(Settings settings) {
-        return settings.getAsBoolean(DLS_FLS_ENABLED_SETTING, true);
+        return XPackPlugin.featureEnabled(settings, DLS_FLS_FEATURE, true);
     }
 
     private void failIfShieldQueryCacheIsNotActive(Settings settings, boolean nodeSettings) {

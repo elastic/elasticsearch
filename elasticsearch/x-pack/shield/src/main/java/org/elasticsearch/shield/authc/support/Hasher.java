@@ -7,6 +7,7 @@ package org.elasticsearch.shield.authc.support;
 
 import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.hash.MessageDigests;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -142,7 +143,7 @@ public enum Hasher {
         @Override
         public char[] hash(SecuredString text) {
             byte[] textBytes = CharArrays.toUtf8Bytes(text.internalChars());
-            MessageDigest md = SHA1Provider.sha1();
+            MessageDigest md = MessageDigests.sha1();
             md.update(textBytes);
             String hash = Base64.encodeBytes(md.digest());
             return (SHA1_PREFIX + hash).toCharArray();
@@ -155,7 +156,7 @@ public enum Hasher {
                 return false;
             }
             byte[] textBytes = CharArrays.toUtf8Bytes(text.internalChars());
-            MessageDigest md = SHA1Provider.sha1();
+            MessageDigest md = MessageDigests.sha1();
             md.update(textBytes);
             String passwd64 = Base64.encodeBytes(md.digest());
             String hashNoPrefix = hashStr.substring(SHA1_PREFIX.length());
@@ -166,7 +167,7 @@ public enum Hasher {
     MD5() {
         @Override
         public char[] hash(SecuredString text) {
-            MessageDigest md = MD5Provider.md5();
+            MessageDigest md = MessageDigests.md5();
             md.update(CharArrays.toUtf8Bytes(text.internalChars()));
             String hash = Base64.encodeBytes(md.digest());
             return (MD5_PREFIX + hash).toCharArray();
@@ -179,7 +180,7 @@ public enum Hasher {
                 return false;
             }
             hashStr = hashStr.substring(MD5_PREFIX.length());
-            MessageDigest md = MD5Provider.md5();
+            MessageDigest md = MessageDigests.md5();
             md.update(CharArrays.toUtf8Bytes(text.internalChars()));
             String computedHashStr = Base64.encodeBytes(md.digest());
             return SecuredString.constantTimeEquals(hashStr, computedHashStr);
@@ -189,7 +190,7 @@ public enum Hasher {
     SSHA256() {
         @Override
         public char[] hash(SecuredString text) {
-            MessageDigest md = SHA256Provider.sha256();
+            MessageDigest md = MessageDigests.sha256();
             md.update(CharArrays.toUtf8Bytes(text.internalChars()));
             char[] salt = SaltProvider.salt(8);
             md.update(CharArrays.toUtf8Bytes(salt));
@@ -209,7 +210,7 @@ public enum Hasher {
             }
             hashStr = hashStr.substring(SSHA256_PREFIX.length());
             char[] saltAndHash = hashStr.toCharArray();
-            MessageDigest md = SHA256Provider.sha256();
+            MessageDigest md = MessageDigests.sha256();
             md.update(CharArrays.toUtf8Bytes(text.internalChars()));
             md.update(new String(saltAndHash, 0, 8).getBytes(StandardCharsets.UTF_8));
             String computedHash = Base64.encodeBytes(md.digest());
@@ -278,76 +279,6 @@ public enum Hasher {
     public abstract char[] hash(SecuredString data);
 
     public abstract boolean verify(SecuredString data, char[] hash);
-
-    static final class MD5Provider {
-
-        private static final MessageDigest digest;
-
-        static {
-            try {
-                digest = MessageDigest.getInstance("MD5");
-            } catch (NoSuchAlgorithmException e) {
-                throw new IllegalStateException("unsupported digest algorithm [MD5]. Please verify you are running on Java 7 or above", e);
-            }
-        }
-
-        private static MessageDigest md5() {
-            try {
-                MessageDigest md5 = (MessageDigest) digest.clone();
-                md5.reset();
-                return md5;
-            } catch (CloneNotSupportedException e) {
-                throw new IllegalStateException("could not create MD5 digest", e);
-            }
-        }
-    }
-
-    static final class SHA1Provider {
-
-        private static final MessageDigest digest;
-
-        static {
-            try {
-                digest = MessageDigest.getInstance("SHA-1");
-            } catch (NoSuchAlgorithmException e) {
-                throw new IllegalStateException("unsupported digest algorithm [SHA-1]", e);
-            }
-        }
-
-        private static MessageDigest sha1() {
-            try {
-                MessageDigest sha1 = (MessageDigest) digest.clone();
-                sha1.reset();
-                return sha1;
-            } catch (CloneNotSupportedException e) {
-                throw new IllegalStateException("could not create SHA-1 digest", e);
-            }
-        }
-    }
-
-    static final class SHA256Provider {
-
-        private static final MessageDigest digest;
-
-        static {
-            try {
-                digest = MessageDigest.getInstance("SHA-256");
-            } catch (NoSuchAlgorithmException e) {
-                String msg = "unsupported digest algorithm [SHA-256]. Please verify you are running on Java 7 or above";
-                throw new IllegalStateException(msg, e);
-            }
-        }
-
-        private static MessageDigest sha256() {
-            try {
-                MessageDigest sha = (MessageDigest) digest.clone();
-                sha.reset();
-                return sha;
-            } catch (CloneNotSupportedException e) {
-                throw new IllegalStateException("could not create [SHA-256] digest", e);
-            }
-        }
-    }
 
     static final class SaltProvider {
 

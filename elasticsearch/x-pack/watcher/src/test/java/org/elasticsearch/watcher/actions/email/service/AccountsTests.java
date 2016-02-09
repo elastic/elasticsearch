@@ -24,7 +24,7 @@ public class AccountsTests extends ESTestCase {
                 .put("default_account", "account1");
         addAccountSettings("account1", builder);
 
-        Accounts accounts = new Accounts(builder.build(), new SecretService.PlainText(), logger);
+        Accounts accounts = new Accounts(builder.build(), SecretService.Insecure.INSTANCE, logger);
         Account account = accounts.account("account1");
         assertThat(account, notNullValue());
         assertThat(account.name(), equalTo("account1"));
@@ -37,7 +37,7 @@ public class AccountsTests extends ESTestCase {
         Settings.Builder builder = Settings.builder();
         addAccountSettings("account1", builder);
 
-        Accounts accounts = new Accounts(builder.build(), new SecretService.PlainText(), logger);
+        Accounts accounts = new Accounts(builder.build(), SecretService.Insecure.INSTANCE, logger);
         Account account = accounts.account("account1");
         assertThat(account, notNullValue());
         assertThat(account.name(), equalTo("account1"));
@@ -52,7 +52,7 @@ public class AccountsTests extends ESTestCase {
         addAccountSettings("account1", builder);
         addAccountSettings("account2", builder);
 
-        Accounts accounts = new Accounts(builder.build(), new SecretService.PlainText(), logger);
+        Accounts accounts = new Accounts(builder.build(), SecretService.Insecure.INSTANCE, logger);
         Account account = accounts.account("account1");
         assertThat(account, notNullValue());
         assertThat(account.name(), equalTo("account1"));
@@ -70,7 +70,7 @@ public class AccountsTests extends ESTestCase {
         addAccountSettings("account1", builder);
         addAccountSettings("account2", builder);
 
-        Accounts accounts = new Accounts(builder.build(), new SecretService.PlainText(), logger);
+        Accounts accounts = new Accounts(builder.build(), SecretService.Insecure.INSTANCE, logger);
         Account account = accounts.account("account1");
         assertThat(account, notNullValue());
         assertThat(account.name(), equalTo("account1"));
@@ -88,7 +88,7 @@ public class AccountsTests extends ESTestCase {
         addAccountSettings("account1", builder);
         addAccountSettings("account2", builder);
         try {
-            new Accounts(builder.build(), new SecretService.PlainText(), logger);
+            new Accounts(builder.build(), SecretService.Insecure.INSTANCE, logger);
             fail("Expected SettingsException");
         } catch (SettingsException e) {
             assertThat(e.getMessage(), is("could not find default email account [unknown]"));
@@ -97,7 +97,7 @@ public class AccountsTests extends ESTestCase {
 
     public void testNoAccount() throws Exception {
         Settings.Builder builder = Settings.builder();
-        Accounts accounts = new Accounts(builder.build(), new SecretService.PlainText(), logger);
+        Accounts accounts = new Accounts(builder.build(), SecretService.Insecure.INSTANCE, logger);
         try {
             accounts.account(null);
             fail("no accounts are configured so trying to get the default account should throw an IllegalStateException");
@@ -110,7 +110,7 @@ public class AccountsTests extends ESTestCase {
         Settings.Builder builder = Settings.builder()
                 .put("default_account", "unknown");
         try {
-            new Accounts(builder.build(), new SecretService.PlainText(), logger);
+            new Accounts(builder.build(), SecretService.Insecure.INSTANCE, logger);
             fail("Expected SettingsException");
         } catch (SettingsException e) {
             assertThat(e.getMessage(), is("could not find default email account [unknown]"));

@@ -114,7 +114,7 @@ fi
 export HOSTNAME=`hostname -s`
 
 # include watcher jars in classpath
-ES_CLASSPATH="$ES_CLASSPATH:$ES_HOME/plugins/x-pack/*"
+ES_CLASSPATH="$ES_CLASSPATH:$ES_HOME/plugins/xpack/*"
 
 cd "$ES_HOME" > /dev/null
 $JAVA $ES_JAVA_OPTS -cp "$ES_CLASSPATH" org.elasticsearch.watcher.trigger.schedule.tool.CronEvalTool "$@" $properties

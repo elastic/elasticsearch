@@ -7,13 +7,13 @@ package org.elasticsearch.xpack;
 
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.action.ActionModule;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.license.plugin.LicensePlugin;
 import org.elasticsearch.marvel.MarvelPlugin;
@@ -22,6 +22,7 @@ import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.shield.ShieldPlugin;
 import org.elasticsearch.watcher.WatcherPlugin;
 
+import java.nio.file.Path;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.ArrayList;
@@ -29,9 +30,7 @@ import java.util.Collection;
 
 public class XPackPlugin extends Plugin {
 
-    public static final String NAME = "x-pack";
-
-    private final static ESLogger logger = Loggers.getLogger(XPackPlugin.class);
+    public static final String NAME = "xpack";
 
     // TODO: clean up this library to not ask for write access to all system properties!
     static {
@@ -142,5 +141,31 @@ public class XPackPlugin extends Plugin {
         shieldPlugin.onIndexModule(module);
         watcherPlugin.onIndexModule(module);
         marvelPlugin.onIndexModule(module);
+    }
+
+    public static boolean transportClientMode(Settings settings) {
+        return !"node".equals(settings.get(Client.CLIENT_TYPE_SETTING_S.getKey()));
+    }
+
+    public static Path resolveConfigFile(Environment env, String name) {
+        return env.configFile().resolve(NAME).resolve(name);
+    }
+
+    /**
+     * A consistent way to enable disable features using the following setting:
+     *
+     *          {@code "xpack.<feature>.enabled": true | false}
+     *
+     *  Also supports the following setting as a fallback (for BWC with 1.x/2.x):
+     *
+     *          {@code "<feature>.enabled": true | false}
+     */
+    public static boolean featureEnabled(Settings settings, String featureName, boolean defaultValue) {
+        return settings.getAsBoolean(featureEnabledSetting(featureName),
+                settings.getAsBoolean(featureName + ".enabled", defaultValue)); // for bwc
+    }
+
+    public static String featureEnabledSetting(String featureName) {
+        return NAME + "." + featureName + ".enabled";
     }
 }

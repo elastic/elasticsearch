@@ -12,6 +12,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
+import org.elasticsearch.watcher.WatcherModule;
 import org.elasticsearch.watcher.execution.ExecutionState;
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
 import org.joda.time.DateTime;
@@ -30,7 +31,7 @@ import static org.elasticsearch.watcher.support.Exceptions.ioException;
  */
 public class HistoryStore extends AbstractComponent {
 
-    public static final String INDEX_PREFIX = ".watch_history-";
+    public static final String INDEX_PREFIX = ".watcher-history-" + WatcherModule.getHistoryIndexTemplateVersion() + "-";
     public static final String DOC_TYPE = "watch_record";
 
     static final DateTimeFormatter indexTimeFormat = DateTimeFormat.forPattern("YYYY.MM.dd");

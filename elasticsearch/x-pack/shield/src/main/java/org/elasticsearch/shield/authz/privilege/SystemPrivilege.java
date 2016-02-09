@@ -22,8 +22,7 @@ public class SystemPrivilege extends Privilege<SystemPrivilege> {
             "internal:*",
             "indices:monitor/*", // added for marvel
             "cluster:monitor/*",  // added for marvel
-            "cluster:admin/reroute", // added for DiskThresholdDecider.DiskListener
-            "indices:admin/mapping/put" // ES 2.0 MappingUpdatedAction - updateMappingOnMasterSynchronously
+            "cluster:admin/reroute" // added for DiskThresholdDecider.DiskListener
     ));
 
     SystemPrivilege() {

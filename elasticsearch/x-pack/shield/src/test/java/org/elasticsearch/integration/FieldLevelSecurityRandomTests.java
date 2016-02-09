@@ -14,6 +14,7 @@ import org.elasticsearch.shield.ShieldPlugin;
 import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.test.ShieldIntegTestCase;
+import org.elasticsearch.xpack.XPackPlugin;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -111,7 +112,7 @@ public class FieldLevelSecurityRandomTests extends ShieldIntegTestCase {
     public Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(ShieldPlugin.DLS_FLS_ENABLED_SETTING, true)
+                .put(XPackPlugin.featureEnabledSetting(ShieldPlugin.DLS_FLS_FEATURE), true)
                 .build();
     }
 

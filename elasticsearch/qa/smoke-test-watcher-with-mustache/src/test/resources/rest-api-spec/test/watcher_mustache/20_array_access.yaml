@@ -58,5 +58,5 @@
 
   - do:
       search:
-        index: .watch_history-*
+        index: .watcher-history-*
   - match: { hits.hits.0._source.result.actions.0.logging.logged_text: "value1 value2" }

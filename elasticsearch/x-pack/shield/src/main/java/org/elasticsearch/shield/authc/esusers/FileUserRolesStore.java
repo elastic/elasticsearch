@@ -19,6 +19,7 @@ import org.elasticsearch.shield.support.Validation;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.XPackPlugin;
 
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -91,7 +92,7 @@ public class FileUserRolesStore {
     public static Path resolveFile(Settings settings, Environment env) {
         String location = settings.get("files.users_roles");
         if (location == null) {
-            return ShieldPlugin.resolveConfigFile(env, "users_roles");
+            return XPackPlugin.resolveConfigFile(env, "users_roles");
         }
         return env.binFile().getParent().resolve(location);
     }
@@ -181,7 +182,7 @@ public class FileUserRolesStore {
         }
 
         if (usersRoles.isEmpty()) {
-            logger.warn("no entries found in users_roles file [{}]. use bin/shield/esusers to add users and role mappings", path
+            logger.warn("no entries found in users_roles file [{}]. use bin/xpack/esusers to add users and role mappings", path
                     .toAbsolutePath());
         }
 

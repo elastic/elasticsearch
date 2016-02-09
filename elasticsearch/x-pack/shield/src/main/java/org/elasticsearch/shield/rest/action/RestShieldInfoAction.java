@@ -37,7 +37,7 @@ public class RestShieldInfoAction extends BaseRestHandler {
         super(settings, client);
         this.clusterName = clusterName;
         this.shieldLicenseState = licenseState;
-        this.shieldEnabled = ShieldPlugin.shieldEnabled(settings);
+        this.shieldEnabled = ShieldPlugin.enabled(settings);
         controller.registerHandler(GET, "/_shield", this);
         controller.registerHandler(HEAD, "/_shield", this);
     }

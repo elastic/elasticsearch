@@ -34,6 +34,7 @@ import org.elasticsearch.shield.support.Validation;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.XPackPlugin;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -109,7 +110,7 @@ public class FileRolesStore extends AbstractLifecycleComponent<RolesStore> imple
     public static Path resolveFile(Settings settings, Environment env) {
         String location = settings.get("shield.authz.store.files.roles");
         if (location == null) {
-            return ShieldPlugin.resolveConfigFile(env, "roles.yml");
+            return XPackPlugin.resolveConfigFile(env, "roles.yml");
         }
 
         return env.binFile().getParent().resolve(location);
@@ -285,10 +286,10 @@ public class FileRolesStore extends AbstractLifecycleComponent<RolesStore> imple
                                                                 if (token == XContentParser.Token.VALUE_STRING) {
                                                                     names.add(parser.text());
                                                                 } else {
-                                                                    logger.error("invalid role definition [{}] in roles file [{}]. could " +
-                                                                            "not parse " +
-                                                                            "[{}] as index privilege. privilege names must be strings. " +
-                                                                            "skipping role...", roleName, path.toAbsolutePath(), token);
+                                                                    logger.error("invalid role definition [{}] in roles file [{}]. " +
+                                                                            "could not parse [{}] as index privilege. privilege " +
+                                                                            "names must be strings. skipping role...", roleName,
+                                                                            path.toAbsolutePath(), token);
                                                                     return null;
                                                                 }
                                                             }
@@ -301,26 +302,27 @@ public class FileRolesStore extends AbstractLifecycleComponent<RolesStore> imple
                                                 if (name != null) {
                                                     if ((query != null || (fields != null && fields.isEmpty() == false)) &&
                                                             ShieldPlugin.flsDlsEnabled(settings) == false) {
-                                                        logger.error("invalid role definition [{}] in roles file [{}]. document and field" +
-                                                                " level security is not enabled. set [{}] to [true] in the configuration " +
-                                                                "file. skipping role...", roleName, path.toAbsolutePath(), ShieldPlugin
-                                                                .DLS_FLS_ENABLED_SETTING);
+                                                        logger.error("invalid role definition [{}] in roles file [{}]. " +
+                                                                "document and field level security is not enabled. " +
+                                                                "set [{}] to [true] in the configuration file. skipping role...",
+                                                                roleName, path.toAbsolutePath(),
+                                                                XPackPlugin.featureEnabledSetting(ShieldPlugin.DLS_FLS_FEATURE));
                                                         return null;
                                                     }
 
                                                     try {
                                                         role.add(fields, query, IndexPrivilege.get(name), indices);
                                                     } catch (IllegalArgumentException e) {
-                                                        logger.error("invalid role definition [{}] in roles file [{}]. could not resolve " +
-                                                                "indices privileges [{}]. skipping role...", roleName,
+                                                        logger.error("invalid role definition [{}] in roles file [{}]. could not " +
+                                                                "resolve indices privileges [{}]. skipping role...", roleName,
                                                                 path.toAbsolutePath(), name);
                                                         return null;
                                                     }
                                                 }
                                                 continue;
                                             } else {
-                                                logger.error("invalid role definition [{}] in roles file [{}]. could not parse [{}] as " +
-                                                        "index privileges. privilege lists must either " +
+                                                logger.error("invalid role definition [{}] in roles file [{}]. " +
+                                                        "could not parse [{}] as index privileges. privilege lists must either " +
                                                         "be a comma delimited string or an array of strings. skipping role...", roleName,
                                                         path.toAbsolutePath(), token);
                                                 return null;

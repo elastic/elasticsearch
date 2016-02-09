@@ -20,13 +20,13 @@ integTest {
 
   cluster {
     plugin 'x-pack', project(':x-plugins:elasticsearch:x-pack')
-    extraConfigFile 'x-pack/roles.yml', 'roles.yml'
+    extraConfigFile 'xpack/roles.yml', 'roles.yml'
     setupCommand 'setupTestAdminUser',
-                 'bin/x-pack/esusers', 'useradd', 'test_admin', '-p', 'changeme', '-r', 'admin'
+                 'bin/xpack/esusers', 'useradd', 'test_admin', '-p', 'changeme', '-r', 'admin'
     setupCommand 'setupWatcherManagerUser',
-                 'bin/x-pack/esusers', 'useradd', 'watcher_manager', '-p', 'changeme', '-r', 'watcher_manager'
+                 'bin/xpack/esusers', 'useradd', 'watcher_manager', '-p', 'changeme', '-r', 'watcher_manager'
     setupCommand 'setupPowerlessUser',
-                 'bin/x-pack/esusers', 'useradd', 'powerless_user', '-p', 'changeme', '-r', 'crappy_role'
+                 'bin/xpack/esusers', 'useradd', 'powerless_user', '-p', 'changeme', '-r', 'crappy_role'
     waitCondition = { node, ant ->
       File tmpFile = new File(node.cwd, 'wait.success')
       ant.get(src: "http://${node.httpUri()}",

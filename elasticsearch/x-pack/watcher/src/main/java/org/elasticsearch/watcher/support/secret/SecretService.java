@@ -5,6 +5,12 @@
  */
 package org.elasticsearch.watcher.support.secret;
 
+import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.shield.crypto.CryptoService;
+
 /**
  *
  */
@@ -14,7 +20,12 @@ public interface SecretService {
 
     char[] decrypt(char[] text);
 
-    class PlainText implements SecretService {
+    class Insecure implements SecretService {
+
+        public static final Insecure INSTANCE = new Insecure();
+
+        Insecure() {
+        }
 
         @Override
         public char[] encrypt(char[] text) {
@@ -24,6 +35,33 @@ public interface SecretService {
         @Override
         public char[] decrypt(char[] text) {
             return text;
+        }
+    }
+
+    /**
+     *
+     */
+    class Secure extends AbstractComponent implements SecretService {
+
+        private final CryptoService cryptoService;
+        private final boolean encryptSensitiveData;
+        public static final Setting<Boolean> ENCRYPT_SENSITIVE_DATA_SETTING =
+                Setting.boolSetting("watcher.shield.encrypt_sensitive_data", false, false, Setting.Scope.CLUSTER);
+        @Inject
+        public Secure(Settings settings, CryptoService cryptoService) {
+            super(settings);
+            this.encryptSensitiveData = ENCRYPT_SENSITIVE_DATA_SETTING.get(settings);
+            this.cryptoService = cryptoService;
+        }
+
+        @Override
+        public char[] encrypt(char[] text) {
+            return encryptSensitiveData ? cryptoService.encrypt(text) : text;
+        }
+
+        @Override
+        public char[] decrypt(char[] text) {
+            return encryptSensitiveData ? cryptoService.decrypt(text) : text;
         }
     }
 }

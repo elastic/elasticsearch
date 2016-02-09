@@ -8,7 +8,6 @@ package org.elasticsearch.watcher.support.secret;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.ShieldPlugin;
-import org.elasticsearch.watcher.shield.ShieldSecretService;
 
 /**
  *
@@ -18,17 +17,16 @@ public class SecretModule extends AbstractModule {
     private final boolean shieldEnabled;
 
     public SecretModule(Settings settings) {
-        shieldEnabled = ShieldPlugin.shieldEnabled(settings);
+        shieldEnabled = ShieldPlugin.enabled(settings);
     }
 
     @Override
     protected void configure() {
         if (shieldEnabled) {
-            bind(ShieldSecretService.class).asEagerSingleton();
-            bind(SecretService.class).to(ShieldSecretService.class);
+            bind(SecretService.Secure.class).asEagerSingleton();
+            bind(SecretService.class).to(SecretService.Secure.class);
         } else {
-            bind(SecretService.PlainText.class).asEagerSingleton();
-            bind(SecretService.class).to(SecretService.PlainText.class);
+            bind(SecretService.class).toInstance(SecretService.Insecure.INSTANCE);
         }
     }
 }

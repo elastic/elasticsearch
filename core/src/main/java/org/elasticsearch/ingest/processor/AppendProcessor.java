@@ -33,7 +33,7 @@ import java.util.Map;
  * provided values will be added. If the field is a scalar it will be converted to a single item list and the provided
  * values will be added to the newly created list.
  */
-public class AppendProcessor extends AbstractProcessor {
+public final class AppendProcessor extends AbstractProcessor {
 
     public static final String TYPE = "append";
 

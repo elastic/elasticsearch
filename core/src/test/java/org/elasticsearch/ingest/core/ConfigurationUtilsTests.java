@@ -20,6 +20,8 @@
 package org.elasticsearch.ingest.core;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.ingest.ProcessorsRegistry;
+import org.elasticsearch.ingest.TestTemplateService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -31,6 +33,9 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.mock;
 
 
 public class ConfigurationUtilsTests extends ESTestCase {
@@ -68,4 +73,31 @@ public class ConfigurationUtilsTests extends ESTestCase {
         List<String> val = ConfigurationUtils.readList(null, null, config, "int");
         assertThat(val, equalTo(Collections.singletonList(2)));
     }
+
+    public void testReadProcessors() throws Exception {
+        Processor processor = mock(Processor.class);
+        ProcessorsRegistry.Builder builder = new ProcessorsRegistry.Builder();
+        builder.registerProcessor("test_processor", (templateService, registry) -> config -> processor);
+        ProcessorsRegistry registry = builder.build(TestTemplateService.instance());
+
+
+        List<Map<String, Map<String, Object>>> config = new ArrayList<>();
+        Map<String, Object> emptyConfig = Collections.emptyMap();
+        config.add(Collections.singletonMap("test_processor", emptyConfig));
+        config.add(Collections.singletonMap("test_processor", emptyConfig));
+
+        List<Processor> result = ConfigurationUtils.readProcessorConfigs(config, registry);
+        assertThat(result.size(), equalTo(2));
+        assertThat(result.get(0), sameInstance(processor));
+        assertThat(result.get(1), sameInstance(processor));
+
+        config.add(Collections.singletonMap("unknown_processor", emptyConfig));
+        try {
+            ConfigurationUtils.readProcessorConfigs(config, registry);
+            fail("exception expected");
+        } catch (ElasticsearchParseException e) {
+            assertThat(e.getMessage(), equalTo("No processor type exists with name [unknown_processor]"));
+        }
+    }
+
 }

@@ -36,6 +36,7 @@ import org.elasticsearch.ingest.grok.IngestGrokPlugin;
 import org.elasticsearch.ingest.processor.AppendProcessor;
 import org.elasticsearch.ingest.processor.ConvertProcessor;
 import org.elasticsearch.ingest.processor.DateProcessor;
+import org.elasticsearch.ingest.processor.ForEachProcessor;
 import org.elasticsearch.ingest.processor.LowercaseProcessor;
 import org.elasticsearch.ingest.processor.RemoveProcessor;
 import org.elasticsearch.ingest.processor.RenameProcessor;
@@ -49,6 +50,7 @@ import java.io.ByteArrayInputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -155,10 +157,17 @@ public class CombineProcessorsTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testMutate() throws Exception {
+        ProcessorsRegistry.Builder builder = new ProcessorsRegistry.Builder();
+        builder.registerProcessor("remove", (templateService, registry) -> new RemoveProcessor.Factory(templateService));
+        builder.registerProcessor("trim", (templateService, registry) -> new TrimProcessor.Factory());
+        ProcessorsRegistry registry = builder.build(TestTemplateService.instance());
+
         Map<String, Object> config = new HashMap<>();
-        // TODO: when we add foreach processor we should delete all friends.id fields
-        config.put("field", "friends.0.id");
-        RemoveProcessor processor1 = new RemoveProcessor.Factory(TestTemplateService.instance()).create(config);
+        config.put("field", "friends");
+        Map<String, Object> removeConfig = new HashMap<>();
+        removeConfig.put("field", "_value.id");
+        config.put("processors", Collections.singletonList(Collections.singletonMap("remove", removeConfig)));
+        ForEachProcessor processor1 = new ForEachProcessor.Factory(registry).create(config);
         config = new HashMap<>();
         config.put("field", "tags");
         config.put("value", "new_value");
@@ -168,9 +177,11 @@ public class CombineProcessorsTests extends ESTestCase {
         config.put("separator", ",");
         SplitProcessor processor3 = new SplitProcessor.Factory().create(config);
         config = new HashMap<>();
-        // TODO: when we add foreach processor, then change the test to trim all address values
-        config.put("field", "address.1");
-        TrimProcessor processor4 = new TrimProcessor.Factory().create(config);
+        config.put("field", "address");
+        Map<String, Object> trimConfig = new HashMap<>();
+        trimConfig.put("field", "_value");
+        config.put("processors", Collections.singletonList(Collections.singletonMap("trim", trimConfig)));
+        ForEachProcessor processor4 = new ForEachProcessor.Factory(registry).create(config);
         config = new HashMap<>();
         config.put("field", "company");
         LowercaseProcessor processor5 = new LowercaseProcessor.Factory().create(config);
@@ -190,16 +201,16 @@ public class CombineProcessorsTests extends ESTestCase {
         pipeline.execute(document);
 
         assertThat(((List<Map<String, Object>>) document.getSourceAndMetadata().get("friends")).get(0).get("id"), nullValue());
-        assertThat(((List<Map<String, Object>>) document.getSourceAndMetadata().get("friends")).get(1).get("id"), equalTo(1));
-        assertThat(((List<Map<String, Object>>) document.getSourceAndMetadata().get("friends")).get(2).get("id"), equalTo(2));
+        assertThat(((List<Map<String, Object>>) document.getSourceAndMetadata().get("friends")).get(1).get("id"), nullValue());
+        assertThat(((List<Map<String, Object>>) document.getSourceAndMetadata().get("friends")).get(2).get("id"), nullValue());
         assertThat(document.getFieldValue("tags.7", String.class), equalTo("new_value"));
 
         List<String> addressDetails = document.getFieldValue("address", List.class);
         assertThat(addressDetails.size(), equalTo(4));
         assertThat(addressDetails.get(0), equalTo("713 Bartlett Place"));
         assertThat(addressDetails.get(1), equalTo("Accoville"));
-        assertThat(addressDetails.get(2), equalTo(" Puerto Rico"));
-        assertThat(addressDetails.get(3), equalTo(" 9221"));
+        assertThat(addressDetails.get(2), equalTo("Puerto Rico"));
+        assertThat(addressDetails.get(3), equalTo("9221"));
 
         assertThat(document.getSourceAndMetadata().get("company"), equalTo("atgen"));
         assertThat(document.getSourceAndMetadata().get("gender"), equalTo("MALE"));

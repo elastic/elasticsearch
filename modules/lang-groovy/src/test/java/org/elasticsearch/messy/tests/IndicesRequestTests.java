@@ -85,6 +85,7 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -93,7 +94,6 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.groovy.GroovyPlugin;
 import org.elasticsearch.search.action.SearchServiceTransportAction;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
@@ -785,8 +785,8 @@ public class IndicesRequestTests extends ESIntegTestCase {
         private final Map<String, List<TransportRequest>> requests = new HashMap<>();
 
         @Inject
-        public InterceptingTransportService(Settings settings, Transport transport, ThreadPool threadPool) {
-            super(settings, transport, threadPool);
+        public InterceptingTransportService(Settings settings, Transport transport, ThreadPool threadPool, NamedWriteableRegistry namedWriteableRegistry) {
+            super(settings, transport, threadPool, namedWriteableRegistry);
         }
 
         synchronized List<TransportRequest> consumeRequests(String action) {

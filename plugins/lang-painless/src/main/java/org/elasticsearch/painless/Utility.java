@@ -628,7 +628,7 @@ public class Utility {
     /**
      * Like {@link Math#toIntExact(long)} but for long range.
      */
-    public static long toLongExactWithoutOverflow(float value) {
+    public static long toLongWithoutOverflow(float value) {
         if (value < Long.MIN_VALUE || value > Long.MAX_VALUE) {
             throw new ArithmeticException("long overflow");
         }
@@ -638,7 +638,7 @@ public class Utility {
     /**
      * Like {@link Math#toIntExact(long)} but for long range.
      */
-    public static float toLongExactWithoutOverflow(double value) {
+    public static float toLongWithoutOverflow(double value) {
         if (value < Long.MIN_VALUE || value > Long.MAX_VALUE) {
             throw new ArithmeticException("long overflow");
         }

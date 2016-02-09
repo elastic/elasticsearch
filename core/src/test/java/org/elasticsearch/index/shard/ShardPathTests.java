@@ -109,7 +109,7 @@ public class ShardPathTests extends ESTestCase {
 
     public void testGetRootPaths() throws IOException {
         boolean useCustomDataPath = randomBoolean();
-        final Settings indexSetttings;
+        final Settings indexSettings;
         final Settings nodeSettings;
         Settings.Builder indexSettingsBuilder = settingsBuilder()
                 .put(IndexMetaData.SETTING_INDEX_UUID, "0xDEADBEEF")
@@ -118,7 +118,7 @@ public class ShardPathTests extends ESTestCase {
         if (useCustomDataPath) {
             final Path path = createTempDir();
             final boolean includeNodeId = randomBoolean();
-            indexSetttings = indexSettingsBuilder.put(IndexMetaData.SETTING_DATA_PATH, "custom").build();
+            indexSettings = indexSettingsBuilder.put(IndexMetaData.SETTING_DATA_PATH, "custom").build();
             nodeSettings = settingsBuilder().put(Environment.PATH_SHARED_DATA_SETTING.getKey(), path.toAbsolutePath().toAbsolutePath())
                     .put(NodeEnvironment.ADD_NODE_ID_TO_CUSTOM_PATH.getKey(), includeNodeId).build();
             if (includeNodeId) {
@@ -128,7 +128,7 @@ public class ShardPathTests extends ESTestCase {
             }
         } else {
             customPath = null;
-            indexSetttings = indexSettingsBuilder.build();
+            indexSettings = indexSettingsBuilder.build();
             nodeSettings = Settings.EMPTY;
         }
         try (final NodeEnvironment env = newNodeEnvironment(nodeSettings)) {
@@ -136,7 +136,7 @@ public class ShardPathTests extends ESTestCase {
             Path[] paths = env.availableShardPaths(shardId);
             Path path = randomFrom(paths);
             ShardStateMetaData.FORMAT.write(new ShardStateMetaData(2, true, "0xDEADBEEF", AllocationId.newInitializing()), 2, path);
-            ShardPath shardPath = ShardPath.loadShardPath(logger, env, shardId, IndexSettingsModule.newIndexSettings(shardId.getIndex(), indexSetttings));
+            ShardPath shardPath = ShardPath.loadShardPath(logger, env, shardId, IndexSettingsModule.newIndexSettings(shardId.getIndex(), indexSettings));
             boolean found = false;
             for (Path p : env.nodeDataPaths()) {
                 if (p.equals(shardPath.getRootStatePath())) {

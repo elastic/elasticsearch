@@ -17,15 +17,19 @@
  * under the License.
  */
 
-package org.apache.lucene.store;
+package org.elasticsearch.bootstrap;
 
-import java.io.IOException;
-import java.nio.file.Path;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.ESTestCase;
 
-public class SmbSimpleFSDirectoryTests extends ESBaseDirectoryTestCase {
+public class BootstrapSettingsTests extends ESTestCase {
 
-    @Override
-    protected Directory getDirectory(Path file) throws IOException {
-        return new SmbDirectoryWrapper(new SimpleFSDirectory(file));
+    public void testDefaultSettings() {
+        assertTrue(BootstrapSettings.SECURITY_MANAGER_ENABLED_SETTING.get(Settings.EMPTY));
+        assertTrue(BootstrapSettings.SECURITY_FILTER_BAD_DEFAULTS_SETTING.get(Settings.EMPTY));
+        assertFalse(BootstrapSettings.MLOCKALL_SETTING.get(Settings.EMPTY));
+        assertTrue(BootstrapSettings.SECCOMP_SETTING.get(Settings.EMPTY));
+        assertTrue(BootstrapSettings.CTRLHANDLER_SETTING.get(Settings.EMPTY));
     }
+
 }

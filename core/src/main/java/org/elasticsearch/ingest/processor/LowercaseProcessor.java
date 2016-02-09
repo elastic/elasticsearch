@@ -26,7 +26,7 @@ import java.util.Locale;
  * Throws exception is the field is not of type string.
  */
 
-public class LowercaseProcessor extends AbstractStringProcessor {
+public final class LowercaseProcessor extends AbstractStringProcessor {
 
     public static final String TYPE = "lowercase";
 
@@ -44,7 +44,7 @@ public class LowercaseProcessor extends AbstractStringProcessor {
         return TYPE;
     }
 
-    public static class Factory extends AbstractStringProcessor.Factory<LowercaseProcessor> {
+    public final static class Factory extends AbstractStringProcessor.Factory<LowercaseProcessor> {
 
         public Factory() {
             super(TYPE);

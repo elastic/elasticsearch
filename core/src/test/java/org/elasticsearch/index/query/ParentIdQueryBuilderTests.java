@@ -64,7 +64,7 @@ public class ParentIdQueryBuilderTests extends AbstractQueryTestCase<ParentIdQue
     protected void setSearchContext(String[] types) {
         final MapperService mapperService = queryShardContext().getMapperService();
         final IndexFieldDataService fieldData = indexFieldDataService();
-        TestSearchContext testSearchContext = new TestSearchContext() {
+        TestSearchContext testSearchContext = new TestSearchContext(queryShardContext()) {
 
             @Override
             public MapperService mapperService() {
@@ -76,7 +76,7 @@ public class ParentIdQueryBuilderTests extends AbstractQueryTestCase<ParentIdQue
                 return fieldData; // need to build / parse inner hits sort fields
             }
         };
-        testSearchContext.setTypes(types);
+        testSearchContext.getQueryShardContext().setTypes(types);
         SearchContext.setCurrent(testSearchContext);
     }
 

@@ -26,12 +26,12 @@ public class SettingsModuleTests extends ModuleTestCase {
     public void testValidate() {
         {
             Settings settings = Settings.builder().put("cluster.routing.allocation.balance.shard", "2.0").build();
-            SettingsModule module = new SettingsModule(settings, new SettingsFilter(Settings.EMPTY));
+            SettingsModule module = new SettingsModule(settings);
             assertInstanceBinding(module, Settings.class, (s) -> s == settings);
         }
         {
             Settings settings = Settings.builder().put("cluster.routing.allocation.balance.shard", "[2.0]").build();
-            SettingsModule module = new SettingsModule(settings, new SettingsFilter(Settings.EMPTY));
+            SettingsModule module = new SettingsModule(settings);
             try {
                 assertInstanceBinding(module, Settings.class, (s) -> s == settings);
                 fail();
@@ -44,13 +44,13 @@ public class SettingsModuleTests extends ModuleTestCase {
     public void testRegisterSettings() {
         {
             Settings settings = Settings.builder().put("some.custom.setting", "2.0").build();
-            SettingsModule module = new SettingsModule(settings, new SettingsFilter(Settings.EMPTY));
+            SettingsModule module = new SettingsModule(settings);
             module.registerSetting(Setting.floatSetting("some.custom.setting", 1.0f, false, Setting.Scope.CLUSTER));
             assertInstanceBinding(module, Settings.class, (s) -> s == settings);
         }
         {
             Settings settings = Settings.builder().put("some.custom.setting", "false").build();
-            SettingsModule module = new SettingsModule(settings, new SettingsFilter(Settings.EMPTY));
+            SettingsModule module = new SettingsModule(settings);
             module.registerSetting(Setting.floatSetting("some.custom.setting", 1.0f, false, Setting.Scope.CLUSTER));
             try {
                 assertInstanceBinding(module, Settings.class, (s) -> s == settings);
@@ -64,31 +64,60 @@ public class SettingsModuleTests extends ModuleTestCase {
     public void testTribeSetting() {
         {
             Settings settings = Settings.builder().put("tribe.t1.cluster.routing.allocation.balance.shard", "2.0").build();
-            SettingsModule module = new SettingsModule(settings, new SettingsFilter(Settings.EMPTY));
+            SettingsModule module = new SettingsModule(settings);
             assertInstanceBinding(module, Settings.class, (s) -> s == settings);
         }
         {
             Settings settings = Settings.builder().put("tribe.t1.cluster.routing.allocation.balance.shard", "[2.0]").build();
-            SettingsModule module = new SettingsModule(settings, new SettingsFilter(Settings.EMPTY));
+            SettingsModule module = new SettingsModule(settings);
             try {
                 assertInstanceBinding(module, Settings.class, (s) -> s == settings);
                 fail();
             } catch (IllegalArgumentException ex) {
-                assertEquals("Failed to parse value [[2.0]] for setting [cluster.routing.allocation.balance.shard]", ex.getMessage());
+                assertEquals("tribe.t1 validation failed: Failed to parse value [[2.0]] for setting [cluster.routing.allocation.balance.shard]", ex.getMessage());
             }
         }
     }
 
+    public void testSpecialTribeSetting() {
+        {
+            Settings settings = Settings.builder().put("tribe.blocks.write", "false").build();
+            SettingsModule module = new SettingsModule(settings);
+            assertInstanceBinding(module, Settings.class, (s) -> s == settings);
+        }
+        {
+            Settings settings = Settings.builder().put("tribe.blocks.write", "BOOM").build();
+            SettingsModule module = new SettingsModule(settings);
+            try {
+                assertInstanceBinding(module, Settings.class, (s) -> s == settings);
+                fail();
+            } catch (IllegalArgumentException ex) {
+                assertEquals("Failed to parse value [BOOM] cannot be parsed to boolean [ true/1/on/yes OR false/0/off/no ]", ex.getMessage());
+            }
+        }
+        {
+            Settings settings = Settings.builder().put("tribe.blocks.wtf", "BOOM").build();
+            SettingsModule module = new SettingsModule(settings);
+            try {
+                assertInstanceBinding(module, Settings.class, (s) -> s == settings);
+                fail();
+            } catch (IllegalArgumentException ex) {
+                assertEquals("tribe.blocks validation failed: unknown setting [wtf]", ex.getMessage());
+            }
+        }
+    }
+
+
     public void testLoggerSettings() {
         {
             Settings settings = Settings.builder().put("logger._root", "TRACE").put("logger.transport", "INFO").build();
-            SettingsModule module = new SettingsModule(settings, new SettingsFilter(Settings.EMPTY));
+            SettingsModule module = new SettingsModule(settings);
             assertInstanceBinding(module, Settings.class, (s) -> s == settings);
         }
 
         {
             Settings settings = Settings.builder().put("logger._root", "BOOM").put("logger.transport", "WOW").build();
-            SettingsModule module = new SettingsModule(settings, new SettingsFilter(Settings.EMPTY));
+            SettingsModule module = new SettingsModule(settings);
             try {
                 assertInstanceBinding(module, Settings.class, (s) -> s == settings);
                 fail();

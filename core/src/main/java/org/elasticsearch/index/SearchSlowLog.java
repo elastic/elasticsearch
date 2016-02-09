@@ -136,11 +136,11 @@ public final class SearchSlowLog {
         public String toString() {
             StringBuilder sb = new StringBuilder();
             sb.append("took[").append(TimeValue.timeValueNanos(tookInNanos)).append("], took_millis[").append(TimeUnit.NANOSECONDS.toMillis(tookInNanos)).append("], ");
-            if (context.types() == null) {
+            if (context.getQueryShardContext().getTypes() == null) {
                 sb.append("types[], ");
             } else {
                 sb.append("types[");
-                Strings.arrayToDelimitedString(context.types(), ",", sb);
+                Strings.arrayToDelimitedString(context.getQueryShardContext().getTypes(), ",", sb);
                 sb.append("], ");
             }
             if (context.groupStats() == null) {

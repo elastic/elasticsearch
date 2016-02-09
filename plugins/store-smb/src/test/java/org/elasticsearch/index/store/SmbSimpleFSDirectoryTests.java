@@ -17,22 +17,18 @@
  * under the License.
  */
 
-package org.elasticsearch.cloud.azure.storage;
+package org.elasticsearch.index.store;
 
-import org.elasticsearch.cloud.azure.storage.AzureStorageService.Storage;
-import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
+import java.io.IOException;
+import java.nio.file.Path;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.SimpleFSDirectory;
+import org.elasticsearch.index.store.SmbDirectoryWrapper;
 
-public class AzureStorageSettingsFilter extends AbstractComponent {
+public class SmbSimpleFSDirectoryTests extends ESBaseDirectoryTestCase {
 
-    @Inject
-    public AzureStorageSettingsFilter(Settings settings, SettingsFilter settingsFilter) {
-        super(settings);
-        // Cloud storage API settings needed to be hidden
-        settingsFilter.addFilter(Storage.PREFIX + "*.account");
-        settingsFilter.addFilter(Storage.PREFIX + "*.key");
-        settingsFilter.addFilter(Storage.ACCOUNT_SETTING.getKey());
+    @Override
+    protected Directory getDirectory(Path file) throws IOException {
+        return new SmbDirectoryWrapper(new SimpleFSDirectory(file));
     }
 }

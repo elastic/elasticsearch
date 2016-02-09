@@ -25,8 +25,10 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.AbstractScopedSettings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -45,12 +47,14 @@ import java.io.IOException;
 public class RestClusterGetSettingsAction extends BaseRestHandler {
 
     private final ClusterSettings clusterSettings;
+    private final SettingsFilter settingsFilter;
 
     @Inject
-    public RestClusterGetSettingsAction(Settings settings, RestController controller, Client client, ClusterSettings clusterSettings) {
+    public RestClusterGetSettingsAction(Settings settings, RestController controller, Client client, ClusterSettings clusterSettings, SettingsFilter settingsFilter) {
         super(settings, client);
         this.clusterSettings = clusterSettings;
         controller.registerHandler(RestRequest.Method.GET, "/_cluster/settings", this);
+        this.settingsFilter = settingsFilter;
     }
 
     @Override
@@ -81,7 +85,7 @@ public class RestClusterGetSettingsAction extends BaseRestHandler {
 
         if (renderDefaults) {
             builder.startObject("defaults");
-            clusterSettings.diff(state.metaData().settings(), this.settings).toXContent(builder, params);
+            settingsFilter.filter(clusterSettings.diff(state.metaData().settings(), this.settings)).toXContent(builder, params);
             builder.endObject();
         }
 

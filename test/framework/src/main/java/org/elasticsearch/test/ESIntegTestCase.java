@@ -47,7 +47,6 @@ import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequestBuilder;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
@@ -108,6 +107,7 @@ import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.MergeSchedulerConfig;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.index.IndexWarmer;
 import org.elasticsearch.indices.cache.request.IndicesRequestCache;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.node.NodeMocksPlugin;
@@ -115,7 +115,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.client.RandomizingClient;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
@@ -129,7 +128,6 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.annotation.Annotation;
@@ -510,17 +508,17 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
     private static Settings.Builder setRandomIndexNormsLoading(Random random, Settings.Builder builder) {
         if (random.nextBoolean()) {
-            builder.put(SearchService.INDEX_NORMS_LOADING_SETTING.getKey(), RandomPicks.randomFrom(random, Arrays.asList(MappedFieldType.Loading.EAGER, MappedFieldType.Loading.LAZY)));
+            builder.put(IndexWarmer.INDEX_NORMS_LOADING_SETTING.getKey(), RandomPicks.randomFrom(random, Arrays.asList(MappedFieldType.Loading.EAGER, MappedFieldType.Loading.LAZY)));
         }
         return builder;
     }
 
     private static Settings.Builder setRandomIndexTranslogSettings(Random random, Settings.Builder builder) {
         if (random.nextBoolean()) {
-            builder.put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTTING.getKey(), new ByteSizeValue(RandomInts.randomIntBetween(random, 1, 300), ByteSizeUnit.MB));
+            builder.put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(RandomInts.randomIntBetween(random, 1, 300), ByteSizeUnit.MB));
         }
         if (random.nextBoolean()) {
-            builder.put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTTING.getKey(), new ByteSizeValue(1, ByteSizeUnit.PB)); // just don't flush
+            builder.put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(1, ByteSizeUnit.PB)); // just don't flush
         }
         if (random.nextBoolean()) {
             builder.put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), RandomPicks.randomFrom(random, Translog.Durability.values()));

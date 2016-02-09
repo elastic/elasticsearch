@@ -93,4 +93,10 @@ public interface Discovery extends LifecycleComponent<Discovery> {
      */
     DiscoveryStats stats();
 
+
+    /***
+     * @return the current value of minimum master nodes, or -1 for not set
+     */
+    int getMinimumMasterNodes();
+
 }

@@ -32,13 +32,13 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.Transport;
@@ -128,8 +128,8 @@ public class TransportClientHeadersTests extends AbstractClientHeadersTestCase {
         CountDownLatch clusterStateLatch = new CountDownLatch(1);
 
         @Inject
-        public InternalTransportService(Settings settings, Transport transport, ThreadPool threadPool) {
-            super(settings, transport, threadPool);
+        public InternalTransportService(Settings settings, Transport transport, ThreadPool threadPool, NamedWriteableRegistry namedWriteableRegistry) {
+            super(settings, transport, threadPool, namedWriteableRegistry);
         }
 
         @Override @SuppressWarnings("unchecked")

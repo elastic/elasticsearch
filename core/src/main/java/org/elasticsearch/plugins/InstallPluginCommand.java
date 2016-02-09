@@ -235,6 +235,7 @@ class InstallPluginCommand extends CliTool.Command {
                 zipInput.closeEntry();
             }
         }
+        Files.delete(zip);
         return target;
     }
 

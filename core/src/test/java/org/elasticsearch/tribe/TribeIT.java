@@ -143,7 +143,6 @@ public class TribeIT extends ESIntegTestCase {
                 .put("tribe.t1.cluster.name", internalCluster().getClusterName())
                 .put("tribe.t2.cluster.name", cluster2.getClusterName())
                 .put("tribe.blocks.write", false)
-                .put("tribe.blocks.read", false)
                 .put(settings)
                 .put(tribe1Defaults.build())
                 .put(tribe2Defaults.build())

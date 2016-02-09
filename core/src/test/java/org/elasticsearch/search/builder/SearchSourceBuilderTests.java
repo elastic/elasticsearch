@@ -31,7 +31,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.unit.TimeValue;
@@ -83,12 +82,12 @@ public class SearchSourceBuilderTests extends ESTestCase {
     @BeforeClass
     public static void init() throws IOException {
         Settings settings = Settings.settingsBuilder()
-                .put("name", SearchSourceBuilderTests.class.toString())
+                .put("node.name", SearchSourceBuilderTests.class.toString())
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .build();
         namedWriteableRegistry = new NamedWriteableRegistry();
         injector = new ModulesBuilder().add(
-                new SettingsModule(settings, new SettingsFilter(settings)),
+                new SettingsModule(settings),
                 new ThreadPoolModule(new ThreadPool(settings)),
                 new SearchModule(settings, namedWriteableRegistry) {
                     @Override

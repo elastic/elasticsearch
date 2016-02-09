@@ -146,7 +146,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
                         .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "1")
                         .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
                         .put(MockFSIndexStore.INDEX_CHECK_INDEX_ON_CLOSE_SETTING.getKey(), false) // no checkindex - we corrupt shards on purpose
-                        .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTTING.getKey(), new ByteSizeValue(1, ByteSizeUnit.PB)) // no translog based flush - it might change the .liv / segments.N files
+                        .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(1, ByteSizeUnit.PB)) // no translog based flush - it might change the .liv / segments.N files
         ));
         ensureGreen();
         disableAllocation("test");
@@ -250,7 +250,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
                         .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0")
                         .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
                         .put(MockFSIndexStore.INDEX_CHECK_INDEX_ON_CLOSE_SETTING.getKey(), false) // no checkindex - we corrupt shards on purpose
-                        .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTTING.getKey(), new ByteSizeValue(1, ByteSizeUnit.PB)) // no translog based flush - it might change the .liv / segments.N files
+                        .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(1, ByteSizeUnit.PB)) // no translog based flush - it might change the .liv / segments.N files
         ));
         ensureGreen();
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
@@ -475,7 +475,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
                         .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0") // no replicas for this test
                         .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
                         .put(MockFSIndexStore.INDEX_CHECK_INDEX_ON_CLOSE_SETTING.getKey(), false) // no checkindex - we corrupt shards on purpose
-                        .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTTING.getKey(), new ByteSizeValue(1, ByteSizeUnit.PB)) // no translog based flush - it might change the .liv / segments.N files
+                        .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(1, ByteSizeUnit.PB)) // no translog based flush - it might change the .liv / segments.N files
         ));
         ensureGreen();
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
@@ -529,7 +529,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
                         .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, cluster().numDataNodes() - 1)
                         .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
                         .put(MockFSIndexStore.INDEX_CHECK_INDEX_ON_CLOSE_SETTING.getKey(), false) // no checkindex - we corrupt shards on purpose
-                        .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTTING.getKey(), new ByteSizeValue(1, ByteSizeUnit.PB)) // no translog based flush - it might change the .liv / segments.N files
+                        .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(1, ByteSizeUnit.PB)) // no translog based flush - it might change the .liv / segments.N files
         ));
         ensureGreen();
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];

@@ -23,7 +23,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cloud.azure.management.AzureComputeService;
 import org.elasticsearch.cloud.azure.management.AzureComputeService.Management;
 import org.elasticsearch.cloud.azure.management.AzureComputeServiceImpl;
-import org.elasticsearch.cloud.azure.management.AzureComputeSettingsFilter;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Inject;
@@ -60,8 +59,6 @@ public class AzureDiscoveryModule extends AbstractModule {
     @Override
     protected void configure() {
         logger.debug("starting azure services");
-        bind(AzureComputeSettingsFilter.class).asEagerSingleton();
-
         // If we have set discovery to azure, let's start the azure compute service
         if (isDiscoveryReady(settings, logger)) {
             logger.debug("starting azure discovery service");

@@ -30,7 +30,7 @@ This plugin can be installed using the plugin manager:
 
 [source,sh]
 ----------------------------------------------------------------
-sudo bin/plugin install delete-by-query
+sudo bin/elasticsearch-plugin install delete-by-query
 ----------------------------------------------------------------
 
 The plugin must be installed on every node in the cluster, and each node must
@@ -43,7 +43,7 @@ The plugin can be removed with the following command:
 
 [source,sh]
 ----------------------------------------------------------------
-sudo bin/plugin remove delete-by-query
+sudo bin/elasticsearch-plugin remove delete-by-query
 ----------------------------------------------------------------
 
 The node must be stopped before removing the plugin.

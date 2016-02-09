@@ -17,13 +17,18 @@
  * under the License.
  */
 
-package org.apache.lucene.store;
+package org.elasticsearch.index.store;
 
 import java.io.FilterOutputStream;
 import java.io.IOException;
 import java.nio.channels.Channels;
 import java.nio.file.Files;
 import java.nio.file.StandardOpenOption;
+import org.apache.lucene.store.FSDirectory;
+import org.apache.lucene.store.FilterDirectory;
+import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.store.OutputStreamIndexOutput;
 
 /**
  * This class is used to wrap an existing {@link org.apache.lucene.store.FSDirectory} so that
@@ -43,14 +48,10 @@ public final class SmbDirectoryWrapper extends FilterDirectory {
 
     @Override
     public IndexOutput createOutput(String name, IOContext context) throws IOException {
-        fsDirectory.ensureOpen();
-        fsDirectory.ensureCanWrite(name);
+        this.ensureOpen();
         return new SmbFSIndexOutput(name);
     }
 
-    /**
-     * Copied from final inner class {@link org.apache.lucene.store.FSDirectory.FSIndexOutput}
-     */
     final class SmbFSIndexOutput extends OutputStreamIndexOutput {
         /**
          * The maximum chunk size is 8192 bytes, because {@link java.io.FileOutputStream} mallocs

@@ -40,4 +40,8 @@ subprojects {
       throw new InvalidModelException("Modules cannot disable isolation")
     }
   }
+
+  // these are implementation details of our build, no need to publish them!
+  install.enabled = false
+  uploadArchives.enabled = false
 }

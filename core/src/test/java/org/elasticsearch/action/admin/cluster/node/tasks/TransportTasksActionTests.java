@@ -58,7 +58,6 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.local.LocalTransport;
 import org.junit.After;
 import org.junit.AfterClass;
-import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -115,10 +114,10 @@ public class TransportTasksActionTests extends ESTestCase {
         public TestNode(String name, ThreadPool threadPool, Settings settings) {
             transportService = new TransportService(settings,
                 new LocalTransport(settings, threadPool, Version.CURRENT, new NamedWriteableRegistry()),
-                threadPool){
+                threadPool, new NamedWriteableRegistry()) {
                 @Override
                 protected TaskManager createTaskManager() {
-                    if (settings.getAsBoolean(MockTaskManager.USE_MOCK_TASK_MANAGER, false)) {
+                    if (MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING.get(settings)) {
                         return new MockTaskManager(settings);
                     } else {
                         return super.createTaskManager();
@@ -659,7 +658,7 @@ public class TransportTasksActionTests extends ESTestCase {
     }
 
     public void testFailedTasksCount() throws ExecutionException, InterruptedException, IOException {
-        Settings settings = Settings.builder().put(MockTaskManager.USE_MOCK_TASK_MANAGER, true).build();
+        Settings settings = Settings.builder().put(MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING.getKey(), true).build();
         setupTestNodes(settings);
         connectNodes(testNodes);
         TestNodesAction[] actions = new TestNodesAction[nodesCount];

@@ -19,10 +19,13 @@
 
 package org.elasticsearch.cloud.azure.storage;
 
+import org.elasticsearch.common.inject.ModuleTestCase;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.plugin.repository.azure.AzureRepositoryPlugin;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -43,14 +46,13 @@ public class AzureStorageSettingsFilterTests extends ESTestCase {
             .build();
 
     public void testSettingsFiltering() throws IOException {
-
-        SettingsFilter settingsFilter = new SettingsFilter(Settings.EMPTY);
-
-        // We just add Azure filters
-        new AzureStorageSettingsFilter(Settings.EMPTY, settingsFilter);
+        AzureRepositoryPlugin p = new AzureRepositoryPlugin(Settings.EMPTY);
+        SettingsModule module = new SettingsModule(Settings.EMPTY);
+        p.onModule(module);
+        SettingsFilter settingsFilter = ModuleTestCase.bindAndGetInstance(module, SettingsFilter.class);
 
         // Test using direct filtering
-        Settings filteredSettings = SettingsFilter.filterSettings(settingsFilter.getPatterns(), settings);
+        Settings filteredSettings = settingsFilter.filter(settings);
         assertThat(filteredSettings.getAsMap().keySet(), contains("cloud.azure.storage.azure1.default"));
 
         // Test using toXContent filtering

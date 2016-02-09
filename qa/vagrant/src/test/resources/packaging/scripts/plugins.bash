@@ -32,7 +32,7 @@ install_plugin() {
 
     assert_file_exist "$path"
 
-    sudo -E -u $ESPLUGIN_COMMAND_USER "$ESHOME/bin/plugin" install "file://$path"
+    sudo -E -u $ESPLUGIN_COMMAND_USER "$ESHOME/bin/elasticsearch-plugin" install "file://$path"
 
     assert_file_exist "$ESPLUGINS/$name"
     assert_file_exist "$ESPLUGINS/$name/plugin-descriptor.properties"
@@ -60,7 +60,7 @@ remove_plugin() {
     local name=$1
 
     echo "Removing $name...."
-    sudo -E -u $ESPLUGIN_COMMAND_USER "$ESHOME/bin/plugin" remove $name
+    sudo -E -u $ESPLUGIN_COMMAND_USER "$ESHOME/bin/elasticsearch-plugin" remove $name
 
     assert_file_not_exist "$ESPLUGINS/$name"
 

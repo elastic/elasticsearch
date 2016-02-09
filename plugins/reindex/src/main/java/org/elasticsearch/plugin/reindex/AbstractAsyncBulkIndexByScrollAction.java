@@ -45,7 +45,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicLong;
 
 import static java.util.Collections.emptyMap;
 
@@ -56,13 +55,13 @@ import static java.util.Collections.emptyMap;
 public abstract class AbstractAsyncBulkIndexByScrollAction<Request extends AbstractBulkIndexByScrollRequest<Request>, Response extends BulkIndexByScrollResponse>
         extends AbstractAsyncBulkByScrollAction<Request, Response> {
 
-    private final AtomicLong noops = new AtomicLong(0);
     private final ScriptService scriptService;
     private final CompiledScript script;
 
-    public AbstractAsyncBulkIndexByScrollAction(ESLogger logger, ScriptService scriptService, Client client, ThreadPool threadPool,
-            Request mainRequest, SearchRequest firstSearchRequest, ActionListener<Response> listener) {
-        super(logger, client, threadPool, mainRequest, firstSearchRequest, listener);
+    public AbstractAsyncBulkIndexByScrollAction(BulkByScrollTask task, ESLogger logger, ScriptService scriptService,
+            Client client, ThreadPool threadPool, Request mainRequest, SearchRequest firstSearchRequest,
+            ActionListener<Response> listener) {
+        super(task, logger, client, threadPool, mainRequest, firstSearchRequest, listener);
         this.scriptService = scriptService;
         if (mainRequest.getScript() == null) {
             script = null;
@@ -77,13 +76,6 @@ public abstract class AbstractAsyncBulkIndexByScrollAction<Request extends Abstr
      * applyScript functions that can be overridden.
      */
     protected abstract IndexRequest buildIndexRequest(SearchHit doc);
-
-    /**
-     * The number of noops (skipped bulk items) as part of this request.
-     */
-    public long noops() {
-        return noops.get();
-    }
 
     @Override
     protected BulkRequest buildBulk(Iterable<SearchHit> docs) {
@@ -171,7 +163,7 @@ public abstract class AbstractAsyncBulkIndexByScrollAction<Request extends Abstr
             throw new IllegalArgumentException("Script cleared op!");
         }
         if ("noop".equals(newOp)) {
-            noops.incrementAndGet();
+            task.countNoop();
             return false;
         }
         if (false == "update".equals(newOp)) {

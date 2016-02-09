@@ -265,7 +265,7 @@ public class RestSearchAction extends BaseRestHandler {
             searchSourceBuilder.suggest(new SuggestBuilder().addSuggestion(
                     termSuggestion(suggestField).field(suggestField)
                         .text(suggestText).size(suggestSize)
-                        .suggestMode(SuggestMode.fromString(suggestMode))));
+                        .suggestMode(SuggestMode.resolve(suggestMode))));
             modified = true;
         }
         return modified;

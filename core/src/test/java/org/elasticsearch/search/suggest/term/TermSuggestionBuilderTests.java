@@ -33,14 +33,6 @@ import static org.hamcrest.Matchers.notNullValue;
  */
 public class TermSuggestionBuilderTests extends AbstractSuggestionBuilderTestCase<TermSuggestionBuilder> {
 
-    /**
-     *  creates random suggestion builder, renders it to xContent and back to new instance that should be equal to original
-     */
-    @Override
-    public void testFromXContent() throws IOException {
-        // skip for now
-    }
-
     @Override
     protected TermSuggestionBuilder randomSuggestionBuilder() {
         TermSuggestionBuilder testBuilder = new TermSuggestionBuilder(randomAsciiOfLength(10));

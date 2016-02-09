@@ -32,7 +32,7 @@ import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorFactory;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorStreams;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsParser;
 import org.elasticsearch.search.aggregations.support.format.ValueFormat;
@@ -111,22 +111,22 @@ public class CumulativeSumPipelineAggregator extends PipelineAggregator {
         ValueFormatterStreams.writeOptional(formatter, out);
     }
 
-    public static class Factory extends PipelineAggregatorFactory {
+    public static class CumulativeSumPipelineAggregatorBuilder extends PipelineAggregatorBuilder {
 
         private String format;
 
-        public Factory(String name, String bucketsPath) {
+        public CumulativeSumPipelineAggregatorBuilder(String name, String bucketsPath) {
             this(name, new String[] { bucketsPath });
         }
 
-        private Factory(String name, String[] bucketsPaths) {
+        private CumulativeSumPipelineAggregatorBuilder(String name, String[] bucketsPaths) {
             super(name, TYPE.name(), bucketsPaths);
         }
 
         /**
          * Sets the format to use on the output of this aggregation.
          */
-        public Factory format(String format) {
+        public CumulativeSumPipelineAggregatorBuilder format(String format) {
             this.format = format;
             return this;
         }
@@ -152,7 +152,7 @@ public class CumulativeSumPipelineAggregator extends PipelineAggregator {
         }
 
         @Override
-        public void doValidate(AggregatorFactory<?> parent, AggregatorFactory<?>[] aggFactories, List<PipelineAggregatorFactory> pipelineAggregatorFactories) {
+        public void doValidate(AggregatorFactory<?> parent, AggregatorFactory<?>[] aggFactories, List<PipelineAggregatorBuilder> pipelineAggregatorFactories) {
             if (bucketsPaths.length != 1) {
                 throw new IllegalStateException(PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName()
                         + " must contain a single entry for aggregation [" + name + "]");
@@ -178,8 +178,8 @@ public class CumulativeSumPipelineAggregator extends PipelineAggregator {
         }
 
         @Override
-        protected final PipelineAggregatorFactory doReadFrom(String name, String[] bucketsPaths, StreamInput in) throws IOException {
-            Factory factory = new Factory(name, bucketsPaths);
+        protected final PipelineAggregatorBuilder doReadFrom(String name, String[] bucketsPaths, StreamInput in) throws IOException {
+            CumulativeSumPipelineAggregatorBuilder factory = new CumulativeSumPipelineAggregatorBuilder(name, bucketsPaths);
             factory.format = in.readOptionalString();
             return factory;
         }
@@ -196,7 +196,7 @@ public class CumulativeSumPipelineAggregator extends PipelineAggregator {
 
         @Override
         protected boolean doEquals(Object obj) {
-            Factory other = (Factory) obj;
+            CumulativeSumPipelineAggregatorBuilder other = (CumulativeSumPipelineAggregatorBuilder) obj;
             return Objects.equals(format, other.format);
         }
     }

@@ -26,7 +26,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorFactory;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.MovAvgModel;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.MovAvgModelParserMapper;
 
@@ -57,7 +57,7 @@ public class MovAvgParser implements PipelineAggregator.Parser {
     }
 
     @Override
-    public PipelineAggregatorFactory parse(String pipelineAggregatorName, XContentParser parser, QueryParseContext context)
+    public PipelineAggregatorBuilder parse(String pipelineAggregatorName, XContentParser parser, QueryParseContext context)
             throws IOException {
         XContentParser.Token token;
         String currentFieldName = null;
@@ -141,7 +141,8 @@ public class MovAvgParser implements PipelineAggregator.Parser {
                     + "] for movingAvg aggregation [" + pipelineAggregatorName + "]");
         }
 
-        MovAvgPipelineAggregator.Factory factory = new MovAvgPipelineAggregator.Factory(pipelineAggregatorName, bucketsPaths[0]);
+        MovAvgPipelineAggregator.MovAvgPipelineAggregatorBuilder factory = 
+                new MovAvgPipelineAggregator.MovAvgPipelineAggregatorBuilder(pipelineAggregatorName, bucketsPaths[0]);
         if (format != null) {
             factory.format(format);
         }
@@ -176,8 +177,8 @@ public class MovAvgParser implements PipelineAggregator.Parser {
     }
 
     @Override
-    public PipelineAggregatorFactory getFactoryPrototype() {
-        return new MovAvgPipelineAggregator.Factory(null, null);
+    public PipelineAggregatorBuilder getFactoryPrototype() {
+        return new MovAvgPipelineAggregator.MovAvgPipelineAggregatorBuilder(null, null);
     }
 
 }

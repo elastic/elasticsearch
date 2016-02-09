@@ -37,7 +37,7 @@ import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Buck
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorFactory;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorStreams;
 import org.elasticsearch.search.aggregations.support.format.ValueFormat;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
@@ -160,20 +160,20 @@ public class BucketScriptPipelineAggregator extends PipelineAggregator {
         bucketsPathsMap = (Map<String, String>) in.readGenericValue();
     }
 
-    public static class Factory extends PipelineAggregatorFactory {
+    public static class BucketScriptPipelineAggregatorBuilder extends PipelineAggregatorBuilder {
 
         private final Script script;
         private final Map<String, String> bucketsPathsMap;
         private String format = null;
         private GapPolicy gapPolicy = GapPolicy.SKIP;
 
-        public Factory(String name, Map<String, String> bucketsPathsMap, Script script) {
+        public BucketScriptPipelineAggregatorBuilder(String name, Map<String, String> bucketsPathsMap, Script script) {
             super(name, TYPE.name(), bucketsPathsMap.values().toArray(new String[bucketsPathsMap.size()]));
             this.bucketsPathsMap = bucketsPathsMap;
             this.script = script;
         }
 
-        public Factory(String name, Script script, String... bucketsPaths) {
+        public BucketScriptPipelineAggregatorBuilder(String name, Script script, String... bucketsPaths) {
             this(name, convertToBucketsPathMap(bucketsPaths), script);
         }
 
@@ -188,7 +188,7 @@ public class BucketScriptPipelineAggregator extends PipelineAggregator {
         /**
          * Sets the format to use on the output of this aggregation.
          */
-        public Factory format(String format) {
+        public BucketScriptPipelineAggregatorBuilder format(String format) {
             this.format = format;
             return this;
         }
@@ -211,7 +211,7 @@ public class BucketScriptPipelineAggregator extends PipelineAggregator {
         /**
          * Sets the gap policy to use for this aggregation.
          */
-        public Factory gapPolicy(GapPolicy gapPolicy) {
+        public BucketScriptPipelineAggregatorBuilder gapPolicy(GapPolicy gapPolicy) {
             this.gapPolicy = gapPolicy;
             return this;
         }
@@ -245,14 +245,14 @@ public class BucketScriptPipelineAggregator extends PipelineAggregator {
         }
 
         @Override
-        protected PipelineAggregatorFactory doReadFrom(String name, String[] bucketsPaths, StreamInput in) throws IOException {
+        protected PipelineAggregatorBuilder doReadFrom(String name, String[] bucketsPaths, StreamInput in) throws IOException {
             Map<String, String> bucketsPathsMap = new HashMap<String, String>();
             int mapSize = in.readVInt();
             for (int i = 0; i < mapSize; i++) {
                 bucketsPathsMap.put(in.readString(), in.readString());
             }
             Script script = Script.readScript(in);
-            Factory factory = new Factory(name, bucketsPathsMap, script);
+            BucketScriptPipelineAggregatorBuilder factory = new BucketScriptPipelineAggregatorBuilder(name, bucketsPathsMap, script);
             factory.format = in.readOptionalString();
             factory.gapPolicy = GapPolicy.readFrom(in);
             return factory;
@@ -277,7 +277,7 @@ public class BucketScriptPipelineAggregator extends PipelineAggregator {
 
         @Override
         protected boolean doEquals(Object obj) {
-            Factory other = (Factory) obj;
+            BucketScriptPipelineAggregatorBuilder other = (BucketScriptPipelineAggregatorBuilder) obj;
             return Objects.equals(bucketsPathsMap, other.bucketsPathsMap) && Objects.equals(script, other.script)
                     && Objects.equals(format, other.format) && Objects.equals(gapPolicy, other.gapPolicy);
         }

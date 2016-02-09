@@ -20,13 +20,13 @@
 package org.elasticsearch.search.aggregations.pipeline.bucketmetrics;
 
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.max.MaxBucketPipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.max.MaxBucketPipelineAggregator.Factory;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.max.MaxBucketPipelineAggregator.MaxBucketPipelineAggregatorBuilder;
 
-public class MaxBucketTests extends AbstractBucketMetricsTestCase<MaxBucketPipelineAggregator.Factory> {
+public class MaxBucketTests extends AbstractBucketMetricsTestCase<MaxBucketPipelineAggregator.MaxBucketPipelineAggregatorBuilder> {
 
     @Override
-    protected Factory doCreateTestAggregatorFactory(String name, String bucketsPath) {
-        return new Factory(name, bucketsPath);
+    protected MaxBucketPipelineAggregatorBuilder doCreateTestAggregatorFactory(String name, String bucketsPath) {
+        return new MaxBucketPipelineAggregatorBuilder(name, bucketsPath);
     }
 
 

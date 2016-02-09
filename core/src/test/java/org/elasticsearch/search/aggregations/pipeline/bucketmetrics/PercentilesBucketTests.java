@@ -20,13 +20,15 @@
 package org.elasticsearch.search.aggregations.pipeline.bucketmetrics;
 
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.percentile.PercentilesBucketPipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.percentile.PercentilesBucketPipelineAggregator.Factory;
 
-public class PercentilesBucketTests extends AbstractBucketMetricsTestCase<PercentilesBucketPipelineAggregator.Factory> {
+public class PercentilesBucketTests
+        extends AbstractBucketMetricsTestCase<PercentilesBucketPipelineAggregator.PercentilesBucketPipelineAggregatorBuilder> {
 
     @Override
-    protected Factory doCreateTestAggregatorFactory(String name, String bucketsPath) {
-        Factory factory = new Factory(name, bucketsPath);
+    protected PercentilesBucketPipelineAggregator.PercentilesBucketPipelineAggregatorBuilder doCreateTestAggregatorFactory(String name,
+            String bucketsPath) {
+        PercentilesBucketPipelineAggregator.PercentilesBucketPipelineAggregatorBuilder factory = 
+                new PercentilesBucketPipelineAggregator.PercentilesBucketPipelineAggregatorBuilder(name, bucketsPath);
         if (randomBoolean()) {
             int numPercents = randomIntBetween(1, 20);
             double[] percents = new double[numPercents];

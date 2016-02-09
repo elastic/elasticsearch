@@ -25,7 +25,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorFactory;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -43,7 +43,7 @@ public class DerivativeParser implements PipelineAggregator.Parser {
     }
 
     @Override
-    public PipelineAggregatorFactory parse(String pipelineAggregatorName, XContentParser parser, QueryParseContext context)
+    public PipelineAggregatorBuilder parse(String pipelineAggregatorName, XContentParser parser, QueryParseContext context)
             throws IOException {
         XContentParser.Token token;
         String currentFieldName = null;
@@ -91,7 +91,8 @@ public class DerivativeParser implements PipelineAggregator.Parser {
                     + "] for derivative aggregation [" + pipelineAggregatorName + "]");
         }
 
-        DerivativePipelineAggregator.Factory factory = new DerivativePipelineAggregator.Factory(pipelineAggregatorName, bucketsPaths[0]);
+        DerivativePipelineAggregator.DerivativePipelineAggregatorBuilder factory = 
+                new DerivativePipelineAggregator.DerivativePipelineAggregatorBuilder(pipelineAggregatorName, bucketsPaths[0]);
         if (format != null) {
             factory.format(format);
         }
@@ -105,8 +106,8 @@ public class DerivativeParser implements PipelineAggregator.Parser {
     }
 
     @Override
-    public PipelineAggregatorFactory getFactoryPrototype() {
-        return new DerivativePipelineAggregator.Factory(null, null);
+    public PipelineAggregatorBuilder getFactoryPrototype() {
+        return new DerivativePipelineAggregator.DerivativePipelineAggregatorBuilder(null, null);
     }
 
 }

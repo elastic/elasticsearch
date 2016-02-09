@@ -27,7 +27,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.Script.ScriptField;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorFactory;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -48,7 +48,7 @@ public class BucketSelectorParser implements PipelineAggregator.Parser {
     }
 
     @Override
-    public PipelineAggregatorFactory parse(String reducerName, XContentParser parser, QueryParseContext context) throws IOException {
+    public PipelineAggregatorBuilder parse(String reducerName, XContentParser parser, QueryParseContext context) throws IOException {
         XContentParser.Token token;
         Script script = null;
         String currentFieldName = null;
@@ -113,8 +113,8 @@ public class BucketSelectorParser implements PipelineAggregator.Parser {
                     + "] for bucket_selector aggregation [" + reducerName + "]");
         }
 
-        BucketSelectorPipelineAggregator.Factory factory = new BucketSelectorPipelineAggregator.Factory(reducerName, bucketsPathsMap,
-                script);
+        BucketSelectorPipelineAggregator.BucketSelectorPipelineAggregatorBuilder factory = 
+                new BucketSelectorPipelineAggregator.BucketSelectorPipelineAggregatorBuilder(reducerName, bucketsPathsMap, script);
         if (gapPolicy != null) {
             factory.gapPolicy(gapPolicy);
         }
@@ -123,8 +123,8 @@ public class BucketSelectorParser implements PipelineAggregator.Parser {
     }
 
     @Override
-    public PipelineAggregatorFactory getFactoryPrototype() {
-        return new BucketSelectorPipelineAggregator.Factory(null, Collections.emptyMap(), null);
+    public PipelineAggregatorBuilder getFactoryPrototype() {
+        return new BucketSelectorPipelineAggregator.BucketSelectorPipelineAggregatorBuilder(null, Collections.emptyMap(), null);
     }
 
 }

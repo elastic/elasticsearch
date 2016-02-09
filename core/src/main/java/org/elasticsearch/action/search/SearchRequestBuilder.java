@@ -29,7 +29,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.Template;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.aggregations.AggregatorBuilder;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorFactory;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsBuilder;
 import org.elasticsearch.search.highlight.HighlightBuilder;
@@ -382,7 +382,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     /**
      * Adds an aggregation to the search operation.
      */
-    public SearchRequestBuilder addAggregation(PipelineAggregatorFactory aggregation) {
+    public SearchRequestBuilder addAggregation(PipelineAggregatorBuilder aggregation) {
         sourceBuilder().aggregation(aggregation);
         return this;
     }

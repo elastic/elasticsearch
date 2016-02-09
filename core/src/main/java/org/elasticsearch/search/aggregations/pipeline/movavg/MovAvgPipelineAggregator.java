@@ -34,7 +34,7 @@ import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorFactory;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorStreams;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.MovAvgModel;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.MovAvgModelBuilder;
@@ -279,7 +279,7 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
 
     }
 
-    public static class Factory extends PipelineAggregatorFactory {
+    public static class MovAvgPipelineAggregatorBuilder extends PipelineAggregatorBuilder {
 
         private String format;
         private GapPolicy gapPolicy = GapPolicy.SKIP;
@@ -288,18 +288,18 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
         private int predict = 0;
         private Boolean minimize;
 
-        public Factory(String name, String bucketsPath) {
+        public MovAvgPipelineAggregatorBuilder(String name, String bucketsPath) {
             this(name, new String[] { bucketsPath });
         }
 
-        private Factory(String name, String[] bucketsPaths) {
+        private MovAvgPipelineAggregatorBuilder(String name, String[] bucketsPaths) {
             super(name, TYPE.name(), bucketsPaths);
         }
 
         /**
          * Sets the format to use on the output of this aggregation.
          */
-        public Factory format(String format) {
+        public MovAvgPipelineAggregatorBuilder format(String format) {
             this.format = format;
             return this;
         }
@@ -314,7 +314,7 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
         /**
          * Sets the GapPolicy to use on the output of this aggregation.
          */
-        public Factory gapPolicy(GapPolicy gapPolicy) {
+        public MovAvgPipelineAggregatorBuilder gapPolicy(GapPolicy gapPolicy) {
             this.gapPolicy = gapPolicy;
             return this;
         }
@@ -342,7 +342,7 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
          * @param window
          *            Size of window
          */
-        public Factory window(int window) {
+        public MovAvgPipelineAggregatorBuilder window(int window) {
             if (window <= 0) {
                 throw new IllegalArgumentException("[window] must be a positive integer: [" + name + "]");
             }
@@ -366,7 +366,7 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
          * @param model
          *            A MovAvgModel which has been prepopulated with settings
          */
-        public Factory modelBuilder(MovAvgModelBuilder model) {
+        public MovAvgPipelineAggregatorBuilder modelBuilder(MovAvgModelBuilder model) {
             this.model = model.build();
             return this;
         }
@@ -378,7 +378,7 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
          * @param model
          *            A MovAvgModel which has been prepopulated with settings
          */
-        public Factory model(MovAvgModel model) {
+        public MovAvgPipelineAggregatorBuilder model(MovAvgModel model) {
             this.model = model;
             return this;
         }
@@ -400,7 +400,7 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
          * @param predict
          *            Number of predictions to make
          */
-        public Factory predict(int predict) {
+        public MovAvgPipelineAggregatorBuilder predict(int predict) {
             if (predict <= 0) {
                 throw new IllegalArgumentException("predict must be greater than 0. Found [" + predict + "] in [" + name + "]");
             }
@@ -425,7 +425,7 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
          * @param minimize
          *            If the model should be fit to the underlying data
          */
-        public Factory minimize(boolean minimize) {
+        public MovAvgPipelineAggregatorBuilder minimize(boolean minimize) {
             this.minimize = minimize;
             return this;
         }
@@ -448,7 +448,7 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
 
         @Override
         public void doValidate(AggregatorFactory<?> parent, AggregatorFactory<?>[] aggFactories,
-                List<PipelineAggregatorFactory> pipelineAggregatoractories) {
+                List<PipelineAggregatorBuilder> pipelineAggregatoractories) {
             if (minimize != null && minimize && !model.canBeMinimized()) {
                 // If the user asks to minimize, but this model doesn't support
                 // it, throw exception
@@ -488,8 +488,8 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
         }
 
         @Override
-        protected PipelineAggregatorFactory doReadFrom(String name, String[] bucketsPaths, StreamInput in) throws IOException {
-            Factory factory = new Factory(name, bucketsPaths);
+        protected PipelineAggregatorBuilder doReadFrom(String name, String[] bucketsPaths, StreamInput in) throws IOException {
+            MovAvgPipelineAggregatorBuilder factory = new MovAvgPipelineAggregatorBuilder(name, bucketsPaths);
             factory.format = in.readOptionalString();
             factory.gapPolicy = GapPolicy.readFrom(in);
             factory.window = in.readVInt();
@@ -516,7 +516,7 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
 
         @Override
         protected boolean doEquals(Object obj) {
-            Factory other = (Factory) obj;
+            MovAvgPipelineAggregatorBuilder other = (MovAvgPipelineAggregatorBuilder) obj;
             return Objects.equals(format, other.format)
                     && Objects.equals(gapPolicy, other.gapPolicy)
                     && Objects.equals(window, other.window)

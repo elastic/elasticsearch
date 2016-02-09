@@ -32,7 +32,7 @@ import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorFactory;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorStreams;
 import org.elasticsearch.search.aggregations.support.format.ValueFormat;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
@@ -145,24 +145,24 @@ public class SerialDiffPipelineAggregator extends PipelineAggregator {
         out.writeVInt(lag);
     }
 
-    public static class Factory extends PipelineAggregatorFactory {
+    public static class SerialDiffPipelineAggregatorBuilder extends PipelineAggregatorBuilder {
 
         private String format;
         private GapPolicy gapPolicy = GapPolicy.SKIP;
         private int lag = 1;
 
-        public Factory(String name, String bucketsPath) {
+        public SerialDiffPipelineAggregatorBuilder(String name, String bucketsPath) {
             this(name, new String[] { bucketsPath });
         }
 
-        private Factory(String name, String[] bucketsPaths) {
+        private SerialDiffPipelineAggregatorBuilder(String name, String[] bucketsPaths) {
             super(name, TYPE.name(), bucketsPaths);
         }
 
         /**
          * Sets the lag to use when calculating the serial difference.
          */
-        public Factory lag(int lag) {
+        public SerialDiffPipelineAggregatorBuilder lag(int lag) {
             if (lag <= 0) {
                 throw new IllegalArgumentException("[lag] must be a positive integer: [" + name + "]");
             }
@@ -180,7 +180,7 @@ public class SerialDiffPipelineAggregator extends PipelineAggregator {
         /**
          * Sets the format to use on the output of this aggregation.
          */
-        public Factory format(String format) {
+        public SerialDiffPipelineAggregatorBuilder format(String format) {
             this.format = format;
             return this;
         }
@@ -195,7 +195,7 @@ public class SerialDiffPipelineAggregator extends PipelineAggregator {
         /**
          * Sets the GapPolicy to use on the output of this aggregation.
          */
-        public Factory gapPolicy(GapPolicy gapPolicy) {
+        public SerialDiffPipelineAggregatorBuilder gapPolicy(GapPolicy gapPolicy) {
             this.gapPolicy = gapPolicy;
             return this;
         }
@@ -231,8 +231,8 @@ public class SerialDiffPipelineAggregator extends PipelineAggregator {
         }
 
         @Override
-        protected PipelineAggregatorFactory doReadFrom(String name, String[] bucketsPaths, StreamInput in) throws IOException {
-            Factory factory = new Factory(name, bucketsPaths);
+        protected PipelineAggregatorBuilder doReadFrom(String name, String[] bucketsPaths, StreamInput in) throws IOException {
+            SerialDiffPipelineAggregatorBuilder factory = new SerialDiffPipelineAggregatorBuilder(name, bucketsPaths);
             factory.format = in.readOptionalString();
             factory.gapPolicy = GapPolicy.readFrom(in);
             factory.lag = in.readVInt();
@@ -252,7 +252,7 @@ public class SerialDiffPipelineAggregator extends PipelineAggregator {
         }
         @Override
         protected boolean doEquals(Object obj) {
-            Factory other = (Factory) obj;
+            SerialDiffPipelineAggregatorBuilder other = (SerialDiffPipelineAggregatorBuilder) obj;
             return Objects.equals(format, other.format)
                     && Objects.equals(gapPolicy, other.gapPolicy)
                     && Objects.equals(lag, other.lag);

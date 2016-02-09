@@ -28,9 +28,9 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorFactory;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorStreams;
-import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsFactory;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsPipelineAggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsPipelineAggregator;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
@@ -124,15 +124,16 @@ public class PercentilesBucketPipelineAggregator extends BucketMetricsPipelineAg
         out.writeDoubleArray(percents);
     }
 
-    public static class Factory extends BucketMetricsFactory<Factory> {
+    public static class PercentilesBucketPipelineAggregatorBuilder
+            extends BucketMetricsPipelineAggregatorBuilder<PercentilesBucketPipelineAggregatorBuilder> {
 
         private double[] percents = new double[] { 1.0, 5.0, 25.0, 50.0, 75.0, 95.0, 99.0 };
 
-        public Factory(String name, String bucketsPath) {
+        public PercentilesBucketPipelineAggregatorBuilder(String name, String bucketsPath) {
             this(name, new String[] { bucketsPath });
         }
 
-        private Factory(String name, String[] bucketsPaths) {
+        private PercentilesBucketPipelineAggregatorBuilder(String name, String[] bucketsPaths) {
             super(name, TYPE.name(), bucketsPaths);
         }
 
@@ -146,7 +147,7 @@ public class PercentilesBucketPipelineAggregator extends BucketMetricsPipelineAg
         /**
          * Set the percentages to calculate percentiles for in this aggregation
          */
-        public Factory percents(double[] percents) {
+        public PercentilesBucketPipelineAggregatorBuilder percents(double[] percents) {
             for (Double p : percents) {
                 if (p == null || p < 0.0 || p > 100.0) {
                     throw new IllegalArgumentException(PercentilesBucketParser.PERCENTS.getPreferredName()
@@ -164,7 +165,7 @@ public class PercentilesBucketPipelineAggregator extends BucketMetricsPipelineAg
 
         @Override
         public void doValidate(AggregatorFactory<?> parent, AggregatorFactory<?>[] aggFactories,
-                List<PipelineAggregatorFactory> pipelineAggregatorFactories) {
+                List<PipelineAggregatorBuilder> pipelineAggregatorFactories) {
             if (bucketsPaths.length != 1) {
                 throw new IllegalStateException(PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName()
                         + " must contain a single entry for aggregation [" + name + "]");
@@ -187,8 +188,9 @@ public class PercentilesBucketPipelineAggregator extends BucketMetricsPipelineAg
         }
 
         @Override
-        protected BucketMetricsFactory innerReadFrom(String name, String[] bucketsPaths, StreamInput in) throws IOException {
-            Factory factory = new Factory(name, bucketsPaths);
+        protected BucketMetricsPipelineAggregatorBuilder innerReadFrom(String name, String[] bucketsPaths, StreamInput in)
+                throws IOException {
+            PercentilesBucketPipelineAggregatorBuilder factory = new PercentilesBucketPipelineAggregatorBuilder(name, bucketsPaths);
             factory.percents = in.readDoubleArray();
             return factory;
         }
@@ -204,8 +206,8 @@ public class PercentilesBucketPipelineAggregator extends BucketMetricsPipelineAg
         }
 
         @Override
-        protected boolean innerEquals(BucketMetricsFactory obj) {
-            Factory other = (Factory) obj;
+        protected boolean innerEquals(BucketMetricsPipelineAggregatorBuilder obj) {
+            PercentilesBucketPipelineAggregatorBuilder other = (PercentilesBucketPipelineAggregatorBuilder) obj;
             return Objects.deepEquals(percents, other.percents);
         }
 

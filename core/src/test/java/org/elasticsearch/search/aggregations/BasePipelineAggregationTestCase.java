@@ -56,7 +56,7 @@ import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptSettings;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorFactory;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.InternalSettingsPlugin;
@@ -76,7 +76,7 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public abstract class BasePipelineAggregationTestCase<AF extends PipelineAggregatorFactory> extends ESTestCase {
+public abstract class BasePipelineAggregationTestCase<AF extends PipelineAggregatorBuilder> extends ESTestCase {
 
     protected static final String STRING_FIELD_NAME = "mapped_string";
     protected static final String INT_FIELD_NAME = "mapped_int";
@@ -230,7 +230,7 @@ public abstract class BasePipelineAggregationTestCase<AF extends PipelineAggrega
         assertSame(XContentParser.Token.FIELD_NAME, parser.nextToken());
         assertEquals(testAgg.type(), parser.currentName());
         assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
-        PipelineAggregatorFactory newAgg = aggParsers.pipelineAggregator(testAgg.getWriteableName()).parse(testAgg.name(), parser,
+        PipelineAggregatorBuilder newAgg = aggParsers.pipelineAggregator(testAgg.getWriteableName()).parse(testAgg.name(), parser,
                 parseContext);
         assertSame(XContentParser.Token.END_OBJECT, parser.currentToken());
         assertSame(XContentParser.Token.END_OBJECT, parser.nextToken());
@@ -251,8 +251,8 @@ public abstract class BasePipelineAggregationTestCase<AF extends PipelineAggrega
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             testAgg.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
-                PipelineAggregatorFactory prototype = aggParsers.pipelineAggregator(testAgg.getWriteableName()).getFactoryPrototype();
-                PipelineAggregatorFactory deserializedQuery = prototype.readFrom(in);
+                PipelineAggregatorBuilder prototype = aggParsers.pipelineAggregator(testAgg.getWriteableName()).getFactoryPrototype();
+                PipelineAggregatorBuilder deserializedQuery = prototype.readFrom(in);
                 assertEquals(deserializedQuery, testAgg);
                 assertEquals(deserializedQuery.hashCode(), testAgg.hashCode());
                 assertNotSame(deserializedQuery, testAgg);
@@ -292,7 +292,7 @@ public abstract class BasePipelineAggregationTestCase<AF extends PipelineAggrega
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             agg.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
-                PipelineAggregatorFactory prototype = aggParsers.pipelineAggregator(agg.getWriteableName()).getFactoryPrototype();
+                PipelineAggregatorBuilder prototype = aggParsers.pipelineAggregator(agg.getWriteableName()).getFactoryPrototype();
                 @SuppressWarnings("unchecked")
                 AF secondAgg = (AF) prototype.readFrom(in);
                 return secondAgg;

@@ -19,8 +19,8 @@
 
 package org.elasticsearch.search.aggregations.pipeline.bucketmetrics.sum;
 
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorFactory;
-import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsFactory;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsPipelineAggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsParser;
 
 import java.util.Map;
@@ -32,12 +32,13 @@ public class SumBucketParser extends BucketMetricsParser {
     }
 
     @Override
-    protected BucketMetricsFactory buildFactory(String pipelineAggregatorName, String bucketsPath, Map<String, Object> unparsedParams) {
-        return new SumBucketPipelineAggregator.Factory(pipelineAggregatorName, bucketsPath);
+    protected BucketMetricsPipelineAggregatorBuilder buildFactory(String pipelineAggregatorName, String bucketsPath,
+            Map<String, Object> unparsedParams) {
+        return new SumBucketPipelineAggregator.SumBucketPipelineAggregatorBuilder(pipelineAggregatorName, bucketsPath);
     }
 
     @Override
-    public PipelineAggregatorFactory getFactoryPrototype() {
-        return new SumBucketPipelineAggregator.Factory(null, null);
+    public PipelineAggregatorBuilder getFactoryPrototype() {
+        return new SumBucketPipelineAggregator.SumBucketPipelineAggregatorBuilder(null, null);
     }
 }

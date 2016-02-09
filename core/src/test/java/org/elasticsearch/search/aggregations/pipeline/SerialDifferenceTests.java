@@ -22,15 +22,16 @@ package org.elasticsearch.search.aggregations.pipeline;
 import org.elasticsearch.search.aggregations.BasePipelineAggregationTestCase;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.serialdiff.SerialDiffPipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.serialdiff.SerialDiffPipelineAggregator.Factory;
+import org.elasticsearch.search.aggregations.pipeline.serialdiff.SerialDiffPipelineAggregator.SerialDiffPipelineAggregatorBuilder;
 
-public class SerialDifferenceTests extends BasePipelineAggregationTestCase<SerialDiffPipelineAggregator.Factory> {
+public class SerialDifferenceTests
+        extends BasePipelineAggregationTestCase<SerialDiffPipelineAggregator.SerialDiffPipelineAggregatorBuilder> {
 
     @Override
-    protected Factory createTestAggregatorFactory() {
+    protected SerialDiffPipelineAggregatorBuilder createTestAggregatorFactory() {
         String name = randomAsciiOfLengthBetween(3, 20);
         String bucketsPath = randomAsciiOfLengthBetween(3, 20);
-        Factory factory = new Factory(name, bucketsPath);
+        SerialDiffPipelineAggregatorBuilder factory = new SerialDiffPipelineAggregatorBuilder(name, bucketsPath);
         if (randomBoolean()) {
             factory.format(randomAsciiOfLengthBetween(1, 10));
         }

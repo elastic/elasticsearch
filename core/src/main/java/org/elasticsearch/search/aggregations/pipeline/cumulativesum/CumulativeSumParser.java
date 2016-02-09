@@ -24,7 +24,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorFactory;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -42,7 +42,7 @@ public class CumulativeSumParser implements PipelineAggregator.Parser {
     }
 
     @Override
-    public PipelineAggregatorFactory parse(String pipelineAggregatorName, XContentParser parser, QueryParseContext context)
+    public PipelineAggregatorBuilder parse(String pipelineAggregatorName, XContentParser parser, QueryParseContext context)
             throws IOException {
         XContentParser.Token token;
         String currentFieldName = null;
@@ -84,8 +84,8 @@ public class CumulativeSumParser implements PipelineAggregator.Parser {
                     + "] for derivative aggregation [" + pipelineAggregatorName + "]");
         }
 
-        CumulativeSumPipelineAggregator.Factory factory = new CumulativeSumPipelineAggregator.Factory(pipelineAggregatorName,
-                bucketsPaths[0]);
+        CumulativeSumPipelineAggregator.CumulativeSumPipelineAggregatorBuilder factory = 
+                new CumulativeSumPipelineAggregator.CumulativeSumPipelineAggregatorBuilder(pipelineAggregatorName, bucketsPaths[0]);
         if (format != null) {
             factory.format(format);
         }
@@ -93,8 +93,8 @@ public class CumulativeSumParser implements PipelineAggregator.Parser {
     }
 
     @Override
-    public PipelineAggregatorFactory getFactoryPrototype() {
-        return new CumulativeSumPipelineAggregator.Factory(null, null);
+    public PipelineAggregatorBuilder getFactoryPrototype() {
+        return new CumulativeSumPipelineAggregator.CumulativeSumPipelineAggregatorBuilder(null, null);
     }
 
 }

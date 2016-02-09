@@ -27,9 +27,9 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorFactory;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorStreams;
-import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsFactory;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsPipelineAggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsPipelineAggregator;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
@@ -101,15 +101,16 @@ public class ExtendedStatsBucketPipelineAggregator extends BucketMetricsPipeline
         return new InternalExtendedStatsBucket(name(), count, sum, min, max, sumOfSqrs, sigma, formatter, pipelineAggregators, metadata);
     }
 
-    public static class Factory extends BucketMetricsFactory<Factory> {
+    public static class ExtendedStatsBucketPipelineAggregatorBuilder
+            extends BucketMetricsPipelineAggregatorBuilder<ExtendedStatsBucketPipelineAggregatorBuilder> {
 
         private double sigma = 2.0;
 
-        public Factory(String name, String bucketsPath) {
+        public ExtendedStatsBucketPipelineAggregatorBuilder(String name, String bucketsPath) {
             this(name, new String[] { bucketsPath });
         }
 
-        private Factory(String name, String[] bucketsPaths) {
+        private ExtendedStatsBucketPipelineAggregatorBuilder(String name, String[] bucketsPaths) {
             super(name, TYPE.name(), bucketsPaths);
         }
 
@@ -117,7 +118,7 @@ public class ExtendedStatsBucketPipelineAggregator extends BucketMetricsPipeline
          * Set the value of sigma to use when calculating the standard deviation
          * bounds
          */
-        public Factory sigma(double sigma) {
+        public ExtendedStatsBucketPipelineAggregatorBuilder sigma(double sigma) {
             if (sigma < 0.0) {
                 throw new IllegalArgumentException(ExtendedStatsBucketParser.SIGMA.getPreferredName() + " must be a non-negative double");
             }
@@ -140,7 +141,7 @@ public class ExtendedStatsBucketPipelineAggregator extends BucketMetricsPipeline
 
         @Override
         public void doValidate(AggregatorFactory<?> parent, AggregatorFactory<?>[] aggFactories,
-                List<PipelineAggregatorFactory> pipelineAggregatorFactories) {
+                List<PipelineAggregatorBuilder> pipelineAggregatorFactories) {
             if (bucketsPaths.length != 1) {
                 throw new IllegalStateException(Parser.BUCKETS_PATH.getPreferredName()
                         + " must contain a single entry for aggregation [" + name + "]");
@@ -159,8 +160,9 @@ public class ExtendedStatsBucketPipelineAggregator extends BucketMetricsPipeline
         }
 
         @Override
-        protected BucketMetricsFactory innerReadFrom(String name, String[] bucketsPaths, StreamInput in) throws IOException {
-            Factory factory = new Factory(name, bucketsPaths);
+        protected BucketMetricsPipelineAggregatorBuilder innerReadFrom(String name, String[] bucketsPaths, StreamInput in)
+                throws IOException {
+            ExtendedStatsBucketPipelineAggregatorBuilder factory = new ExtendedStatsBucketPipelineAggregatorBuilder(name, bucketsPaths);
             factory.sigma = in.readDouble();
             return factory;
         }
@@ -176,8 +178,8 @@ public class ExtendedStatsBucketPipelineAggregator extends BucketMetricsPipeline
         }
 
         @Override
-        protected boolean innerEquals(BucketMetricsFactory obj) {
-            Factory other = (Factory) obj;
+        protected boolean innerEquals(BucketMetricsPipelineAggregatorBuilder obj) {
+            ExtendedStatsBucketPipelineAggregatorBuilder other = (ExtendedStatsBucketPipelineAggregatorBuilder) obj;
             return Objects.equals(sigma, other.sigma);
         }
 

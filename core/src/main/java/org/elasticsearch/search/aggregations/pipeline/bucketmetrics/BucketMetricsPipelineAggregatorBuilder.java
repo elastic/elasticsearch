@@ -25,7 +25,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorFactory;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
 import org.elasticsearch.search.aggregations.support.format.ValueFormat;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
@@ -34,12 +34,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public abstract class BucketMetricsFactory<AF extends BucketMetricsFactory<AF>> extends PipelineAggregatorFactory {
+public abstract class BucketMetricsPipelineAggregatorBuilder<AF extends BucketMetricsPipelineAggregatorBuilder<AF>>
+        extends PipelineAggregatorBuilder {
 
     private String format = null;
     private GapPolicy gapPolicy = GapPolicy.SKIP;
 
-    public BucketMetricsFactory(String name, String type, String[] bucketsPaths) {
+    public BucketMetricsPipelineAggregatorBuilder(String name, String type, String[] bucketsPaths) {
         super(name, type, bucketsPaths);
     }
 
@@ -86,7 +87,7 @@ public abstract class BucketMetricsFactory<AF extends BucketMetricsFactory<AF>> 
 
     @Override
     public void doValidate(AggregatorFactory<?> parent, AggregatorFactory<?>[] aggFactories,
-            List<PipelineAggregatorFactory> pipelineAggregatorFactories) {
+            List<PipelineAggregatorBuilder> pipelineAggregatorFactories) {
         if (bucketsPaths.length != 1) {
             throw new IllegalStateException(PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName()
                     + " must contain a single entry for aggregation [" + name + "]");
@@ -108,14 +109,15 @@ public abstract class BucketMetricsFactory<AF extends BucketMetricsFactory<AF>> 
     protected abstract XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException;
 
     @Override
-    protected final PipelineAggregatorFactory doReadFrom(String name, String[] bucketsPaths, StreamInput in) throws IOException {
-        BucketMetricsFactory factory = innerReadFrom(name, bucketsPaths, in);
+    protected final PipelineAggregatorBuilder doReadFrom(String name, String[] bucketsPaths, StreamInput in) throws IOException {
+        BucketMetricsPipelineAggregatorBuilder factory = innerReadFrom(name, bucketsPaths, in);
         factory.format = in.readOptionalString();
         factory.gapPolicy = GapPolicy.readFrom(in);
         return factory;
     }
 
-    protected abstract BucketMetricsFactory innerReadFrom(String name, String[] bucketsPaths, StreamInput in) throws IOException;
+    protected abstract BucketMetricsPipelineAggregatorBuilder innerReadFrom(String name, String[] bucketsPaths, StreamInput in)
+            throws IOException;
 
     @Override
     protected final void doWriteTo(StreamOutput out) throws IOException {
@@ -135,12 +137,12 @@ public abstract class BucketMetricsFactory<AF extends BucketMetricsFactory<AF>> 
 
     @Override
     protected final boolean doEquals(Object obj) {
-        BucketMetricsFactory other = (BucketMetricsFactory) obj;
+        BucketMetricsPipelineAggregatorBuilder other = (BucketMetricsPipelineAggregatorBuilder) obj;
         return Objects.equals(format, other.format)
                 && Objects.equals(gapPolicy, other.gapPolicy)
                 && innerEquals(other);
     }
 
-    protected abstract boolean innerEquals(BucketMetricsFactory other);
+    protected abstract boolean innerEquals(BucketMetricsPipelineAggregatorBuilder other);
 
 }

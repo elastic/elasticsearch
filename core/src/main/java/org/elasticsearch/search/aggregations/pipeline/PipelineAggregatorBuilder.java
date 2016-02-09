@@ -36,7 +36,7 @@ import java.util.Objects;
  * A factory that knows how to create an {@link PipelineAggregator} of a
  * specific type.
  */
-public abstract class PipelineAggregatorFactory extends ToXContentToBytes implements NamedWriteable<PipelineAggregatorFactory>, ToXContent {
+public abstract class PipelineAggregatorBuilder extends ToXContentToBytes implements NamedWriteable<PipelineAggregatorBuilder>, ToXContent {
 
     protected String name;
     protected String type;
@@ -51,7 +51,7 @@ public abstract class PipelineAggregatorFactory extends ToXContentToBytes implem
      * @param type
      *            The aggregation type
      */
-    public PipelineAggregatorFactory(String name, String type, String[] bucketsPaths) {
+    public PipelineAggregatorBuilder(String name, String type, String[] bucketsPaths) {
         this.name = name;
         this.type = type;
         this.bucketsPaths = bucketsPaths;
@@ -70,7 +70,7 @@ public abstract class PipelineAggregatorFactory extends ToXContentToBytes implem
      * configured)
      */
     public final void validate(AggregatorFactory<?> parent, AggregatorFactory<?>[] factories,
-            List<PipelineAggregatorFactory> pipelineAggregatorFactories) {
+            List<PipelineAggregatorBuilder> pipelineAggregatorFactories) {
         doValidate(parent, factories, pipelineAggregatorFactories);
     }
 
@@ -87,7 +87,7 @@ public abstract class PipelineAggregatorFactory extends ToXContentToBytes implem
     }
 
     public void doValidate(AggregatorFactory<?> parent, AggregatorFactory<?>[] factories,
-            List<PipelineAggregatorFactory> pipelineAggregatorFactories) {
+            List<PipelineAggregatorBuilder> pipelineAggregatorFactories) {
     }
 
     public void setMetaData(Map<String, Object> metaData) {
@@ -118,15 +118,15 @@ public abstract class PipelineAggregatorFactory extends ToXContentToBytes implem
     }
 
     @Override
-    public PipelineAggregatorFactory readFrom(StreamInput in) throws IOException {
+    public PipelineAggregatorBuilder readFrom(StreamInput in) throws IOException {
         String name = in.readString();
         String[] bucketsPaths = in.readStringArray();
-        PipelineAggregatorFactory factory = doReadFrom(name, bucketsPaths, in);
+        PipelineAggregatorBuilder factory = doReadFrom(name, bucketsPaths, in);
         factory.metaData = in.readMap();
         return factory;
     }
 
-    protected abstract PipelineAggregatorFactory doReadFrom(String name, String[] bucketsPaths, StreamInput in) throws IOException;
+    protected abstract PipelineAggregatorBuilder doReadFrom(String name, String[] bucketsPaths, StreamInput in) throws IOException;
 
     @Override
     public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -153,7 +153,7 @@ public abstract class PipelineAggregatorFactory extends ToXContentToBytes implem
     }
 
     /**
-     * @return <code>true</code> if the {@link PipelineAggregatorFactory}
+     * @return <code>true</code> if the {@link PipelineAggregatorBuilder}
      *         overrides the XContent rendering of the bucketPath option.
      */
     protected boolean overrideBucketsPath() {
@@ -175,7 +175,7 @@ public abstract class PipelineAggregatorFactory extends ToXContentToBytes implem
             return false;
         if (getClass() != obj.getClass())
             return false;
-        PipelineAggregatorFactory other = (PipelineAggregatorFactory) obj;
+        PipelineAggregatorBuilder other = (PipelineAggregatorBuilder) obj;
         if (!Objects.equals(name, other.name))
             return false;
         if (!Objects.equals(type, other.type))

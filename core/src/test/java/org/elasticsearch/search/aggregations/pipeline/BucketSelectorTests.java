@@ -24,15 +24,16 @@ import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.search.aggregations.BasePipelineAggregationTestCase;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.having.BucketSelectorPipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.having.BucketSelectorPipelineAggregator.Factory;
+import org.elasticsearch.search.aggregations.pipeline.having.BucketSelectorPipelineAggregator.BucketSelectorPipelineAggregatorBuilder;
 
 import java.util.HashMap;
 import java.util.Map;
 
-public class BucketSelectorTests extends BasePipelineAggregationTestCase<BucketSelectorPipelineAggregator.Factory> {
+public class BucketSelectorTests
+        extends BasePipelineAggregationTestCase<BucketSelectorPipelineAggregator.BucketSelectorPipelineAggregatorBuilder> {
 
     @Override
-    protected Factory createTestAggregatorFactory() {
+    protected BucketSelectorPipelineAggregatorBuilder createTestAggregatorFactory() {
         String name = randomAsciiOfLengthBetween(3, 20);
         Map<String, String> bucketsPaths = new HashMap<>();
         int numBucketPaths = randomIntBetween(1, 10);
@@ -50,7 +51,7 @@ public class BucketSelectorTests extends BasePipelineAggregationTestCase<BucketS
             }
             script = new Script("script", randomFrom(ScriptType.values()), randomFrom("my_lang", null), params);
         }
-        Factory factory = new Factory(name, bucketsPaths, script);
+        BucketSelectorPipelineAggregatorBuilder factory = new BucketSelectorPipelineAggregatorBuilder(name, bucketsPaths, script);
         if (randomBoolean()) {
             factory.gapPolicy(randomFrom(GapPolicy.values()));
         }

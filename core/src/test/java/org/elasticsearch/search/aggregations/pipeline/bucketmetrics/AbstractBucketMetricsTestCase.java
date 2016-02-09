@@ -22,7 +22,8 @@ package org.elasticsearch.search.aggregations.pipeline.bucketmetrics;
 import org.elasticsearch.search.aggregations.BasePipelineAggregationTestCase;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 
-public abstract class AbstractBucketMetricsTestCase<PAF extends BucketMetricsFactory> extends BasePipelineAggregationTestCase<PAF> {
+public abstract class AbstractBucketMetricsTestCase<PAF extends BucketMetricsPipelineAggregatorBuilder>
+        extends BasePipelineAggregationTestCase<PAF> {
 
     @Override
     protected final PAF createTestAggregatorFactory() {

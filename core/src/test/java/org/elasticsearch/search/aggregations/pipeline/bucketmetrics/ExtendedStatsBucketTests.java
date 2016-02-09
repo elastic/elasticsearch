@@ -20,13 +20,15 @@
 package org.elasticsearch.search.aggregations.pipeline.bucketmetrics;
 
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.extended.ExtendedStatsBucketPipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.extended.ExtendedStatsBucketPipelineAggregator.Factory;
 
-public class ExtendedStatsBucketTests extends AbstractBucketMetricsTestCase<ExtendedStatsBucketPipelineAggregator.Factory> {
+public class ExtendedStatsBucketTests
+        extends AbstractBucketMetricsTestCase<ExtendedStatsBucketPipelineAggregator.ExtendedStatsBucketPipelineAggregatorBuilder> {
 
     @Override
-    protected Factory doCreateTestAggregatorFactory(String name, String bucketsPath) {
-        Factory factory = new Factory(name, bucketsPath);
+    protected ExtendedStatsBucketPipelineAggregator.ExtendedStatsBucketPipelineAggregatorBuilder doCreateTestAggregatorFactory(String name,
+            String bucketsPath) {
+        ExtendedStatsBucketPipelineAggregator.ExtendedStatsBucketPipelineAggregatorBuilder factory =
+                new ExtendedStatsBucketPipelineAggregator.ExtendedStatsBucketPipelineAggregatorBuilder(name, bucketsPath);
         if (randomBoolean()) {
             factory.sigma(randomDoubleBetween(0.0, 10.0, false));
         }

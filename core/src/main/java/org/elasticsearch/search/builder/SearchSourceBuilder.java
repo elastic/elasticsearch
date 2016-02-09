@@ -43,9 +43,9 @@ import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.search.aggregations.AggregatorBuilder;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorParsers;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorFactory;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsBuilder;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.highlight.HighlightBuilder;
@@ -414,23 +414,23 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
      * Add an aggregation to perform as part of the search.
      */
     public SearchSourceBuilder aggregation(AggregatorBuilder<?> aggregation) {
-        if (aggregations == null) {
+            if (aggregations == null) {
             aggregations = AggregatorFactories.builder();
-        }
+            }
         aggregations.addAggregator(aggregation);
-        return this;
+            return this;
     }
 
     /**
      * Add an aggregation to perform as part of the search.
      */
-    public SearchSourceBuilder aggregation(PipelineAggregatorFactory aggregation) {
-        if (aggregations == null) {
+    public SearchSourceBuilder aggregation(PipelineAggregatorBuilder aggregation) {
+            if (aggregations == null) {
             aggregations = AggregatorFactories.builder();
-        }
+            }
         aggregations.addPipelineAggregator(aggregation);
-        return this;
-    }
+            return this;
+        }
 
     /**
      * Gets the bytes representing the aggregation builders for this request.
@@ -1034,7 +1034,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
 
         if (aggregations != null) {
             builder.field(AGGREGATIONS_FIELD.getPreferredName(), aggregations);
-        }
+            }
 
         if (highlightBuilder != null) {
             this.highlightBuilder.toXContent(builder, params);
@@ -1150,7 +1150,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         SearchSourceBuilder builder = new SearchSourceBuilder();
         if (in.readBoolean()) {
             builder.aggregations = AggregatorFactories.Builder.PROTOTYPE.readFrom(in);
-        }
+            }
         builder.explain = in.readOptionalBoolean();
         builder.fetchSourceContext = FetchSourceContext.optionalReadFromStream(in);
         boolean hasFieldDataFields = in.readBoolean();

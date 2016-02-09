@@ -22,15 +22,15 @@ package org.elasticsearch.search.aggregations.pipeline;
 import org.elasticsearch.search.aggregations.BasePipelineAggregationTestCase;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.derivative.DerivativePipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.derivative.DerivativePipelineAggregator.Factory;
+import org.elasticsearch.search.aggregations.pipeline.derivative.DerivativePipelineAggregator.DerivativePipelineAggregatorBuilder;
 
-public class DerivativeTests extends BasePipelineAggregationTestCase<DerivativePipelineAggregator.Factory> {
+public class DerivativeTests extends BasePipelineAggregationTestCase<DerivativePipelineAggregator.DerivativePipelineAggregatorBuilder> {
 
     @Override
-    protected Factory createTestAggregatorFactory() {
+    protected DerivativePipelineAggregatorBuilder createTestAggregatorFactory() {
         String name = randomAsciiOfLengthBetween(3, 20);
         String bucketsPath = randomAsciiOfLengthBetween(3, 20);
-        Factory factory = new Factory(name, bucketsPath);
+        DerivativePipelineAggregatorBuilder factory = new DerivativePipelineAggregatorBuilder(name, bucketsPath);
         if (randomBoolean()) {
             factory.format(randomAsciiOfLengthBetween(1, 10));
         }

@@ -25,7 +25,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorFactory;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -67,8 +67,8 @@ public class AggregatorParsers {
         Map<String, PipelineAggregator.Parser> pipelineAggregatorParsersBuilder = new HashMap<>(pipelineAggregatorParsers.size());
         for (PipelineAggregator.Parser parser : pipelineAggregatorParsers) {
             pipelineAggregatorParsersBuilder.put(parser.type(), parser);
-            PipelineAggregatorFactory factoryPrototype = parser.getFactoryPrototype();
-            namedWriteableRegistry.registerPrototype(PipelineAggregatorFactory.class, factoryPrototype);
+            PipelineAggregatorBuilder factoryPrototype = parser.getFactoryPrototype();
+            namedWriteableRegistry.registerPrototype(PipelineAggregatorBuilder.class, factoryPrototype);
         }
         this.pipelineAggregatorParsers = unmodifiableMap(pipelineAggregatorParsersBuilder);
     }
@@ -134,7 +134,7 @@ public class AggregatorParsers {
             }
 
             AggregatorBuilder<?> aggFactory = null;
-            PipelineAggregatorFactory pipelineAggregatorFactory = null;
+            PipelineAggregatorBuilder pipelineAggregatorFactory = null;
             AggregatorFactories.Builder subFactories = null;
 
             Map<String, Object> metaData = null;

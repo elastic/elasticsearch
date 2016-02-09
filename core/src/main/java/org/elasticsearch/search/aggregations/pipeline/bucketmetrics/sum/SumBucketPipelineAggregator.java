@@ -28,9 +28,9 @@ import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorFactory;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorStreams;
-import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsFactory;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsPipelineAggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsPipelineAggregator;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
@@ -85,13 +85,14 @@ public class SumBucketPipelineAggregator extends BucketMetricsPipelineAggregator
         return new InternalSimpleValue(name(), sum, formatter, pipelineAggregators, metadata);
     }
 
-    public static class Factory extends BucketMetricsFactory<Factory> {
+    public static class SumBucketPipelineAggregatorBuilder
+            extends BucketMetricsPipelineAggregatorBuilder<SumBucketPipelineAggregatorBuilder> {
 
-        public Factory(String name, String bucketsPath) {
+        public SumBucketPipelineAggregatorBuilder(String name, String bucketsPath) {
             this(name, new String[] { bucketsPath });
         }
 
-        private Factory(String name, String[] bucketsPaths) {
+        private SumBucketPipelineAggregatorBuilder(String name, String[] bucketsPaths) {
             super(name, TYPE.name(), bucketsPaths);
         }
 
@@ -102,7 +103,7 @@ public class SumBucketPipelineAggregator extends BucketMetricsPipelineAggregator
 
         @Override
         public void doValidate(AggregatorFactory<?> parent, AggregatorFactory<?>[] aggFactories,
-                List<PipelineAggregatorFactory> pipelineAggregatorFactories) {
+                List<PipelineAggregatorBuilder> pipelineAggregatorFactories) {
             if (bucketsPaths.length != 1) {
                 throw new IllegalStateException(PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName()
                         + " must contain a single entry for aggregation [" + name + "]");
@@ -115,8 +116,9 @@ public class SumBucketPipelineAggregator extends BucketMetricsPipelineAggregator
         }
 
         @Override
-        protected BucketMetricsFactory innerReadFrom(String name, String[] bucketsPaths, StreamInput in) throws IOException {
-            return new Factory(name, bucketsPaths);
+        protected BucketMetricsPipelineAggregatorBuilder innerReadFrom(String name, String[] bucketsPaths, StreamInput in)
+                throws IOException {
+            return new SumBucketPipelineAggregatorBuilder(name, bucketsPaths);
         }
 
         @Override
@@ -130,7 +132,7 @@ public class SumBucketPipelineAggregator extends BucketMetricsPipelineAggregator
         }
 
         @Override
-        protected boolean innerEquals(BucketMetricsFactory other) {
+        protected boolean innerEquals(BucketMetricsPipelineAggregatorBuilder other) {
             return true;
         }
 

@@ -36,7 +36,7 @@ import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInter
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorFactory;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorStreams;
 import org.elasticsearch.search.aggregations.support.format.ValueFormat;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
@@ -159,21 +159,21 @@ public class DerivativePipelineAggregator extends PipelineAggregator {
         }
     }
 
-    public static class Factory extends PipelineAggregatorFactory {
+    public static class DerivativePipelineAggregatorBuilder extends PipelineAggregatorBuilder {
 
         private String format;
         private GapPolicy gapPolicy = GapPolicy.SKIP;
         private String units;
 
-        public Factory(String name, String bucketsPath) {
+        public DerivativePipelineAggregatorBuilder(String name, String bucketsPath) {
             this(name, new String[] { bucketsPath });
         }
 
-        private Factory(String name, String[] bucketsPaths) {
+        private DerivativePipelineAggregatorBuilder(String name, String[] bucketsPaths) {
             super(name, TYPE.name(), bucketsPaths);
         }
 
-        public Factory format(String format) {
+        public DerivativePipelineAggregatorBuilder format(String format) {
             this.format = format;
             return this;
         }
@@ -182,7 +182,7 @@ public class DerivativePipelineAggregator extends PipelineAggregator {
             return format;
         }
 
-        public Factory gapPolicy(GapPolicy gapPolicy) {
+        public DerivativePipelineAggregatorBuilder gapPolicy(GapPolicy gapPolicy) {
             this.gapPolicy = gapPolicy;
             return this;
         }
@@ -191,12 +191,12 @@ public class DerivativePipelineAggregator extends PipelineAggregator {
             return gapPolicy;
         }
 
-        public Factory unit(String units) {
+        public DerivativePipelineAggregatorBuilder unit(String units) {
             this.units = units;
             return this;
         }
 
-        public Factory unit(DateHistogramInterval units) {
+        public DerivativePipelineAggregatorBuilder unit(DateHistogramInterval units) {
             this.units = units.toString();
             return this;
         }
@@ -229,7 +229,7 @@ public class DerivativePipelineAggregator extends PipelineAggregator {
         }
 
         @Override
-        public void doValidate(AggregatorFactory<?> parent, AggregatorFactory<?>[] aggFactories, List<PipelineAggregatorFactory> pipelineAggregatoractories) {
+        public void doValidate(AggregatorFactory<?> parent, AggregatorFactory<?>[] aggFactories, List<PipelineAggregatorBuilder> pipelineAggregatoractories) {
             if (bucketsPaths.length != 1) {
                 throw new IllegalStateException(PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName()
                         + " must contain a single entry for aggregation [" + name + "]");
@@ -247,8 +247,8 @@ public class DerivativePipelineAggregator extends PipelineAggregator {
         }
 
         @Override
-        protected PipelineAggregatorFactory doReadFrom(String name, String[] bucketsPaths, StreamInput in) throws IOException {
-            Factory factory = new Factory(name, bucketsPaths);
+        protected PipelineAggregatorBuilder doReadFrom(String name, String[] bucketsPaths, StreamInput in) throws IOException {
+            DerivativePipelineAggregatorBuilder factory = new DerivativePipelineAggregatorBuilder(name, bucketsPaths);
             factory.format = in.readOptionalString();
             if (in.readBoolean()) {
                 factory.gapPolicy = GapPolicy.readFrom(in);
@@ -284,7 +284,7 @@ public class DerivativePipelineAggregator extends PipelineAggregator {
 
         @Override
         protected boolean doEquals(Object obj) {
-            Factory other = (Factory) obj;
+            DerivativePipelineAggregatorBuilder other = (DerivativePipelineAggregatorBuilder) obj;
             if (!Objects.equals(format, other.format)) {
                 return false;
             }

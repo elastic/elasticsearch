@@ -20,8 +20,8 @@
 package org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.extended;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorFactory;
-import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsFactory;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsPipelineAggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsParser;
 
 import java.text.ParseException;
@@ -36,8 +36,8 @@ public class ExtendedStatsBucketParser extends BucketMetricsParser {
     }
 
     @Override
-    protected BucketMetricsFactory buildFactory(String pipelineAggregatorName, String bucketsPath, Map<String, Object> unparsedParams)
-            throws ParseException {
+    protected BucketMetricsPipelineAggregatorBuilder buildFactory(String pipelineAggregatorName, String bucketsPath,
+            Map<String, Object> unparsedParams) throws ParseException {
 
         Double sigma = null;
         Object param = unparsedParams.get(SIGMA.getPreferredName());
@@ -51,8 +51,8 @@ public class ExtendedStatsBucketParser extends BucketMetricsParser {
                         + param.getClass().getSimpleName() + "` provided instead", 0);
             }
         }
-        ExtendedStatsBucketPipelineAggregator.Factory factory = new ExtendedStatsBucketPipelineAggregator.Factory(pipelineAggregatorName,
-                bucketsPath);
+        ExtendedStatsBucketPipelineAggregator.ExtendedStatsBucketPipelineAggregatorBuilder factory = 
+                new ExtendedStatsBucketPipelineAggregator.ExtendedStatsBucketPipelineAggregatorBuilder(pipelineAggregatorName, bucketsPath);
         if (sigma != null) {
             factory.sigma(sigma);
         }
@@ -60,7 +60,7 @@ public class ExtendedStatsBucketParser extends BucketMetricsParser {
     }
 
     @Override
-    public PipelineAggregatorFactory getFactoryPrototype() {
-        return new ExtendedStatsBucketPipelineAggregator.Factory(null, null);
+    public PipelineAggregatorBuilder getFactoryPrototype() {
+        return new ExtendedStatsBucketPipelineAggregator.ExtendedStatsBucketPipelineAggregatorBuilder(null, null);
     }
 }

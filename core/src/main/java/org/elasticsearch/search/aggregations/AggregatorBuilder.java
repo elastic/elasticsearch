@@ -26,7 +26,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorFactory;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
@@ -68,7 +68,7 @@ public abstract class AggregatorBuilder<AB extends AggregatorBuilder<AB>> extend
      * Add a sub aggregation to this aggregation.
      */
     @SuppressWarnings("unchecked")
-    public AB subAggregation(PipelineAggregatorFactory aggregation) {
+    public AB subAggregation(PipelineAggregatorBuilder aggregation) {
         factoriesBuilder.addPipelineAggregator(aggregation);
         return (AB) this;
     }

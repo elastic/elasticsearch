@@ -21,15 +21,16 @@ package org.elasticsearch.search.aggregations.pipeline;
 
 import org.elasticsearch.search.aggregations.BasePipelineAggregationTestCase;
 import org.elasticsearch.search.aggregations.pipeline.cumulativesum.CumulativeSumPipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.cumulativesum.CumulativeSumPipelineAggregator.Factory;
+import org.elasticsearch.search.aggregations.pipeline.cumulativesum.CumulativeSumPipelineAggregator.CumulativeSumPipelineAggregatorBuilder;
 
-public class CumulativeSumTests extends BasePipelineAggregationTestCase<CumulativeSumPipelineAggregator.Factory> {
+public class CumulativeSumTests
+        extends BasePipelineAggregationTestCase<CumulativeSumPipelineAggregator.CumulativeSumPipelineAggregatorBuilder> {
 
     @Override
-    protected Factory createTestAggregatorFactory() {
+    protected CumulativeSumPipelineAggregatorBuilder createTestAggregatorFactory() {
         String name = randomAsciiOfLengthBetween(3, 20);
         String bucketsPath = randomAsciiOfLengthBetween(3, 20);
-        Factory factory = new Factory(name, bucketsPath);
+        CumulativeSumPipelineAggregatorBuilder factory = new CumulativeSumPipelineAggregatorBuilder(name, bucketsPath);
         if (randomBoolean()) {
             factory.format(randomAsciiOfLengthBetween(1, 10));
         }

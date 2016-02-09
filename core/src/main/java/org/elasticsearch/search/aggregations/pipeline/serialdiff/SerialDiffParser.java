@@ -25,7 +25,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorFactory;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -43,7 +43,7 @@ public class SerialDiffParser implements PipelineAggregator.Parser {
     }
 
     @Override
-    public PipelineAggregatorFactory parse(String reducerName, XContentParser parser, QueryParseContext context) throws IOException {
+    public PipelineAggregatorBuilder parse(String reducerName, XContentParser parser, QueryParseContext context) throws IOException {
         XContentParser.Token token;
         String currentFieldName = null;
         String[] bucketsPaths = null;
@@ -101,7 +101,8 @@ public class SerialDiffParser implements PipelineAggregator.Parser {
                     "Missing required field [" + BUCKETS_PATH.getPreferredName() + "] for derivative aggregation [" + reducerName + "]");
         }
 
-        SerialDiffPipelineAggregator.Factory factory = new SerialDiffPipelineAggregator.Factory(reducerName, bucketsPaths[0]);
+        SerialDiffPipelineAggregator.SerialDiffPipelineAggregatorBuilder factory = 
+                new SerialDiffPipelineAggregator.SerialDiffPipelineAggregatorBuilder(reducerName, bucketsPaths[0]);
         if (lag != null) {
             factory.lag(lag);
         }
@@ -115,8 +116,8 @@ public class SerialDiffParser implements PipelineAggregator.Parser {
     }
 
     @Override
-    public PipelineAggregatorFactory getFactoryPrototype() {
-        return new SerialDiffPipelineAggregator.Factory(null, null);
+    public PipelineAggregatorBuilder getFactoryPrototype() {
+        return new SerialDiffPipelineAggregator.SerialDiffPipelineAggregatorBuilder(null, null);
     }
 
 }

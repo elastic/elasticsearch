@@ -22,7 +22,7 @@ package org.elasticsearch.search.aggregations.pipeline.moving.avg;
 import org.elasticsearch.search.aggregations.BasePipelineAggregationTestCase;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.movavg.MovAvgPipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.movavg.MovAvgPipelineAggregator.Factory;
+import org.elasticsearch.search.aggregations.pipeline.movavg.MovAvgPipelineAggregator.MovAvgPipelineAggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.EwmaModel;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.HoltLinearModel;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.HoltWintersModel;
@@ -30,13 +30,13 @@ import org.elasticsearch.search.aggregations.pipeline.movavg.models.HoltWintersM
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.LinearModel;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.SimpleModel;;
 
-public class MovAvgTests extends BasePipelineAggregationTestCase<MovAvgPipelineAggregator.Factory> {
+public class MovAvgTests extends BasePipelineAggregationTestCase<MovAvgPipelineAggregator.MovAvgPipelineAggregatorBuilder> {
 
     @Override
-    protected Factory createTestAggregatorFactory() {
+    protected MovAvgPipelineAggregatorBuilder createTestAggregatorFactory() {
         String name = randomAsciiOfLengthBetween(3, 20);
         String bucketsPath = randomAsciiOfLengthBetween(3, 20);
-        Factory factory = new Factory(name, bucketsPath);
+        MovAvgPipelineAggregatorBuilder factory = new MovAvgPipelineAggregatorBuilder(name, bucketsPath);
         if (randomBoolean()) {
             factory.format(randomAsciiOfLengthBetween(1, 10));
         }

@@ -27,7 +27,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.Script.ScriptField;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorFactory;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -48,7 +48,7 @@ public class BucketScriptParser implements PipelineAggregator.Parser {
     }
 
     @Override
-    public PipelineAggregatorFactory parse(String reducerName, XContentParser parser, QueryParseContext context) throws IOException {
+    public PipelineAggregatorBuilder parse(String reducerName, XContentParser parser, QueryParseContext context) throws IOException {
         XContentParser.Token token;
         Script script = null;
         String currentFieldName = null;
@@ -116,7 +116,8 @@ public class BucketScriptParser implements PipelineAggregator.Parser {
                     + "] for series_arithmetic aggregation [" + reducerName + "]");
         }
 
-        BucketScriptPipelineAggregator.Factory factory = new BucketScriptPipelineAggregator.Factory(reducerName, bucketsPathsMap, script);
+        BucketScriptPipelineAggregator.BucketScriptPipelineAggregatorBuilder factory = 
+                new BucketScriptPipelineAggregator.BucketScriptPipelineAggregatorBuilder(reducerName, bucketsPathsMap, script);
         if (format != null) {
             factory.format(format);
         }
@@ -127,8 +128,8 @@ public class BucketScriptParser implements PipelineAggregator.Parser {
     }
 
     @Override
-    public PipelineAggregatorFactory getFactoryPrototype() {
-        return new BucketScriptPipelineAggregator.Factory(null, Collections.emptyMap(), null);
+    public PipelineAggregatorBuilder getFactoryPrototype() {
+        return new BucketScriptPipelineAggregator.BucketScriptPipelineAggregatorBuilder(null, Collections.emptyMap(), null);
     }
 
 }

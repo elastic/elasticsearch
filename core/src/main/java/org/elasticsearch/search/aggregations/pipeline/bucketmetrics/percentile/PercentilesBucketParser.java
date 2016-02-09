@@ -20,8 +20,8 @@
 package org.elasticsearch.search.aggregations.pipeline.bucketmetrics.percentile;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorFactory;
-import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsFactory;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsPipelineAggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsParser;
 
 import java.text.ParseException;
@@ -39,8 +39,8 @@ public class PercentilesBucketParser extends BucketMetricsParser {
     }
 
     @Override
-    protected BucketMetricsFactory buildFactory(String pipelineAggregatorName, String bucketsPath, Map<String, Object> unparsedParams)
-            throws ParseException {
+    protected BucketMetricsPipelineAggregatorBuilder buildFactory(String pipelineAggregatorName, String bucketsPath,
+            Map<String, Object> unparsedParams) throws ParseException {
 
         double[] percents = null;
         int counter = 0;
@@ -65,8 +65,8 @@ public class PercentilesBucketParser extends BucketMetricsParser {
             }
         }
 
-        PercentilesBucketPipelineAggregator.Factory factory = new PercentilesBucketPipelineAggregator.Factory(pipelineAggregatorName,
-                bucketsPath);
+        PercentilesBucketPipelineAggregator.PercentilesBucketPipelineAggregatorBuilder factory = new 
+                PercentilesBucketPipelineAggregator.PercentilesBucketPipelineAggregatorBuilder(pipelineAggregatorName, bucketsPath);
         if (percents != null) {
             factory.percents(percents);
         }
@@ -74,7 +74,7 @@ public class PercentilesBucketParser extends BucketMetricsParser {
     }
 
     @Override
-    public PipelineAggregatorFactory getFactoryPrototype() {
-        return new PercentilesBucketPipelineAggregator.Factory(null, null);
+    public PipelineAggregatorBuilder getFactoryPrototype() {
+        return new PercentilesBucketPipelineAggregator.PercentilesBucketPipelineAggregatorBuilder(null, null);
     }
 }

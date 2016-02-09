@@ -77,7 +77,7 @@ if __name__ == "__main__":
     for root, dirs, files in os.walk(localMavenRepo):
       for file in files:
         # no metadata files (they get renamed from maven-metadata-local.xml to maven-metadata.xml while deploying)
-        # no .properties and .repositories files (they dont get uploaded)
+        # no .properties and .repositories files (they don't get uploaded)
         if not file.startswith('maven-metadata') and not file.endswith('.properties') and not file.endswith('.repositories'):
           filesToCheck.append(os.path.join(root, file))
         if file.endswith('.asc'):
@@ -123,7 +123,7 @@ if __name__ == "__main__":
     print
 
     if len(errors) != 0:
-      print 'The following errors occured (%s out of %s files)' % (len(errors), len(filesToCheck))
+      print 'The following errors occurred (%s out of %s files)' % (len(errors), len(filesToCheck))
       print
       for error in errors:
         print error

@@ -37,7 +37,7 @@ except ImportError as e:
 
 '''This file executes a basic upgrade test by running a full cluster restart.
 
-The upgrade test starts 2 or more nodes of an old elasticserach version, indexes
+The upgrade test starts 2 or more nodes of an old elasticsearch version, indexes
 a random number of documents into the running nodes and executes a full cluster restart.
 After the nodes are recovered a small set of basic checks are executed to ensure all
 documents are still searchable and field data can be loaded etc.

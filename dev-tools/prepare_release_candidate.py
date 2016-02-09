@@ -260,7 +260,7 @@ if __name__ == "__main__":
   parser.add_argument('--check', dest='check', action='store_true',
                       help='Checks and reports for all requirements and then exits')
 
-  # by default, we only run mvn install and dont push anything repo
+  # by default, we only run mvn install and don't push anything repo
   parser.set_defaults(deploy_sonatype=False)
   parser.set_defaults(deploy_s3=False)
   parser.set_defaults(deploy_s3_repos=False)

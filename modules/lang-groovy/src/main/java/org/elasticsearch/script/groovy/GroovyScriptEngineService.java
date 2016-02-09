@@ -19,16 +19,10 @@
 
 package org.elasticsearch.script.groovy;
 
-import com.google.common.base.Charsets;
-import java.nio.charset.StandardCharsets;
-
-import com.google.common.hash.Hashing;
-
 import groovy.lang.Binding;
 import groovy.lang.GroovyClassLoader;
 import groovy.lang.GroovyCodeSource;
 import groovy.lang.Script;
-
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorer;
 import org.codehaus.groovy.ast.ClassCodeExpressionTransformer;
@@ -46,10 +40,18 @@ import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.bootstrap.BootstrapInfo;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.script.*;
+import org.elasticsearch.script.ClassPermission;
+import org.elasticsearch.script.CompiledScript;
+import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.LeafSearchScript;
+import org.elasticsearch.script.ScoreAccessor;
+import org.elasticsearch.script.ScriptEngineService;
+import org.elasticsearch.script.ScriptException;
+import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -178,7 +180,7 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
             if (sm != null) {
                 sm.checkPermission(new SpecialPermission());
             }
-            final String fake = Hashing.sha1().hashString(script, StandardCharsets.UTF_8).toString();
+            final String fake = MessageDigests.toHexString(MessageDigests.sha1().digest(script.getBytes(StandardCharsets.UTF_8)));
             // same logic as GroovyClassLoader.parseClass() but with a different codesource string:
             return AccessController.doPrivileged(new PrivilegedAction<Object>() {
                 public Class<?> run() {

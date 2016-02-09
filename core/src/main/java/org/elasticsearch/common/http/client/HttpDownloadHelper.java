@@ -19,19 +19,26 @@
 
 package org.elasticsearch.common.http.client;
 
-import com.google.common.base.Charsets;
-import com.google.common.hash.Hashing;
 import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.*;
+import org.elasticsearch.Build;
+import org.elasticsearch.ElasticsearchCorruptionException;
+import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.unit.TimeValue;
 
-import java.io.*;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.PrintWriter;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLConnection;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
@@ -96,7 +103,7 @@ public class HttpDownloadHelper {
     public static Checksummer SHA1_CHECKSUM = new Checksummer() {
         @Override
         public String checksum(byte[] filebytes) {
-            return Hashing.sha1().hashBytes(filebytes).toString();
+            return MessageDigests.toHexString(MessageDigests.sha1().digest(filebytes));
         }
 
         @Override
@@ -109,7 +116,7 @@ public class HttpDownloadHelper {
     public static Checksummer MD5_CHECKSUM = new Checksummer() {
         @Override
         public String checksum(byte[] filebytes) {
-            return Hashing.md5().hashBytes(filebytes).toString();
+            return MessageDigests.toHexString(MessageDigests.md5().digest(filebytes));
         }
 
         @Override
@@ -133,7 +140,7 @@ public class HttpDownloadHelper {
         try {
             if (download(checksumURL, checksumFile, progress, timeout)) {
                 byte[] fileBytes = Files.readAllBytes(originalFile);
-                List<String> checksumLines = Files.readAllLines(checksumFile, Charsets.UTF_8);
+                List<String> checksumLines = Files.readAllLines(checksumFile, StandardCharsets.UTF_8);
                 if (checksumLines.size() != 1) {
                     throw new ElasticsearchCorruptionException("invalid format for checksum file (" +
                             hashFunc.name() + "), expected 1 line, got: " + checksumLines.size());
@@ -345,7 +352,7 @@ public class HttpDownloadHelper {
                 if (!isSecureProcotol) {
                     throw new IOException("Basic auth is only supported for HTTPS!");
                 }
-                String basicAuth = Base64.encodeBytes(aSource.getUserInfo().getBytes(Charsets.UTF_8));
+                String basicAuth = Base64.encodeBytes(aSource.getUserInfo().getBytes(StandardCharsets.UTF_8));
                 connection.setRequestProperty("Authorization", "Basic " + basicAuth);
             }
 

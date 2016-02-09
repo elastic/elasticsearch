@@ -88,7 +88,7 @@ public final class IngestActionFilter extends AbstractComponent implements Actio
 
     void processIndexRequest(Task task, String action, ActionListener listener, ActionFilterChain chain, IndexRequest indexRequest) {
 
-        executionService.execute(indexRequest, t -> {
+        executionService.executeIndexRequest(indexRequest, t -> {
             logger.error("failed to execute pipeline [{}]", t, indexRequest.getPipeline());
             listener.onFailure(t);
         }, success -> {
@@ -102,7 +102,7 @@ public final class IngestActionFilter extends AbstractComponent implements Actio
 
     void processBulkIndexRequest(Task task, BulkRequest original, String action, ActionFilterChain chain, ActionListener<BulkResponse> listener) {
         BulkRequestModifier bulkRequestModifier = new BulkRequestModifier(original);
-        executionService.execute(() -> bulkRequestModifier, (indexRequest, throwable) -> {
+        executionService.executeBulkRequest(() -> bulkRequestModifier, (indexRequest, throwable) -> {
             logger.debug("failed to execute pipeline [{}] for document [{}/{}/{}]", indexRequest.getPipeline(), indexRequest.index(), indexRequest.type(), indexRequest.id(), throwable);
             bulkRequestModifier.markCurrentItemAsFailed(throwable);
         }, (throwable) -> {

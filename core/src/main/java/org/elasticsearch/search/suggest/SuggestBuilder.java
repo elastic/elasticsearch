@@ -20,10 +20,15 @@ package org.elasticsearch.search.suggest;
 
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryParseContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -38,6 +43,9 @@ import java.util.Objects;
  * to the terms in provided text. These suggestions are based on several options described in this class.
  */
 public class SuggestBuilder extends ToXContentToBytes implements Writeable<SuggestBuilder> {
+
+    public static final SuggestBuilder PROTOTYPE = new SuggestBuilder();
+    protected static final ParseField GLOBAL_TEXT_FIELD = new ParseField("text");
 
     private String globalText;
     private final List<SuggestionBuilder<?>> suggestions = new ArrayList<>();
@@ -58,12 +66,26 @@ public class SuggestBuilder extends ToXContentToBytes implements Writeable<Sugge
     }
 
     /**
-     * Adds an {@link org.elasticsearch.search.suggest.term.TermSuggestionBuilder} instance under a user defined name.
+     * Gets the global suggest text
+     */
+    public String getText() {
+        return null;
+    }
+
+    /**
+     * Adds an {@link org.elasticsearch.search.suggest.SuggestionBuilder} instance under a user defined name.
      * The order in which the <code>Suggestions</code> are added, is the same as in the response.
      */
     public SuggestBuilder addSuggestion(SuggestionBuilder<?> suggestion) {
         suggestions.add(suggestion);
         return this;
+    }
+
+    /**
+     * Get the <code>Suggestions</code> that were added to the globat {@link SuggestBuilder}
+     */
+    public List<SuggestionBuilder<?>> getSuggestions() {
+        return suggestions;
     }
 
     /**
@@ -84,6 +106,35 @@ public class SuggestBuilder extends ToXContentToBytes implements Writeable<Sugge
         }
         builder.endObject();
         return builder;
+    }
+
+    public static SuggestBuilder fromXContent(QueryParseContext parseContext, Suggesters suggesters) throws IOException {
+        XContentParser parser = parseContext.parser();
+        ParseFieldMatcher parseFieldMatcher = parseContext.parseFieldMatcher();
+        SuggestBuilder suggestBuilder = new SuggestBuilder();
+        String fieldName = null;
+
+        XContentParser.Token token;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                fieldName = parser.currentName();
+            } else if (token.isValue()) {
+                if (parseFieldMatcher.match(fieldName, GLOBAL_TEXT_FIELD)) {
+                    suggestBuilder.setText(parser.text());
+                } else {
+                    throw new IllegalArgumentException("[suggest] does not support [" + fieldName + "]");
+                }
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                String suggestionName = fieldName;
+                if (suggestionName == null) {
+                    throw new IllegalArgumentException("Suggestion must have name");
+                }
+                suggestBuilder.addSuggestion(SuggestionBuilder.fromXContent(parseContext, suggestionName, suggesters));
+            } else {
+                throw new ParsingException(parser.getTokenLocation(), "unexpected token [" + token + "] after [" + fieldName + "]");
+            }
+        }
+        return suggestBuilder;
     }
 
     @Override
@@ -125,5 +176,4 @@ public class SuggestBuilder extends ToXContentToBytes implements Writeable<Sugge
     public int hashCode() {
         return Objects.hash(globalText, suggestions);
     }
-
 }

@@ -84,6 +84,7 @@ public class JavaScriptSecurityTests extends ESTestCase {
     public void testOK() {
         assertSuccess("1 + 2");
         assertSuccess("Math.cos(Math.PI)");
+        assertSuccess("Array.apply(null, Array(100)).map(function (_, i) {return i;}).map(function (i) {return i+1;})");
     }
 
     /** Test some javascripts that should hit security exception */

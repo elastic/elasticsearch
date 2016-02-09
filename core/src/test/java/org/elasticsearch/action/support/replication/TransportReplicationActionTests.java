@@ -20,8 +20,6 @@ package org.elasticsearch.action.support.replication;
 
 import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ReplicationResponse;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.WriteConsistencyLevel;
@@ -51,7 +49,6 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.IndexShardNotStartedException;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -70,7 +67,6 @@ import org.elasticsearch.transport.TransportService;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
-import sun.security.krb5.internal.PAForUserEnc;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -89,6 +85,7 @@ import java.util.function.Consumer;
 
 import static org.elasticsearch.action.support.replication.ClusterStateCreationUtils.state;
 import static org.elasticsearch.action.support.replication.ClusterStateCreationUtils.stateWithActivePrimary;
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.empty;
@@ -859,7 +856,8 @@ public class TransportReplicationActionTests extends ESTestCase {
     public void testReroutePhaseRetriedAfterDemotedPrimary() {
         final String index = "test";
         final ShardId shardId = new ShardId(index, "_na_", 0);
-        clusterService.setState(state(index, true,
+        boolean localPrimary = true;
+        clusterService.setState(state(index, localPrimary,
                 ShardRoutingState.STARTED, ShardRoutingState.STARTED));
         Action action = new Action(Settings.EMPTY, "testAction", transportService, clusterService, threadPool) {
             @Override
@@ -872,22 +870,52 @@ public class TransportReplicationActionTests extends ESTestCase {
 
         TransportReplicationAction.ReroutePhase reroutePhase = action.new ReroutePhase(null, request, listener);
         reroutePhase.run();
+
+        // reroute phase should send primary action
         CapturingTransport.CapturedRequest[] primaryRequests = transport.getCapturedRequestsAndClear();
         assertThat(primaryRequests.length, equalTo(1));
-        assertThat(primaryRequests[0].action, equalTo("testAction[p]"));
-        TransportChannel channel = createTransportChannel(listener);
+        assertThat(primaryRequests[0].action, equalTo("testAction" + (localPrimary ? "[p]" : "")));
+        AtomicReference<Throwable> error = new AtomicReference<>();
+        TransportChannel channel = createTransportChannel(listener, error::set);
+
+        // simulate primary action
         TransportReplicationAction.PrimaryPhase primaryPhase = action.new PrimaryPhase(request, channel);
         primaryPhase.run();
+
+        // primary action should send replica request
         CapturingTransport.CapturedRequest[] replicaRequests = transport.getCapturedRequestsAndClear();
         assertThat(replicaRequests.length, equalTo(1));
         assertThat(replicaRequests[0].action, equalTo("testAction[r]"));
         indexShardRouting.set(clusterService.state().getRoutingTable().shardRoutingTable(shardId).primaryShard());
-        transport.handleRemoteError(replicaRequests[0].requestId, new Exception(""));
+
+        // simulate replica failure
+        transport.handleRemoteError(replicaRequests[0].requestId, new Exception("exception"));
+
+        // the primary should request replica failure
         CapturingTransport.CapturedRequest[] replicaFailures = transport.getCapturedRequestsAndClear();
         assertThat(replicaFailures.length, equalTo(1));
         assertThat(replicaFailures[0].action, equalTo(ShardStateAction.SHARD_FAILED_ACTION_NAME));
-        transport.handleRemoteError(replicaFailures[0].requestId, new ShardStateAction.NoLongerPrimaryShardException(shardId, ""));
+
+        // simulate demoted primary
+        transport.handleRemoteError(replicaFailures[0].requestId, new ShardStateAction.NoLongerPrimaryShardException(shardId, "demoted"));
         assertTrue(isShardFailed.get());
+        assertTrue(listener.isDone());
+        assertNotNull(error.get());
+        assertThat(error.get(), instanceOf(TransportReplicationAction.RetryOnPrimaryException.class));
+        assertThat(error.get().getMessage(), containsString("was demoted while failing replica shard"));
+
+        // reroute phase sees the retry
+        transport.handleRemoteError(primaryRequests[0].requestId, error.get());
+
+        // publish a new cluster state
+        boolean localPrimaryOnRetry = randomBoolean();
+        clusterService.setState(state(index, localPrimaryOnRetry,
+            ShardRoutingState.STARTED, ShardRoutingState.STARTED));
+        CapturingTransport.CapturedRequest[] primaryRetry = transport.getCapturedRequestsAndClear();
+
+        // the request should be retried
+        assertThat(primaryRetry.length, equalTo(1));
+        assertThat(primaryRetry[0].action, equalTo("testAction" + (localPrimaryOnRetry ? "[p]" : "")));
     }
 
     private void assertIndexShardCounter(int expected) {

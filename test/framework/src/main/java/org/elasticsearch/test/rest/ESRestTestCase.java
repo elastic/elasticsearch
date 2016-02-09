@@ -268,7 +268,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         // wipe indices
         String deleteIndices = "*";
         if (excludeIndices().size() > 0) {
-            deleteIndices = Strings.collectionToDelimitedString(excludeIndices(), ",", "-", "");
+            deleteIndices = deleteIndices + "," + Strings.collectionToDelimitedString(excludeIndices(), ",", "-", "");
         }
 
         Map<String, String> deleteIndicesArgs = new HashMap<>();
@@ -323,10 +323,10 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     /**
-     * @return An exclude set of indices that will not be removed in between tests.
+     * @return An exclude list of indices that will not be removed in between tests.
      */
-    protected Set<String> excludeIndices() {
-        return Collections.emptySet();
+    protected List<String> excludeIndices() {
+        return Collections.emptyList();
     }
 
     /**

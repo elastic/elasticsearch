@@ -32,7 +32,7 @@ to your classpath in order to use this type:
 
 [source,java]
 --------------------------------------------------
-// Import ShapeRelationn and ShapeBuilder
+// Import ShapeRelation and ShapeBuilder
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 --------------------------------------------------

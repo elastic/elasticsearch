@@ -108,3 +108,4 @@ doesn't take the query into account that is part of request.
     usually spelled correctly on top of this also improves the spellcheck
     performance. The shard level document frequencies are used for this
     option.
+

@@ -25,7 +25,7 @@ Index templates can no longer be configured on disk. Use the
 ==== Analyze API changes
 
 
-The Analyze API now returns the the `position` of the first token as `0`
+The Analyze API now returns the `position` of the first token as `0`
 instead of `1`.
 
 The `prefer_local` parameter has been removed. The `_analyze` API is a light

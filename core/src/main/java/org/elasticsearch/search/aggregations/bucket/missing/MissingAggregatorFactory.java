@@ -41,16 +41,15 @@ public class MissingAggregatorFactory extends ValuesSourceAggregatorFactory<Valu
     }
 
     @Override
-    protected MissingAggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-        return new MissingAggregator(name, factories, null, aggregationContext, parent, pipelineAggregators, metaData);
+    protected MissingAggregator createUnmapped(Aggregator parent, List<PipelineAggregator> pipelineAggregators,
+            Map<String, Object> metaData) throws IOException {
+        return new MissingAggregator(name, factories, null, context, parent, pipelineAggregators, metaData);
     }
 
     @Override
-    protected MissingAggregator doCreateInternal(ValuesSource valuesSource, AggregationContext aggregationContext, Aggregator parent,
-            boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
-                    throws IOException {
-        return new MissingAggregator(name, factories, valuesSource, aggregationContext, parent, pipelineAggregators, metaData);
+    protected MissingAggregator doCreateInternal(ValuesSource valuesSource, Aggregator parent, boolean collectsFromSingleBucket,
+            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+        return new MissingAggregator(name, factories, valuesSource, context, parent, pipelineAggregators, metaData);
     }
 
 }

@@ -46,8 +46,8 @@ public class ReverseNestedAggregatorFactory extends AggregatorFactory<ReverseNes
     }
 
     @Override
-    public Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+    public Aggregator createInternal(Aggregator parent, boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators,
+            Map<String, Object> metaData) throws IOException {
         // Early validation
         NestedAggregator closestNestedAggregator = findClosestNestedAggregator(parent);
         if (closestNestedAggregator == null) {

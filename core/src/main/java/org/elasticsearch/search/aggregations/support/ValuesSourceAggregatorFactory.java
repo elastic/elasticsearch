@@ -46,19 +46,19 @@ public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource, AF 
         }
 
     @Override
-    public Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket,
+    public Aggregator createInternal(Aggregator parent, boolean collectsFromSingleBucket,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
         VS vs = context.valuesSource(config, context.searchContext());
         if (vs == null) {
-            return createUnmapped(context, parent, pipelineAggregators, metaData);
+            return createUnmapped(parent, pipelineAggregators, metaData);
         }
-        return doCreateInternal(vs, context, parent, collectsFromSingleBucket, pipelineAggregators, metaData);
+        return doCreateInternal(vs, parent, collectsFromSingleBucket, pipelineAggregators, metaData);
     }
 
-    protected abstract Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent,
+    protected abstract Aggregator createUnmapped(Aggregator parent,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException;
 
-    protected abstract Aggregator doCreateInternal(VS valuesSource, AggregationContext aggregationContext, Aggregator parent,
+    protected abstract Aggregator doCreateInternal(VS valuesSource, Aggregator parent,
             boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
             throws IOException;
 

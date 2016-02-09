@@ -151,11 +151,11 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
     }
 
     @Override
-    protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+    protected Aggregator createUnmapped(Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
+            throws IOException {
         final InternalAggregation aggregation = new UnmappedSignificantTerms(name, bucketCountThresholds.getRequiredSize(),
                 bucketCountThresholds.getMinDocCount(), pipelineAggregators, metaData);
-        return new NonCollectingAggregator(name, aggregationContext, parent, pipelineAggregators, metaData) {
+        return new NonCollectingAggregator(name, context, parent, pipelineAggregators, metaData) {
             @Override
             public InternalAggregation buildEmptyAggregation() {
                 return aggregation;
@@ -164,11 +164,10 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
     }
 
     @Override
-    protected Aggregator doCreateInternal(ValuesSource valuesSource, AggregationContext aggregationContext, Aggregator parent,
-            boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
-                    throws IOException {
+    protected Aggregator doCreateInternal(ValuesSource valuesSource, Aggregator parent, boolean collectsFromSingleBucket,
+            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
         if (collectsFromSingleBucket == false) {
-            return asMultiBucketAggregator(this, aggregationContext, parent);
+            return asMultiBucketAggregator(this, context, parent);
         }
 
         numberOfAggregatorsCreated++;
@@ -187,13 +186,13 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
             // such are impossible to differentiate from non-significant terms
             // at that early stage.
             bucketCountThresholds.setShardSize(2 * BucketUtils.suggestShardSideQueueSize(bucketCountThresholds.getRequiredSize(),
-                    aggregationContext.searchContext().numberOfShards()));
+                    context.searchContext().numberOfShards()));
         }
 
         if (valuesSource instanceof ValuesSource.Bytes) {
             ExecutionMode execution = null;
             if (executionHint != null) {
-                execution = ExecutionMode.fromString(executionHint, aggregationContext.searchContext().parseFieldMatcher());
+                execution = ExecutionMode.fromString(executionHint, context.searchContext().parseFieldMatcher());
             }
             if (!(valuesSource instanceof ValuesSource.Bytes.WithOrdinals)) {
                 execution = ExecutionMode.MAP;
@@ -206,7 +205,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                 }
             }
             assert execution != null;
-            return execution.create(name, factories, valuesSource, bucketCountThresholds, includeExclude, aggregationContext, parent,
+            return execution.create(name, factories, valuesSource, bucketCountThresholds, includeExclude, context, parent,
                     significanceHeuristic, this, pipelineAggregators, metaData);
         }
 
@@ -225,7 +224,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                 longFilter = includeExclude.convertToLongFilter();
             }
             return new SignificantLongTermsAggregator(name, factories, (ValuesSource.Numeric) valuesSource, config.format(),
-                    bucketCountThresholds, aggregationContext, parent, significanceHeuristic, this, longFilter, pipelineAggregators,
+                    bucketCountThresholds, context, parent, significanceHeuristic, this, longFilter, pipelineAggregators,
                     metaData);
         }
 

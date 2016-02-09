@@ -45,15 +45,14 @@ public class GeoBoundsAggregatorFactory extends ValuesSourceAggregatorFactory<Va
     }
 
     @Override
-    protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-        return new GeoBoundsAggregator(name, aggregationContext, parent, null, wrapLongitude, pipelineAggregators, metaData);
+    protected Aggregator createUnmapped(Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
+            throws IOException {
+        return new GeoBoundsAggregator(name, context, parent, null, wrapLongitude, pipelineAggregators, metaData);
     }
 
     @Override
-    protected Aggregator doCreateInternal(ValuesSource.GeoPoint valuesSource, AggregationContext aggregationContext, Aggregator parent,
-            boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
-                    throws IOException {
-        return new GeoBoundsAggregator(name, aggregationContext, parent, valuesSource, wrapLongitude, pipelineAggregators, metaData);
+    protected Aggregator doCreateInternal(ValuesSource.GeoPoint valuesSource, Aggregator parent, boolean collectsFromSingleBucket,
+            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+        return new GeoBoundsAggregator(name, context, parent, valuesSource, wrapLongitude, pipelineAggregators, metaData);
     }
 }

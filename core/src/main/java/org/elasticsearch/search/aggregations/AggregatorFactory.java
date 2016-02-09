@@ -35,12 +35,12 @@ import java.util.Map;
 
 public abstract class AggregatorFactory<AF extends AggregatorFactory<AF>> {
 
-    protected String name;
-    protected Type type;
-    protected AggregatorFactory<?> parent;
-    protected AggregatorFactories factories = AggregatorFactories.EMPTY;
-    protected Map<String, Object> metaData;
-    private AggregationContext context;
+    protected final String name;
+    protected final Type type;
+    protected final AggregatorFactory<?> parent;
+    protected final AggregatorFactories factories;
+    protected final Map<String, Object> metaData;
+    protected final AggregationContext context;
 
     /**
      * Constructs a new aggregator factory.
@@ -57,6 +57,7 @@ public abstract class AggregatorFactory<AF extends AggregatorFactory<AF>> {
         this.name = name;
         this.type = type;
         this.context = context;
+        this.parent = parent;
         this.factories = subFactoriesBuilder.build(context, this);
         this.metaData = metaData;
     }
@@ -77,7 +78,7 @@ public abstract class AggregatorFactory<AF extends AggregatorFactory<AF>> {
     public void doValidate() {
     }
 
-    protected abstract Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket,
+    protected abstract Aggregator createInternal(Aggregator parent, boolean collectsFromSingleBucket,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException;
 
     /**
@@ -95,7 +96,7 @@ public abstract class AggregatorFactory<AF extends AggregatorFactory<AF>> {
      * @return The created aggregator
      */
     public final Aggregator create(Aggregator parent, boolean collectsFromSingleBucket) throws IOException {
-        return createInternal(context, parent, collectsFromSingleBucket, this.factories.createPipelineAggregators(), this.metaData);
+        return createInternal(parent, collectsFromSingleBucket, this.factories.createPipelineAggregators(), this.metaData);
     }
 
     public String getType() {

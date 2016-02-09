@@ -50,17 +50,16 @@ public class HDRPercentilesAggregatorFactory extends ValuesSourceAggregatorFacto
     }
 
     @Override
-    protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-        return new HDRPercentilesAggregator(name, null, aggregationContext, parent, percents, numberOfSignificantValueDigits, keyed,
+    protected Aggregator createUnmapped(Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
+            throws IOException {
+        return new HDRPercentilesAggregator(name, null, context, parent, percents, numberOfSignificantValueDigits, keyed,
                 config.formatter(), pipelineAggregators, metaData);
     }
 
     @Override
-    protected Aggregator doCreateInternal(Numeric valuesSource, AggregationContext aggregationContext, Aggregator parent,
-            boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
-                    throws IOException {
-        return new HDRPercentilesAggregator(name, valuesSource, aggregationContext, parent, percents, numberOfSignificantValueDigits, keyed,
+    protected Aggregator doCreateInternal(Numeric valuesSource, Aggregator parent, boolean collectsFromSingleBucket,
+            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+        return new HDRPercentilesAggregator(name, valuesSource, context, parent, percents, numberOfSignificantValueDigits, keyed,
                 config.formatter(), pipelineAggregators, metaData);
     }
 

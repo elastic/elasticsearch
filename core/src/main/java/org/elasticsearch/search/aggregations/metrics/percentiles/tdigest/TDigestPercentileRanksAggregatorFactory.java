@@ -51,18 +51,17 @@ public class TDigestPercentileRanksAggregatorFactory
     }
 
     @Override
-    protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-        return new TDigestPercentileRanksAggregator(name, null, aggregationContext, parent, percents, compression, keyed,
-                config.formatter(), pipelineAggregators, metaData);
+    protected Aggregator createUnmapped(Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
+            throws IOException {
+        return new TDigestPercentileRanksAggregator(name, null, context, parent, percents, compression, keyed, config.formatter(),
+                pipelineAggregators, metaData);
     }
 
     @Override
-    protected Aggregator doCreateInternal(Numeric valuesSource, AggregationContext aggregationContext, Aggregator parent,
-            boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
-                    throws IOException {
-        return new TDigestPercentileRanksAggregator(name, valuesSource, aggregationContext, parent, percents, compression, keyed,
-                config.formatter(), pipelineAggregators, metaData);
+    protected Aggregator doCreateInternal(Numeric valuesSource, Aggregator parent, boolean collectsFromSingleBucket,
+            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+        return new TDigestPercentileRanksAggregator(name, valuesSource, context, parent, percents, compression, keyed, config.formatter(),
+                pipelineAggregators, metaData);
     }
 
 }

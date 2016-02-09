@@ -66,11 +66,11 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
     }
 
     @Override
-    protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+    protected Aggregator createUnmapped(Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
+            throws IOException {
         final InternalAggregation aggregation = new UnmappedTerms(name, order, bucketCountThresholds.getRequiredSize(),
                 bucketCountThresholds.getShardSize(), bucketCountThresholds.getMinDocCount(), pipelineAggregators, metaData);
-        return new NonCollectingAggregator(name, aggregationContext, parent, factories, pipelineAggregators, metaData) {
+        return new NonCollectingAggregator(name, context, parent, factories, pipelineAggregators, metaData) {
             {
                 // even in the case of an unmapped aggregator, validate the
                 // order
@@ -85,11 +85,10 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
     }
 
     @Override
-    protected Aggregator doCreateInternal(ValuesSource valuesSource, AggregationContext aggregationContext, Aggregator parent,
-            boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
-                    throws IOException {
+    protected Aggregator doCreateInternal(ValuesSource valuesSource, Aggregator parent, boolean collectsFromSingleBucket,
+            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
         if (collectsFromSingleBucket == false) {
-            return asMultiBucketAggregator(this, aggregationContext, parent);
+            return asMultiBucketAggregator(this, context, parent);
         }
         BucketCountThresholds bucketCountThresholds = new BucketCountThresholds(this.bucketCountThresholds);
         if (!(order == InternalOrder.TERM_ASC || order == InternalOrder.TERM_DESC)
@@ -98,13 +97,13 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
             // heuristic to avoid any wrong-ranking caused by distributed
             // counting
             bucketCountThresholds.setShardSize(BucketUtils.suggestShardSideQueueSize(bucketCountThresholds.getRequiredSize(),
-                    aggregationContext.searchContext().numberOfShards()));
+                    context.searchContext().numberOfShards()));
         }
         bucketCountThresholds.ensureValidity();
         if (valuesSource instanceof ValuesSource.Bytes) {
             ExecutionMode execution = null;
             if (executionHint != null) {
-                execution = ExecutionMode.fromString(executionHint, aggregationContext.searchContext().parseFieldMatcher());
+                execution = ExecutionMode.fromString(executionHint, context.searchContext().parseFieldMatcher());
             }
 
             // In some cases, using ordinals is just not supported: override it
@@ -116,7 +115,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
             final double ratio;
             if (execution == null || execution.needsGlobalOrdinals()) {
                 ValuesSource.Bytes.WithOrdinals valueSourceWithOrdinals = (ValuesSource.Bytes.WithOrdinals) valuesSource;
-                IndexSearcher indexSearcher = aggregationContext.searchContext().searcher();
+                IndexSearcher indexSearcher = context.searchContext().searcher();
                 maxOrd = valueSourceWithOrdinals.globalMaxOrd(indexSearcher);
                 ratio = maxOrd / ((double) indexSearcher.getIndexReader().numDocs());
             } else {
@@ -151,7 +150,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
                 }
             }
 
-            return execution.create(name, factories, valuesSource, order, bucketCountThresholds, includeExclude, aggregationContext, parent,
+            return execution.create(name, factories, valuesSource, order, bucketCountThresholds, includeExclude, context, parent,
                     collectMode, showTermDocCountError, pipelineAggregators, metaData);
         }
 
@@ -167,14 +166,14 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
                     longFilter = includeExclude.convertToDoubleFilter();
                 }
                 return new DoubleTermsAggregator(name, factories, (ValuesSource.Numeric) valuesSource, config.format(), order,
-                        bucketCountThresholds, aggregationContext, parent, collectMode, showTermDocCountError, longFilter,
+                        bucketCountThresholds, context, parent, collectMode, showTermDocCountError, longFilter,
                         pipelineAggregators, metaData);
             }
             if (includeExclude != null) {
                 longFilter = includeExclude.convertToLongFilter();
             }
             return new LongTermsAggregator(name, factories, (ValuesSource.Numeric) valuesSource, config.format(), order,
-                    bucketCountThresholds, aggregationContext, parent, collectMode, showTermDocCountError, longFilter, pipelineAggregators,
+                    bucketCountThresholds, context, parent, collectMode, showTermDocCountError, longFilter, pipelineAggregators,
                     metaData);
         }
 

@@ -54,9 +54,9 @@ public class ChildrenAggregatorFactory
     }
 
     @Override
-    protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-        return new NonCollectingAggregator(name, aggregationContext, parent, pipelineAggregators, metaData) {
+    protected Aggregator createUnmapped(Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
+            throws IOException {
+        return new NonCollectingAggregator(name, context, parent, pipelineAggregators, metaData) {
 
             @Override
             public InternalAggregation buildEmptyAggregation() {
@@ -67,12 +67,12 @@ public class ChildrenAggregatorFactory
     }
 
     @Override
-    protected Aggregator doCreateInternal(ValuesSource.Bytes.WithOrdinals.ParentChild valuesSource, AggregationContext aggregationContext,
-            Aggregator parent, boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
+    protected Aggregator doCreateInternal(ValuesSource.Bytes.WithOrdinals.ParentChild valuesSource, Aggregator parent,
+            boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
                     throws IOException {
-        long maxOrd = valuesSource.globalMaxOrd(aggregationContext.searchContext().searcher(), parentType);
-        return new ParentToChildrenAggregator(name, factories, aggregationContext, parent, parentType, childFilter, parentFilter,
-                valuesSource, maxOrd, pipelineAggregators, metaData);
+        long maxOrd = valuesSource.globalMaxOrd(context.searchContext().searcher(), parentType);
+        return new ParentToChildrenAggregator(name, factories, context, parent, parentType, childFilter, parentFilter, valuesSource, maxOrd,
+                pipelineAggregators, metaData);
     }
 
 }

@@ -81,9 +81,9 @@ public class TopHitsAggregatorFactory extends AggregatorFactory<TopHitsAggregato
     }
 
     @Override
-    public Aggregator createInternal(AggregationContext aggregationContext, Aggregator parent, boolean collectsFromSingleBucket,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-        SubSearchContext subSearchContext = new SubSearchContext(aggregationContext.searchContext());
+    public Aggregator createInternal(Aggregator parent, boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators,
+            Map<String, Object> metaData) throws IOException {
+        SubSearchContext subSearchContext = new SubSearchContext(context.searchContext());
         subSearchContext.explain(explain);
         subSearchContext.version(version);
         subSearchContext.trackScores(trackScores);
@@ -136,9 +136,9 @@ public class TopHitsAggregatorFactory extends AggregatorFactory<TopHitsAggregato
             subSearchContext.fetchSourceContext(fetchSourceContext);
         }
         if (highlightBuilder != null) {
-            subSearchContext.highlight(highlightBuilder.build(aggregationContext.searchContext().getQueryShardContext()));
+            subSearchContext.highlight(highlightBuilder.build(context.searchContext().getQueryShardContext()));
         }
-        return new TopHitsAggregator(aggregationContext.searchContext().fetchPhase(), subSearchContext, name, aggregationContext, parent,
+        return new TopHitsAggregator(context.searchContext().fetchPhase(), subSearchContext, name, context, parent,
                 pipelineAggregators, metaData);
     }
 

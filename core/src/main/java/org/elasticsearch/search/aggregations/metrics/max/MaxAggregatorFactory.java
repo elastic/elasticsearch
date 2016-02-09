@@ -42,15 +42,15 @@ public class MaxAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSo
     }
 
     @Override
-    protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent,
+    protected Aggregator createUnmapped(Aggregator parent,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-        return new MaxAggregator(name, null, config.formatter(), aggregationContext, parent, pipelineAggregators, metaData);
+        return new MaxAggregator(name, null, config.formatter(), context, parent, pipelineAggregators, metaData);
     }
 
     @Override
-    protected Aggregator doCreateInternal(ValuesSource.Numeric valuesSource, AggregationContext aggregationContext, Aggregator parent,
+    protected Aggregator doCreateInternal(ValuesSource.Numeric valuesSource, Aggregator parent,
             boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
                     throws IOException {
-        return new MaxAggregator(name, valuesSource, config.formatter(), aggregationContext, parent, pipelineAggregators, metaData);
+        return new MaxAggregator(name, valuesSource, config.formatter(), context, parent, pipelineAggregators, metaData);
     }
 }

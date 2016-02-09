@@ -67,11 +67,11 @@ public abstract class AbstractHistogramAggregatorFactory<AF extends AbstractHist
     }
 
     @Override
-    protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+    protected Aggregator createUnmapped(Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
+            throws IOException {
         Rounding rounding = createRounding();
         return new HistogramAggregator(name, factories, rounding, order, keyed, minDocCount, extendedBounds, null, config.formatter(),
-                histogramFactory, aggregationContext, parent, pipelineAggregators, metaData);
+                histogramFactory, context, parent, pipelineAggregators, metaData);
     }
 
     protected Rounding createRounding() {
@@ -87,11 +87,10 @@ public abstract class AbstractHistogramAggregatorFactory<AF extends AbstractHist
     }
 
     @Override
-    protected Aggregator doCreateInternal(ValuesSource.Numeric valuesSource, AggregationContext aggregationContext, Aggregator parent,
-            boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
-                    throws IOException {
+    protected Aggregator doCreateInternal(ValuesSource.Numeric valuesSource, Aggregator parent, boolean collectsFromSingleBucket,
+            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
         if (collectsFromSingleBucket == false) {
-            return asMultiBucketAggregator(this, aggregationContext, parent);
+            return asMultiBucketAggregator(this, context, parent);
         }
         Rounding rounding = createRounding();
         // we need to round the bounds given by the user and we have to do it
@@ -102,11 +101,11 @@ public abstract class AbstractHistogramAggregatorFactory<AF extends AbstractHist
         ExtendedBounds roundedBounds = null;
         if (extendedBounds != null) {
             // we need to process & validate here using the parser
-            extendedBounds.processAndValidate(name, aggregationContext.searchContext(), config.parser());
+            extendedBounds.processAndValidate(name, context.searchContext(), config.parser());
             roundedBounds = extendedBounds.round(rounding);
         }
         return new HistogramAggregator(name, factories, rounding, order, keyed, minDocCount, roundedBounds, valuesSource,
-                config.formatter(), histogramFactory, aggregationContext, parent, pipelineAggregators, metaData);
+                config.formatter(), histogramFactory, context, parent, pipelineAggregators, metaData);
     }
 
 }

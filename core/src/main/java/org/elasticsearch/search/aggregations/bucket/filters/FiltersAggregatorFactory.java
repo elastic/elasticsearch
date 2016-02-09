@@ -61,8 +61,8 @@ public class FiltersAggregatorFactory extends AggregatorFactory<FiltersAggregato
     }
 
     @Override
-    public Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+    public Aggregator createInternal(Aggregator parent, boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators,
+            Map<String, Object> metaData) throws IOException {
         return new FiltersAggregator(name, factories, keys, weights, keyed, otherBucket ? otherBucketKey : null, context, parent,
                 pipelineAggregators, metaData);
     }

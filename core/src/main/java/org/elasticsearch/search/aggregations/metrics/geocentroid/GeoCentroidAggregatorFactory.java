@@ -42,15 +42,15 @@ public class GeoCentroidAggregatorFactory extends ValuesSourceAggregatorFactory<
     }
 
     @Override
-    protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent,
+    protected Aggregator createUnmapped(Aggregator parent,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-        return new GeoCentroidAggregator(name, aggregationContext, parent, null, pipelineAggregators, metaData);
+        return new GeoCentroidAggregator(name, context, parent, null, pipelineAggregators, metaData);
     }
 
     @Override
-    protected Aggregator doCreateInternal(ValuesSource.GeoPoint valuesSource, AggregationContext aggregationContext, Aggregator parent,
+    protected Aggregator doCreateInternal(ValuesSource.GeoPoint valuesSource, Aggregator parent,
             boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
                     throws IOException {
-        return new GeoCentroidAggregator(name, aggregationContext, parent, valuesSource, pipelineAggregators, metaData);
+        return new GeoCentroidAggregator(name, context, parent, valuesSource, pipelineAggregators, metaData);
     }
 }

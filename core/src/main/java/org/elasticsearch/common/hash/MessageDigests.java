@@ -19,8 +19,6 @@
 
 package org.elasticsearch.common.hash;
 
-import org.elasticsearch.ElasticsearchException;
-
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Objects;

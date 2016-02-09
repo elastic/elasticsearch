@@ -22,7 +22,7 @@ configuration are:
 
 `BM25`::
         The Okapi BM25 algorithm.
-        See {defguide}/pluggable-similarites.html[Plugggable Similarity Algorithms]
+        See {defguide}/pluggable-similarites.html[Pluggable Similarity Algorithms]
         for more information.
 
 

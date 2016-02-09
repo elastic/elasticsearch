@@ -133,7 +133,7 @@ request:
 curl http://localhost:9200/_nodes/process?pretty
 --------------
 
-If you see that `mlockall` is `false`, then it means that the the `mlockall`
+If you see that `mlockall` is `false`, then it means that the `mlockall`
 request has failed.  The most probable reason, on Linux/Unix systems, is that
 the user running Elasticsearch doesn't have permission to lock memory.  This can
 be granted by running `ulimit -l unlimited` as `root` before starting Elasticsearch.

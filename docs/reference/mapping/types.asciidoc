@@ -21,7 +21,7 @@ document:
 <<nested>>::    `nested` for arrays of JSON objects
 
 [float]
-=== Geo dataypes
+=== Geo datatypes
 
 <<geo-point>>::     `geo_point` for lat/lon points
 <<geo-shape>>::     `geo_shape` for complex shapes like polygons

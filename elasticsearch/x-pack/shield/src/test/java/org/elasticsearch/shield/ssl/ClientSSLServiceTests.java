@@ -251,17 +251,17 @@ public class ClientSSLServiceTests extends ESTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/2")
     public void testThatSSLSocketFactoryHasProperCiphersAndProtocols() throws Exception {
         ClientSSLService sslService = createClientSSLService(settingsBuilder()
                 .put("shield.ssl.keystore.path", testclientStore)
                 .put("shield.ssl.keystore.password", "testclient")
                 .build());
         SSLSocketFactory factory = sslService.sslSocketFactory();
-        assertThat(factory.getDefaultCipherSuites(), is(sslService.ciphers()));
+        final String[] ciphers = sslService.supportedCiphers(factory.getSupportedCipherSuites(), sslService.ciphers());
+        assertThat(factory.getDefaultCipherSuites(), is(ciphers));
 
         try (SSLSocket socket = (SSLSocket) factory.createSocket()) {
-            assertThat(socket.getEnabledCipherSuites(), is(sslService.ciphers()));
+            assertThat(socket.getEnabledCipherSuites(), is(ciphers));
             assertThat(socket.getEnabledProtocols(), is(sslService.supportedProtocols()));
         }
     }

@@ -14,7 +14,7 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.shield.ShieldPlugin;
+import org.elasticsearch.shield.Shield;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
@@ -40,10 +40,10 @@ public class WatcherPluginDisableTests extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(WatcherPlugin.ENABLED_SETTING, false)
+                .put(XPackPlugin.featureEnabledSetting(Watcher.NAME), false)
 
                 // disable shield because of query cache check and authentication/authorization
-                .put(XPackPlugin.featureEnabledSetting(ShieldPlugin.NAME), false)
+                .put(XPackPlugin.featureEnabledSetting(Shield.NAME), false)
 
                 .put(NetworkModule.HTTP_ENABLED.getKey(), true)
                 .build();

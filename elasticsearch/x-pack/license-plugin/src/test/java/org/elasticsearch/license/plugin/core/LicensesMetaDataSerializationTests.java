@@ -21,7 +21,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.license.core.License;
-import org.elasticsearch.license.plugin.LicensePlugin;
+import org.elasticsearch.license.plugin.Licensing;
 import org.elasticsearch.license.plugin.TestUtils;
 import org.elasticsearch.test.ESTestCase;
 
@@ -49,7 +49,7 @@ public class LicensesMetaDataSerializationTests extends ESTestCase {
     }
 
     public void testLicenseMetadataParsingDoesNotSwallowOtherMetaData() throws Exception {
-        new LicensePlugin(Settings.EMPTY); // makes sure LicensePlugin is registered in Custom MetaData
+        new Licensing(Settings.EMPTY); // makes sure LicensePlugin is registered in Custom MetaData
         License license = TestUtils.generateSignedLicense(TimeValue.timeValueHours(2));
         LicensesMetaData licensesMetaData = new LicensesMetaData(license);
         RepositoryMetaData repositoryMetaData = new RepositoryMetaData("repo", "fs", Settings.EMPTY);

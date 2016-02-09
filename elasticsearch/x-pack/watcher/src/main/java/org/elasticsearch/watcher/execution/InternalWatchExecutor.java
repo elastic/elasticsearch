@@ -10,12 +10,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.watcher.WatcherPlugin;
+import org.elasticsearch.watcher.Watcher;
 import org.elasticsearch.watcher.support.ThreadPoolSettingsBuilder;
 
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingDeque;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.stream.Stream;
 
 /**
@@ -23,7 +21,7 @@ import java.util.stream.Stream;
  */
 public class InternalWatchExecutor implements WatchExecutor {
 
-    public static final String THREAD_POOL_NAME = WatcherPlugin.NAME;
+    public static final String THREAD_POOL_NAME = Watcher.NAME;
 
     public static Settings additionalSettings(Settings nodeSettings) {
         Settings settings = nodeSettings.getAsSettings("threadpool." + THREAD_POOL_NAME);

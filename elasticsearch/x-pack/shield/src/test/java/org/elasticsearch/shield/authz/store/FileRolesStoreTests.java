@@ -7,7 +7,7 @@ package org.elasticsearch.shield.authz.store;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.shield.ShieldPlugin;
+import org.elasticsearch.shield.Shield;
 import org.elasticsearch.shield.audit.logfile.CapturingLogger;
 import org.elasticsearch.shield.authc.support.RefreshListener;
 import org.elasticsearch.shield.authz.permission.ClusterPermission;
@@ -54,7 +54,7 @@ public class FileRolesStoreTests extends ESTestCase {
     public void testParseFile() throws Exception {
         Path path = getDataPath("roles.yml");
         Map<String, Role> roles = FileRolesStore.parseFile(path, logger, Settings.builder()
-                .put(XPackPlugin.featureEnabledSetting(ShieldPlugin.DLS_FLS_FEATURE), true)
+                .put(XPackPlugin.featureEnabledSetting(Shield.DLS_FLS_FEATURE), true)
                 .build());
         assertThat(roles, notNullValue());
         assertThat(roles.size(), is(10));
@@ -211,7 +211,7 @@ public class FileRolesStoreTests extends ESTestCase {
         Path path = getDataPath("roles.yml");
         CapturingLogger logger = new CapturingLogger(CapturingLogger.Level.ERROR);
         Map<String, Role> roles = FileRolesStore.parseFile(path, logger, Settings.builder()
-                .put(XPackPlugin.featureEnabledSetting(ShieldPlugin.DLS_FLS_FEATURE), false)
+                .put(XPackPlugin.featureEnabledSetting(Shield.DLS_FLS_FEATURE), false)
                 .build());
         assertThat(roles, notNullValue());
         assertThat(roles.size(), is(7));

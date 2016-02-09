@@ -32,8 +32,8 @@ integTest {
 
   cluster {
     plugin 'x-pack', project(':x-plugins:elasticsearch:x-pack')
-    systemProperty 'es.watcher.enabled', 'false'
-    systemProperty 'es.marvel.enabled', 'false'
+    systemProperty 'es.xpack.watcher.enabled', 'false'
+    systemProperty 'es.xpack.marvel.enabled', 'false'
     setupCommand 'setupDummyUser',
                  'bin/xpack/esusers', 'useradd', 'test_user', '-p', 'changeme', '-r', 'admin'
     waitCondition = { node, ant ->

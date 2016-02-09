@@ -31,7 +31,7 @@ import org.elasticsearch.shield.authc.support.SecuredStringTests;
 import org.elasticsearch.shield.ssl.ClientSSLService;
 import org.elasticsearch.shield.support.NoOpLogger;
 import org.elasticsearch.test.junit.annotations.Network;
-import org.elasticsearch.watcher.WatcherPlugin;
+import org.elasticsearch.watcher.Watcher;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.junit.Before;
 
@@ -534,7 +534,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
 
         // disable watcher, because watcher takes some time when starting, which results in problems
         // having a quick start/stop cycle like below
-        builder.put(WatcherPlugin.ENABLED_SETTING, false);
+        builder.put(XPackPlugin.featureEnabledSetting(Watcher.NAME), false);
 
         try (Node node = new MockNode(builder.build(), Version.CURRENT, Collections.singletonList(XPackPlugin.class))) {
             node.start();

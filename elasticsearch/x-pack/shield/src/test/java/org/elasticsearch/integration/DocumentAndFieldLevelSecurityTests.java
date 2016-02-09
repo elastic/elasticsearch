@@ -8,7 +8,7 @@ package org.elasticsearch.integration;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
-import org.elasticsearch.shield.ShieldPlugin;
+import org.elasticsearch.shield.Shield;
 import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.test.ShieldIntegTestCase;
@@ -76,7 +76,7 @@ public class DocumentAndFieldLevelSecurityTests extends ShieldIntegTestCase {
     public Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(XPackPlugin.featureEnabledSetting(ShieldPlugin.DLS_FLS_FEATURE), true)
+                .put(XPackPlugin.featureEnabledSetting(Shield.DLS_FLS_FEATURE), true)
                 .build();
     }
 

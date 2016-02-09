@@ -8,7 +8,7 @@ package org.elasticsearch.watcher.test;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.watcher.WatcherPlugin;
+import org.elasticsearch.watcher.Watcher;
 import org.elasticsearch.watcher.execution.ExecutionModule;
 import org.elasticsearch.watcher.execution.SyncTriggerListener;
 import org.elasticsearch.watcher.execution.WatchExecutor;
@@ -29,11 +29,11 @@ import java.util.stream.Stream;
 /**
  *
  */
-public class TimeWarpedWatcherPlugin extends WatcherPlugin {
+public class TimeWarpedWatcher extends Watcher {
 
-    public TimeWarpedWatcherPlugin(Settings settings) {
+    public TimeWarpedWatcher(Settings settings) {
         super(settings);
-        Loggers.getLogger(TimeWarpedWatcherPlugin.class, settings).info("using time warped watchers plugin");
+        Loggers.getLogger(TimeWarpedWatcher.class, settings).info("using time warped watchers plugin");
 
     }
 

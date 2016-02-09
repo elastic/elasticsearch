@@ -14,7 +14,7 @@ import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.core.License;
-import org.elasticsearch.license.plugin.LicensePlugin;
+import org.elasticsearch.license.plugin.Licensing;
 import org.elasticsearch.license.plugin.core.LicenseState;
 import org.elasticsearch.license.plugin.core.Licensee;
 import org.elasticsearch.license.plugin.core.LicenseeRegistry;
@@ -80,15 +80,10 @@ public class LicenseIntegrationTests extends MarvelIntegTestCase {
         }
     }
 
-    public static class MockLicensePlugin extends LicensePlugin {
+    public static class MockLicensing extends Licensing {
 
-        public MockLicensePlugin() {
+        public MockLicensing() {
             super(Settings.EMPTY);
-        }
-
-        @Override
-        public String description() {
-            return name();
         }
 
         @Override
@@ -167,7 +162,7 @@ public class LicenseIntegrationTests extends MarvelIntegTestCase {
     public static class InternalXPackPlugin extends XPackPlugin {
         public InternalXPackPlugin(Settings settings) {
             super(settings);
-            licensePlugin = new MockLicensePlugin();
+            licensing = new MockLicensing();
         }
     }
 }

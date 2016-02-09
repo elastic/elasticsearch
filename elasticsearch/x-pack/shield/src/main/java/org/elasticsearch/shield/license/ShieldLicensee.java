@@ -13,7 +13,7 @@ import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.plugin.core.AbstractLicenseeComponent;
 import org.elasticsearch.license.plugin.core.Licensee;
 import org.elasticsearch.license.plugin.core.LicenseeRegistry;
-import org.elasticsearch.shield.ShieldPlugin;
+import org.elasticsearch.shield.Shield;
 
 /**
  *
@@ -25,7 +25,7 @@ public class ShieldLicensee extends AbstractLicenseeComponent<ShieldLicensee> im
 
     @Inject
     public ShieldLicensee(Settings settings, LicenseeRegistry clientService, ShieldLicenseState shieldLicenseState) {
-        super(settings, ShieldPlugin.NAME, clientService);
+        super(settings, Shield.NAME, clientService);
         this.shieldLicenseState = shieldLicenseState;
         this.isTribeNode = settings.getGroups("tribe", true).isEmpty() == false;
     }

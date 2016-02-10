@@ -24,7 +24,7 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * A list of {@link TypeLiteral}s to match an injectable Constructor's assited
+ * A list of {@link TypeLiteral}s to match an injectable Constructor's assisted
  * parameter types to the corresponding factory method.
  *
  * @author jmourits@google.com (Jerome Mourits)

@@ -47,7 +47,7 @@ import java.util.stream.Collectors;
  * A setting. Encapsulates typical stuff like default value, parsing, and scope.
  * Some (dynamic=true) can by modified at run time using the API.
  * All settings inside elasticsearch or in any of the plugins should use this type-safe and generic settings infrastructure
- * together with {@link AbstractScopedSettings}. This class contains several untility methods that makes it straight forward
+ * together with {@link AbstractScopedSettings}. This class contains several utility methods that makes it straight forward
  * to add settings for the majority of the cases. For instance a simple boolean settings can be defined like this:
  * <pre>{@code
  * public static final Setting<Boolean>; MY_BOOLEAN = Setting.boolSetting("my.bool.setting", true, false, Scope.CLUSTER);}

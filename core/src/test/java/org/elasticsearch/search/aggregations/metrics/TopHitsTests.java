@@ -125,8 +125,8 @@ public class TopHitsTests extends BaseAggregationTestCase<TopHitsAggregator.TopH
                     factory.sort(SortBuilders.fieldSort(randomAsciiOfLengthBetween(5, 20)).order(randomFrom(SortOrder.values())));
                     break;
                 case 1:
-                    factory.sort(SortBuilders.geoDistanceSort(randomAsciiOfLengthBetween(5, 20))
-                            .geohashes(AbstractQueryTestCase.randomGeohash(1, 12)).order(randomFrom(SortOrder.values())));
+                    factory.sort(SortBuilders.geoDistanceSort(randomAsciiOfLengthBetween(5, 20), AbstractQueryTestCase.randomGeohash(1, 12))
+                            .order(randomFrom(SortOrder.values())));
                     break;
                 case 2:
                     factory.sort(SortBuilders.scoreSort().order(randomFrom(SortOrder.values())));

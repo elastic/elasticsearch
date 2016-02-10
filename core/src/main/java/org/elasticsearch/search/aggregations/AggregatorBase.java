@@ -133,7 +133,7 @@ public abstract class AggregatorBase extends Aggregator {
     }
 
     /**
-     * Can be overriden by aggregator implementation to be called back when the collection phase starts.
+     * Can be overridden by aggregator implementation to be called back when the collection phase starts.
      */
     protected void doPreCollection() throws IOException {
     }
@@ -252,7 +252,7 @@ public abstract class AggregatorBase extends Aggregator {
     protected void doClose() {}
 
     /**
-     * Can be overriden by aggregator implementation to be called back when the collection phase ends.
+     * Can be overridden by aggregator implementation to be called back when the collection phase ends.
      */
     protected void doPostCollection() throws IOException {
     }

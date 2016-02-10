@@ -111,7 +111,7 @@ public class PreBuiltAnalyzerIntegrationIT extends ESIntegTestCase {
         // check that all above configured analyzers have been loaded
         assertThatAnalyzersHaveBeenLoaded(loadedAnalyzers);
 
-        // check that all of the prebuiltanalyzers are still open
+        // check that all of the prebuilt analyzers are still open
         assertLuceneAnalyzersAreNotClosed(loadedAnalyzers);
     }
 

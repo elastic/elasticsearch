@@ -251,7 +251,7 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
         GeoPoint luceneBottomRight = new GeoPoint(bottomRight);
         if (GeoValidationMethod.isCoerce(validationMethod)) {
             // Special case: if the difference between the left and right is 360 and the right is greater than the left, we are asking for
-            // the complete longitude range so need to set longitude to the complete longditude range
+            // the complete longitude range so need to set longitude to the complete longitude range
             double right = luceneBottomRight.getLon();
             double left = luceneTopLeft.getLon();
 

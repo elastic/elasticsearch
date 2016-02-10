@@ -704,7 +704,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
 
     // this code is a take on guava's HostAndPort, like a HostAndPortRange
 
-    // pattern for validating ipv6 bracked addresses.
+    // pattern for validating ipv6 bracket addresses.
     // not perfect, but PortsRange should take care of any port range validation, not a regex
     private static final Pattern BRACKET_PATTERN = Pattern.compile("^\\[(.*:.*)\\](?::([\\d\\-]*))?$");
 

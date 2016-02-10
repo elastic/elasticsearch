@@ -515,7 +515,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
             if (success == false) {
                 addPendingDelete(index, indexSettings);
             }
-            // this is a pure protection to make sure this index doesn't get re-imported as a dangeling index.
+            // this is a pure protection to make sure this index doesn't get re-imported as a dangling index.
             // we should in the future rather write a tombstone rather than wiping the metadata.
             MetaDataStateFormat.deleteMetaState(nodeEnv.indexPaths(index.getName()));
         }

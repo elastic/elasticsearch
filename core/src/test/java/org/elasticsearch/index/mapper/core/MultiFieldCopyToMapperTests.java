@@ -56,7 +56,7 @@ public class MultiFieldCopyToMapperTests extends ESTestCase {
             assertThat(e.getMessage(), equalTo("copy_to in multi fields is not allowed. Found the copy_to in field [c] which is within a multi field."));
         }
 
-        // now test that with an older version the pasring just works
+        // now test that with an older version the parsing just works
         indexVersion = randomFrom(versionsWithAndWithoutExpectedExceptions.v2());
         mapperService = MapperTestUtils.newMapperService(createTempDir(), Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, indexVersion).build());
         DocumentMapper documentMapper = mapperService.parse("type", new CompressedXContent(mapping.string()), true);
@@ -86,8 +86,8 @@ public class MultiFieldCopyToMapperTests extends ESTestCase {
         return mapping;
     }
 
-    // returs a tuple where
-    // v1 is a list of versions for which we expect an excpetion when a copy_to in multi fields is found and
+    // returns a tuple where
+    // v1 is a list of versions for which we expect an exception when a copy_to in multi fields is found and
     // v2 is older versions where we throw no exception and we just log a warning
     private static Tuple<List<Version>, List<Version>> versionsWithAndWithoutExpectedExceptions() {
         List<Version> versionsWithException = new ArrayList<>();

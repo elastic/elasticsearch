@@ -611,7 +611,7 @@ public class AllocationService extends AbstractComponent {
         return routingNodes;
     }
 
-    /** ovrride this to control time based decisions during allocation */
+    /** override this to control time based decisions during allocation */
     protected long currentNanoTime() {
         return System.nanoTime();
     }

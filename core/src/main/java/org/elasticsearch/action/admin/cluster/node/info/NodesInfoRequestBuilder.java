@@ -40,7 +40,7 @@ public class NodesInfoRequestBuilder extends NodesOperationRequestBuilder<NodesI
     }
 
     /**
-     * Sets to reutrn all the data.
+     * Sets to return all the data.
      */
     public NodesInfoRequestBuilder all() {
         request.all();

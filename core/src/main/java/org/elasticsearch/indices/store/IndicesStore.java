@@ -68,7 +68,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public class IndicesStore extends AbstractComponent implements ClusterStateListener, Closeable {
 
-    // TODO this class can be foled into either IndicesService and partially into IndicesClusterStateService there is no need for a seperate public service
+    // TODO this class can be foled into either IndicesService and partially into IndicesClusterStateService there is no need for a separate public service
     public static final Setting<TimeValue> INDICES_STORE_DELETE_SHARD_TIMEOUT = Setting.positiveTimeSetting("indices.store.delete.shard.timeout", new TimeValue(30, TimeUnit.SECONDS), false, Setting.Scope.CLUSTER);
     public static final String ACTION_SHARD_EXISTS = "internal:index/shard/exists";
     private static final EnumSet<IndexShardState> ACTIVE_STATES = EnumSet.of(IndexShardState.STARTED, IndexShardState.RELOCATED);

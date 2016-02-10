@@ -143,7 +143,7 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
                 tester.invalidateCoordinate(builder, true);
                 fail("expected exception for broken " + tester.getClass().getName() + " coordinate");
             } catch (IllegalArgumentException e) {
-                // exptected
+                // expected
             }
         }
     }

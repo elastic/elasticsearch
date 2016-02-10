@@ -442,7 +442,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
     }
 
     /**
-     * Gets the hightlighter builder for this request.
+     * Gets the highlighter builder for this request.
      */
     public HighlightBuilder highlighter() {
         return highlightBuilder;
@@ -679,7 +679,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
     }
 
     /**
-     * Sets the boost a specific index will receive when the query is executeed
+     * Sets the boost a specific index will receive when the query is executed
      * against it.
      *
      * @param index
@@ -697,7 +697,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
 
     /**
      * Gets the boost a specific indices will receive when the query is
-     * executeed against them.
+     * executed against them.
      */
     public ObjectFloatHashMap<String> indexBoost() {
         return indexBoost;

@@ -691,7 +691,7 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
         }
 
         boolean mustReschedule() {
-            // don't re-schedule if its closed or if we dont' have a single shard here..., we are done
+            // don't re-schedule if its closed or if we don't have a single shard here..., we are done
             return indexService.closed.get() == false
                 && closed.get() == false && interval.millis() > 0;
         }

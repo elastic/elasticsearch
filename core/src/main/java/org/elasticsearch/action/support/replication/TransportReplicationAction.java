@@ -415,7 +415,11 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
 
     public static class RetryOnPrimaryException extends ElasticsearchException {
         public RetryOnPrimaryException(ShardId shardId, String msg) {
-            super(msg);
+            this(shardId, msg, null);
+        }
+
+        public RetryOnPrimaryException(ShardId shardId, String msg, Throwable cause) {
+            super(msg, cause);
             setShard(shardId);
         }
 
@@ -987,7 +991,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                                                 String message = String.format(Locale.ROOT, "primary shard [%s] was demoted while failing replica shard [%s] for [%s]", primaryShard, shard, exp);
                                                 // we are no longer the primary, fail ourselves and start over
                                                 indexShardReference.failShard(message, shardFailedError);
-                                                forceFinishAsFailed(new RetryOnPrimaryException(shardId, message));
+                                                forceFinishAsFailed(new RetryOnPrimaryException(shardId, message, shardFailedError));
                                             } else {
                                                 assert false : shardFailedError;
                                                 onReplicaFailure(nodeId, exp);

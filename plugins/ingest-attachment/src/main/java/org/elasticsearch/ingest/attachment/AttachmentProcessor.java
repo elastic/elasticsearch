@@ -183,7 +183,6 @@ public final class AttachmentProcessor extends AbstractProcessor {
 
         CONTENT,
         TITLE,
-        NAME,
         AUTHOR,
         KEYWORDS,
         DATE,

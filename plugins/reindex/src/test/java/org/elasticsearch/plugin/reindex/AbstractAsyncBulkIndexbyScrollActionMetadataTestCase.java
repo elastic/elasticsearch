@@ -32,7 +32,9 @@ import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 
-public abstract class AbstractAsyncBulkIndexbyScrollActionMetadataTestCase<Request extends AbstractBulkIndexByScrollRequest<Request>, Response extends BulkIndexByScrollResponse>
+public abstract class AbstractAsyncBulkIndexbyScrollActionMetadataTestCase<
+                Request extends AbstractBulkIndexByScrollRequest<Request>,
+                Response extends BulkIndexByScrollResponse>
         extends AbstractAsyncBulkIndexByScrollActionTestCase<Request, Response> {
 
     /**

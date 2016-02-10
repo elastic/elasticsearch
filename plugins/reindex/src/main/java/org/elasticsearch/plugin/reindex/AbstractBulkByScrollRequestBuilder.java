@@ -28,7 +28,10 @@ import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 
-public abstract class AbstractBulkByScrollRequestBuilder<Request extends AbstractBulkByScrollRequest<Request>, Response extends ActionResponse, Self extends AbstractBulkByScrollRequestBuilder<Request, Response, Self>>
+public abstract class AbstractBulkByScrollRequestBuilder<
+                Request extends AbstractBulkByScrollRequest<Request>,
+                Response extends ActionResponse,
+                Self extends AbstractBulkByScrollRequestBuilder<Request, Response, Self>>
         extends ActionRequestBuilder<Request, Response, Self> {
     private final SearchRequestBuilder source;
 

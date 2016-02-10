@@ -34,7 +34,9 @@ import java.util.function.Consumer;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.equalTo;
 
-public abstract class AbstractAsyncBulkIndexByScrollActionScriptTestCase<Request extends AbstractBulkIndexByScrollRequest<Request>, Response extends BulkIndexByScrollResponse>
+public abstract class AbstractAsyncBulkIndexByScrollActionScriptTestCase<
+                Request extends AbstractBulkIndexByScrollRequest<Request>,
+                Response extends BulkIndexByScrollResponse>
         extends AbstractAsyncBulkIndexByScrollActionTestCase<Request, Response> {
     protected IndexRequest applyScript(Consumer<Map<String, Object>> scriptBody) {
         IndexRequest index = new IndexRequest("index", "type", "1").source(singletonMap("foo", "bar"));

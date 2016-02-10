@@ -115,8 +115,8 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
      * possible.
      */
     static class AsyncIndexBySearchAction extends AbstractAsyncBulkIndexByScrollAction<ReindexRequest, ReindexResponse> {
-        public AsyncIndexBySearchAction(BulkByScrollTask task, ESLogger logger, ScriptService scriptService, Client client, ThreadPool threadPool,
-                ReindexRequest request, ActionListener<ReindexResponse> listener) {
+        public AsyncIndexBySearchAction(BulkByScrollTask task, ESLogger logger, ScriptService scriptService, Client client,
+                ThreadPool threadPool, ReindexRequest request, ActionListener<ReindexResponse> listener) {
             super(task, logger, scriptService, client, threadPool, request, request.getSource(), listener);
         }
 

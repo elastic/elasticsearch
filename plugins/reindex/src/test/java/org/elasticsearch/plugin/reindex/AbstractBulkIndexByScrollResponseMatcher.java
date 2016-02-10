@@ -25,7 +25,9 @@ import org.hamcrest.TypeSafeMatcher;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public abstract class AbstractBulkIndexByScrollResponseMatcher<Response extends BulkIndexByScrollResponse, Self extends AbstractBulkIndexByScrollResponseMatcher<Response, Self>>
+public abstract class AbstractBulkIndexByScrollResponseMatcher<
+                Response extends BulkIndexByScrollResponse,
+                Self extends AbstractBulkIndexByScrollResponseMatcher<Response, Self>>
         extends TypeSafeMatcher<Response> {
     private Matcher<Long> updatedMatcher = equalTo(0L);
     /**

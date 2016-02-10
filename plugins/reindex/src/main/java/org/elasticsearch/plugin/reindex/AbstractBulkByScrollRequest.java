@@ -254,7 +254,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
 
     @Override
     public Task createTask(long id, String type, String action) {
-        return new BulkByScrollTask(id, type, action, this::getDescription);
+        return new BulkByScrollTask(id, type, action, getDescription());
     }
 
     @Override

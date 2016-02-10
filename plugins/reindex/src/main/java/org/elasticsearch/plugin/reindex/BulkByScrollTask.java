@@ -19,7 +19,6 @@
 
 package org.elasticsearch.plugin.reindex;
 
-import org.elasticsearch.common.inject.Provider;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -46,7 +45,7 @@ public class BulkByScrollTask extends Task {
     private final AtomicLong versionConflicts = new AtomicLong(0);
     private final AtomicLong retries = new AtomicLong(0);
 
-    public BulkByScrollTask(long id, String type, String action, Provider<String> description) {
+    public BulkByScrollTask(long id, String type, String action, String description) {
         super(id, type, action, description);
     }
 

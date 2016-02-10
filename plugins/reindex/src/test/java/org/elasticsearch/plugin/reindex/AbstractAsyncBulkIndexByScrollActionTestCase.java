@@ -25,7 +25,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
-public abstract class AbstractAsyncBulkIndexByScrollActionTestCase<Request extends AbstractBulkIndexByScrollRequest<Request>, Response extends BulkIndexByScrollResponse>
+public abstract class AbstractAsyncBulkIndexByScrollActionTestCase<
+                Request extends AbstractBulkIndexByScrollRequest<Request>,
+                Response extends BulkIndexByScrollResponse>
         extends ESTestCase {
     protected ThreadPool threadPool;
     protected BulkByScrollTask task;
@@ -33,7 +35,7 @@ public abstract class AbstractAsyncBulkIndexByScrollActionTestCase<Request exten
     @Before
     public void setupForTest() {
         threadPool = new ThreadPool(getTestName());
-        task = new BulkByScrollTask(1, "test", "test", () -> "test");
+        task = new BulkByScrollTask(1, "test", "test", "test");
     }
 
     @After

@@ -27,7 +27,7 @@ public class BulkByScrollTaskTests extends ESTestCase {
 
     @Before
     public void createTask() {
-        task = new BulkByScrollTask(1, "test_type", "test_action", () -> "test");
+        task = new BulkByScrollTask(1, "test_type", "test_action", "test");
     }
 
     public void testBasicData() {

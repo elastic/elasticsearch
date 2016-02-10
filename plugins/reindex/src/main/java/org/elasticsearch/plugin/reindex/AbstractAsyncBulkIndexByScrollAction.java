@@ -52,7 +52,9 @@ import static java.util.Collections.emptyMap;
  * Abstract base for scrolling across a search and executing bulk indexes on all
  * results.
  */
-public abstract class AbstractAsyncBulkIndexByScrollAction<Request extends AbstractBulkIndexByScrollRequest<Request>, Response extends BulkIndexByScrollResponse>
+public abstract class AbstractAsyncBulkIndexByScrollAction<
+                Request extends AbstractBulkIndexByScrollRequest<Request>,
+                Response extends BulkIndexByScrollResponse>
         extends AbstractAsyncBulkByScrollAction<Request, Response> {
 
     private final ScriptService scriptService;

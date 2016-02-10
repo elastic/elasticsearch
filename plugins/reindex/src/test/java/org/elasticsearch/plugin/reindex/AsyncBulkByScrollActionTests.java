@@ -99,7 +99,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         firstSearchRequest = null;
         listener = new PlainActionFuture<>();
         scrollId = null;
-        task = new BulkByScrollTask(0, "test", "test", () -> "test");
+        task = new BulkByScrollTask(0, "test", "test", "test");
     }
 
     @After

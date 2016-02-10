@@ -77,7 +77,8 @@ public class UpdateByQueryWhileModifyingTests extends UpdateByQueryTestCase {
                         break;
                     } catch (VersionConflictEngineException e) {
                         if (attempts >= MAX_ATTEMPTS) {
-                            throw new RuntimeException("Failed to index after [" + MAX_ATTEMPTS + "] attempts. Too many version conflicts!");
+                            throw new RuntimeException(
+                                    "Failed to index after [" + MAX_ATTEMPTS + "] attempts. Too many version conflicts!");
                         }
                         logger.info(
                                 "Caught expected version conflict trying to perform mutation number {} with version {}. Retrying.",

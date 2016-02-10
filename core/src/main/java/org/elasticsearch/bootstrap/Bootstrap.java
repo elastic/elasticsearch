@@ -254,10 +254,6 @@ final class Bootstrap {
         INSTANCE = new Bootstrap();
 
         boolean foreground = !"false".equals(System.getProperty("es.foreground", System.getProperty("es-foreground")));
-        // handle the wrapper system property, if its a service, don't run as a service
-        if (System.getProperty("wrapper.service", "XXX").equalsIgnoreCase("true")) {
-            foreground = false;
-        }
 
         Environment environment = initialSettings(foreground);
         Settings settings = environment.settings();

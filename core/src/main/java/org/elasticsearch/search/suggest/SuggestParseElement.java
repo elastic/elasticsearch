@@ -98,6 +98,16 @@ public final class SuggestParseElement implements SearchParseElement {
                     }
                 }
                 if (suggestionContext != null) {
+                    if (suggestText != null) {
+                        suggestionContext.setText(suggestText);
+                    }
+                    if (prefix != null) {
+                        suggestionContext.setPrefix(prefix);
+                    }
+                    if (regex != null) {
+                        suggestionContext.setRegex(regex);
+                    }
+
                     if (suggestText != null && prefix == null) {
                         suggestionContext.setPrefix(suggestText);
                         suggestionContext.setText(suggestText);
@@ -108,7 +118,6 @@ public final class SuggestParseElement implements SearchParseElement {
                         suggestionContext.setRegex(regex);
                         suggestionContext.setText(regex);
                     }
-                    suggestionContext.setShardContext(shardContext);
                     suggestionContexts.put(suggestionName, suggestionContext);
                 } else {
                     throw new IllegalArgumentException("suggestion context could not be parsed correctly");

@@ -32,12 +32,12 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestionBuilder;
 import org.elasticsearch.search.suggest.completion.WritableTestCase;
+import org.elasticsearch.search.suggest.phrase.Laplace;
+import org.elasticsearch.search.suggest.phrase.LinearInterpolation;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder;
-import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder.Laplace;
-import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder.LinearInterpolation;
-import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder.SmoothingModel;
-import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder.StupidBackoff;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilderTests;
+import org.elasticsearch.search.suggest.phrase.SmoothingModel;
+import org.elasticsearch.search.suggest.phrase.StupidBackoff;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 
 import java.io.IOException;
@@ -62,7 +62,7 @@ public class SuggestBuilderTests extends WritableTestCase<SuggestBuilder> {
      *  creates random suggestion builder, renders it to xContent and back to new instance that should be equal to original
      */
     public void testFromXContent() throws IOException {
-        Suggesters suggesters = new Suggesters(Collections.emptyMap(), null, null);
+        Suggesters suggesters = new Suggesters(Collections.emptyMap());
         QueryParseContext context = new QueryParseContext(null);
         context.parseFieldMatcher(new ParseFieldMatcher(Settings.EMPTY));
         for (int runs = 0; runs < NUMBER_OF_RUNS; runs++) {
@@ -87,7 +87,7 @@ public class SuggestBuilderTests extends WritableTestCase<SuggestBuilder> {
     protected SuggestBuilder createTestModel() {
         SuggestBuilder suggestBuilder = new SuggestBuilder();
         if (randomBoolean()) {
-            suggestBuilder.setText(randomAsciiOfLengthBetween(5, 50));
+            suggestBuilder.setGlobalText(randomAsciiOfLengthBetween(5, 50));
         }
         int numberOfSuggestions = randomIntBetween(0, 5);
         for (int i = 0; i < numberOfSuggestions; i++) {
@@ -98,12 +98,12 @@ public class SuggestBuilderTests extends WritableTestCase<SuggestBuilder> {
 
     @Override
     protected SuggestBuilder createMutation(SuggestBuilder original) throws IOException {
-        SuggestBuilder mutation = new SuggestBuilder().setText(original.getText());
+        SuggestBuilder mutation = new SuggestBuilder().setGlobalText(original.getGlobalText());
         for (SuggestionBuilder<?> suggestionBuilder : original.getSuggestions()) {
             mutation.addSuggestion(suggestionBuilder);
         }
         if (randomBoolean()) {
-            mutation.setText(randomAsciiOfLengthBetween(5, 60));
+            mutation.setGlobalText(randomAsciiOfLengthBetween(5, 60));
         } else {
             mutation.addSuggestion(PhraseSuggestionBuilderTests.randomPhraseSuggestionBuilder());
         }

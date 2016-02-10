@@ -53,14 +53,8 @@ import java.util.Map;
 public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
     private final BytesRef SEPARATOR = new BytesRef(" ");
     private static final String SUGGESTION_TEMPLATE_VAR_NAME = "suggestion";
-    private final ScriptService scriptService;
 
-    static PhraseSuggester PROTOTYPE;
-
-    public PhraseSuggester(ScriptService scriptService) {
-        this.scriptService = scriptService;
-        PROTOTYPE = this;
-    }
+    public static final PhraseSuggester PROTOTYPE = new PhraseSuggester();
 
     /*
      * More Ideas:
@@ -118,6 +112,7 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
                     // from the index for a correction, collateMatch is updated
                     final Map<String, Object> vars = suggestion.getCollateScriptParams();
                     vars.put(SUGGESTION_TEMPLATE_VAR_NAME, spare.toString());
+                    ScriptService scriptService = suggestion.getShardContext().getScriptService();
                     final ExecutableScript executable = scriptService.executable(collateScript, vars);
                     final BytesReference querySource = (BytesReference) executable.run();
                     final ParsedQuery parsedQuery = suggestion.getShardContext().parse(querySource);
@@ -147,10 +142,6 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
     private PhraseSuggestion.Entry buildResultEntry(SuggestionContext suggestion, CharsRefBuilder spare, double cutoffScore) {
         spare.copyUTF8Bytes(suggestion.getText());
         return new PhraseSuggestion.Entry(new Text(spare.toString()), 0, spare.length(), cutoffScore);
-    }
-
-    ScriptService scriptService() {
-        return scriptService;
     }
 
     @Override

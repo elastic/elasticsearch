@@ -42,7 +42,6 @@ import org.apache.lucene.util.automaton.LevenshteinAutomata;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.FastCharArrayReader;
-import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.CustomAnalyzer;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -50,12 +49,10 @@ import org.elasticsearch.index.analysis.ShingleTokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
-import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 
 import java.io.IOException;
 import java.util.Comparator;
 import java.util.Locale;
-import java.util.Objects;
 
 public final class SuggestUtils {
     public static final Comparator<SuggestWord> LUCENE_FREQUENCY = new SuggestWordFrequencyComparator();
@@ -173,17 +170,6 @@ public final class SuggestUtils {
         }
     }
 
-    public static TermSuggestionBuilder.SortBy resolveSort(String sortVal) {
-        sortVal = sortVal.toLowerCase(Locale.US);
-        if ("score".equals(sortVal)) {
-            return TermSuggestionBuilder.SortBy.SCORE;
-        } else if ("frequency".equals(sortVal)) {
-            return TermSuggestionBuilder.SortBy.FREQUENCY;
-        } else {
-            throw new IllegalArgumentException("Illegal suggest sort " + sortVal);
-        }
-    }
-
     public static StringDistance resolveDistance(String distanceVal) {
         distanceVal = distanceVal.toLowerCase(Locale.US);
         if ("internal".equals(distanceVal)) {
@@ -199,28 +185,6 @@ public final class SuggestUtils {
             return new NGramDistance();
         } else {
             throw new IllegalArgumentException("Illegal distance option " + distanceVal);
-        }
-    }
-
-    public static SuggestMode resolveSuggestMode(TermSuggestionBuilder.SuggestMode suggestMode) {
-        Objects.requireNonNull(suggestMode, "suggestMode must not be null");
-        switch (suggestMode) {
-            case MISSING: return SuggestMode.SUGGEST_WHEN_NOT_IN_INDEX;
-            case POPULAR: return SuggestMode.SUGGEST_MORE_POPULAR;
-            case ALWAYS: return SuggestMode.SUGGEST_ALWAYS;
-            default: throw new IllegalArgumentException("Unknown suggestMode [" + suggestMode + "]");
-        }
-    }
-
-    public static StringDistance resolveStringDistance(TermSuggestionBuilder.StringDistanceImpl stringDistance) {
-        Objects.requireNonNull(stringDistance, "stringDistance must not be null");
-        switch (stringDistance) {
-            case INTERNAL: return DirectSpellChecker.INTERNAL_LEVENSHTEIN;
-            case DAMERAU_LEVENSHTEIN: return new LuceneLevenshteinDistance();
-            case LEVENSTEIN: return new LevensteinDistance();
-            case JAROWINKLER: return new JaroWinklerDistance();
-            case NGRAM: return new NGramDistance();
-            default: throw new IllegalArgumentException("Illegal distance option " + stringDistance);
         }
     }
 
@@ -251,7 +215,7 @@ public final class SuggestUtils {
             } else if (parseFieldMatcher.match(fieldName, Fields.SUGGEST_MODE)) {
                 suggestion.suggestMode(SuggestUtils.resolveSuggestMode(parser.text()));
             } else if (parseFieldMatcher.match(fieldName, Fields.SORT)) {
-                suggestion.sort(SuggestUtils.resolveSort(parser.text()));
+                suggestion.sort(SortBy.resolve(parser.text()));
             } else if (parseFieldMatcher.match(fieldName, Fields.STRING_DISTANCE)) {
                 suggestion.stringDistance(SuggestUtils.resolveDistance(parser.text()));
             } else if (parseFieldMatcher.match(fieldName, Fields.MAX_EDITS)) {
@@ -297,53 +261,6 @@ public final class SuggestUtils {
         return true;
     }
 
-    /**
-     * Transfers the text, prefix, regex, analyzer, fieldname, size and shard size settings from the
-     * original {@link SuggestionBuilder} to the target {@link SuggestionContext}
-     */
-    public static void suggestionToSuggestionContext(SuggestionBuilder suggestionBuilder, MapperService mapperService,
-            SuggestionSearchContext.SuggestionContext suggestionContext) throws IOException {
-        String analyzerName = suggestionBuilder.analyzer();
-        if (analyzerName != null) {
-            Analyzer analyzer = mapperService.analysisService().analyzer(analyzerName);
-            if (analyzer == null) {
-                throw new IllegalArgumentException("Analyzer [" + analyzerName + "] doesn't exists");
-            }
-            suggestionContext.setAnalyzer(analyzer);
-        }
-        if (suggestionBuilder.field() != null) {
-            suggestionContext.setField(suggestionBuilder.field());
-        }
-        if (suggestionBuilder.size() != null) {
-            suggestionContext.setSize(suggestionBuilder.size());
-        }
-        if (suggestionBuilder.shardSize() != null) {
-            suggestionContext.setShardSize(suggestionBuilder.shardSize());
-        } else {
-            // if no shard size is set in builder, use size (or at least 5)
-            suggestionContext.setShardSize(Math.max(suggestionContext.getSize(), 5));
-        }
-        String text = suggestionBuilder.text();
-        if (text != null) {
-            suggestionContext.setText(BytesRefs.toBytesRef(text));
-        }
-        String prefix = suggestionBuilder.prefix();
-        if (prefix != null) {
-            suggestionContext.setText(BytesRefs.toBytesRef(prefix));
-        }
-        String regex = suggestionBuilder.regex();
-        if (regex != null) {
-            suggestionContext.setText(BytesRefs.toBytesRef(regex));
-        }
-        if (text != null && prefix == null) {
-            suggestionContext.setPrefix(BytesRefs.toBytesRef(text));
-        } else if (text == null && prefix != null) {
-            suggestionContext.setText(BytesRefs.toBytesRef(prefix));
-        } else if (text == null && regex != null) {
-            suggestionContext.setText(BytesRefs.toBytesRef(regex));
-        }
-    }
-
     public static void verifySuggestion(MapperService mapperService, BytesRef globalText, SuggestionContext suggestion) {
         // Verify options and set defaults
         if (suggestion.getField() == null) {
@@ -362,7 +279,6 @@ public final class SuggestUtils {
             suggestion.setShardSize(Math.max(suggestion.getSize(), 5));
         }
     }
-
 
     public static ShingleTokenFilterFactory.Factory getShingleFilterFactory(Analyzer analyzer) {
         if (analyzer instanceof NamedAnalyzer) {

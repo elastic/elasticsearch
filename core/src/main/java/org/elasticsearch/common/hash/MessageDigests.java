@@ -19,20 +19,23 @@
 
 package org.elasticsearch.common.hash;
 
-import org.elasticsearch.ElasticsearchException;
-
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Objects;
 
-public class MessageDigests {
+/**
+ * This MessageDigests class provides convenience methods for obtaining
+ * thread local {@link MessageDigest} instances for MD5, SHA-1, and
+ * SHA-256 message digests.
+ */
+public final class MessageDigests {
 
     private static ThreadLocal<MessageDigest> createThreadLocalMessageDigest(String digest) {
         return ThreadLocal.withInitial(() -> {
             try {
                 return MessageDigest.getInstance(digest);
             } catch (NoSuchAlgorithmException e) {
-                throw new ElasticsearchException("unexpected exception creating MessageDigest instance for [" + digest + "]", e);
+                throw new IllegalStateException("unexpected exception creating MessageDigest instance for [" + digest + "]", e);
             }
         });
     }
@@ -41,14 +44,38 @@ public class MessageDigests {
     private static final ThreadLocal<MessageDigest> SHA_1_DIGEST = createThreadLocalMessageDigest("SHA-1");
     private static final ThreadLocal<MessageDigest> SHA_256_DIGEST = createThreadLocalMessageDigest("SHA-256");
 
+    /**
+     * Returns a {@link MessageDigest} instance for MD5 digests; note
+     * that the instance returned is thread local and must not be
+     * shared amongst threads.
+     *
+     * @return a thread local {@link MessageDigest} instance that
+     * provides MD5 message digest functionality.
+     */
     public static MessageDigest md5() {
         return get(MD5_DIGEST);
     }
 
+    /**
+     * Returns a {@link MessageDigest} instance for SHA-1 digests; note
+     * that the instance returned is thread local and must not be
+     * shared amongst threads.
+     *
+     * @return a thread local {@link MessageDigest} instance that
+     * provides SHA-1 message digest functionality.
+     */
     public static MessageDigest sha1() {
         return get(SHA_1_DIGEST);
     }
 
+    /**
+     * Returns a {@link MessageDigest} instance for SHA-256 digests;
+     * note that the instance returned is thread local and must not be
+     * shared amongst threads.
+     *
+     * @return a thread local {@link MessageDigest} instance that
+     * provides SHA-256 message digest functionality.
+     */
     public static MessageDigest sha256() {
         return get(SHA_256_DIGEST);
     }
@@ -61,6 +88,12 @@ public class MessageDigests {
 
     private static final char[] HEX_DIGITS = "0123456789abcdef".toCharArray();
 
+    /**
+     * Format a byte array as a hex string.
+     *
+     * @param bytes the input to be represented as hex.
+     * @return a hex representation of the input as a String.
+     */
     public static String toHexString(byte[] bytes) {
         Objects.requireNonNull(bytes);
         StringBuilder sb = new StringBuilder(2 * bytes.length);

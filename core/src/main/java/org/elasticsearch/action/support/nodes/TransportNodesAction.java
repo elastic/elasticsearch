@@ -95,6 +95,10 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
 
     protected abstract NodeResponse nodeOperation(NodeRequest request);
 
+    protected NodeResponse nodeOperation(NodeRequest request, Task task) {
+        return nodeOperation(request);
+    }
+
     protected abstract boolean accumulateExceptions();
 
     protected String[] filterNodeIds(DiscoveryNodes nodes, String[] nodesIds) {
@@ -163,6 +167,7 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
                         ChildTaskRequest nodeRequest = newNodeRequest(nodeId, request);
                         if (task != null) {
                             nodeRequest.setParentTask(clusterService.localNode().id(), task.getId());
+                            taskManager.registerChildTask(task, node.getId());
                         }
 
                         transportService.sendRequest(node, transportNodeAction, nodeRequest, builder.build(), new BaseTransportResponseHandler<NodeResponse>() {
@@ -228,8 +233,14 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
     class NodeTransportHandler implements TransportRequestHandler<NodeRequest> {
 
         @Override
-        public void messageReceived(final NodeRequest request, final TransportChannel channel) throws Exception {
+        public void messageReceived(NodeRequest request, TransportChannel channel, Task task) throws Exception {
+            channel.sendResponse(nodeOperation(request, task));
+        }
+
+        @Override
+        public void messageReceived(NodeRequest request, TransportChannel channel) throws Exception {
             channel.sendResponse(nodeOperation(request));
         }
+
     }
 }

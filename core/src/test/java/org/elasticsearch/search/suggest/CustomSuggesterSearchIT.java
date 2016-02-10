@@ -141,7 +141,7 @@ public class CustomSuggesterSearchIT extends ESIntegTestCase {
             Map<String, Object> options = new HashMap<>();
             options.put("field", randomField);
             options.put("suffix", randomSuffix);
-            return new CustomSuggester.CustomSuggestionsContext(new CustomSuggester(), options);
+            return new CustomSuggester.CustomSuggestionsContext(context, options);
         }
 
     }

@@ -22,10 +22,6 @@ package org.elasticsearch.search.suggest.phrase;
 import org.elasticsearch.script.Template;
 import org.elasticsearch.search.suggest.AbstractSuggestionBuilderTestCase;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
-import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder.Laplace;
-import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder.LinearInterpolation;
-import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder.SmoothingModel;
-import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder.StupidBackoff;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionContext.DirectCandidateGenerator;
 import org.junit.BeforeClass;
 
@@ -163,6 +159,7 @@ public class PhraseSuggestionBuilderTests extends AbstractSuggestionBuilderTestC
         }
     }
 
+    @Override
     protected void assertSuggestionContext(SuggestionContext oldSuggestion, SuggestionContext newSuggestion) {
         assertThat(oldSuggestion, instanceOf(PhraseSuggestionContext.class));
         assertThat(newSuggestion, instanceOf(PhraseSuggestionContext.class));

@@ -197,7 +197,6 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
      */
     public static class Suggestion<T extends Suggestion.Entry> implements Iterable<T>, Streamable, ToXContent {
 
-
         public static final int TYPE = 0;
         protected String name;
         protected int size;

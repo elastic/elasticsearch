@@ -67,7 +67,9 @@ import org.junit.BeforeClass;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -77,7 +79,7 @@ import static org.hamcrest.Matchers.not;
 
 public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBuilder<SB>> extends ESTestCase {
 
-    private static final int NUMBER_OF_TESTBUILDERS = 2000;
+    private static final int NUMBER_OF_TESTBUILDERS = 20;
     protected static NamedWriteableRegistry namedWriteableRegistry;
     private static Suggesters suggesters;
     private static ScriptService scriptService;
@@ -105,7 +107,7 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
                 return new CompiledScript(ScriptType.INLINE, "mockName", "mocklang", script);
             }
         };
-        suggesters = new Suggesters(Collections.emptyMap(), scriptService, null);
+        suggesters = new Suggesters(Collections.emptyMap());
         parseElement = new SuggestParseElement(suggesters);
 
         namedWriteableRegistry = new NamedWriteableRegistry();
@@ -231,16 +233,20 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
             }
         };
 
-        MapperService mockMapperService = new MapperService(idxSettings, mockAnalysisService, null, new IndicesModule().getMapperRegistry(),
-                null) {
+        MapperService mockMapperService = new MapperService(idxSettings, mockAnalysisService, null,
+                                                               new IndicesModule().getMapperRegistry(), null) {
             @Override
             public MappedFieldType fullName(String fullName) {
-                return new StringFieldType();
+                StringFieldType type = new StringFieldType();
+                if (randomBoolean()) {
+                    type.setSearchAnalyzer(new NamedAnalyzer("foo", new WhitespaceAnalyzer()));
+                }
+                return type;
             }
         };
 
-        QueryShardContext mockShardContext = new QueryShardContext(idxSettings, null, null, null, mockMapperService, null, scriptService,
-                null) {
+        QueryShardContext mockShardContext = new QueryShardContext(idxSettings, null, null, null, mockMapperService, null,
+                                                                      scriptService, null) {
             @Override
             public MappedFieldType fieldMapper(String name) {
                 StringFieldMapper.Builder builder = MapperBuilders.stringField(name);
@@ -251,13 +257,12 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
 
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
             SuggestBuilder suggestBuilder = new SuggestBuilder();
-            suggestBuilder.setText(randomAsciiOfLength(10));
             SB suggestionBuilder = randomTestBuilder();
             suggestBuilder.addSuggestion(suggestionBuilder);
 
             if (suggestionBuilder.text() == null) {
                 // we either need suggestion text or global text
-                suggestBuilder.setText("This is some global Text");
+                suggestBuilder.setGlobalText(randomAsciiOfLengthBetween(5, 50));
             }
             if (suggestionBuilder.text() != null && suggestionBuilder.prefix() != null) {
                 suggestionBuilder.prefix(null);
@@ -268,36 +273,38 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
                 xContentBuilder.prettyPrint();
             }
             suggestBuilder.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
-            System.out.println(suggestBuilder);
 
             XContentParser parser = XContentHelper.createParser(xContentBuilder.bytes());
             parser.nextToken(); // set cursor to START_OBJECT
-            SuggestionSearchContext suggestionSearchContext = parseElement.parseInternal(parser, mockShardContext);
-            SuggestionContext oldSchoolContext = suggestionSearchContext.suggestions().get(suggestionBuilder.name());
+            SuggestionSearchContext parsedSuggestionSearchContext = parseElement.parseInternal(parser, mockShardContext);
 
-            SuggestionContext newSchoolContext = suggestionBuilder.build(mockShardContext, suggestBuilder.getGlobalText());
+            SuggestionSearchContext buildSuggestSearchContext = suggestBuilder.build(mockShardContext);
+            assertEquals(parsedSuggestionSearchContext.suggestions().size(), buildSuggestSearchContext.suggestions().size());
+            Iterator<Entry<String, SuggestionContext>> iterator = buildSuggestSearchContext.suggestions().entrySet().iterator();
+            for (Entry<String, SuggestionContext> entry : parsedSuggestionSearchContext.suggestions().entrySet()) {
+                Entry<String, SuggestionContext> other = iterator.next();
+                assertEquals(entry.getKey(), other.getKey());
 
-            assertNotSame(oldSchoolContext, newSchoolContext);
-            // deep comparison of analyzers is difficult here, but we check they are same class
-            if (oldSchoolContext.getAnalyzer() == null) {
-                assertNull(newSchoolContext.getAnalyzer());
-            } else if (newSchoolContext.getAnalyzer() == null) {
-                assertNull(oldSchoolContext.getAnalyzer());
-            } else {
-                assertEquals(oldSchoolContext.getAnalyzer().getClass(), newSchoolContext.getAnalyzer().getClass());
+                SuggestionContext oldSchoolContext = entry.getValue();
+                SuggestionContext newSchoolContext = other.getValue();
+                assertNotSame(oldSchoolContext, newSchoolContext);
+                // deep comparison of analyzers is difficult here, but we check they are set or not set
+                if (oldSchoolContext.getAnalyzer() != null) {
+                    assertNotNull(newSchoolContext.getAnalyzer());
+                } else {
+                    assertNull(newSchoolContext.getAnalyzer());
+                }
+                assertEquals(oldSchoolContext.getField(), newSchoolContext.getField());
+                assertEquals(oldSchoolContext.getPrefix(), newSchoolContext.getPrefix());
+                assertEquals(oldSchoolContext.getRegex(), newSchoolContext.getRegex());
+                assertEquals(oldSchoolContext.getShardSize(), newSchoolContext.getShardSize());
+                assertEquals(oldSchoolContext.getSize(), newSchoolContext.getSize());
+                assertEquals(oldSchoolContext.getSuggester().getClass(), newSchoolContext.getSuggester().getClass());
+                assertEquals(oldSchoolContext.getText(), newSchoolContext.getText());
+                assertEquals(oldSchoolContext.getClass(), newSchoolContext.getClass());
+
+                assertSuggestionContext(oldSchoolContext, newSchoolContext);
             }
-            assertEquals(oldSchoolContext.getField(), newSchoolContext.getField());
-            // TODO consolidate text/prefix/regex
-            //assertEquals(oldSchoolContext.getPrefix(), newSchoolContext.getPrefix());
-            //assertEquals(oldSchoolContext.getRegex(), newSchoolContext.getRegex());
-            assertEquals(oldSchoolContext.getShardSize(), newSchoolContext.getShardSize());
-            assertEquals(oldSchoolContext.getSize(), newSchoolContext.getSize());
-            assertEquals(oldSchoolContext.getSuggester().getClass(), newSchoolContext.getSuggester().getClass());
-            // TODO consolidate text/prefix/regex
-            //assertEquals(oldSchoolContext.getText(), newSchoolContext.getText());
-            assertEquals(oldSchoolContext.getClass(), newSchoolContext.getClass());
-
-            assertSuggestionContext(oldSchoolContext, newSchoolContext);
         }
     }
 

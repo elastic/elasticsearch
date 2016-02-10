@@ -261,7 +261,7 @@ The meaning of the stats are as follows:
 
     This parameter shows how long it takes to build a Scorer for the query.  A Scorer is the mechanism that
     iterates over matching documents generates a score per-document (e.g. how well does "foo" match the document?).
-    Note, this records the time required to generate the Scorer object, not actuall score the documents.  Some
+    Note, this records the time required to generate the Scorer object, not actually score the documents.  Some
     queries have faster or slower initialization of the Scorer, depending on optimizations, complexity, etc.
     {empty} +
     {empty} +
@@ -353,7 +353,7 @@ For reference, the various collector reason's are:
 `search_min_score`::
 
     A collector that only returns matching documents that have a score greater than `n`.  This is seen when
-    the top-level paramenter `min_score` has been specified.
+    the top-level parameter `min_score` has been specified.
 
 `search_multi`::
 

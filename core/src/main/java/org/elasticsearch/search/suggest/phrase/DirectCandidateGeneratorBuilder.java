@@ -30,6 +30,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.search.suggest.SortBy;
 import org.elasticsearch.search.suggest.SuggestUtils;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder.CandidateGenerator;
 
@@ -369,7 +370,7 @@ public final class DirectCandidateGeneratorBuilder
             generator.suggestMode(SuggestUtils.resolveSuggestMode(this.suggestMode));
         }
         if (this.sort != null) {
-            generator.sort(SuggestUtils.resolveSort(this.sort));
+            generator.sort(SortBy.resolve(this.sort));
         }
         if (this.stringDistance != null) {
             generator.stringDistance(SuggestUtils.resolveDistance(this.stringDistance));

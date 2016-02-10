@@ -42,7 +42,7 @@ public final class TermSuggestParser implements SuggestContextParser {
         MapperService mapperService = shardContext.getMapperService();
         XContentParser.Token token;
         String fieldName = null;
-        TermSuggestionContext suggestion = new TermSuggestionContext(suggester);
+        TermSuggestionContext suggestion = new TermSuggestionContext(shardContext);
         DirectSpellcheckerSettings settings = suggestion.getDirectSpellCheckerSettings();
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {

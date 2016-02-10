@@ -245,8 +245,8 @@ public class SearchSourceBuilderTests extends ESTestCase {
                     builder.sort(SortBuilders.fieldSort(randomAsciiOfLengthBetween(5, 20)).order(randomFrom(SortOrder.values())));
                     break;
                 case 1:
-                    builder.sort(SortBuilders.geoDistanceSort(randomAsciiOfLengthBetween(5, 20))
-                            .geohashes(AbstractQueryTestCase.randomGeohash(1, 12)).order(randomFrom(SortOrder.values())));
+                    builder.sort(SortBuilders.geoDistanceSort(randomAsciiOfLengthBetween(5, 20),
+                            AbstractQueryTestCase.randomGeohash(1, 12)).order(randomFrom(SortOrder.values())));
                     break;
                 case 2:
                     builder.sort(SortBuilders.scoreSort().order(randomFrom(SortOrder.values())));
@@ -318,7 +318,7 @@ public class SearchSourceBuilderTests extends ESTestCase {
         }
         if (randomBoolean()) {
             // NORELEASE need a random suggest builder method
-            builder.suggest(new SuggestBuilder().setText(randomAsciiOfLengthBetween(1, 5)).addSuggestion(
+            builder.suggest(new SuggestBuilder().setGlobalText(randomAsciiOfLengthBetween(1, 5)).addSuggestion(
                     SuggestBuilders.termSuggestion(randomAsciiOfLengthBetween(1, 5))));
         }
         if (randomBoolean()) {

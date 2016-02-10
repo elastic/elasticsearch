@@ -22,14 +22,13 @@ import org.apache.lucene.search.spell.DirectSpellChecker;
 import org.apache.lucene.search.spell.StringDistance;
 import org.apache.lucene.search.spell.SuggestMode;
 import org.apache.lucene.util.automaton.LevenshteinAutomata;
-import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 
 public class DirectSpellcheckerSettings  {
 
     // NB: If this changes, make sure to change the default in TermBuilderSuggester
     public static SuggestMode DEFAULT_SUGGEST_MODE = SuggestMode.SUGGEST_WHEN_NOT_IN_INDEX;
     public static float DEFAULT_ACCURACY = 0.5f;
-    public static TermSuggestionBuilder.SortBy DEFAULT_SORT = TermSuggestionBuilder.SortBy.SCORE;
+    public static SortBy DEFAULT_SORT = SortBy.SCORE;
     // NB: If this changes, make sure to change the default in TermBuilderSuggester
     public static StringDistance DEFAULT_STRING_DISTANCE = DirectSpellChecker.INTERNAL_LEVENSHTEIN;
     public static int DEFAULT_MAX_EDITS = LevenshteinAutomata.MAXIMUM_SUPPORTED_DISTANCE;
@@ -41,7 +40,7 @@ public class DirectSpellcheckerSettings  {
 
     private SuggestMode suggestMode = DEFAULT_SUGGEST_MODE;
     private float accuracy = DEFAULT_ACCURACY;
-    private TermSuggestionBuilder.SortBy sort = DEFAULT_SORT;
+    private SortBy sort = DEFAULT_SORT;
     private StringDistance stringDistance = DEFAULT_STRING_DISTANCE;
     private int maxEdits = DEFAULT_MAX_EDITS;
     private int maxInspections = DEFAULT_MAX_INSPECTIONS;
@@ -66,11 +65,11 @@ public class DirectSpellcheckerSettings  {
         this.accuracy = accuracy;
     }
 
-    public TermSuggestionBuilder.SortBy sort() {
+    public SortBy sort() {
         return sort;
     }
 
-    public void sort(TermSuggestionBuilder.SortBy sort) {
+    public void sort(SortBy sort) {
         this.sort = sort;
     }
 

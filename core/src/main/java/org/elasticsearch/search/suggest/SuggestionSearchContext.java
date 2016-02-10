@@ -38,17 +38,22 @@ public class SuggestionSearchContext {
         return suggestions;
     }
 
-    public static class SuggestionContext {
+    public abstract static class SuggestionContext {
 
         private BytesRef text;
         private BytesRef prefix;
         private BytesRef regex;
-        private final Suggester suggester;
         private String field;
         private Analyzer analyzer;
         private int size = 5;
         private int shardSize = -1;
         private QueryShardContext shardContext;
+        private Suggester<?> suggester;
+
+        protected SuggestionContext(Suggester<?> suggester, QueryShardContext shardContext) {
+            this.suggester = suggester;
+            this.shardContext = shardContext;
+        }
 
         public BytesRef getText() {
             return text;
@@ -74,12 +79,8 @@ public class SuggestionSearchContext {
             this.regex = regex;
         }
 
-        public SuggestionContext(Suggester suggester) {
-            this.suggester = suggester;
-        }
-
         public Suggester<SuggestionContext> getSuggester() {
-            return this.suggester;
+            return ((Suggester<SuggestionContext>) suggester);
         }
 
         public Analyzer getAnalyzer() {
@@ -118,10 +119,6 @@ public class SuggestionSearchContext {
                 throw new IllegalArgumentException("ShardSize must be positive but was: " + shardSize);
             }
             this.shardSize = shardSize;
-        }
-
-        public void setShardContext(QueryShardContext context) {
-            this.shardContext = context;
         }
 
         public QueryShardContext getShardContext() {

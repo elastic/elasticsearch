@@ -21,8 +21,8 @@ package org.elasticsearch.search.suggest.term;
 
 import org.elasticsearch.search.suggest.AbstractSuggestionBuilderTestCase;
 import org.elasticsearch.search.suggest.DirectSpellcheckerSettings;
+import org.elasticsearch.search.suggest.SortBy;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
-import org.elasticsearch.search.suggest.term.TermSuggestionBuilder.SortBy;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder.StringDistanceImpl;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder.SuggestMode;
 
@@ -35,11 +35,9 @@ import static org.hamcrest.Matchers.notNullValue;
  */
 public class TermSuggestionBuilderTests extends AbstractSuggestionBuilderTestCase<TermSuggestionBuilder> {
 
-    @Override
-    public void testFromXContent() {
-        // NORELEASE : remove this when TermSuggestionBuilder's fromXContent is in
-    }
-
+    /**
+     *  creates random suggestion builder, renders it to xContent and back to new instance that should be equal to original
+     */
     @Override
     protected TermSuggestionBuilder randomSuggestionBuilder() {
         TermSuggestionBuilder testBuilder = new TermSuggestionBuilder(randomAsciiOfLength(10));

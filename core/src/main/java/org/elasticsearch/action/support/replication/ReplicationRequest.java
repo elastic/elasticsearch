@@ -196,8 +196,8 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
     }
 
     @Override
-    public Task createTask(long id, String type, String action) {
-        return new ReplicationTask(id, type, action, this::getDescription, getParentTaskNode(), getParentTaskId());
+    public Task createTask(long id, String type, String action, String parentTaskNode, long parentTaskId) {
+        return new ReplicationTask(id, type, action, getDescription(), parentTaskNode, parentTaskId);
     }
 
     /**
@@ -217,5 +217,10 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
         } else {
             return index;
         }
+    }
+
+    @Override
+    public String getDescription() {
+        return toString();
     }
 }

@@ -40,7 +40,7 @@ import java.util.List;
 
 public final class TermSuggester extends Suggester<TermSuggestionContext> {
 
-    static final TermSuggester PROTOTYPE = new TermSuggester();
+    public static final TermSuggester PROTOTYPE = new TermSuggester();
 
     @Override
     public TermSuggestion innerExecute(String name, TermSuggestionContext suggestion, IndexSearcher searcher, CharsRefBuilder spare)

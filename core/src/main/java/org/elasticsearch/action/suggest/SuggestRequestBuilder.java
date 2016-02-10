@@ -59,7 +59,7 @@ public class SuggestRequestBuilder extends BroadcastOperationRequestBuilder<Sugg
     }
 
     public SuggestRequestBuilder setSuggestText(String globalText) {
-        this.suggest.setText(globalText);
+        this.suggest.setGlobalText(globalText);
         return this;
     }
 

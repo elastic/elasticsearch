@@ -102,7 +102,7 @@ public class ClusterDiscoveryConfiguration extends NodeConfigurationSource {
         }
 
         private static int calcBasePort() {
-            return 30000 + InternalTestCluster.JVM_BASE_PORT_OFFEST;
+            return 30000 + InternalTestCluster.JVM_BASE_PORT_OFFSET;
         }
 
         @Override

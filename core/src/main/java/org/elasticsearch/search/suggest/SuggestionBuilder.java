@@ -19,16 +19,18 @@
 
 package org.elasticsearch.search.suggest;
 
-import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.action.support.ToXContentToBytes;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
@@ -72,7 +74,7 @@ public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> extends 
     }
 
     /**
-     * Same as in {@link SuggestBuilder#setText(String)}, but in the suggestion scope.
+     * Same as in {@link SuggestBuilder#setGlobalText(String)}, but in the suggestion scope.
      */
     @SuppressWarnings("unchecked")
     public T text(String text) {
@@ -196,12 +198,8 @@ public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> extends 
 
     protected abstract SuggestionBuilder<T> innerFromXContent(QueryParseContext parseContext, String name) throws IOException;
 
-    public SuggestionContext build(QueryShardContext context, @Nullable String globalText) throws IOException {
+    public SuggestionContext build(QueryShardContext context) throws IOException {
         SuggestionContext suggestionContext = innerBuild(context);
-        // copy over common settings to each suggestion builder
-        SuggestUtils.suggestionToSuggestionContext(this, context.getMapperService(), suggestionContext);
-        SuggestUtils.verifySuggestion(context.getMapperService(), new BytesRef(globalText), suggestionContext);
-        suggestionContext.setShardContext(context);
         // TODO make field mandatory in the builder, then remove this
         if (suggestionContext.getField() == null) {
             throw new IllegalArgumentException("The required field option is missing");
@@ -211,7 +209,65 @@ public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> extends 
 
     protected abstract SuggestionContext innerBuild(QueryShardContext context) throws IOException;
 
-    public String getSuggesterName() {
+    /**
+     * Transfers the text, prefix, regex, analyzer, fieldname, size and shard size settings from the
+     * original {@link SuggestionBuilder} to the target {@link SuggestionContext}
+     */
+    protected void populateCommonFields(MapperService mapperService,
+            SuggestionSearchContext.SuggestionContext suggestionContext) throws IOException {
+
+        Objects.requireNonNull(fieldname, "fieldname must not be null");
+
+        MappedFieldType fieldType = mapperService.fullName(fieldname);
+        if (fieldType == null) {
+            throw new IllegalArgumentException("no mapping found for field [" + fieldname + "]");
+        } else if (analyzer == null) {
+            // no analyzer name passed in, so try the field's analyzer, or the default analyzer
+            if (fieldType.searchAnalyzer() == null) {
+                suggestionContext.setAnalyzer(mapperService.searchAnalyzer());
+            } else {
+                suggestionContext.setAnalyzer(fieldType.searchAnalyzer());
+            }
+        } else {
+            Analyzer luceneAnalyzer = mapperService.analysisService().analyzer(analyzer);
+            if (luceneAnalyzer == null) {
+                throw new IllegalArgumentException("analyzer [" + analyzer + "] doesn't exists");
+            }
+            suggestionContext.setAnalyzer(luceneAnalyzer);
+        }
+
+        suggestionContext.setField(fieldname);
+
+        if (size != null) {
+            suggestionContext.setSize(size);
+        }
+
+        if (shardSize != null) {
+            suggestionContext.setShardSize(shardSize);
+        } else {
+            // if no shard size is set in builder, use size (or at least 5)
+            suggestionContext.setShardSize(Math.max(suggestionContext.getSize(), 5));
+        }
+
+        if (text != null) {
+            suggestionContext.setText(BytesRefs.toBytesRef(text));
+        }
+        if (prefix != null) {
+            suggestionContext.setPrefix(BytesRefs.toBytesRef(prefix));
+        }
+        if (regex != null) {
+            suggestionContext.setRegex(BytesRefs.toBytesRef(regex));
+        }
+        if (text != null && prefix == null) {
+            suggestionContext.setPrefix(BytesRefs.toBytesRef(text));
+        } else if (text == null && prefix != null) {
+            suggestionContext.setText(BytesRefs.toBytesRef(prefix));
+        } else if (text == null && regex != null) {
+            suggestionContext.setText(BytesRefs.toBytesRef(regex));
+        }
+    }
+
+    private String getSuggesterName() {
         //default impl returns the same as writeable name, but we keep the distinction between the two just to make sure
         return getWriteableName();
     }
@@ -225,6 +281,7 @@ public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> extends 
      */
     @SuppressWarnings("unchecked")
     public T field(String field) {
+        Objects.requireNonNull(field, "fieldname must not be null");
         this.fieldname = field;
         return (T)this;
     }

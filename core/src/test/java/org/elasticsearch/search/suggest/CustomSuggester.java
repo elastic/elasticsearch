@@ -21,6 +21,7 @@ package org.elasticsearch.search.suggest;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -56,7 +57,7 @@ public class CustomSuggester extends Suggester<CustomSuggester.CustomSuggestions
     public SuggestContextParser getContextParser() {
         return (parser, shardContext) -> {
             Map<String, Object> options = parser.map();
-            CustomSuggestionsContext suggestionContext = new CustomSuggestionsContext(CustomSuggester.this, options);
+            CustomSuggestionsContext suggestionContext = new CustomSuggestionsContext(shardContext, options);
             suggestionContext.setField((String) options.get("field"));
             return suggestionContext;
         };
@@ -66,8 +67,8 @@ public class CustomSuggester extends Suggester<CustomSuggester.CustomSuggestions
 
         public Map<String, Object> options;
 
-        public CustomSuggestionsContext(Suggester suggester, Map<String, Object> options) {
-            super(suggester);
+        public CustomSuggestionsContext(QueryShardContext context, Map<String, Object> options) {
+            super(new CustomSuggester(), context);
             this.options = options;
         }
     }

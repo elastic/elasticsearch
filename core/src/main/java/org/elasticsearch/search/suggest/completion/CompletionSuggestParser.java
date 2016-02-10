@@ -136,7 +136,7 @@ public class CompletionSuggestParser implements SuggestContextParser {
     @Override
     public SuggestionSearchContext.SuggestionContext parse(XContentParser parser,  QueryShardContext shardContext) throws IOException {
         MapperService mapperService = shardContext.getMapperService();
-        final CompletionSuggestionContext suggestion = new CompletionSuggestionContext(completionSuggester, mapperService);
+        final CompletionSuggestionContext suggestion = new CompletionSuggestionContext(shardContext);
         final ContextAndSuggest contextAndSuggest = new ContextAndSuggest(mapperService);
         TLP_PARSER.parse(parser, suggestion, contextAndSuggest);
         final XContentParser contextParser = contextAndSuggest.contextParser;

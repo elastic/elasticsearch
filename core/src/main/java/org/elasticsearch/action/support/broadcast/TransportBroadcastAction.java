@@ -87,6 +87,10 @@ public abstract class TransportBroadcastAction<Request extends BroadcastRequest<
 
     protected abstract ShardResponse shardOperation(ShardRequest request);
 
+    protected ShardResponse shardOperation(ShardRequest request, Task task) {
+        return shardOperation(request);
+    }
+
     /**
      * Determines the shards this operation will be executed on. The operation is executed once per shard iterator, typically
      * on the first shard in it. If the operation fails, it will be retried on the next shard in the iterator.
@@ -172,6 +176,7 @@ public abstract class TransportBroadcastAction<Request extends BroadcastRequest<
                         // no node connected, act as failure
                         onOperation(shard, shardIt, shardIndex, new NoShardAvailableActionException(shardIt.shardId()));
                     } else {
+                        taskManager.registerChildTask(task, node.getId());
                         transportService.sendRequest(node, transportShardAction, shardRequest, new BaseTransportResponseHandler<ShardResponse>() {
                             @Override
                             public ShardResponse newInstance() {
@@ -278,8 +283,13 @@ public abstract class TransportBroadcastAction<Request extends BroadcastRequest<
     class ShardTransportHandler implements TransportRequestHandler<ShardRequest> {
 
         @Override
-        public void messageReceived(final ShardRequest request, final TransportChannel channel) throws Exception {
+        public void messageReceived(ShardRequest request, TransportChannel channel, Task task) throws Exception {
             channel.sendResponse(shardOperation(request));
+        }
+
+        @Override
+        public final void messageReceived(final ShardRequest request, final TransportChannel channel) throws Exception {
+            throw new UnsupportedOperationException("the task parameter is required");
         }
     }
 }

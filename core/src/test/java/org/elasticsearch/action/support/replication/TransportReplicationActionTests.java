@@ -710,7 +710,7 @@ public class TransportReplicationActionTests extends ESTestCase {
                     // the shard the request was sent to and the shard to be failed should be the same
                     assertEquals(shardRoutingEntry.getShardRouting(), routing);
                     failures.add(shardFailedRequest);
-                    int ternary = 1;
+                    int ternary = randomIntBetween(0, 2);
                     if (ternary == 0) {
                         // simulate master left and test that the shard failure is retried
                         int numberOfRetries = randomIntBetween(1, 4);

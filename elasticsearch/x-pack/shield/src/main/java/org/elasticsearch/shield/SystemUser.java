@@ -32,6 +32,11 @@ public class SystemUser extends User {
         return o == INSTANCE;
     }
 
+    @Override
+    public int hashCode() {
+        return System.identityHashCode(this);
+    }
+
     public static boolean is(User user) {
         return INSTANCE.equals(user);
     }

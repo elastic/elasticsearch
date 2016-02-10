@@ -5,8 +5,4 @@
 
 <suppressions>
   <!-- On Windows, Checkstyle matches files using \ path separator -->
-  <suppress files="shield[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]shield[/\\]SystemUser.java" checks="EqualsHashCode" />
-  <suppress files="shield[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]shield[/\\]XPackUser.java" checks="EqualsHashCode" />
-  <suppress files="watcher[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]watcher[/\\]condition[/\\]always[/\\]ExecutableAlwaysCondition.java" checks="EqualsHashCode" />
-  <suppress files="watcher[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]watcher[/\\]condition[/\\]never[/\\]ExecutableNeverCondition.java" checks="EqualsHashCode" />
 </suppressions>

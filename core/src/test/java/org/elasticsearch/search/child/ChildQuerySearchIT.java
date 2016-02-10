@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.child;
 
+import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.count.CountResponse;
@@ -40,6 +41,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.search.child.ScoreType;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
@@ -2031,6 +2033,74 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
                 .setQuery(QueryBuilders.hasParentQuery("parent", matchAllQuery()))
                 .get();
         assertHitCount(response, 0);
+    }
+
+    public void testHasParentInnerQueryType() {
+        assertAcked(prepareCreate("test").addMapping("parent-type").addMapping("child-type", "_parent", "type=parent-type"));
+        client().prepareIndex("test", "child-type", "child-id").setParent("parent-id").setSource("{}").get();
+        client().prepareIndex("test", "parent-type", "parent-id").setSource("{}").get();
+        refresh();
+        //make sure that when we explicitly set a type, the inner query is executed in the context of the parent type instead
+        SearchResponse searchResponse = client().prepareSearch("test").setTypes("child-type").setQuery(
+                QueryBuilders.hasParentQuery("parent-type", new IdsQueryBuilder().addIds("parent-id"))).get();
+        assertSearchHits(searchResponse, "child-id");
+    }
+
+    public void testHasChildInnerQueryType() {
+        assertAcked(prepareCreate("test").addMapping("parent-type").addMapping("child-type", "_parent", "type=parent-type"));
+        client().prepareIndex("test", "child-type", "child-id").setParent("parent-id").setSource("{}").get();
+        client().prepareIndex("test", "parent-type", "parent-id").setSource("{}").get();
+        refresh();
+        //make sure that when we explicitly set a type, the inner query is executed in the context of the child type instead
+        SearchResponse searchResponse = client().prepareSearch("test").setTypes("parent-type").setQuery(
+                QueryBuilders.hasChildQuery("child-type", new IdsQueryBuilder().addIds("child-id"))).get();
+        assertSearchHits(searchResponse, "parent-id");
+    }
+
+    // Tests #16550
+    public void testHasChildWithNonDefaultGlobalSimilarity() {
+        assertAcked(prepareCreate("test").setSettings(settingsBuilder().put(indexSettings())
+                .put("index.similarity.default.type", "BM25"))
+                .addMapping("parent")
+                .addMapping("child", "_parent", "type=parent", "c_field", "type=string"));
+        ensureGreen();
+
+        verifyNonDefaultSimilarity();
+    }
+
+    // Tests #16550
+    public void testHasChildWithNonDefaultFieldSimilarity() {
+        assertAcked(prepareCreate("test")
+                .addMapping("parent")
+                .addMapping("child", "_parent", "type=parent", "c_field", "type=string,similarity=BM25"));
+        ensureGreen();
+
+        verifyNonDefaultSimilarity();
+    }
+
+    // Tests #16550
+    private void verifyNonDefaultSimilarity() {
+        client().prepareIndex("test", "parent", "p1").setSource("p_field", "p_value1").get();
+        client().prepareIndex("test", "child", "c1").setSource("c_field", "c_value").setParent("p1").get();
+        client().prepareIndex("test", "child", "c2").setSource("c_field", "c_value").setParent("p1").get();
+        refresh();
+
+        // baseline: sum of scores of matching child docs outside of has_child query
+        SearchResponse searchResponse = client().prepareSearch("test")
+                .setTypes("child")
+                .setQuery(matchQuery("c_field", "c_value"))
+                .get();
+        assertSearchHits(searchResponse, "c1", "c2");
+        float childSum = 0f;
+        for (SearchHit hit : searchResponse.getHits()) {
+            childSum += hit.getScore();
+        }
+        // compare baseline to has_child with 'total' score_mode
+        searchResponse = client().prepareSearch("test")
+                .setQuery(hasChildQuery("child", matchQuery("c_field", "c_value")).scoreMode("total"))
+                .get();
+        assertSearchHits(searchResponse, "p1");
+        assertThat(searchResponse.getHits().hits()[0].score(), equalTo(childSum));
     }
 
     static HasChildQueryBuilder hasChildQuery(String type, QueryBuilder queryBuilder) {

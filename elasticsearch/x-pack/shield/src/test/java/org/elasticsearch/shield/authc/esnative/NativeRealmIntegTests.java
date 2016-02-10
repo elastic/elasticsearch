@@ -13,9 +13,19 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.shield.ShieldTemplateService;
-import org.elasticsearch.shield.User;
+import org.elasticsearch.shield.action.user.AuthenticateAction;
+import org.elasticsearch.shield.action.user.AuthenticateRequest;
+import org.elasticsearch.shield.action.user.AuthenticateResponse;
+import org.elasticsearch.shield.action.user.ChangePasswordResponse;
+import org.elasticsearch.shield.authz.permission.KibanaRole;
+import org.elasticsearch.shield.authz.permission.SuperuserRole;
+import org.elasticsearch.shield.user.AnonymousUser;
+import org.elasticsearch.shield.user.KibanaUser;
+import org.elasticsearch.shield.user.SystemUser;
+import org.elasticsearch.shield.user.User;
 import org.elasticsearch.shield.action.role.DeleteRoleResponse;
 import org.elasticsearch.shield.action.role.GetRolesResponse;
 import org.elasticsearch.shield.action.user.DeleteUserResponse;
@@ -24,10 +34,13 @@ import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authz.RoleDescriptor;
 import org.elasticsearch.shield.authz.permission.Role;
 import org.elasticsearch.shield.client.SecurityClient;
+import org.elasticsearch.shield.user.XPackUser;
 import org.elasticsearch.test.NativeRealmIntegTestCase;
 import org.elasticsearch.test.ShieldSettingsSource;
+import org.junit.BeforeClass;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -41,6 +54,23 @@ import static org.hamcrest.Matchers.notNullValue;
  * Tests for the ESNativeUsersStore and ESNativeRolesStore
  */
 public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
+
+    private static boolean anonymousEnabled;
+
+    @BeforeClass
+    public static void init() {
+        anonymousEnabled = randomBoolean();
+    }
+
+    @Override
+    public Settings nodeSettings(int nodeOrdinal) {
+        if (anonymousEnabled) {
+            return Settings.builder().put(super.nodeSettings(nodeOrdinal))
+                    .put(AnonymousUser.ROLES_SETTING.getKey(), ShieldSettingsSource.DEFAULT_ROLE)
+                    .build();
+        }
+        return super.nodeSettings(nodeOrdinal);
+    }
 
     public void testDeletingNonexistingUserAndRole() throws Exception {
         SecurityClient c = securityClient();
@@ -60,6 +90,8 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
 
     public void testAddAndGetUser() throws Exception {
         SecurityClient c = securityClient();
+        final List<User> existingUsers = Arrays.asList(c.prepareGetUsers().get().users());
+        final int existing = existingUsers.size();
         logger.error("--> creating user");
         c.preparePutUser("joe", "s3kirt".toCharArray(), "role1", "user").get();
         logger.error("--> waiting for .shield index");
@@ -76,10 +108,12 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         c.preparePutUser("joe3", "s3kirt3".toCharArray(), "role3", "user").get();
         GetUsersResponse allUsersResp = c.prepareGetUsers().get();
         assertTrue("users should exist", allUsersResp.hasUsers());
-        assertEquals("should be 3 users total", 3, allUsersResp.users().length);
+        assertEquals("should be " + (3 + existing) + " users total", 3 + existing, allUsersResp.users().length);
         List<String> names = new ArrayList<>(3);
         for (User u : allUsersResp.users()) {
-            names.add(u.principal());
+            if (existingUsers.contains(u) == false) {
+                names.add(u.principal());
+            }
         }
         CollectionUtil.timSort(names);
         assertArrayEquals(new String[] { "joe", "joe2", "joe3" }, names.toArray(Strings.EMPTY_ARRAY));
@@ -104,6 +138,8 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
 
     public void testAddAndGetRole() throws Exception {
         SecurityClient c = securityClient();
+        final List<RoleDescriptor> existingRoles = Arrays.asList(c.prepareGetRoles().get().roles());
+        final int existing = existingRoles.size();
         logger.error("--> creating role");
         c.preparePutRole("test_role")
                 .cluster("all", "none")
@@ -135,9 +171,9 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         logger.info("--> retrieving all roles");
         GetRolesResponse allRolesResp = c.prepareGetRoles().get();
         assertTrue("roles should exist", allRolesResp.hasRoles());
-        assertEquals("should be 3 roles total", 3, allRolesResp.roles().length);
+        assertEquals("should be " + (3 + existing) + " roles total", 3 + existing, allRolesResp.roles().length);
 
-        logger.info("--> retrieving all roles");
+        logger.info("--> retrieving test_role and test_role3");
         GetRolesResponse someRolesResp = c.prepareGetRoles().names("test_role", "test_role3").get();
         assertTrue("roles should exist", someRolesResp.hasRoles());
         assertEquals("should be 2 roles total", 2, someRolesResp.roles().length);
@@ -277,7 +313,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
             GetRolesResponse getRolesResponse = c.prepareGetRoles().names("test_role").get();
             assertTrue("test_role does not exist!", getRolesResponse.hasRoles());
             assertTrue("any cluster permission should be authorized",
-                    Role.builder(getRolesResponse.roles()[0]).build().cluster().check("cluster:admin/foo"));
+                    Role.builder(getRolesResponse.roles()[0]).build().cluster().check("cluster:admin/foo", null, null));
 
             c.preparePutRole("test_role")
                     .cluster("none")
@@ -288,7 +324,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
             assertTrue("test_role does not exist!", getRolesResponse.hasRoles());
 
             assertFalse("no cluster permission should be authorized",
-                    Role.builder(getRolesResponse.roles()[0]).build().cluster().check("cluster:admin/bar"));
+                    Role.builder(getRolesResponse.roles()[0]).build().cluster().check("cluster:admin/bar", null, null));
         }
     }
 
@@ -418,5 +454,98 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         assertThat(response.getIndices().get(ShieldTemplateService.SECURITY_INDEX_NAME), notNullValue());
         assertThat(response.getIndices().get(ShieldTemplateService.SECURITY_INDEX_NAME).getIndex(),
                 is(ShieldTemplateService.SECURITY_INDEX_NAME));
+    }
+
+    public void testOperationsOnReservedUsers() throws Exception {
+        final String username = randomFrom(XPackUser.NAME, KibanaUser.NAME);
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
+                () -> securityClient().preparePutUser(username, randomBoolean() ? "changeme".toCharArray() : null, "admin").get());
+        assertThat(exception.getMessage(), containsString("user [" + username + "] is reserved"));
+
+        exception = expectThrows(IllegalArgumentException.class,
+                () -> securityClient().prepareDeleteUser(username).get());
+        assertThat(exception.getMessage(), containsString("user [" + username + "] is reserved"));
+
+        exception = expectThrows(IllegalArgumentException.class,
+                () -> securityClient().prepareDeleteUser(AnonymousUser.DEFAULT_ANONYMOUS_USERNAME).get());
+        assertThat(exception.getMessage(), containsString("user [" + AnonymousUser.DEFAULT_ANONYMOUS_USERNAME + "] is anonymous"));
+
+        exception = expectThrows(IllegalArgumentException.class,
+                () -> securityClient().prepareChangePassword(AnonymousUser.DEFAULT_ANONYMOUS_USERNAME, "foobar".toCharArray()).get());
+        assertThat(exception.getMessage(), containsString("user [" + AnonymousUser.DEFAULT_ANONYMOUS_USERNAME + "] is anonymous"));
+
+        exception = expectThrows(IllegalArgumentException.class,
+                () -> securityClient().preparePutUser(AnonymousUser.DEFAULT_ANONYMOUS_USERNAME, "foobar".toCharArray()).get());
+        assertThat(exception.getMessage(), containsString("user [" + AnonymousUser.DEFAULT_ANONYMOUS_USERNAME + "] is anonymous"));
+
+        exception = expectThrows(IllegalArgumentException.class,
+                () -> securityClient().preparePutUser(SystemUser.NAME, "foobar".toCharArray()).get());
+        assertThat(exception.getMessage(), containsString("user [" + SystemUser.NAME + "] is internal"));
+
+        exception = expectThrows(IllegalArgumentException.class,
+                () -> securityClient().prepareChangePassword(SystemUser.NAME, "foobar".toCharArray()).get());
+        assertThat(exception.getMessage(), containsString("user [" + SystemUser.NAME + "] is internal"));
+
+        exception = expectThrows(IllegalArgumentException.class,
+                () -> securityClient().prepareDeleteUser(SystemUser.NAME).get());
+        assertThat(exception.getMessage(), containsString("user [" + SystemUser.NAME + "] is internal"));
+
+        // get should work
+        GetUsersResponse response = securityClient().prepareGetUsers(username).get();
+        assertThat(response.hasUsers(), is(true));
+        assertThat(response.users()[0].principal(), is(username));
+
+        // authenticate should work
+        AuthenticateResponse authenticateResponse = client()
+                .filterWithHeader(Collections.singletonMap("Authorization",
+                                basicAuthHeaderValue(username, new SecuredString("changeme".toCharArray()))))
+                .execute(AuthenticateAction.INSTANCE, new AuthenticateRequest(username))
+                .get();
+        assertThat(authenticateResponse.user().principal(), is(username));
+    }
+
+    public void testOperationsOnReservedRoles() throws Exception {
+        final String name = randomFrom(SuperuserRole.NAME, KibanaRole.NAME);
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
+                () -> securityClient().preparePutRole(name).cluster("monitor").get());
+        assertThat(exception.getMessage(), containsString("role [" + name + "] is reserved"));
+
+        exception = expectThrows(IllegalArgumentException.class,
+                () -> securityClient().prepareDeleteRole(name).get());
+        assertThat(exception.getMessage(), containsString("role [" + name + "] is reserved"));
+
+        // get role is allowed
+        GetRolesResponse response = securityClient().prepareGetRoles(name).get();
+        if (KibanaRole.NAME.equals(name)) {
+            assertThat(response.hasRoles(), is(false));
+        } else {
+            assertThat(response.hasRoles(), is(true));
+            assertThat(response.roles()[0].getName(), is(name));
+        }
+    }
+
+    public void testCreateAndChangePassword() throws Exception {
+        securityClient().preparePutUser("joe", "s3krit".toCharArray(), ShieldSettingsSource.DEFAULT_ROLE).get();
+        final String token = basicAuthHeaderValue("joe", new SecuredString("s3krit".toCharArray()));
+        ClusterHealthResponse response = client().filterWithHeader(Collections.singletonMap("Authorization", token))
+                .admin().cluster().prepareHealth().get();
+        assertThat(response.isTimedOut(), is(false));
+
+        ChangePasswordResponse passwordResponse = securityClient(
+                client().filterWithHeader(Collections.singletonMap("Authorization", token)))
+                .prepareChangePassword("joe", "changeme".toCharArray())
+                .get();
+        assertThat(passwordResponse, notNullValue());
+
+
+        ElasticsearchSecurityException expected = expectThrows(ElasticsearchSecurityException.class,
+                () -> client().filterWithHeader(Collections.singletonMap("Authorization", token)).admin().cluster().prepareHealth().get());
+        assertThat(expected.status(), is(RestStatus.UNAUTHORIZED));
+
+        response = client()
+                .filterWithHeader(
+                        Collections.singletonMap("Authorization", basicAuthHeaderValue("joe", new SecuredString("changeme".toCharArray()))))
+                .admin().cluster().prepareHealth().get();
+        assertThat(response.isTimedOut(), is(false));
     }
 }

@@ -7,6 +7,7 @@ package org.elasticsearch.shield.action;
 
 import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.shield.action.filter.ShieldActionFilter;
 import org.elasticsearch.shield.action.interceptor.BulkRequestInterceptor;
 import org.elasticsearch.shield.action.interceptor.RealtimeRequestInterceptor;
 import org.elasticsearch.shield.action.interceptor.RequestInterceptor;
@@ -23,8 +24,10 @@ public class ShieldActionModule extends AbstractShieldModule.Node {
     @Override
     protected void configureNode() {
         bind(ShieldActionMapper.class).asEagerSingleton();
-        // we need to ensure that there's only a single instance of this filter.
+        // we need to ensure that there's only a single instance of the action filters
         bind(ShieldActionFilter.class).asEagerSingleton();
+
+        // TODO: we should move these to action filters and only have 1 chain.
         Multibinder<RequestInterceptor> multibinder
                 = Multibinder.newSetBinder(binder(), RequestInterceptor.class);
         multibinder.addBinding().to(RealtimeRequestInterceptor.class);

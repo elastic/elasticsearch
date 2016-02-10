@@ -88,6 +88,16 @@
           "type" : "keyword"
         }
       }
+    },
+    "reserved-user" : {
+      "dynamic" : "strict",
+      "properties" : {
+        "password": {
+          "type" : "keyword",
+          "index" : false,
+          "doc_values" : false
+        }
+      }
     }
   }
 }

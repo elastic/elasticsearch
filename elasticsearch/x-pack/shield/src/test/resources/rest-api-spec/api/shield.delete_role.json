@@ -12,7 +12,12 @@
           "required" : true
         }
       },
-      "params": {}
+      "params": {
+        "refresh": {
+          "type" : "boolean",
+          "description" : "Refresh the index after performing the operation"
+        }
+      }
     },
     "body": null
   }

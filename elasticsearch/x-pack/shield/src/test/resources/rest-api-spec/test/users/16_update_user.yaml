@@ -10,7 +10,7 @@
         username: "joe"
         body:  >
             {
-              "roles" : [ "admin" ]
+              "roles" : [ "superuser" ]
             }
   - match: { error.root_cause.0.reason: 'Validation Failed: 1: password must be specified unless you are updating an existing user;' }
 
@@ -29,7 +29,7 @@
         body:  >
             {
               "password": "s3krit",
-              "roles" : [ "admin" ]
+              "roles" : [ "superuser" ]
             }
   - match: { user: { created: true } }
 
@@ -44,7 +44,7 @@
       shield.get_user:
         username: "joe"
   - match: { joe.username:  "joe" }
-  - match: { joe.roles.0:  "admin" }
+  - match: { joe.roles.0:  "superuser" }
   - is_false: joe.full_name
   - is_false: joe.email
 
@@ -55,7 +55,7 @@
         username: "joe"
         body:  >
             {
-              "roles" : [ "admin", "foo" ],
+              "roles" : [ "superuser", "foo" ],
               "full_name" : "Bazooka Joe",
               "email" : "joe@bazooka.gum",
               "metadata" : {
@@ -77,7 +77,7 @@
       shield.get_user:
         username: "joe"
   - match: { joe.username:  "joe" }
-  - match: { joe.roles.0:  "admin" }
+  - match: { joe.roles.0:  "superuser" }
   - match: { joe.roles.1:  "foo" }
   - match: { joe.full_name:  "Bazooka Joe" }
   - match: { joe.email:  "joe@bazooka.gum" }
@@ -91,7 +91,7 @@
         body:  >
             {
               "password" : "s3krit2",
-              "roles" : [ "admin" ],
+              "roles" : [ "superuser" ],
               "full_name" : "Bazooka Joe",
               "email" : "joe@bazooka.gum",
               "metadata" : {
@@ -121,7 +121,7 @@
       shield.get_user:
         username: "joe"
   - match: { joe.username:  "joe" }
-  - match: { joe.roles.0:  "admin" }
+  - match: { joe.roles.0:  "superuser" }
   - match: { joe.full_name:  "Bazooka Joe" }
   - match: { joe.email:  "joe@bazooka.gum" }
   - match: { joe.metadata.key1:  "val1" }

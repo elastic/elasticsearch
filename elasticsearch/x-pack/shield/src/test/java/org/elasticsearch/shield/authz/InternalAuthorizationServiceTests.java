@@ -55,13 +55,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.search.action.SearchTransportService;
 import org.elasticsearch.shield.ShieldTemplateService;
-import org.elasticsearch.shield.SystemUser;
-import org.elasticsearch.shield.User;
-import org.elasticsearch.shield.XPackUser;
+import org.elasticsearch.shield.user.AnonymousUser;
+import org.elasticsearch.shield.user.SystemUser;
+import org.elasticsearch.shield.user.User;
+import org.elasticsearch.shield.user.XPackUser;
 import org.elasticsearch.shield.audit.AuditTrail;
-import org.elasticsearch.shield.authc.AnonymousService;
 import org.elasticsearch.shield.authc.DefaultAuthenticationFailureHandler;
 import org.elasticsearch.shield.authz.permission.Role;
+import org.elasticsearch.shield.authz.permission.SuperuserRole;
 import org.elasticsearch.shield.authz.privilege.ClusterPrivilege;
 import org.elasticsearch.shield.authz.privilege.GeneralPrivilege;
 import org.elasticsearch.shield.authz.privilege.IndexPrivilege;
@@ -99,13 +100,13 @@ public class InternalAuthorizationServiceTests extends ESTestCase {
         rolesStore = mock(RolesStore.class);
         clusterService = mock(ClusterService.class);
         auditTrail = mock(AuditTrail.class);
-        AnonymousService anonymousService = new AnonymousService(Settings.EMPTY);
         threadContext = new ThreadContext(Settings.EMPTY);
         threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
 
+        AnonymousUser.initialize(Settings.EMPTY);
         internalAuthorizationService = new InternalAuthorizationService(Settings.EMPTY, rolesStore, clusterService,
-                auditTrail, anonymousService, new DefaultAuthenticationFailureHandler(), threadPool);
+                auditTrail, new DefaultAuthenticationFailureHandler(), threadPool);
     }
 
     public void testActionsSystemUserIsAuthorized() {
@@ -160,7 +161,7 @@ public class InternalAuthorizationServiceTests extends ESTestCase {
     }
 
     public void testNoRolesCausesDenial() {
-        TransportRequest request = mock(TransportRequest.class);
+        TransportRequest request = new SearchRequest();
         User user = new User("test user");
         try {
             internalAuthorizationService.authorize(user, "indices:a", request);
@@ -173,7 +174,7 @@ public class InternalAuthorizationServiceTests extends ESTestCase {
     }
 
     public void testUnknownRoleCausesDenial() {
-        TransportRequest request = mock(TransportRequest.class);
+        TransportRequest request = new SearchRequest();
         User user = new User("test user", "non-existent-role");
         try {
             internalAuthorizationService.authorize(user, "indices:a", request);
@@ -342,22 +343,21 @@ public class InternalAuthorizationServiceTests extends ESTestCase {
     public void testDenialForAnonymousUser() {
         TransportRequest request = new IndicesExistsRequest("b");
         ClusterState state = mock(ClusterState.class);
-        AnonymousService anonymousService =
-                new AnonymousService(Settings.builder().put(AnonymousService.ROLES_SETTING.getKey(), "a_all").build());
+        AnonymousUser.initialize(Settings.builder().put(AnonymousUser.ROLES_SETTING.getKey(), "a_all").build());
         internalAuthorizationService = new InternalAuthorizationService(Settings.EMPTY, rolesStore, clusterService, auditTrail,
-                anonymousService, new DefaultAuthenticationFailureHandler(), threadPool);
+                new DefaultAuthenticationFailureHandler(), threadPool);
 
         when(rolesStore.role("a_all")).thenReturn(Role.builder("a_all").add(IndexPrivilege.ALL, "a").build());
         when(clusterService.state()).thenReturn(state);
         when(state.metaData()).thenReturn(MetaData.EMPTY_META_DATA);
 
         try {
-            internalAuthorizationService.authorize(anonymousService.anonymousUser(), "indices:a", request);
+            internalAuthorizationService.authorize(AnonymousUser.INSTANCE, "indices:a", request);
             fail("indices request for b should be denied since there is no such index");
         } catch (ElasticsearchSecurityException e) {
             assertAuthorizationException(e,
-                    containsString("action [indices:a] is unauthorized for user [" + anonymousService.anonymousUser().principal() + "]"));
-            verify(auditTrail).accessDenied(anonymousService.anonymousUser(), "indices:a", request);
+                    containsString("action [indices:a] is unauthorized for user [" + AnonymousUser.INSTANCE.principal() + "]"));
+            verify(auditTrail).accessDenied(AnonymousUser.INSTANCE, "indices:a", request);
             verifyNoMoreInteractions(auditTrail);
             verify(clusterService, times(2)).state();
             verify(state, times(3)).metaData();
@@ -367,23 +367,25 @@ public class InternalAuthorizationServiceTests extends ESTestCase {
     public void testDenialForAnonymousUserAuthorizationExceptionDisabled() {
         TransportRequest request = new IndicesExistsRequest("b");
         ClusterState state = mock(ClusterState.class);
-        AnonymousService anonymousService = new AnonymousService(Settings.builder()
-                .put(AnonymousService.ROLES_SETTING.getKey(), "a_all")
-                .put(AnonymousService.SETTING_AUTHORIZATION_EXCEPTION_ENABLED.getKey(), false)
+        AnonymousUser.initialize(Settings.builder()
+                .put(AnonymousUser.ROLES_SETTING.getKey(), "a_all")
+                .put(InternalAuthorizationService.ANONYMOUS_AUTHORIZATION_EXCEPTION_SETTING.getKey(), false)
                 .build());
-        internalAuthorizationService = new InternalAuthorizationService(Settings.EMPTY, rolesStore, clusterService, auditTrail,
-                anonymousService, new DefaultAuthenticationFailureHandler(), threadPool);
+        User anonymousUser = AnonymousUser.INSTANCE;
+        internalAuthorizationService = new InternalAuthorizationService(
+                Settings.builder().put(InternalAuthorizationService.ANONYMOUS_AUTHORIZATION_EXCEPTION_SETTING.getKey(), false).build(),
+                rolesStore, clusterService, auditTrail, new DefaultAuthenticationFailureHandler(), threadPool);
 
         when(rolesStore.role("a_all")).thenReturn(Role.builder("a_all").add(IndexPrivilege.ALL, "a").build());
         when(clusterService.state()).thenReturn(state);
         when(state.metaData()).thenReturn(MetaData.EMPTY_META_DATA);
 
         try {
-            internalAuthorizationService.authorize(anonymousService.anonymousUser(), "indices:a", request);
+            internalAuthorizationService.authorize(anonymousUser, "indices:a", request);
             fail("indices request for b should be denied since there is no such index");
         } catch (ElasticsearchSecurityException e) {
             assertAuthenticationException(e, containsString("action [indices:a] requires authentication"));
-            verify(auditTrail).accessDenied(anonymousService.anonymousUser(), "indices:a", request);
+            verify(auditTrail).accessDenied(anonymousUser, "indices:a", request);
             verifyNoMoreInteractions(auditTrail);
             verify(clusterService, times(2)).state();
             verify(state, times(3)).metaData();
@@ -570,6 +572,7 @@ public class InternalAuthorizationServiceTests extends ESTestCase {
     }
 
     public void testXPackUserCanExecuteOperationAgainstShieldIndex() {
+        when(rolesStore.role(SuperuserRole.NAME)).thenReturn(Role.builder(SuperuserRole.DESCRIPTOR).build());
         ClusterState state = mock(ClusterState.class);
         when(clusterService.state()).thenReturn(state);
         when(state.metaData()).thenReturn(MetaData.builder()

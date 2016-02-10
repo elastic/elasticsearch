@@ -10,8 +10,8 @@ integTest {
     plugin 'x-pack', project(':x-plugins:elasticsearch:x-pack')
     extraConfigFile 'x-pack/roles.yml', 'roles.yml'
     [
-      test_admin: 'admin',
-      powerful_user: 'admin',
+      test_admin: 'superuser',
+      powerful_user: 'superuser',
       minimal_user: 'minimal',
       readonly_user: 'readonly',
       dest_only_user: 'dest_only',

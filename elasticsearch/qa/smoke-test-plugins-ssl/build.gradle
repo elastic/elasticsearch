@@ -165,7 +165,7 @@ integTest {
     extraConfigFile clientKeyStore.name, clientKeyStore
 
     setupCommand 'setupTestUser',
-                 'bin/x-pack/users', 'useradd', 'test_user', '-p', 'changeme', '-r', 'admin'
+                 'bin/x-pack/users', 'useradd', 'test_user', '-p', 'changeme', '-r', 'superuser'
     setupCommand 'setupMarvelUser',
                  'bin/x-pack/users', 'useradd', 'monitoring_agent', '-p', 'changeme', '-r', 'remote_monitoring_agent'
 

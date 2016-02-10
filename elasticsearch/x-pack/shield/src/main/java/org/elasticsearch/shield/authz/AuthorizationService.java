@@ -6,7 +6,7 @@
 package org.elasticsearch.shield.authz;
 
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.shield.User;
+import org.elasticsearch.shield.user.User;
 import org.elasticsearch.transport.TransportRequest;
 
 import java.util.List;

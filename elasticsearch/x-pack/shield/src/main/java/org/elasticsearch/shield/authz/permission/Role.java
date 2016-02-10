@@ -11,6 +11,7 @@ import org.elasticsearch.shield.authz.privilege.ClusterPrivilege;
 import org.elasticsearch.shield.authz.privilege.GeneralPrivilege;
 import org.elasticsearch.shield.authz.privilege.IndexPrivilege;
 import org.elasticsearch.shield.authz.privilege.Privilege;
+import org.elasticsearch.shield.authz.privilege.Privilege.Name;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -23,7 +24,7 @@ public class Role extends GlobalPermission {
 
     private final String name;
 
-    private Role(String name, ClusterPermission.Core cluster, IndicesPermission.Core indices, RunAsPermission.Core runAs) {
+    Role(String name, ClusterPermission.Core cluster, IndicesPermission.Core indices, RunAsPermission.Core runAs) {
         super(cluster, indices, runAs);
         this.name = name;
     }
@@ -73,12 +74,7 @@ public class Role extends GlobalPermission {
             } else {
                 this.cluster(ClusterPrivilege.get((new Privilege.Name(rd.getClusterPrivileges()))));
             }
-            for (RoleDescriptor.IndicesPrivileges iGroup : rd.getIndicesPrivileges()) {
-                this.add(iGroup.getFields() == null ? null : Arrays.asList(iGroup.getFields()),
-                        iGroup.getQuery(),
-                        IndexPrivilege.get(new Privilege.Name(iGroup.getPrivileges())),
-                        iGroup.getIndices());
-            }
+            groups.addAll(convertFromIndicesPrivileges(rd.getIndicesPrivileges()));
             String[] rdRunAs = rd.getRunAs();
             if (rdRunAs != null && rdRunAs.length > 0) {
                 this.runAs(new GeneralPrivilege(new Privilege.Name(rdRunAs), rdRunAs));
@@ -110,6 +106,18 @@ public class Role extends GlobalPermission {
             IndicesPermission.Core indices = groups.isEmpty() ? IndicesPermission.Core.NONE :
                     new IndicesPermission.Core(groups.toArray(new IndicesPermission.Group[groups.size()]));
             return new Role(name, cluster, indices, runAs);
+        }
+
+        static List<IndicesPermission.Group> convertFromIndicesPrivileges(RoleDescriptor.IndicesPrivileges[] indicesPrivileges) {
+            List<IndicesPermission.Group> list = new ArrayList<>(indicesPrivileges.length);
+            for (RoleDescriptor.IndicesPrivileges privilege : indicesPrivileges) {
+                list.add(new IndicesPermission.Group(IndexPrivilege.get(new Privilege.Name(privilege.getPrivileges())),
+                        privilege.getFields() == null ? null : Arrays.asList(privilege.getFields()),
+                        privilege.getQuery(),
+                        privilege.getIndices()));
+
+            }
+            return list;
         }
     }
 }

@@ -22,12 +22,14 @@ import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.CommandTestCase;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserError;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtilsForTesting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.SecuredStringTests;
+import org.elasticsearch.shield.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -219,7 +221,15 @@ public class UsersToolTests extends CommandTestCase {
     public void testParseUnknownRole() throws Exception {
         UsersTool.parseRoles(terminal, new Environment(settingsBuilder.build()), "test_r1,r2,r3");
         String output = terminal.getOutput();
-        assertTrue(output, output.contains("The following roles [r2,r3] are unknown"));
+        assertTrue(output, output.contains("The following roles [r2,r3] are not in the ["));
+    }
+
+    public void testParseReservedRole() throws Exception {
+        final String reservedRoleName = randomFrom(ReservedRolesStore.names().toArray(Strings.EMPTY_ARRAY));
+        String rolesArg = randomBoolean() ? "test_r1," + reservedRoleName : reservedRoleName;
+        UsersTool.parseRoles(terminal, new Environment(settingsBuilder.build()), rolesArg);
+        String output = terminal.getOutput();
+        assertTrue(output, output.isEmpty());
     }
 
     public void testParseInvalidRole() throws Exception {

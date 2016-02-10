@@ -5,13 +5,14 @@
  */
 package org.elasticsearch.shield.authc.support;
 
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.cache.CacheLoader;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.authc.RealmConfig;
 import org.elasticsearch.shield.support.Exceptions;
+import org.elasticsearch.shield.user.User;
 
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -119,6 +120,11 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
             return userWithHash.user;
 
         } catch (Exception ee) {
+            if (ee instanceof ElasticsearchSecurityException) {
+                // this should bubble out
+                throw ee;
+            }
+
             if (logger.isTraceEnabled()) {
                 logger.trace("realm [{}] could not authenticate [{}]", ee, type(), token.principal());
             } else if (logger.isDebugEnabled()) {

@@ -12,7 +12,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.shield.Security;
-import org.elasticsearch.shield.User;
+import org.elasticsearch.shield.user.User;
 import org.elasticsearch.shield.authc.AuthenticationToken;
 import org.elasticsearch.shield.authc.Realm;
 import org.elasticsearch.shield.authc.RealmConfig;

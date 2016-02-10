@@ -14,6 +14,7 @@ import dk.brics.automaton.BasicAutomata;
 public class GeneralPrivilege extends AbstractAutomatonPrivilege<GeneralPrivilege> {
 
     public static final GeneralPrivilege NONE = new GeneralPrivilege(Name.NONE, BasicAutomata.makeEmpty());
+    public static final GeneralPrivilege ALL = new GeneralPrivilege(Name.ALL, "*");
 
     public GeneralPrivilege(String name, String... patterns) {
         super(name, patterns);

@@ -233,13 +233,8 @@ public class FileRolesStoreTests extends ESTestCase {
         Path path = getDataPath("default_roles.yml");
         Map<String, Role> roles = FileRolesStore.parseFile(path, logger, Settings.EMPTY);
         assertThat(roles, notNullValue());
-        assertThat(roles.size(), is(8));
+        assertThat(roles.size(), is(3));
 
-        assertThat(roles, hasKey("admin"));
-        assertThat(roles, hasKey("power_user"));
-        assertThat(roles, hasKey("user"));
-        assertThat(roles, hasKey("transport_client"));
-        assertThat(roles, hasKey("kibana4_server"));
         assertThat(roles, hasKey("logstash"));
         assertThat(roles, hasKey("monitoring_user"));
         assertThat(roles, hasKey("remote_monitoring_agent"));
@@ -296,8 +291,8 @@ public class FileRolesStoreTests extends ESTestCase {
             role = store.role("role5");
             assertThat(role, notNullValue());
             assertThat(role.name(), equalTo("role5"));
-            assertThat(role.cluster().check("cluster:monitor/foo/bar"), is(true));
-            assertThat(role.cluster().check("cluster:admin/foo/bar"), is(false));
+            assertThat(role.cluster().check("cluster:monitor/foo/bar", null, null), is(true));
+            assertThat(role.cluster().check("cluster:admin/foo/bar", null, null), is(false));
 
         } finally {
             if (watcherService != null) {
@@ -361,9 +356,11 @@ public class FileRolesStoreTests extends ESTestCase {
 
         List<CapturingLogger.Msg> messages = logger.output(CapturingLogger.Level.WARN);
         assertThat(messages, notNullValue());
-        assertThat(messages, hasSize(2));
+        assertThat(messages, hasSize(4));
         // the system role will always be checked first
         assertThat(messages.get(0).text, containsString("role [__es_system_role] is reserved"));
-        assertThat(messages.get(1).text, containsString("role [__es_internal_role] is reserved"));
+        assertThat(messages.get(1).text, containsString("role [superuser] is reserved"));
+        assertThat(messages.get(2).text, containsString("role [kibana] is reserved"));
+        assertThat(messages.get(3).text, containsString("role [transport_client] is reserved"));
     }
 }

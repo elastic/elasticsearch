@@ -12,11 +12,15 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.shield.User;
+import org.elasticsearch.shield.user.AnonymousUser;
+import org.elasticsearch.shield.user.SystemUser;
+import org.elasticsearch.shield.user.User;
 import org.elasticsearch.shield.authc.esnative.NativeUsersStore;
+import org.elasticsearch.shield.authc.esnative.ReservedRealm;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class TransportGetUsersAction extends HandledTransportAction<GetUsersRequest, GetUsersResponse> {
@@ -34,17 +38,43 @@ public class TransportGetUsersAction extends HandledTransportAction<GetUsersRequ
 
     @Override
     protected void doExecute(final GetUsersRequest request, final ActionListener<GetUsersResponse> listener) {
-        if (request.usernames().length == 1) {
-            final String username = request.usernames()[0];
+        final String[] requestedUsers = request.usernames();
+        final boolean specificUsersRequested = requestedUsers != null && requestedUsers.length > 0;
+        final List<String> usersToSearchFor = new ArrayList<>();
+        final List<User> users = new ArrayList<>();
+
+        if (specificUsersRequested) {
+            for (String username : requestedUsers) {
+                if (ReservedRealm.isReserved(username)) {
+                    User user = ReservedRealm.getUser(username);
+                    if (user != null) {
+                        users.add(user);
+                    } else {
+                        // the only time a user should be null is if username matches for the anonymous user and the anonymous user is not
+                        // enabled!
+                        assert AnonymousUser.enabled() == false && AnonymousUser.isAnonymousUsername(username);
+                    }
+                } else if (SystemUser.NAME.equals(username)) {
+                    listener.onFailure(new IllegalArgumentException("user [" + username + "] is internal"));
+                    return;
+                } else {
+                    usersToSearchFor.add(username);
+                }
+            }
+        } else {
+            users.addAll(ReservedRealm.users());
+        }
+
+        if (usersToSearchFor.size() == 1) {
+            final String username = usersToSearchFor.get(0);
             // We can fetch a single user with a get, much cheaper:
             usersStore.getUser(username, new ActionListener<User>() {
                 @Override
                 public void onResponse(User user) {
-                    if (user == null) {
-                        listener.onResponse(new GetUsersResponse());
-                    } else {
-                        listener.onResponse(new GetUsersResponse(user));
+                    if (user != null) {
+                        users.add(user);
                     }
+                    listener.onResponse(new GetUsersResponse(users));
                 }
 
                 @Override
@@ -53,10 +83,13 @@ public class TransportGetUsersAction extends HandledTransportAction<GetUsersRequ
                     listener.onFailure(e);
                 }
             });
+        } else if (specificUsersRequested && usersToSearchFor.isEmpty()) {
+            listener.onResponse(new GetUsersResponse(users));
         } else {
-            usersStore.getUsers(request.usernames(), new ActionListener<List<User>>() {
+            usersStore.getUsers(usersToSearchFor.toArray(new String[usersToSearchFor.size()]), new ActionListener<List<User>>() {
                 @Override
-                public void onResponse(List<User> users) {
+                public void onResponse(List<User> usersFound) {
+                    users.addAll(usersFound);
                     listener.onResponse(new GetUsersResponse(users));
                 }
 

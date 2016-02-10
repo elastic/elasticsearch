@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.shield.action;
+package org.elasticsearch.shield.action.filter;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -20,8 +20,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.plugin.core.LicenseUtils;
 import org.elasticsearch.shield.Security;
-import org.elasticsearch.shield.SystemUser;
-import org.elasticsearch.shield.User;
+import org.elasticsearch.shield.action.ShieldActionMapper;
+import org.elasticsearch.shield.user.SystemUser;
+import org.elasticsearch.shield.user.User;
 import org.elasticsearch.shield.action.interceptor.RequestInterceptor;
 import org.elasticsearch.shield.audit.AuditTrail;
 import org.elasticsearch.shield.authc.AuthenticationService;
@@ -31,8 +32,6 @@ import org.elasticsearch.shield.authz.AuthorizationUtils;
 import org.elasticsearch.shield.authz.privilege.HealthAndStatsPrivilege;
 import org.elasticsearch.shield.crypto.CryptoService;
 import org.elasticsearch.shield.license.ShieldLicenseState;
-import org.elasticsearch.shield.support.AutomatonPredicate;
-import org.elasticsearch.shield.support.Automatons;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -50,8 +49,6 @@ import static org.elasticsearch.shield.support.Exceptions.authorizationError;
 public class ShieldActionFilter extends AbstractComponent implements ActionFilter {
 
     private static final Predicate<String> LICENSE_EXPIRATION_ACTION_MATCHER = HealthAndStatsPrivilege.INSTANCE.predicate();
-    // FIXME clean up this hack
-    static final Predicate<String> INTERNAL_PREDICATE = new AutomatonPredicate(Automatons.patterns("internal:*"));
 
     private final AuthenticationService authcService;
     private final AuthorizationService authzService;
@@ -100,43 +97,12 @@ public class ShieldActionFilter extends AbstractComponent implements ActionFilte
             if (licenseState.securityEnabled()) {
                 if (AuthorizationUtils.shouldReplaceUserWithSystem(threadContext, action)) {
                     try (ThreadContext.StoredContext ctx = threadContext.stashContext()) {
-                        String shieldAction = actionMapper.action(action, request);
-                        User user = authcService.authenticate(shieldAction, request, SystemUser.INSTANCE);
-                        authzService.authorize(user, shieldAction, request);
-                        request = unsign(user, shieldAction, request);
-
-                        for (RequestInterceptor interceptor : requestInterceptors) {
-                            if (interceptor.supports(request)) {
-                                interceptor.intercept(request, user);
-                            }
-                        }
-                        // we should always restore the original here because we forcefully changed to the system user
-                        chain.proceed(task, action, request, new SigningListener(this, listener, original));
-                        return;
+                        applyInternal(task, action, request, new SigningListener(this, listener, original), chain);
                     }
+                } else {
+                    applyInternal(task, action, request,
+                            new SigningListener(this, listener, restoreOriginalContext ? original : null), chain);
                 }
-
-                /**
-                 here we fallback on the system user. Internal system requests are requests that are triggered by
-                 the system itself (e.g. pings, update mappings, share relocation, etc...) and were not originated
-                 by user interaction. Since these requests are triggered by es core modules, they are security
-                 agnostic and therefore not associated with any user. When these requests execute locally, they
-                 are executed directly on their relevant action. Since there is no other way a request can make
-                 it to the action without an associated user (not via REST or transport - this is taken care of by
-                 the {@link Rest} filter and the {@link ServerTransport} filter respectively), it's safe to assume a system user
-                 here if a request is not associated with any other user.
-                 */
-                String shieldAction = actionMapper.action(action, request);
-                User user = authcService.authenticate(shieldAction, request, SystemUser.INSTANCE);
-                authzService.authorize(user, shieldAction, request);
-                request = unsign(user, shieldAction, request);
-
-                for (RequestInterceptor interceptor : requestInterceptors) {
-                    if (interceptor.supports(request)) {
-                        interceptor.intercept(request, user);
-                    }
-                }
-                chain.proceed(task, action, request, new SigningListener(this, listener, restoreOriginalContext ? original : null));
             } else {
                 chain.proceed(task, action, request, listener);
             }
@@ -153,6 +119,36 @@ public class ShieldActionFilter extends AbstractComponent implements ActionFilte
     @Override
     public int order() {
         return Integer.MIN_VALUE;
+    }
+
+    private void applyInternal(Task task, String action, ActionRequest request, ActionListener listener, ActionFilterChain chain)
+            throws IOException {
+        /**
+         here we fallback on the system user. Internal system requests are requests that are triggered by
+         the system itself (e.g. pings, update mappings, share relocation, etc...) and were not originated
+         by user interaction. Since these requests are triggered by es core modules, they are security
+         agnostic and therefore not associated with any user. When these requests execute locally, they
+         are executed directly on their relevant action. Since there is no other way a request can make
+         it to the action without an associated user (not via REST or transport - this is taken care of by
+         the {@link Rest} filter and the {@link ServerTransport} filter respectively), it's safe to assume a system user
+         here if a request is not associated with any other user.
+         */
+        String shieldAction = actionMapper.action(action, request);
+        User user = authcService.authenticate(shieldAction, request, SystemUser.INSTANCE);
+        authzService.authorize(user, shieldAction, request);
+        request = unsign(user, shieldAction, request);
+
+        /*
+         * We use a separate concept for code that needs to be run after authentication and authorization that could effect the running of
+         * the action. This is done to make it more clear of the state of the request.
+         */
+        for (RequestInterceptor interceptor : requestInterceptors) {
+            if (interceptor.supports(request)) {
+                interceptor.intercept(request, user);
+            }
+        }
+        // we should always restore the original here because we forcefully changed to the system user
+        chain.proceed(task, action, request, listener);
     }
 
     <Request extends ActionRequest> Request unsign(User user, String action, Request request) {

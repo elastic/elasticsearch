@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.shield;
+package org.elasticsearch.shield.user;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.ParseField;
@@ -13,6 +13,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.shield.authc.esnative.ReservedRealm;
+
 
 import java.io.IOException;
 import java.lang.reflect.Array;
@@ -25,6 +27,8 @@ import java.util.Map;
  * An authenticated user
  */
 public class User implements ToXContent {
+
+    static final String RESERVED_PREFIX = "_";
 
     private final String username;
     private final String[] roles;
@@ -49,6 +53,7 @@ public class User implements ToXContent {
         this.fullName = fullName;
         this.email = email;
         this.runAs = null;
+        verifyNoReservedMetadata(this.username, this.metadata);
     }
 
     public User(String username, String[] roles, String fullName, String email, Map<String, Object> metadata, User runAs) {
@@ -62,6 +67,7 @@ public class User implements ToXContent {
             throw new ElasticsearchSecurityException("invalid run_as user");
         }
         this.runAs = runAs;
+        verifyNoReservedMetadata(this.username, this.metadata);
     }
 
     /**
@@ -158,25 +164,37 @@ public class User implements ToXContent {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(Fields.USERNAME.getPreferredName(), username);
-        builder.array(Fields.ROLES.getPreferredName(), roles);
-        builder.field(Fields.FULL_NAME.getPreferredName(), fullName);
-        builder.field(Fields.EMAIL.getPreferredName(), email);
-        builder.field(Fields.METADATA.getPreferredName(), metadata);
+        builder.field(Fields.USERNAME.getPreferredName(), principal());
+        builder.array(Fields.ROLES.getPreferredName(), roles());
+        builder.field(Fields.FULL_NAME.getPreferredName(), fullName());
+        builder.field(Fields.EMAIL.getPreferredName(), email());
+        builder.field(Fields.METADATA.getPreferredName(), metadata());
         return builder.endObject();
+    }
+
+    void verifyNoReservedMetadata(String principal, Map<String, Object> metadata) {
+        if (this instanceof ReservedUser) {
+            return;
+        }
+
+        for (String key : metadata.keySet()) {
+            if (key.startsWith(RESERVED_PREFIX)) {
+                throw new IllegalArgumentException("invalid user metadata. [" + key + "] is a reserved for internal uses");
+            }
+        }
     }
 
     public static User readFrom(StreamInput input) throws IOException {
         if (input.readBoolean()) {
             String name = input.readString();
-            switch (name) {
-                case SystemUser.NAME:
-                    return SystemUser.INSTANCE;
-                case XPackUser.NAME:
-                    return XPackUser.INSTANCE;
-                default:
-                    throw new IllegalStateException("invalid internal user");
+            if (SystemUser.NAME.equals(name)) {
+                return SystemUser.INSTANCE;
             }
+            User user = ReservedRealm.getUser(name);
+            if (user == null) {
+                throw new IllegalStateException("invalid internal user");
+            }
+            return user;
         }
         String username = input.readString();
         String[] roles = input.readStringArray();
@@ -199,9 +217,9 @@ public class User implements ToXContent {
         if (SystemUser.is(user)) {
             output.writeBoolean(true);
             output.writeString(SystemUser.NAME);
-        } if (XPackUser.is(user)) {
+        } else if (ReservedRealm.isReserved(user.principal())) {
             output.writeBoolean(true);
-            output.writeString(XPackUser.NAME);
+            output.writeString(user.principal());
         } else {
             output.writeBoolean(false);
             output.writeString(user.username);
@@ -256,6 +274,15 @@ public class User implements ToXContent {
             sb.append("]");
         } else {
             sb.append(object);
+        }
+    }
+
+    abstract static class ReservedUser extends User {
+
+        private static final String RESERVED_KEY = User.RESERVED_PREFIX + "reserved";
+
+        ReservedUser(String username, String... roles) {
+            super(username, roles, null, null, Collections.singletonMap(RESERVED_KEY, true));
         }
     }
 

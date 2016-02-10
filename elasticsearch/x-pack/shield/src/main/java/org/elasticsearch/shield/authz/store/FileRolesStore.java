@@ -19,8 +19,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.shield.Security;
-import org.elasticsearch.shield.SystemUser;
-import org.elasticsearch.shield.XPackUser;
 import org.elasticsearch.shield.authc.support.RefreshListener;
 import org.elasticsearch.shield.authz.RoleDescriptor;
 import org.elasticsearch.shield.authz.permission.Role;
@@ -135,7 +133,7 @@ public class FileRolesStore extends AbstractLifecycleComponent<RolesStore> imple
                 for (String segment : roleSegments) {
                     Role role = parseRole(segment, path, logger, resolvePermission, settings);
                     if (role != null) {
-                        if (SystemUser.ROLE_NAME.equals(role.name()) || XPackUser.ROLE.name().equals(role.name())) {
+                        if (ReservedRolesStore.isReserved(role.name())) {
                             logger.warn("role [{}] is reserved. the relevant role definition in the mapping file will be ignored",
                                     role.name());
                         } else {

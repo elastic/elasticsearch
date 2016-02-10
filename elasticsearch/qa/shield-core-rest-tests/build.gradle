@@ -37,7 +37,7 @@ integTest {
     setting 'xpack.watcher.enabled', 'false'
     setting 'xpack.monitoring.enabled', 'false'
     setupCommand 'setupDummyUser',
-                 'bin/x-pack/users', 'useradd', 'test_user', '-p', 'changeme', '-r', 'admin'
+                 'bin/x-pack/users', 'useradd', 'test_user', '-p', 'changeme', '-r', 'superuser'
     waitCondition = { node, ant ->
       File tmpFile = new File(node.cwd, 'wait.success')
       ant.get(src: "http://${node.httpUri()}",

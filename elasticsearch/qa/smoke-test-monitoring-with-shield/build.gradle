@@ -19,7 +19,7 @@ integTest {
     setting 'xpack.monitoring.agent.interval', '3s'
     extraConfigFile 'x-pack/roles.yml', 'roles.yml'
     setupCommand 'setupTestAdminUser',
-                 'bin/x-pack/users', 'useradd', 'test_admin', '-p', 'changeme', '-r', 'admin'
+                 'bin/x-pack/users', 'useradd', 'test_admin', '-p', 'changeme', '-r', 'superuser'
     setupCommand 'setupMonitoredSystemUser',
                  'bin/x-pack/users', 'useradd', 'monitored_system', '-p', 'changeme', '-r', 'monitored_system,required_for_test'
     setupCommand 'setupPowerlessUser',

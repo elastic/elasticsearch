@@ -13,7 +13,7 @@
         body:  >
             {
               "password": "s3krit",
-              "roles" : [ "admin" ]
+              "roles" : [ "superuser" ]
             }
   - match: { user: { created: true } }
 
@@ -21,7 +21,7 @@
       shield.get_user:
         username: "joe"
   - match: { joe.username: "joe" }
-  - match: { joe.roles.0:  "admin" }
+  - match: { joe.roles.0:  "superuser" }
 
   - do:
       headers:
@@ -35,7 +35,7 @@
         body:  >
             {
               "password" : "s3krit2",
-              "roles" : [ "admin", "foo" ],
+              "roles" : [ "superuser", "foo" ],
               "full_name" : "Bazooka Joe",
               "email" : "joe@bazooka.gum",
               "metadata" : {
@@ -49,7 +49,7 @@
       shield.get_user:
         username: "joe"
   - match: { joe.username:  "joe" }
-  - match: { joe.roles.0:  "admin" }
+  - match: { joe.roles.0:  "superuser" }
   - match: { joe.roles.1:  "foo" }
   - match: { joe.full_name:  "Bazooka Joe" }
   - match: { joe.email:  "joe@bazooka.gum" }

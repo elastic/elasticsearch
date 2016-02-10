@@ -433,7 +433,7 @@ public class NativeRolesStore extends AbstractComponent implements RolesStore, C
     }
 
     private <Response> void clearRoleCache(final String role, ActionListener<Response> listener, Response response) {
-        ClearRolesCacheRequest request = new ClearRolesCacheRequest().roles(role);
+        ClearRolesCacheRequest request = new ClearRolesCacheRequest().names(role);
         securityClient.clearRolesCache(request, new ActionListener<ClearRolesCacheResponse>() {
             @Override
             public void onResponse(ClearRolesCacheResponse nodes) {

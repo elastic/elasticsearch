@@ -41,7 +41,7 @@ task integTest(type: org.elasticsearch.gradle.test.RestIntegTestTask, dependsOn:
     setting 'xpack.security.authc.realms.esusers.type', 'file'
 
     setupCommand 'setupDummyUser',
-                 'bin/x-pack/users', 'useradd', 'test_user', '-p', 'changeme', '-r', 'admin'
+                 'bin/x-pack/users', 'useradd', 'test_user', '-p', 'changeme', '-r', 'superuser'
     setupCommand 'installExtension',
                   'bin/x-pack/extension', 'install', 'file:' + buildZip.archivePath
     waitCondition = { node, ant ->

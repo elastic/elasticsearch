@@ -17,7 +17,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * A request to delete a native user.
  */
-public class DeleteUserRequest extends ActionRequest<DeleteUserRequest> {
+public class DeleteUserRequest extends ActionRequest<DeleteUserRequest> implements UserRequest {
 
     private String username;
     private boolean refresh = true;
@@ -52,6 +52,11 @@ public class DeleteUserRequest extends ActionRequest<DeleteUserRequest> {
 
     public void refresh(boolean refresh) {
         this.refresh = refresh;
+    }
+
+    @Override
+    public String[] usernames() {
+        return new String[] { username };
     }
 
     @Override

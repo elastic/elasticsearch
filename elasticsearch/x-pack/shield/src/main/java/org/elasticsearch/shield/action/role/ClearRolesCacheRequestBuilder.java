@@ -25,11 +25,11 @@ public class ClearRolesCacheRequestBuilder extends NodesOperationRequestBuilder<
     /**
      * Set the roles to be cleared
      *
-     * @param roles the names of the roles that should be cleared
+     * @param names the names of the roles that should be cleared
      * @return the builder instance
      */
-    public ClearRolesCacheRequestBuilder roles(String... roles) {
-        request.roles(roles);
+    public ClearRolesCacheRequestBuilder names(String... names) {
+        request.names(names);
         return this;
     }
 }

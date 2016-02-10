@@ -16,6 +16,8 @@ cluster:admin/xpack/security/roles/cache/clear[n]
 cluster:admin/xpack/security/role/put
 cluster:admin/xpack/security/role/delete
 cluster:admin/xpack/security/role/get
+cluster:admin/xpack/security/user/authenticate
+cluster:admin/xpack/security/user/change_password
 cluster:admin/xpack/security/user/put
 cluster:admin/xpack/security/user/delete
 cluster:admin/xpack/security/user/get

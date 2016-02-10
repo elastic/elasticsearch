@@ -3,15 +3,17 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.shield;
+package org.elasticsearch.shield.user;
 
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
@@ -66,15 +68,6 @@ public class UserTests extends ESTestCase {
         assertThat(readFrom.runAs(), is(nullValue()));
     }
 
-    public void testInternalShieldUserReadAndWrite() throws Exception {
-        BytesStreamOutput output = new BytesStreamOutput();
-
-        User.writeTo(XPackUser.INSTANCE, output);
-        User readFrom = User.readFrom(ByteBufferStreamInput.wrap(output.bytes()));
-
-        assertThat(readFrom, is(sameInstance(XPackUser.INSTANCE)));
-    }
-
     public void testFakeInternalUserSerialization() throws Exception {
         BytesStreamOutput output = new BytesStreamOutput();
         output.writeBoolean(true);
@@ -105,5 +98,31 @@ public class UserTests extends ESTestCase {
         user = new User("u1", new String[] {"r1", "r2"}, new User("u2", "r3"));
         assertThat(user.toString(), is("User[username=u1,roles=[r1,r2],fullName=null,email=null,metadata={},runAs=[User[username=u2," +
                 "roles=[r3],fullName=null,email=null,metadata={}]]]"));
+    }
+
+    public void testReservedUserSerialization() throws Exception {
+        BytesStreamOutput output = new BytesStreamOutput();
+        User.writeTo(XPackUser.INSTANCE, output);
+        User readFrom = User.readFrom(ByteBufferStreamInput.wrap(output.bytes()));
+
+        assertThat(readFrom, is(sameInstance(XPackUser.INSTANCE)));
+
+        output = new BytesStreamOutput();
+        User.writeTo(KibanaUser.INSTANCE, output);
+        readFrom = User.readFrom(ByteBufferStreamInput.wrap(output.bytes()));
+
+        assertThat(readFrom, is(sameInstance(KibanaUser.INSTANCE)));
+    }
+
+    public void testReservedMetadata() throws Exception {
+        Map<String, Object> validMetadata = Collections.singletonMap("foo", "bar");
+        Map<String, Object> invalidMetadata = Collections.singletonMap(User.RESERVED_PREFIX + "foo", "bar");
+
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () ->
+                new User("john", Strings.EMPTY_ARRAY, "John Doe", "john@doe.com", invalidMetadata));
+        assertThat(exception.getMessage(), containsString("reserved"));
+
+        User user = new User("john", Strings.EMPTY_ARRAY, "John Doe", "john@doe.com", validMetadata);
+        assertNotNull(user);
     }
 }

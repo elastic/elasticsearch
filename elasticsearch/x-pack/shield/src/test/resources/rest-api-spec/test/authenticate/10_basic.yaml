@@ -8,4 +8,4 @@
       shield.authenticate: {}
 
   - match: { username: "test_user" }
-  - match: { roles.0:  "admin" }
+  - match: { roles.0:  "superuser" }

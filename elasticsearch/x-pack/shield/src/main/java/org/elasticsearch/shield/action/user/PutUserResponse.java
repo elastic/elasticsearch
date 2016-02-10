@@ -28,6 +28,10 @@ public class PutUserResponse extends ActionResponse implements ToXContent {
         this.created = created;
     }
 
+    public boolean created() {
+        return created;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject().field("created", created).endObject();

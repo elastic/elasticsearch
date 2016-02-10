@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.shield.transport;
 
-import org.elasticsearch.shield.SystemUser;
+import org.elasticsearch.shield.user.SystemUser;
 import org.elasticsearch.shield.authc.AuthenticationService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;

@@ -131,7 +131,7 @@ integTest {
   systemProperty 'tests.rest.blacklist', 'getting_started/10_monitor_cluster_health/*'
   cluster {
     setting 'xpack.monitoring.agent.interval', '3s'
-    setupCommand 'setupDummyUser', 'bin/x-pack/users', 'useradd', 'test_user', '-p', 'changeme', '-r', 'admin'
+    setupCommand 'setupDummyUser', 'bin/x-pack/users', 'useradd', 'test_user', '-p', 'changeme', '-r', 'superuser'
     waitCondition = { NodeInfo node, AntBuilder ant ->
         File tmpFile = new File(node.cwd, 'wait.success')
         ant.get(src: "http://${node.httpUri()}",
@@ -159,7 +159,7 @@ artifacts {
 }
 
 run {
-  setupCommand 'setupDummyUser', 'bin/x-pack/users', 'useradd', 'test_user', '-p', 'changeme', '-r', 'admin'
+  setupCommand 'setupDummyUser', 'bin/x-pack/users', 'useradd', 'test_user', '-p', 'changeme', '-r', 'superuser'
 }
 
 // classes are missing, e.g. com.ibm.icu.lang.UCharacter

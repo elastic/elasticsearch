@@ -8,7 +8,7 @@ integTest {
   cluster {
     plugin 'x-pack', project(':x-plugins:elasticsearch:x-pack')
     setupCommand 'setupDummyUser',
-                 'bin/x-pack/users', 'useradd', 'test_user', '-p', 'changeme', '-r', 'admin'
+                 'bin/x-pack/users', 'useradd', 'test_user', '-p', 'changeme', '-r', 'superuser'
     setupCommand 'setupTransportClientUser',
                  'bin/x-pack/users', 'useradd', 'transport', '-p', 'changeme', '-r', 'transport_client'
     waitCondition = { node, ant ->

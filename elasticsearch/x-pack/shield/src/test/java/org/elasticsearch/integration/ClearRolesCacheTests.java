@@ -142,7 +142,7 @@ public class ClearRolesCacheTests extends NativeRealmIntegTestCase {
                     .execute();
             assertThat(response.getStatusCode(), is(RestStatus.OK.getStatus()));
         } else {
-            securityClient.prepareClearRolesCache().roles(rolesToClear).get();
+            securityClient.prepareClearRolesCache().names(rolesToClear).get();
         }
 
         assertRolesAreCorrect(securityClient, toModify);

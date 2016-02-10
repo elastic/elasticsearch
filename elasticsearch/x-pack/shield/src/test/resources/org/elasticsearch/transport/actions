@@ -77,6 +77,8 @@ cluster:admin/xpack/license/delete
 cluster:admin/xpack/license/put
 cluster:admin/xpack/security/realm/cache/clear
 cluster:admin/xpack/security/roles/cache/clear
+cluster:admin/xpack/security/user/authenticate
+cluster:admin/xpack/security/user/change_password
 cluster:admin/xpack/security/user/put
 cluster:admin/xpack/security/user/delete
 cluster:admin/xpack/security/user/get

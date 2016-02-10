@@ -35,6 +35,7 @@ import org.elasticsearch.shield.authc.file.FileUserRolesStore;
 import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authz.store.FileRolesStore;
+import org.elasticsearch.shield.authz.store.ReservedRolesStore;
 import org.elasticsearch.shield.support.FileAttributesChecker;
 import org.elasticsearch.shield.support.Validation;
 import org.elasticsearch.shield.support.Validation.Users;
@@ -326,7 +327,7 @@ public class UsersTool extends MultiCommand {
         Set<String> users = FileUserPasswdStore.parseFile(userFilePath, null).keySet();
 
         Path rolesFilePath = FileRolesStore.resolveFile(env.settings(), env);
-        Set<String> knownRoles = FileRolesStore.parseFileForRoleNames(rolesFilePath, null);
+        Set<String> knownRoles = Sets.union(FileRolesStore.parseFileForRoleNames(rolesFilePath, null), ReservedRolesStore.names());
 
         if (username != null) {
             if (!users.contains(username)) {
@@ -343,8 +344,8 @@ public class UsersTool extends MultiCommand {
                     // at least one role is marked... so printing the legend
                     Path rolesFile = FileRolesStore.resolveFile(fileSettings, env).toAbsolutePath();
                     terminal.println("");
-                    terminal.println(" [*]   An unknown role. "
-                        + "Please check [" + rolesFile.toAbsolutePath() + "] to see available roles");
+                    terminal.println(" [*]   Role is not in the [" + rolesFile.toAbsolutePath() + "] file. If the role has been created "
+                            + "using the API, please disregard this message.");
                 }
             } else {
                 terminal.println(String.format(Locale.ROOT, "%-15s: -", username));
@@ -377,8 +378,8 @@ public class UsersTool extends MultiCommand {
                 // at least one role is marked... so printing the legend
                 Path rolesFile = FileRolesStore.resolveFile(fileSettings, env).toAbsolutePath();
                 terminal.println("");
-                terminal.println(" [*]   An unknown role. "
-                    + "Please check [" + rolesFile.toAbsolutePath() + "] to see available roles");
+                terminal.println(" [*]   Role is not in the [" + rolesFile.toAbsolutePath() + "] file. If the role has been created "
+                        + "using the API, please disregard this message.");
             }
         }
     }
@@ -439,11 +440,12 @@ public class UsersTool extends MultiCommand {
     private static void verifyRoles(Terminal terminal, Settings settings, Environment env, String[] roles) {
         Path rolesFile = FileRolesStore.resolveFile(settings, env);
         assert Files.exists(rolesFile);
-        Set<String> knownRoles = FileRolesStore.parseFileForRoleNames(rolesFile, null);
+        Set<String> knownRoles = Sets.union(FileRolesStore.parseFileForRoleNames(rolesFile, null), ReservedRolesStore.names());
         Set<String> unknownRoles = Sets.difference(Sets.newHashSet(roles), knownRoles);
         if (!unknownRoles.isEmpty()) {
-            terminal.println(String.format(Locale.ROOT, "Warning: The following roles [%s] are unknown. Make sure to add them to the [%s]" +
-                    " file. Nonetheless the user will still be associated with all specified roles",
+            terminal.println(String.format(Locale.ROOT, "Warning: The following roles [%s] are not in the [%s] file. Make sure the names " +
+                    "are correct. If the names are correct and the roles were created using the API please disregard this message. " +
+                    "Nonetheless the user will still be associated with all specified roles",
                 Strings.collectionToCommaDelimitedString(unknownRoles), rolesFile.toAbsolutePath()));
             terminal.println("Known roles: " + knownRoles.toString());
         }

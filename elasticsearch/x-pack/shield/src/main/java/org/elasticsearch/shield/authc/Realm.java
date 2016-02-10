@@ -7,7 +7,7 @@ package org.elasticsearch.shield.authc;
 
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.shield.User;
+import org.elasticsearch.shield.user.User;
 
 /**
  * An authentication mechanism to which the default authentication {@link org.elasticsearch.shield.authc.AuthenticationService service}

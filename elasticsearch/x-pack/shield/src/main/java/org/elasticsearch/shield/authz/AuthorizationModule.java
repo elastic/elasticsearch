@@ -9,6 +9,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.authz.store.CompositeRolesStore;
 import org.elasticsearch.shield.authz.store.FileRolesStore;
 import org.elasticsearch.shield.authz.store.NativeRolesStore;
+import org.elasticsearch.shield.authz.store.ReservedRolesStore;
 import org.elasticsearch.shield.authz.store.RolesStore;
 import org.elasticsearch.shield.support.AbstractShieldModule;
 
@@ -25,6 +26,7 @@ public class AuthorizationModule extends AbstractShieldModule.Node {
     protected void configureNode() {
 
         // First the file and native roles stores must be bound...
+        bind(ReservedRolesStore.class).asEagerSingleton();
         bind(FileRolesStore.class).asEagerSingleton();
         bind(NativeRolesStore.class).asEagerSingleton();
         // Then the composite roles store (which combines both) can be bound

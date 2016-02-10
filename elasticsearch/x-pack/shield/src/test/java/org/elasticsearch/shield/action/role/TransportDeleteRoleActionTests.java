@@ -1,0 +1,151 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License;
+ * you may not use this file except in compliance with the Elastic License.
+ */
+package org.elasticsearch.shield.action.role;
+
+import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.shield.authz.store.NativeRolesStore;
+import org.elasticsearch.shield.authz.store.ReservedRolesStore;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportService;
+import org.mockito.invocation.InvocationOnMock;
+import org.mockito.stubbing.Answer;
+
+import java.util.ArrayList;
+import java.util.concurrent.atomic.AtomicReference;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyZeroInteractions;
+
+public class TransportDeleteRoleActionTests extends ESTestCase {
+
+    public void testReservedRole() {
+        final String roleName = randomFrom(new ArrayList<>(ReservedRolesStore.names()));
+        NativeRolesStore rolesStore = mock(NativeRolesStore.class);
+        TransportDeleteRoleAction action = new TransportDeleteRoleAction(Settings.EMPTY, mock(ThreadPool.class), mock(ActionFilters.class),
+                mock(IndexNameExpressionResolver.class), rolesStore, mock(TransportService.class));
+
+        DeleteRoleRequest request = new DeleteRoleRequest();
+        request.name(roleName);
+
+        final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
+        final AtomicReference<DeleteRoleResponse> responseRef = new AtomicReference<>();
+        action.doExecute(request, new ActionListener<DeleteRoleResponse>() {
+            @Override
+            public void onResponse(DeleteRoleResponse deleteRoleResponse) {
+                responseRef.set(deleteRoleResponse);
+            }
+
+            @Override
+            public void onFailure(Throwable e) {
+                throwableRef.set(e);
+            }
+        });
+
+        assertThat(responseRef.get(), is(nullValue()));
+        assertThat(throwableRef.get(), is(instanceOf(IllegalArgumentException.class)));
+        assertThat(throwableRef.get().getMessage(), containsString("is reserved and cannot be deleted"));
+        verifyZeroInteractions(rolesStore);
+    }
+
+    public void testValidRole() {
+        final String roleName = randomFrom("admin", "dept_a", "restricted");
+        NativeRolesStore rolesStore = mock(NativeRolesStore.class);
+        TransportDeleteRoleAction action = new TransportDeleteRoleAction(Settings.EMPTY, mock(ThreadPool.class), mock(ActionFilters.class),
+                mock(IndexNameExpressionResolver.class), rolesStore, mock(TransportService.class));
+
+        DeleteRoleRequest request = new DeleteRoleRequest();
+        request.name(roleName);
+
+        final boolean found = randomBoolean();
+        doAnswer(new Answer() {
+            @Override
+            public Void answer(InvocationOnMock invocation) throws Throwable {
+                Object[] args = invocation.getArguments();
+                assert args.length == 2;
+                ActionListener<Boolean> listener = (ActionListener<Boolean>) args[1];
+                listener.onResponse(found);
+                return null;
+            }
+        }).when(rolesStore).deleteRole(eq(request), any(ActionListener.class));
+
+        final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
+        final AtomicReference<DeleteRoleResponse> responseRef = new AtomicReference<>();
+        action.doExecute(request, new ActionListener<DeleteRoleResponse>() {
+            @Override
+            public void onResponse(DeleteRoleResponse deleteRoleResponse) {
+                responseRef.set(deleteRoleResponse);
+            }
+
+            @Override
+            public void onFailure(Throwable e) {
+                throwableRef.set(e);
+            }
+        });
+
+        assertThat(responseRef.get(), is(notNullValue()));
+        assertThat(responseRef.get().found(), is(found));
+        assertThat(throwableRef.get(), is(nullValue()));
+        verify(rolesStore, times(1)).deleteRole(eq(request), any(ActionListener.class));
+    }
+
+    public void testException() {
+        final Throwable t = randomFrom(new ElasticsearchSecurityException(""), new IllegalStateException());
+        final String roleName = randomFrom("admin", "dept_a", "restricted");
+        NativeRolesStore rolesStore = mock(NativeRolesStore.class);
+        TransportDeleteRoleAction action = new TransportDeleteRoleAction(Settings.EMPTY, mock(ThreadPool.class), mock(ActionFilters.class),
+                mock(IndexNameExpressionResolver.class), rolesStore, mock(TransportService.class));
+
+        DeleteRoleRequest request = new DeleteRoleRequest();
+        request.name(roleName);
+
+        final boolean found = randomBoolean();
+        doAnswer(new Answer() {
+            @Override
+            public Void answer(InvocationOnMock invocation) throws Throwable {
+                Object[] args = invocation.getArguments();
+                assert args.length == 2;
+                ActionListener<Boolean> listener = (ActionListener<Boolean>) args[1];
+                listener.onFailure(t);
+                return null;
+            }
+        }).when(rolesStore).deleteRole(eq(request), any(ActionListener.class));
+
+        final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
+        final AtomicReference<DeleteRoleResponse> responseRef = new AtomicReference<>();
+        action.doExecute(request, new ActionListener<DeleteRoleResponse>() {
+            @Override
+            public void onResponse(DeleteRoleResponse deleteRoleResponse) {
+                responseRef.set(deleteRoleResponse);
+            }
+
+            @Override
+            public void onFailure(Throwable e) {
+                throwableRef.set(e);
+            }
+        });
+
+        assertThat(responseRef.get(), is(nullValue()));
+        assertThat(throwableRef.get(), is(notNullValue()));
+        assertThat(throwableRef.get(), is(sameInstance(t)));
+        verify(rolesStore, times(1)).deleteRole(eq(request), any(ActionListener.class));
+    }
+}

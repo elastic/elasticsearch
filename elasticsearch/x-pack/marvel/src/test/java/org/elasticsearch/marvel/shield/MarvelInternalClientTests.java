@@ -53,18 +53,13 @@ public class MarvelInternalClientTests extends MarvelIntegTestCase {
         assertAccessIsAllowed(internalClient.admin().indices().prepareGetTemplates("foo"));
     }
 
-    public void testDeniedAccess() {
+    public void testAllowAllAccess() {
         InternalClient internalClient = internalCluster().getInstance(InternalClient.class);
         assertAcked(internalClient.admin().indices().preparePutTemplate("foo")
                 .setSource(MarvelTemplateUtils.loadDataIndexTemplate()).get());
 
-        if (shieldEnabled) {
-            assertAccessIsDenied(internalClient.admin().indices().prepareDeleteTemplate("foo"));
-            assertAccessIsDenied(internalClient.admin().cluster().prepareGetRepositories());
-        } else {
-            assertAccessIsAllowed(internalClient.admin().indices().prepareDeleteTemplate("foo"));
-            assertAccessIsAllowed(internalClient.admin().cluster().prepareGetRepositories());
-        }
+        assertAccessIsAllowed(internalClient.admin().indices().prepareDeleteTemplate("foo"));
+        assertAccessIsAllowed(internalClient.admin().cluster().prepareGetRepositories());
     }
 
     public void assertAccessIsAllowed(ActionRequestBuilder request) {

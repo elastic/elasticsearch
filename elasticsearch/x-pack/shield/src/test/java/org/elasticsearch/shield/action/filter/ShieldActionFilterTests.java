@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.shield.action;
+package org.elasticsearch.shield.action.filter;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
@@ -12,9 +12,9 @@ import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.shield.SystemUser;
-import org.elasticsearch.shield.User;
-import org.elasticsearch.shield.action.interceptor.RequestInterceptor;
+import org.elasticsearch.shield.action.ShieldActionMapper;
+import org.elasticsearch.shield.user.SystemUser;
+import org.elasticsearch.shield.user.User;
 import org.elasticsearch.shield.audit.AuditTrail;
 import org.elasticsearch.shield.authc.AuthenticationService;
 import org.elasticsearch.shield.authz.AuthorizationService;

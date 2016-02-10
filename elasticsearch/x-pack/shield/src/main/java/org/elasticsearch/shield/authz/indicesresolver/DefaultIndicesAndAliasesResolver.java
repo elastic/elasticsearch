@@ -17,7 +17,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.shield.User;
+import org.elasticsearch.shield.user.User;
 import org.elasticsearch.shield.authz.AuthorizationService;
 import org.elasticsearch.transport.TransportRequest;
 

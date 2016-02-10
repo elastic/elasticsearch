@@ -29,6 +29,10 @@ import org.elasticsearch.shield.action.role.PutRoleAction;
 import org.elasticsearch.shield.action.role.PutRoleRequest;
 import org.elasticsearch.shield.action.role.PutRoleRequestBuilder;
 import org.elasticsearch.shield.action.role.PutRoleResponse;
+import org.elasticsearch.shield.action.user.ChangePasswordAction;
+import org.elasticsearch.shield.action.user.ChangePasswordRequest;
+import org.elasticsearch.shield.action.user.ChangePasswordRequestBuilder;
+import org.elasticsearch.shield.action.user.ChangePasswordResponse;
 import org.elasticsearch.shield.action.user.DeleteUserAction;
 import org.elasticsearch.shield.action.user.DeleteUserRequest;
 import org.elasticsearch.shield.action.user.DeleteUserRequestBuilder;
@@ -145,6 +149,18 @@ public class SecurityClient {
 
     public void putUser(PutUserRequest request, ActionListener<PutUserResponse> listener) {
         client.execute(PutUserAction.INSTANCE, request, listener);
+    }
+
+    public ChangePasswordRequestBuilder prepareChangePassword(String username, char[] password) {
+        return new ChangePasswordRequestBuilder(client).username(username).password(password);
+    }
+
+    public ChangePasswordRequestBuilder prepareChangePassword(String username, BytesReference source) throws IOException {
+        return new ChangePasswordRequestBuilder(client).username(username).source(source);
+    }
+
+    public void changePassword(ChangePasswordRequest request, ActionListener<ChangePasswordResponse> listener) {
+        client.execute(ChangePasswordAction.INSTANCE, request, listener);
     }
 
     /** Role Management */

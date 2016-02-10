@@ -6,7 +6,7 @@
 package org.elasticsearch.shield.authc.ldap;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.shield.User;
+import org.elasticsearch.shield.user.User;
 import org.elasticsearch.shield.authc.RealmConfig;
 import org.elasticsearch.shield.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.shield.authc.ldap.support.LdapTestCase;

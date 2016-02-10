@@ -21,7 +21,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexModule;
-import org.elasticsearch.shield.action.ShieldActionFilter;
+import org.elasticsearch.shield.action.filter.ShieldActionFilter;
 import org.elasticsearch.shield.action.ShieldActionModule;
 import org.elasticsearch.shield.action.realm.ClearRealmCacheAction;
 import org.elasticsearch.shield.action.realm.TransportClearRealmCacheAction;
@@ -33,9 +33,13 @@ import org.elasticsearch.shield.action.role.TransportPutRoleAction;
 import org.elasticsearch.shield.action.role.TransportClearRolesCacheAction;
 import org.elasticsearch.shield.action.role.TransportDeleteRoleAction;
 import org.elasticsearch.shield.action.role.TransportGetRolesAction;
+import org.elasticsearch.shield.action.user.AuthenticateAction;
+import org.elasticsearch.shield.action.user.ChangePasswordAction;
 import org.elasticsearch.shield.action.user.PutUserAction;
 import org.elasticsearch.shield.action.user.DeleteUserAction;
 import org.elasticsearch.shield.action.user.GetUsersAction;
+import org.elasticsearch.shield.action.user.TransportAuthenticateAction;
+import org.elasticsearch.shield.action.user.TransportChangePasswordAction;
 import org.elasticsearch.shield.action.user.TransportPutUserAction;
 import org.elasticsearch.shield.action.user.TransportDeleteUserAction;
 import org.elasticsearch.shield.action.user.TransportGetUsersAction;
@@ -43,7 +47,6 @@ import org.elasticsearch.shield.audit.AuditTrailModule;
 import org.elasticsearch.shield.audit.index.IndexAuditTrail;
 import org.elasticsearch.shield.audit.index.IndexNameResolver;
 import org.elasticsearch.shield.audit.logfile.LoggingAuditTrail;
-import org.elasticsearch.shield.authc.AnonymousService;
 import org.elasticsearch.shield.authc.AuthenticationModule;
 import org.elasticsearch.shield.authc.InternalAuthenticationService;
 import org.elasticsearch.shield.authc.Realms;
@@ -52,6 +55,7 @@ import org.elasticsearch.shield.authc.ldap.support.SessionFactory;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.shield.authz.AuthorizationModule;
+import org.elasticsearch.shield.authz.InternalAuthorizationService;
 import org.elasticsearch.shield.authz.accesscontrol.OptOutQueryCache;
 import org.elasticsearch.shield.authz.accesscontrol.ShieldIndexSearcherWrapper;
 import org.elasticsearch.shield.authz.store.FileRolesStore;
@@ -69,6 +73,7 @@ import org.elasticsearch.shield.rest.action.role.RestPutRoleAction;
 import org.elasticsearch.shield.rest.action.role.RestClearRolesCacheAction;
 import org.elasticsearch.shield.rest.action.role.RestDeleteRoleAction;
 import org.elasticsearch.shield.rest.action.role.RestGetRolesAction;
+import org.elasticsearch.shield.rest.action.user.RestChangePasswordAction;
 import org.elasticsearch.shield.rest.action.user.RestPutUserAction;
 import org.elasticsearch.shield.rest.action.user.RestDeleteUserAction;
 import org.elasticsearch.shield.rest.action.user.RestGetUsersAction;
@@ -81,6 +86,7 @@ import org.elasticsearch.shield.transport.ShieldTransportModule;
 import org.elasticsearch.shield.transport.filter.IPFilter;
 import org.elasticsearch.shield.transport.netty.ShieldNettyHttpServerTransport;
 import org.elasticsearch.shield.transport.netty.ShieldNettyTransport;
+import org.elasticsearch.shield.user.AnonymousUser;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -207,11 +213,12 @@ public class Security {
 
         // authentication settings
         FileRolesStore.registerSettings(settingsModule);
-        AnonymousService.registerSettings(settingsModule);
+        AnonymousUser.registerSettings(settingsModule);
         Realms.registerSettings(settingsModule);
         NativeUsersStore.registerSettings(settingsModule);
         NativeRolesStore.registerSettings(settingsModule);
         InternalAuthenticationService.registerSettings(settingsModule);
+        InternalAuthorizationService.registerSettings(settingsModule);
 
         // HTTP settings
         ShieldNettyHttpServerTransport.registerSettings(settingsModule);
@@ -278,6 +285,8 @@ public class Security {
         module.registerAction(GetRolesAction.INSTANCE, TransportGetRolesAction.class);
         module.registerAction(PutRoleAction.INSTANCE, TransportPutRoleAction.class);
         module.registerAction(DeleteRoleAction.INSTANCE, TransportDeleteRoleAction.class);
+        module.registerAction(ChangePasswordAction.INSTANCE, TransportChangePasswordAction.class);
+        module.registerAction(AuthenticateAction.INSTANCE, TransportAuthenticateAction.class);
     }
 
     public void onModule(NetworkModule module) {
@@ -305,6 +314,7 @@ public class Security {
             module.registerRestHandler(RestGetRolesAction.class);
             module.registerRestHandler(RestPutRoleAction.class);
             module.registerRestHandler(RestDeleteRoleAction.class);
+            module.registerRestHandler(RestChangePasswordAction.class);
             module.registerHttpTransport(Security.NAME, ShieldNettyHttpServerTransport.class);
         }
     }

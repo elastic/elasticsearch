@@ -36,6 +36,8 @@ import java.util.Objects;
 
 public final class CardinalityAggregatorBuilder extends ValuesSourceAggregatorBuilder.LeafOnly<ValuesSource, CardinalityAggregatorBuilder> {
 
+    static final CardinalityAggregatorBuilder PROTOTYPE = new CardinalityAggregatorBuilder("", null);
+
     public static final ParseField PRECISION_THRESHOLD_FIELD = new ParseField("precision_threshold");
 
     private Long precisionThreshold = null;
@@ -49,6 +51,10 @@ public final class CardinalityAggregatorBuilder extends ValuesSourceAggregatorBu
      * increase memory usage.
      */
     public CardinalityAggregatorBuilder precisionThreshold(long precisionThreshold) {
+        if (precisionThreshold < 0) {
+            throw new IllegalArgumentException(
+                    "[precisionThreshold] must be greater than or equal to 0. Found [" + precisionThreshold + "] in [" + name + "]");
+        }
         this.precisionThreshold = precisionThreshold;
         return this;
     }

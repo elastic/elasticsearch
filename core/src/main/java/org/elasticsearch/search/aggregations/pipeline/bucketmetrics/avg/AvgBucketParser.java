@@ -39,6 +39,6 @@ public class AvgBucketParser extends BucketMetricsParser {
 
     @Override
     public PipelineAggregatorBuilder getFactoryPrototype() {
-        return new AvgBucketPipelineAggregator.AvgBucketPipelineAggregatorBuilder(null, null);
+        return AvgBucketPipelineAggregator.AvgBucketPipelineAggregatorBuilder.PROTOTYPE;
     }
 }

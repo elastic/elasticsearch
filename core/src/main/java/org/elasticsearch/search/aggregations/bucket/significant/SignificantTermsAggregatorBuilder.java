@@ -55,6 +55,8 @@ public class SignificantTermsAggregatorBuilder extends ValuesSourceAggregatorBui
     static final TermsAggregator.BucketCountThresholds DEFAULT_BUCKET_COUNT_THRESHOLDS = new TermsAggregator.BucketCountThresholds(
             3, 0, 10, -1);
 
+    static final SignificantTermsAggregatorBuilder PROTOTYPE = new SignificantTermsAggregatorBuilder("", null);
+
     private IncludeExclude includeExclude = null;
     private String executionHint = null;
     private String indexedFieldName;
@@ -78,6 +80,9 @@ public class SignificantTermsAggregatorBuilder extends ValuesSourceAggregatorBui
     }
 
     public SignificantTermsAggregatorBuilder bucketCountThresholds(TermsAggregator.BucketCountThresholds bucketCountThresholds) {
+        if (bucketCountThresholds == null) {
+            throw new IllegalArgumentException("[bucketCountThresholds] must not be null: [" + name + "]");
+        }
         this.bucketCountThresholds = bucketCountThresholds;
         return this;
     }
@@ -87,6 +92,9 @@ public class SignificantTermsAggregatorBuilder extends ValuesSourceAggregatorBui
      * (defaults to 10)
      */
     public SignificantTermsAggregatorBuilder size(int size) {
+        if (size < 0) {
+            throw new IllegalArgumentException("[size] must be greater than or equal to 0. Found [" + size + "] in [" + name + "]");
+        }
         bucketCountThresholds.setRequiredSize(size);
         return this;
     }
@@ -98,6 +106,10 @@ public class SignificantTermsAggregatorBuilder extends ValuesSourceAggregatorBui
      * results are.
      */
     public SignificantTermsAggregatorBuilder shardSize(int shardSize) {
+        if (shardSize < 0) {
+            throw new IllegalArgumentException(
+                    "[shardSize] must be greater than or equal to 0. Found [" + shardSize + "] in [" + name + "]");
+        }
         bucketCountThresholds.setShardSize(shardSize);
         return this;
     }
@@ -107,6 +119,10 @@ public class SignificantTermsAggregatorBuilder extends ValuesSourceAggregatorBui
      * the response.
      */
     public SignificantTermsAggregatorBuilder minDocCount(long minDocCount) {
+        if (minDocCount < 0) {
+            throw new IllegalArgumentException(
+                    "[minDocCount] must be greater than or equal to 0. Found [" + minDocCount + "] in [" + name + "]");
+        }
         bucketCountThresholds.setMinDocCount(minDocCount);
         return this;
     }
@@ -116,6 +132,10 @@ public class SignificantTermsAggregatorBuilder extends ValuesSourceAggregatorBui
      * appear in the response.
      */
     public SignificantTermsAggregatorBuilder shardMinDocCount(long shardMinDocCount) {
+        if (shardMinDocCount < 0) {
+            throw new IllegalArgumentException(
+                    "[shardMinDocCount] must be greater than or equal to 0. Found [" + shardMinDocCount + "] in [" + name + "]");
+        }
         bucketCountThresholds.setShardMinDocCount(shardMinDocCount);
         return this;
     }
@@ -135,8 +155,11 @@ public class SignificantTermsAggregatorBuilder extends ValuesSourceAggregatorBui
         return executionHint;
     }
 
-    public SignificantTermsAggregatorBuilder backgroundFilter(QueryBuilder<?> filterBuilder) {
-        this.filterBuilder = filterBuilder;
+    public SignificantTermsAggregatorBuilder backgroundFilter(QueryBuilder<?> backgroundFilter) {
+        if (backgroundFilter == null) {
+            throw new IllegalArgumentException("[backgroundFilter] must not be null: [" + name + "]");
+        }
+        this.filterBuilder = backgroundFilter;
         return this;
     }
 
@@ -160,6 +183,9 @@ public class SignificantTermsAggregatorBuilder extends ValuesSourceAggregatorBui
     }
 
     public SignificantTermsAggregatorBuilder significanceHeuristic(SignificanceHeuristic significanceHeuristic) {
+        if (significanceHeuristic == null) {
+            throw new IllegalArgumentException("[significanceHeuristic] must not be null: [" + name + "]");
+        }
         this.significanceHeuristic = significanceHeuristic;
         return this;
     }

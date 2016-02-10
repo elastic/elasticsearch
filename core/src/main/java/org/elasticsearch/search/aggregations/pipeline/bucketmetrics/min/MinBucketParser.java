@@ -40,7 +40,7 @@ public class MinBucketParser extends BucketMetricsParser {
 
     @Override
     public PipelineAggregatorBuilder getFactoryPrototype() {
-        return new MinBucketPipelineAggregator.MinBucketPipelineAggregatorBuilder(null, null);
+        return MinBucketPipelineAggregator.MinBucketPipelineAggregatorBuilder.PROTOTYPE;
     }
 
 }

@@ -43,7 +43,7 @@ public class GlobalParser implements Aggregator.Parser {
 
     @Override
     public AggregatorBuilder<?> getFactoryPrototypes() {
-        return new GlobalAggregator.GlobalAggregatorBuilder(null);
+        return GlobalAggregator.GlobalAggregatorBuilder.PROTOTYPE;
     }
 
 }

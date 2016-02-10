@@ -148,12 +148,24 @@ public abstract class AbstractValuesSourceParser<VS extends ValuesSource>
 
         ValuesSourceAggregatorBuilder<VS, ?> factory = createFactory(aggregationName, this.valuesSourceType, this.targetValueType,
                 otherOptions);
-        factory.field(field);
-        factory.script(script);
-        factory.valueType(valueType);
-        factory.format(format);
-        factory.missing(missing);
-        factory.timeZone(timezone);
+        if (field != null) {
+            factory.field(field);
+        }
+        if (script != null) {
+            factory.script(script);
+        }
+        if (valueType != null) {
+            factory.valueType(valueType);
+        }
+        if (format != null) {
+            factory.format(format);
+        }
+        if (missing != null) {
+            factory.missing(missing);
+        }
+        if (timezone != null) {
+            factory.timeZone(timezone);
+        }
         return factory;
     }
 

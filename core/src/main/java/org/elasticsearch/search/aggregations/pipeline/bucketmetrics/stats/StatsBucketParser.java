@@ -39,6 +39,6 @@ public class StatsBucketParser extends BucketMetricsParser {
 
     @Override
     public PipelineAggregatorBuilder getFactoryPrototype() {
-        return new StatsBucketPipelineAggregator.StatsBucketPipelineAggregatorBuilder(null, null);
+        return StatsBucketPipelineAggregator.StatsBucketPipelineAggregatorBuilder.PROTOTYPE;
     }
 }

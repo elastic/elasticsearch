@@ -91,6 +91,8 @@ public class MissingAggregator extends SingleBucketAggregator {
 
     public static class MissingAggregatorBuilder extends ValuesSourceAggregatorBuilder<ValuesSource, MissingAggregatorBuilder> {
 
+        static final MissingAggregatorBuilder PROTOTYPE = new MissingAggregatorBuilder("", null);
+
         public MissingAggregatorBuilder(String name, ValueType targetValueType) {
             super(name, InternalMissing.TYPE, ValuesSourceType.ANY, targetValueType);
         }

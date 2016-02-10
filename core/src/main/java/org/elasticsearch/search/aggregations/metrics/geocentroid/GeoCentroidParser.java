@@ -59,6 +59,6 @@ public class GeoCentroidParser extends GeoPointValuesSourceParser {
 
     @Override
     public AggregatorBuilder<?> getFactoryPrototypes() {
-        return new GeoCentroidAggregator.GeoCentroidAggregatorBuilder(null);
+        return GeoCentroidAggregator.GeoCentroidAggregatorBuilder.PROTOTYPE;
     }
 }

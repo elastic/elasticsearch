@@ -57,7 +57,7 @@ public class MaxParser extends NumericValuesSourceParser {
 
     @Override
     public AggregatorBuilder<?> getFactoryPrototypes() {
-        return new MaxAggregator.MaxAggregatorBuilder(null);
+        return MaxAggregator.MaxAggregatorBuilder.PROTOTYPE;
     }
 
 }

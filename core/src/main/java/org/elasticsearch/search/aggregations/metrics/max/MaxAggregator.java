@@ -124,6 +124,8 @@ public class MaxAggregator extends NumericMetricsAggregator.SingleValue {
 
     public static class MaxAggregatorBuilder extends ValuesSourceAggregatorBuilder.LeafOnly<ValuesSource.Numeric, MaxAggregatorBuilder> {
 
+        static final MaxAggregatorBuilder PROTOTYPE = new MaxAggregatorBuilder("");
+
         public MaxAggregatorBuilder(String name) {
             super(name, InternalMax.TYPE, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
         }

@@ -58,6 +58,6 @@ public class MinParser extends NumericValuesSourceParser {
 
     @Override
     public AggregatorBuilder<?> getFactoryPrototypes() {
-        return new MinAggregator.MinAggregatorBuilder(null);
+        return MinAggregator.MinAggregatorBuilder.PROTOTYPE;
     }
 }

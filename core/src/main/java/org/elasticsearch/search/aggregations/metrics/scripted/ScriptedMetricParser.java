@@ -142,17 +142,27 @@ public class ScriptedMetricParser implements Aggregator.Parser {
         }
 
         ScriptedMetricAggregator.ScriptedMetricAggregatorBuilder factory = new ScriptedMetricAggregator.ScriptedMetricAggregatorBuilder(aggregationName);
-        factory.initScript(initScript);
-        factory.mapScript(mapScript);
-        factory.combineScript(combineScript);
-        factory.reduceScript(reduceScript);
-        factory.params(params);
+        if (initScript != null) {
+            factory.initScript(initScript);
+        }
+        if (mapScript != null) {
+            factory.mapScript(mapScript);
+        }
+        if (combineScript != null) {
+            factory.combineScript(combineScript);
+        }
+        if (reduceScript != null) {
+            factory.reduceScript(reduceScript);
+        }
+        if (params != null) {
+            factory.params(params);
+        }
         return factory;
     }
 
     @Override
     public AggregatorBuilder<?> getFactoryPrototypes() {
-        return new ScriptedMetricAggregator.ScriptedMetricAggregatorBuilder(null);
+        return ScriptedMetricAggregator.ScriptedMetricAggregatorBuilder.PROTOTYPE;
     }
 
 }

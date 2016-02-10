@@ -91,6 +91,8 @@ public class AvgBucketPipelineAggregator extends BucketMetricsPipelineAggregator
 
     public static class AvgBucketPipelineAggregatorBuilder extends BucketMetricsPipelineAggregatorBuilder<AvgBucketPipelineAggregatorBuilder> {
 
+        static final AvgBucketPipelineAggregatorBuilder PROTOTYPE = new AvgBucketPipelineAggregatorBuilder("", "");
+
         public AvgBucketPipelineAggregatorBuilder(String name, String bucketsPath) {
             this(name, new String[] { bucketsPath });
         }

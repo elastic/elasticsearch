@@ -104,6 +104,8 @@ public class ExtendedStatsBucketPipelineAggregator extends BucketMetricsPipeline
     public static class ExtendedStatsBucketPipelineAggregatorBuilder
             extends BucketMetricsPipelineAggregatorBuilder<ExtendedStatsBucketPipelineAggregatorBuilder> {
 
+        static final ExtendedStatsBucketPipelineAggregatorBuilder PROTOTYPE = new ExtendedStatsBucketPipelineAggregatorBuilder("", "");
+
         private double sigma = 2.0;
 
         public ExtendedStatsBucketPipelineAggregatorBuilder(String name, String bucketsPath) {

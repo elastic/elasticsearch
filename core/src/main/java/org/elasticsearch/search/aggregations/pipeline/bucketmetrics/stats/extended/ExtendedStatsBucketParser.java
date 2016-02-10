@@ -51,7 +51,7 @@ public class ExtendedStatsBucketParser extends BucketMetricsParser {
                         + param.getClass().getSimpleName() + "` provided instead", 0);
             }
         }
-        ExtendedStatsBucketPipelineAggregator.ExtendedStatsBucketPipelineAggregatorBuilder factory = 
+        ExtendedStatsBucketPipelineAggregator.ExtendedStatsBucketPipelineAggregatorBuilder factory =
                 new ExtendedStatsBucketPipelineAggregator.ExtendedStatsBucketPipelineAggregatorBuilder(pipelineAggregatorName, bucketsPath);
         if (sigma != null) {
             factory.sigma(sigma);
@@ -61,6 +61,6 @@ public class ExtendedStatsBucketParser extends BucketMetricsParser {
 
     @Override
     public PipelineAggregatorBuilder getFactoryPrototype() {
-        return new ExtendedStatsBucketPipelineAggregator.ExtendedStatsBucketPipelineAggregatorBuilder(null, null);
+        return ExtendedStatsBucketPipelineAggregator.ExtendedStatsBucketPipelineAggregatorBuilder.PROTOTYPE;
     }
 }

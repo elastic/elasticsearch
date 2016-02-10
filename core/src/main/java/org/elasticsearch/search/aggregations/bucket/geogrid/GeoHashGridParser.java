@@ -71,7 +71,7 @@ public class GeoHashGridParser extends GeoPointValuesSourceParser {
     }
     @Override
     public AggregatorBuilder<?> getFactoryPrototypes() {
-        return new GeoGridAggregatorBuilder(null);
+        return GeoGridAggregatorBuilder.PROTOTYPE;
     }
 
     @Override
@@ -114,6 +114,8 @@ public class GeoHashGridParser extends GeoPointValuesSourceParser {
 
     public static class GeoGridAggregatorBuilder extends ValuesSourceAggregatorBuilder<ValuesSource.GeoPoint, GeoGridAggregatorBuilder> {
 
+        static final GeoGridAggregatorBuilder PROTOTYPE = new GeoGridAggregatorBuilder("");
+
         private int precision = DEFAULT_PRECISION;
         private int requiredSize = DEFAULT_MAX_NUM_CELLS;
         private int shardSize = -1;
@@ -132,6 +134,10 @@ public class GeoHashGridParser extends GeoPointValuesSourceParser {
         }
 
         public GeoGridAggregatorBuilder size(int size) {
+            if (size < -1) {
+                throw new IllegalArgumentException(
+                        "[size] must be greater than or equal to 0. Found [" + shardSize + "] in [" + name + "]");
+            }
             this.requiredSize = size;
             return this;
         }
@@ -141,6 +147,10 @@ public class GeoHashGridParser extends GeoPointValuesSourceParser {
         }
 
         public GeoGridAggregatorBuilder shardSize(int shardSize) {
+            if (shardSize < -1) {
+                throw new IllegalArgumentException(
+                        "[shardSize] must be greater than or equal to 0. Found [" + shardSize + "] in [" + name + "]");
+            }
             this.shardSize = shardSize;
             return this;
         }

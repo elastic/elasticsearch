@@ -152,6 +152,8 @@ public class NestedAggregator extends SingleBucketAggregator {
 
     public static class NestedAggregatorBuilder extends AggregatorBuilder<NestedAggregatorBuilder> {
 
+        static final NestedAggregatorBuilder PROTOTYPE = new NestedAggregatorBuilder("", "");
+
         private final String path;
 
         /**
@@ -163,6 +165,9 @@ public class NestedAggregator extends SingleBucketAggregator {
          */
         public NestedAggregatorBuilder(String name, String path) {
             super(name, InternalNested.TYPE);
+            if (path == null) {
+                throw new IllegalArgumentException("[path] must not be null: [" + name + "]");
+            }
             this.path = path;
         }
 

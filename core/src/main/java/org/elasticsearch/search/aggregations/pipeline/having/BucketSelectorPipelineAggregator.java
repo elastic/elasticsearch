@@ -38,7 +38,6 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorStreams;
 import org.elasticsearch.search.aggregations.pipeline.bucketscript.BucketScriptParser;
-
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -141,6 +140,9 @@ public class BucketSelectorPipelineAggregator extends PipelineAggregator {
 
     public static class BucketSelectorPipelineAggregatorBuilder extends PipelineAggregatorBuilder {
 
+        static final BucketSelectorPipelineAggregatorBuilder PROTOTYPE = new BucketSelectorPipelineAggregatorBuilder("",
+                Collections.emptyMap(), new Script(""));
+
         private Script script;
         private GapPolicy gapPolicy = GapPolicy.SKIP;
         private Map<String, String> bucketsPathsMap;
@@ -167,6 +169,9 @@ public class BucketSelectorPipelineAggregator extends PipelineAggregator {
          * Sets the gap policy to use for this aggregation.
          */
         public BucketSelectorPipelineAggregatorBuilder gapPolicy(GapPolicy gapPolicy) {
+            if (gapPolicy == null) {
+                throw new IllegalArgumentException("[gapPolicy] must not be null: [" + name + "]");
+            }
             this.gapPolicy = gapPolicy;
             return this;
         }

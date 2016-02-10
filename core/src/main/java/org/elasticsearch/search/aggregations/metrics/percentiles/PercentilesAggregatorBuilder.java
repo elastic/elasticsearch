@@ -42,6 +42,8 @@ import java.util.Objects;
 
 public class PercentilesAggregatorBuilder extends LeafOnly<ValuesSource.Numeric, PercentilesAggregatorBuilder> {
 
+    static final PercentilesAggregatorBuilder PROTOTYPE = new PercentilesAggregatorBuilder("");
+
     private double[] percents = PercentilesParser.DEFAULT_PERCENTS;
     private PercentilesMethod method = PercentilesMethod.TDIGEST;
     private int numberOfSignificantValueDigits = 3;
@@ -56,6 +58,9 @@ public class PercentilesAggregatorBuilder extends LeafOnly<ValuesSource.Numeric,
      * Set the values to compute percentiles from.
      */
     public PercentilesAggregatorBuilder percentiles(double... percents) {
+        if (percents == null) {
+            throw new IllegalArgumentException("[percents] must not be null: [" + name + "]");
+        }
         double[] sortedPercents = Arrays.copyOf(percents, percents.length);
         Arrays.sort(sortedPercents);
         this.percents = sortedPercents;
@@ -89,6 +94,9 @@ public class PercentilesAggregatorBuilder extends LeafOnly<ValuesSource.Numeric,
      * when using {@link PercentilesMethod#HDR}.
      */
     public PercentilesAggregatorBuilder numberOfSignificantValueDigits(int numberOfSignificantValueDigits) {
+        if (numberOfSignificantValueDigits < 0 || numberOfSignificantValueDigits > 5) {
+            throw new IllegalArgumentException("[numberOfSignificantValueDigits] must be between 0 and 5: [" + name + "]");
+        }
         this.numberOfSignificantValueDigits = numberOfSignificantValueDigits;
         return this;
     }
@@ -106,6 +114,10 @@ public class PercentilesAggregatorBuilder extends LeafOnly<ValuesSource.Numeric,
      * memory usage. Only relevant when using {@link PercentilesMethod#TDIGEST}.
      */
     public PercentilesAggregatorBuilder compression(double compression) {
+        if (compression < 0.0) {
+            throw new IllegalArgumentException(
+                    "[compression] must be greater than or equal to 0. Found [" + compression + "] in [" + name + "]");
+        }
         this.compression = compression;
         return this;
     }
@@ -119,6 +131,9 @@ public class PercentilesAggregatorBuilder extends LeafOnly<ValuesSource.Numeric,
     }
 
     public PercentilesAggregatorBuilder method(PercentilesMethod method) {
+        if (method == null) {
+            throw new IllegalArgumentException("[method] must not be null: [" + name + "]");
+        }
         this.method = method;
         return this;
     }

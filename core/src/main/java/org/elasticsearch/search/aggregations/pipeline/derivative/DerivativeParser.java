@@ -91,7 +91,7 @@ public class DerivativeParser implements PipelineAggregator.Parser {
                     + "] for derivative aggregation [" + pipelineAggregatorName + "]");
         }
 
-        DerivativePipelineAggregator.DerivativePipelineAggregatorBuilder factory = 
+        DerivativePipelineAggregator.DerivativePipelineAggregatorBuilder factory =
                 new DerivativePipelineAggregator.DerivativePipelineAggregatorBuilder(pipelineAggregatorName, bucketsPaths[0]);
         if (format != null) {
             factory.format(format);
@@ -107,7 +107,7 @@ public class DerivativeParser implements PipelineAggregator.Parser {
 
     @Override
     public PipelineAggregatorBuilder getFactoryPrototype() {
-        return new DerivativePipelineAggregator.DerivativePipelineAggregatorBuilder(null, null);
+        return DerivativePipelineAggregator.DerivativePipelineAggregatorBuilder.PROTOTYPE;
     }
 
 }

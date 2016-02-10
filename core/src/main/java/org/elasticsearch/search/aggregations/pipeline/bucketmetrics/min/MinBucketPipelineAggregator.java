@@ -100,6 +100,8 @@ public class MinBucketPipelineAggregator extends BucketMetricsPipelineAggregator
     public static class MinBucketPipelineAggregatorBuilder
             extends BucketMetricsPipelineAggregatorBuilder<MinBucketPipelineAggregatorBuilder> {
 
+        static final MinBucketPipelineAggregatorBuilder PROTOTYPE = new MinBucketPipelineAggregatorBuilder("", "");
+
         public MinBucketPipelineAggregatorBuilder(String name, String bucketsPath) {
             this(name, new String[] { bucketsPath });
         }

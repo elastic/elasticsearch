@@ -41,7 +41,7 @@ public class GeoHashGridTests extends BaseAggregationTestCase<GeoGridAggregatorB
             case 2:
             case 3:
             case 4:
-                size = randomInt();
+                size = randomIntBetween(0, Integer.MAX_VALUE);
                 break;
             }
             factory.size(size);
@@ -56,7 +56,7 @@ public class GeoHashGridTests extends BaseAggregationTestCase<GeoGridAggregatorB
             case 2:
             case 3:
             case 4:
-                shardSize = randomInt();
+                shardSize = randomIntBetween(0, Integer.MAX_VALUE);
                 break;
             }
             factory.shardSize(shardSize);

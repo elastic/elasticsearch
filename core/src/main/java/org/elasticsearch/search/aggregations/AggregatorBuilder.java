@@ -51,6 +51,12 @@ public abstract class AggregatorBuilder<AB extends AggregatorBuilder<AB>> extend
      * @param type  The aggregation type
      */
     public AggregatorBuilder(String name, Type type) {
+        if (name == null) {
+            throw new IllegalArgumentException("[name] must not be null: [" + name + "]");
+        }
+        if (type == null) {
+            throw new IllegalArgumentException("[type] must not be null: [" + name + "]");
+        }
         this.name = name;
         this.type = type;
     }
@@ -60,6 +66,9 @@ public abstract class AggregatorBuilder<AB extends AggregatorBuilder<AB>> extend
      */
     @SuppressWarnings("unchecked")
     public AB subAggregation(AggregatorBuilder<?> aggregation) {
+        if (aggregation == null) {
+            throw new IllegalArgumentException("[aggregation] must not be null: [" + name + "]");
+        }
         factoriesBuilder.addAggregator(aggregation);
         return (AB) this;
     }
@@ -69,6 +78,9 @@ public abstract class AggregatorBuilder<AB extends AggregatorBuilder<AB>> extend
      */
     @SuppressWarnings("unchecked")
     public AB subAggregation(PipelineAggregatorBuilder aggregation) {
+        if (aggregation == null) {
+            throw new IllegalArgumentException("[aggregation] must not be null: [" + name + "]");
+        }
         factoriesBuilder.addPipelineAggregator(aggregation);
         return (AB) this;
     }
@@ -84,11 +96,17 @@ public abstract class AggregatorBuilder<AB extends AggregatorBuilder<AB>> extend
      */
     @SuppressWarnings("unchecked")
     public AB subAggregations(AggregatorFactories.Builder subFactories) {
+        if (subFactories == null) {
+            throw new IllegalArgumentException("[subFactories] must not be null: [" + name + "]");
+        }
         this.factoriesBuilder = subFactories;
         return (AB) this;
     }
 
     public AB setMetaData(Map<String, Object> metaData) {
+        if (metaData == null) {
+            throw new IllegalArgumentException("[metaData] must not be null: [" + name + "]");
+        }
         this.metaData = metaData;
         return (AB) this;
     }

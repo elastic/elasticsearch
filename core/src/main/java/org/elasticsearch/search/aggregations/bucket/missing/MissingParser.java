@@ -54,6 +54,6 @@ public class MissingParser extends AnyValuesSourceParser {
 
     @Override
     public AggregatorBuilder<?> getFactoryPrototypes() {
-        return new MissingAggregator.MissingAggregatorBuilder(null, null);
+        return MissingAggregator.MissingAggregatorBuilder.PROTOTYPE;
     }
 }

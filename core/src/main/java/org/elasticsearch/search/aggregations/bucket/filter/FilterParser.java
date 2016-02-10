@@ -54,7 +54,7 @@ public class FilterParser implements Aggregator.Parser {
 
     @Override
     public AggregatorBuilder<?> getFactoryPrototypes() {
-        return new FilterAggregator.FilterAggregatorBuilder(null, null);
+        return FilterAggregator.FilterAggregatorBuilder.PROTOTYPE;
     }
 
 }

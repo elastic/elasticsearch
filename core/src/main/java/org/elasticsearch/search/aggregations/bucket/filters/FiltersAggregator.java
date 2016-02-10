@@ -29,6 +29,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.query.EmptyQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -61,11 +62,17 @@ public class FiltersAggregator extends BucketsAggregator {
 
     public static class KeyedFilter implements Writeable<KeyedFilter>, ToXContent {
 
-        static final KeyedFilter PROTOTYPE = new KeyedFilter(null, null);
+        static final KeyedFilter PROTOTYPE = new KeyedFilter("", EmptyQueryBuilder.PROTOTYPE);
         private final String key;
         private final QueryBuilder<?> filter;
 
         public KeyedFilter(String key, QueryBuilder<?> filter) {
+            if (key == null) {
+                throw new IllegalArgumentException("[key] must not be null");
+            }
+            if (filter == null) {
+                throw new IllegalArgumentException("[filter] must not be null");
+            }
             this.key = key;
             this.filter = filter;
         }
@@ -200,6 +207,8 @@ public class FiltersAggregator extends BucketsAggregator {
 
     public static class FiltersAggregatorBuilder extends AggregatorBuilder<FiltersAggregatorBuilder> {
 
+        static final FiltersAggregatorBuilder PROTOTYPE = new FiltersAggregatorBuilder("", EmptyQueryBuilder.PROTOTYPE);
+
         private final List<KeyedFilter> filters;
         private final boolean keyed;
         private boolean otherBucket = false;
@@ -257,6 +266,9 @@ public class FiltersAggregator extends BucketsAggregator {
          * filter.
          */
         public FiltersAggregatorBuilder otherBucketKey(String otherBucketKey) {
+            if (otherBucketKey == null) {
+                throw new IllegalArgumentException("[otherBucketKey] must not be null: [" + name + "]");
+            }
             this.otherBucketKey = otherBucketKey;
             return this;
         }

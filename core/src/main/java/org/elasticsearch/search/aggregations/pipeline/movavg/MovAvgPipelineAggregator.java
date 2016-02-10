@@ -281,6 +281,8 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
 
     public static class MovAvgPipelineAggregatorBuilder extends PipelineAggregatorBuilder {
 
+        static final MovAvgPipelineAggregatorBuilder PROTOTYPE = new MovAvgPipelineAggregatorBuilder("", "");
+
         private String format;
         private GapPolicy gapPolicy = GapPolicy.SKIP;
         private int window = 5;
@@ -300,6 +302,9 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
          * Sets the format to use on the output of this aggregation.
          */
         public MovAvgPipelineAggregatorBuilder format(String format) {
+            if (format == null) {
+                throw new IllegalArgumentException("[format] must not be null: [" + name + "]");
+            }
             this.format = format;
             return this;
         }
@@ -315,6 +320,9 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
          * Sets the GapPolicy to use on the output of this aggregation.
          */
         public MovAvgPipelineAggregatorBuilder gapPolicy(GapPolicy gapPolicy) {
+            if (gapPolicy == null) {
+                throw new IllegalArgumentException("[gapPolicy] must not be null: [" + name + "]");
+            }
             this.gapPolicy = gapPolicy;
             return this;
         }
@@ -367,6 +375,9 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
          *            A MovAvgModel which has been prepopulated with settings
          */
         public MovAvgPipelineAggregatorBuilder modelBuilder(MovAvgModelBuilder model) {
+            if (model == null) {
+                throw new IllegalArgumentException("[model] must not be null: [" + name + "]");
+            }
             this.model = model.build();
             return this;
         }
@@ -379,6 +390,9 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
          *            A MovAvgModel which has been prepopulated with settings
          */
         public MovAvgPipelineAggregatorBuilder model(MovAvgModel model) {
+            if (model == null) {
+                throw new IllegalArgumentException("[model] must not be null: [" + name + "]");
+            }
             this.model = model;
             return this;
         }

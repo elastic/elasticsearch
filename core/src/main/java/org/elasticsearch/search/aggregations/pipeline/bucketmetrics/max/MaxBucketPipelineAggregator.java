@@ -99,6 +99,8 @@ public class MaxBucketPipelineAggregator extends BucketMetricsPipelineAggregator
     public static class MaxBucketPipelineAggregatorBuilder
             extends BucketMetricsPipelineAggregatorBuilder<MaxBucketPipelineAggregatorBuilder> {
 
+        static final MaxBucketPipelineAggregatorBuilder PROTOTYPE = new MaxBucketPipelineAggregatorBuilder("", "");
+
         public MaxBucketPipelineAggregatorBuilder(String name, String bucketsPath) {
             this(name, new String[] { bucketsPath });
         }

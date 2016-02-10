@@ -42,6 +42,8 @@ import java.util.Objects;
 
 public class PercentileRanksAggregatorBuilder extends LeafOnly<ValuesSource.Numeric, PercentileRanksAggregatorBuilder> {
 
+    static final PercentileRanksAggregatorBuilder PROTOTYPE = new PercentileRanksAggregatorBuilder("");
+
     private double[] values;
     private PercentilesMethod method = PercentilesMethod.TDIGEST;
     private int numberOfSignificantValueDigits = 3;
@@ -56,6 +58,9 @@ public class PercentileRanksAggregatorBuilder extends LeafOnly<ValuesSource.Nume
      * Set the values to compute percentiles from.
      */
     public PercentileRanksAggregatorBuilder values(double... values) {
+        if (values == null) {
+            throw new IllegalArgumentException("[values] must not be null: [" + name + "]");
+        }
         double[] sortedValues = Arrays.copyOf(values, values.length);
         Arrays.sort(sortedValues);
         this.values = sortedValues;
@@ -89,6 +94,9 @@ public class PercentileRanksAggregatorBuilder extends LeafOnly<ValuesSource.Nume
      * when using {@link PercentilesMethod#HDR}.
      */
     public PercentileRanksAggregatorBuilder numberOfSignificantValueDigits(int numberOfSignificantValueDigits) {
+        if (numberOfSignificantValueDigits < 0 || numberOfSignificantValueDigits > 5) {
+            throw new IllegalArgumentException("[numberOfSignificantValueDigits] must be between 0 and 5: [" + name + "]");
+        }
         this.numberOfSignificantValueDigits = numberOfSignificantValueDigits;
         return this;
     }
@@ -106,6 +114,10 @@ public class PercentileRanksAggregatorBuilder extends LeafOnly<ValuesSource.Nume
      * memory usage. Only relevant when using {@link PercentilesMethod#TDIGEST}.
      */
     public PercentileRanksAggregatorBuilder compression(double compression) {
+        if (compression < 0.0) {
+            throw new IllegalArgumentException(
+                    "[compression] must be greater than or equal to 0. Found [" + compression + "] in [" + name + "]");
+        }
         this.compression = compression;
         return this;
     }
@@ -119,6 +131,9 @@ public class PercentileRanksAggregatorBuilder extends LeafOnly<ValuesSource.Nume
     }
 
     public PercentileRanksAggregatorBuilder method(PercentilesMethod method) {
+        if (method == null) {
+            throw new IllegalArgumentException("[method] must not be null: [" + name + "]");
+        }
         this.method = method;
         return this;
     }

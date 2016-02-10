@@ -59,8 +59,7 @@ public class AvgAggregator extends NumericMetricsAggregator.SingleValue {
     DoubleArray sums;
     ValueFormatter formatter;
 
-    public AvgAggregator(String name, ValuesSource.Numeric valuesSource, ValueFormatter formatter,
- AggregationContext context,
+    public AvgAggregator(String name, ValuesSource.Numeric valuesSource, ValueFormatter formatter, AggregationContext context,
             Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
         super(name, context, parent, pipelineAggregators, metaData);
         this.valuesSource = valuesSource;
@@ -122,6 +121,8 @@ public class AvgAggregator extends NumericMetricsAggregator.SingleValue {
     }
 
     public static class AvgAggregatorBuilder extends ValuesSourceAggregatorBuilder.LeafOnly<ValuesSource.Numeric, AvgAggregatorBuilder> {
+
+        static final AvgAggregatorBuilder PROTOTYPE = new AvgAggregatorBuilder("");
 
         public AvgAggregatorBuilder(String name) {
             super(name, InternalAvg.TYPE, ValuesSourceType.NUMERIC, ValueType.NUMERIC);

@@ -142,7 +142,7 @@ public class FiltersParser implements Aggregator.Parser {
 
     @Override
     public AggregatorBuilder<?> getFactoryPrototypes() {
-        return new FiltersAggregator.FiltersAggregatorBuilder(null, new FiltersAggregator.KeyedFilter[0]);
+        return FiltersAggregator.FiltersAggregatorBuilder.PROTOTYPE;
     }
 
 }

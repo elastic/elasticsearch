@@ -31,7 +31,6 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -116,7 +115,7 @@ public class BucketScriptParser implements PipelineAggregator.Parser {
                     + "] for series_arithmetic aggregation [" + reducerName + "]");
         }
 
-        BucketScriptPipelineAggregator.BucketScriptPipelineAggregatorBuilder factory = 
+        BucketScriptPipelineAggregator.BucketScriptPipelineAggregatorBuilder factory =
                 new BucketScriptPipelineAggregator.BucketScriptPipelineAggregatorBuilder(reducerName, bucketsPathsMap, script);
         if (format != null) {
             factory.format(format);
@@ -129,7 +128,7 @@ public class BucketScriptParser implements PipelineAggregator.Parser {
 
     @Override
     public PipelineAggregatorBuilder getFactoryPrototype() {
-        return new BucketScriptPipelineAggregator.BucketScriptPipelineAggregatorBuilder(null, Collections.emptyMap(), null);
+        return BucketScriptPipelineAggregator.BucketScriptPipelineAggregatorBuilder.PROTOTYPE;
     }
 
 }

@@ -69,7 +69,7 @@ public class IpRangeParser extends RangeParser {
 
     @Override
     public AggregatorBuilder<?> getFactoryPrototypes() {
-        return new IPv4RangeAggregatorBuilder(null);
+        return IPv4RangeAggregatorBuilder.PROTOTYPE;
     }
 
 }

@@ -40,7 +40,7 @@ public class MaxBucketParser extends BucketMetricsParser {
 
     @Override
     public PipelineAggregatorBuilder getFactoryPrototype() {
-        return new MaxBucketPipelineAggregator.MaxBucketPipelineAggregatorBuilder(null, null);
+        return MaxBucketPipelineAggregator.MaxBucketPipelineAggregatorBuilder.PROTOTYPE;
     }
 
 }

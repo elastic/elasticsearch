@@ -95,6 +95,6 @@ public class RangeParser extends NumericValuesSourceParser {
 
     @Override
     public AggregatorBuilder<?> getFactoryPrototypes() {
-        return new RangeAggregator.RangeAggregatorBuilder(null);
+        return RangeAggregator.RangeAggregatorBuilder.PROTOTYPE;
     }
 }

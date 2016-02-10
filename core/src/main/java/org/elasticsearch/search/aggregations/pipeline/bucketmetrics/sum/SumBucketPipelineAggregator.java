@@ -88,6 +88,8 @@ public class SumBucketPipelineAggregator extends BucketMetricsPipelineAggregator
     public static class SumBucketPipelineAggregatorBuilder
             extends BucketMetricsPipelineAggregatorBuilder<SumBucketPipelineAggregatorBuilder> {
 
+        static final SumBucketPipelineAggregatorBuilder PROTOTYPE = new SumBucketPipelineAggregatorBuilder("", "");
+
         public SumBucketPipelineAggregatorBuilder(String name, String bucketsPath) {
             this(name, new String[] { bucketsPath });
         }

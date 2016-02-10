@@ -413,6 +413,9 @@ public class RangeAggregator extends BucketsAggregator {
         }
 
         public AB addRange(R range) {
+            if (range == null) {
+                throw new IllegalArgumentException("[range] must not be null: [" + name + "]");
+            }
             ranges.add(range);
             return (AB) this;
         }
@@ -470,6 +473,8 @@ public class RangeAggregator extends BucketsAggregator {
     }
 
     public static class RangeAggregatorBuilder extends AbstractBuilder<RangeAggregatorBuilder, Range> {
+
+        static final RangeAggregatorBuilder PROTOTYPE = new RangeAggregatorBuilder("");
 
         public RangeAggregatorBuilder(String name) {
             super(name, InternalRange.FACTORY);

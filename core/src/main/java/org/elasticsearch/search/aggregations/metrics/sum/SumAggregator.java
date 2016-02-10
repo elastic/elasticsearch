@@ -115,6 +115,8 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue {
 
     public static class SumAggregatorBuilder extends ValuesSourceAggregatorBuilder.LeafOnly<ValuesSource.Numeric, SumAggregatorBuilder> {
 
+        static final SumAggregatorBuilder PROTOTYPE = new SumAggregatorBuilder("");
+
         public SumAggregatorBuilder(String name) {
             super(name, InternalSum.TYPE, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
         }

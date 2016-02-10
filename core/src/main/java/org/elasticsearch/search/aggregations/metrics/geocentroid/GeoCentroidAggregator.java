@@ -130,6 +130,8 @@ public final class GeoCentroidAggregator extends MetricsAggregator {
     public static class GeoCentroidAggregatorBuilder
             extends ValuesSourceAggregatorBuilder.LeafOnly<ValuesSource.GeoPoint, GeoCentroidAggregatorBuilder> {
 
+        static final GeoCentroidAggregatorBuilder PROTOTYPE = new GeoCentroidAggregatorBuilder("");
+
         public GeoCentroidAggregatorBuilder(String name) {
             super(name, InternalGeoCentroid.TYPE, ValuesSourceType.GEOPOINT, ValueType.GEOPOINT);
         }

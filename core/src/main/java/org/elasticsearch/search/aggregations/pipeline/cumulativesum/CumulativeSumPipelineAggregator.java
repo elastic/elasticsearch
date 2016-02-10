@@ -113,6 +113,8 @@ public class CumulativeSumPipelineAggregator extends PipelineAggregator {
 
     public static class CumulativeSumPipelineAggregatorBuilder extends PipelineAggregatorBuilder {
 
+        static final CumulativeSumPipelineAggregatorBuilder PROTOTYPE = new CumulativeSumPipelineAggregatorBuilder("", "");
+
         private String format;
 
         public CumulativeSumPipelineAggregatorBuilder(String name, String bucketsPath) {
@@ -127,6 +129,9 @@ public class CumulativeSumPipelineAggregator extends PipelineAggregator {
          * Sets the format to use on the output of this aggregation.
          */
         public CumulativeSumPipelineAggregatorBuilder format(String format) {
+            if (format == null) {
+                throw new IllegalArgumentException("[format] must not be null: [" + name + "]");
+            }
             this.format = format;
             return this;
         }

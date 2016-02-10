@@ -203,6 +203,8 @@ public class TopHitsAggregator extends MetricsAggregator {
 
     public static class TopHitsAggregatorBuilder extends AggregatorBuilder<TopHitsAggregatorBuilder> {
 
+        static final TopHitsAggregatorBuilder PROTOTYPE = new TopHitsAggregatorBuilder("");
+
         private int from = 0;
         private int size = 3;
         private boolean explain = false;
@@ -223,6 +225,9 @@ public class TopHitsAggregator extends MetricsAggregator {
          * From index to start the search from. Defaults to <tt>0</tt>.
          */
         public TopHitsAggregatorBuilder from(int from) {
+            if (from < 0) {
+                throw new IllegalArgumentException("[from] must be greater than or equal to 0. Found [" + from + "] in [" + name + "]");
+            }
             this.from = from;
             return this;
         }
@@ -238,6 +243,9 @@ public class TopHitsAggregator extends MetricsAggregator {
          * The number of search hits to return. Defaults to <tt>10</tt>.
          */
         public TopHitsAggregatorBuilder size(int size) {
+            if (size < 0) {
+                throw new IllegalArgumentException("[size] must be greater than or equal to 0. Found [" + size + "] in [" + name + "]");
+            }
             this.size = size;
             return this;
         }
@@ -258,6 +266,12 @@ public class TopHitsAggregator extends MetricsAggregator {
          *            The sort ordering
          */
         public TopHitsAggregatorBuilder sort(String name, SortOrder order) {
+            if (name == null) {
+                throw new IllegalArgumentException("sort [name] must not be null: [" + name + "]");
+            }
+            if (order == null) {
+                throw new IllegalArgumentException("sort [order] must not be null: [" + name + "]");
+            }
             sort(SortBuilders.fieldSort(name).order(order));
             return this;
         }
@@ -269,6 +283,9 @@ public class TopHitsAggregator extends MetricsAggregator {
          *            The name of the field to sort by
          */
         public TopHitsAggregatorBuilder sort(String name) {
+            if (name == null) {
+                throw new IllegalArgumentException("sort [name] must not be null: [" + name + "]");
+            }
             sort(SortBuilders.fieldSort(name));
             return this;
         }
@@ -277,6 +294,9 @@ public class TopHitsAggregator extends MetricsAggregator {
          * Adds a sort builder.
          */
         public TopHitsAggregatorBuilder sort(SortBuilder sort) {
+            if (sort == null) {
+                throw new IllegalArgumentException("[sort] must not be null: [" + name + "]");
+            }
             try {
                 if (sorts == null) {
                     sorts = new ArrayList<>();
@@ -299,6 +319,9 @@ public class TopHitsAggregator extends MetricsAggregator {
          * Adds a sort builder.
          */
         public TopHitsAggregatorBuilder sorts(List<BytesReference> sorts) {
+            if (sorts == null) {
+                throw new IllegalArgumentException("[sorts] must not be null: [" + name + "]");
+            }
             if (this.sorts == null) {
                 this.sorts = new ArrayList<>();
             }
@@ -319,6 +342,9 @@ public class TopHitsAggregator extends MetricsAggregator {
          * Adds highlight to perform as part of the search.
          */
         public TopHitsAggregatorBuilder highlighter(HighlightBuilder highlightBuilder) {
+            if (highlightBuilder == null) {
+                throw new IllegalArgumentException("[highlightBuilder] must not be null: [" + name + "]");
+            }
             this.highlightBuilder = highlightBuilder;
             return this;
         }
@@ -382,6 +408,9 @@ public class TopHitsAggregator extends MetricsAggregator {
          * Indicate how the _source should be fetched.
          */
         public TopHitsAggregatorBuilder fetchSource(@Nullable FetchSourceContext fetchSourceContext) {
+            if (fetchSourceContext == null) {
+                throw new IllegalArgumentException("[fetchSourceContext] must not be null: [" + name + "]");
+            }
             this.fetchSourceContext = fetchSourceContext;
             return this;
         }
@@ -399,11 +428,14 @@ public class TopHitsAggregator extends MetricsAggregator {
          * the search request. If none are specified, the source of the document
          * will be return.
          */
-        public TopHitsAggregatorBuilder field(String name) {
+        public TopHitsAggregatorBuilder field(String field) {
+            if (field == null) {
+                throw new IllegalArgumentException("[field] must not be null: [" + name + "]");
+            }
             if (fieldNames == null) {
                 fieldNames = new ArrayList<>();
             }
-            fieldNames.add(name);
+            fieldNames.add(field);
             return this;
         }
 
@@ -412,6 +444,9 @@ public class TopHitsAggregator extends MetricsAggregator {
          * none are specified, the source of the document will be returned.
          */
         public TopHitsAggregatorBuilder fields(List<String> fields) {
+            if (fields == null) {
+                throw new IllegalArgumentException("[fields] must not be null: [" + name + "]");
+            }
             this.fieldNames = fields;
             return this;
         }
@@ -436,11 +471,14 @@ public class TopHitsAggregator extends MetricsAggregator {
          * Adds a field to load from the field data cache and return as part of
          * the search request.
          */
-        public TopHitsAggregatorBuilder fieldDataField(String name) {
+        public TopHitsAggregatorBuilder fieldDataField(String fieldDataField) {
+            if (fieldDataField == null) {
+                throw new IllegalArgumentException("[fieldDataField] must not be null: [" + name + "]");
+            }
             if (fieldDataFields == null) {
                 fieldDataFields = new ArrayList<>();
             }
-            fieldDataFields.add(name);
+            fieldDataFields.add(fieldDataField);
             return this;
         }
 
@@ -448,11 +486,14 @@ public class TopHitsAggregator extends MetricsAggregator {
          * Adds fields to load from the field data cache and return as part of
          * the search request.
          */
-        public TopHitsAggregatorBuilder fieldDataFields(List<String> names) {
+        public TopHitsAggregatorBuilder fieldDataFields(List<String> fieldDataFields) {
             if (fieldDataFields == null) {
-                fieldDataFields = new ArrayList<>();
+                throw new IllegalArgumentException("[fieldDataFields] must not be null: [" + name + "]");
             }
-            fieldDataFields.addAll(names);
+            if (this.fieldDataFields == null) {
+                this.fieldDataFields = new ArrayList<>();
+            }
+            this.fieldDataFields.addAll(fieldDataFields);
             return this;
         }
 
@@ -472,6 +513,12 @@ public class TopHitsAggregator extends MetricsAggregator {
          *            The script
          */
         public TopHitsAggregatorBuilder scriptField(String name, Script script) {
+            if (name == null) {
+                throw new IllegalArgumentException("scriptField [name] must not be null: [" + name + "]");
+            }
+            if (script == null) {
+                throw new IllegalArgumentException("scriptField [script] must not be null: [" + name + "]");
+            }
             scriptField(name, script, false);
             return this;
         }
@@ -485,6 +532,12 @@ public class TopHitsAggregator extends MetricsAggregator {
          *            The script
          */
         public TopHitsAggregatorBuilder scriptField(String name, Script script, boolean ignoreFailure) {
+            if (name == null) {
+                throw new IllegalArgumentException("scriptField [name] must not be null: [" + name + "]");
+            }
+            if (script == null) {
+                throw new IllegalArgumentException("scriptField [script] must not be null: [" + name + "]");
+            }
             if (scriptFields == null) {
                 scriptFields = new ArrayList<>();
             }
@@ -493,6 +546,9 @@ public class TopHitsAggregator extends MetricsAggregator {
         }
 
         public TopHitsAggregatorBuilder scriptFields(List<ScriptField> scriptFields) {
+            if (scriptFields == null) {
+                throw new IllegalArgumentException("[scriptFields] must not be null: [" + name + "]");
+            }
             if (this.scriptFields == null) {
                 this.scriptFields = new ArrayList<>();
             }

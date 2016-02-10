@@ -65,7 +65,7 @@ public class PercentilesBucketParser extends BucketMetricsParser {
             }
         }
 
-        PercentilesBucketPipelineAggregator.PercentilesBucketPipelineAggregatorBuilder factory = new 
+        PercentilesBucketPipelineAggregator.PercentilesBucketPipelineAggregatorBuilder factory = new
                 PercentilesBucketPipelineAggregator.PercentilesBucketPipelineAggregatorBuilder(pipelineAggregatorName, bucketsPath);
         if (percents != null) {
             factory.percents(percents);
@@ -75,6 +75,6 @@ public class PercentilesBucketParser extends BucketMetricsParser {
 
     @Override
     public PipelineAggregatorBuilder getFactoryPrototype() {
-        return new PercentilesBucketPipelineAggregator.PercentilesBucketPipelineAggregatorBuilder(null, null);
+        return PercentilesBucketPipelineAggregator.PercentilesBucketPipelineAggregatorBuilder.PROTOTYPE;
     }
 }

@@ -108,6 +108,8 @@ public class ScriptedMetricAggregator extends MetricsAggregator {
 
     public static class ScriptedMetricAggregatorBuilder extends AggregatorBuilder<ScriptedMetricAggregatorBuilder> {
 
+        static final ScriptedMetricAggregatorBuilder PROTOTYPE = new ScriptedMetricAggregatorBuilder("");
+
         private Script initScript;
         private Script mapScript;
         private Script combineScript;
@@ -122,6 +124,9 @@ public class ScriptedMetricAggregator extends MetricsAggregator {
          * Set the <tt>init</tt> script.
          */
         public ScriptedMetricAggregatorBuilder initScript(Script initScript) {
+            if (initScript == null) {
+                throw new IllegalArgumentException("[initScript] must not be null: [" + name + "]");
+            }
             this.initScript = initScript;
             return this;
         }
@@ -137,6 +142,9 @@ public class ScriptedMetricAggregator extends MetricsAggregator {
          * Set the <tt>map</tt> script.
          */
         public ScriptedMetricAggregatorBuilder mapScript(Script mapScript) {
+            if (mapScript == null) {
+                throw new IllegalArgumentException("[mapScript] must not be null: [" + name + "]");
+            }
             this.mapScript = mapScript;
             return this;
         }
@@ -152,6 +160,9 @@ public class ScriptedMetricAggregator extends MetricsAggregator {
          * Set the <tt>combine</tt> script.
          */
         public ScriptedMetricAggregatorBuilder combineScript(Script combineScript) {
+            if (combineScript == null) {
+                throw new IllegalArgumentException("[combineScript] must not be null: [" + name + "]");
+            }
             this.combineScript = combineScript;
             return this;
         }
@@ -167,6 +178,9 @@ public class ScriptedMetricAggregator extends MetricsAggregator {
          * Set the <tt>reduce</tt> script.
          */
         public ScriptedMetricAggregatorBuilder reduceScript(Script reduceScript) {
+            if (reduceScript == null) {
+                throw new IllegalArgumentException("[reduceScript] must not be null: [" + name + "]");
+            }
             this.reduceScript = reduceScript;
             return this;
         }
@@ -183,6 +197,9 @@ public class ScriptedMetricAggregator extends MetricsAggregator {
          * <tt>map</tt> and <tt>combine</tt> phases.
          */
         public ScriptedMetricAggregatorBuilder params(Map<String, Object> params) {
+            if (params == null) {
+                throw new IllegalArgumentException("[params] must not be null: [" + name + "]");
+            }
             this.params = params;
             return this;
         }

@@ -117,6 +117,8 @@ public class ReverseNestedAggregator extends SingleBucketAggregator {
 
     public static class ReverseNestedAggregatorBuilder extends AggregatorBuilder<ReverseNestedAggregatorBuilder> {
 
+        static final ReverseNestedAggregatorBuilder PROTOTYPE = new ReverseNestedAggregatorBuilder("");
+
         private String path;
 
         public ReverseNestedAggregatorBuilder(String name) {
@@ -129,6 +131,9 @@ public class ReverseNestedAggregator extends SingleBucketAggregator {
          * then this aggregation will go back to the root document.
          */
         public ReverseNestedAggregatorBuilder path(String path) {
+            if (path == null) {
+                throw new IllegalArgumentException("[path] must not be null: [" + name + "]");
+            }
             this.path = path;
             return this;
         }

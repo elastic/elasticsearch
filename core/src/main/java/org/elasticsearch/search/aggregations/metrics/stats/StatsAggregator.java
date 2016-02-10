@@ -165,6 +165,8 @@ public class StatsAggregator extends NumericMetricsAggregator.MultiValue {
 
     public static class StatsAggregatorBuilder extends ValuesSourceAggregatorBuilder.LeafOnly<ValuesSource.Numeric, StatsAggregatorBuilder> {
 
+        static final StatsAggregatorBuilder PROTOTYPE = new StatsAggregatorBuilder("");
+
         public StatsAggregatorBuilder(String name) {
             super(name, InternalStats.TYPE, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
         }

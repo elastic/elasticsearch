@@ -88,7 +88,7 @@ public class DiversifiedSamplerParser extends AnyValuesSourceParser {
 
     @Override
     public AggregatorBuilder<?> getFactoryPrototypes() {
-        return new SamplerAggregator.DiversifiedAggregatorBuilder(null);
+        return SamplerAggregator.DiversifiedAggregatorBuilder.PROTOTYPE;
     }
 
 }

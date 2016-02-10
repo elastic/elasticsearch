@@ -162,6 +162,9 @@ public class BucketScriptPipelineAggregator extends PipelineAggregator {
 
     public static class BucketScriptPipelineAggregatorBuilder extends PipelineAggregatorBuilder {
 
+        static final BucketScriptPipelineAggregatorBuilder PROTOTYPE = new BucketScriptPipelineAggregatorBuilder("", Collections.emptyMap(),
+                new Script(""));
+
         private final Script script;
         private final Map<String, String> bucketsPathsMap;
         private String format = null;
@@ -189,6 +192,9 @@ public class BucketScriptPipelineAggregator extends PipelineAggregator {
          * Sets the format to use on the output of this aggregation.
          */
         public BucketScriptPipelineAggregatorBuilder format(String format) {
+            if (format == null) {
+                throw new IllegalArgumentException("[format] must not be null: [" + name + "]");
+            }
             this.format = format;
             return this;
         }
@@ -212,6 +218,9 @@ public class BucketScriptPipelineAggregator extends PipelineAggregator {
          * Sets the gap policy to use for this aggregation.
          */
         public BucketScriptPipelineAggregatorBuilder gapPolicy(GapPolicy gapPolicy) {
+            if (gapPolicy == null) {
+                throw new IllegalArgumentException("[gapPolicy] must not be null: [" + name + "]");
+            }
             this.gapPolicy = gapPolicy;
             return this;
         }

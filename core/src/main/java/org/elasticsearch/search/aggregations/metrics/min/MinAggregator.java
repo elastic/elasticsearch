@@ -123,6 +123,8 @@ public class MinAggregator extends NumericMetricsAggregator.SingleValue {
 
     public static class MinAggregatorBuilder extends ValuesSourceAggregatorBuilder.LeafOnly<ValuesSource.Numeric, MinAggregatorBuilder> {
 
+        static final MinAggregatorBuilder PROTOTYPE = new MinAggregatorBuilder("");
+
         public MinAggregatorBuilder(String name) {
             super(name, InternalMin.TYPE, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
         }

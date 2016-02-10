@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.query.EmptyQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -87,7 +88,9 @@ public class FilterAggregator extends SingleBucketAggregator {
 
     public static class FilterAggregatorBuilder extends AggregatorBuilder<FilterAggregatorBuilder> {
 
-        private QueryBuilder<?> filter;
+        static final FilterAggregatorBuilder PROTOTYPE = new FilterAggregatorBuilder("", EmptyQueryBuilder.PROTOTYPE);
+
+        private final QueryBuilder<?> filter;
 
         /**
          * @param name
@@ -99,6 +102,9 @@ public class FilterAggregator extends SingleBucketAggregator {
          */
         public FilterAggregatorBuilder(String name, QueryBuilder<?> filter) {
             super(name, InternalFilter.TYPE);
+            if (filter == null) {
+                throw new IllegalArgumentException("[filter] must not be null: [" + name + "]");
+            }
             this.filter = filter;
         }
 

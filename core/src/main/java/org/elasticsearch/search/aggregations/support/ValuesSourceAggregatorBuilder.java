@@ -78,6 +78,9 @@ public abstract class ValuesSourceAggregatorBuilder<VS extends ValuesSource, AB 
 
     protected ValuesSourceAggregatorBuilder(String name, Type type, ValuesSourceType valuesSourceType, ValueType targetValueType) {
         super(name, type);
+        if (valuesSourceType == null) {
+            throw new IllegalArgumentException("[valuesSourceType] must not be null: [" + name + "]");
+        }
         this.valuesSourceType = valuesSourceType;
         this.targetValueType = targetValueType;
     }
@@ -86,6 +89,9 @@ public abstract class ValuesSourceAggregatorBuilder<VS extends ValuesSource, AB 
      * Sets the field to use for this aggregation.
      */
     public AB field(String field) {
+        if (field == null) {
+            throw new IllegalArgumentException("[field] must not be null: [" + name + "]");
+        }
         this.field = field;
         return (AB) this;
     }
@@ -101,6 +107,9 @@ public abstract class ValuesSourceAggregatorBuilder<VS extends ValuesSource, AB 
      * Sets the script to use for this aggregation.
      */
     public AB script(Script script) {
+        if (script == null) {
+            throw new IllegalArgumentException("[script] must not be null: [" + name + "]");
+        }
         this.script = script;
         return (AB) this;
     }
@@ -116,6 +125,9 @@ public abstract class ValuesSourceAggregatorBuilder<VS extends ValuesSource, AB 
      * Sets the {@link ValueType} for the value produced by this aggregation
      */
     public AB valueType(ValueType valueType) {
+        if (valueType == null) {
+            throw new IllegalArgumentException("[valueType] must not be null: [" + name + "]");
+        }
         this.valueType = valueType;
         return (AB) this;
     }
@@ -131,6 +143,9 @@ public abstract class ValuesSourceAggregatorBuilder<VS extends ValuesSource, AB 
      * Sets the format to use for the output of the aggregation.
      */
     public AB format(String format) {
+        if (format == null) {
+            throw new IllegalArgumentException("[format] must not be null: [" + name + "]");
+        }
         this.format = format;
         return (AB) this;
     }
@@ -147,6 +162,9 @@ public abstract class ValuesSourceAggregatorBuilder<VS extends ValuesSource, AB 
      * document
      */
     public AB missing(Object missing) {
+        if (missing == null) {
+            throw new IllegalArgumentException("[missing] must not be null: [" + name + "]");
+        }
         this.missing = missing;
         return (AB) this;
     }
@@ -163,6 +181,9 @@ public abstract class ValuesSourceAggregatorBuilder<VS extends ValuesSource, AB 
      * Sets the time zone to use for this aggregation
      */
     public AB timeZone(DateTimeZone timeZone) {
+        if (timeZone == null) {
+            throw new IllegalArgumentException("[timeZone] must not be null: [" + name + "]");
+        }
         this.timeZone = timeZone;
         return (AB) this;
     }

@@ -194,6 +194,8 @@ public class GeoDistanceParser extends GeoPointValuesSourceParser {
 
     public static class GeoDistanceAggregatorBuilder extends ValuesSourceAggregatorBuilder<ValuesSource.GeoPoint, GeoDistanceAggregatorBuilder> {
 
+        static final GeoDistanceAggregatorBuilder PROTOTYPE = new GeoDistanceAggregatorBuilder("", new GeoPoint());
+
         private final GeoPoint origin;
         private final InternalRange.Factory rangeFactory;
         private List<Range> ranges = new ArrayList<>();
@@ -207,11 +209,17 @@ public class GeoDistanceParser extends GeoPointValuesSourceParser {
 
         private GeoDistanceAggregatorBuilder(String name, GeoPoint origin, InternalRange.Factory rangeFactory) {
             super(name, rangeFactory.type(), rangeFactory.getValueSourceType(), rangeFactory.getValueType());
+            if (origin == null) {
+                throw new IllegalArgumentException("[origin] must not be null: [" + name + "]");
+            }
             this.origin = origin;
             this.rangeFactory = rangeFactory;
         }
 
         public GeoDistanceAggregatorBuilder addRange(Range range) {
+            if (range == null) {
+                throw new IllegalArgumentException("[range] must not be null: [" + name + "]");
+            }
             ranges.add(range);
             return this;
         }
@@ -292,6 +300,9 @@ public class GeoDistanceParser extends GeoPointValuesSourceParser {
         }
 
         public GeoDistanceAggregatorBuilder unit(DistanceUnit unit) {
+            if (unit == null) {
+                throw new IllegalArgumentException("[unit] must not be null: [" + name + "]");
+            }
             this.unit = unit;
             return this;
         }
@@ -301,6 +312,9 @@ public class GeoDistanceParser extends GeoPointValuesSourceParser {
         }
 
         public GeoDistanceAggregatorBuilder distanceType(GeoDistance distanceType) {
+            if (distanceType == null) {
+                throw new IllegalArgumentException("[distanceType] must not be null: [" + name + "]");
+            }
             this.distanceType = distanceType;
             return this;
         }
@@ -383,7 +397,7 @@ public class GeoDistanceParser extends GeoPointValuesSourceParser {
 
     @Override
     public AggregatorBuilder<?> getFactoryPrototypes() {
-        return new GeoDistanceAggregatorBuilder(null, null);
+        return GeoDistanceAggregatorBuilder.PROTOTYPE;
     }
 
 }

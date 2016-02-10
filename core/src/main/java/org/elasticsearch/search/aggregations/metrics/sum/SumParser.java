@@ -57,6 +57,6 @@ public class SumParser extends NumericValuesSourceParser {
 
     @Override
     public AggregatorBuilder<?> getFactoryPrototypes() {
-        return new SumAggregator.SumAggregatorBuilder(null);
+        return SumAggregator.SumAggregatorBuilder.PROTOTYPE;
     }
 }

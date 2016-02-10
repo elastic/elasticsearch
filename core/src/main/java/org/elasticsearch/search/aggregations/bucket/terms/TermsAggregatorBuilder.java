@@ -57,6 +57,8 @@ public class TermsAggregatorBuilder extends ValuesSourceAggregatorBuilder<Values
     public static final ParseField SHOW_TERM_DOC_COUNT_ERROR = new ParseField("show_term_doc_count_error");
     public static final ParseField ORDER_FIELD = new ParseField("order");
 
+    static final TermsAggregatorBuilder PROTOTYPE = new TermsAggregatorBuilder("", null);
+
     private Terms.Order order = Terms.Order.compound(Terms.Order.count(false), Terms.Order.term(true));
     private IncludeExclude includeExclude = null;
     private String executionHint = null;
@@ -74,6 +76,9 @@ public class TermsAggregatorBuilder extends ValuesSourceAggregatorBuilder<Values
     }
 
     public TermsAggregatorBuilder bucketCountThresholds(TermsAggregator.BucketCountThresholds bucketCountThresholds) {
+        if (bucketCountThresholds == null) {
+            throw new IllegalArgumentException("[bucketCountThresholds] must not be null: [" + name + "]");
+        }
         this.bucketCountThresholds = bucketCountThresholds;
         return this;
     }
@@ -83,6 +88,9 @@ public class TermsAggregatorBuilder extends ValuesSourceAggregatorBuilder<Values
      * (defaults to 10)
      */
     public TermsAggregatorBuilder size(int size) {
+        if (size < 0) {
+            throw new IllegalArgumentException("[size] must be greater than or equal to 0. Found [" + size + "] in [" + name + "]");
+        }
         bucketCountThresholds.setRequiredSize(size);
         return this;
     }
@@ -94,6 +102,10 @@ public class TermsAggregatorBuilder extends ValuesSourceAggregatorBuilder<Values
      * results are.
      */
     public TermsAggregatorBuilder shardSize(int shardSize) {
+        if (shardSize < 0) {
+            throw new IllegalArgumentException(
+                    "[shardSize] must be greater than or equal to 0. Found [" + shardSize + "] in [" + name + "]");
+        }
         bucketCountThresholds.setShardSize(shardSize);
         return this;
     }
@@ -103,6 +115,10 @@ public class TermsAggregatorBuilder extends ValuesSourceAggregatorBuilder<Values
      * the response.
      */
     public TermsAggregatorBuilder minDocCount(long minDocCount) {
+        if (minDocCount < 0) {
+            throw new IllegalArgumentException(
+                    "[minDocCount] must be greater than or equal to 0. Found [" + minDocCount + "] in [" + name + "]");
+        }
         bucketCountThresholds.setMinDocCount(minDocCount);
         return this;
     }
@@ -112,6 +128,10 @@ public class TermsAggregatorBuilder extends ValuesSourceAggregatorBuilder<Values
      * appear in the response.
      */
     public TermsAggregatorBuilder shardMinDocCount(long shardMinDocCount) {
+        if (shardMinDocCount < 0) {
+            throw new IllegalArgumentException(
+                    "[shardMinDocCount] must be greater than or equal to 0. Found [" + shardMinDocCount + "] in [" + name + "]");
+        }
         bucketCountThresholds.setShardMinDocCount(shardMinDocCount);
         return this;
     }
@@ -120,6 +140,9 @@ public class TermsAggregatorBuilder extends ValuesSourceAggregatorBuilder<Values
      * Sets the order in which the buckets will be returned.
      */
     public TermsAggregatorBuilder order(Terms.Order order) {
+        if (order == null) {
+            throw new IllegalArgumentException("[order] must not be null: [" + name + "]");
+        }
         this.order = order;
         return this;
     }
@@ -128,6 +151,9 @@ public class TermsAggregatorBuilder extends ValuesSourceAggregatorBuilder<Values
      * Sets the order in which the buckets will be returned.
      */
     public TermsAggregatorBuilder order(List<Terms.Order> orders) {
+        if (orders == null) {
+            throw new IllegalArgumentException("[orders] must not be null: [" + name + "]");
+        }
         order(Terms.Order.compound(orders));
         return this;
     }
@@ -157,8 +183,11 @@ public class TermsAggregatorBuilder extends ValuesSourceAggregatorBuilder<Values
     /**
      * Expert: set the collection mode.
      */
-    public TermsAggregatorBuilder collectMode(SubAggCollectionMode mode) {
-        this.collectMode = mode;
+    public TermsAggregatorBuilder collectMode(SubAggCollectionMode collectMode) {
+        if (collectMode == null) {
+            throw new IllegalArgumentException("[collectMode] must not be null: [" + name + "]");
+        }
+        this.collectMode = collectMode;
         return this;
     }
 

@@ -73,6 +73,8 @@ public class GlobalAggregator extends SingleBucketAggregator {
 
     public static class GlobalAggregatorBuilder extends AggregatorBuilder<GlobalAggregatorBuilder> {
 
+        static final GlobalAggregatorBuilder PROTOTYPE = new GlobalAggregatorBuilder("");
+
         public GlobalAggregatorBuilder(String name) {
             super(name, InternalGlobal.TYPE);
         }

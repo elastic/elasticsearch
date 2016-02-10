@@ -52,6 +52,15 @@ public abstract class PipelineAggregatorBuilder extends ToXContentToBytes implem
      *            The aggregation type
      */
     public PipelineAggregatorBuilder(String name, String type, String[] bucketsPaths) {
+        if (name == null) {
+            throw new IllegalArgumentException("[name] must not be null: [" + name + "]");
+        }
+        if (type == null) {
+            throw new IllegalArgumentException("[type] must not be null: [" + name + "]");
+        }
+        if (bucketsPaths == null) {
+            throw new IllegalArgumentException("[bucketsPaths] must not be null: [" + name + "]");
+        }
         this.name = name;
         this.type = type;
         this.bucketsPaths = bucketsPaths;

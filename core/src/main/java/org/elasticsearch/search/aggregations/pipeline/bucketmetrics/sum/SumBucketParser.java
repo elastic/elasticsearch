@@ -39,6 +39,6 @@ public class SumBucketParser extends BucketMetricsParser {
 
     @Override
     public PipelineAggregatorBuilder getFactoryPrototype() {
-        return new SumBucketPipelineAggregator.SumBucketPipelineAggregatorBuilder(null, null);
+        return SumBucketPipelineAggregator.SumBucketPipelineAggregatorBuilder.PROTOTYPE;
     }
 }

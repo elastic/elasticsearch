@@ -31,7 +31,6 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -113,7 +112,7 @@ public class BucketSelectorParser implements PipelineAggregator.Parser {
                     + "] for bucket_selector aggregation [" + reducerName + "]");
         }
 
-        BucketSelectorPipelineAggregator.BucketSelectorPipelineAggregatorBuilder factory = 
+        BucketSelectorPipelineAggregator.BucketSelectorPipelineAggregatorBuilder factory =
                 new BucketSelectorPipelineAggregator.BucketSelectorPipelineAggregatorBuilder(reducerName, bucketsPathsMap, script);
         if (gapPolicy != null) {
             factory.gapPolicy(gapPolicy);
@@ -124,7 +123,7 @@ public class BucketSelectorParser implements PipelineAggregator.Parser {
 
     @Override
     public PipelineAggregatorBuilder getFactoryPrototype() {
-        return new BucketSelectorPipelineAggregator.BucketSelectorPipelineAggregatorBuilder(null, Collections.emptyMap(), null);
+        return BucketSelectorPipelineAggregator.BucketSelectorPipelineAggregatorBuilder.PROTOTYPE;
     }
 
 }

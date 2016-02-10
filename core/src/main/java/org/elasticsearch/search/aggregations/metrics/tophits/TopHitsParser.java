@@ -207,7 +207,7 @@ public class TopHitsParser implements Aggregator.Parser {
 
     @Override
     public AggregatorBuilder<?> getFactoryPrototypes() {
-        return new TopHitsAggregator.TopHitsAggregatorBuilder(null);
+        return TopHitsAggregator.TopHitsAggregatorBuilder.PROTOTYPE;
     }
 
 }

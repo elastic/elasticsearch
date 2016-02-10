@@ -193,6 +193,8 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator {
 
     public static class ChildrenAggregatorBuilder extends ValuesSourceAggregatorBuilder<ParentChild, ChildrenAggregatorBuilder> {
 
+        static final ChildrenAggregatorBuilder PROTOTYPE = new ChildrenAggregatorBuilder("", "");
+
         private String parentType;
         private final String childType;
         private Query parentFilter;
@@ -206,6 +208,9 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator {
          */
         public ChildrenAggregatorBuilder(String name, String childType) {
             super(name, InternalChildren.TYPE, ValuesSourceType.BYTES, ValueType.STRING);
+            if (childType == null) {
+                throw new IllegalArgumentException("[childType] must not be null: [" + name + "]");
+            }
             this.childType = childType;
         }
 

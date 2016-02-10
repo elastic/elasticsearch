@@ -108,7 +108,7 @@ public class SignificantTermsParser extends AbstractTermsParser {
 
     @Override
     public AggregatorBuilder<?> getFactoryPrototypes() {
-        return new SignificantTermsAggregatorBuilder(null, null);
+        return SignificantTermsAggregatorBuilder.PROTOTYPE;
     }
 
     @Override

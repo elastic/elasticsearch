@@ -127,6 +127,8 @@ public class PercentilesBucketPipelineAggregator extends BucketMetricsPipelineAg
     public static class PercentilesBucketPipelineAggregatorBuilder
             extends BucketMetricsPipelineAggregatorBuilder<PercentilesBucketPipelineAggregatorBuilder> {
 
+        static final PercentilesBucketPipelineAggregatorBuilder PROTOTYPE = new PercentilesBucketPipelineAggregatorBuilder("", "");
+
         private double[] percents = new double[] { 1.0, 5.0, 25.0, 50.0, 75.0, 95.0, 99.0 };
 
         public PercentilesBucketPipelineAggregatorBuilder(String name, String bucketsPath) {
@@ -148,6 +150,9 @@ public class PercentilesBucketPipelineAggregator extends BucketMetricsPipelineAg
          * Set the percentages to calculate percentiles for in this aggregation
          */
         public PercentilesBucketPipelineAggregatorBuilder percents(double[] percents) {
+            if (percents == null) {
+                throw new IllegalArgumentException("[percents] must not be null: [" + name + "]");
+            }
             for (Double p : percents) {
                 if (p == null || p < 0.0 || p > 100.0) {
                     throw new IllegalArgumentException(PercentilesBucketParser.PERCENTS.getPreferredName()

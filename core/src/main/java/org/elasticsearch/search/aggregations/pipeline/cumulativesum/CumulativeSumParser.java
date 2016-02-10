@@ -84,7 +84,7 @@ public class CumulativeSumParser implements PipelineAggregator.Parser {
                     + "] for derivative aggregation [" + pipelineAggregatorName + "]");
         }
 
-        CumulativeSumPipelineAggregator.CumulativeSumPipelineAggregatorBuilder factory = 
+        CumulativeSumPipelineAggregator.CumulativeSumPipelineAggregatorBuilder factory =
                 new CumulativeSumPipelineAggregator.CumulativeSumPipelineAggregatorBuilder(pipelineAggregatorName, bucketsPaths[0]);
         if (format != null) {
             factory.format(format);
@@ -94,7 +94,7 @@ public class CumulativeSumParser implements PipelineAggregator.Parser {
 
     @Override
     public PipelineAggregatorBuilder getFactoryPrototype() {
-        return new CumulativeSumPipelineAggregator.CumulativeSumPipelineAggregatorBuilder(null, null);
+        return CumulativeSumPipelineAggregator.CumulativeSumPipelineAggregatorBuilder.PROTOTYPE;
     }
 
 }

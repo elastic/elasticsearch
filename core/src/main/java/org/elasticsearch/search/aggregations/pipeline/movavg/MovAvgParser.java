@@ -141,7 +141,7 @@ public class MovAvgParser implements PipelineAggregator.Parser {
                     + "] for movingAvg aggregation [" + pipelineAggregatorName + "]");
         }
 
-        MovAvgPipelineAggregator.MovAvgPipelineAggregatorBuilder factory = 
+        MovAvgPipelineAggregator.MovAvgPipelineAggregatorBuilder factory =
                 new MovAvgPipelineAggregator.MovAvgPipelineAggregatorBuilder(pipelineAggregatorName, bucketsPaths[0]);
         if (format != null) {
             factory.format(format);
@@ -178,7 +178,7 @@ public class MovAvgParser implements PipelineAggregator.Parser {
 
     @Override
     public PipelineAggregatorBuilder getFactoryPrototype() {
-        return new MovAvgPipelineAggregator.MovAvgPipelineAggregatorBuilder(null, null);
+        return MovAvgPipelineAggregator.MovAvgPipelineAggregatorBuilder.PROTOTYPE;
     }
 
 }

@@ -202,6 +202,8 @@ public class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue
 
     public static class ExtendedStatsAggregatorBuilder extends ValuesSourceAggregatorBuilder.LeafOnly<ValuesSource.Numeric, ExtendedStatsAggregatorBuilder> {
 
+        static final ExtendedStatsAggregatorBuilder PROTOTYPE = new ExtendedStatsAggregatorBuilder("");
+
         private double sigma = 2.0;
 
         public ExtendedStatsAggregatorBuilder(String name) {
@@ -209,6 +211,9 @@ public class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue
         }
 
         public ExtendedStatsAggregatorBuilder sigma(double sigma) {
+            if (sigma < 0.0) {
+                throw new IllegalArgumentException("[sigma] must be greater than or equal to 0. Found [" + sigma + "] in [" + name + "]");
+            }
             this.sigma = sigma;
             return this;
         }

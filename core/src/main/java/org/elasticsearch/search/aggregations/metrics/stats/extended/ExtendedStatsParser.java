@@ -68,6 +68,6 @@ public class ExtendedStatsParser extends NumericValuesSourceParser {
 
     @Override
     public AggregatorBuilder<?> getFactoryPrototypes() {
-        return new ExtendedStatsAggregator.ExtendedStatsAggregatorBuilder(null);
+        return ExtendedStatsAggregator.ExtendedStatsAggregatorBuilder.PROTOTYPE;
     }
 }

@@ -161,6 +161,8 @@ public class DerivativePipelineAggregator extends PipelineAggregator {
 
     public static class DerivativePipelineAggregatorBuilder extends PipelineAggregatorBuilder {
 
+        static final DerivativePipelineAggregatorBuilder PROTOTYPE = new DerivativePipelineAggregatorBuilder("", "");
+
         private String format;
         private GapPolicy gapPolicy = GapPolicy.SKIP;
         private String units;
@@ -174,6 +176,9 @@ public class DerivativePipelineAggregator extends PipelineAggregator {
         }
 
         public DerivativePipelineAggregatorBuilder format(String format) {
+            if (format == null) {
+                throw new IllegalArgumentException("[format] must not be null: [" + name + "]");
+            }
             this.format = format;
             return this;
         }
@@ -183,6 +188,9 @@ public class DerivativePipelineAggregator extends PipelineAggregator {
         }
 
         public DerivativePipelineAggregatorBuilder gapPolicy(GapPolicy gapPolicy) {
+            if (gapPolicy == null) {
+                throw new IllegalArgumentException("[gapPolicy] must not be null: [" + name + "]");
+            }
             this.gapPolicy = gapPolicy;
             return this;
         }
@@ -192,11 +200,17 @@ public class DerivativePipelineAggregator extends PipelineAggregator {
         }
 
         public DerivativePipelineAggregatorBuilder unit(String units) {
+            if (units == null) {
+                throw new IllegalArgumentException("[units] must not be null: [" + name + "]");
+            }
             this.units = units;
             return this;
         }
 
         public DerivativePipelineAggregatorBuilder unit(DateHistogramInterval units) {
+            if (units == null) {
+                throw new IllegalArgumentException("[units] must not be null: [" + name + "]");
+            }
             this.units = units.toString();
             return this;
         }

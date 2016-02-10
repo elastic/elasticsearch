@@ -60,6 +60,6 @@ public class DateRangeParser extends RangeParser {
 
     @Override
     public AggregatorBuilder<?> getFactoryPrototypes() {
-        return new DateRangeAggregatorBuilder(null);
+        return DateRangeAggregatorBuilder.PROTOTYPE;
     }
 }

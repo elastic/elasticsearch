@@ -220,6 +220,9 @@ public class HistogramAggregator extends BucketsAggregator {
         }
 
         public AB order(Histogram.Order order) {
+            if (order == null) {
+                throw new IllegalArgumentException("[order] must not be null: [" + name + "]");
+            }
             this.order = (InternalOrder) order;
             return (AB) this;
         }
@@ -238,6 +241,10 @@ public class HistogramAggregator extends BucketsAggregator {
         }
 
         public AB minDocCount(long minDocCount) {
+            if (minDocCount < 0) {
+                throw new IllegalArgumentException(
+                        "[minDocCount] must be greater than or equal to 0. Found [" + minDocCount + "] in [" + name + "]");
+            }
             this.minDocCount = minDocCount;
             return (AB) this;
         }
@@ -247,6 +254,9 @@ public class HistogramAggregator extends BucketsAggregator {
         }
 
         public AB extendedBounds(ExtendedBounds extendedBounds) {
+            if (extendedBounds == null) {
+                throw new IllegalArgumentException("[extendedBounds] must not be null: [" + name + "]");
+            }
             this.extendedBounds = extendedBounds;
             return (AB) this;
         }
@@ -357,11 +367,17 @@ public class HistogramAggregator extends BucketsAggregator {
          * Set the interval.
          */
         public DateHistogramAggregatorBuilder dateHistogramInterval(DateHistogramInterval dateHistogramInterval) {
+            if (dateHistogramInterval == null) {
+                throw new IllegalArgumentException("[dateHistogramInterval] must not be null: [" + name + "]");
+            }
             this.dateHistogramInterval = dateHistogramInterval;
             return this;
         }
 
         public DateHistogramAggregatorBuilder offset(String offset) {
+            if (offset == null) {
+                throw new IllegalArgumentException("[offset] must not be null: [" + name + "]");
+            }
             return offset(parseStringOffset(offset));
         }
 

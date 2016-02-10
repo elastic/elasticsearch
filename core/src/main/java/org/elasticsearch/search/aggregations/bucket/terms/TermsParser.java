@@ -180,7 +180,7 @@ public class TermsParser extends AbstractTermsParser {
 
     @Override
     public AggregatorBuilder<?> getFactoryPrototypes() {
-        return new TermsAggregatorBuilder(null, null);
+        return TermsAggregatorBuilder.PROTOTYPE;
     }
 
 }

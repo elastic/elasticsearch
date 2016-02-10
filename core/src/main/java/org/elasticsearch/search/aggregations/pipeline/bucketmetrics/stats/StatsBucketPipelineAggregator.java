@@ -98,6 +98,8 @@ public class StatsBucketPipelineAggregator extends BucketMetricsPipelineAggregat
     public static class StatsBucketPipelineAggregatorBuilder
             extends BucketMetricsPipelineAggregatorBuilder<StatsBucketPipelineAggregatorBuilder> {
 
+        static final StatsBucketPipelineAggregatorBuilder PROTOTYPE = new StatsBucketPipelineAggregatorBuilder("", "");
+
         public StatsBucketPipelineAggregatorBuilder(String name, String bucketsPath) {
             this(name, new String[] { bucketsPath });
         }

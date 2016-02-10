@@ -193,6 +193,8 @@ public class SamplerAggregator extends SingleBucketAggregator {
 
     public static class SamplerAggregatorBuilder extends AggregatorBuilder<SamplerAggregatorBuilder> {
 
+        static final SamplerAggregatorBuilder PROTOTYPE = new SamplerAggregatorBuilder("");
+
         public static final int DEFAULT_SHARD_SAMPLE_SIZE = 100;
 
         private int shardSize = DEFAULT_SHARD_SAMPLE_SIZE;
@@ -259,6 +261,8 @@ public class SamplerAggregator extends SingleBucketAggregator {
 
         public static final Type TYPE = new Type("diversified_sampler");
 
+        static final DiversifiedAggregatorBuilder PROTOTYPE = new DiversifiedAggregatorBuilder("");
+
         public static final int MAX_DOCS_PER_VALUE_DEFAULT = 1;
 
         private int shardSize = SamplerAggregatorBuilder.DEFAULT_SHARD_SAMPLE_SIZE;
@@ -273,6 +277,10 @@ public class SamplerAggregator extends SingleBucketAggregator {
          * Set the max num docs to be returned from each shard.
          */
         public DiversifiedAggregatorBuilder shardSize(int shardSize) {
+            if (shardSize < 0) {
+                throw new IllegalArgumentException(
+                        "[shardSize] must be greater than or equal to 0. Found [" + shardSize + "] in [" + name + "]");
+            }
             this.shardSize = shardSize;
             return this;
         }
@@ -288,6 +296,10 @@ public class SamplerAggregator extends SingleBucketAggregator {
          * Set the max num docs to be returned per value.
          */
         public DiversifiedAggregatorBuilder maxDocsPerValue(int maxDocsPerValue) {
+            if (maxDocsPerValue < 0) {
+                throw new IllegalArgumentException(
+                        "[maxDocsPerValue] must be greater than or equal to 0. Found [" + maxDocsPerValue + "] in [" + name + "]");
+            }
             this.maxDocsPerValue = maxDocsPerValue;
             return this;
         }

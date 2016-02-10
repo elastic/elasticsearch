@@ -34,6 +34,8 @@ import java.io.IOException;
 
 public class DateRangeAggregatorBuilder extends AbstractBuilder<DateRangeAggregatorBuilder, RangeAggregator.Range> {
 
+    static final DateRangeAggregatorBuilder PROTOTYPE = new DateRangeAggregatorBuilder("");
+
     public DateRangeAggregatorBuilder(String name) {
         super(name, InternalDateRange.FACTORY);
     }

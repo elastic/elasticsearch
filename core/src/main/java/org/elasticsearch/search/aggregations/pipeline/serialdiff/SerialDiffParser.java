@@ -101,7 +101,7 @@ public class SerialDiffParser implements PipelineAggregator.Parser {
                     "Missing required field [" + BUCKETS_PATH.getPreferredName() + "] for derivative aggregation [" + reducerName + "]");
         }
 
-        SerialDiffPipelineAggregator.SerialDiffPipelineAggregatorBuilder factory = 
+        SerialDiffPipelineAggregator.SerialDiffPipelineAggregatorBuilder factory =
                 new SerialDiffPipelineAggregator.SerialDiffPipelineAggregatorBuilder(reducerName, bucketsPaths[0]);
         if (lag != null) {
             factory.lag(lag);
@@ -117,7 +117,7 @@ public class SerialDiffParser implements PipelineAggregator.Parser {
 
     @Override
     public PipelineAggregatorBuilder getFactoryPrototype() {
-        return new SerialDiffPipelineAggregator.SerialDiffPipelineAggregatorBuilder(null, null);
+        return SerialDiffPipelineAggregator.SerialDiffPipelineAggregatorBuilder.PROTOTYPE;
     }
 
 }

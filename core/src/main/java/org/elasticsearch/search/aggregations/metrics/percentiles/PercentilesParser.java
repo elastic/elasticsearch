@@ -71,7 +71,7 @@ public class PercentilesParser extends AbstractPercentilesParser {
 
     @Override
     public AggregatorBuilder<?> getFactoryPrototypes() {
-        return new PercentilesAggregatorBuilder(null);
+        return PercentilesAggregatorBuilder.PROTOTYPE;
     }
 
 }

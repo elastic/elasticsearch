@@ -176,7 +176,10 @@ public final class GeoBoundsAggregator extends MetricsAggregator {
         Releasables.close(tops, bottoms, posLefts, posRights, negLefts, negRights);
     }
 
-    public static class GeoBoundsAggregatorBuilder extends ValuesSourceAggregatorBuilder<ValuesSource.GeoPoint, GeoBoundsAggregatorBuilder> {
+    public static class GeoBoundsAggregatorBuilder
+            extends ValuesSourceAggregatorBuilder<ValuesSource.GeoPoint, GeoBoundsAggregatorBuilder> {
+
+        static final GeoBoundsAggregatorBuilder PROTOTYPE = new GeoBoundsAggregatorBuilder("");
 
         private boolean wrapLongitude = true;
 

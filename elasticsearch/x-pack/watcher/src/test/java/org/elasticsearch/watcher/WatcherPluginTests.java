@@ -11,29 +11,29 @@ import org.elasticsearch.test.ESTestCase;
 public class WatcherPluginTests extends ESTestCase {
 
     public void testValidAutoCreateIndex() {
-        WatcherPlugin.validAutoCreateIndex(Settings.EMPTY);
-        WatcherPlugin.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", true).build());
+        Watcher.validAutoCreateIndex(Settings.EMPTY);
+        Watcher.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", true).build());
         try {
-            WatcherPlugin.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", false).build());
+            Watcher.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", false).build());
             fail("IllegalArgumentException expected");
         } catch (IllegalArgumentException e) {
         }
-        WatcherPlugin.validAutoCreateIndex(Settings.builder().put("action.auto_create_index",
+        Watcher.validAutoCreateIndex(Settings.builder().put("action.auto_create_index",
                 ".watches,.triggered_watches,.watcher-history*").build());
-        WatcherPlugin.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", "*w*").build());
-        WatcherPlugin.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", ".w*,.t*").build());
+        Watcher.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", "*w*").build());
+        Watcher.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", ".w*,.t*").build());
         try {
-            WatcherPlugin.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", ".watches").build());
+            Watcher.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", ".watches").build());
             fail("IllegalArgumentException expected");
         } catch (IllegalArgumentException e) {
         }
         try {
-            WatcherPlugin.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", ".triggered_watch").build());
+            Watcher.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", ".triggered_watch").build());
             fail("IllegalArgumentException expected");
         } catch (IllegalArgumentException e) {
         }
         try {
-            WatcherPlugin.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", ".watcher-history*").build());
+            Watcher.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", ".watcher-history*").build());
             fail("IllegalArgumentException expected");
         } catch (IllegalArgumentException e) {
         }

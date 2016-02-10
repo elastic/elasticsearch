@@ -19,7 +19,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.plugin.core.LicenseUtils;
-import org.elasticsearch.shield.ShieldPlugin;
+import org.elasticsearch.shield.Shield;
 import org.elasticsearch.shield.SystemUser;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.action.interceptor.RequestInterceptor;
@@ -88,7 +88,7 @@ public class ShieldActionFilter extends AbstractComponent implements ActionFilte
             logger.error("blocking [{}] operation due to expired license. Cluster health, cluster stats and indices stats \n" +
                     "operations are blocked on shield license expiration. All data operations (read and write) continue to work. \n" +
                     "If you have a new license, please update it. Otherwise, please reach out to your support contact.", action);
-            throw LicenseUtils.newComplianceException(ShieldPlugin.NAME);
+            throw LicenseUtils.newComplianceException(Shield.NAME);
         }
 
         // only restore the context if it is not empty. This is needed because sometimes a response is sent to the user

@@ -11,7 +11,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.marvel.MarvelPlugin;
+import org.elasticsearch.marvel.Marvel;
 
 import java.util.Collections;
 import java.util.List;
@@ -19,7 +19,7 @@ import java.util.function.Function;
 
 public class MarvelSettings extends AbstractComponent {
 
-    private static final String PREFIX = MarvelPlugin.NAME + ".agent.";
+    private static final String PREFIX = Marvel.NAME + ".agent.";
 
     public static final String MARVEL_INDICES_PREFIX = ".marvel-es-";
     public static final String MARVEL_DATA_INDEX_PREFIX = MARVEL_INDICES_PREFIX + "data-";

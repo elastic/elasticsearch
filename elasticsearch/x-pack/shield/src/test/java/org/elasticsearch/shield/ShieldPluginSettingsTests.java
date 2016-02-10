@@ -16,16 +16,16 @@ import static org.hamcrest.Matchers.arrayContaining;
 
 public class ShieldPluginSettingsTests extends ESTestCase {
 
-    private static final String TRIBE_T1_SHIELD_ENABLED = "tribe.t1." + XPackPlugin.featureEnabledSetting(ShieldPlugin.NAME);
-    private static final String TRIBE_T2_SHIELD_ENABLED = "tribe.t2." + XPackPlugin.featureEnabledSetting(ShieldPlugin.NAME);
+    private static final String TRIBE_T1_SHIELD_ENABLED = "tribe.t1." + XPackPlugin.featureEnabledSetting(Shield.NAME);
+    private static final String TRIBE_T2_SHIELD_ENABLED = "tribe.t2." + XPackPlugin.featureEnabledSetting(Shield.NAME);
 
     public void testShieldIsMandatoryOnTribes() {
         Settings settings = Settings.builder().put("tribe.t1.cluster.name", "non_existing")
                 .put("tribe.t2.cluster.name", "non_existing").build();
 
-        ShieldPlugin shieldPlugin = new ShieldPlugin(settings);
+        Shield shield = new Shield(settings);
 
-        Settings additionalSettings = shieldPlugin.additionalSettings();
+        Settings additionalSettings = shield.additionalSettings();
 
 
         assertThat(additionalSettings.getAsArray("tribe.t1.plugin.mandatory", null), arrayContaining(XPackPlugin.NAME));
@@ -36,11 +36,11 @@ public class ShieldPluginSettingsTests extends ESTestCase {
         Settings settings = Settings.builder().put("tribe.t1.cluster.name", "non_existing")
                 .putArray("tribe.t1.plugin.mandatory", "test_plugin").build();
 
-        ShieldPlugin shieldPlugin = new ShieldPlugin(settings);
+        Shield shield = new Shield(settings);
 
         //simulate what PluginsService#updatedSettings does to make sure we don't override existing mandatory plugins
         try {
-            Settings.builder().put(settings).put(shieldPlugin.additionalSettings()).build();
+            Settings.builder().put(settings).put(shield.additionalSettings()).build();
             fail("shield cannot change the value of a setting that is already defined, so a exception should be thrown");
         } catch (IllegalStateException e) {
             assertThat(e.getMessage(), containsString(XPackPlugin.NAME));
@@ -52,10 +52,10 @@ public class ShieldPluginSettingsTests extends ESTestCase {
         Settings settings = Settings.builder().put("tribe.t1.cluster.name", "non_existing")
                 .putArray("tribe.t1.plugin.mandatory", "test_plugin", XPackPlugin.NAME).build();
 
-        ShieldPlugin shieldPlugin = new ShieldPlugin(settings);
+        Shield shield = new Shield(settings);
 
         //simulate what PluginsService#updatedSettings does to make sure we don't override existing mandatory plugins
-        Settings finalSettings = Settings.builder().put(settings).put(shieldPlugin.additionalSettings()).build();
+        Settings finalSettings = Settings.builder().put(settings).put(shield.additionalSettings()).build();
 
         String[] finalMandatoryPlugins = finalSettings.getAsArray("tribe.t1.plugin.mandatory", null);
         assertThat(finalMandatoryPlugins, notNullValue());
@@ -68,9 +68,9 @@ public class ShieldPluginSettingsTests extends ESTestCase {
         Settings settings = Settings.builder().put("tribe.t1.cluster.name", "non_existing")
                 .put("tribe.t2.cluster.name", "non_existing").build();
 
-        ShieldPlugin shieldPlugin = new ShieldPlugin(settings);
+        Shield shield = new Shield(settings);
 
-        Settings additionalSettings = shieldPlugin.additionalSettings();
+        Settings additionalSettings = shield.additionalSettings();
 
         assertThat(additionalSettings.getAsBoolean(TRIBE_T1_SHIELD_ENABLED, null), equalTo(true));
         assertThat(additionalSettings.getAsBoolean(TRIBE_T2_SHIELD_ENABLED, null), equalTo(true));
@@ -81,10 +81,10 @@ public class ShieldPluginSettingsTests extends ESTestCase {
                 .put(TRIBE_T1_SHIELD_ENABLED, false)
                 .put("tribe.t2.cluster.name", "non_existing").build();
 
-        ShieldPlugin shieldPlugin = new ShieldPlugin(settings);
+        Shield shield = new Shield(settings);
 
         try {
-            shieldPlugin.additionalSettings();
+            shield.additionalSettings();
             fail("shield cannot change the value of a setting that is already defined, so a exception should be thrown");
         } catch (IllegalStateException e) {
             assertThat(e.getMessage(), containsString(TRIBE_T1_SHIELD_ENABLED));
@@ -97,10 +97,10 @@ public class ShieldPluginSettingsTests extends ESTestCase {
                 .put("tribe.t2.cluster.name", "non_existing")
                 .putArray("tribe.t1.plugin.mandatory", "test_plugin", XPackPlugin.NAME).build();
 
-        ShieldPlugin shieldPlugin = new ShieldPlugin(settings);
+        Shield shield = new Shield(settings);
 
         try {
-            shieldPlugin.additionalSettings();
+            shield.additionalSettings();
             fail("shield cannot change the value of a setting that is already defined, so a exception should be thrown");
         } catch (IllegalStateException e) {
             assertThat(e.getMessage(), containsString(TRIBE_T1_SHIELD_ENABLED));

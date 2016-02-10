@@ -8,13 +8,14 @@ package org.elasticsearch.shield;
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexModule;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.shield.action.ShieldActionFilter;
 import org.elasticsearch.shield.action.ShieldActionModule;
 import org.elasticsearch.shield.action.realm.ClearRealmCacheAction;
@@ -43,6 +44,7 @@ import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.shield.authz.AuthorizationModule;
 import org.elasticsearch.shield.authz.accesscontrol.OptOutQueryCache;
 import org.elasticsearch.shield.authz.accesscontrol.ShieldIndexSearcherWrapper;
+import org.elasticsearch.shield.authz.privilege.ClusterPrivilege;
 import org.elasticsearch.shield.authz.store.FileRolesStore;
 import org.elasticsearch.shield.crypto.CryptoModule;
 import org.elasticsearch.shield.crypto.InternalCryptoService;
@@ -79,7 +81,9 @@ import java.util.Map;
 /**
  *
  */
-public class ShieldPlugin extends Plugin {
+public class Shield {
+
+    private static final ESLogger logger = Loggers.getLogger(XPackPlugin.class);
 
     public static final String NAME = "shield";
     public static final String DLS_FLS_FEATURE = "shield.dls_fls";
@@ -90,7 +94,7 @@ public class ShieldPlugin extends Plugin {
     private final boolean transportClientMode;
     private ShieldLicenseState shieldLicenseState;
 
-    public ShieldPlugin(Settings settings) {
+    public Shield(Settings settings) {
         this.settings = settings;
         this.transportClientMode = XPackPlugin.transportClientMode(settings);
         this.enabled = XPackPlugin.featureEnabled(settings, NAME, true);
@@ -99,17 +103,6 @@ public class ShieldPlugin extends Plugin {
         }
     }
 
-    @Override
-    public String name() {
-        return NAME;
-    }
-
-    @Override
-    public String description() {
-        return "Elasticsearch Shield (security)";
-    }
-
-    @Override
     public Collection<Module> nodeModules() {
 
         if (enabled == false) {
@@ -139,7 +132,6 @@ public class ShieldPlugin extends Plugin {
                 new SSLModule(settings));
     }
 
-    @Override
     public Collection<Class<? extends LifecycleComponent>> nodeServices() {
         if (enabled == false || transportClientMode == true) {
             return Collections.emptyList();
@@ -158,16 +150,15 @@ public class ShieldPlugin extends Plugin {
 
     }
 
-    @Override
     public Settings additionalSettings() {
         if (enabled == false) {
             return Settings.EMPTY;
         }
 
         Settings.Builder settingsBuilder = Settings.settingsBuilder();
-        settingsBuilder.put(NetworkModule.TRANSPORT_TYPE_KEY, ShieldPlugin.NAME);
-        settingsBuilder.put(NetworkModule.TRANSPORT_SERVICE_TYPE_KEY, ShieldPlugin.NAME);
-        settingsBuilder.put(NetworkModule.HTTP_TYPE_SETTING.getKey(), ShieldPlugin.NAME);
+        settingsBuilder.put(NetworkModule.TRANSPORT_TYPE_KEY, Shield.NAME);
+        settingsBuilder.put(NetworkModule.TRANSPORT_SERVICE_TYPE_KEY, Shield.NAME);
+        settingsBuilder.put(NetworkModule.HTTP_TYPE_SETTING.getKey(), Shield.NAME);
         addUserSettings(settingsBuilder);
         addTribeSettings(settingsBuilder);
         addQueryCacheSettings(settingsBuilder);
@@ -203,7 +194,6 @@ public class ShieldPlugin extends Plugin {
         settingsModule.registerSettingsFilter("transport.profiles.*.shield.*");
     }
 
-    @Override
     public void onIndexModule(IndexModule module) {
         if (enabled == false) {
             return;
@@ -217,7 +207,7 @@ public class ShieldPlugin extends Plugin {
                     shieldLicenseState));
         }
         if (transportClientMode == false) {
-            module.registerQueryCache(ShieldPlugin.OPT_OUT_QUERY_CACHE, OptOutQueryCache::new);
+            module.registerQueryCache(Shield.OPT_OUT_QUERY_CACHE, OptOutQueryCache::new);
             failIfShieldQueryCacheIsNotActive(module.getSettings(), false);
         }
     }
@@ -246,8 +236,8 @@ public class ShieldPlugin extends Plugin {
 
         if (transportClientMode) {
             if (enabled) {
-                module.registerTransport(ShieldPlugin.NAME, ShieldNettyTransport.class);
-                module.registerTransportService(ShieldPlugin.NAME, ShieldClientTransportService.class);
+                module.registerTransport(Shield.NAME, ShieldNettyTransport.class);
+                module.registerTransportService(Shield.NAME, ShieldClientTransportService.class);
             }
             return;
         }
@@ -256,8 +246,8 @@ public class ShieldPlugin extends Plugin {
         module.registerRestHandler(RestShieldInfoAction.class);
 
         if (enabled) {
-            module.registerTransport(ShieldPlugin.NAME, ShieldNettyTransport.class);
-            module.registerTransportService(ShieldPlugin.NAME, ShieldServerTransportService.class);
+            module.registerTransport(Shield.NAME, ShieldNettyTransport.class);
+            module.registerTransportService(Shield.NAME, ShieldServerTransportService.class);
             module.registerRestHandler(RestAuthenticateAction.class);
             module.registerRestHandler(RestClearRealmCacheAction.class);
             module.registerRestHandler(RestClearRolesCacheAction.class);
@@ -267,7 +257,19 @@ public class ShieldPlugin extends Plugin {
             module.registerRestHandler(RestGetRolesAction.class);
             module.registerRestHandler(RestAddRoleAction.class);
             module.registerRestHandler(RestDeleteRoleAction.class);
-            module.registerHttpTransport(ShieldPlugin.NAME, ShieldNettyHttpServerTransport.class);
+            module.registerHttpTransport(Shield.NAME, ShieldNettyHttpServerTransport.class);
+        }
+    }
+
+    public static void registerClusterPrivilege(String name, String... patterns) {
+        try {
+            ClusterPrivilege.addCustom(name, patterns);
+        } catch (Exception se) {
+            logger.warn("could not register cluster privilege [{}]", name);
+
+            // we need to prevent bubbling the shield exception here for the tests. In the tests
+            // we create multiple nodes in the same jvm and since the custom cluster is a static binding
+            // multiple nodes will try to add the same privileges multiple times.
         }
     }
 

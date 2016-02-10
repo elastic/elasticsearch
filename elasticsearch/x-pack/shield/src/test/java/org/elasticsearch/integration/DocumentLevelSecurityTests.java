@@ -24,7 +24,7 @@ import org.elasticsearch.search.aggregations.bucket.children.Children;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.shield.ShieldPlugin;
+import org.elasticsearch.shield.Shield;
 import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.test.ShieldIntegTestCase;
@@ -88,7 +88,7 @@ public class DocumentLevelSecurityTests extends ShieldIntegTestCase {
     public Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(XPackPlugin.featureEnabledSetting(ShieldPlugin.DLS_FLS_FEATURE), true)
+                .put(XPackPlugin.featureEnabledSetting(Shield.DLS_FLS_FEATURE), true)
                 .build();
     }
 

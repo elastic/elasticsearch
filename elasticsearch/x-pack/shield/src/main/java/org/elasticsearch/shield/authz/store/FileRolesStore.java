@@ -20,7 +20,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.shield.ShieldPlugin;
+import org.elasticsearch.shield.Shield;
 import org.elasticsearch.shield.SystemUser;
 import org.elasticsearch.shield.XPackUser;
 import org.elasticsearch.shield.authc.support.RefreshListener;
@@ -301,12 +301,12 @@ public class FileRolesStore extends AbstractLifecycleComponent<RolesStore> imple
                                                 }
                                                 if (name != null) {
                                                     if ((query != null || (fields != null && fields.isEmpty() == false)) &&
-                                                            ShieldPlugin.flsDlsEnabled(settings) == false) {
+                                                            Shield.flsDlsEnabled(settings) == false) {
                                                         logger.error("invalid role definition [{}] in roles file [{}]. " +
                                                                 "document and field level security is not enabled. " +
                                                                 "set [{}] to [true] in the configuration file. skipping role...",
                                                                 roleName, path.toAbsolutePath(),
-                                                                XPackPlugin.featureEnabledSetting(ShieldPlugin.DLS_FLS_FEATURE));
+                                                                XPackPlugin.featureEnabledSetting(Shield.DLS_FLS_FEATURE));
                                                         return null;
                                                     }
 

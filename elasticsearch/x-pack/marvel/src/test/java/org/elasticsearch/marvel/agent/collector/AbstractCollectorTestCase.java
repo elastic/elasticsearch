@@ -18,7 +18,7 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.license.core.License;
-import org.elasticsearch.license.plugin.LicensePlugin;
+import org.elasticsearch.license.plugin.Licensing;
 import org.elasticsearch.license.plugin.core.LicenseState;
 import org.elasticsearch.license.plugin.core.Licensee;
 import org.elasticsearch.license.plugin.core.LicenseeRegistry;
@@ -37,7 +37,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
@@ -181,9 +180,9 @@ public class AbstractCollectorTestCase extends MarvelIntegTestCase {
         }, 30L, TimeUnit.SECONDS);
     }
 
-    public static class InternalLicensePlugin extends LicensePlugin {
+    public static class InternalLicensing extends Licensing {
 
-        public InternalLicensePlugin() {
+        public InternalLicensing() {
             super(Settings.EMPTY);
         }
 
@@ -219,7 +218,7 @@ public class AbstractCollectorTestCase extends MarvelIntegTestCase {
 
         public InternalXPackPlugin(Settings settings) {
             super(settings);
-            licensePlugin = new InternalLicensePlugin();
+            licensing = new InternalLicensing();
         }
     }
 

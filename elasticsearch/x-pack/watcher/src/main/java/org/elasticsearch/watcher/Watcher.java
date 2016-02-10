@@ -20,10 +20,8 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptModule;
-import org.elasticsearch.shield.ShieldPlugin;
-import org.elasticsearch.shield.authz.privilege.ClusterPrivilege;
+import org.elasticsearch.shield.Shield;
 import org.elasticsearch.watcher.actions.WatcherActionModule;
 import org.elasticsearch.watcher.actions.email.service.EmailService;
 import org.elasticsearch.watcher.actions.email.service.InternalEmailService;
@@ -52,7 +50,6 @@ import org.elasticsearch.watcher.rest.action.RestPutWatchAction;
 import org.elasticsearch.watcher.rest.action.RestWatchServiceAction;
 import org.elasticsearch.watcher.rest.action.RestWatcherInfoAction;
 import org.elasticsearch.watcher.rest.action.RestWatcherStatsAction;
-import org.elasticsearch.watcher.support.secret.SecretService;
 import org.elasticsearch.watcher.support.WatcherIndexTemplateRegistry.TemplateConfig;
 import org.elasticsearch.watcher.support.clock.ClockModule;
 import org.elasticsearch.watcher.support.http.HttpClient;
@@ -61,6 +58,7 @@ import org.elasticsearch.watcher.support.init.InitializingModule;
 import org.elasticsearch.watcher.support.init.InitializingService;
 import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
 import org.elasticsearch.watcher.support.secret.SecretModule;
+import org.elasticsearch.watcher.support.secret.SecretService;
 import org.elasticsearch.watcher.support.text.TextTemplateModule;
 import org.elasticsearch.watcher.support.validation.WatcherSettingsValidation;
 import org.elasticsearch.watcher.transform.TransformModule;
@@ -97,16 +95,16 @@ import java.util.function.Function;
 import static org.elasticsearch.common.settings.Setting.Scope.CLUSTER;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 
-public class WatcherPlugin extends Plugin {
+public class Watcher {
 
     public static final String NAME = "watcher";
-    public static final String ENABLED_SETTING = NAME + ".enabled";
+
     public static final Setting<String> INDEX_WATCHER_VERSION_SETTING =
             new Setting<>("index.watcher.plugin.version", "", Function.identity(), false, Setting.Scope.INDEX);
     public static final Setting<String> INDEX_WATCHER_TEMPLATE_VERSION_SETTING =
             new Setting<>("index.watcher.template.version", "", Function.identity(), false, Setting.Scope.INDEX);
 
-    private final static ESLogger logger = Loggers.getLogger(XPackPlugin.class);
+    private static final ESLogger logger = Loggers.getLogger(XPackPlugin.class);
 
     static {
         MetaData.registerPrototype(WatcherMetaData.TYPE, WatcherMetaData.PROTO);
@@ -116,31 +114,21 @@ public class WatcherPlugin extends Plugin {
     protected final boolean transportClient;
     protected final boolean enabled;
 
-    public WatcherPlugin(Settings settings) {
+    public Watcher(Settings settings) {
         this.settings = settings;
         transportClient = "transport".equals(settings.get(Client.CLIENT_TYPE_SETTING_S.getKey()));
-        enabled = watcherEnabled(settings);
+        enabled = enabled(settings);
         validAutoCreateIndex(settings);
 
         // adding the watcher privileges to shield
-        if (ShieldPlugin.enabled(settings)) {
-            registerClusterPrivilege("manage_watcher", "cluster:admin/watcher/*", "cluster:monitor/watcher/*");
-            registerClusterPrivilege("monitor_watcher", "cluster:monitor/watcher/*");
+        if (Shield.enabled(settings)) {
+            Shield.registerClusterPrivilege("manage_watcher", "cluster:admin/watcher/*", "cluster:monitor/watcher/*");
+            Shield.registerClusterPrivilege("monitor_watcher", "cluster:monitor/watcher/*");
         }
     }
 
-
-    @Override public String name() {
-        return NAME;
-    }
-
-    @Override public String description() {
-        return "Elasticsearch Watcher";
-    }
-
-    @Override
     public Collection<Module> nodeModules() {
-        if (!enabled || transportClient) {
+        if (enabled == false|| transportClient) {
             return Collections.emptyList();
         }
         return Arrays.<Module>asList(
@@ -163,9 +151,8 @@ public class WatcherPlugin extends Plugin {
                 new SecretModule(settings));
     }
 
-    @Override
     public Collection<Class<? extends LifecycleComponent>> nodeServices() {
-        if (!enabled || transportClient) {
+        if (enabled == false|| transportClient) {
             return Collections.emptyList();
         }
         return Arrays.<Class<? extends LifecycleComponent>>asList(
@@ -182,9 +169,8 @@ public class WatcherPlugin extends Plugin {
             WatcherSettingsValidation.class);
     }
 
-    @Override
     public Settings additionalSettings() {
-        if (!enabled || transportClient) {
+        if (enabled == false || transportClient) {
             return Settings.EMPTY;
         }
         Settings additionalSettings = settingsBuilder()
@@ -210,14 +196,10 @@ public class WatcherPlugin extends Plugin {
         module.registerSetting(INDEX_WATCHER_TEMPLATE_VERSION_SETTING);
         module.registerSetting(Setting.intSetting("watcher.execution.scroll.size", 0, false, CLUSTER));
         module.registerSetting(Setting.intSetting("watcher.watch.scroll.size", 0, false, CLUSTER));
-        module.registerSetting(Setting.boolSetting("watcher.enabled", false, false, CLUSTER));
+        module.registerSetting(Setting.boolSetting(XPackPlugin.featureEnabledSetting(Watcher.NAME), true, false, CLUSTER));
         module.registerSetting(SecretService.Secure.ENCRYPT_SENSITIVE_DATA_SETTING);
 
         // TODO add real settings for these
-        module.registerSetting(Setting.simpleString("resource.reload.interval", false, CLUSTER));
-        module.registerSetting(Setting.simpleString("resource.reload.enabled", false, CLUSTER));
-        module.registerSetting(Setting.simpleString("resource.reload.interval.low", false, CLUSTER));
-        module.registerSetting(Setting.simpleString("resource.reload.interval.medium", false, CLUSTER));
         module.registerSetting(Setting.simpleString("watcher.internal.ops.search.default_timeout", false, CLUSTER));
         module.registerSetting(Setting.simpleString("watcher.internal.ops.bulk.default_timeout", false, CLUSTER));
         module.registerSetting(Setting.simpleString("watcher.internal.ops.index.default_timeout", false, CLUSTER));
@@ -245,7 +227,7 @@ public class WatcherPlugin extends Plugin {
     }
 
     public void onModule(NetworkModule module) {
-        if (enabled && !transportClient) {
+        if (enabled && transportClient == false) {
             module.registerRestHandler(RestPutWatchAction.class);
             module.registerRestHandler(RestDeleteWatchAction.class);
             module.registerRestHandler(RestWatcherStatsAction.class);
@@ -272,8 +254,8 @@ public class WatcherPlugin extends Plugin {
         }
     }
 
-    public static boolean watcherEnabled(Settings settings) {
-        return settings.getAsBoolean(ENABLED_SETTING, true);
+    public static boolean enabled(Settings settings) {
+        return XPackPlugin.featureEnabled(settings, NAME, true);
     }
 
     static void validAutoCreateIndex(Settings settings) {
@@ -334,18 +316,6 @@ public class WatcherPlugin extends Plugin {
                 " for the next 6 months daily history indices are allowed to be created, but please make sure" +
                 " that any future history indices after 6 months with the pattern " +
                 "[.watcher-history-YYYY.MM.dd] are allowed to be created", value);
-    }
-
-    void registerClusterPrivilege(String name, String... patterns) {
-        try {
-            ClusterPrivilege.addCustom(name, patterns);
-        } catch (Exception se) {
-            logger.warn("could not register cluster privilege [{}]", name);
-
-            // we need to prevent bubbling the shield exception here for the tests. In the tests
-            // we create multiple nodes in the same jvm and since the custom cluster is a static binding
-            // multiple nodes will try to add the same privileges multiple times.
-        }
     }
 
 }

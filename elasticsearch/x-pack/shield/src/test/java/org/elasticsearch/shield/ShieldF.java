@@ -40,11 +40,11 @@ public class ShieldF {
         settings.put("http.cors.enabled", "true");
         settings.put("http.cors.allow-origin", "*");
         settings.put("script.inline", "true");
-        settings.put("shield.enabled", "true");
+        settings.put("xpack.shield.enabled", "true");
         settings.put("security.manager.enabled", "false");
         // Disable Marvel to prevent cluster activity
-        settings.put("marvel.enabled", "false");
-        settings.put(IndexModule.INDEX_QUERY_CACHE_TYPE_SETTING.getKey(), ShieldPlugin.OPT_OUT_QUERY_CACHE);
+        settings.put("xpack.marvel.enabled", "false");
+        settings.put(IndexModule.INDEX_QUERY_CACHE_TYPE_SETTING.getKey(), Shield.OPT_OUT_QUERY_CACHE);
         settings.put("cluster.name", ShieldF.class.getSimpleName());
 
         String homeDir = System.getProperty("es.path.home");

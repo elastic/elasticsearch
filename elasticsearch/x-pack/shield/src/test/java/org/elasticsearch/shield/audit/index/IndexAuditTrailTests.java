@@ -25,7 +25,7 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.shield.ShieldPlugin;
+import org.elasticsearch.shield.Shield;
 import org.elasticsearch.shield.SystemUser;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.XPackUser;
@@ -167,7 +167,7 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
                     public Settings nodeSettings(int nodeOrdinal) {
                         Settings.Builder builder = Settings.builder()
                                 .put(super.nodeSettings(nodeOrdinal))
-                                .put(XPackPlugin.featureEnabledSetting(ShieldPlugin.NAME), useShield);
+                                .put(XPackPlugin.featureEnabledSetting(Shield.NAME), useShield);
 
                         // For tests we forcefully configure Shield's custom query cache because the test framework
                         // randomizes the query cache impl but if shield is disabled then we don't need to forcefully
@@ -191,7 +191,7 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
 
             Settings.Builder builder = Settings.builder()
                     .put(settings)
-                    .put(XPackPlugin.featureEnabledSetting(ShieldPlugin.NAME), useShield)
+                    .put(XPackPlugin.featureEnabledSetting(Shield.NAME), useShield)
                     .put(remoteSettings(NetworkAddress.formatAddress(inet.address().getAddress()), inet.address().getPort(), cluster2Name))
                     .put("shield.audit.index.client.shield.user", DEFAULT_USER_NAME + ":" + DEFAULT_PASSWORD);
 

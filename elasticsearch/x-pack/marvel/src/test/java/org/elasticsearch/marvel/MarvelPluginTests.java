@@ -29,25 +29,32 @@ public class MarvelPluginTests extends MarvelIntegTestCase {
     }
 
     public void testMarvelEnabled() {
-        internalCluster().startNode(Settings.builder().put(MarvelPlugin.ENABLED, true).build());
+        internalCluster().startNode(Settings.builder()
+                .put(XPackPlugin.featureEnabledSetting(Marvel.NAME), true)
+                .build());
         assertPluginIsLoaded();
         assertServiceIsBound(AgentService.class);
     }
 
     public void testMarvelDisabled() {
-        internalCluster().startNode(Settings.builder().put(MarvelPlugin.ENABLED, false).build());
+        internalCluster().startNode(Settings.builder()
+                .put(XPackPlugin.featureEnabledSetting(Marvel.NAME), false)
+                .build());
         assertPluginIsLoaded();
         assertServiceIsNotBound(AgentService.class);
     }
 
     public void testMarvelEnabledOnTribeNode() {
-        internalCluster().startNode(Settings.builder().put(MarvelPlugin.ENABLED, true).put(MarvelPlugin.TRIBE_NAME_SETTING, "t1").build());
+        internalCluster().startNode(Settings.builder()
+                .put(XPackPlugin.featureEnabledSetting(Marvel.NAME), true)
+                .put(Marvel.TRIBE_NAME_SETTING, "t1")
+                .build());
         assertPluginIsLoaded();
         assertServiceIsBound(AgentService.class);
     }
 
     public void testMarvelDisabledOnTribeNode() {
-        internalCluster().startNode(Settings.builder().put(MarvelPlugin.TRIBE_NAME_SETTING, "t1").build());
+        internalCluster().startNode(Settings.builder().put(Marvel.TRIBE_NAME_SETTING, "t1").build());
         assertPluginIsLoaded();
         assertServiceIsNotBound(AgentService.class);
     }

@@ -12,7 +12,7 @@ import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.plugin.core.AbstractLicenseeComponent;
 import org.elasticsearch.license.plugin.core.LicenseState;
 import org.elasticsearch.license.plugin.core.LicenseeRegistry;
-import org.elasticsearch.watcher.WatcherPlugin;
+import org.elasticsearch.watcher.Watcher;
 
 import static org.elasticsearch.license.core.License.OperationMode.GOLD;
 import static org.elasticsearch.license.core.License.OperationMode.PLATINUM;
@@ -20,7 +20,7 @@ import static org.elasticsearch.license.core.License.OperationMode.TRIAL;
 
 public class WatcherLicensee extends AbstractLicenseeComponent<WatcherLicensee> {
 
-    public static final String ID = WatcherPlugin.NAME;
+    public static final String ID = Watcher.NAME;
 
     @Inject
     public WatcherLicensee(Settings settings, LicenseeRegistry clientService) {

@@ -9,7 +9,7 @@ import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.license.plugin.LicensePlugin;
+import org.elasticsearch.license.plugin.Licensing;
 import org.elasticsearch.shield.action.ShieldActionModule;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ShieldIntegTestCase;
@@ -110,7 +110,7 @@ public class KnownActionsTests extends ShieldIntegTestCase {
         loadActions(collectSubClasses(Action.class, ShieldActionModule.class), actions);
 
         // also loading all actions from the licensing plugin
-        loadActions(collectSubClasses(Action.class, LicensePlugin.class), actions);
+        loadActions(collectSubClasses(Action.class, Licensing.class), actions);
 
         return unmodifiableSet(actions);
     }

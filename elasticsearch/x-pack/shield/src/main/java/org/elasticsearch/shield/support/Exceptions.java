@@ -7,7 +7,7 @@ package org.elasticsearch.shield.support;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.shield.ShieldPlugin;
+import org.elasticsearch.shield.Shield;
 
 /**
  *
@@ -19,13 +19,13 @@ public class Exceptions {
 
     public static ElasticsearchSecurityException authenticationError(String msg, Throwable cause, Object... args) {
         ElasticsearchSecurityException e = new ElasticsearchSecurityException(msg, RestStatus.UNAUTHORIZED, cause, args);
-        e.addHeader("WWW-Authenticate", "Basic realm=\"" + ShieldPlugin.NAME + "\"");
+        e.addHeader("WWW-Authenticate", "Basic realm=\"" + Shield.NAME + "\"");
         return e;
     }
 
     public static ElasticsearchSecurityException authenticationError(String msg, Object... args) {
         ElasticsearchSecurityException e = new ElasticsearchSecurityException(msg, RestStatus.UNAUTHORIZED, args);
-        e.addHeader("WWW-Authenticate", "Basic realm=\"" + ShieldPlugin.NAME + "\"");
+        e.addHeader("WWW-Authenticate", "Basic realm=\"" + Shield.NAME + "\"");
         return e;
     }
 

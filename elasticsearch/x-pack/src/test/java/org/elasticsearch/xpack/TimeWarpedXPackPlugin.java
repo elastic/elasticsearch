@@ -6,12 +6,12 @@
 package org.elasticsearch.xpack;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.watcher.test.TimeWarpedWatcherPlugin;
+import org.elasticsearch.watcher.test.TimeWarpedWatcher;
 
 public class TimeWarpedXPackPlugin extends XPackPlugin {
 
     public TimeWarpedXPackPlugin(Settings settings) {
         super(settings);
-        watcherPlugin = new TimeWarpedWatcherPlugin(settings);
+        watcher = new TimeWarpedWatcher(settings);
     }
 }

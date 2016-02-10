@@ -32,6 +32,7 @@ import org.elasticsearch.ingest.core.IngestDocument;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -66,66 +67,69 @@ public final class AttachmentProcessor extends AbstractProcessor {
     @Override
     public void execute(IngestDocument ingestDocument) {
         String base64Input = ingestDocument.getFieldValue(sourceField, String.class);
+        Map<String, Object> additionalFields = new HashMap<>();
 
-        Metadata metadata = new Metadata();
         try {
             byte[] decodedContent = Base64.decode(base64Input.getBytes(UTF_8));
+            Metadata metadata = new Metadata();
             String parsedContent = TikaImpl.parse(decodedContent, metadata, indexedChars);
 
             if (fields.contains(Field.CONTENT) && Strings.hasLength(parsedContent)) {
                 // somehow tika seems to append a newline at the end automatically, lets remove that again
-                ingestDocument.setFieldValue(targetField + "." + Field.CONTENT.toLowerCase(), parsedContent.trim());
+                additionalFields.put(Field.CONTENT.toLowerCase(), parsedContent.trim());
             }
 
             if (fields.contains(Field.LANGUAGE) && Strings.hasLength(parsedContent)) {
                 LanguageIdentifier identifier = new LanguageIdentifier(parsedContent);
                 String language = identifier.getLanguage();
-                ingestDocument.setFieldValue(targetField + "." + Field.LANGUAGE.toLowerCase(), language);
+                additionalFields.put(Field.LANGUAGE.toLowerCase(), language);
             }
 
             if (fields.contains(Field.DATE)) {
                 String createdDate = metadata.get(TikaCoreProperties.CREATED);
                 if (createdDate != null) {
-                    ingestDocument.setFieldValue(targetField + "." + Field.DATE.toLowerCase(), createdDate);
+                    additionalFields.put(Field.DATE.toLowerCase(), createdDate);
                 }
             }
 
             if (fields.contains(Field.TITLE)) {
                 String title = metadata.get(TikaCoreProperties.TITLE);
                 if (Strings.hasLength(title)) {
-                    ingestDocument.setFieldValue(targetField + "." + Field.TITLE.toLowerCase(), title);
+                    additionalFields.put(Field.TITLE.toLowerCase(), title);
                 }
             }
 
             if (fields.contains(Field.AUTHOR)) {
                 String author = metadata.get("Author");
                 if (Strings.hasLength(author)) {
-                    ingestDocument.setFieldValue(targetField + "." + Field.AUTHOR.toLowerCase(), author);
+                    additionalFields.put(Field.AUTHOR.toLowerCase(), author);
                 }
             }
 
             if (fields.contains(Field.KEYWORDS)) {
                 String keywords = metadata.get("Keywords");
                 if (Strings.hasLength(keywords)) {
-                    ingestDocument.setFieldValue(targetField + "." + Field.KEYWORDS.toLowerCase(), keywords);
+                    additionalFields.put(Field.KEYWORDS.toLowerCase(), keywords);
                 }
             }
 
             if (fields.contains(Field.CONTENT_TYPE)) {
                 String contentType = metadata.get(Metadata.CONTENT_TYPE);
                 if (Strings.hasLength(contentType)) {
-                    ingestDocument.setFieldValue(targetField + "." + Field.CONTENT_TYPE.toLowerCase(), contentType);
+                    additionalFields.put(Field.CONTENT_TYPE.toLowerCase(), contentType);
                 }
             }
 
             if (fields.contains(Field.CONTENT_LENGTH)) {
                 String contentLength = metadata.get(Metadata.CONTENT_LENGTH);
                 String length = Strings.hasLength(contentLength) ? contentLength : String.valueOf(parsedContent.length());
-                ingestDocument.setFieldValue(targetField + "." + Field.CONTENT_LENGTH.toLowerCase(), length);
+                additionalFields.put(Field.CONTENT_LENGTH.toLowerCase(), length);
             }
         } catch (Throwable e) {
             throw new ElasticsearchParseException("Error parsing document in field [{}]", e, sourceField);
         }
+
+        ingestDocument.setFieldValue(targetField, additionalFields);
     }
 
     @Override

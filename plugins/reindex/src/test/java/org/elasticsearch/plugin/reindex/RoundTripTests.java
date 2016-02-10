@@ -118,7 +118,8 @@ public class RoundTripTests extends ESTestCase {
 
     private BulkByScrollTask.Status randomStatus() {
         return new BulkByScrollTask.Status(randomPositiveLong(), randomPositiveLong(), randomPositiveLong(), randomPositiveLong(),
-                randomPositiveInt(), randomPositiveLong(), randomPositiveLong(), randomPositiveLong());
+                randomPositiveInt(), randomPositiveLong(), randomPositiveLong(), randomPositiveLong(),
+                random().nextBoolean() ? null : randomSimpleString(random()));
     }
 
     private List<Failure> randomIndexingFailures() {

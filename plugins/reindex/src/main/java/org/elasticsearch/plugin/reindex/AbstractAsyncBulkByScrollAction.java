@@ -113,7 +113,11 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         return task;
     }
 
-    private void initialSearch() {
+    void initialSearch() {
+        if (task.isCancelled()) {
+            finishHim(null);
+            return;
+        }
         try {
             // Default to sorting by _doc if it hasn't been changed.
             if (firstSearchRequest.source().sorts() == null) {
@@ -144,8 +148,19 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         }
     }
 
+    /**
+     * Set the last returned scrollId. Package private for testing.
+     */
+    void setScroll(String scroll) {
+        this.scroll.set(scroll);
+    }
+
     void onScrollResponse(SearchResponse searchResponse) {
-        scroll.set(searchResponse.getScrollId());
+        if (task.isCancelled()) {
+            finishHim(null);
+            return;
+        }
+        setScroll(searchResponse.getScrollId());
         if (searchResponse.getShardFailures() != null && searchResponse.getShardFailures().length > 0) {
             startNormalTermination(emptyList(), unmodifiableList(Arrays.asList(searchResponse.getShardFailures())));
             return;
@@ -178,7 +193,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
                     /*
                      * If we noop-ed the entire batch then just skip to the next batch or the BulkRequest would fail validation.
                      */
-                    startNextScrollRequest();
+                    startNextScroll();
                     return;
                 }
                 request.timeout(mainRequest.getTimeout());
@@ -198,6 +213,10 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
     }
 
     void sendBulkRequest(BulkRequest request) {
+        if (task.isCancelled()) {
+            finishHim(null);
+            return;
+        }
         retry.withAsyncBackoff(client, request, new ActionListener<BulkResponse>() {
             @Override
             public void onResponse(BulkResponse response) {
@@ -212,6 +231,10 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
     }
 
     void onBulkResponse(BulkResponse response) {
+        if (task.isCancelled()) {
+            finishHim(null);
+            return;
+        }
         try {
             List<Failure> failures = new ArrayList<Failure>();
             Set<String> destinationIndicesThisBatch = new HashSet<>();
@@ -252,13 +275,17 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
                 startNormalTermination(emptyList(), emptyList());
                 return;
             }
-            startNextScrollRequest();
+            startNextScroll();
         } catch (Throwable t) {
             finishHim(t);
         }
     }
 
-    void startNextScrollRequest() {
+    void startNextScroll() {
+        if (task.isCancelled()) {
+            finishHim(null);
+            return;
+        }
         SearchScrollRequest request = new SearchScrollRequest();
         request.scrollId(scroll.get()).scroll(firstSearchRequest.scroll());
         client.searchScroll(request, new ActionListener<SearchResponse>() {

@@ -19,9 +19,11 @@
 
 package org.elasticsearch.plugin.reindex;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 
 import java.io.IOException;
@@ -31,7 +33,7 @@ import java.util.concurrent.atomic.AtomicLong;
 /**
  * Task storing information about a currently running BulkByScroll request.
  */
-public class BulkByScrollTask extends Task {
+public class BulkByScrollTask extends CancellableTask {
     /**
      * The total number of documents this request will process. 0 means we don't yet know or, possibly, there are actually 0 documents
      * to process. Its ok that these have the same meaning because any request with 0 actual documents should be quite short lived.
@@ -52,7 +54,7 @@ public class BulkByScrollTask extends Task {
     @Override
     public Status getStatus() {
         return new Status(total.get(), updated.get(), created.get(), deleted.get(), batch.get(), versionConflicts.get(), noops.get(),
-                retries.get());
+                retries.get(), getReasonCancelled());
     }
 
     /**
@@ -63,7 +65,7 @@ public class BulkByScrollTask extends Task {
     }
 
     public static class Status implements Task.Status {
-        public static final Status PROTOTYPE = new Status(0, 0, 0, 0, 0, 0, 0, 0);
+        public static final Status PROTOTYPE = new Status(0, 0, 0, 0, 0, 0, 0, 0, null);
 
         private final long total;
         private final long updated;
@@ -73,8 +75,10 @@ public class BulkByScrollTask extends Task {
         private final long versionConflicts;
         private final long noops;
         private final long retries;
+        private final String reasonCancelled;
 
-        public Status(long total, long updated, long created, long deleted, int batches, long versionConflicts, long noops, long retries) {
+        public Status(long total, long updated, long created, long deleted, int batches, long versionConflicts, long noops, long retries,
+                @Nullable String reasonCancelled) {
             this.total = checkPositive(total, "total");
             this.updated = checkPositive(updated, "updated");
             this.created = checkPositive(created, "created");
@@ -83,6 +87,7 @@ public class BulkByScrollTask extends Task {
             this.versionConflicts = checkPositive(versionConflicts, "versionConflicts");
             this.noops = checkPositive(noops, "noops");
             this.retries = checkPositive(retries, "retries");
+            this.reasonCancelled = reasonCancelled;
         }
 
         public Status(StreamInput in) throws IOException {
@@ -94,6 +99,7 @@ public class BulkByScrollTask extends Task {
             versionConflicts = in.readVLong();
             noops = in.readVLong();
             retries = in.readVLong();
+            reasonCancelled = in.readOptionalString();
         }
 
         @Override
@@ -106,6 +112,7 @@ public class BulkByScrollTask extends Task {
             out.writeVLong(versionConflicts);
             out.writeVLong(noops);
             out.writeVLong(retries);
+            out.writeOptionalString(reasonCancelled);
         }
 
         @Override
@@ -129,6 +136,9 @@ public class BulkByScrollTask extends Task {
             builder.field("version_conflicts", versionConflicts);
             builder.field("noops", noops);
             builder.field("retries", retries);
+            if (reasonCancelled != null) {
+                builder.field("canceled", reasonCancelled);
+            }
             return builder;
         }
 
@@ -152,6 +162,9 @@ public class BulkByScrollTask extends Task {
             builder.append(",versionConflicts=").append(versionConflicts);
             builder.append(",noops=").append(noops);
             builder.append(",retries=").append(retries);
+            if (reasonCancelled != null) {
+                builder.append(",canceled=").append(reasonCancelled);
+            }
         }
 
         @Override
@@ -219,6 +232,13 @@ public class BulkByScrollTask extends Task {
          */
         public long getRetries() {
             return retries;
+        }
+
+        /**
+         * The reason that the request was canceled or null if it hasn't been.
+         */
+        public String getReasonCancelled() {
+            return reasonCancelled;
         }
 
         private int checkPositive(int value, String name) {

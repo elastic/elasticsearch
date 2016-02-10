@@ -24,6 +24,7 @@ import org.hamcrest.Matcher;
 import org.hamcrest.TypeSafeMatcher;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public abstract class AbstractBulkIndexByScrollResponseMatcher<
                 Response extends BulkIndexByScrollResponse,
@@ -36,6 +37,7 @@ public abstract class AbstractBulkIndexByScrollResponseMatcher<
     private Matcher<Integer> batchesMatcher;
     private Matcher<Long> versionConflictsMatcher = equalTo(0L);
     private Matcher<Integer> failuresMatcher = equalTo(0);
+    private Matcher<String> reasonCancelledMatcher = nullValue(String.class);
 
     protected abstract Self self();
 
@@ -93,13 +95,18 @@ public abstract class AbstractBulkIndexByScrollResponseMatcher<
         return failures(equalTo(failures));
     }
 
+    public Self reasonCancelled(Matcher<String> reasonCancelledMatcher) {
+        this.reasonCancelledMatcher = reasonCancelledMatcher;
+        return self();
+    }
 
     @Override
     protected boolean matchesSafely(Response item) {
         return updatedMatcher.matches(item.getUpdated()) &&
             (batchesMatcher == null || batchesMatcher.matches(item.getBatches())) &&
             versionConflictsMatcher.matches(item.getVersionConflicts()) &&
-            failuresMatcher.matches(item.getIndexingFailures().size());
+            failuresMatcher.matches(item.getIndexingFailures().size()) &&
+            reasonCancelledMatcher.matches(item.getReasonCancelled());
     }
 
     @Override
@@ -110,5 +117,6 @@ public abstract class AbstractBulkIndexByScrollResponseMatcher<
         }
         description.appendText(" and versionConflicts matches ").appendDescriptionOf(versionConflictsMatcher);
         description.appendText(" and failures size matches ").appendDescriptionOf(failuresMatcher);
+        description.appendText(" and reason cancelled matches ").appendDescriptionOf(reasonCancelledMatcher);
     }
 }

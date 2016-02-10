@@ -45,6 +45,7 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.FilterClient;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -57,6 +58,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.InternalSearchHits;
 import org.elasticsearch.search.internal.InternalSearchResponse;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -66,12 +68,15 @@ import org.junit.Before;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 
+import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static org.apache.lucene.util.TestUtil.randomSimpleString;
 import static org.elasticsearch.action.bulk.BackoffPolicy.constantBackoff;
@@ -79,8 +84,8 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.emptyCollectionOf;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.iterableWithSize;
 
 public class AsyncBulkByScrollActionTests extends ESTestCase {
     private MyMockClient client;
@@ -89,6 +94,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
     private SearchRequest firstSearchRequest;
     private PlainActionFuture<BulkIndexByScrollResponse> listener;
     private String scrollId;
+    private TaskManager taskManager;
     private BulkByScrollTask task;
 
     @Before
@@ -99,7 +105,8 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         firstSearchRequest = null;
         listener = new PlainActionFuture<>();
         scrollId = null;
-        task = new BulkByScrollTask(0, "test", "test", "test");
+        taskManager = new TaskManager(Settings.EMPTY);
+        task = (BulkByScrollTask) taskManager.register("don'tcare", "hereeither", mainRequest);
     }
 
     @After
@@ -246,6 +253,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         BulkIndexByScrollResponse response = listener.get();
         assertThat(response.getIndexingFailures(), emptyCollectionOf(Failure.class));
         assertThat(response.getSearchFailures(), contains(shardFailure));
+        assertNull(response.getReasonCancelled());
         assertThat(client.scrollsCleared, contains(scrollId));
     }
 
@@ -259,6 +267,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         BulkIndexByScrollResponse response = listener.get();
         assertThat(response.getIndexingFailures(), contains(failure));
         assertThat(response.getSearchFailures(), emptyCollectionOf(ShardSearchFailure.class));
+        assertNull(response.getReasonCancelled());
     }
 
     /**
@@ -323,7 +332,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
             }
 
             @Override
-            void startNextScrollRequest() {
+            void startNextScroll() {
                 successLatch.countDown();
             }
         };
@@ -334,9 +343,10 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         action.sendBulkRequest(request);
         if (failWithRejection) {
             BulkIndexByScrollResponse response = listener.get();
-            assertThat(response.getIndexingFailures(), iterableWithSize(equalTo(1)));
+            assertThat(response.getIndexingFailures(), hasSize(1));
             assertEquals(response.getIndexingFailures().get(0).getStatus(), RestStatus.TOO_MANY_REQUESTS);
             assertThat(response.getSearchFailures(), emptyCollectionOf(ShardSearchFailure.class));
+            assertNull(response.getReasonCancelled());
         } else {
             successLatch.await(10, TimeUnit.SECONDS);
         }
@@ -358,6 +368,52 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
          */
         int defaultBackoffBeforeFailing = 59460;
         assertEquals(defaultBackoffBeforeFailing, millis);
+    }
+
+    public void testCancelBeforeInitialSearch() throws Exception {
+        cancelTaskCase((DummyAbstractAsyncBulkByScrollAction action) -> action.initialSearch());
+    }
+
+    public void testCancelBeforeScrollResponse() throws Exception {
+        // We bail so early we don't need to pass in a half way valid response.
+        cancelTaskCase((DummyAbstractAsyncBulkByScrollAction action) -> action.onScrollResponse(null));
+    }
+
+    public void testCancelBeforeSendBulkRequest() throws Exception {
+        // We bail so early we don't need to pass in a half way valid request.
+        cancelTaskCase((DummyAbstractAsyncBulkByScrollAction action) -> action.sendBulkRequest(null));
+    }
+
+    public void testCancelBeforeOnBulkResponse() throws Exception {
+        // We bail so early we don't need to pass in a half way valid response.
+        cancelTaskCase((DummyAbstractAsyncBulkByScrollAction action) -> action.onBulkResponse(null));
+    }
+
+    public void testCancelBeforeStartNextScroll() throws Exception {
+        cancelTaskCase((DummyAbstractAsyncBulkByScrollAction action) -> action.startNextScroll());
+    }
+
+    public void testCancelBeforeStartNormalTermination() throws Exception {
+        // Refresh or not doesn't matter - we don't try to refresh.
+        mainRequest.setRefresh(usually());
+        cancelTaskCase((DummyAbstractAsyncBulkByScrollAction action) -> action.startNormalTermination(emptyList(), emptyList()));
+        // This wouldn't return if we called refresh - the action would hang waiting for the refresh that we haven't mocked.
+    }
+
+    private void cancelTaskCase(Consumer<DummyAbstractAsyncBulkByScrollAction> testMe) throws Exception {
+        DummyAbstractAsyncBulkByScrollAction action = new DummyAbstractAsyncBulkByScrollAction();
+        boolean previousScrollSet = usually();
+        if (previousScrollSet) {
+            action.setScroll(scrollId());
+        }
+        String reason = randomSimpleString(random());
+        taskManager.cancel(task, reason, (Set<String> s) -> {});
+        testMe.accept(action);
+        assertEquals(reason, listener.get().getReasonCancelled());
+        if (previousScrollSet) {
+            // Canceled tasks always start to clear the scroll before they die.
+            assertThat(client.scrollsCleared, contains(scrollId));
+        }
     }
 
     private class DummyAbstractAsyncBulkByScrollAction

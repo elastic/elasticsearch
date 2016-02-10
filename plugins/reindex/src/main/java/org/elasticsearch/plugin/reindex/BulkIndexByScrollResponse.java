@@ -82,6 +82,13 @@ public class BulkIndexByScrollResponse extends ActionResponse implements ToXCont
     }
 
     /**
+     * The reason that the request was canceled or null if it hasn't been.
+     */
+    public String getReasonCancelled() {
+        return status.getReasonCancelled();
+    }
+
+    /**
      * All of the indexing failures. Version conflicts are only included if the request sets abortOnVersionConflict to true (the
      * default).
      */

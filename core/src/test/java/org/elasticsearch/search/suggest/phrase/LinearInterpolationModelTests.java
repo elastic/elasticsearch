@@ -19,9 +19,6 @@
 
 package org.elasticsearch.search.suggest.phrase;
 
-import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder.LinearInterpolation;
-import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder.SmoothingModel;
-
 import static org.hamcrest.Matchers.instanceOf;
 
 public class LinearInterpolationModelTests extends SmoothingModelTestCase {

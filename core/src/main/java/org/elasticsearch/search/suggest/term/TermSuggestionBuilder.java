@@ -26,7 +26,9 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.suggest.SuggestionBuilder;
+import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -379,6 +381,12 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
             }
         }
         return suggestion;
+    }
+
+    @Override
+    protected SuggestionContext build(QueryShardContext context) throws IOException {
+        // NORELEASE
+        throw new UnsupportedOperationException();
     }
 
     @Override

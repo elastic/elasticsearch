@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.suggest;
 
+import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -31,19 +32,48 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AnalysisService;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperBuilders;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.core.StringFieldMapper;
+import org.elasticsearch.index.mapper.core.StringFieldMapper.StringFieldType;
 import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.indices.IndicesModule;
+import org.elasticsearch.script.CompiledScript;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.ScriptContextRegistry;
+import org.elasticsearch.script.ScriptEngineRegistry;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptServiceTests.TestEngineService;
+import org.elasticsearch.script.ScriptSettings;
+import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestionBuilder;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.watcher.ResourceWatcherService;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Collections;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Map.Entry;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
@@ -51,13 +81,35 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
 
     private static final int NUMBER_OF_TESTBUILDERS = 20;
     protected static NamedWriteableRegistry namedWriteableRegistry;
-    private static final Suggesters suggesters = new Suggesters(Collections.emptyMap(), null, null);
+    private static Suggesters suggesters;
+    private static ScriptService scriptService;
+    private static SuggestParseElement parseElement;
 
     /**
      * setup for the whole base test class
      */
     @BeforeClass
-    public static void init() {
+    public static void init() throws IOException {
+        Path genericConfigFolder = createTempDir();
+        Settings baseSettings = settingsBuilder()
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+                .put(Environment.PATH_CONF_SETTING.getKey(), genericConfigFolder)
+                .build();
+        Environment environment = new Environment(baseSettings);
+        ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Collections.emptyList());
+        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections.singletonList(new ScriptEngineRegistry
+                .ScriptEngineRegistration(TestEngineService.class, TestEngineService.TYPES)));
+        ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
+        scriptService = new ScriptService(baseSettings, environment, Collections.singleton(new TestEngineService()),
+                new ResourceWatcherService(baseSettings, null), scriptEngineRegistry, scriptContextRegistry, scriptSettings) {
+            @Override
+            public CompiledScript compile(Script script, ScriptContext scriptContext, Map<String, String> params) {
+                return new CompiledScript(ScriptType.INLINE, "mockName", "mocklang", script);
+            }
+        };
+        suggesters = new Suggesters(Collections.emptyMap());
+        parseElement = new SuggestParseElement(suggesters);
+
         namedWriteableRegistry = new NamedWriteableRegistry();
         namedWriteableRegistry.registerPrototype(SuggestionBuilder.class, TermSuggestionBuilder.PROTOTYPE);
         namedWriteableRegistry.registerPrototype(SuggestionBuilder.class, PhraseSuggestionBuilder.PROTOTYPE);
@@ -68,7 +120,6 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
     public static void afterClass() throws Exception {
         namedWriteableRegistry = null;
     }
-
 
     /**
      * Test serialization and deserialization of the suggestion builder
@@ -88,13 +139,13 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
      */
     protected SB randomTestBuilder() {
         SB randomSuggestion = randomSuggestionBuilder();
+        randomSuggestion.field(randomAsciiOfLengthBetween(2, 20));
         maybeSet(randomSuggestion::text, randomAsciiOfLengthBetween(2, 20));
         maybeSet(randomSuggestion::prefix, randomAsciiOfLengthBetween(2, 20));
         maybeSet(randomSuggestion::regex, randomAsciiOfLengthBetween(2, 20));
-        maybeSet(randomSuggestion::field, randomAsciiOfLengthBetween(2, 20));
         maybeSet(randomSuggestion::analyzer, randomAsciiOfLengthBetween(2, 20));
         maybeSet(randomSuggestion::size, randomIntBetween(1, 20));
-        maybeSet(randomSuggestion::shardSize, randomInt(20));
+        maybeSet(randomSuggestion::shardSize, randomIntBetween(1, 20));
         return randomSuggestion;
     }
 
@@ -137,7 +188,8 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
     }
 
     /**
-     *  creates random suggestion builder, renders it to xContent and back to new instance that should be equal to original
+     * creates random suggestion builder, renders it to xContent and back to new
+     * instance that should be equal to original
      */
     public void testFromXContent() throws IOException {
         QueryParseContext context = new QueryParseContext(null);
@@ -165,6 +217,97 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
             assertEquals(suggestionBuilder.hashCode(), secondSuggestionBuilder.hashCode());
         }
     }
+
+    /**
+     * parses random suggestion builder via old parseElement method and via
+     * build, comparing the results for equality
+     */
+    public void testBuild() throws IOException {
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(randomAsciiOfLengthBetween(1, 10), Settings.EMPTY);
+
+        AnalysisService mockAnalysisService = new AnalysisService(idxSettings, Collections.emptyMap(), Collections.emptyMap(),
+                Collections.emptyMap(), Collections.emptyMap()) {
+            @Override
+            public NamedAnalyzer analyzer(String name) {
+                return new NamedAnalyzer(name, new WhitespaceAnalyzer());
+            }
+        };
+
+        MapperService mockMapperService = new MapperService(idxSettings, mockAnalysisService, null, new IndicesModule().getMapperRegistry(),
+                null) {
+            @Override
+            public MappedFieldType fullName(String fullName) {
+                return new StringFieldType();
+            }
+        };
+
+        QueryShardContext mockShardContext = new QueryShardContext(idxSettings, null, null, null, mockMapperService, null, scriptService,
+                null) {
+            @Override
+            public MappedFieldType fieldMapper(String name) {
+                StringFieldMapper.Builder builder = MapperBuilders.stringField(name);
+                return builder.build(new Mapper.BuilderContext(idxSettings.getSettings(), new ContentPath(1))).fieldType();
+            }
+        };
+        mockShardContext.setMapUnmappedFieldAsString(true);
+
+        for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
+            SuggestBuilder suggestBuilder = new SuggestBuilder();
+            SB suggestionBuilder = randomTestBuilder();
+            suggestBuilder.addSuggestion(suggestionBuilder);
+
+            if (suggestionBuilder.text() == null) {
+                // we either need suggestion text or global text
+                suggestBuilder.setText(randomAsciiOfLengthBetween(5, 50));
+            }
+            if (suggestionBuilder.text() != null && suggestionBuilder.prefix() != null) {
+                suggestionBuilder.prefix(null);
+            }
+
+            XContentBuilder xContentBuilder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
+            if (randomBoolean()) {
+                xContentBuilder.prettyPrint();
+            }
+            suggestBuilder.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
+
+            XContentParser parser = XContentHelper.createParser(xContentBuilder.bytes());
+            parser.nextToken(); // set cursor to START_OBJECT
+            SuggestionSearchContext parsedSuggestionSearchContext = parseElement.parseInternal(parser, mockShardContext);
+
+            SuggestionSearchContext buildSuggestSearchContext = suggestBuilder.build(mockShardContext);
+            assertEquals(parsedSuggestionSearchContext.suggestions().size(), buildSuggestSearchContext.suggestions().size());
+            Iterator<Entry<String, SuggestionContext>> iterator = buildSuggestSearchContext.suggestions().entrySet().iterator();
+            for (Entry<String, SuggestionContext> entry : parsedSuggestionSearchContext.suggestions().entrySet()) {
+                Entry<String, SuggestionContext> other = iterator.next();
+                assertEquals(entry.getKey(), other.getKey());
+
+                SuggestionContext oldSchoolContext = entry.getValue();
+                SuggestionContext newSchoolContext = other.getValue();
+                assertNotSame(oldSchoolContext, newSchoolContext);
+                // deep comparison of analyzers is difficult here, but we check they are set or not set
+                if (oldSchoolContext.getAnalyzer() != null) {
+                    assertNotNull(newSchoolContext.getAnalyzer());
+                } else {
+                    assertNull(newSchoolContext.getAnalyzer());
+                }
+                assertEquals(oldSchoolContext.getField(), newSchoolContext.getField());
+                assertEquals(oldSchoolContext.getPrefix(), newSchoolContext.getPrefix());
+                assertEquals(oldSchoolContext.getRegex(), newSchoolContext.getRegex());
+                assertEquals(oldSchoolContext.getShardSize(), newSchoolContext.getShardSize());
+                assertEquals(oldSchoolContext.getSize(), newSchoolContext.getSize());
+                assertEquals(oldSchoolContext.getSuggester().getClass(), newSchoolContext.getSuggester().getClass());
+                assertEquals(oldSchoolContext.getText(), newSchoolContext.getText());
+                assertEquals(oldSchoolContext.getClass(), newSchoolContext.getClass());
+
+                assertSuggestionContext(oldSchoolContext, newSchoolContext);
+            }
+        }
+    }
+
+    /**
+     * compare two SuggestionContexte implementations for the special suggestion type under test
+     */
+    protected abstract void assertSuggestionContext(SuggestionContext oldSuggestion, SuggestionContext newSuggestion);
 
     private SB mutate(SB firstBuilder) throws IOException {
         SB mutation = serializedCopy(firstBuilder);
@@ -201,14 +344,16 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
     }
 
     /**
-     * take and input {@link SuggestBuilder} and return another one that is different in one aspect (to test non-equality)
+     * take and input {@link SuggestBuilder} and return another one that is
+     * different in one aspect (to test non-equality)
      */
     protected abstract void mutateSpecificParameters(SB firstBuilder) throws IOException;
 
     @SuppressWarnings("unchecked")
     protected SB serializedCopy(SB original) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            output.writeSuggestion(original);;
+            output.writeSuggestion(original);
+            ;
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
                 return (SB) in.readSuggestion();
             }
@@ -222,7 +367,8 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
     }
 
     /**
-     * helper to get a random value in a certain range that's different from the input
+     * helper to get a random value in a certain range that's different from the
+     * input
      */
     protected static <T> T randomValueOtherThan(T input, Supplier<T> randomSupplier) {
         T randomValue = null;

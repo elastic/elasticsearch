@@ -20,38 +20,6 @@
 package org.elasticsearch.messy.tests;
 
 
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
-import static org.elasticsearch.search.suggest.SuggestBuilders.phraseSuggestion;
-import static org.elasticsearch.search.suggest.SuggestBuilders.termSuggestion;
-import static org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder.candidateGenerator;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSuggestion;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSuggestionPhraseCollateMatchExists;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSuggestionSize;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
-import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.Matchers.endsWith;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.nullValue;
-
-import java.io.IOException;
-import java.net.URISyntaxException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ExecutionException;
-
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -71,12 +39,46 @@ import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.search.suggest.SuggestionBuilder;
 import org.elasticsearch.search.suggest.phrase.DirectCandidateGeneratorBuilder;
+import org.elasticsearch.search.suggest.phrase.Laplace;
+import org.elasticsearch.search.suggest.phrase.LinearInterpolation;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder;
+import org.elasticsearch.search.suggest.phrase.StupidBackoff;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder.SortBy;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder.SuggestMode;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
+
+import java.io.IOException;
+import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ExecutionException;
+
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
+import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
+import static org.elasticsearch.search.suggest.SuggestBuilders.phraseSuggestion;
+import static org.elasticsearch.search.suggest.SuggestBuilders.termSuggestion;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSuggestion;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSuggestionPhraseCollateMatchExists;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSuggestionSize;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.endsWith;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * Integration tests for term and phrase suggestions.  Many of these tests many requests that vary only slightly from one another.  Where
@@ -227,6 +229,16 @@ public class SuggestSearchTests extends ESIntegTestCase {
         assertSuggestionSize(searchSuggest, 0, 0, "did_you_mean");
     }
 
+    /**
+     * Creates a new {@link DirectCandidateGeneratorBuilder}
+     *
+     * @param field
+     *            the field this candidate generator operates on.
+     */
+    private DirectCandidateGeneratorBuilder candidateGenerator(String field) {
+        return new DirectCandidateGeneratorBuilder(field);
+    }
+
     // see #2729
     public void testSizeOneShard() throws Exception {
         prepareCreate("test").setSettings(
@@ -286,7 +298,7 @@ public class SuggestSearchTests extends ESIntegTestCase {
         refresh();
 
         PhraseSuggestionBuilder phraseSuggestion = phraseSuggestion("did_you_mean").field("name.shingled")
-                .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("name").prefixLength(0).minWordLength(0).suggestMode("always").maxEdits(2))
+                .addCandidateGenerator(candidateGenerator("name").prefixLength(0).minWordLength(0).suggestMode("always").maxEdits(2))
                 .gramSize(3);
         Suggest searchSuggest = searchSuggest( "ice tea", phraseSuggestion);
         assertSuggestion(searchSuggest, 0, 0, "did_you_mean", "iced tea");
@@ -439,7 +451,7 @@ public class SuggestSearchTests extends ESIntegTestCase {
 
         Suggest searchSuggest = searchSuggest( "a an the",
                 phraseSuggestion("simple_phrase").field("body").gramSize(1)
-                        .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("body").minWordLength(1).suggestMode("always"))
+                        .addCandidateGenerator(candidateGenerator("body").minWordLength(1).suggestMode("always"))
                         .size(1));
         assertSuggestionSize(searchSuggest, 0, 0, "simple_phrase");
     }
@@ -475,13 +487,13 @@ public class SuggestSearchTests extends ESIntegTestCase {
 
         Suggest searchSuggest = searchSuggest( "hello word",
                 phraseSuggestion("simple_phrase").field("body")
-                        .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("body").prefixLength(4).minWordLength(1).suggestMode("always"))
+                        .addCandidateGenerator(candidateGenerator("body").prefixLength(4).minWordLength(1).suggestMode("always"))
                         .size(1).confidence(1.0f));
         assertSuggestion(searchSuggest, 0, "simple_phrase", "hello words");
 
         searchSuggest = searchSuggest( "hello word",
                 phraseSuggestion("simple_phrase").field("body")
-                        .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("body").prefixLength(2).minWordLength(1).suggestMode("always"))
+                        .addCandidateGenerator(candidateGenerator("body").prefixLength(2).minWordLength(1).suggestMode("always"))
                         .size(1).confidence(1.0f));
         assertSuggestion(searchSuggest, 0, "simple_phrase", "hello world");
     }
@@ -573,17 +585,17 @@ public class SuggestSearchTests extends ESIntegTestCase {
         // set all mass to trigrams (not indexed)
         phraseSuggest.clearCandidateGenerators()
             .addCandidateGenerator(candidateGenerator("body").minWordLength(1).suggestMode("always"))
-            .smoothingModel(new PhraseSuggestionBuilder.LinearInterpolation(1,0,0));
+            .smoothingModel(new LinearInterpolation(1,0,0));
         searchSuggest = searchSuggest( "Xor the Got-Jewel", phraseSuggest);
         assertSuggestionSize(searchSuggest, 0, 0, "simple_phrase");
 
         // set all mass to bigrams
-        phraseSuggest.smoothingModel(new PhraseSuggestionBuilder.LinearInterpolation(0,1,0));
+        phraseSuggest.smoothingModel(new LinearInterpolation(0,1,0));
         searchSuggest =  searchSuggest( "Xor the Got-Jewel", phraseSuggest);
         assertSuggestion(searchSuggest, 0, "simple_phrase", "xorr the god jewel");
 
         // distribute mass
-        phraseSuggest.smoothingModel(new PhraseSuggestionBuilder.LinearInterpolation(0.4,0.4,0.2));
+        phraseSuggest.smoothingModel(new LinearInterpolation(0.4,0.4,0.2));
         searchSuggest = searchSuggest( "Xor the Got-Jewel", phraseSuggest);
         assertSuggestion(searchSuggest, 0, "simple_phrase", "xorr the god jewel");
 
@@ -591,15 +603,15 @@ public class SuggestSearchTests extends ESIntegTestCase {
         assertSuggestion(searchSuggest, 0, "simple_phrase", "american ace");
 
         // try all smoothing methods
-        phraseSuggest.smoothingModel(new PhraseSuggestionBuilder.LinearInterpolation(0.4,0.4,0.2));
+        phraseSuggest.smoothingModel(new LinearInterpolation(0.4,0.4,0.2));
         searchSuggest = searchSuggest( "Xor the Got-Jewel", phraseSuggest);
         assertSuggestion(searchSuggest, 0, "simple_phrase", "xorr the god jewel");
 
-        phraseSuggest.smoothingModel(new PhraseSuggestionBuilder.Laplace(0.2));
+        phraseSuggest.smoothingModel(new Laplace(0.2));
         searchSuggest = searchSuggest( "Xor the Got-Jewel", phraseSuggest);
         assertSuggestion(searchSuggest, 0, "simple_phrase", "xorr the god jewel");
 
-        phraseSuggest.smoothingModel(new PhraseSuggestionBuilder.StupidBackoff(0.1));
+        phraseSuggest.smoothingModel(new StupidBackoff(0.1));
         searchSuggest = searchSuggest( "Xor the Got-Jewel", phraseSuggest);
         assertSuggestion(searchSuggest, 0, "simple_phrase", "xorr the god jewel");
 
@@ -608,7 +620,7 @@ public class SuggestSearchTests extends ESIntegTestCase {
         searchSuggest = searchSuggest( "Xor the Got-Jewel", phraseSuggest);
         assertSuggestionSize(searchSuggest, 0, 0, "simple_phrase");
 
-        phraseSuggest.tokenLimit(15).smoothingModel(new PhraseSuggestionBuilder.StupidBackoff(0.1));
+        phraseSuggest.tokenLimit(15).smoothingModel(new StupidBackoff(0.1));
         searchSuggest = searchSuggest( "Xor the Got-Jewel Xor the Got-Jewel Xor the Got-Jewel", phraseSuggest);
         assertSuggestion(searchSuggest, 0, "simple_phrase", "xorr the god jewel xorr the god jewel xorr the god jewel");
         // Check the name this time because we're repeating it which is funky
@@ -671,7 +683,7 @@ public class SuggestSearchTests extends ESIntegTestCase {
                 .gramSize(2)
                 .analyzer("body")
                 .addCandidateGenerator(candidateGenerator("body").minWordLength(1).prefixLength(1).suggestMode("always").size(1).accuracy(0.1f))
-                .smoothingModel(new PhraseSuggestionBuilder.StupidBackoff(0.1))
+                .smoothingModel(new StupidBackoff(0.1))
                 .maxErrors(1.0f)
                 .size(5);
         Suggest searchSuggest = searchSuggest( "Xorr the Gut-Jewel", phraseSuggestion);
@@ -931,7 +943,7 @@ public class SuggestSearchTests extends ESIntegTestCase {
 
         Suggest searchSuggest = searchSuggest("nobel prize", phraseSuggestion("simple_phrase")
                 .field("body")
-                .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("body").minWordLength(1).suggestMode("always").maxTermFreq(.99f))
+                .addCandidateGenerator(candidateGenerator("body").minWordLength(1).suggestMode("always").maxTermFreq(.99f))
                 .confidence(2f)
                 .maxErrors(5f)
                 .size(1));
@@ -939,7 +951,7 @@ public class SuggestSearchTests extends ESIntegTestCase {
 
         searchSuggest = searchSuggest("noble prize", phraseSuggestion("simple_phrase")
                 .field("body")
-                .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("body").minWordLength(1).suggestMode("always").maxTermFreq(.99f))
+                .addCandidateGenerator(candidateGenerator("body").minWordLength(1).suggestMode("always").maxTermFreq(.99f))
                 .confidence(2f)
                 .maxErrors(5f)
                 .size(1));
@@ -1070,7 +1082,7 @@ public class SuggestSearchTests extends ESIntegTestCase {
 
         PhraseSuggestionBuilder suggest = phraseSuggestion("title")
                 .field("title")
-                .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("title")
+                .addCandidateGenerator(candidateGenerator("title")
                         .suggestMode("always")
                         .maxTermFreq(.99f)
                         .size(1000) // Setting a silly high size helps of generate a larger list of candidates for testing.
@@ -1135,7 +1147,7 @@ public class SuggestSearchTests extends ESIntegTestCase {
         // suggest without collate
         PhraseSuggestionBuilder suggest = phraseSuggestion("title")
                 .field("title")
-                .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("title")
+                .addCandidateGenerator(candidateGenerator("title")
                         .suggestMode("always")
                         .maxTermFreq(.99f)
                         .size(10)

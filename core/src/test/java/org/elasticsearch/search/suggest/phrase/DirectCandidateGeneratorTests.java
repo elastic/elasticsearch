@@ -34,15 +34,10 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.MapperBuilders;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper.StringFieldType;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionContext.DirectCandidateGenerator;
@@ -171,19 +166,10 @@ public class DirectCandidateGeneratorTests extends ESTestCase{
             }
         };
 
-        QueryShardContext mockShardContext = new QueryShardContext(idxSettings, null, null, null, mockMapperService, null, null, null) {
-            @Override
-            public MappedFieldType fieldMapper(String name) {
-                StringFieldMapper.Builder builder = MapperBuilders.stringField(name);
-                return builder.build(new Mapper.BuilderContext(idxSettings.getSettings(), new ContentPath(1))).fieldType();
-            }
-        };
-        mockShardContext.setMapUnmappedFieldAsString(true);
-
         for (int runs = 0; runs < NUMBER_OF_RUNS; runs++) {
             DirectCandidateGeneratorBuilder generator = randomCandidateGenerator();
             // first, build via DirectCandidateGenerator#build()
-            DirectCandidateGenerator contextGenerator = generator.build(mockShardContext);
+            DirectCandidateGenerator contextGenerator = generator.build(mockMapperService);
 
             // second, render random test generator to xContent and parse using
             // PhraseSuggestParser
@@ -195,26 +181,30 @@ public class DirectCandidateGeneratorTests extends ESTestCase{
             XContentParser parser = XContentHelper.createParser(builder.bytes());
 
             DirectCandidateGenerator secondGenerator = PhraseSuggestParser.parseCandidateGenerator(parser,
-                    mockShardContext.getMapperService(), mockShardContext.parseFieldMatcher());
+                    mockMapperService, ParseFieldMatcher.EMPTY);
 
             // compare their properties
             assertNotSame(contextGenerator, secondGenerator);
-            assertEquals(contextGenerator.field(), secondGenerator.field());
-            assertEquals(contextGenerator.accuracy(), secondGenerator.accuracy(), Float.MIN_VALUE);
-            assertEquals(contextGenerator.maxTermFreq(), secondGenerator.maxTermFreq(), Float.MIN_VALUE);
-            assertEquals(contextGenerator.maxEdits(), secondGenerator.maxEdits());
-            assertEquals(contextGenerator.maxInspections(), secondGenerator.maxInspections());
-            assertEquals(contextGenerator.minDocFreq(), secondGenerator.minDocFreq(), Float.MIN_VALUE);
-            assertEquals(contextGenerator.minWordLength(), secondGenerator.minWordLength());
-            assertEquals(contextGenerator.postFilter(), secondGenerator.postFilter());
-            assertEquals(contextGenerator.prefixLength(), secondGenerator.prefixLength());
-            assertEquals(contextGenerator.preFilter(), secondGenerator.preFilter());
-            assertEquals(contextGenerator.sort(), secondGenerator.sort());
-            assertEquals(contextGenerator.size(), secondGenerator.size());
-            // some instances of StringDistance don't support equals, just checking the class here
-            assertEquals(contextGenerator.stringDistance().getClass(), secondGenerator.stringDistance().getClass());
-            assertEquals(contextGenerator.suggestMode(), secondGenerator.suggestMode());
+            assertEqualGenerators(contextGenerator, secondGenerator);
         }
+    }
+
+    public static void assertEqualGenerators(DirectCandidateGenerator first, DirectCandidateGenerator second) {
+        assertEquals(first.field(), second.field());
+        assertEquals(first.accuracy(), second.accuracy(), Float.MIN_VALUE);
+        assertEquals(first.maxTermFreq(), second.maxTermFreq(), Float.MIN_VALUE);
+        assertEquals(first.maxEdits(), second.maxEdits());
+        assertEquals(first.maxInspections(), second.maxInspections());
+        assertEquals(first.minDocFreq(), second.minDocFreq(), Float.MIN_VALUE);
+        assertEquals(first.minWordLength(), second.minWordLength());
+        assertEquals(first.postFilter(), second.postFilter());
+        assertEquals(first.prefixLength(), second.prefixLength());
+        assertEquals(first.preFilter(), second.preFilter());
+        assertEquals(first.sort(), second.sort());
+        assertEquals(first.size(), second.size());
+        // some instances of StringDistance don't support equals, just checking the class here
+        assertEquals(first.stringDistance().getClass(), second.stringDistance().getClass());
+        assertEquals(first.suggestMode(), second.suggestMode());
     }
 
     /**

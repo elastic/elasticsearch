@@ -30,7 +30,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.suggest.SuggestUtils;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder.CandidateGenerator;
 
@@ -349,8 +348,7 @@ public final class DirectCandidateGeneratorBuilder
         return replaceField(tmpFieldName.iterator().next(), tempGenerator);
     }
 
-    public PhraseSuggestionContext.DirectCandidateGenerator build(QueryShardContext context) throws IOException {
-        MapperService mapperService = context.getMapperService();
+    public PhraseSuggestionContext.DirectCandidateGenerator build(MapperService mapperService) throws IOException {
         PhraseSuggestionContext.DirectCandidateGenerator generator = new PhraseSuggestionContext.DirectCandidateGenerator();
         generator.setField(this.field);
         transferIfNotNull(this.size, generator::size);

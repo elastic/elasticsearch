@@ -271,8 +271,8 @@ public final class SuggestUtils {
            return false;
         }
         return true;
-
     }
+
 
 
     public static void verifySuggestion(MapperService mapperService, BytesRef globalText, SuggestionContext suggestion) {
@@ -293,7 +293,6 @@ public final class SuggestUtils {
             suggestion.setShardSize(Math.max(suggestion.getSize(), 5));
         }
     }
-
 
     public static ShingleTokenFilterFactory.Factory getShingleFilterFactory(Analyzer analyzer) {
         if (analyzer instanceof NamedAnalyzer) {

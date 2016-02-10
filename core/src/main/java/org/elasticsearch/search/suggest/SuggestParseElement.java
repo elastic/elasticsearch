@@ -21,8 +21,8 @@ package org.elasticsearch.search.suggest;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
@@ -44,14 +44,13 @@ public final class SuggestParseElement implements SearchParseElement {
 
     @Override
     public void parse(XContentParser parser, SearchContext context) throws Exception {
-        SuggestionSearchContext suggestionSearchContext = parseInternal(parser, context.mapperService(), context.fieldData(),
-                context.shardTarget().index(), context.shardTarget().shardId());
+        SuggestionSearchContext suggestionSearchContext = parseInternal(parser, context.getQueryShardContext());
         context.suggest(suggestionSearchContext);
     }
 
-    public SuggestionSearchContext parseInternal(XContentParser parser, MapperService mapperService, IndexFieldDataService fieldDataService,
-                                                 String index, int shardId) throws IOException {
+    public SuggestionSearchContext parseInternal(XContentParser parser, QueryShardContext shardContext) throws IOException {
         SuggestionSearchContext suggestionSearchContext = new SuggestionSearchContext();
+        MapperService mapperService = shardContext.getMapperService();
 
         BytesRef globalText = null;
         String fieldName = null;
@@ -95,10 +94,20 @@ public final class SuggestParseElement implements SearchParseElement {
                             throw new IllegalArgumentException("Suggester[" + fieldName + "] not supported");
                         }
                         final SuggestContextParser contextParser = suggesters.get(fieldName).getContextParser();
-                        suggestionContext = contextParser.parse(parser, mapperService, fieldDataService);
+                        suggestionContext = contextParser.parse(parser, shardContext);
                     }
                 }
                 if (suggestionContext != null) {
+                    if (suggestText != null) {
+                        suggestionContext.setText(suggestText);
+                    }
+                    if (prefix != null) {
+                        suggestionContext.setPrefix(prefix);
+                    }
+                    if (regex != null) {
+                        suggestionContext.setRegex(regex);
+                    }
+
                     if (suggestText != null && prefix == null) {
                         suggestionContext.setPrefix(suggestText);
                         suggestionContext.setText(suggestText);
@@ -110,6 +119,8 @@ public final class SuggestParseElement implements SearchParseElement {
                         suggestionContext.setText(regex);
                     }
                     suggestionContexts.put(suggestionName, suggestionContext);
+                } else {
+                    throw new IllegalArgumentException("suggestion context could not be parsed correctly");
                 }
             }
         }
@@ -117,9 +128,6 @@ public final class SuggestParseElement implements SearchParseElement {
         for (Map.Entry<String, SuggestionContext> entry : suggestionContexts.entrySet()) {
             String suggestionName = entry.getKey();
             SuggestionContext suggestionContext = entry.getValue();
-
-            suggestionContext.setShard(shardId);
-            suggestionContext.setIndex(index);
             SuggestUtils.verifySuggestion(mapperService, globalText, suggestionContext);
             suggestionSearchContext.addSuggestion(suggestionName, suggestionContext);
         }

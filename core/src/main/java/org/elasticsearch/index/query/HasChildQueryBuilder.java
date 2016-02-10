@@ -26,6 +26,7 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.JoinUtil;
 import org.apache.lucene.search.join.ScoreMode;
+import org.apache.lucene.search.similarities.Similarity;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -261,7 +262,8 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
         if (maxChildren == 0) {
             maxChildren = Integer.MAX_VALUE;
         }
-        return new LateParsingQuery(parentDocMapper.typeFilter(), innerQuery, minChildren(), maxChildren, parentType, scoreMode, parentChildIndexFieldData);
+        return new LateParsingQuery(parentDocMapper.typeFilter(), innerQuery, minChildren(), maxChildren,
+                                    parentType, scoreMode, parentChildIndexFieldData, context.getSearchSimilarity());
     }
 
     final static class LateParsingQuery extends Query {
@@ -273,8 +275,11 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
         private final String parentType;
         private final ScoreMode scoreMode;
         private final ParentChildIndexFieldData parentChildIndexFieldData;
+        private final Similarity similarity;
 
-        LateParsingQuery(Query toQuery, Query innerQuery, int minChildren, int maxChildren, String parentType, ScoreMode scoreMode, ParentChildIndexFieldData parentChildIndexFieldData) {
+        LateParsingQuery(Query toQuery, Query innerQuery, int minChildren, int maxChildren,
+                         String parentType, ScoreMode scoreMode, ParentChildIndexFieldData parentChildIndexFieldData,
+                         Similarity similarity) {
             this.toQuery = toQuery;
             this.innerQuery = innerQuery;
             this.minChildren = minChildren;
@@ -282,6 +287,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
             this.parentType = parentType;
             this.scoreMode = scoreMode;
             this.parentChildIndexFieldData = parentChildIndexFieldData;
+            this.similarity = similarity;
         }
 
         @Override
@@ -294,6 +300,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
                 String joinField = ParentFieldMapper.joinField(parentType);
                 IndexSearcher indexSearcher = new IndexSearcher(reader);
                 indexSearcher.setQueryCache(null);
+                indexSearcher.setSimilarity(similarity);
                 IndexParentChildFieldData indexParentChildFieldData = parentChildIndexFieldData.loadGlobal((DirectoryReader) reader);
                 MultiDocValues.OrdinalMap ordinalMap = ParentChildIndexFieldData.getOrdinalMap(indexParentChildFieldData, parentType);
                 return JoinUtil.createJoinQuery(joinField, innerQuery, toQuery, indexSearcher, scoreMode, ordinalMap, minChildren, maxChildren);

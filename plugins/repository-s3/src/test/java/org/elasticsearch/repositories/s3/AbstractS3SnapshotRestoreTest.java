@@ -19,7 +19,6 @@
 
 package org.elasticsearch.repositories.s3;
 
-import com.amazonaws.Protocol;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.DeleteObjectsRequest;
 import com.amazonaws.services.s3.model.ObjectListing;
@@ -33,12 +32,14 @@ import org.elasticsearch.cloud.aws.AbstractAwsTestCase;
 import org.elasticsearch.cloud.aws.AwsS3Service;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.plugin.repository.s3.S3RepositoryPlugin;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.repositories.RepositoryVerificationException;
 import org.elasticsearch.snapshots.SnapshotMissingException;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
+import org.elasticsearch.test.store.MockFSDirectoryService;
 import org.junit.After;
 import org.junit.Before;
 
@@ -53,43 +54,43 @@ import static org.hamcrest.Matchers.notNullValue;
  */
 @ClusterScope(scope = Scope.SUITE, numDataNodes = 2, numClientNodes = 0, transportClientRatio = 0.0)
 abstract public class AbstractS3SnapshotRestoreTest extends AbstractAwsTestCase {
-
     @Override
-    public Settings nodeSettings(int nodeOrdinal) {
-        // nodeSettings is called before `wipeBefore()` so we need to define basePath here
-        globalBasePath = "repo-" + randomInt();
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
-                .put(S3Repository.Repositories.BASE_PATH_SETTING.getKey(), globalBasePath)
+    public Settings indexSettings() {
+        // During restore we frequently restore index to exactly the same state it was before, that might cause the same
+        // checksum file to be written twice during restore operation
+        return Settings.builder().put(super.indexSettings())
+                .put(MockFSDirectoryService.RANDOM_PREVENT_DOUBLE_WRITE_SETTING.getKey(), false)
+                .put(MockFSDirectoryService.RANDOM_NO_DELETE_OPEN_FILE_SETTING.getKey(), false)
+                .put("cloud.enabled", true)
+                .put("plugin.types", S3RepositoryPlugin.class.getName())
+                .put("repositories.s3.base_path", basePath)
                 .build();
     }
 
     private String basePath;
-    private String globalBasePath;
 
     @Before
     public final void wipeBefore() {
         wipeRepositories();
         basePath = "repo-" + randomInt();
         cleanRepositoryFiles(basePath);
-        cleanRepositoryFiles(globalBasePath);
     }
 
     @After
     public final void wipeAfter() {
         wipeRepositories();
         cleanRepositoryFiles(basePath);
-        cleanRepositoryFiles(globalBasePath);
     }
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-cloud-aws/issues/211")
     public void testSimpleWorkflow() {
         Client client = client();
         Settings.Builder settings = Settings.settingsBuilder()
-                .put(S3Repository.Repository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(1000, 10000));
+                .put("chunk_size", randomIntBetween(1000, 10000));
 
         // We sometime test getting the base_path from node settings using repositories.s3.base_path
         if (usually()) {
-            settings.put(S3Repository.Repository.BASE_PATH_SETTING.getKey(), basePath);
+            settings.put("base_path", basePath);
         }
 
         logger.info("-->  creating s3 repository with bucket[{}] and path [{}]", internalCluster().getInstance(Settings.class).get("repositories.s3.bucket"), basePath);
@@ -165,9 +166,9 @@ abstract public class AbstractS3SnapshotRestoreTest extends AbstractAwsTestCase 
         logger.info("-->  creating s3 repository with bucket[{}] and path [{}]", internalCluster().getInstance(Settings.class).get("repositories.s3.bucket"), basePath);
         PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
                 .setType("s3").setSettings(Settings.settingsBuilder()
-                        .put(S3Repository.Repository.BASE_PATH_SETTING.getKey(), basePath)
-                        .put(S3Repository.Repository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(1000, 10000))
-                        .put(S3Repository.Repository.SERVER_SIDE_ENCRYPTION_SETTING.getKey(), true)
+                        .put("base_path", basePath)
+                        .put("chunk_size", randomIntBetween(1000, 10000))
+                        .put("server_side_encryption", true)
                         ).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
 
@@ -195,12 +196,11 @@ abstract public class AbstractS3SnapshotRestoreTest extends AbstractAwsTestCase 
         Settings settings = internalCluster().getInstance(Settings.class);
         Settings bucket = settings.getByPrefix("repositories.s3.");
         AmazonS3 s3Client = internalCluster().getInstance(AwsS3Service.class).client(
-            null,
-            S3Repository.Repositories.PROTOCOL_SETTING.get(settings),
-            S3Repository.Repositories.REGION_SETTING.get(settings),
-            S3Repository.Repositories.KEY_SETTING.get(settings),
-            S3Repository.Repositories.SECRET_SETTING.get(settings),
-            null);
+                null,
+                null,
+                bucket.get("region", settings.get("repositories.s3.region")),
+                bucket.get("access_key", settings.get("cloud.aws.access_key")),
+                bucket.get("secret_key", settings.get("cloud.aws.secret_key")));
 
         String bucketName = bucket.get("bucket");
         logger.info("--> verify encryption for bucket [{}], prefix [{}]", bucketName, basePath);
@@ -260,23 +260,12 @@ abstract public class AbstractS3SnapshotRestoreTest extends AbstractAwsTestCase 
         try {
             client.admin().cluster().preparePutRepository("test-repo")
                 .setType("s3").setSettings(Settings.settingsBuilder()
-                        .put(S3Repository.Repository.BASE_PATH_SETTING.getKey(), basePath)
-                        .put(S3Repository.Repository.BUCKET_SETTING.getKey(), bucketSettings.get("bucket"))
+                        .put("base_path", basePath)
+                        .put("bucket", bucketSettings.get("bucket"))
                         ).get();
             fail("repository verification should have raise an exception!");
         } catch (RepositoryVerificationException e) {
         }
-    }
-
-    public void testRepositoryWithBasePath() {
-        Client client = client();
-        PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
-            .setType("s3").setSettings(Settings.settingsBuilder()
-                .put(S3Repository.Repository.BASE_PATH_SETTING.getKey(), basePath)
-            ).get();
-        assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
-
-        assertRepositoryIsOperational(client, "test-repo");
     }
 
     public void testRepositoryWithCustomCredentials() {
@@ -285,12 +274,12 @@ abstract public class AbstractS3SnapshotRestoreTest extends AbstractAwsTestCase 
         logger.info("-->  creating s3 repository with bucket[{}] and path [{}]", bucketSettings.get("bucket"), basePath);
         PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
                 .setType("s3").setSettings(Settings.settingsBuilder()
-                    .put(S3Repository.Repository.BASE_PATH_SETTING.getKey(), basePath)
-                    .put(S3Repository.Repository.REGION_SETTING.getKey(), bucketSettings.get("region"))
-                    .put(S3Repository.Repository.KEY_SETTING.getKey(), bucketSettings.get("access_key"))
-                    .put(S3Repository.Repository.SECRET_SETTING.getKey(), bucketSettings.get("secret_key"))
-                    .put(S3Repository.Repository.BUCKET_SETTING.getKey(), bucketSettings.get("bucket"))
-                    ).get();
+                        .put("base_path", basePath)
+                        .put("region", bucketSettings.get("region"))
+                        .put("access_key", bucketSettings.get("access_key"))
+                        .put("secret_key", bucketSettings.get("secret_key"))
+                        .put("bucket", bucketSettings.get("bucket"))
+                        ).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
 
         assertRepositoryIsOperational(client, "test-repo");
@@ -303,12 +292,12 @@ abstract public class AbstractS3SnapshotRestoreTest extends AbstractAwsTestCase 
         logger.info("--> creating s3 repostoriy with endpoint [{}], bucket[{}] and path [{}]", bucketSettings.get("endpoint"), bucketSettings.get("bucket"), basePath);
         PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
                 .setType("s3").setSettings(Settings.settingsBuilder()
-                    .put(S3Repository.Repository.BUCKET_SETTING.getKey(), bucketSettings.get("bucket"))
-                    .put(S3Repository.Repository.ENDPOINT_SETTING.getKey(), bucketSettings.get("endpoint"))
-                    .put(S3Repository.Repository.KEY_SETTING.getKey(), bucketSettings.get("access_key"))
-                    .put(S3Repository.Repository.SECRET_SETTING.getKey(), bucketSettings.get("secret_key"))
-                    .put(S3Repository.Repository.BASE_PATH_SETTING.getKey(), basePath)
-                    ).get();
+                        .put("bucket", bucketSettings.get("bucket"))
+                        .put("endpoint", bucketSettings.get("endpoint"))
+                        .put("access_key", bucketSettings.get("access_key"))
+                        .put("secret_key", bucketSettings.get("secret_key"))
+                        .put("base_path", basePath)
+                        ).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
         assertRepositoryIsOperational(client, "test-repo");
     }
@@ -324,8 +313,8 @@ abstract public class AbstractS3SnapshotRestoreTest extends AbstractAwsTestCase 
         try {
             client.admin().cluster().preparePutRepository("test-repo")
                 .setType("s3").setSettings(Settings.settingsBuilder()
-                    .put(S3Repository.Repository.BASE_PATH_SETTING.getKey(), basePath)
-                    .put(S3Repository.Repository.BUCKET_SETTING.getKey(), bucketSettings.get("bucket"))
+                    .put("base_path", basePath)
+                    .put("bucket", bucketSettings.get("bucket"))
                     // Below setting intentionally omitted to assert bucket is not available in default region.
                     //                        .put("region", privateBucketSettings.get("region"))
                     ).get();
@@ -342,10 +331,10 @@ abstract public class AbstractS3SnapshotRestoreTest extends AbstractAwsTestCase 
         logger.info("-->  creating s3 repository with bucket[{}] and path [{}]", bucketSettings.get("bucket"), basePath);
         PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
                 .setType("s3").setSettings(Settings.settingsBuilder()
-                    .put(S3Repository.Repository.BASE_PATH_SETTING.getKey(), basePath)
-                    .put(S3Repository.Repository.BUCKET_SETTING.getKey(), bucketSettings.get("bucket"))
-                    .put(S3Repository.Repository.REGION_SETTING.getKey(), bucketSettings.get("region"))
-                    ).get();
+                        .put("base_path", basePath)
+                        .put("bucket", bucketSettings.get("bucket"))
+                        .put("region", bucketSettings.get("region"))
+                        ).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
 
         assertRepositoryIsOperational(client, "test-repo");
@@ -359,7 +348,7 @@ abstract public class AbstractS3SnapshotRestoreTest extends AbstractAwsTestCase 
         logger.info("-->  creating s3 repository with bucket[{}] and path [{}]", internalCluster().getInstance(Settings.class).get("repositories.s3.bucket"), basePath);
         PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
                 .setType("s3").setSettings(Settings.settingsBuilder()
-                    .put(S3Repository.Repository.BASE_PATH_SETTING.getKey(), basePath)
+                        .put("base_path", basePath)
                 ).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
 
@@ -380,8 +369,8 @@ abstract public class AbstractS3SnapshotRestoreTest extends AbstractAwsTestCase 
         logger.info("-->  creating s3 repository without any path");
         PutRepositoryResponse putRepositoryResponse = client.preparePutRepository("test-repo")
                 .setType("s3").setSettings(Settings.settingsBuilder()
-                    .put(S3Repository.Repository.BASE_PATH_SETTING.getKey(), basePath)
-                ).get();
+                        .put("base_path", basePath)
+                        ).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
 
         try {
@@ -465,17 +454,17 @@ abstract public class AbstractS3SnapshotRestoreTest extends AbstractAwsTestCase 
                 settings.getByPrefix("repositories.s3.external-bucket.")
         };
         for (Settings bucket : buckets) {
-            String endpoint = bucket.get("endpoint", S3Repository.Repositories.ENDPOINT_SETTING.get(settings));
-            Protocol protocol = S3Repository.Repositories.PROTOCOL_SETTING.get(settings);
-            String region = bucket.get("region", S3Repository.Repositories.REGION_SETTING.get(settings));
-            String accessKey = bucket.get("access_key", S3Repository.Repositories.KEY_SETTING.get(settings));
-            String secretKey = bucket.get("secret_key", S3Repository.Repositories.SECRET_SETTING.get(settings));
+            String endpoint = bucket.get("endpoint", settings.get("repositories.s3.endpoint"));
+            String protocol = bucket.get("protocol", settings.get("repositories.s3.protocol"));
+            String region = bucket.get("region", settings.get("repositories.s3.region"));
+            String accessKey = bucket.get("access_key", settings.get("cloud.aws.access_key"));
+            String secretKey = bucket.get("secret_key", settings.get("cloud.aws.secret_key"));
             String bucketName = bucket.get("bucket");
 
             // We check that settings has been set in elasticsearch.yml integration test file
             // as described in README
             assertThat("Your settings in elasticsearch.yml are incorrects. Check README file.", bucketName, notNullValue());
-            AmazonS3 client = internalCluster().getInstance(AwsS3Service.class).client(endpoint, protocol, region, accessKey, secretKey, null);
+            AmazonS3 client = internalCluster().getInstance(AwsS3Service.class).client(endpoint, protocol, region, accessKey, secretKey);
             try {
                 ObjectListing prevListing = null;
                 //From http://docs.amazonwebservices.com/AmazonS3/latest/dev/DeletingMultipleObjectsUsingJava.html

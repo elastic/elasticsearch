@@ -23,6 +23,7 @@ package org.elasticsearch.discovery.ec2;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.elasticsearch.cloud.aws.AbstractAwsTestCase;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.plugin.discovery.ec2.Ec2DiscoveryPlugin;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 
@@ -38,6 +39,8 @@ import static org.hamcrest.CoreMatchers.is;
 public class Ec2DiscoveryUpdateSettingsTests extends AbstractAwsTestCase {
     public void testMinimumMasterNodesStart() {
         Settings nodeSettings = settingsBuilder()
+                .put("plugin.types", Ec2DiscoveryPlugin.class.getName())
+                .put("cloud.enabled", true)
                 .put("discovery.type", "ec2")
                 .build();
         internalCluster().startNode(nodeSettings);

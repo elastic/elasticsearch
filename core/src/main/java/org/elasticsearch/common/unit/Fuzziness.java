@@ -67,6 +67,7 @@ public final class Fuzziness implements ToXContent, Writeable<Fuzziness> {
 
     /**
      * Creates a {@link Fuzziness} instance from an edit distance. The value must be one of <tt>[0, 1, 2]</tt>
+     *
      * Note: Using this method only makes sense if the field you are applying Fuzziness to is some sort of string.
      */
     public static Fuzziness fromEdits(int edits) {

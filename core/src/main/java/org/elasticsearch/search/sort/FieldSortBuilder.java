@@ -286,10 +286,9 @@ public class FieldSortBuilder extends SortBuilder implements SortBuilderTemp<Fie
     }
 
     @Override
-    public FieldSortBuilder fromXContent(QueryParseContext context, String elementName) throws IOException {
+    public FieldSortBuilder fromXContent(QueryParseContext context, String fieldName) throws IOException {
         XContentParser parser = context.parser();
 
-        String fieldName = null;
         QueryBuilder nestedFilter = null;
         String nestedPath = null;
         Object missing = null;
@@ -299,37 +298,31 @@ public class FieldSortBuilder extends SortBuilder implements SortBuilderTemp<Fie
 
         String currentFieldName = null;
         XContentParser.Token token;
-        fieldName = elementName;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                    if (token == XContentParser.Token.FIELD_NAME) {
-                        currentFieldName = parser.currentName();
-                    } else if (token == XContentParser.Token.START_OBJECT) {
-                        if (context.parseFieldMatcher().match(currentFieldName, NESTED_FILTER)) {
-                            nestedFilter = context.parseInnerQueryBuilder();
-                        }
-                    } else if (token.isValue()) {
-                        if (context.parseFieldMatcher().match(currentFieldName, NESTED_PATH)) {
-                            nestedPath = parser.text();
-                        } else if (context.parseFieldMatcher().match(currentFieldName, MISSING)) {
-                            missing = parser.objectBytes();
-                        } else if (context.parseFieldMatcher().match(currentFieldName, ORDER)) {
-                            String sortOrder = parser.text();
-                            if ("asc".equals(sortOrder)) {
-                                order = SortOrder.ASC;
-                            } else if ("desc".equals(sortOrder)) {
-                                order = SortOrder.DESC;
-                            } else {
-                                throw new IllegalStateException("Sort order " + sortOrder + " not supported.");
-                            }
-                        } else if (context.parseFieldMatcher().match(currentFieldName, SORT_MODE)) {
-                            sortMode = parser.text();
-                        } else if (context.parseFieldMatcher().match(currentFieldName, UNMAPPED_TYPE)) {
-                            unmappedType = parser.text();
-                        }
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                if (context.parseFieldMatcher().match(currentFieldName, NESTED_FILTER)) {
+                    nestedFilter = context.parseInnerQueryBuilder();
+                }
+            } else if (token.isValue()) {
+                if (context.parseFieldMatcher().match(currentFieldName, NESTED_PATH)) {
+                    nestedPath = parser.text();
+                } else if (context.parseFieldMatcher().match(currentFieldName, MISSING)) {
+                    missing = parser.objectBytes();
+                } else if (context.parseFieldMatcher().match(currentFieldName, ORDER)) {
+                    String sortOrder = parser.text();
+                    if ("asc".equals(sortOrder)) {
+                        order = SortOrder.ASC;
+                    } else if ("desc".equals(sortOrder)) {
+                        order = SortOrder.DESC;
+                    } else {
+                        throw new IllegalStateException("Sort order " + sortOrder + " not supported.");
                     }
+                } else if (context.parseFieldMatcher().match(currentFieldName, SORT_MODE)) {
+                    sortMode = parser.text();
+                } else if (context.parseFieldMatcher().match(currentFieldName, UNMAPPED_TYPE)) {
+                    unmappedType = parser.text();
                 }
             }
         }
@@ -355,15 +348,4 @@ public class FieldSortBuilder extends SortBuilder implements SortBuilderTemp<Fie
         }
         return builder;
     }
-
-    @Override
-    public String getName() {
-        return "field_sort_builder";
-    }
-
-    @Override
-    public SortBuilderTemp<FieldSortBuilder> getBuilderPrototype() {
-        return PROTOTYPE;
-    }
-
 }

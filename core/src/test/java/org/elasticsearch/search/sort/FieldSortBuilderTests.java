@@ -21,12 +21,7 @@ package org.elasticsearch.search.sort;
 
 import java.io.IOException;
 
-public class FieldSortBuilderTests extends AbstractSearchSourceItemTestCase<FieldSortBuilder> {
-
-    @SuppressWarnings("unchecked")
-    public Class<FieldSortBuilder> getPrototype() {
-        return (Class<FieldSortBuilder>) FieldSortBuilder.PROTOTYPE.getClass();
-    }
+public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder> {
 
     @Override
     protected FieldSortBuilder createTestItem() {

@@ -24,11 +24,9 @@ import java.util.Map;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryParser;
-import org.elasticsearch.search.sort.SortBuilderTemp;
 
 public class IndicesQueriesRegistry extends AbstractComponent {
     private Map<String, QueryParser<?>> queryParsers;
-    private Map<String, SortBuilderTemp<?>> sortParsers;
 
     public IndicesQueriesRegistry(Settings settings, Map<String, QueryParser<?>> queryParsers) {
         super(settings);
@@ -40,12 +38,5 @@ public class IndicesQueriesRegistry extends AbstractComponent {
      */
     public Map<String, QueryParser<?>> queryParsers() {
         return queryParsers;
-    }
-    
-    /**
-     * Returns all registered sort parsers
-     */
-    public Map<String, SortBuilderTemp<?>> sortParsers() {
-        return sortParsers;
     }
 }

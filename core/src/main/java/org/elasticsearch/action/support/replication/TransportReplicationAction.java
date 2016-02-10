@@ -987,15 +987,10 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                                                 String message = String.format(Locale.ROOT, "primary shard [%s] was demoted while failing replica shard [%s] for [%s]", primaryShard, shard, exp);
                                                 // we are no longer the primary, fail ourselves and start over
                                                 indexShardReference.failShard(message, shardFailedError);
-                                                Releasables.close(indexShardReference);
-                                                try {
-                                                    channel.sendResponse(new RetryOnPrimaryException(shardId, message));
-                                                } catch (IOException channelException) {
-                                                    logger.warn("{} failed to send response back to client for action [" + transportReplicaAction + "] after failing demoted primary shard [{}]", channelException, shardId, primaryShard);
-                                                }
+                                                forceFinishAsFailed(new RetryOnPrimaryException(shardId, message));
                                             } else {
                                                 assert false : shardFailedError;
-                                                forceFinishAsFailed(shardFailedError);
+                                                onReplicaFailure(nodeId, exp);
                                             }
                                         }
                                     }

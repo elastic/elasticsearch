@@ -104,7 +104,7 @@ public abstract class ESBackcompatTestCase extends ESIntegTestCase {
      */
     private static final String TESTS_COMPATIBILITY = "tests.compatibility";
 
-    private static final Version GLOABL_COMPATIBILITY_VERSION = Version.fromString(compatibilityVersionProperty());
+    private static final Version GLOBAL_COMPATIBILITY_VERSION = Version.fromString(compatibilityVersionProperty());
 
     private static Path backwardsCompatibilityPath() {
         String path = System.getProperty(TESTS_BACKWARDS_COMPATIBILITY_PATH);
@@ -155,7 +155,7 @@ public abstract class ESBackcompatTestCase extends ESIntegTestCase {
      * {@link #compatibilityVersion()}
      */
     public static Version globalCompatibilityVersion() {
-        return GLOABL_COMPATIBILITY_VERSION;
+        return GLOBAL_COMPATIBILITY_VERSION;
     }
 
     private static String compatibilityVersionProperty() {

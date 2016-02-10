@@ -415,7 +415,11 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
 
     public static class RetryOnPrimaryException extends ElasticsearchException {
         public RetryOnPrimaryException(ShardId shardId, String msg) {
-            super(msg);
+            this(shardId, msg, null);
+        }
+
+        public RetryOnPrimaryException(ShardId shardId, String msg, Throwable cause) {
+            super(msg, cause);
             setShard(shardId);
         }
 
@@ -486,6 +490,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                 return;
             }
             final DiscoveryNode node = state.nodes().get(primary.currentNodeId());
+            taskManager.registerChildTask(task, node.getId());
             if (primary.currentNodeId().equals(state.nodes().localNodeId())) {
                 setPhase(task, "waiting_on_primary");
                 if (logger.isTraceEnabled()) {
@@ -800,6 +805,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
      * relocating copies
      */
     final class ReplicationPhase extends AbstractRunnable {
+
         private final ReplicationTask task;
         private final ReplicaRequest replicaRequest;
         private final Response finalResponse;
@@ -981,9 +987,17 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                                         }
 
                                         @Override
-                                        public void onFailure(Throwable t) {
-                                            // TODO: handle catastrophic non-channel failures
-                                            onReplicaFailure(nodeId, exp);
+                                        public void onFailure(Throwable shardFailedError) {
+                                            if (shardFailedError instanceof ShardStateAction.NoLongerPrimaryShardException) {
+                                                ShardRouting primaryShard = indexShardReference.routingEntry();
+                                                String message = String.format(Locale.ROOT, "primary shard [%s] was demoted while failing replica shard [%s] for [%s]", primaryShard, shard, exp);
+                                                // we are no longer the primary, fail ourselves and start over
+                                                indexShardReference.failShard(message, shardFailedError);
+                                                forceFinishAsFailed(new RetryOnPrimaryException(shardId, message, shardFailedError));
+                                            } else {
+                                                assert false : shardFailedError;
+                                                onReplicaFailure(nodeId, exp);
+                                            }
                                         }
                                     }
                                 );
@@ -1069,7 +1083,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
 
     interface IndexShardReference extends Releasable {
         boolean isRelocated();
-
+        void failShard(String reason, @Nullable Throwable e);
         ShardRouting routingEntry();
     }
 
@@ -1095,6 +1109,11 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         @Override
         public boolean isRelocated() {
             return indexShard.state() == IndexShardState.RELOCATED;
+        }
+
+        @Override
+        public void failShard(String reason, @Nullable Throwable e) {
+            indexShard.failShard(reason, e);
         }
 
         @Override

@@ -133,7 +133,7 @@ public class RestIndicesAliasesAction extends BaseRestHandler {
                             }
 
                             if (type == AliasAction.Type.ADD) {
-                                AliasActions aliasActions = new AliasActions(type, indices, aliases);
+                                AliasActions aliasActions = new AliasActions(type, indices, aliases).filter(filter);
                                 if (routingSet) {
                                     aliasActions.routing(routing);
                                 }

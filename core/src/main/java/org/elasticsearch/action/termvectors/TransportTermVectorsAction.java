@@ -32,6 +32,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -56,6 +57,7 @@ public class TransportTermVectorsAction extends TransportSingleShardAction<TermV
         super(settings, TermVectorsAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
                 TermVectorsRequest::new, ThreadPool.Names.GET);
         this.indicesService = indicesService;
+
     }
 
     @Override
@@ -83,7 +85,7 @@ public class TransportTermVectorsAction extends TransportSingleShardAction<TermV
     protected TermVectorsResponse shardOperation(TermVectorsRequest request, ShardId shardId) {
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         IndexShard indexShard = indexService.getShard(shardId.id());
-        TermVectorsResponse response = indexShard.getTermVectors(request);
+        TermVectorsResponse response = TermVectorsService.getTermVectors(indexShard, request);
         response.updateTookInMillis(request.startTime());
         return response;
     }

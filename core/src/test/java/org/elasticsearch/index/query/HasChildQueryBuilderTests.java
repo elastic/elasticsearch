@@ -84,7 +84,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
     protected void setSearchContext(String[] types) {
         final MapperService mapperService = queryShardContext().getMapperService();
         final IndexFieldDataService fieldData = indexFieldDataService();
-        TestSearchContext testSearchContext = new TestSearchContext() {
+        TestSearchContext testSearchContext = new TestSearchContext(queryShardContext()) {
 
             @Override
             public MapperService mapperService() {
@@ -96,7 +96,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
                 return fieldData; // need to build / parse inner hits sort fields
             }
         };
-        testSearchContext.setTypes(types);
+        testSearchContext.getQueryShardContext().setTypes(types);
         SearchContext.setCurrent(testSearchContext);
     }
 
@@ -230,11 +230,12 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
     }
     public void testToQueryInnerQueryType() throws IOException {
         String[] searchTypes = new String[]{PARENT_TYPE};
-        QueryShardContext.setTypes(searchTypes);
+        QueryShardContext shardContext = createShardContext();
+        shardContext.setTypes(searchTypes);
         HasChildQueryBuilder hasChildQueryBuilder = new HasChildQueryBuilder(CHILD_TYPE, new IdsQueryBuilder().addIds("id"));
-        Query query = hasChildQueryBuilder.toQuery(createShardContext());
+        Query query = hasChildQueryBuilder.toQuery(shardContext);
         //verify that the context types are still the same as the ones we previously set
-        assertThat(QueryShardContext.getTypes(), equalTo(searchTypes));
+        assertThat(shardContext.getTypes(), equalTo(searchTypes));
         assertLateParsingQuery(query, CHILD_TYPE, "id");
     }
 
@@ -253,7 +254,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
         ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) rewrittenTermsQuery;
         assertThat(constantScoreQuery.getQuery(), instanceOf(BooleanQuery.class));
         BooleanQuery booleanTermsQuery = (BooleanQuery) constantScoreQuery.getQuery();
-        assertThat(booleanTermsQuery.clauses().size(), equalTo(1));
+        assertThat(booleanTermsQuery.clauses().toString(), booleanTermsQuery.clauses().size(), equalTo(1));
         assertThat(booleanTermsQuery.clauses().get(0).getOccur(), equalTo(BooleanClause.Occur.SHOULD));
         assertThat(booleanTermsQuery.clauses().get(0).getQuery(), instanceOf(TermQuery.class));
         TermQuery termQuery = (TermQuery) booleanTermsQuery.clauses().get(0).getQuery();

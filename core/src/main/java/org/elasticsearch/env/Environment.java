@@ -19,7 +19,6 @@
 
 package org.elasticsearch.env;
 
-import org.apache.lucene.util.Constants;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;

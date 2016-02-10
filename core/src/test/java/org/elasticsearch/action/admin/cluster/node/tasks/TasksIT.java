@@ -20,6 +20,7 @@ package org.elasticsearch.action.admin.cluster.node.tasks;
 
 import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TaskInfo;
@@ -68,7 +69,12 @@ public class TasksIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(MockTransportService.TestPlugin.class);
+        return pluginList(MockTransportService.TestPlugin.class, TestTaskPlugin.class);
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
+        return nodePlugins();
     }
 
     @Override
@@ -279,6 +285,39 @@ public class TasksIT extends ESIntegTestCase {
         }
     }
 
+    public void testTasksCancellation() throws Exception {
+        // Start blocking test task
+        // Get real client (the plugin is not registered on transport nodes)
+        ListenableActionFuture<TestTaskPlugin.NodesResponse> future = TestTaskPlugin.TestTaskAction.INSTANCE.newRequestBuilder(client()).execute();
+        logger.info("--> started test tasks");
+
+        // Wait for the task to start on all nodes
+        assertBusy(() -> assertEquals(internalCluster().numDataAndMasterNodes(),
+            client().admin().cluster().prepareListTasks().setActions(TestTaskPlugin.TestTaskAction.NAME + "[n]").get().getTasks().size()));
+
+        logger.info("--> cancelling the main test task");
+        CancelTasksResponse cancelTasksResponse = client().admin().cluster().prepareCancelTasks().setActions(TestTaskPlugin.TestTaskAction.NAME).get();
+        assertEquals(1, cancelTasksResponse.getTasks().size());
+
+        future.get();
+
+        logger.info("--> checking that test tasks are not running");
+        assertEquals(0, client().admin().cluster().prepareListTasks().setActions(TestTaskPlugin.TestTaskAction.NAME + "*").get().getTasks().size());
+
+    }
+
+    public void testTasksUnblocking() throws Exception {
+        // Start blocking test task
+        ListenableActionFuture<TestTaskPlugin.NodesResponse> future = TestTaskPlugin.TestTaskAction.INSTANCE.newRequestBuilder(client()).execute();
+        // Wait for the task to start on all nodes
+        assertBusy(() -> assertEquals(internalCluster().numDataAndMasterNodes(),
+            client().admin().cluster().prepareListTasks().setActions(TestTaskPlugin.TestTaskAction.NAME + "[n]").get().getTasks().size()));
+
+        TestTaskPlugin.UnblockTestTasksAction.INSTANCE.newRequestBuilder(client()).get();
+
+        future.get();
+        assertEquals(0, client().admin().cluster().prepareListTasks().setActions(TestTaskPlugin.TestTaskAction.NAME + "[n]").get().getTasks().size());
+    }
 
     @Override
     public void tearDown() throws Exception {

@@ -208,17 +208,23 @@ class InstallPluginCommand extends CliTool.Command {
         return zip;
     }
 
-    private Path unzip(Path zip, Path pluginsDir) throws IOException {
+    private Path unzip(Path zip, Path pluginsDir) throws IOException, UserError {
         // unzip plugin to a staging temp dir
         Path target = Files.createTempDirectory(pluginsDir, ".installing-");
         Files.createDirectories(target);
 
+        boolean hasEsDir = false;
         // TODO: we should wrap this in a try/catch and try deleting the target dir on failure?
         try (ZipInputStream zipInput = new ZipInputStream(Files.newInputStream(zip))) {
             ZipEntry entry;
             byte[] buffer = new byte[8192];
             while ((entry = zipInput.getNextEntry()) != null) {
-                Path targetFile = target.resolve(entry.getName());
+                if (entry.getName().startsWith("elasticsearch/") == false) {
+                    // only extract the elasticsearch directory
+                    continue;
+                }
+                hasEsDir = true;
+                Path targetFile = target.resolve(entry.getName().substring("elasticsearch/".length()));
                 // TODO: handle name being an absolute path
 
                 // be on the safe side: do not rely on that directories are always extracted
@@ -236,6 +242,10 @@ class InstallPluginCommand extends CliTool.Command {
             }
         }
         Files.delete(zip);
+        if (hasEsDir == false) {
+            IOUtils.rm(target);
+            throw new UserError(CliTool.ExitStatus.DATA_ERROR, "`elasticsearch` directory is missing in the plugin zip");
+        }
         return target;
     }
 

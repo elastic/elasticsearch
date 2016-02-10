@@ -34,9 +34,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
-import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.ingest.core.IngestDocument.MetaData;
 
 public class SimulatePipelineRequest extends ActionRequest<SimulatePipelineRequest> {
@@ -140,7 +138,7 @@ public class SimulatePipelineRequest extends ActionRequest<SimulatePipelineReque
 
     static Parsed parse(Map<String, Object> config, boolean verbose, PipelineStore pipelineStore) throws Exception {
         Map<String, Object> pipelineConfig = ConfigurationUtils.readMap(null, null, config, Fields.PIPELINE);
-        Pipeline pipeline = PIPELINE_FACTORY.create(SIMULATED_PIPELINE_ID, pipelineConfig, pipelineStore.getProcessorFactoryRegistry());
+        Pipeline pipeline = PIPELINE_FACTORY.create(SIMULATED_PIPELINE_ID, pipelineConfig, pipelineStore.getProcessorRegistry());
         List<IngestDocument> ingestDocumentList = parseDocs(config);
         return new Parsed(pipeline, ingestDocumentList, verbose);
     }

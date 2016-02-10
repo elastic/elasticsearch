@@ -11,11 +11,12 @@
   </module>
 
   <module name="TreeWalker">
-    <!-- ~3500 violations
+    <!-- Its our official line length! See checkstyle_suppressions.xml for the files that don't pass this. For now we
+      suppress the check there but enforce it everywhere else. This prevents the list from getting longer even if it is
+      unfair. -->
     <module name="LineLength">
       <property name="max" value="140"/>
     </module>
-    -->
 
     <module name="AvoidStarImport" />
     <!-- Doesn't pass but we could make it pass pretty quick.
@@ -35,6 +36,8 @@
     <!-- The suffix L is preferred, because the letter l (ell) is often
     hard to distinguish from the digit 1 (one). -->
     <module name="UpperEll"/>
+
+    <module name="EqualsHashCode" />
 
     <!-- We don't use Java's builtin serialization and we suppress all warning
       about it. The flip side of that coin is that we shouldn't _try_ to use

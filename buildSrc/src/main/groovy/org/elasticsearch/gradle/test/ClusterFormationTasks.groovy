@@ -340,7 +340,7 @@ class ClusterFormationTasks {
         }
         // delay reading the file location until execution time by wrapping in a closure within a GString
         String file = "${-> new File(node.pluginsTmpDir, pluginZip.singleFile.getName()).toURI().toURL().toString()}"
-        Object[] args = [new File(node.homeDir, 'bin/plugin'), 'install', file]
+        Object[] args = [new File(node.homeDir, 'bin/elasticsearch-plugin'), 'install', file]
         return configureExecTask(name, project, setup, node, args)
     }
 

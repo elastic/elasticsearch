@@ -272,16 +272,16 @@ public class IndexSettingsTests extends ESTestCase {
 
     public void testTranslogFlushSizeThreshold() {
         ByteSizeValue translogFlushThresholdSize = new ByteSizeValue(Math.abs(randomInt()));
-        ByteSizeValue actualValue = ByteSizeValue.parseBytesSizeValue(translogFlushThresholdSize.toString(), IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTTING.getKey());
+        ByteSizeValue actualValue = ByteSizeValue.parseBytesSizeValue(translogFlushThresholdSize.toString(), IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey());
         IndexMetaData metaData = newIndexMeta("index", Settings.settingsBuilder()
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTTING.getKey(), translogFlushThresholdSize.toString())
+            .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), translogFlushThresholdSize.toString())
             .build());
         IndexSettings settings = new IndexSettings(metaData, Settings.EMPTY);
         assertEquals(actualValue, settings.getFlushThresholdSize());
         ByteSizeValue newTranslogFlushThresholdSize = new ByteSizeValue(Math.abs(randomInt()));
-        ByteSizeValue actualNewTranslogFlushThresholdSize = ByteSizeValue.parseBytesSizeValue(newTranslogFlushThresholdSize.toString(), IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTTING.getKey());
-        settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTTING.getKey(), newTranslogFlushThresholdSize.toString()).build()));
+        ByteSizeValue actualNewTranslogFlushThresholdSize = ByteSizeValue.parseBytesSizeValue(newTranslogFlushThresholdSize.toString(), IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey());
+        settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), newTranslogFlushThresholdSize.toString()).build()));
         assertEquals(actualNewTranslogFlushThresholdSize, settings.getFlushThresholdSize());
     }
 }

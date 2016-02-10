@@ -226,7 +226,7 @@ public class ExceptionSerializationTests extends ESTestCase {
     }
 
     public void testIllegalShardRoutingStateException() throws IOException {
-        final ShardRouting routing = TestShardRouting.newShardRouting("test", 0, "xyz", "def", false, ShardRoutingState.STARTED, 0);
+        final ShardRouting routing = TestShardRouting.newShardRouting("test", 0, "xyz", "def", false, ShardRoutingState.STARTED);
         final String routingAsString = routing.toString();
         IllegalShardRoutingStateException serialize = serialize(
                 new IllegalShardRoutingStateException(routing, "foo", new NullPointerException()));
@@ -439,7 +439,7 @@ public class ExceptionSerializationTests extends ESTestCase {
     }
 
     public void testSearchParseException() throws IOException {
-        SearchContext ctx = new TestSearchContext();
+        SearchContext ctx = new TestSearchContext(null);
         SearchParseException ex = serialize(new SearchParseException(ctx, "foo", new XContentLocation(66, 666)));
         assertEquals("foo", ex.getMessage());
         assertEquals(66, ex.getLineNumber());

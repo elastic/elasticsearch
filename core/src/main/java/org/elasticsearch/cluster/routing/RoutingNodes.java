@@ -693,9 +693,9 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             /**
              * Initializes the current unassigned shard and moves it from the unassigned list.
              */
-            public void initialize(String nodeId, long version, long expectedShardSize) {
+            public void initialize(String nodeId, long expectedShardSize) {
                 innerRemove();
-                nodes.initialize(new ShardRouting(current, version), nodeId, expectedShardSize);
+                nodes.initialize(new ShardRouting(current), nodeId, expectedShardSize);
             }
 
             /**
@@ -711,7 +711,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
             /**
              * Unsupported operation, just there for the interface. Use {@link #removeAndIgnore()} or
-             * {@link #initialize(String, long, long)}.
+             * {@link #initialize(String, long)}.
              */
             @Override
             public void remove() {

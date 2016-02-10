@@ -352,7 +352,7 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
         }
 
         @Override
-        public final int hashCode() {
+        protected final int doHashCode() {
             return Objects.hash(discount);
         }
 
@@ -442,7 +442,7 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
         }
 
         @Override
-        public final int hashCode() {
+        protected final int doHashCode() {
             return Objects.hash(alpha);
         }
 
@@ -489,9 +489,17 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
             if (obj == null || getClass() != obj.getClass()) {
                 return false;
             }
-            @SuppressWarnings("unchecked")
             SmoothingModel other = (SmoothingModel) obj;
             return doEquals(other);
+        }
+
+        @Override
+        public final int hashCode() {
+            /*
+             * Override hashCode here and forward to an abstract method to force extensions of this class to override hashCode in the same
+             * way that we force them to override equals. This also prevents false positives in CheckStyle's EqualsHashCode check.
+             */
+            return doHashCode();
         }
 
         public abstract SmoothingModel fromXContent(QueryParseContext parseContext) throws IOException;
@@ -502,6 +510,8 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
          * subtype specific implementation of "equals".
          */
         protected abstract boolean doEquals(SmoothingModel other);
+
+        protected abstract int doHashCode();
 
         protected abstract XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException;
     }
@@ -592,7 +602,7 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
         }
 
         @Override
-        public final int hashCode() {
+        protected final int doHashCode() {
             return Objects.hash(trigramLambda, bigramLambda, unigramLambda);
         }
 

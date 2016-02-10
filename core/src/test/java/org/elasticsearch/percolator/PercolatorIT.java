@@ -1351,12 +1351,7 @@ public class PercolatorIT extends ESIntegTestCase {
         assertThat(convertFromTextArray(response.getMatches(), "test"), arrayContainingInAnyOrder("1", "2", "3", "4", "5"));
 
         PercolateResponse.Match[] matches = response.getMatches();
-        Arrays.sort(matches, new Comparator<PercolateResponse.Match>() {
-            @Override
-            public int compare(PercolateResponse.Match a, PercolateResponse.Match b) {
-                return a.getId().compareTo(b.getId());
-            }
-        });
+        Arrays.sort(matches, (a, b) -> a.getId().compareTo(b.getId()));
 
         assertThat(matches[0].getHighlightFields().get("field1").fragments()[0].string(), equalTo("The quick <em>brown</em> <em>fox</em> jumps over the lazy dog"));
         assertThat(matches[1].getHighlightFields().get("field1").fragments()[0].string(), equalTo("The quick brown fox jumps over the <em>lazy</em> <em>dog</em>"));

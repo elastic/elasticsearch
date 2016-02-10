@@ -30,14 +30,12 @@ import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.cache.RemovalListener;
 import org.elasticsearch.common.cache.RemovalNotification;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.FieldDataType;
@@ -45,7 +43,6 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -55,20 +52,12 @@ import java.util.function.ToLongBiFunction;
  */
 public class IndicesFieldDataCache extends AbstractComponent implements RemovalListener<IndicesFieldDataCache.Key, Accountable>, Releasable{
 
-    public static final Setting<TimeValue> INDICES_FIELDDATA_CLEAN_INTERVAL_SETTING = Setting.positiveTimeSetting("indices.fielddata.cache.cleanup_interval", TimeValue.timeValueMinutes(1), false, Setting.Scope.CLUSTER);
     public static final Setting<ByteSizeValue> INDICES_FIELDDATA_CACHE_SIZE_KEY = Setting.byteSizeSetting("indices.fielddata.cache.size", new ByteSizeValue(-1), false, Setting.Scope.CLUSTER);
-
-
-    private final IndicesFieldDataCacheListener indicesFieldDataCacheListener;
+    private final IndexFieldDataCache.Listener indicesFieldDataCacheListener;
     private final Cache<Key, Accountable> cache;
-    private final TimeValue cleanInterval;
-    private final ThreadPool threadPool;
-    private volatile boolean closed = false;
 
-    @Inject
-    public IndicesFieldDataCache(Settings settings, IndicesFieldDataCacheListener indicesFieldDataCacheListener, ThreadPool threadPool) {
+    public IndicesFieldDataCache(Settings settings, IndexFieldDataCache.Listener indicesFieldDataCacheListener) {
         super(settings);
-        this.threadPool = threadPool;
         this.indicesFieldDataCacheListener = indicesFieldDataCacheListener;
         final long sizeInBytes = INDICES_FIELDDATA_CACHE_SIZE_KEY.get(settings).bytes();
         CacheBuilder<Key, Accountable> cacheBuilder = CacheBuilder.<Key, Accountable>builder()
@@ -76,19 +65,12 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
         if (sizeInBytes > 0) {
             cacheBuilder.setMaximumWeight(sizeInBytes).weigher(new FieldDataWeigher());
         }
-
         cache = cacheBuilder.build();
-
-        this.cleanInterval = INDICES_FIELDDATA_CLEAN_INTERVAL_SETTING.get(settings);
-        // Start thread that will manage cleaning the field data cache periodically
-        threadPool.schedule(this.cleanInterval, ThreadPool.Names.SAME,
-                new FieldDataCacheCleaner(this.cache, this.logger, this.threadPool, this.cleanInterval));
     }
 
     @Override
     public void close() {
         cache.invalidateAll();
-        this.closed = true;
     }
 
     public IndexFieldDataCache buildIndexFieldDataCache(IndexFieldDataCache.Listener listener, Index index, String fieldName, FieldDataType fieldDataType) {
@@ -260,44 +242,5 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
         }
     }
 
-    /**
-     * FieldDataCacheCleaner is a scheduled Runnable used to clean a Guava cache
-     * periodically. In this case it is the field data cache, because a cache that
-     * has an entry invalidated may not clean up the entry if it is not read from
-     * or written to after invalidation.
-     */
-    public class FieldDataCacheCleaner implements Runnable {
 
-        private final Cache<Key, Accountable> cache;
-        private final ESLogger logger;
-        private final ThreadPool threadPool;
-        private final TimeValue interval;
-
-        public FieldDataCacheCleaner(Cache cache, ESLogger logger, ThreadPool threadPool, TimeValue interval) {
-            this.cache = cache;
-            this.logger = logger;
-            this.threadPool = threadPool;
-            this.interval = interval;
-        }
-
-        @Override
-        public void run() {
-            long startTimeNS = System.nanoTime();
-            if (logger.isTraceEnabled()) {
-                logger.trace("running periodic field data cache cleanup");
-            }
-            try {
-                this.cache.refresh();
-            } catch (Exception e) {
-                logger.warn("Exception during periodic field data cache cleanup:", e);
-            }
-            if (logger.isTraceEnabled()) {
-                logger.trace("periodic field data cache cleanup finished in {} milliseconds", TimeValue.nsecToMSec(System.nanoTime() - startTimeNS));
-            }
-            // Reschedule itself to run again if not closed
-            if (closed == false) {
-                threadPool.schedule(interval, ThreadPool.Names.SAME, this);
-            }
-        }
-    }
 }

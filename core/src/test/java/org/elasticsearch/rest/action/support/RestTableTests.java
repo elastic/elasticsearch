@@ -20,20 +20,45 @@
 package org.elasticsearch.rest.action.support;
 
 import org.elasticsearch.common.Table;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.junit.Before;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.rest.action.support.RestTable.buildDisplayHeaders;
+import static org.elasticsearch.rest.action.support.RestTable.buildResponse;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
 
 public class RestTableTests extends ESTestCase {
 
+    private static final String APPLICATION_JSON = XContentType.JSON.mediaType();
+    private static final String APPLICATION_YAML = XContentType.YAML.mediaType();
+    private static final String APPLICATION_SMILE = XContentType.SMILE.mediaType();
+    private static final String APPLICATION_CBOR = XContentType.CBOR.mediaType();
+    private static final String CONTENT_TYPE = "Content-Type";
+    private static final String ACCEPT = "Accept";
+    private static final String TEXT_PLAIN = "text/plain; charset=UTF-8";
+    private static final String TEXT_TABLE_BODY = "foo foo foo foo foo foo\n";
+    private static final String JSON_TABLE_BODY = "[{\"bulk.foo\":\"foo\",\"bulk.bar\":\"foo\",\"aliasedBulk\":\"foo\"," +
+            "\"aliasedSecondBulk\":\"foo\",\"unmatched\":\"foo\"," +
+            "\"invalidAliasesBulk\":\"foo\"}]";
+    private static final String YAML_TABLE_BODY = "---\n" +
+            "- bulk.foo: \"foo\"\n" +
+            "  bulk.bar: \"foo\"\n" +
+            "  aliasedBulk: \"foo\"\n" +
+            "  aliasedSecondBulk: \"foo\"\n" +
+            "  unmatched: \"foo\"\n" +
+            "  invalidAliasesBulk: \"foo\"\n";
     private Table table = new Table();
     private FakeRestRequest restRequest = new FakeRestRequest();
 
@@ -68,6 +93,65 @@ public class RestTableTests extends ESTestCase {
         List<String> headerNames = getHeaderNames(headers);
         assertThat(headerNames, contains("bulk.foo", "bulk.bar", "aliasedBulk", "aliasedSecondBulk"));
         assertThat(headerNames, not(hasItem("unmatched")));
+    }
+
+    public void testThatWeUseTheAcceptHeaderJson() throws Exception {
+        assertResponse(Collections.singletonMap(ACCEPT, APPLICATION_JSON),
+                APPLICATION_JSON,
+                JSON_TABLE_BODY);
+    }
+
+    public void testThatWeUseTheAcceptHeaderYaml() throws Exception {
+        assertResponse(Collections.singletonMap(ACCEPT, APPLICATION_YAML),
+                APPLICATION_YAML,
+                YAML_TABLE_BODY);
+    }
+
+    public void testThatWeUseTheAcceptHeaderSmile() throws Exception {
+        assertResponseContentType(Collections.singletonMap(ACCEPT, APPLICATION_SMILE),
+                APPLICATION_SMILE);
+    }
+
+    public void testThatWeUseTheAcceptHeaderCbor() throws Exception {
+        assertResponseContentType(Collections.singletonMap(ACCEPT, APPLICATION_CBOR),
+                APPLICATION_CBOR);
+    }
+
+    public void testThatWeUseTheAcceptHeaderText() throws Exception {
+        assertResponse(Collections.singletonMap(ACCEPT, TEXT_PLAIN),
+                TEXT_PLAIN,
+                TEXT_TABLE_BODY);
+    }
+
+    public void testIgnoreContentType() throws Exception {
+        assertResponse(Collections.singletonMap(CONTENT_TYPE, APPLICATION_JSON),
+                TEXT_PLAIN,
+                TEXT_TABLE_BODY);
+    }
+
+    private RestResponse assertResponseContentType(Map<String, String> headers, String mediaType) throws Exception {
+        FakeRestRequest requestWithAcceptHeader = new FakeRestRequest(headers);
+        table.startRow();
+        table.addCell("foo");
+        table.addCell("foo");
+        table.addCell("foo");
+        table.addCell("foo");
+        table.addCell("foo");
+        table.addCell("foo");
+        table.endRow();
+        RestResponse response = buildResponse(table, new RestChannel(requestWithAcceptHeader, true) {
+            @Override
+            public void sendResponse(RestResponse response) {
+            }
+        });
+
+        assertThat(response.contentType(), equalTo(mediaType));
+        return response;
+    }
+
+    private void assertResponse(Map<String, String> headers, String mediaType, String body) throws Exception {
+        RestResponse response = assertResponseContentType(headers, mediaType);
+        assertThat(response.content().toUtf8(), equalTo(body));
     }
 
     private List<String> getHeaderNames(List<RestTable.DisplayHeader> headers) {

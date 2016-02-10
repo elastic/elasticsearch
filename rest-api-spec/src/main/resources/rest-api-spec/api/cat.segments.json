@@ -12,6 +12,10 @@
         }
       },
       "params": {
+        "format": {
+          "type" : "string",
+          "description" : "a short version of the Accept header, e.g. json, yaml"
+        },
         "h": {
             "type": "list",
             "description" : "Comma-separated list of column names to display"

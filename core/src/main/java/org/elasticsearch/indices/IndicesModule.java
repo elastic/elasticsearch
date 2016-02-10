@@ -55,12 +55,9 @@ import org.elasticsearch.index.mapper.internal.VersionFieldMapper;
 import org.elasticsearch.index.mapper.ip.IpFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.percolator.PercolatorFieldMapper;
-import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.indices.cache.query.IndicesQueryCache;
 import org.elasticsearch.indices.cache.request.IndicesRequestCache;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
-import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
-import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCacheListener;
 import org.elasticsearch.indices.flush.SyncedFlushService;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.indices.recovery.RecoverySettings;
@@ -165,14 +162,10 @@ public class IndicesModule extends AbstractModule {
         bind(SyncedFlushService.class).asEagerSingleton();
         bind(IndicesQueryCache.class).asEagerSingleton();
         bind(IndicesRequestCache.class).asEagerSingleton();
-        bind(IndicesFieldDataCache.class).asEagerSingleton();
         bind(TransportNodesListShardStoreMetaData.class).asEagerSingleton();
         bind(IndicesTTLService.class).asEagerSingleton();
-        bind(IndicesWarmer.class).asEagerSingleton();
         bind(UpdateHelper.class).asEagerSingleton();
         bind(MetaDataIndexUpgradeService.class).asEagerSingleton();
-        bind(IndicesFieldDataCacheListener.class).asEagerSingleton();
-        bind(TermVectorsService.class).asEagerSingleton();
         bind(NodeServicesProvider.class).asEagerSingleton();
     }
 

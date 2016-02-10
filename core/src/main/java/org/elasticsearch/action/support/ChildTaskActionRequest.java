@@ -44,20 +44,6 @@ public abstract class ChildTaskActionRequest<Request extends ActionRequest<Reque
         this.parentTaskId = parentTaskId;
     }
 
-    /**
-     * The node that owns the parent task.
-     */
-    public String getParentTaskNode() {
-        return parentTaskNode;
-    }
-
-    /**
-     * The task id of the parent task on the parent node.
-     */
-    public long getParentTaskId() {
-        return parentTaskId;
-    }
-
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
@@ -73,8 +59,12 @@ public abstract class ChildTaskActionRequest<Request extends ActionRequest<Reque
     }
 
     @Override
-    public Task createTask(long id, String type, String action) {
-        return new Task(id, type, action, this::getDescription, parentTaskNode, parentTaskId);
+    public final Task createTask(long id, String type, String action) {
+        return createTask(id, type, action, parentTaskNode, parentTaskId);
+    }
+
+    public Task createTask(long id, String type, String action, String parentTaskNode, long parentTaskId) {
+        return new Task(id, type, action, getDescription(), parentTaskNode, parentTaskId);
     }
 
 }

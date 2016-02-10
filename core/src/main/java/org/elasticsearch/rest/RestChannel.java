@@ -53,7 +53,7 @@ public abstract class RestChannel {
     }
 
     public XContentBuilder newBuilder(@Nullable BytesReference autoDetectSource, boolean useFiltering) throws IOException {
-        XContentType contentType = XContentType.fromRestContentType(request.param("format", request.header("Content-Type")));
+        XContentType contentType = XContentType.fromMediaTypeOrFormat(request.param("format", request.header("Accept")));
         if (contentType == null) {
             // try and guess it from the auto detect source
             if (autoDetectSource != null) {

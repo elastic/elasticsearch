@@ -77,7 +77,7 @@ public class PipelineExecutionServiceTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         Consumer<Boolean> completionHandler = mock(Consumer.class);
         try {
-            executionService.execute(indexRequest, failureHandler, completionHandler);
+            executionService.executeIndexRequest(indexRequest, failureHandler, completionHandler);
             fail("IllegalArgumentException expected");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("pipeline with id [_id] does not exist"));
@@ -99,7 +99,7 @@ public class PipelineExecutionServiceTests extends ESTestCase {
         BiConsumer<IndexRequest, Throwable> failureHandler = mock(BiConsumer.class);
         @SuppressWarnings("unchecked")
         Consumer<Throwable> completionHandler = mock(Consumer.class);
-        executionService.execute(bulkRequest.requests(), failureHandler, completionHandler);
+        executionService.executeBulkRequest(bulkRequest.requests(), failureHandler, completionHandler);
         verify(failureHandler, times(1)).accept(
             argThat(new CustomTypeSafeMatcher<IndexRequest>("failure handler was not called with the expected arguments") {
                 @Override
@@ -127,7 +127,7 @@ public class PipelineExecutionServiceTests extends ESTestCase {
         Consumer<Throwable> failureHandler = mock(Consumer.class);
         @SuppressWarnings("unchecked")
         Consumer<Boolean> completionHandler = mock(Consumer.class);
-        executionService.execute(indexRequest, failureHandler, completionHandler);
+        executionService.executeIndexRequest(indexRequest, failureHandler, completionHandler);
         verify(failureHandler, never()).accept(any());
         verify(completionHandler, times(1)).accept(true);
     }
@@ -153,7 +153,7 @@ public class PipelineExecutionServiceTests extends ESTestCase {
         Consumer<Throwable> failureHandler = mock(Consumer.class);
         @SuppressWarnings("unchecked")
         Consumer<Boolean> completionHandler = mock(Consumer.class);
-        executionService.execute(indexRequest, failureHandler, completionHandler);
+        executionService.executeIndexRequest(indexRequest, failureHandler, completionHandler);
         verify(processor).execute(any());
         verify(failureHandler, never()).accept(any());
         verify(completionHandler, times(1)).accept(true);
@@ -176,7 +176,7 @@ public class PipelineExecutionServiceTests extends ESTestCase {
         Consumer<Throwable> failureHandler = mock(Consumer.class);
         @SuppressWarnings("unchecked")
         Consumer<Boolean> completionHandler = mock(Consumer.class);
-        executionService.execute(indexRequest, failureHandler, completionHandler);
+        executionService.executeIndexRequest(indexRequest, failureHandler, completionHandler);
         verify(processor).execute(eqID("_index", "_type", "_id", Collections.emptyMap()));
         verify(failureHandler, times(1)).accept(any(RuntimeException.class));
         verify(completionHandler, never()).accept(anyBoolean());
@@ -193,7 +193,7 @@ public class PipelineExecutionServiceTests extends ESTestCase {
         Consumer<Throwable> failureHandler = mock(Consumer.class);
         @SuppressWarnings("unchecked")
         Consumer<Boolean> completionHandler = mock(Consumer.class);
-        executionService.execute(indexRequest, failureHandler, completionHandler);
+        executionService.executeIndexRequest(indexRequest, failureHandler, completionHandler);
         verify(failureHandler, never()).accept(any(RuntimeException.class));
         verify(completionHandler, times(1)).accept(true);
     }
@@ -210,7 +210,7 @@ public class PipelineExecutionServiceTests extends ESTestCase {
         Consumer<Throwable> failureHandler = mock(Consumer.class);
         @SuppressWarnings("unchecked")
         Consumer<Boolean> completionHandler = mock(Consumer.class);
-        executionService.execute(indexRequest, failureHandler, completionHandler);
+        executionService.executeIndexRequest(indexRequest, failureHandler, completionHandler);
         verify(processor).execute(eqID("_index", "_type", "_id", Collections.emptyMap()));
         verify(failureHandler, times(1)).accept(any(RuntimeException.class));
         verify(completionHandler, never()).accept(anyBoolean());
@@ -231,7 +231,7 @@ public class PipelineExecutionServiceTests extends ESTestCase {
         Consumer<Throwable> failureHandler = mock(Consumer.class);
         @SuppressWarnings("unchecked")
         Consumer<Boolean> completionHandler = mock(Consumer.class);
-        executionService.execute(indexRequest, failureHandler, completionHandler);
+        executionService.executeIndexRequest(indexRequest, failureHandler, completionHandler);
         verify(processor).execute(eqID("_index", "_type", "_id", Collections.emptyMap()));
         verify(failureHandler, times(1)).accept(any(RuntimeException.class));
         verify(completionHandler, never()).accept(anyBoolean());
@@ -246,7 +246,7 @@ public class PipelineExecutionServiceTests extends ESTestCase {
         Consumer<Throwable> failureHandler = mock(Consumer.class);
         @SuppressWarnings("unchecked")
         Consumer<Boolean> completionHandler = mock(Consumer.class);
-        executionService.execute(indexRequest, failureHandler, completionHandler);
+        executionService.executeIndexRequest(indexRequest, failureHandler, completionHandler);
 
         assertThat(indexRequest.ttl(), equalTo(TimeValue.parseTimeValue("5d", null, "ttl")));
         verify(failureHandler, never()).accept(any());
@@ -262,7 +262,7 @@ public class PipelineExecutionServiceTests extends ESTestCase {
         Consumer<Throwable> failureHandler = mock(Consumer.class);
         @SuppressWarnings("unchecked")
         Consumer<Boolean> completionHandler = mock(Consumer.class);
-        executionService.execute(indexRequest, failureHandler, completionHandler);
+        executionService.executeIndexRequest(indexRequest, failureHandler, completionHandler);
         verify(failureHandler, times(1)).accept(any(ElasticsearchParseException.class));
         verify(completionHandler, never()).accept(anyBoolean());
     }
@@ -275,7 +275,7 @@ public class PipelineExecutionServiceTests extends ESTestCase {
                 .ttl(1000L);
         Consumer<Throwable> failureHandler = mock(Consumer.class);
         Consumer<Boolean> completionHandler = mock(Consumer.class);
-        executionService.execute(indexRequest, failureHandler, completionHandler);
+        executionService.executeIndexRequest(indexRequest, failureHandler, completionHandler);
 
         assertThat(indexRequest.ttl(), equalTo(new TimeValue(1000L)));
         verify(failureHandler, never()).accept(any());
@@ -312,7 +312,7 @@ public class PipelineExecutionServiceTests extends ESTestCase {
 
         BiConsumer<IndexRequest, Throwable> requestItemErrorHandler = mock(BiConsumer.class);
         Consumer<Throwable> completionHandler = mock(Consumer.class);
-        executionService.execute(bulkRequest.requests(), requestItemErrorHandler, completionHandler);
+        executionService.executeBulkRequest(bulkRequest.requests(), requestItemErrorHandler, completionHandler);
 
         verify(requestItemErrorHandler, times(numIndexRequests)).accept(any(IndexRequest.class), eq(error));
         verify(completionHandler, times(1)).accept(null);
@@ -335,7 +335,7 @@ public class PipelineExecutionServiceTests extends ESTestCase {
         BiConsumer<IndexRequest, Throwable> requestItemErrorHandler = mock(BiConsumer.class);
         @SuppressWarnings("unchecked")
         Consumer<Throwable> completionHandler = mock(Consumer.class);
-        executionService.execute(bulkRequest.requests(), requestItemErrorHandler, completionHandler);
+        executionService.executeBulkRequest(bulkRequest.requests(), requestItemErrorHandler, completionHandler);
 
         verify(requestItemErrorHandler, never()).accept(any(), any());
         verify(completionHandler, times(1)).accept(null);

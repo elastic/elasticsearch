@@ -6,6 +6,7 @@ your application to Elasticsearch 3.0.
 
 * <<breaking_30_search_changes>>
 * <<breaking_30_rest_api_changes>>
+* <<breaking_30_cat_api>>
 * <<breaking_30_parent_child_changes>>
 * <<breaking_30_settings_changes>>
 * <<breaking_30_mapping_changes>>
@@ -111,6 +112,7 @@ The `GET` HTTP verb for `/_forcemerge` is no longer supported, please use the
 ==== Deprecated queries removed
 
 The following deprecated queries have been removed:
+
 * `filtered`: use `bool` query instead, which supports `filter` clauses too
 * `and`: use `must` clauses in a `bool` query instead
 * `or`: use should clauses in a `bool` query instead
@@ -157,6 +159,18 @@ Removed support for the undocumented `query_binary` and `filter_binary` sections
 ==== `span_near`'s' `collect_payloads` deprecated
 
 Payloads are now loaded when needed.
+
+[[breaking_30_cat_api]]
+=== CAT API changes
+
+==== Use Accept header for specifying response media type
+
+Previous versions of Elasticsearch accepted the Content-type header
+field for controlling the media type of the response in the cat API.
+This is in opposition to the HTTP spec which specifies the Accept
+header field for this purpose. Elasticsearch now uses the Accept header
+field and support for using the Content-Type header field for this
+purpose has been removed.
 
 [[breaking_30_parent_child_changes]]
 === Parent/Child changes
@@ -301,7 +315,7 @@ On all types but `string`, the `index` property now only accepts `true`/`false`
 instead of `not_analyzed`/`no`. The `string` field still accepts
 `analyzed`/`not_analyzed`/`no`.
 
-==== `_source`'s `format` option
+==== ++_source++'s `format` option
 
 The `_source` mapping does not support the `format` option anymore. This option
 will still be accepted for indices created before the upgrade to 3.0 for backward
@@ -330,6 +344,10 @@ disable doc values is by using the `doc_values` property of mappings.
 
 [[breaking_30_plugins]]
 === Plugin changes
+
+The command `bin/plugin` has been renamed to `bin/elasticsearch-plugin`.
+The structure of the plugin has changed. All the plugin files must be contained in a directory called `elasticsearch`.
+If you use the gradle build, this structure is automatically generated.
 
 ==== Site plugins removed
 
@@ -534,7 +552,7 @@ Removing individual setters for lon() and lat() values, both values should be se
 Removing setters for to(Object ...) and from(Object ...) in favour of the only two allowed input
 arguments (String, Number). Removing setter for center point (point(), geohash()) because parameter
 is mandatory and should already be set in constructor.
-Also removing setters for lt(), lte(), gt(), gte() since they can all be replaced by equivallent
+Also removing setters for lt(), lte(), gt(), gte() since they can all be replaced by equivalent
 calls to to/from() and inludeLower()/includeUpper().
 
 ==== GeoPolygonQueryBuilder
@@ -668,6 +686,15 @@ Allocation IDs assign unique identifiers to shard copies. This allows the cluste
 copies of the same data and track which shards have been active, so that after a cluster restart, shard copies
 containing only the most recent data can become primaries.
 
+=== Indices Shard Stores command
+
+By using allocation IDs instead of version numbers to identify shard copies for primary shard allocation, the former versioning scheme
+has become obsolete. This is reflected in the indices-shards-stores.html[Indices Shard Stores API]. A new field `allocation_id` replaces the
+former `version` field in the result of the Indices Shard Stores command. This field is available for all shard copies that have been either
+created with the current version of Elasticsearch or have been active in a cluster running a current version of Elasticsearch. For legacy
+shard copies that have not been active in a current version of Elasticsearch, a `legacy_version` field is available instead (equivalent to
+the former `version` field).
+
 === Reroute commands
 
 The reroute command `allocate` has been split into two distinct commands `allocate_replica` and `allocate_empty_primary`.
@@ -737,3 +764,6 @@ and `no` for disabling are no longer supported.
 === Term vectors
 
 The term vectors APIs no longer persist unmapped fields in the mappings.
+
+The `dfs` parameter has been removed completely, term vectors don't support
+distributed document frequencies anymore.

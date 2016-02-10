@@ -7,10 +7,10 @@ you to allow or disallow the allocation of shards from *any* index to
 particular nodes.
 
 The typical use case for cluster-wide shard allocation filtering is when you
-want to decommision a node, and you would like to move the shards from that
+want to decommission a node, and you would like to move the shards from that
 node to other nodes in the cluster before shutting it down.
 
-For instance, we could decomission a node using its IP address as follows:
+For instance, we could decommission a node using its IP address as follows:
 
 [source,js]
 --------------------------------------------------

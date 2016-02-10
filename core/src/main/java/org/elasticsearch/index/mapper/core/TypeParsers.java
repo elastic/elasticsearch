@@ -336,7 +336,7 @@ public class TypeParsers {
             case "false":
                 return false;
             default:
-                throw new IllegalArgumentException("Can't parse [index] value [" + index + "], expected [true] or [false]");
+                throw new IllegalArgumentException("Can't parse [index] value [" + index + "] for field [" + fieldName + "], expected [true] or [false]");
             }
         } else {
             final String normalizedIndex = Strings.toUnderscoreCase(index);
@@ -349,7 +349,7 @@ public class TypeParsers {
             case "no":
                 return false;
             default:
-                throw new IllegalArgumentException("Can't parse [index] value [" + index + "], expected [true], [false], [no], [not_analyzed] or [analyzed]");
+                throw new IllegalArgumentException("Can't parse [index] value [" + index + "] for field [" + fieldName + "], expected [true], [false], [no], [not_analyzed] or [analyzed]");
             }
         }
     }
@@ -388,7 +388,7 @@ public class TypeParsers {
         }
         SimilarityProvider similarityProvider = parserContext.getSimilarity(value);
         if (similarityProvider == null) {
-            throw new MapperParsingException("Unknown Similarity type [" + value + "] for [" + name + "]");
+            throw new MapperParsingException("Unknown Similarity type [" + value + "] for field [" + name + "]");
         }
         return similarityProvider;
     }

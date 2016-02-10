@@ -290,7 +290,7 @@ public class MetaDataMappingService extends AbstractComponent {
             if (!MapperService.DEFAULT_MAPPING.equals(mappingType) && !PercolatorService.TYPE_NAME.equals(mappingType) && mappingType.charAt(0) == '_') {
                 throw new InvalidTypeNameException("Document mapping type name can't start with '_'");
             }
-            final Map<String, MappingMetaData> mappings = new HashMap<>();
+            MetaData.Builder builder = MetaData.builder(currentState.metaData());
             for (String index : request.indices()) {
                 // do the actual merge here on the master, and update the mapping source
                 IndexService indexService = indicesService.indexService(index);
@@ -311,7 +311,6 @@ public class MetaDataMappingService extends AbstractComponent {
                         // same source, no changes, ignore it
                     } else {
                         // use the merged mapping source
-                        mappings.put(index, new MappingMetaData(mergedMapper));
                         if (logger.isDebugEnabled()) {
                             logger.debug("[{}] update_mapping [{}] with source [{}]", index, mergedMapper.type(), updatedSource);
                         } else if (logger.isInfoEnabled()) {
@@ -320,28 +319,24 @@ public class MetaDataMappingService extends AbstractComponent {
 
                     }
                 } else {
-                    mappings.put(index, new MappingMetaData(mergedMapper));
                     if (logger.isDebugEnabled()) {
                         logger.debug("[{}] create_mapping [{}] with source [{}]", index, mappingType, updatedSource);
                     } else if (logger.isInfoEnabled()) {
                         logger.info("[{}] create_mapping [{}]", index, mappingType);
                     }
                 }
-            }
-            if (mappings.isEmpty()) {
-                // no changes, return
-                return currentState;
-            }
-            MetaData.Builder builder = MetaData.builder(currentState.metaData());
-            for (String indexName : request.indices()) {
-                IndexMetaData indexMetaData = currentState.metaData().index(indexName);
+
+                IndexMetaData indexMetaData = currentState.metaData().index(index);
                 if (indexMetaData == null) {
-                    throw new IndexNotFoundException(indexName);
+                    throw new IndexNotFoundException(index);
                 }
-                MappingMetaData mappingMd = mappings.get(indexName);
-                if (mappingMd != null) {
-                    builder.put(IndexMetaData.builder(indexMetaData).putMapping(mappingMd));
+                IndexMetaData.Builder indexMetaDataBuilder = IndexMetaData.builder(indexMetaData);
+                // Mapping updates on a single type may have side-effects on other types so we need to
+                // update mapping metadata on all types
+                for (DocumentMapper mapper : indexService.mapperService().docMappers(true)) {
+                    indexMetaDataBuilder.putMapping(new MappingMetaData(mapper.mappingSource()));
                 }
+                builder.put(indexMetaDataBuilder);
             }
 
             return ClusterState.builder(currentState).metaData(builder).build();

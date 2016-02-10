@@ -61,7 +61,7 @@ All processors are defined in the following way within a pipeline definition:
 Each processor defines its own configuration parameters, but all processors have 
 the ability to declare `tag` and `on_failure` fields. These fields are optional.
 
-A `tag` is simply a string identifier of the specific instatiation of a certain
+A `tag` is simply a string identifier of the specific instantiation of a certain
 processor in a pipeline. The `tag` field does not affect any processor's behavior,
 but is very useful for bookkeeping and tracing errors to specific processors.
 
@@ -534,6 +534,151 @@ to the requester.
 }
 --------------------------------------------------
 
+==== Foreach processor
+All processors can operate on elements inside an array, but if all elements of an array need to
+be processed in the same way defining a processor for each element becomes cumbersome and tricky
+because it is likely that the number of elements in an array are unknown. For this reason the `foreach`
+processor is exists. By specifying the field holding array elements and a list of processors that
+define what should happen to each element, array field can easily be preprocessed.
+
+Processors inside the foreach processor work in a different context and the only valid top level
+field is `_value`, which holds the array element value. Under this field other fields may exist.
+
+If the `foreach` processor failed to process an element inside the array and no `on_failure` processor has been specified
+then it aborts the execution and leaves the array unmodified.
+
+[[foreach-options]]
+.Foreach Options
+[options="header"]
+|======
+| Name          | Required  | Default  | Description
+| `field`       | yes       | -        | The array field
+| `processors`  | yes       | -        | The processors
+|======
+
+Assume the following document:
+
+[source,js]
+--------------------------------------------------
+{
+  "value" : ["foo", "bar", "baz"]
+}
+--------------------------------------------------
+
+When this `foreach` processor operates on this sample document:
+
+[source,js]
+--------------------------------------------------
+{
+  "foreach" : {
+    "field" : "values",
+    "processors" : [
+      {
+        "uppercase" : {
+          "field" : "_value"
+        }
+      }
+    ]
+  }
+}
+--------------------------------------------------
+
+Then the document will look like this after preprocessing:
+
+[source,js]
+--------------------------------------------------
+{
+  "value" : ["FOO", "BAR", "BAZ"]
+}
+--------------------------------------------------
+
+Lets take a look at another example:
+
+[source,js]
+--------------------------------------------------
+{
+  "persons" : [
+    {
+      "id" : "1",
+      "name" : "John Doe"
+    },
+    {
+      "id" : "2",
+      "name" : "Jane Doe"
+    }
+  ]
+}
+--------------------------------------------------
+
+and in the case the `id` field needs to be removed
+then the following `foreach` processor can be used:
+
+[source,js]
+--------------------------------------------------
+{
+  "foreach" : {
+    "field" : "persons",
+    "processors" : [
+      {
+        "remove" : {
+          "field" : "_value.id"
+        }
+      }
+    ]
+  }
+}
+--------------------------------------------------
+
+After preprocessing the result is:
+
+[source,js]
+--------------------------------------------------
+{
+  "persons" : [
+    {
+      "name" : "John Doe"
+    },
+    {
+      "name" : "Jane Doe"
+    }
+  ]
+}
+--------------------------------------------------
+
+Like on any processor `on_failure` processors can also be defined
+in processors that wrapped inside the `foreach` processor.
+
+For example the `id` field may not exist on all person objects and
+instead of failing the index request, the document will be send to
+the 'failure_index' index for later inspection:
+
+[source,js]
+--------------------------------------------------
+{
+  "foreach" : {
+    "field" : "persons",
+    "processors" : [
+      {
+        "remove" : {
+          "field" : "_value.id",
+          "on_failure" : [
+            {
+              "set" : {
+                "field", "_index",
+                "value", "failure_index"
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}
+--------------------------------------------------
+
+In this example if the `remove` processor does fail then
+the array elements that have been processed thus far will
+be updated.
 
 === Accessing data in pipelines
 
@@ -934,7 +1079,7 @@ response:
 
 It is often useful to see how each processor affects the ingest document
 as it is passed through the pipeline. To see the intermediate results of
-each processor in the simulat request, a `verbose` parameter may be added
+each processor in the simulate request, a `verbose` parameter may be added
 to the request
 
 Here is an example verbose request and its response:

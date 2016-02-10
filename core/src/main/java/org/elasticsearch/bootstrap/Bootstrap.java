@@ -33,6 +33,7 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.logging.log4j.LogConfigurator;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -148,10 +149,11 @@ final class Bootstrap {
     }
 
     private void setup(boolean addShutdownHook, Settings settings, Environment environment) throws Exception {
-        initializeNatives(environment.tmpFile(),
-                          settings.getAsBoolean("bootstrap.mlockall", false),
-                          settings.getAsBoolean("bootstrap.seccomp", true),
-                          settings.getAsBoolean("bootstrap.ctrlhandler", true));
+        initializeNatives(
+                environment.tmpFile(),
+                BootstrapSettings.MLOCKALL_SETTING.get(settings),
+                BootstrapSettings.SECCOMP_SETTING.get(settings),
+                BootstrapSettings.CTRLHANDLER_SETTING.get(settings));
 
         // initialize probes before the security manager is installed
         initializeProbes();
@@ -186,22 +188,11 @@ final class Bootstrap {
         node = new Node(nodeSettings);
     }
 
-    /**
-     * option for elasticsearch.yml etc to turn off our security manager completely,
-     * for example if you want to have your own configuration or just disable.
-     */
-    // TODO: remove this: http://www.openbsd.org/papers/hackfest2015-pledge/mgp00005.jpg
-    static final String SECURITY_SETTING = "security.manager.enabled";
-    /**
-     * option for elasticsearch.yml to fully respect the system policy, including bad defaults
-     * from java.
-     */
-    // TODO: remove this hack when insecure defaults are removed from java
-    static final String SECURITY_FILTER_BAD_DEFAULTS_SETTING = "security.manager.filter_bad_defaults";
+
 
     private void setupSecurity(Settings settings, Environment environment) throws Exception {
-        if (settings.getAsBoolean(SECURITY_SETTING, true)) {
-            Security.configure(environment, settings.getAsBoolean(SECURITY_FILTER_BAD_DEFAULTS_SETTING, true));
+        if (BootstrapSettings.SECURITY_MANAGER_ENABLED_SETTING.get(settings)) {
+            Security.configure(environment, BootstrapSettings.SECURITY_FILTER_BAD_DEFAULTS_SETTING.get(settings));
         }
     }
 
@@ -263,10 +254,6 @@ final class Bootstrap {
         INSTANCE = new Bootstrap();
 
         boolean foreground = !"false".equals(System.getProperty("es.foreground", System.getProperty("es-foreground")));
-        // handle the wrapper system property, if its a service, don't run as a service
-        if (System.getProperty("wrapper.service", "XXX").equalsIgnoreCase("true")) {
-            foreground = false;
-        }
 
         Environment environment = initialSettings(foreground);
         Settings settings = environment.settings();

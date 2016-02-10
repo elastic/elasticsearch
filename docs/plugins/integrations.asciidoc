@@ -43,7 +43,7 @@ releases 2.0 and later do not support rivers.
 * https://www.elastic.co/guide/en/logstash/current/plugins-inputs-elasticsearch.html[Elasticsearch input to Logstash]
   The Logstash `elasticsearch` input plugin.
 * https://www.elastic.co/guide/en/logstash/current/plugins-filters-elasticsearch.html[Elasticsearch event filtering in Logstash]
-  The Logstash `elasticearch` filter plugin.
+  The Logstash `elasticsearch` filter plugin.
 * https://www.elastic.co/guide/en/logstash/current/plugins-codecs-es_bulk.html[Elasticsearch bulk codec]
   The Logstash `es_bulk` plugin decodes the Elasticsearch bulk format into individual events.
 

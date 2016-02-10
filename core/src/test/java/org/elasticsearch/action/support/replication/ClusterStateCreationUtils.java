@@ -101,7 +101,9 @@ public class ClusterStateCreationUtils {
                 primaryNode = newNode(0).id();
                 unassignedNodes.remove(primaryNode);
             } else {
-                primaryNode = selectAndRemove(unassignedNodes);
+                Set<String> unassignedNodesExecludingPrimary = new HashSet<>(unassignedNodes);
+                unassignedNodesExecludingPrimary.remove(newNode(0).id());
+                primaryNode = selectAndRemove(unassignedNodesExecludingPrimary);
             }
             if (primaryState == ShardRoutingState.RELOCATING) {
                 relocatingNode = selectAndRemove(unassignedNodes);
@@ -109,7 +111,7 @@ public class ClusterStateCreationUtils {
         } else {
             unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null);
         }
-        indexShardRoutingBuilder.addShard(TestShardRouting.newShardRouting(index, 0, primaryNode, relocatingNode, null, true, primaryState, 0, unassignedInfo));
+        indexShardRoutingBuilder.addShard(TestShardRouting.newShardRouting(index, 0, primaryNode, relocatingNode, null, true, primaryState, unassignedInfo));
 
         for (ShardRoutingState replicaState : replicaStates) {
             String replicaNode = null;
@@ -125,7 +127,7 @@ public class ClusterStateCreationUtils {
                 unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null);
             }
             indexShardRoutingBuilder.addShard(
-                    TestShardRouting.newShardRouting(index, shardId.id(), replicaNode, relocatingNode, null, false, replicaState, 0, unassignedInfo));
+                    TestShardRouting.newShardRouting(index, shardId.id(), replicaNode, relocatingNode, null, false, replicaState, unassignedInfo));
         }
 
         ClusterState.Builder state = ClusterState.builder(new ClusterName("test"));
@@ -161,8 +163,8 @@ public class ClusterStateCreationUtils {
             routing.addAsNew(indexMetaData);
             final ShardId shardId = new ShardId(index, "_na_", i);
             IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(shardId);
-            indexShardRoutingBuilder.addShard(TestShardRouting.newShardRouting(index, i, newNode(0).id(), null, null, true, ShardRoutingState.STARTED, 0, null));
-            indexShardRoutingBuilder.addShard(TestShardRouting.newShardRouting(index, i, newNode(1).id(), null, null, false, ShardRoutingState.STARTED, 0, null));
+            indexShardRoutingBuilder.addShard(TestShardRouting.newShardRouting(index, i, newNode(0).id(), null, null, true, ShardRoutingState.STARTED, null));
+            indexShardRoutingBuilder.addShard(TestShardRouting.newShardRouting(index, i, newNode(1).id(), null, null, false, ShardRoutingState.STARTED, null));
             indexRoutingTableBuilder.addIndexShard(indexShardRoutingBuilder.build());
         }
         state.routingTable(RoutingTable.builder().add(indexRoutingTableBuilder.build()).build());

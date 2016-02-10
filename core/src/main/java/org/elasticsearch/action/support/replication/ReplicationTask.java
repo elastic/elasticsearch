@@ -35,7 +35,7 @@ import static java.util.Objects.requireNonNull;
 public class ReplicationTask extends Task {
     private volatile String phase = "starting";
 
-    public ReplicationTask(long id, String type, String action, Provider<String> description, String parentNode, long parentId) {
+    public ReplicationTask(long id, String type, String action, String description, String parentNode, long parentId) {
         super(id, type, action, description, parentNode, parentId);
     }
 

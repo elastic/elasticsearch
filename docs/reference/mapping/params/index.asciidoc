@@ -22,7 +22,7 @@ are searchable.  It accepts three values:
     This option applies only to `string` fields, for which it is the default.
     The string field value is first <<analysis,analyzed>> to convert the
     string into terms (e.g. a list of individual words), which are then
-    indexed.  At search time, the the query string is passed through
+    indexed.  At search time, the query string is passed through
     (<<search-analyzer,usually>>) the same analyzer to generate terms
     in the same format as those in the index.  It is this process that enables
     <<full-text-queries,full text search>>.

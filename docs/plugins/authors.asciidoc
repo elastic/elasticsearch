@@ -11,11 +11,15 @@ information about how to write a plugin, we recommend looking at the plugins
 listed in this documentation for inspiration.
 
 [float]
+=== Plugin Structure
+
+All plugin files must be contained in a directory called `elasticsearch`.
+
+[float]
 === Plugin descriptor file
 
-All plugins, be they site or Java plugins, must contain a file called
-`plugin-descriptor.properties` in the root directory. The format for this file
-is described in detail  here:
+All plugins must contain a file called `plugin-descriptor.properties` in the folder named `elasticsearch`. The format
+for this file is described in detail here:
 
 https://github.com/elastic/elasticsearch/blob/master/buildSrc/src/main/resources/plugin-descriptor.properties[`/buildSrc/src/main/resources/plugin-descriptor.properties`].
 
@@ -50,7 +54,7 @@ of nonnegative decimal integers separated by "."'s and may have leading zeros.
 
 |=======================================================================
 
-Note that only jar files in the root directory are added to the classpath for the plugin!
+Note that only jar files in the 'elasticsearch' directory are added to the classpath for the plugin!
 If you need other resources, package them into a resources jar.
 
 [IMPORTANT]
@@ -68,7 +72,7 @@ in the presence of plugins with the incorrect `elasticsearch.version`.
 === Testing your plugin
 
 When testing a Java plugin, it will only be auto-loaded if it is in the
-`plugins/` directory.  Use `bin/plugin install file:///path/to/your/plugin`
+`plugins/` directory.  Use `bin/elasticsearch-plugin install file:///path/to/your/plugin`
 to install your plugin for testing.
 
 You may also load your plugin within the test framework for integration tests.

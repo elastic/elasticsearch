@@ -36,7 +36,7 @@ public class SortParserTests extends ESSingleNodeTestCase {
         mapping.startObject().startObject("type").startObject("properties").startObject("location").field("type", "geo_point").endObject().endObject().endObject().endObject();
         IndexService indexService = createIndex("testidx", Settings.settingsBuilder().build(), "type", mapping);
         TestSearchContext context = (TestSearchContext) createSearchContext(indexService);
-        context.setTypes("type");
+        context.getQueryShardContext().setTypes("type");
 
         XContentBuilder sortBuilder = jsonBuilder();
         sortBuilder.startObject();

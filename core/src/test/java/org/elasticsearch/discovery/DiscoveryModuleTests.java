@@ -19,19 +19,13 @@
 package org.elasticsearch.discovery;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.RoutingService;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.component.Lifecycle;
-import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.inject.ModuleTestCase;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.local.LocalDiscovery;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.node.service.NodeService;
+import org.elasticsearch.test.NoopDiscovery;
 
 /**
  */
@@ -74,87 +68,9 @@ public class DiscoveryModuleTests extends ModuleTestCase {
         Settings settings = Settings.builder().put(Node.NODE_LOCAL_SETTING.getKey(), local).
                 put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "custom").build();
         DiscoveryModule module = new DiscoveryModule(settings);
-        module.addDiscoveryType("custom", DummyDisco.class);
-        assertBinding(module, Discovery.class, DummyDisco.class);
+        module.addDiscoveryType("custom", NoopDiscovery.class);
+        assertBinding(module, Discovery.class, NoopDiscovery.class);
     }
 
 
-    public static class DummyDisco implements Discovery {
-
-
-        @Override
-        public DiscoveryNode localNode() {
-            return null;
-        }
-
-        @Override
-        public void addListener(InitialStateDiscoveryListener listener) {
-
-        }
-
-        @Override
-        public void removeListener(InitialStateDiscoveryListener listener) {
-
-        }
-
-        @Override
-        public String nodeDescription() {
-            return null;
-        }
-
-        @Override
-        public void setNodeService(@Nullable NodeService nodeService) {
-
-        }
-
-        @Override
-        public void setRoutingService(RoutingService routingService) {
-
-        }
-
-        @Override
-        public void publish(ClusterChangedEvent clusterChangedEvent, AckListener ackListener) {
-
-        }
-
-        @Override
-        public DiscoveryStats stats() {
-            return null;
-        }
-
-        @Override
-        public int getMinimumMasterNodes() {
-            return -1;
-        }
-
-        @Override
-        public Lifecycle.State lifecycleState() {
-            return null;
-        }
-
-        @Override
-        public void addLifecycleListener(LifecycleListener listener) {
-
-        }
-
-        @Override
-        public void removeLifecycleListener(LifecycleListener listener) {
-
-        }
-
-        @Override
-        public Discovery start() {
-            return null;
-        }
-
-        @Override
-        public Discovery stop() {
-            return null;
-        }
-
-        @Override
-        public void close() {
-
-        }
-    }
 }

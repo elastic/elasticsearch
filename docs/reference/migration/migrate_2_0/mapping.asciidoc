@@ -153,7 +153,7 @@ PUT my_index
   }
 }
 ----------------------------
-<1> These two fields cannot be distinguised as both are referred to as `foo.bar`.
+<1> These two fields cannot be distinguished as both are referred to as `foo.bar`.
 
 You can no longer create fields with dots in the name.
 

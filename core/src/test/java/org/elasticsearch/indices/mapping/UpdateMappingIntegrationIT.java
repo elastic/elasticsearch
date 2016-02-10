@@ -35,6 +35,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.hamcrest.Matchers;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -336,5 +337,21 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
                 disableIndexBlock("test", block);
             }
         }
+    }
+
+    public void testUpdateMappingOnAllTypes() throws IOException {
+        assertAcked(prepareCreate("index").addMapping("type1", "f", "type=string").addMapping("type2", "f", "type=string"));
+
+        assertAcked(client().admin().indices().preparePutMapping("index")
+                .setType("type1")
+                .setUpdateAllTypes(true)
+                .setSource("f", "type=string,analyzer=default,null_value=n/a")
+                .get());
+
+        GetMappingsResponse mappings = client().admin().indices().prepareGetMappings("index").setTypes("type2").get();
+        MappingMetaData type2Mapping = mappings.getMappings().get("index").get("type2").get();
+        Map<String, Object> properties = (Map<String, Object>) type2Mapping.sourceAsMap().get("properties");
+        Map<String, Object> f = (Map<String, Object>) properties.get("f");
+        assertEquals("n/a", f.get("null_value"));
     }
 }

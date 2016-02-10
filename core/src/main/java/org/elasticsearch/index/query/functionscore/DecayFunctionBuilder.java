@@ -383,6 +383,11 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder> ext
             return super.doEquals(other) &&
                     Objects.equals(this.origin, geoFieldDataScoreFunction.origin);
         }
+
+        @Override
+        protected int doHashCode() {
+            return Objects.hash(super.doHashCode(), origin);
+        }
     }
 
     static class NumericFieldDataScoreFunction extends AbstractDistanceScoreFunction {
@@ -532,6 +537,11 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder> ext
                     Objects.equals(this.mode, distanceScoreFunction.mode) &&
                     Objects.equals(this.func, distanceScoreFunction.func) &&
                     Objects.equals(this.getFieldName(), distanceScoreFunction.getFieldName());
+        }
+
+        @Override
+        protected int doHashCode() {
+            return Objects.hash(scale, offset, mode, func, getFieldName());
         }
     }
 }

@@ -121,7 +121,7 @@ public abstract class CompressedStreamInput extends StreamInput {
 
     @Override
     public void readBytes(byte[] b, int offset, int len) throws IOException {
-        int result = read(b, offset, len, true /* we want to have full reads, thats the contract... */);
+        int result = read(b, offset, len, true /* we want to have full reads, that's the contract... */);
         if (result < len) {
             throw new EOFException();
         }

@@ -94,7 +94,7 @@ import static org.joda.time.DateTimeZone.UTC;
  */
 @ClusterScope(scope = SUITE, numClientNodes = 0, transportClientRatio = 0, randomDynamicTemplates = false, numDataNodes = 1)
 public class SearchTransformTests extends ESIntegTestCase {
-    
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         Collection<Class<? extends Plugin>> types = new ArrayList<>();
@@ -102,7 +102,7 @@ public class SearchTransformTests extends ESIntegTestCase {
         types.add(MustachePlugin.class);
         return types;
     }
-    
+
     @Override
     public Settings nodeSettings(int nodeOrdinal) {
         final Path tempDir = createTempDir();
@@ -319,7 +319,8 @@ public class SearchTransformTests extends ESIntegTestCase {
 
         IndicesQueriesRegistry indicesQueryRegistry = internalCluster().getInstance(IndicesQueriesRegistry.class);
         SearchTransformFactory transformFactory = new SearchTransformFactory(Settings.EMPTY, ClientProxy.of(client()),
-                indicesQueryRegistry);
+ indicesQueryRegistry,
+                null);
         ExecutableSearchTransform executable = transformFactory.parseExecutable("_id", parser);
 
         assertThat(executable, notNullValue());

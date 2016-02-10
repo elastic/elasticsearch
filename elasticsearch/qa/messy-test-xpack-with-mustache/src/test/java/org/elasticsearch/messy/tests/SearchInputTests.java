@@ -8,7 +8,6 @@ package org.elasticsearch.messy.tests;
 import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -75,7 +74,7 @@ import static org.joda.time.DateTimeZone.UTC;
  */
 @ClusterScope(scope = SUITE, numClientNodes = 0, transportClientRatio = 0, randomDynamicTemplates = false, numDataNodes = 1)
 public class SearchInputTests extends ESIntegTestCase {
-    
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         Collection<Class<? extends Plugin>> types = new ArrayList<>();
@@ -83,7 +82,7 @@ public class SearchInputTests extends ESIntegTestCase {
         types.add(MustachePlugin.class);
         return types;
     }
-    
+
     private final static String TEMPLATE_QUERY = "{\"query\":{\"filtered\":{\"query\":{\"match\":{\"event_type\":{\"query\":\"a\"," +
             "\"type\":\"boolean\"}}},\"filter\":{\"range\":{\"_timestamp\":" +
             "{\"from\":\"{{ctx.trigger.scheduled_time}}||-{{seconds_param}}\",\"to\":\"{{ctx.trigger.scheduled_time}}\"," +
@@ -282,7 +281,7 @@ public class SearchInputTests extends ESIntegTestCase {
         parser.nextToken();
 
         IndicesQueriesRegistry indicesQueryRegistry = internalCluster().getInstance(IndicesQueriesRegistry.class);
-        SearchInputFactory factory = new SearchInputFactory(Settings.EMPTY, ClientProxy.of(client()), indicesQueryRegistry);
+        SearchInputFactory factory = new SearchInputFactory(Settings.EMPTY, ClientProxy.of(client()), indicesQueryRegistry, null);
 
         SearchInput searchInput = factory.parseInput("_id", parser);
         assertEquals(SearchInput.TYPE, searchInput.type());

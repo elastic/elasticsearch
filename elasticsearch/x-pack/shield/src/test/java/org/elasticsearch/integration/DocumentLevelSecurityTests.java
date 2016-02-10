@@ -347,7 +347,7 @@ public class DocumentLevelSecurityTests extends ShieldIntegTestCase {
 
         SearchResponse response = client().prepareSearch("test")
                 .setTypes("type1")
-                .addAggregation(AggregationBuilders.children("children").childType("type2")
+                .addAggregation(AggregationBuilders.children("children", "type2")
                         .subAggregation(AggregationBuilders.terms("field3").field("field3")))
                 .get();
         assertHitCount(response, 1);
@@ -362,7 +362,7 @@ public class DocumentLevelSecurityTests extends ShieldIntegTestCase {
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
                 .prepareSearch("test")
                 .setTypes("type1")
-                .addAggregation(AggregationBuilders.children("children").childType("type2")
+                .addAggregation(AggregationBuilders.children("children", "type2")
                         .subAggregation(AggregationBuilders.terms("field3").field("field3")))
                 .get();
         assertHitCount(response, 1);

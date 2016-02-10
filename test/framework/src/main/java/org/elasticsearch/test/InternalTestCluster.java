@@ -163,10 +163,10 @@ public final class InternalTestCluster extends TestCluster {
     private static final int JVM_ORDINAL = Integer.parseInt(System.getProperty(SysGlobals.CHILDVM_SYSPROP_JVM_ID, "0"));
 
     /** a per-JVM unique offset to be used for calculating unique port ranges. */
-    public static final int JVM_BASE_PORT_OFFEST = PORTS_PER_JVM * (JVM_ORDINAL + 1);
+    public static final int JVM_BASE_PORT_OFFSET = PORTS_PER_JVM * (JVM_ORDINAL + 1);
 
     private static final AtomicInteger clusterOrdinal = new AtomicInteger();
-    private final int CLUSTER_BASE_PORT_OFFSET = JVM_BASE_PORT_OFFEST + (clusterOrdinal.getAndIncrement() * PORTS_PER_CLUSTER) % PORTS_PER_JVM;
+    private final int CLUSTER_BASE_PORT_OFFSET = JVM_BASE_PORT_OFFSET + (clusterOrdinal.getAndIncrement() * PORTS_PER_CLUSTER) % PORTS_PER_JVM;
 
     public final int TRANSPORT_BASE_PORT = GLOBAL_TRANSPORT_BASE_PORT + CLUSTER_BASE_PORT_OFFSET;
     public final int HTTP_BASE_PORT = GLOBAL_HTTP_BASE_PORT + CLUSTER_BASE_PORT_OFFSET;

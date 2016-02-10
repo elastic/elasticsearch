@@ -459,6 +459,11 @@ public class FunctionScoreTests extends ESTestCase {
         protected boolean doEquals(ScoreFunction other) {
             return false;
         }
+
+        @Override
+        protected int doHashCode() {
+            return 0;
+        }
     }
 
     public void testSimpleWeightedFunction() throws IOException, ExecutionException, InterruptedException {
@@ -615,21 +620,7 @@ public class FunctionScoreTests extends ESTestCase {
         Float minScore = randomBoolean() ? null : 1.0f;
         CombineFunction combineFunction = randomFrom(CombineFunction.values());
         float maxBoost = randomBoolean() ? Float.POSITIVE_INFINITY : randomFloat();
-        ScoreFunction function = randomBoolean() ? null : new ScoreFunction(combineFunction) {
-            @Override
-            public LeafScoreFunction getLeafScoreFunction(LeafReaderContext ctx) throws IOException {
-                return null;
-            }
-
-            @Override
-            public boolean needsScores() {
-                return false;
-            }
-            @Override
-            protected boolean doEquals(ScoreFunction other) {
-                return other == this;
-            }
-        };
+        ScoreFunction function = randomBoolean() ? null : new DummyScoreFunction(combineFunction);
 
         FunctionScoreQuery q = new FunctionScoreQuery(new TermQuery(new Term("foo", "bar")), function, minScore, combineFunction, maxBoost);
         FunctionScoreQuery q1 = new FunctionScoreQuery(new TermQuery(new Term("foo", "bar")), function, minScore, combineFunction, maxBoost);
@@ -640,23 +631,7 @@ public class FunctionScoreTests extends ESTestCase {
 
         FunctionScoreQuery diffQuery = new FunctionScoreQuery(new TermQuery(new Term("foo", "baz")), function, minScore, combineFunction, maxBoost);
         FunctionScoreQuery diffMinScore = new FunctionScoreQuery(q.getSubQuery(), function, minScore == null ? 1.0f : null, combineFunction, maxBoost);
-        ScoreFunction otherFunciton = function == null ? new ScoreFunction(combineFunction) {
-            @Override
-            public LeafScoreFunction getLeafScoreFunction(LeafReaderContext ctx) throws IOException {
-                return null;
-            }
-
-            @Override
-            public boolean needsScores() {
-                return false;
-            }
-
-            @Override
-            protected boolean doEquals(ScoreFunction other) {
-                return other == this;
-            }
-
-        } : null;
+        ScoreFunction otherFunciton = function == null ? new DummyScoreFunction(combineFunction) : null;
         FunctionScoreQuery diffFunction = new FunctionScoreQuery(q.getSubQuery(), otherFunciton, minScore, combineFunction, maxBoost);
         FunctionScoreQuery diffMaxBoost = new FunctionScoreQuery(new TermQuery(new Term("foo", "bar")), function, minScore, combineFunction, maxBoost == 1.0f ? 0.9f : 1.0f);
         q1.setBoost(3.0f);
@@ -685,22 +660,7 @@ public class FunctionScoreTests extends ESTestCase {
     public void testFilterFunctionScoreHashCodeAndEquals() {
         ScoreMode mode = randomFrom(ScoreMode.values());
         CombineFunction combineFunction = randomFrom(CombineFunction.values());
-        ScoreFunction scoreFunction = new ScoreFunction(combineFunction) {
-            @Override
-            public LeafScoreFunction getLeafScoreFunction(LeafReaderContext ctx) throws IOException {
-                return null;
-            }
-
-            @Override
-            public boolean needsScores() {
-                return false;
-            }
-
-            @Override
-            protected boolean doEquals(ScoreFunction other) {
-                return other == this;
-            }
-        };
+        ScoreFunction scoreFunction = new DummyScoreFunction(combineFunction);
         Float minScore = randomBoolean() ? null : 1.0f;
         Float maxBoost = randomBoolean() ? Float.POSITIVE_INFINITY : randomFloat();
 
@@ -741,5 +701,31 @@ public class FunctionScoreTests extends ESTestCase {
                 assertNotEquals(left + " == " + right, left, right);
             }
         }
+    }
+
+    private static class DummyScoreFunction extends ScoreFunction {
+        protected DummyScoreFunction(CombineFunction scoreCombiner) {
+            super(scoreCombiner);
+        }
+
+        @Override
+        public LeafScoreFunction getLeafScoreFunction(LeafReaderContext ctx) throws IOException {
+            return null;
+        }
+
+        @Override
+        public boolean needsScores() {
+            return false;
+        }
+
+        @Override
+        protected boolean doEquals(ScoreFunction other) {
+            return other == this;
+        }
+
+        @Override
+        protected int doHashCode() {
+            return 0;
+        };
     }
 }

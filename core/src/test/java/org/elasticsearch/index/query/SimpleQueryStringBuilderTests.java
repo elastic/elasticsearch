@@ -396,7 +396,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
             assertThat(query, instanceOf(BooleanQuery.class));
             BooleanQuery boolQuery = (BooleanQuery) query;
             int expectedMinimumShouldMatch = numberOfTerms * percent / 100;
-            if (simpleQueryStringBuilder.defaultOperator().equals(Operator.AND) && numberOfTerms > 1) {
+            if (numberOfTerms == 1 || simpleQueryStringBuilder.defaultOperator().equals(Operator.AND)) {
                 expectedMinimumShouldMatch = 0;
             }
             assertEquals(expectedMinimumShouldMatch, boolQuery.getMinimumNumberShouldMatch());

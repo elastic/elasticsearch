@@ -22,7 +22,6 @@ package org.elasticsearch.tasks;
 
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TaskInfo;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.inject.Provider;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.xcontent.ToXContent;
 
@@ -39,18 +38,18 @@ public class Task {
 
     private final String action;
 
-    private final Provider<String> description;
+    private final String description;
 
     private final String parentNode;
 
     private final long parentId;
 
 
-    public Task(long id, String type, String action, Provider<String> description) {
+    public Task(long id, String type, String action, String description) {
         this(id, type, action, description, null, NO_PARENT_ID);
     }
 
-    public Task(long id, String type, String action, Provider<String> description, String parentNode, long parentId) {
+    public Task(long id, String type, String action, String description, String parentNode, long parentId) {
         this.id = id;
         this.type = type;
         this.action = action;
@@ -104,7 +103,7 @@ public class Task {
      * Generates task description
      */
     public String getDescription() {
-        return description.get();
+        return description;
     }
 
     /**

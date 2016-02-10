@@ -93,7 +93,7 @@ used for future documents.
 
 ==== Note on documents expiration
 
-Expired documents will be automatically deleted periodoically. The following
+Expired documents will be automatically deleted periodically. The following
 settings control the expiry process:
 
 `indices.ttl.interval`::

@@ -41,7 +41,7 @@ public class PipelineExecutionService {
         this.threadPool = threadPool;
     }
 
-    public void execute(IndexRequest request, Consumer<Throwable> failureHandler, Consumer<Boolean> completionHandler) {
+    public void executeIndexRequest(IndexRequest request, Consumer<Throwable> failureHandler, Consumer<Boolean> completionHandler) {
         Pipeline pipeline = getPipeline(request.getPipeline());
         threadPool.executor(ThreadPool.Names.INDEX).execute(new AbstractRunnable() {
 
@@ -58,10 +58,10 @@ public class PipelineExecutionService {
         });
     }
 
-    public void execute(Iterable<ActionRequest<?>> actionRequests,
-                        BiConsumer<IndexRequest, Throwable> itemFailureHandler,
-                        Consumer<Throwable> completionHandler) {
-        threadPool.executor(ThreadPool.Names.INDEX).execute(new AbstractRunnable() {
+    public void executeBulkRequest(Iterable<ActionRequest<?>> actionRequests,
+                                   BiConsumer<IndexRequest, Throwable> itemFailureHandler,
+                                   Consumer<Throwable> completionHandler) {
+        threadPool.executor(ThreadPool.Names.BULK).execute(new AbstractRunnable() {
 
             @Override
             public void onFailure(Throwable t) {

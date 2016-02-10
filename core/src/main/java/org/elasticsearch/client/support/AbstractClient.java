@@ -41,6 +41,10 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsAction;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksAction;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequestBuilder;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequestBuilder;
@@ -990,6 +994,22 @@ public abstract class AbstractClient extends AbstractComponent implements Client
         @Override
         public ListTasksRequestBuilder prepareListTasks(String... nodesIds) {
             return new ListTasksRequestBuilder(this, ListTasksAction.INSTANCE).setNodesIds(nodesIds);
+        }
+
+
+        @Override
+        public ActionFuture<CancelTasksResponse> cancelTasks(CancelTasksRequest request) {
+            return execute(CancelTasksAction.INSTANCE, request);
+        }
+
+        @Override
+        public void cancelTasks(CancelTasksRequest request, ActionListener<CancelTasksResponse> listener) {
+            execute(CancelTasksAction.INSTANCE, request, listener);
+        }
+
+        @Override
+        public CancelTasksRequestBuilder prepareCancelTasks(String... nodesIds) {
+            return new CancelTasksRequestBuilder(this, CancelTasksAction.INSTANCE).setNodesIds(nodesIds);
         }
 
         @Override

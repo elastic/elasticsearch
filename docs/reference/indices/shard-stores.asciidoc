@@ -3,7 +3,7 @@
 
 Provides store information for shard copies of indices.
 Store information reports on which nodes shard copies exist, the shard
-copy allocation ID, a unique identifer for each shard copy, and any exceptions
+copy allocation ID, a unique identifier for each shard copy, and any exceptions
 encountered while opening the shard index or from earlier engine failure.
 
 By default, only lists store information for shards that have at least one

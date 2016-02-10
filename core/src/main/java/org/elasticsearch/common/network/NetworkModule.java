@@ -40,6 +40,7 @@ import org.elasticsearch.rest.action.admin.cluster.health.RestClusterHealthActio
 import org.elasticsearch.rest.action.admin.cluster.node.hotthreads.RestNodesHotThreadsAction;
 import org.elasticsearch.rest.action.admin.cluster.node.info.RestNodesInfoAction;
 import org.elasticsearch.rest.action.admin.cluster.node.stats.RestNodesStatsAction;
+import org.elasticsearch.rest.action.admin.cluster.node.tasks.RestCancelTasksAction;
 import org.elasticsearch.rest.action.admin.cluster.node.tasks.RestListTasksAction;
 import org.elasticsearch.rest.action.admin.cluster.repositories.delete.RestDeleteRepositoryAction;
 import org.elasticsearch.rest.action.admin.cluster.repositories.get.RestGetRepositoriesAction;
@@ -265,6 +266,7 @@ public class NetworkModule extends AbstractModule {
 
         // Tasks API
         RestListTasksAction.class,
+        RestCancelTasksAction.class,
 
         // Ingest API
         RestPutPipelineAction.class,

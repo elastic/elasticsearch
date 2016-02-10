@@ -346,6 +346,8 @@ disable doc values is by using the `doc_values` property of mappings.
 === Plugin changes
 
 The command `bin/plugin` has been renamed to `bin/elasticsearch-plugin`.
+The structure of the plugin has changed. All the plugin files must be contained in a directory called `elasticsearch`.
+If you use the gradle build, this structure is automatically generated.
 
 ==== Site plugins removed
 
@@ -550,7 +552,7 @@ Removing individual setters for lon() and lat() values, both values should be se
 Removing setters for to(Object ...) and from(Object ...) in favour of the only two allowed input
 arguments (String, Number). Removing setter for center point (point(), geohash()) because parameter
 is mandatory and should already be set in constructor.
-Also removing setters for lt(), lte(), gt(), gte() since they can all be replaced by equivallent
+Also removing setters for lt(), lte(), gt(), gte() since they can all be replaced by equivalent
 calls to to/from() and inludeLower()/includeUpper().
 
 ==== GeoPolygonQueryBuilder

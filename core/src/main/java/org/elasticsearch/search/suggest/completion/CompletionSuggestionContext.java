@@ -42,8 +42,8 @@ public class CompletionSuggestionContext extends SuggestionSearchContext.Suggest
     }
 
     private CompletionFieldMapper.CompletionFieldType fieldType;
-    private CompletionSuggestionBuilder.FuzzyOptionsBuilder fuzzyOptionsBuilder;
-    private CompletionSuggestionBuilder.RegexOptionsBuilder regexOptionsBuilder;
+    private FuzzyOptions fuzzyOptions;
+    private RegexOptions regexOptions;
     private Map<String, List<ContextMapping.QueryContext>> queryContexts = Collections.emptyMap();
     private Set<String> payloadFields = Collections.emptySet();
 
@@ -55,12 +55,12 @@ public class CompletionSuggestionContext extends SuggestionSearchContext.Suggest
         this.fieldType = fieldType;
     }
 
-    void setRegexOptionsBuilder(CompletionSuggestionBuilder.RegexOptionsBuilder regexOptionsBuilder) {
-        this.regexOptionsBuilder = regexOptionsBuilder;
+    void setRegexOptionsBuilder(RegexOptions.Builder regexOptionsBuilder) {
+        this.regexOptions = regexOptionsBuilder.build();
     }
 
-    void setFuzzyOptionsBuilder(CompletionSuggestionBuilder.FuzzyOptionsBuilder fuzzyOptionsBuilder) {
-        this.fuzzyOptionsBuilder = fuzzyOptionsBuilder;
+    void setFuzzyOptionsBuilder(FuzzyOptions.Builder fuzzyOptionsBuilder) {
+        this.fuzzyOptions = fuzzyOptionsBuilder.build();
     }
 
     void setQueryContexts(Map<String, List<ContextMapping.QueryContext>> queryContexts) {
@@ -72,7 +72,7 @@ public class CompletionSuggestionContext extends SuggestionSearchContext.Suggest
     }
 
     void setPayloadFields(List<String> fields) {
-        setPayloadFields(new HashSet<String>(fields));
+        setPayloadFields(new HashSet<>(fields));
     }
 
     Set<String> getPayloadFields() {
@@ -83,24 +83,24 @@ public class CompletionSuggestionContext extends SuggestionSearchContext.Suggest
         CompletionFieldMapper.CompletionFieldType fieldType = getFieldType();
         final CompletionQuery query;
         if (getPrefix() != null) {
-            if (fuzzyOptionsBuilder != null) {
+            if (fuzzyOptions != null) {
                 query = fieldType.fuzzyQuery(getPrefix().utf8ToString(),
-                        Fuzziness.fromEdits(fuzzyOptionsBuilder.getEditDistance()),
-                        fuzzyOptionsBuilder.getFuzzyPrefixLength(), fuzzyOptionsBuilder.getFuzzyMinLength(),
-                        fuzzyOptionsBuilder.getMaxDeterminizedStates(), fuzzyOptionsBuilder.isTranspositions(),
-                        fuzzyOptionsBuilder.isUnicodeAware());
+                        Fuzziness.fromEdits(fuzzyOptions.getEditDistance()),
+                        fuzzyOptions.getFuzzyPrefixLength(), fuzzyOptions.getFuzzyMinLength(),
+                        fuzzyOptions.getMaxDeterminizedStates(), fuzzyOptions.isTranspositions(),
+                        fuzzyOptions.isUnicodeAware());
             } else {
                 query = fieldType.prefixQuery(getPrefix());
             }
         } else if (getRegex() != null) {
-            if (fuzzyOptionsBuilder != null) {
+            if (fuzzyOptions != null) {
                 throw new IllegalArgumentException("can not use 'fuzzy' options with 'regex");
             }
-            if (regexOptionsBuilder == null) {
-                regexOptionsBuilder = new CompletionSuggestionBuilder.RegexOptionsBuilder();
+            if (regexOptions == null) {
+                regexOptions = RegexOptions.builder().build();
             }
-            query = fieldType.regexpQuery(getRegex(), regexOptionsBuilder.getFlagsValue(),
-                    regexOptionsBuilder.getMaxDeterminizedStates());
+            query = fieldType.regexpQuery(getRegex(), regexOptions.getFlagsValue(),
+                    regexOptions.getMaxDeterminizedStates());
         } else {
             throw new IllegalArgumentException("'prefix' or 'regex' must be defined");
         }

@@ -296,12 +296,6 @@ public class DirectCandidateGeneratorTests extends ESTestCase{
         return generator;
     }
 
-    private static <T> void maybeSet(Consumer<T> consumer, T value) {
-         if (randomBoolean()) {
-             consumer.accept(value);
-         }
-    }
-
     private static DirectCandidateGeneratorBuilder serializedCopy(DirectCandidateGeneratorBuilder original) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             original.writeTo(output);

@@ -34,8 +34,6 @@ import org.elasticsearch.index.query.RegexpFlag;
 import org.elasticsearch.search.suggest.SuggestContextParser;
 import org.elasticsearch.search.suggest.SuggestUtils.Fields;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
-import org.elasticsearch.search.suggest.completion.CompletionSuggestionBuilder.FuzzyOptionsBuilder;
-import org.elasticsearch.search.suggest.completion.CompletionSuggestionBuilder.RegexOptionsBuilder;
 import org.elasticsearch.search.suggest.completion.context.ContextMapping;
 import org.elasticsearch.search.suggest.completion.context.ContextMappings;
 
@@ -76,14 +74,14 @@ import java.util.Map;
 public class CompletionSuggestParser implements SuggestContextParser {
 
     private static ObjectParser<CompletionSuggestionContext, ContextAndSuggest> TLP_PARSER = new ObjectParser<>(CompletionSuggestionBuilder.SUGGESTION_NAME, null);
-    private static ObjectParser<CompletionSuggestionBuilder.RegexOptionsBuilder, ContextAndSuggest> REGEXP_PARSER = new ObjectParser<>(RegexOptionsBuilder.REGEX_OPTIONS.getPreferredName(), CompletionSuggestionBuilder.RegexOptionsBuilder::new);
-    private static ObjectParser<CompletionSuggestionBuilder.FuzzyOptionsBuilder, ContextAndSuggest> FUZZY_PARSER = new ObjectParser<>(FuzzyOptionsBuilder.FUZZY_OPTIONS.getPreferredName(), CompletionSuggestionBuilder.FuzzyOptionsBuilder::new);
+    private static ObjectParser<RegexOptions.Builder, ContextAndSuggest> REGEXP_PARSER = new ObjectParser<>(RegexOptions.REGEX_OPTIONS.getPreferredName(), RegexOptions.Builder::new);
+    private static ObjectParser<FuzzyOptions.Builder, ContextAndSuggest> FUZZY_PARSER = new ObjectParser<>(FuzzyOptions.FUZZY_OPTIONS.getPreferredName(), FuzzyOptions.Builder::new);
     static {
-        FUZZY_PARSER.declareInt(CompletionSuggestionBuilder.FuzzyOptionsBuilder::setFuzzyMinLength, FuzzyOptionsBuilder.MIN_LENGTH_FIELD);
-        FUZZY_PARSER.declareInt(CompletionSuggestionBuilder.FuzzyOptionsBuilder::setMaxDeterminizedStates, FuzzyOptionsBuilder.MAX_DETERMINIZED_STATES_FIELD);
-        FUZZY_PARSER.declareBoolean(CompletionSuggestionBuilder.FuzzyOptionsBuilder::setUnicodeAware, FuzzyOptionsBuilder.UNICODE_AWARE_FIELD);
-        FUZZY_PARSER.declareInt(CompletionSuggestionBuilder.FuzzyOptionsBuilder::setFuzzyPrefixLength, FuzzyOptionsBuilder.PREFIX_LENGTH_FIELD);
-        FUZZY_PARSER.declareBoolean(CompletionSuggestionBuilder.FuzzyOptionsBuilder::setTranspositions, FuzzyOptionsBuilder.TRANSPOSITION_FIELD);
+        FUZZY_PARSER.declareInt(FuzzyOptions.Builder::setFuzzyMinLength, FuzzyOptions.MIN_LENGTH_FIELD);
+        FUZZY_PARSER.declareInt(FuzzyOptions.Builder::setMaxDeterminizedStates, FuzzyOptions.MAX_DETERMINIZED_STATES_FIELD);
+        FUZZY_PARSER.declareBoolean(FuzzyOptions.Builder::setUnicodeAware, FuzzyOptions.UNICODE_AWARE_FIELD);
+        FUZZY_PARSER.declareInt(FuzzyOptions.Builder::setFuzzyPrefixLength, FuzzyOptions.PREFIX_LENGTH_FIELD);
+        FUZZY_PARSER.declareBoolean(FuzzyOptions.Builder::setTranspositions, FuzzyOptions.TRANSPOSITION_FIELD);
         FUZZY_PARSER.declareValue((a, b) -> {
             try {
                 a.setFuzziness(Fuzziness.parse(b).asDistance());
@@ -91,12 +89,12 @@ public class CompletionSuggestParser implements SuggestContextParser {
                 throw new ElasticsearchException(e);
             }
         }, Fuzziness.FIELD);
-        REGEXP_PARSER.declareInt(CompletionSuggestionBuilder.RegexOptionsBuilder::setMaxDeterminizedStates, RegexOptionsBuilder.MAX_DETERMINIZED_STATES);
-        REGEXP_PARSER.declareStringOrNull(CompletionSuggestionBuilder.RegexOptionsBuilder::setFlags, RegexOptionsBuilder.FLAGS_VALUE);
+        REGEXP_PARSER.declareInt(RegexOptions.Builder::setMaxDeterminizedStates, RegexOptions.MAX_DETERMINIZED_STATES);
+        REGEXP_PARSER.declareStringOrNull(RegexOptions.Builder::setFlags, RegexOptions.FLAGS_VALUE);
 
         TLP_PARSER.declareStringArray(CompletionSuggestionContext::setPayloadFields, CompletionSuggestionBuilder.PAYLOAD_FIELD);
-        TLP_PARSER.declareObjectOrDefault(CompletionSuggestionContext::setFuzzyOptionsBuilder, FUZZY_PARSER, CompletionSuggestionBuilder.FuzzyOptionsBuilder::new, FuzzyOptionsBuilder.FUZZY_OPTIONS);
-        TLP_PARSER.declareObject(CompletionSuggestionContext::setRegexOptionsBuilder, REGEXP_PARSER, RegexOptionsBuilder.REGEX_OPTIONS);
+        TLP_PARSER.declareObjectOrDefault(CompletionSuggestionContext::setFuzzyOptionsBuilder, FUZZY_PARSER, FuzzyOptions.Builder::new, FuzzyOptions.FUZZY_OPTIONS);
+        TLP_PARSER.declareObject(CompletionSuggestionContext::setRegexOptionsBuilder, REGEXP_PARSER, RegexOptions.REGEX_OPTIONS);
         TLP_PARSER.declareString(SuggestionSearchContext.SuggestionContext::setField, Fields.FIELD);
         TLP_PARSER.declareField((p, v, c) -> {
             String analyzerName = p.text();
@@ -172,7 +170,4 @@ public class CompletionSuggestParser implements SuggestContextParser {
             throw new IllegalArgumentException("Field [" + suggestion.getField() + "] is not a completion suggest field");
         }
     }
-
-
-
 }

@@ -47,7 +47,7 @@ public class SuggestBuilderTests extends WritableTestCase<SuggestBuilder> {
 
 
     @Override
-    protected NamedWriteableRegistry provideNamedWritbaleRegistry() {
+    protected NamedWriteableRegistry provideNamedWritableRegistry() {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
         namedWriteableRegistry.registerPrototype(SuggestionBuilder.class, TermSuggestionBuilder.PROTOTYPE);
         namedWriteableRegistry.registerPrototype(SuggestionBuilder.class, PhraseSuggestionBuilder.PROTOTYPE);

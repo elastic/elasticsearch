@@ -158,12 +158,12 @@ public class CategoryContextMapping extends ContextMapping {
         List<QueryContext> queryContexts = new ArrayList<>();
         Token token = parser.nextToken();
         if (token == Token.START_OBJECT || token == Token.VALUE_STRING) {
-            CategoryQueryContext parse = CategoryQueryContext.parse(parser);
-            queryContexts.add(new QueryContext(parse.getCategory().toString(), parse.getBoost(), parse.isPrefix()));
+            CategoryQueryContext parse = CategoryQueryContext.PROTOTYPE.fromXContext(parser);
+            queryContexts.add(new QueryContext(parse.getCategory(), parse.getBoost(), parse.isPrefix()));
         } else if (token == Token.START_ARRAY) {
             while (parser.nextToken() != Token.END_ARRAY) {
-                CategoryQueryContext parse = CategoryQueryContext.parse(parser);
-                queryContexts.add(new QueryContext(parse.getCategory().toString(), parse.getBoost(), parse.isPrefix()));
+                CategoryQueryContext parse = CategoryQueryContext.PROTOTYPE.fromXContext(parser);
+                queryContexts.add(new QueryContext(parse.getCategory(), parse.getBoost(), parse.isPrefix()));
             }
         }
         return queryContexts;

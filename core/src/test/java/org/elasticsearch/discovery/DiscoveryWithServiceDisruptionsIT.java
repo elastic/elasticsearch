@@ -754,7 +754,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
     }
 
     /**
-     * A 4 node cluster with m_m_n set to 3 and each node has one unicast enpoint. One node partitions from the master node.
+     * A 4 node cluster with m_m_n set to 3 and each node has one unicast endpoint. One node partitions from the master node.
      * The temporal unicast responses is empty. When partition is solved the one ping response contains a master node.
      * The rejoining node should take this master node and connect.
      */
@@ -971,7 +971,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
     }
 
     /**
-     * Adds an asymetric break between a master and one of the nodes and makes
+     * Adds an asymmetric break between a master and one of the nodes and makes
      * sure that the node is removed form the cluster, that the node start pinging and that
      * the cluster reforms when healed.
      */

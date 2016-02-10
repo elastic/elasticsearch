@@ -47,7 +47,7 @@ import java.nio.ByteOrder;
  * requires more space and makes hyperloglog (which is less accurate) used sooner,
  * this is also considerably faster.
  *
- * Trying to understand what this class does whithout having read the paper is
+ * Trying to understand what this class does without having read the paper is
  * considered adventurous.
  */
 public final class HyperLogLogPlusPlus implements Releasable {

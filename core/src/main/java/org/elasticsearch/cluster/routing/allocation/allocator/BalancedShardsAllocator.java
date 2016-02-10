@@ -571,7 +571,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
         }
 
         /**
-         * Allocates all given shards on the minimal eligable node for the shards index
+         * Allocates all given shards on the minimal eligible node for the shards index
          * with respect to the weight function. All given shards must be unassigned.
          */
         private boolean allocateUnassigned(RoutingNodes.UnassignedShards unassigned) {
@@ -611,7 +611,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
              * The arrays are sorted by primaries first and then by index and shard ID so a 2 indices with 2 replica and 1 shard would look like:
              * [(0,P,IDX1), (0,P,IDX2), (0,R,IDX1), (0,R,IDX1), (0,R,IDX2), (0,R,IDX2)]
              * if we allocate for instance (0, R, IDX1) we move the second replica to the secondary array and proceed with
-             * the next replica. If we could not find a node to allocate (0,R,IDX1) we move all it's replicas to ingoreUnassigned.
+             * the next replica. If we could not find a node to allocate (0,R,IDX1) we move all it's replicas to ignoreUnassigned.
              */
             ShardRouting[] primary = unassigned.drain();
             ShardRouting[] secondary = new ShardRouting[primary.length];
@@ -733,7 +733,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                 secondary = tmp;
                 secondaryLength = 0;
             } while (primaryLength > 0);
-            // clear everything we have either added it or moved to ingoreUnassigned
+            // clear everything we have either added it or moved to ignoreUnassigned
             return changed;
         }
 

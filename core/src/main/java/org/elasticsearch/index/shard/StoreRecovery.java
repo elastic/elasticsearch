@@ -64,7 +64,7 @@ final class StoreRecovery {
      * @param indexShard the index shard instance to recovery the shard into
      * @param indexShouldExists <code>true</code> iff the index should exist on disk ie. has the shard been allocated previously on the shards store.
      * @param localNode the reference to the local node
-     * @return  <code>true</code> if the the shard has been recovered successfully, <code>false</code> if the recovery
+     * @return  <code>true</code> if the shard has been recovered successfully, <code>false</code> if the recovery
      * has been ignored due to a concurrent modification of if the clusters state has changed due to async updates.
      * @see Store
      */
@@ -86,7 +86,7 @@ final class StoreRecovery {
      * previously created index snapshot into an existing initializing shard.
      * @param indexShard the index shard instance to recovery the snapshot from
      * @param repository the repository holding the physical files the shard should be recovered from
-     * @return <code>true</code> if the the shard has been recovered successfully, <code>false</code> if the recovery
+     * @return <code>true</code> if the shard has been recovered successfully, <code>false</code> if the recovery
      * has been ignored due to a concurrent modification of if the clusters state has changed due to async updates.
      */
     boolean recoverFromRepository(final IndexShard indexShard, IndexShardRepository repository, DiscoveryNode localNode) {

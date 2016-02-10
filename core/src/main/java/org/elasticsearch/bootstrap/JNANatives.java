@@ -108,7 +108,7 @@ class JNANatives {
         if (value == JNACLibrary.RLIM_INFINITY) {
             return "unlimited";
         } else {
-            // TODO, on java 8 use Long.toUnsignedString, since thats what it is.
+            // TODO, on java 8 use Long.toUnsignedString, since that's what it is.
             return Long.toString(value);
         }
     }

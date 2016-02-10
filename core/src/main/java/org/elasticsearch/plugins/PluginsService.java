@@ -159,7 +159,7 @@ public class PluginsService extends AbstractComponent {
             }
         }
 
-        // we don't log jars in lib/ we really shouldnt log modules,
+        // we don't log jars in lib/ we really shouldn't log modules,
         // but for now: just be transparent so we can debug any potential issues
         Set<String> moduleNames = new HashSet<>();
         Set<String> jvmPluginNames = new HashSet<>();

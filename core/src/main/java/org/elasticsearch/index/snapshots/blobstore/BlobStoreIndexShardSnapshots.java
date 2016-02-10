@@ -42,7 +42,7 @@ import static java.util.Collections.unmodifiableMap;
 /**
  * Contains information about all snapshot for the given shard in repository
  * <p>
- * This class is used to find files that were already snapshoted and clear out files that no longer referenced by any
+ * This class is used to find files that were already snapshotted and clear out files that no longer referenced by any
  * snapshots
  */
 public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, ToXContent, FromXContentBuilder<BlobStoreIndexShardSnapshots> {

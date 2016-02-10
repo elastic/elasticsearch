@@ -321,7 +321,7 @@ public final class OrdinalsBuilder implements Closeable {
     }
 
     /**
-     * Retruns the current ordinal or <tt>0</tt> if this build has not been advanced via
+     * Returns the current ordinal or <tt>0</tt> if this build has not been advanced via
      * {@link #nextOrdinal()}.
      */
     public long currentOrdinal() {
@@ -457,7 +457,7 @@ public final class OrdinalsBuilder implements Closeable {
      * This method iterates all terms in the given {@link TermsEnum} and
      * associates each terms ordinal with the terms documents. The caller must
      * exhaust the returned {@link BytesRefIterator} which returns all values
-     * where the first returned value is associted with the ordinal <tt>1</tt>
+     * where the first returned value is associated with the ordinal <tt>1</tt>
      * etc.
      * <p>
      * If the {@link TermsEnum} contains prefix coded numerical values the terms

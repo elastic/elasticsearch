@@ -192,7 +192,7 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         assertThat(Files.exists(indexDirectory(node_2, "test")), equalTo(false));
 
         // add a transport delegate that will prevent the shard active request to succeed the first time after relocation has finished.
-        // node_1 will then wait for the next cluster state change before it tries a next attempt to delet the shard.
+        // node_1 will then wait for the next cluster state change before it tries a next attempt to delete the shard.
         MockTransportService transportServiceNode_1 = (MockTransportService) internalCluster().getInstance(TransportService.class, node_1);
         TransportService transportServiceNode_2 = internalCluster().getInstance(TransportService.class, node_2);
         final CountDownLatch shardActiveRequestSent = new CountDownLatch(1);

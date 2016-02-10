@@ -85,10 +85,10 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
      * Sets the maximum percentage of the terms that at most considered to be
      * misspellings in order to form a correction. This method accepts a float
      * value in the range [0..1) as a fraction of the actual query terms a
-     * number <tt>&gt;=1</tt> as an absolut number of query terms.
+     * number <tt>&gt;=1</tt> as an absolute number of query terms.
      *
      * The default is set to <tt>1.0</tt> which corresponds to that only
-     * corrections with at most 1 missspelled term are returned.
+     * corrections with at most 1 misspelled term are returned.
      */
     public PhraseSuggestionBuilder maxErrors(Float maxErrors) {
         this.maxErrors = maxErrors;
@@ -288,7 +288,7 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
     }
 
     /**
-     * A "stupid-backoff" smoothing model simialr to <a
+     * A "stupid-backoff" smoothing model similar to <a
      * href="http://en.wikipedia.org/wiki/Katz's_back-off_model"> Katz's
      * Backoff</a>. This model is used as the default if no model is configured.
      * <p>

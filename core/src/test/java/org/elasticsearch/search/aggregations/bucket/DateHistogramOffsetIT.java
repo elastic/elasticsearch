@@ -166,7 +166,7 @@ public class DateHistogramOffsetIT extends ESIntegTestCase {
     }
 
     /**
-     * @param bucket the bucket to check asssertions for
+     * @param bucket the bucket to check assertions for
      * @param key the expected key
      * @param expectedSize the expected size of the bucket
      */

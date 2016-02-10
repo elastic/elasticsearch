@@ -73,7 +73,7 @@ public class IndexConstraint {
     }
 
     /**
-     * @return On what property of a field the contraint is going to be applied on (min or max value)
+     * @return On what property of a field the constraint is going to be applied on (min or max value)
      */
     public Property getProperty() {
         return property;

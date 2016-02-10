@@ -150,27 +150,18 @@ An important default is that the `_source` returned in hits inside `inner_hits` 
 So in the above example only the comment part is returned per nested hit and not the entire source of the top level
 document that contained the comment.
 
+This also implies that if you explicitly specify fields to be returned as part of the _source for inner_hits, you need to define them using the relative path, so in the example above:
+--------------------------------------------------
+"inner_hits" : {
+     "_source":["message"]
+     } 
+--------------------------------------------------
+If you return field data using fielddata_fields, you need to specify the full path instead. 
+
 [[hierarchical-nested-inner-hits]]
 ==== Hierarchical levels of nested object fields and inner hits.
 
-If a mapping has multiple levels of hierarchical nested object fields each level can be accessed via dot notated path.
-For example if there is a `comments` nested field that contains a `votes` nested field and votes should directly be returned
-with the root hits then the following path can be defined:
-
-[source,js]
---------------------------------------------------
-{
-   "query" : {
-      "nested" : {
-         "path" : "comments.votes",
-         "query" : { ... },
-         "inner_hits" : {}
-      }
-    }
-}
---------------------------------------------------
-
-This indirect referencing is only supported for nested inner hits.
+If a mapping has multiple levels of hierarchical nested object fields each level can be accessed using <<top-level-inner-hits, Top level inner hits>> (see below). 
 
 [[parent-child-inner-hits]]
 ==== Parent/child inner hits
@@ -229,7 +220,7 @@ An example of a response snippet that could be generated from the above search r
 --------------------------------------------------
 
 [[top-level-inner-hits]]
-==== top level inner hits
+==== Top level inner hits
 
 Besides defining inner hits on query and filters, inner hits can also be defined as a top level construct alongside the
 `query` and `aggregations` definition. The main reason for using the top level inner hits definition is to let the

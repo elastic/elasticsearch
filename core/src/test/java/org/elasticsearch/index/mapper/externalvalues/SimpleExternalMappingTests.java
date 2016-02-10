@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.mapper.externalvalues;
 
-import org.apache.lucene.util.GeoUtils;
+import org.apache.lucene.spatial.util.GeoEncodingUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -88,7 +88,7 @@ public class SimpleExternalMappingTests extends ESSingleNodeTestCase {
         if (version.before(Version.V_2_2_0)) {
             assertThat(doc.rootDoc().getField("field.point").stringValue(), is("42.0,51.0"));
         } else {
-            assertThat(Long.parseLong(doc.rootDoc().getField("field.point").stringValue()), is(GeoUtils.mortonHash(51.0, 42.0)));
+            assertThat(Long.parseLong(doc.rootDoc().getField("field.point").stringValue()), is(GeoEncodingUtils.mortonHash(51.0, 42.0)));
         }
 
         assertThat(doc.rootDoc().getField("field.shape"), notNullValue());
@@ -146,7 +146,7 @@ public class SimpleExternalMappingTests extends ESSingleNodeTestCase {
         if (version.before(Version.V_2_2_0)) {
             assertThat(doc.rootDoc().getField("field.point").stringValue(), is("42.0,51.0"));
         } else {
-            assertThat(Long.parseLong(doc.rootDoc().getField("field.point").stringValue()), is(GeoUtils.mortonHash(51.0, 42.0)));
+            assertThat(Long.parseLong(doc.rootDoc().getField("field.point").stringValue()), is(GeoEncodingUtils.mortonHash(51.0, 42.0)));
         }
 
         assertThat(doc.rootDoc().getField("field.shape"), notNullValue());
@@ -208,7 +208,7 @@ public class SimpleExternalMappingTests extends ESSingleNodeTestCase {
         if (version.before(Version.V_2_2_0)) {
             assertThat(doc.rootDoc().getField("field.point").stringValue(), is("42.0,51.0"));
         } else {
-            assertThat(Long.parseLong(doc.rootDoc().getField("field.point").stringValue()), is(GeoUtils.mortonHash(51.0, 42.0)));
+            assertThat(Long.parseLong(doc.rootDoc().getField("field.point").stringValue()), is(GeoEncodingUtils.mortonHash(51.0, 42.0)));
         }
 
         assertThat(doc.rootDoc().getField("field.shape"), notNullValue());

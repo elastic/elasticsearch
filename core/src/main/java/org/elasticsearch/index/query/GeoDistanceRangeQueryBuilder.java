@@ -19,9 +19,10 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.GeoPointDistanceRangeQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.GeoDistanceUtils;
+import org.apache.lucene.spatial.geopoint.document.GeoPointField;
+import org.apache.lucene.spatial.geopoint.search.GeoPointDistanceRangeQuery;
+import org.apache.lucene.spatial.util.GeoDistanceUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoDistance;
@@ -41,7 +42,7 @@ import java.io.IOException;
 import java.util.Locale;
 import java.util.Objects;
 
-import static org.apache.lucene.util.GeoUtils.TOLERANCE;
+import static org.apache.lucene.spatial.util.GeoEncodingUtils.TOLERANCE;
 
 public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistanceRangeQueryBuilder> {
 
@@ -267,16 +268,22 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
             toValue = GeoDistanceUtils.maxRadialDistanceMeters(point.lon(), point.lat());
         }
 
-        if (indexCreatedBeforeV2_2 == true) {
+        final Version indexVersionCreated = context.indexVersionCreated();
+        if (indexVersionCreated.before(Version.V_2_2_0)) {
             GeoPointFieldMapperLegacy.GeoPointFieldType geoFieldType = ((GeoPointFieldMapperLegacy.GeoPointFieldType) fieldType);
             IndexGeoPointFieldData indexFieldData = context.getForField(fieldType);
             return new GeoDistanceRangeQuery(point, fromValue, toValue, includeLower, includeUpper, geoDistance, geoFieldType,
-                    indexFieldData, optimizeBbox);
+                indexFieldData, optimizeBbox);
         }
 
-        return new GeoPointDistanceRangeQuery(fieldType.name(), point.lon(), point.lat(),
-                (includeLower) ? fromValue : fromValue + TOLERANCE,
-                (includeUpper) ? toValue : toValue - TOLERANCE);
+        // if index created V_2_2 use (soon to be legacy) numeric encoding postings format
+        // if index created V_2_3 > use prefix encoded postings format
+        final GeoPointField.TermEncoding encoding = (indexVersionCreated.before(Version.V_2_3_0)) ?
+            GeoPointField.TermEncoding.NUMERIC : GeoPointField.TermEncoding.PREFIX;
+
+        return new GeoPointDistanceRangeQuery(fieldType.name(), encoding, point.lon(), point.lat(),
+            (includeLower) ? fromValue : fromValue + TOLERANCE,
+            (includeUpper) ? toValue : toValue - TOLERANCE);
     }
 
     @Override

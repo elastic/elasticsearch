@@ -33,7 +33,7 @@ public class GeoBoundingBoxQueryBuilder extends QueryBuilder {
     private static final int LEFT = 1;
     private static final int BOTTOM = 2;
     private static final int RIGHT = 3;
-    
+
     private final String name;
 
     private double[] box = {Double.NaN, Double.NaN, Double.NaN, Double.NaN};
@@ -106,7 +106,7 @@ public class GeoBoundingBoxQueryBuilder extends QueryBuilder {
     public GeoBoundingBoxQueryBuilder bottomLeft(String geohash) {
         return bottomLeft(GeoPoint.fromGeohash(geohash));
     }
-    
+
     /**
      * Adds top right point.
      *
@@ -166,7 +166,7 @@ public class GeoBoundingBoxQueryBuilder extends QueryBuilder {
         } else if(Double.isNaN(box[LEFT])) {
             throw new IllegalArgumentException("geo_bounding_box requires left longitude to be set");
         }
-                
+
         builder.startObject(GeoBoundingBoxQueryParser.NAME);
 
         builder.startObject(name);

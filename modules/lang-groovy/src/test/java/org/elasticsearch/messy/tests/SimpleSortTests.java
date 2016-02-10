@@ -70,7 +70,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.ExecutionException;
 
-import static org.apache.lucene.util.GeoUtils.TOLERANCE;
+import static org.apache.lucene.spatial.util.GeoEncodingUtils.TOLERANCE;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;

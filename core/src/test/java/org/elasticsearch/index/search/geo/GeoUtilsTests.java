@@ -24,7 +24,7 @@ import com.spatial4j.core.distance.DistanceUtils;
 import org.apache.lucene.spatial.prefix.tree.Cell;
 import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
-import org.apache.lucene.util.GeoHashUtils;
+import org.apache.lucene.spatial.util.GeoHashUtils;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;

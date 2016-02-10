@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket;
 
-import org.apache.lucene.util.GeoHashUtils;
+import org.apache.lucene.spatial.util.GeoHashUtils;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.index.query.QueryBuilders;

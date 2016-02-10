@@ -29,7 +29,7 @@ import java.util.List;
 public class GeoPolygonQueryBuilder extends QueryBuilder {
 
     public static final String POINTS = GeoPolygonQueryParser.POINTS;
-    
+
     private final String name;
 
     private final List<GeoPoint> shell = new ArrayList<>();
@@ -62,7 +62,7 @@ public class GeoPolygonQueryBuilder extends QueryBuilder {
         shell.add(point);
         return this;
     }
-    
+
     /**
      * Sets the filter name for the filter that can be used when searching for matched_filters per hit.
      */

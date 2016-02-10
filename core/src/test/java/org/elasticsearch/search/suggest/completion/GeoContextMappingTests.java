@@ -20,7 +20,6 @@
 package org.elasticsearch.search.suggest.completion;
 
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.util.GeoHashUtils;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;

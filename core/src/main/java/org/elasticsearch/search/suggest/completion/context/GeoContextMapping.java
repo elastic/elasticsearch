@@ -22,7 +22,6 @@ package org.elasticsearch.search.suggest.completion.context;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.util.GeoHashUtils;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
@@ -37,6 +36,9 @@ import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 
 import java.io.IOException;
 import java.util.*;
+
+import static org.apache.lucene.spatial.util.GeoHashUtils.addNeighbors;
+import static org.apache.lucene.spatial.util.GeoHashUtils.stringEncode;
 
 /**
  * A {@link ContextMapping} that uses a geo location/area as a
@@ -144,7 +146,7 @@ public class GeoContextMapping extends ContextMapping {
                 if (parser.nextToken() == Token.VALUE_NUMBER) {
                     double lat = parser.doubleValue();
                     if (parser.nextToken() == Token.END_ARRAY) {
-                        contexts.add(GeoHashUtils.stringEncode(lon, lat, precision));
+                        contexts.add(stringEncode(lon, lat, precision));
                     } else {
                         throw new ElasticsearchParseException("only two values [lon, lat] expected");
                     }
@@ -154,7 +156,7 @@ public class GeoContextMapping extends ContextMapping {
             } else {
                 while (token != Token.END_ARRAY) {
                     GeoPoint point = GeoUtils.parseGeoPoint(parser);
-                    contexts.add(GeoHashUtils.stringEncode(point.getLon(), point.getLat(), precision));
+                    contexts.add(stringEncode(point.getLon(), point.getLat(), precision));
                     token = parser.nextToken();
                 }
             }
@@ -165,7 +167,7 @@ public class GeoContextMapping extends ContextMapping {
         } else {
             // or a single location
             GeoPoint point = GeoUtils.parseGeoPoint(parser);
-            contexts.add(GeoHashUtils.stringEncode(point.getLon(), point.getLat(), precision));
+            contexts.add(stringEncode(point.getLon(), point.getLat(), precision));
         }
         return contexts;
     }
@@ -188,7 +190,7 @@ public class GeoContextMapping extends ContextMapping {
                         // we write doc values fields differently: one field for all values, so we need to only care about indexed fields
                         if (lonField.fieldType().docValuesType() == DocValuesType.NONE) {
                             spare.reset(latField.numericValue().doubleValue(), lonField.numericValue().doubleValue());
-                            geohashes.add(GeoHashUtils.stringEncode(spare.getLon(), spare.getLat(), precision));
+                            geohashes.add(stringEncode(spare.getLon(), spare.getLat(), precision));
                         }
                     }
                 }
@@ -351,7 +353,7 @@ public class GeoContextMapping extends ContextMapping {
                 }
             }
 
-            String geoHash = GeoHashUtils.stringEncode(point.getLon(), point.getLat(), precision);
+            String geoHash = stringEncode(point.getLon(), point.getLat(), precision);
             if (neighbours.size() > 0) {
                 final int[] neighbourValues = new int[neighbours.size()];
                 for (int i = 0; i < neighbours.size(); i++) {
@@ -378,7 +380,7 @@ public class GeoContextMapping extends ContextMapping {
                 int neighbourPrecision = Math.min(neighboursPrecision, truncatedGeohash.length());
                 String neighbourGeohash = truncatedGeohash.substring(0, neighbourPrecision);
                 Collection<String> locations = new HashSet<>();
-                GeoHashUtils.addNeighbors(neighbourGeohash, neighbourPrecision, locations);
+                addNeighbors(neighbourGeohash, neighbourPrecision, locations);
                 boolean isPrefix = neighbourPrecision < precision;
                 for (String location : locations) {
                     queryContextList.add(new CategoryQueryContext(location, geoQueryContext.boost, isPrefix));

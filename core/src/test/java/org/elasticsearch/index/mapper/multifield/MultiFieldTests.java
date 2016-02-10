@@ -21,7 +21,7 @@ package org.elasticsearch.index.mapper.multifield;
 
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.util.GeoUtils;
+import org.apache.lucene.spatial.util.GeoEncodingUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -292,7 +292,7 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
         if (indexCreatedBefore22 == true) {
             assertThat(f.stringValue(), equalTo(a.toString()));
         } else {
-            assertThat(Long.parseLong(f.stringValue()), equalTo(GeoUtils.mortonHash(a.lon(), a.lat())));
+            assertThat(Long.parseLong(f.stringValue()), equalTo(GeoEncodingUtils.mortonHash(a.lon(), a.lat())));
         }
         assertThat(f.fieldType().stored(), equalTo(false));
         assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
@@ -321,7 +321,7 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
         if (indexCreatedBefore22 == true) {
             assertThat(f.stringValue(), equalTo(a.toString()));
         } else {
-            assertThat(Long.parseLong(f.stringValue()), equalTo(GeoUtils.mortonHash(a.lon(), a.lat())));
+            assertThat(Long.parseLong(f.stringValue()), equalTo(GeoEncodingUtils.mortonHash(a.lon(), a.lat())));
         }
         assertThat(f.fieldType().stored(), equalTo(false));
         assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());

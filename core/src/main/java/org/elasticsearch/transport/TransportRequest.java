@@ -33,14 +33,20 @@ public abstract class TransportRequest extends TransportMessage<TransportRequest
     }
 
 
+    /**
+     * Returns the task object that should be used to keep track of the processing of the request.
+     *
+     * A request can override this method and return null to avoid being tracked by the task manager.
+     */
     public Task createTask(long id, String type, String action) {
-        return new Task(id, type, action, this::getDescription);
+        return new Task(id, type, action, getDescription());
     }
+
     /**
      * Returns optional description of the request to be displayed by the task manager
      */
     public String getDescription() {
-        return this.toString();
+        return "";
     }
 
 }

@@ -33,6 +33,9 @@ import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequestBuilder;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
@@ -286,6 +289,29 @@ public interface ClusterAdminClient extends ElasticsearchClient {
      * List active tasks
      */
     ListTasksRequestBuilder prepareListTasks(String... nodesIds);
+
+    /**
+     * Cancel tasks
+     *
+     * @param request The nodes tasks request
+     * @return The result future
+     * @see org.elasticsearch.client.Requests#cancelTasksRequest(String...)
+     */
+    ActionFuture<CancelTasksResponse> cancelTasks(CancelTasksRequest request);
+
+    /**
+     * Cancel active tasks
+     *
+     * @param request  The nodes tasks request
+     * @param listener A cancelener to be notified with a result
+     * @see org.elasticsearch.client.Requests#cancelTasksRequest(String...)
+     */
+    void cancelTasks(CancelTasksRequest request, ActionListener<CancelTasksResponse> listener);
+
+    /**
+     * Cancel active tasks
+     */
+    CancelTasksRequestBuilder prepareCancelTasks(String... nodesIds);
 
     /**
      * Returns list of shards the given search would be executed on.

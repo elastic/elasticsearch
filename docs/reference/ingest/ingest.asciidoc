@@ -61,7 +61,7 @@ All processors are defined in the following way within a pipeline definition:
 Each processor defines its own configuration parameters, but all processors have 
 the ability to declare `tag` and `on_failure` fields. These fields are optional.
 
-A `tag` is simply a string identifier of the specific instatiation of a certain
+A `tag` is simply a string identifier of the specific instantiation of a certain
 processor in a pipeline. The `tag` field does not affect any processor's behavior,
 but is very useful for bookkeeping and tracing errors to specific processors.
 
@@ -1079,7 +1079,7 @@ response:
 
 It is often useful to see how each processor affects the ingest document
 as it is passed through the pipeline. To see the intermediate results of
-each processor in the simulat request, a `verbose` parameter may be added
+each processor in the simulate request, a `verbose` parameter may be added
 to the request
 
 Here is an example verbose request and its response:

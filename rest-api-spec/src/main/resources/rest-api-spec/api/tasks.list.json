@@ -4,25 +4,29 @@
     "methods": ["GET"],
     "url": {
       "path": "/_tasks",
-      "paths": ["/_tasks", "/_tasks/{node_id}", "/_tasks/{node_id}/{actions}"],
+      "paths": ["/_tasks", "/_tasks/{node_id}", "/_tasks/{node_id}/{task_id}"],
       "parts": {
         "node_id": {
           "type": "list",
           "description": "A comma-separated list of node IDs or names to limit the returned information; use `_local` to return information from the node you're connecting to, leave empty to get information from all nodes"
         },
-        "actions": {
-          "type": "list",
-          "description": "A comma-separated list of actions that should be returned. Leave empty to return all."
+        "task_id": {
+          "type": "number",
+          "description": "Return the task with specified id"
         }
       },
       "params": {
+        "actions": {
+          "type": "list",
+          "description": "A comma-separated list of actions that should be returned. Leave empty to return all."
+        },
         "detailed": {
           "type": "boolean",
           "description": "Return detailed task information (default: false)"
         },
         "parent_node": {
-            "type": "string",
-            "description": "Return tasks with specified parent node."
+          "type": "string",
+          "description": "Return tasks with specified parent node."
         },
         "parent_task": {
           "type" : "number",

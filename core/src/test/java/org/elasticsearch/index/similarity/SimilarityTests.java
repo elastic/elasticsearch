@@ -228,7 +228,7 @@ public class SimilarityTests extends ESSingleNodeTestCase {
             indexService.mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
             fail("Expected MappingParsingException");
         } catch (MapperParsingException e) {
-            assertThat(e.getMessage(), equalTo("Unknown Similarity type [unknown_similarity] for [field1]"));
+            assertThat(e.getMessage(), equalTo("Unknown Similarity type [unknown_similarity] for field [field1]"));
         }
     }
 
@@ -255,7 +255,7 @@ public class SimilarityTests extends ESSingleNodeTestCase {
             parser.parse("type", new CompressedXContent(mapping));
             fail("Expected MappingParsingException");
         } catch (MapperParsingException e) {
-            assertThat(e.getMessage(), equalTo("Unknown Similarity type [default] for [field1]"));
+            assertThat(e.getMessage(), equalTo("Unknown Similarity type [default] for field [field1]"));
         }
     }
 }

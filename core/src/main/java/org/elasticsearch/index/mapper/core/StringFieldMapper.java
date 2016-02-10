@@ -145,8 +145,8 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
-        public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            StringFieldMapper.Builder builder = stringField(name);
+        public Mapper.Builder parse(String fieldName, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+            StringFieldMapper.Builder builder = stringField(fieldName);
             // hack for the fact that string can't just accept true/false for
             // the index property and still accepts no/not_analyzed/analyzed
             final Object index = node.remove("index");
@@ -165,10 +165,10 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
                     node.put("index", false);
                     break;
                 default:
-                    throw new IllegalArgumentException("Can't parse [index] value [" + index + "], expected [true], [false], [no], [not_analyzed] or [analyzed]");
+                    throw new IllegalArgumentException("Can't parse [index] value [" + index + "] for field [" + fieldName + "], expected [true], [false], [no], [not_analyzed] or [analyzed]");
                 }
             }
-            parseTextField(builder, name, node, parserContext);
+            parseTextField(builder, fieldName, node, parserContext);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
                 String propName = Strings.toUnderscoreCase(entry.getKey());
@@ -182,7 +182,7 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
                 } else if (propName.equals("search_quote_analyzer")) {
                     NamedAnalyzer analyzer = parserContext.analysisService().analyzer(propNode.toString());
                     if (analyzer == null) {
-                        throw new MapperParsingException("Analyzer [" + propNode.toString() + "] not found for field [" + name + "]");
+                        throw new MapperParsingException("Analyzer [" + propNode.toString() + "] not found for field [" + fieldName + "]");
                     }
                     builder.searchQuotedAnalyzer(analyzer);
                     iterator.remove();
@@ -207,7 +207,7 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
                 } else if (propName.equals("ignore_above")) {
                     builder.ignoreAbove(XContentMapValues.nodeIntegerValue(propNode, -1));
                     iterator.remove();
-                } else if (parseMultiField(builder, name, parserContext, propName, propNode)) {
+                } else if (parseMultiField(builder, fieldName, parserContext, propName, propNode)) {
                     iterator.remove();
                 }
             }

@@ -27,6 +27,7 @@ import java.nio.file.DirectoryStream;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.StandardCopyOption;
@@ -46,6 +47,7 @@ import org.elasticsearch.common.cli.CliTool;
 import org.elasticsearch.common.cli.CliToolTestCase;
 import org.elasticsearch.common.cli.Terminal;
 import org.elasticsearch.common.cli.UserError;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
@@ -102,13 +104,14 @@ public class InstallPluginCommandTests extends ESTestCase {
         }
     }
 
-    static String writeZip(Path structure) throws IOException {
+    static String writeZip(Path structure, Path prefix) throws IOException {
         Path zip = createTempDir().resolve(structure.getFileName() + ".zip");
         try (ZipOutputStream stream = new ZipOutputStream(Files.newOutputStream(zip))) {
             Files.walkFileTree(structure, new SimpleFileVisitor<Path>() {
                 @Override
                 public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                    stream.putNextEntry(new ZipEntry(structure.relativize(file).toString()));
+                    Path target = prefix.resolve(structure.relativize(file));
+                    stream.putNextEntry(new ZipEntry(target.toString()));
                     Files.copy(file, stream);
                     return FileVisitResult.CONTINUE;
                 }
@@ -127,7 +130,7 @@ public class InstallPluginCommandTests extends ESTestCase {
             "java.version", System.getProperty("java.specification.version"),
             "classname", "FakePlugin");
         writeJar(structure.resolve("plugin.jar"), "FakePlugin");
-        return writeZip(structure);
+        return writeZip(structure, PathUtils.get("elasticsearch"));
     }
 
     static CliToolTestCase.CaptureOutputTerminal installPlugin(String pluginUrl, Environment env) throws Exception {
@@ -284,7 +287,7 @@ public class InstallPluginCommandTests extends ESTestCase {
             "classname", "FakePlugin",
             "isolated", "false");
         writeJar(pluginDir1.resolve("plugin.jar"), "FakePlugin");
-        String pluginZip1 = writeZip(pluginDir1);
+        String pluginZip1 = writeZip(pluginDir1, PathUtils.get("elasticsearch"));
         installPlugin(pluginZip1, env);
 
         Path pluginDir2 = createTempDir();
@@ -297,7 +300,7 @@ public class InstallPluginCommandTests extends ESTestCase {
             "classname", "FakePlugin",
             "isolated", "false");
         writeJar(pluginDir2.resolve("plugin.jar"), "FakePlugin");
-        String pluginZip2 = writeZip(pluginDir2);
+        String pluginZip2 = writeZip(pluginDir2, PathUtils.get("elasticsearch"));
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> {
             installPlugin(pluginZip2, env);
         });
@@ -454,6 +457,30 @@ public class InstallPluginCommandTests extends ESTestCase {
             installPlugin(pluginZip, env);
         });
         assertTrue(e.getMessage(), e.getMessage().contains(env.configFile().resolve("elasticsearch.yml").toString()));
+        assertInstallCleaned(env);
+    }
+
+    public void testMissingDescriptor() throws Exception {
+        Environment env = createEnv();
+        Path pluginDir = createTempDir();
+        Files.createFile(pluginDir.resolve("fake.yml"));
+        String pluginZip = writeZip(pluginDir, PathUtils.get("elasticsearch"));
+        NoSuchFileException e = expectThrows(NoSuchFileException.class, () -> {
+            installPlugin(pluginZip, env);
+        });
+        assertTrue(e.getMessage(), e.getMessage().contains("plugin-descriptor.properties"));
+        assertInstallCleaned(env);
+    }
+
+    public void testMissingDirectory() throws Exception {
+        Environment env = createEnv();
+        Path pluginDir = createTempDir();
+        Files.createFile(pluginDir.resolve(PluginInfo.ES_PLUGIN_PROPERTIES));
+        String pluginZip = writeZip(pluginDir, PathUtils.get(""));
+        UserError e = expectThrows(UserError.class, () -> {
+            installPlugin(pluginZip, env);
+        });
+        assertTrue(e.getMessage(), e.getMessage().contains("`elasticsearch` directory is missing in the plugin zip"));
         assertInstallCleaned(env);
     }
 

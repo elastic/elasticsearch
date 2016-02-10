@@ -2,7 +2,7 @@
 === Range Aggregation
 
 A multi-bucket value source based aggregation that enables the user to define a set of ranges - each representing a bucket. During the aggregation process, the values extracted from each document will be checked against each bucket range and "bucket" the relevant/matching document.
-Note that this aggregration includes the `from` value and excludes the `to` value for each range.
+Note that this aggregation includes the `from` value and excludes the `to` value for each range.
 
 Example:
 

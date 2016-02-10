@@ -72,8 +72,8 @@ public class GeoDistanceSortParser implements SortParser {
         NestedInnerQueryParseSupport nestedHelper = null;
 
         final boolean indexCreatedBeforeV2_0 = context.indexShard().getIndexSettings().getIndexVersionCreated().before(Version.V_2_0_0);
-        boolean coerce = false;
-        boolean ignoreMalformed = false;
+        boolean coerce = GeoDistanceSortBuilder.DEFAULT_COERCE;
+        boolean ignoreMalformed = GeoDistanceSortBuilder.DEFAULT_IGNORE_MALFORMED;
 
         XContentParser.Token token;
         String currentName = parser.currentName();
@@ -81,7 +81,7 @@ public class GeoDistanceSortParser implements SortParser {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentName = parser.currentName();
             } else if (token == XContentParser.Token.START_ARRAY) {
-                parseGeoPoints(parser, geoPoints);
+                GeoDistanceSortBuilder.parseGeoPoints(parser, geoPoints);
 
                 fieldName = currentName;
             } else if (token == XContentParser.Token.START_OBJECT) {
@@ -213,26 +213,4 @@ public class GeoDistanceSortParser implements SortParser {
         return new SortField(fieldName, geoDistanceComparatorSource, reverse);
     }
 
-    private void parseGeoPoints(XContentParser parser, List<GeoPoint> geoPoints) throws IOException {
-        while (!parser.nextToken().equals(XContentParser.Token.END_ARRAY)) {
-            if (parser.currentToken() == XContentParser.Token.VALUE_NUMBER) {
-                // we might get here if the geo point is " number, number] " and the parser already moved over the opening bracket
-                // in this case we cannot use GeoUtils.parseGeoPoint(..) because this expects an opening bracket
-                double lon = parser.doubleValue();
-                parser.nextToken();
-                if (!parser.currentToken().equals(XContentParser.Token.VALUE_NUMBER)) {
-                    throw new ElasticsearchParseException("geo point parsing: expected second number but got [{}] instead", parser.currentToken());
-                }
-                double lat = parser.doubleValue();
-                GeoPoint point = new GeoPoint();
-                point.reset(lat, lon);
-                geoPoints.add(point);
-            } else {
-                GeoPoint point = new GeoPoint();
-                GeoUtils.parseGeoPoint(parser, point);
-                geoPoints.add(point);
-            }
-
-        }
-    }
 }

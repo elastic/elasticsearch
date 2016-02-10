@@ -486,6 +486,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                 return;
             }
             final DiscoveryNode node = state.nodes().get(primary.currentNodeId());
+            taskManager.registerChildTask(task, node.getId());
             if (primary.currentNodeId().equals(state.nodes().localNodeId())) {
                 setPhase(task, "waiting_on_primary");
                 if (logger.isTraceEnabled()) {
